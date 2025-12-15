@@ -72,7 +72,19 @@ export default function Header2({ section }) {
   if (greeting.fontStyle) greetingTextStyle.fontStyle = greeting.fontStyle;
   if (greeting.textDecoration) greetingTextStyle.textDecorationLine = greeting.textDecoration;
   
-  const placeholderColor = searchAndIcons?.placeholderColor || "#4B4B4B";
+  const placeholderColor = searchAndIcons?.placeholderColor ||
+    searchBarInputStyle?.color ||
+    "#4B4B4B";
+
+  const searchIconSize = searchAndIcons?.searchIconSize || 18;
+
+  const searchInputColor = searchAndIcons?.inputTextColor || searchBarInputStyle?.color;
+  const searchSelectionColor = searchAndIcons?.selectionColor || searchInputColor || "#131A1D";
+
+  const searchInputStyle = [
+    convertStyles(searchBarInputStyle),
+    searchInputColor ? { color: searchInputColor } : null
+  ];
   
   const profileBorderWidth = profile?.borderWidth || 
                             (profileStyle.borderWidth ? parseFloat(profileStyle.borderWidth) : 4);
@@ -114,17 +126,17 @@ export default function Header2({ section }) {
       <View style={convertStyles(searchContainerStyle)}>
         {searchAndIcons?.showSearch && (
           <View style={convertStyles(searchBarStyle)}>
-            <FontAwesome 
-              name="search" 
-              size={18} 
-              color={searchAndIcons?.searchIconColor || "#39444D"} 
+            <FontAwesome
+              name="search"
+              size={searchIconSize}
+              color={searchAndIcons?.searchIconColor || "#39444D"}
             />
             <TextInput
               placeholder={searchAndIcons?.placeholder || "Search products"}
               placeholderTextColor={placeholderColor}
-              style={convertStyles(searchBarInputStyle)}
+              style={searchInputStyle}
               underlineColorAndroid="transparent"
-              selectionColor="#131A1D"
+              selectionColor={searchSelectionColor}
             />
           </View>
         )}
