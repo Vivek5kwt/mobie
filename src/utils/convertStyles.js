@@ -6,6 +6,12 @@ export function convertStyles(styleObj = {}) {
   const isPx = (v) => typeof v === "string" && v.trim().endsWith("px");
   const pxToNum = (v) => {
     if (typeof v === "number") return v;
+    if (typeof v === "string") {
+      const trimmed = v.trim();
+      if (/^-?\d+(\.\d+)?$/.test(trimmed)) {
+        return parseFloat(trimmed);
+      }
+    }
     if (isPx(v)) {
       const n = parseFloat(v);
       return isNaN(n) ? 0 : n;
@@ -36,13 +42,12 @@ export function convertStyles(styleObj = {}) {
 
     // --------- NEW: CIRCULAR BORDER RADIUS ---------
     if (key === "borderRadius") {
-      const v = String(val);
-      if (v.includes("%") || v === "999px" || v === "9999px") {
+      const v = String(val).trim();
+      if (v.includes("%") || v === "999px" || v === "9999px" || v === "50%") {
         // Circular or large radius for RN
         out.borderRadius = 9999;
-      } else if (v === "50%") {
-        // Perfect circle
-        out.borderRadius = 9999;
+      } else if (/\s|\//.test(v)) {
+        // Multi-value radii are not supported by React Native; ignore to avoid invalid strings
       } else {
         out[key] = pxToNum(val);
       }
