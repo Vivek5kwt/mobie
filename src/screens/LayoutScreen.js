@@ -1,13 +1,11 @@
 import React, { useEffect, useRef, useState } from "react";
-import { RefreshControl, ScrollView, Text, View, StyleSheet, TouchableOpacity, Button } from "react-native";
+import { RefreshControl, ScrollView, Text, View, StyleSheet, Button } from "react-native";
 import DynamicRenderer from "../engine/DynamicRenderer";
 import { fetchDSL } from "../engine/dslHandler";
 import { SafeArea } from "../utils/SafeAreaHandler";
-import tokenLogger from "../utils/tokenLogger";
 
 export default function LayoutScreen() {
   const [dsl, setDsl] = useState(null);
-  const [dslVersion, setDslVersion] = useState(null);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState(null);
   const [refreshing, setRefreshing] = useState(false);
@@ -19,7 +17,6 @@ export default function LayoutScreen() {
       const dslData = await fetchDSL();
       if (dslData?.dsl) {
         setDsl(dslData.dsl);
-        setDslVersion(dslData.versionNumber ?? null);
         versionRef.current = dslData.versionNumber ?? null;
       }
     } catch (e) {
@@ -46,7 +43,6 @@ export default function LayoutScreen() {
       }
 
       setDsl(dslData.dsl);
-      setDslVersion(dslData.versionNumber ?? null);
       versionRef.current = dslData.versionNumber ?? null;
 
       console.log(
@@ -78,7 +74,6 @@ export default function LayoutScreen() {
 
         if (incomingVersion !== versionRef.current) {
           setDsl(latest.dsl);
-          setDslVersion(incomingVersion);
           versionRef.current = incomingVersion;
         }
       } catch (e) {
@@ -89,28 +84,12 @@ export default function LayoutScreen() {
     return () => clearInterval(intervalId);
   }, []);
 
-  // Print token for debugging
-  const printDeviceToken = async () => {
-    console.log("\n" + "=".repeat(60));
-    console.log("🔄 MANUAL TOKEN PRINT REQUESTED");
-    console.log("=".repeat(60));
-
-    try {
-      await tokenLogger.getTokenFromAnySource();
-    } catch (error) {
-      console.log("❌ Error:", error.message);
-    }
-  };
-
   // LOADING SCREEN
   if (loading)
     return (
       <SafeArea>
         <View style={styles.centerContainer}>
           <Text style={styles.loading}>Loading Live Data...</Text>
-          <TouchableOpacity style={styles.tokenButton} onPress={printDeviceToken}>
-            <Text style={styles.tokenButtonText}>📱 Print Device Token</Text>
-          </TouchableOpacity>
         </View>
       </SafeArea>
     );
@@ -122,9 +101,6 @@ export default function LayoutScreen() {
         <View style={styles.centerContainer}>
           <Text style={styles.error}>Error loading: {err || "No DSL found"}</Text>
           <Button title="Retry" onPress={loadDSL} />
-          <TouchableOpacity style={styles.tokenButton} onPress={printDeviceToken}>
-            <Text style={styles.tokenButtonText}>📱 Print Device Token</Text>
-          </TouchableOpacity>
         </View>
       </SafeArea>
     );
@@ -152,18 +128,6 @@ export default function LayoutScreen() {
   return (
     <SafeArea>
       <View style={{ flex: 1 }}>
-        {/* DEV HEADER */}
-        <View style={styles.toggleContainer}>
-          <Text style={styles.toggleText}>
-            Currently using: <Text style={{ fontWeight: "bold" }}>LIVE DATA</Text>
-            {dslVersion ? ` (v${dslVersion})` : ""}
-          </Text>
-
-          <TouchableOpacity style={styles.tokenButton} onPress={printDeviceToken}>
-            <Text style={styles.tokenButtonText}>📱 Print Device Token</Text>
-          </TouchableOpacity>
-        </View>
-
         {/* RENDER SORTED DSL COMPONENTS */}
         <ScrollView
           style={{ flex: 1 }}
@@ -188,32 +152,6 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
     padding: 20,
-  },
-  toggleContainer: {
-    padding: 15,
-    backgroundColor: "#f8f9fa",
-    borderBottomWidth: 1,
-    borderBottomColor: "#dee2e6",
-    alignItems: "center",
-  },
-  tokenButton: {
-    backgroundColor: "#6c757d",
-    padding: 12,
-    borderRadius: 8,
-    marginTop: 10,
-    alignItems: "center",
-    width: "80%",
-  },
-  tokenButtonText: {
-    color: "white",
-    fontWeight: "bold",
-    fontSize: 14,
-  },
-  toggleText: {
-    textAlign: "center",
-    marginTop: 8,
-    fontSize: 14,
-    color: "#6c757d",
   },
   loading: {
     textAlign: "center",
