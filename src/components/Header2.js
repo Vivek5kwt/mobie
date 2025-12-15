@@ -1,10 +1,15 @@
 import React from "react";
-import { View, Text, TextInput } from "react-native";
+import { View, Text, TextInput, useWindowDimensions } from "react-native";
 import LinearGradient from "react-native-linear-gradient";
 import FontAwesome from "react-native-vector-icons/FontAwesome";
 import { convertStyles, extractGradientInfo } from "../utils/convertStyles";
 
 export default function Header2({ section }) {
+  const { width } = useWindowDimensions();
+  const isCompact = width < 400;
+  const isTablet = width >= 768;
+  const baseSpacing = isTablet ? 20 : isCompact ? 12 : 16;
+
   console.log("🔍 Header2 section:", JSON.stringify(section, null, 2));
   
   let props, styleBlock, greeting, profile, searchAndIcons;
@@ -44,7 +49,59 @@ export default function Header2({ section }) {
   const searchBarInputStyle = styleBlock?.searchBarInput || {};
   const notificationContainerStyle = styleBlock?.notificationContainer || {};
   const badgeStyle = styleBlock?.badge || {};
-  
+
+  const containerStyles = {
+    ...convertStyles(containerStyle),
+    paddingHorizontal: containerStyle?.paddingHorizontal ?? baseSpacing,
+    paddingVertical: containerStyle?.paddingVertical ?? baseSpacing,
+    borderRadius: containerStyle?.borderRadius ?? 18,
+  };
+
+  const topRowStyles = {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    columnGap: isCompact ? 10 : 14,
+    rowGap: 6,
+    ...convertStyles(topRowStyle),
+  };
+
+  const profileContainerStyle = {
+    ...convertStyles(profileStyle),
+    justifyContent: "center",
+    alignItems: "center",
+  };
+
+  const searchContainerStyles = {
+    ...convertStyles(searchContainerStyle),
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    columnGap: isCompact ? 10 : 14,
+    flexWrap: isCompact ? "wrap" : "nowrap",
+  };
+
+  const searchWrapperStyle = {
+    ...convertStyles(searchBarStyle),
+    flexDirection: "row",
+    alignItems: "center",
+    columnGap: 8,
+    paddingHorizontal:
+      searchBarStyle?.paddingHorizontal ?? (isCompact ? 10 : 12),
+    paddingVertical:
+      searchBarStyle?.paddingVertical ?? (isCompact ? 6 : 8),
+    borderRadius: searchBarStyle?.borderRadius ?? 14,
+    flex: 1,
+    width: isCompact ? "100%" : undefined,
+  };
+
+  const notificationWrapperStyle = {
+    ...convertStyles(notificationContainerStyle),
+    marginLeft: isCompact ? 10 : 14,
+    alignItems: "center",
+    justifyContent: "center",
+  };
+
   let gradientColors = ["#5EB7C6", "#8DD1D5"];
   let gradientAngle = 90;
   
@@ -83,6 +140,7 @@ export default function Header2({ section }) {
 
   const searchInputStyle = [
     convertStyles(searchBarInputStyle),
+    { flex: 1, minWidth: isCompact ? 160 : 0 },
     searchInputColor ? { color: searchInputColor } : null
   ];
   
@@ -91,13 +149,13 @@ export default function Header2({ section }) {
   
   return (
     <LinearGradient
-      style={convertStyles(containerStyle)}
+      style={containerStyles}
       colors={gradientColors}
       angle={gradientAngle}
       useAngle={true}
     >
       {/* Top Row */}
-      <View style={convertStyles(topRowStyle)}>
+      <View style={topRowStyles}>
         <View>
           <Text style={[convertStyles(greetingTitleStyle), greetingTextStyle]}>
             {greeting?.title || "Welcome"}
@@ -109,7 +167,7 @@ export default function Header2({ section }) {
 
         {profile?.show && (
           <View style={[
-            convertStyles(profileStyle),
+            profileContainerStyle,
             profile.borderColor && { borderColor: profile.borderColor },
             profileBorderWidth && { borderWidth: profileBorderWidth },
             profile.backgroundColor && { backgroundColor: profile.backgroundColor }
@@ -123,9 +181,9 @@ export default function Header2({ section }) {
         )}
       </View>
 
-      <View style={convertStyles(searchContainerStyle)}>
+      <View style={searchContainerStyles}>
         {searchAndIcons?.showSearch && (
-          <View style={convertStyles(searchBarStyle)}>
+          <View style={searchWrapperStyle}>
             <FontAwesome
               name="search"
               size={searchIconSize}
@@ -142,7 +200,7 @@ export default function Header2({ section }) {
         )}
 
         {searchAndIcons?.showNotification && (
-          <View style={convertStyles(notificationContainerStyle)}>
+          <View style={notificationWrapperStyle}>
             <FontAwesome
               name="bell"
               size={searchAndIcons?.notificationIconSize || 36}

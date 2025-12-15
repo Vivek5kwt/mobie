@@ -6,11 +6,19 @@ import {
   TouchableOpacity,
   FlatList,
   StyleSheet,
+  useWindowDimensions,
 } from "react-native";
 import Icon from "react-native-vector-icons/FontAwesome6";
 import { fetchShopifyProducts } from "../services/shopify";
 
 export default function ProductGrid({ section }) {
+  const { width } = useWindowDimensions();
+  const isTablet = width >= 768;
+  const numColumns = width >= 900 ? 4 : width >= 700 ? 3 : 2;
+  const cardSpacing = isTablet ? 16 : 12;
+  const horizontalPadding = isTablet ? 20 : 12;
+  const cardWidth = (width - horizontalPadding * 2 - cardSpacing * (numColumns - 1)) / numColumns;
+
   const props = section?.properties?.props?.properties || {};
 
   const title = props?.title?.value || "";
@@ -35,28 +43,41 @@ export default function ProductGrid({ section }) {
     fetchShopifyProducts(limit).then(setProducts);
   }, [limit]);
 
-  const renderItem = ({ item }) => (
-    <View style={styles.card}>
-      <Image source={{ uri: item.image }} style={styles.image} />
+  const renderItem = ({ item, index }) => {
+    const isLastInRow = (index + 1) % numColumns === 0;
 
-      <Text numberOfLines={1} style={styles.name}>
-        {item.name}
-      </Text>
+    return (
+      <View
+        style={[
+          styles.card,
+          {
+            width: cardWidth,
+            marginRight: isLastInRow ? 0 : cardSpacing,
+            marginBottom: cardSpacing,
+          },
+        ]}
+      >
+        <Image source={{ uri: item.image }} style={styles.image} />
 
-      <Text style={styles.price}>
-        {item.currency} {item.price}
-      </Text>
+        <Text numberOfLines={1} style={styles.name}>
+          {item.name}
+        </Text>
 
-      {favEnabled && (
-        <TouchableOpacity style={styles.favIcon}>
-          <Icon name="heart" size={18} color="red" />
-        </TouchableOpacity>
-      )}
-    </View>
-  );
+        <Text style={styles.price}>
+          {item.currency} {item.price}
+        </Text>
+
+        {favEnabled && (
+          <TouchableOpacity style={styles.favIcon}>
+            <Icon name="heart" size={18} color="red" />
+          </TouchableOpacity>
+        )}
+      </View>
+    );
+  };
 
   return (
-    <View style={styles.wrapper}>
+    <View style={[styles.wrapper, { paddingHorizontal: horizontalPadding }]}>
       <Text
         style={{
           fontSize: titleSize,
@@ -72,23 +93,33 @@ export default function ProductGrid({ section }) {
         data={products}
         renderItem={renderItem}
         keyExtractor={(item) => item.id}
-        numColumns={2}
-        columnWrapperStyle={{ justifyContent: "space-between" }}
+        numColumns={numColumns}
+        key={numColumns}
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={{
+          paddingBottom: cardSpacing * 2,
+          paddingTop: 4,
+        }}
+        columnWrapperStyle={{
+          justifyContent: "flex-start",
+        }}
       />
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  wrapper: { padding: 12 },
+  wrapper: { paddingVertical: 12 },
   card: {
-    width: "48%",
     backgroundColor: "#fff",
     padding: 10,
     borderRadius: 10,
     elevation: 2,
-    marginBottom: 12,
     position: "relative",
+    shadowColor: "#000",
+    shadowOpacity: 0.08,
+    shadowOffset: { width: 0, height: 2 },
+    shadowRadius: 6,
   },
   image: {
     width: "100%",

@@ -1,12 +1,35 @@
 // components/Header.js
 import React from "react";
-import { View, Image, StyleSheet } from "react-native";
+import { View, Image, StyleSheet, useWindowDimensions } from "react-native";
 import Icon from "react-native-vector-icons/FontAwesome6";
 
 export default function Header({ section }) {
+  const { width } = useWindowDimensions();
+  const isSmallScreen = width < 360;
+  const isTablet = width >= 768;
 
   const props = section?.properties?.props?.properties || {};
   const layout = props?.layout?.properties?.css || {};
+
+  const resolvedPadding = convertPadding(props.style?.properties?.padding?.value);
+  const basePadding = isTablet ? 20 : isSmallScreen ? 10 : 14;
+  const horizontalPadding = resolvedPadding || basePadding;
+
+  const logoWidth = layout.logoImage?.width === "auto"
+    ? isSmallScreen
+      ? 64
+      : 80
+    : layout.logoImage?.width;
+
+  const logoHeight = layout.logoImage?.height || (isSmallScreen ? 22 : 26);
+
+  const iconSize = (size) => {
+    const numericSize = typeof size === "number" ? size : parseInt(size, 10);
+    if (Number.isNaN(numericSize)) return isSmallScreen ? 18 : 22;
+    if (isTablet) return numericSize + 2;
+    if (isSmallScreen) return Math.max(18, numericSize - 2);
+    return numericSize;
+  };
 
   // -----------------------------------------
   // 1️⃣ Extract Logo URL properly (IMPORTANT)
@@ -28,12 +51,14 @@ export default function Header({ section }) {
         {
           backgroundColor: props.style?.properties?.backgroundColor?.value,
           minHeight: props.style?.properties?.minHeight?.value,
-          padding: convertPadding(props.style?.properties?.padding?.value),
+          paddingHorizontal: horizontalPadding,
+          paddingVertical: isSmallScreen ? basePadding / 1.5 : basePadding,
           borderColor: props.style?.properties?.borderColor?.value,
           borderWidth: 1,
           flexDirection: "row",
           justifyContent: layout.container?.justifyContent || "space-between",
           alignItems: layout.container?.alignItems || "center",
+          gap: isSmallScreen ? 8 : 12,
         }
       ]}
     >
@@ -43,7 +68,7 @@ export default function Header({ section }) {
         {props.sideMenu?.properties?.visible?.value && (
           <Icon
             name={props.sideMenu.properties.iconId.value}
-            size={props.sideMenu.properties.width.value}
+            size={iconSize(props.sideMenu.properties.width.value)}
             color={props.sideMenu.properties.color.value}
           />
         )}
@@ -55,8 +80,8 @@ export default function Header({ section }) {
           <Image
             source={{ uri: logoUrl }}   // <--- FIX APPLIED HERE
             style={{
-              width: layout.logoImage?.width === "auto" ? 80 : layout.logoImage?.width,
-              height: layout.logoImage?.height || 26,
+              width: logoWidth,
+              height: logoHeight,
               resizeMode: "contain",
             }}
           />
@@ -68,10 +93,10 @@ export default function Header({ section }) {
 
         {/* Notification */}
         {props.notification?.properties?.visible?.value && (
-          <View style={{ position: "relative" }}>
+          <View style={styles.iconWrapper}>
             <Icon
               name={props.notification.properties.iconId.value}
-              size={props.notification.properties.width.value}
+              size={iconSize(props.notification.properties.width.value)}
               color={props.notification.properties.color.value}
             />
 
@@ -94,10 +119,10 @@ export default function Header({ section }) {
 
         {/* Cart */}
         {props.cart?.properties?.visible?.value && (
-          <View style={{ position: "relative" }}>
+          <View style={styles.iconWrapper}>
             <Icon
               name={props.cart.properties.iconId.value}
-              size={props.cart.properties.width.value}
+              size={iconSize(props.cart.properties.width.value)}
               color={props.cart.properties.color.value}
             />
 
@@ -132,9 +157,13 @@ function convertPadding(str) {
 }
 
 const styles = StyleSheet.create({
-  container: {},
+  container: {
+    width: "100%",
+    flexWrap: "nowrap",
+  },
   leftSlot: { flexDirection: "row", alignItems: "center" },
   logoSlot: { flex: 1, alignItems: "center" },
-  rightSlot: { flexDirection: "row", alignItems: "center", gap: 14 },
+  rightSlot: { flexDirection: "row", alignItems: "center" },
+  iconWrapper: { position: "relative", marginLeft: 14 },
   badge: { position: "absolute", borderRadius: 20 },
 });
