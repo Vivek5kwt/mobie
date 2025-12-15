@@ -54,6 +54,21 @@ export function convertStyles(styleObj = {}) {
       continue;
     }
 
+    // --------- NEW: PER-CORNER BORDER RADII ---------
+    if (/^border(TopLeft|TopRight|BottomLeft|BottomRight)Radius$/.test(key)) {
+      const v = String(val).trim();
+
+      // If provided as percentage or an obviously circular value, fall back to a large radius
+      if (v.includes("%") || v === "999px" || v === "9999px" || v === "50%") {
+        out[key] = 9999;
+      } else if (/\s|\//.test(v)) {
+        // Multi-value corner radii are invalid for RN; skip to avoid strings being passed through
+      } else {
+        out[key] = pxToNum(val);
+      }
+      continue;
+    }
+
     // --------- ENHANCED: LINEAR GRADIENT HANDLING ---------
     if (key === "background" || key === "backgroundColor") {
       const str = String(val);
