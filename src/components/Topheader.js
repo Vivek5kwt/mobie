@@ -68,55 +68,54 @@ export default function Header({ section }) {
 
         {/* Notification */}
         {props.notification?.properties?.visible?.value && (
-         
-           <View style={{ position: "relative" }}>
-           <Icon
-             name={props.cart.properties.iconId.value}
-             size={props.cart.properties.width.value}
-             color={props.cart.properties.color.value}
-           />
+          <View style={{ position: "relative" }}>
+            <Icon
+              name={props.notification.properties.iconId.value}
+              size={props.notification.properties.width.value}
+              color={props.notification.properties.color.value}
+            />
 
-           {props.cart.properties.showBadge?.value && (
-             <View
-               style={[
-                 styles.badge,
-                 {
-                   backgroundColor: layout.badge.backgroundColor,
-                   width: layout.badge.width,
-                   height: layout.badge.height,
-                   top: layout.badge.top,
-                   right: layout.badge.right,
-                 }
-               ]}
-             />
-           )}
-         </View>
+            {props.notification.properties.showBadge?.value && (
+              <View
+                style={[
+                  styles.badge,
+                  {
+                    backgroundColor: layout.badge.backgroundColor,
+                    width: layout.badge.width,
+                    height: layout.badge.height,
+                    top: layout.badge.top,
+                    right: layout.badge.right,
+                  }
+                ]}
+              />
+            )}
+          </View>
         )}
 
         {/* Cart */}
         {props.cart?.properties?.visible?.value && (
           <View style={{ position: "relative" }}>
-          <Icon
-            name={props.notification.properties.iconId.value}
-            size={props.notification.properties.width.value}
-            color={props.notification.properties.color.value}
-          />
-
-          {props.notification.properties.showBadge?.value && (
-            <View
-              style={[
-                styles.badge,
-                {
-                  backgroundColor: layout.badge.backgroundColor,
-                  width: layout.badge.width,
-                  height: layout.badge.height,
-                  top: layout.badge.top,
-                  right: layout.badge.right,
-                }
-              ]}
+            <Icon
+              name={props.cart.properties.iconId.value}
+              size={props.cart.properties.width.value}
+              color={props.cart.properties.color.value}
             />
-          )}
-        </View>
+
+            {props.cart.properties.showBadge?.value && (
+              <View
+                style={[
+                  styles.badge,
+                  {
+                    backgroundColor: layout.badge.backgroundColor,
+                    width: layout.badge.width,
+                    height: layout.badge.height,
+                    top: layout.badge.top,
+                    right: layout.badge.right,
+                  }
+                ]}
+              />
+            )}
+          </View>
         )}
 
       </View>

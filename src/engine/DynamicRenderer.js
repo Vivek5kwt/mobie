@@ -3,13 +3,16 @@ import React from "react";
 
 // LIVE COMPONENTS
 import Header from "../components/Topheader";       // Live Header (v1)
-import Header2 from "../components/Header2";     // Live Header (v2 / mobile)
+import Header2 from "../components/Header2";        // Live Header (v2 / mobile)
+import ProductGrid from "../components/ProductGrid";
 
 // COMPONENT MAP — ALL LIVE ONLY
 const componentMap = {
   header: Header,               // LIVE HEADER 1
-  header_mobile: Header,        
+  header_mobile: Header,
+  header_2: Header2,
   header_2_mobile: Header2,
+  product_grid: ProductGrid,
 };
 
 // detect mobile version for header_2
@@ -36,7 +39,9 @@ export default function DynamicRenderer({ section }) {
       if (isMobile) compName = "header_2_mobile";
     }
 
-    compName = compName.toLowerCase();
+    compName = compName
+      .toLowerCase()
+      .replace(/[-\s]+/g, "_");
 
     const Component = componentMap[compName];
 
