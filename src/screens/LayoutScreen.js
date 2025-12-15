@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { RefreshControl, ScrollView, Text, View, StyleSheet, TouchableOpacity, Button } from "react-native";
 import DynamicRenderer from "../engine/DynamicRenderer";
 import { fetchDSL } from "../engine/dslHandler";
@@ -7,15 +7,21 @@ import tokenLogger from "../utils/tokenLogger";
 
 export default function LayoutScreen() {
   const [dsl, setDsl] = useState(null);
+  const [dslVersion, setDslVersion] = useState(null);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState(null);
   const [refreshing, setRefreshing] = useState(false);
+  const versionRef = useRef(null);
 
   // Reload DSL
   const refreshDSL = async () => {
     try {
       const dslData = await fetchDSL();
-      setDsl(dslData);
+      if (dslData?.dsl) {
+        setDsl(dslData.dsl);
+        setDslVersion(dslData.versionNumber ?? null);
+        versionRef.current = dslData.versionNumber ?? null;
+      }
     } catch (e) {
       console.log("❌ Refresh error:", e);
     }
@@ -34,17 +40,21 @@ export default function LayoutScreen() {
       setErr(null);
 
       const dslData = await fetchDSL();
-      setDsl(dslData);
+      if (!dslData?.dsl) {
+        setErr("No live DSL returned from server");
+        return;
+      }
+
+      setDsl(dslData.dsl);
+      setDslVersion(dslData.versionNumber ?? null);
+      versionRef.current = dslData.versionNumber ?? null;
 
       console.log(
         `================ LIVE DSL OUTPUT ================\n`,
-        JSON.stringify(dslData, null, 2),
+        JSON.stringify(dslData.dsl, null, 2),
         "\n================================================="
       );
 
-      if (!dslData) {
-        setErr("No live DSL returned from server");
-      }
     } catch (e) {
       setErr(e.message);
       console.log("❌ DSL LOAD ERROR >>>", e);
@@ -55,6 +65,28 @@ export default function LayoutScreen() {
 
   useEffect(() => {
     loadDSL();
+  }, []);
+
+  // Auto-refresh DSL periodically to pick up newly published versions
+  useEffect(() => {
+    const intervalId = setInterval(async () => {
+      try {
+        const latest = await fetchDSL();
+        if (!latest?.dsl) return;
+
+        const incomingVersion = latest.versionNumber ?? null;
+
+        if (incomingVersion !== versionRef.current) {
+          setDsl(latest.dsl);
+          setDslVersion(incomingVersion);
+          versionRef.current = incomingVersion;
+        }
+      } catch (e) {
+        console.log("❌ Auto-refresh error:", e);
+      }
+    }, 5000);
+
+    return () => clearInterval(intervalId);
   }, []);
 
   // Print token for debugging
@@ -100,7 +132,7 @@ export default function LayoutScreen() {
   // ---------------------------------------------------------
   // ⭐ IMPORTANT FIX: SORT HEADERS IN CORRECT ORDER
   // ---------------------------------------------------------
-  const sortedSections = [...(dsl.sections || [])].sort((a, b) => {
+  const sortedSections = [...(dsl?.sections || [])].sort((a, b) => {
     const A = a?.properties?.component?.const || "";
     const B = b?.properties?.component?.const || "";
 
@@ -124,6 +156,7 @@ export default function LayoutScreen() {
         <View style={styles.toggleContainer}>
           <Text style={styles.toggleText}>
             Currently using: <Text style={{ fontWeight: "bold" }}>LIVE DATA</Text>
+            {dslVersion ? ` (v${dslVersion})` : ""}
           </Text>
 
           <TouchableOpacity style={styles.tokenButton} onPress={printDeviceToken}>

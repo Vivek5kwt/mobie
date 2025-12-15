@@ -31,6 +31,7 @@ export async function fetchLiveDSL(appId = 1) {
 
     const latestVersion = sortedVersions[0];
     const dslData = latestVersion?.dsl;
+    const versionNumber = latestVersion?.version_number ?? null;
 
     console.log(`✅ LIVE DATA FETCHED - Version ${latestVersion.version_number}`);
     console.log(`📊 Sections count: ${dslData?.sections?.length || 0}`);
@@ -40,7 +41,7 @@ export async function fetchLiveDSL(appId = 1) {
       console.log(`🔍 Components found:`, components);
     }
 
-    return dslData;
+    return { dsl: dslData, versionNumber };
   } catch (error) {
     console.log("❌ LIVE DATA ERROR:", error);
     return null;
