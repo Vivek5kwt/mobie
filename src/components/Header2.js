@@ -1,13 +1,13 @@
 import React from "react";
-import { View, Text, TextInput, Image } from "react-native";
+import { View, Text, TextInput, Image, TouchableOpacity } from "react-native";
 import LinearGradient from "react-native-linear-gradient";
 import FontAwesome from "react-native-vector-icons/FontAwesome";
 import { convertStyles, extractGradientInfo } from "../utils/convertStyles";
 
 export default function Header2({ section }) {
   console.log("🔍 Header2 section:", JSON.stringify(section, null, 2));
-  
-  let props, styleBlock, greeting, profile, searchAndIcons;
+
+  let props, styleBlock, greeting, profile, searchAndIcons, appBar;
   
   if (section?.props) {
     props = section.props;
@@ -15,6 +15,7 @@ export default function Header2({ section }) {
     greeting = props.greeting || {};
     profile = props.profile || {};
     searchAndIcons = props.searchAndIcons || {};
+    appBar = props.appBar || {};
     console.log("✅ Using LIVE format");
   } 
   else if (section?.properties?.props?.properties) {
@@ -23,6 +24,7 @@ export default function Header2({ section }) {
     greeting = props.greeting || {};
     profile = props.profile || {};
     searchAndIcons = props.searchAndIcons || {};
+    appBar = props.appBar || {};
     console.log("✅ Using DUMMY format");
   } else {
     console.log("❌ No valid format found");
@@ -50,16 +52,16 @@ export default function Header2({ section }) {
   
   if (typeof containerStyle?.background === "string" &&
     containerStyle.background.includes("linear-gradient")) {
-  
-  const info = extractGradientInfo({ background: containerStyle.background });
-  if (info?.colors) gradientColors = info.colors;
-  if (info?.angle !== undefined) gradientAngle = info.angle;
 
-} else if (containerStyle?.backgroundGradient) {
-  gradientColors = containerStyle.backgroundGradient.colors || gradientColors;
-  gradientAngle = containerStyle.backgroundGradient.angle || gradientAngle;
-}
-  else {
+    const info = extractGradientInfo({ background: containerStyle.background });
+    if (info?.colors) gradientColors = info.colors;
+    if (info?.angle !== undefined) gradientAngle = info.angle;
+
+  } else if (containerStyle?.backgroundGradient) {
+    gradientColors = containerStyle.backgroundGradient.colors || gradientColors;
+    gradientAngle = containerStyle.backgroundGradient.angle || gradientAngle;
+
+  } else {
     const gradientInfo = extractGradientInfo(containerStyle);
     if (gradientInfo?.colors) gradientColors = gradientInfo.colors;
     if (gradientInfo?.angle) gradientAngle = gradientInfo.angle;
@@ -73,9 +75,49 @@ export default function Header2({ section }) {
   if (greeting.textDecoration) greetingTextStyle.textDecorationLine = greeting.textDecoration;
   
   const placeholderColor = searchAndIcons?.placeholderColor || "#4B4B4B";
-  
-  const profileBorderWidth = profile?.borderWidth || 
+
+  const profileBorderWidth = profile?.borderWidth ||
                             (profileStyle.borderWidth ? parseFloat(profileStyle.borderWidth) : 4);
+
+  const appBarContainerStyle = appBar?.containerStyle || appBar?.style || styleBlock?.appBar || {};
+  const appBarTitleStyle = appBar?.titleStyle || {};
+  const appBarSubtitleStyle = appBar?.subtitleStyle || {};
+
+  const hasGreeting = !!(greeting?.title || greeting?.name);
+
+  const hasLeftIcon = !!appBar?.leftIcon;
+
+  const shouldShowAppBar = !!(appBar?.show ?? (
+    appBar && (
+      appBar.title ||
+      appBar.subtitle ||
+      appBar.leftIcon ||
+      (appBar.rightIcons && appBar.rightIcons.length > 0)
+    )
+  ));
+
+  const renderIconButton = (icon, index, extraStyle) => {
+    if (!icon) return null;
+
+    const iconContainer = icon.containerStyle || {};
+    const fallbackSize = icon.size || 20;
+
+    return (
+      <TouchableOpacity
+        key={index}
+        style={[convertStyles(iconContainer), extraStyle]}
+        activeOpacity={icon?.onPress ? 0.7 : 1}
+        onPress={icon?.onPress}
+        disabled={!icon?.onPress}
+      >
+        <FontAwesome
+          name={icon.name || icon.icon || "circle"}
+          size={fallbackSize}
+          color={icon.color || "#131A1D"}
+        />
+      </TouchableOpacity>
+    );
+  };
   
   return (
     <LinearGradient
@@ -84,16 +126,59 @@ export default function Header2({ section }) {
       angle={gradientAngle}
       useAngle={true}
     >
+      {shouldShowAppBar && (
+        <View
+          style={[
+            {
+              flexDirection: "row",
+              alignItems: "center",
+              justifyContent: "space-between",
+            },
+            convertStyles(appBarContainerStyle),
+          ]}
+        >
+          <View style={{ flexDirection: "row", alignItems: "center" }}>
+            {renderIconButton(appBar.leftIcon, "left")}
+            {(appBar.title || appBar.subtitle) && (
+              <View style={hasLeftIcon ? { marginLeft: 10 } : null}>
+                {appBar.title && (
+                  <Text style={[{ fontSize: 16, fontWeight: "600" }, convertStyles(appBarTitleStyle)]}>
+                    {appBar.title}
+                  </Text>
+                )}
+                {appBar.subtitle && (
+                  <Text style={[{ fontSize: 12, color: "#4B4B4B" }, convertStyles(appBarSubtitleStyle)]}>
+                    {appBar.subtitle}
+                  </Text>
+                )}
+              </View>
+            )}
+          </View>
+
+          {appBar?.rightIcons?.length > 0 && (
+            <View style={{ flexDirection: "row", alignItems: "center" }}>
+              {appBar.rightIcons.map((icon, idx) => renderIconButton(icon, idx, idx > 0 ? { marginLeft: 12 } : null))}
+            </View>
+          )}
+        </View>
+      )}
+
       {/* Top Row */}
       <View style={convertStyles(topRowStyle)}>
-        <View>
-          <Text style={[convertStyles(greetingTitleStyle), greetingTextStyle]}>
-            {greeting?.title || "Welcome"}
-          </Text>
-          <Text style={[convertStyles(greetingNameStyle), greetingTextStyle]}>
-            {greeting?.name || "User"}
-          </Text>
-        </View>
+        {hasGreeting && (
+          <View>
+            {greeting?.title && (
+              <Text style={[convertStyles(greetingTitleStyle), greetingTextStyle]}>
+                {greeting.title}
+              </Text>
+            )}
+            {greeting?.name && (
+              <Text style={[convertStyles(greetingNameStyle), greetingTextStyle]}>
+                {greeting.name}
+              </Text>
+            )}
+          </View>
+        )}
 
         {profile?.show && (
           <View
