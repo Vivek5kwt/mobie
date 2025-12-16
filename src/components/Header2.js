@@ -5,13 +5,25 @@ import FontAwesome from "react-native-vector-icons/FontAwesome";
 import { convertStyles, extractGradientInfo } from "../utils/convertStyles";
 
 const resolveBooleanSetting = (input, defaultValue = true) => {
+  const normalize = (value) => {
+    if (typeof value === "string") {
+      const lowered = value.trim().toLowerCase();
+      if (["true", "1", "yes"].includes(lowered)) return true;
+      if (["false", "0", "no"].includes(lowered)) return false;
+    }
+    return !!value;
+  };
+
   if (input === undefined || input === null) return defaultValue;
   if (typeof input === "boolean") return input;
+
   if (typeof input === "object") {
-    if (input.value !== undefined) return !!input.value;
-    if (input.properties?.value !== undefined) return !!input.properties.value;
+    if (input.value !== undefined) return normalize(input.value);
+    if (input.properties?.value !== undefined) return normalize(input.properties.value);
+    if (input.const !== undefined) return normalize(input.const);
   }
-  return !!input;
+
+  return normalize(input);
 };
 
 export default function Header2({ section }) {
