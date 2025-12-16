@@ -8,7 +8,8 @@ import Header2 from "../components/Header2";     // Live Header (v2 / mobile)
 // COMPONENT MAP — ALL LIVE ONLY
 const componentMap = {
   header: Header,               // LIVE HEADER 1
-  header_mobile: Header,        
+  header_mobile: Header,
+  header_2: Header2,
   header_2_mobile: Header2,
 };
 
