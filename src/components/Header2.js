@@ -4,6 +4,16 @@ import LinearGradient from "react-native-linear-gradient";
 import FontAwesome from "react-native-vector-icons/FontAwesome";
 import { convertStyles, extractGradientInfo } from "../utils/convertStyles";
 
+const resolveBooleanSetting = (input, defaultValue = true) => {
+  if (input === undefined || input === null) return defaultValue;
+  if (typeof input === "boolean") return input;
+  if (typeof input === "object") {
+    if (input.value !== undefined) return !!input.value;
+    if (input.properties?.value !== undefined) return !!input.properties.value;
+  }
+  return !!input;
+};
+
 export default function Header2({ section }) {
   console.log("🔍 Header2 section:", JSON.stringify(section, null, 2));
 
@@ -83,7 +93,12 @@ export default function Header2({ section }) {
   const appBarTitleStyle = appBar?.titleStyle || {};
   const appBarSubtitleStyle = appBar?.subtitleStyle || {};
 
-  const hasGreeting = !!(greeting?.title || greeting?.name);
+  const greetingEnabled = resolveBooleanSetting(props?.greetingSettingsEnabled);
+  const searchEnabled = resolveBooleanSetting(props?.searchSettingsEnabled);
+  const notificationEnabled = resolveBooleanSetting(props?.notificationSettingsEnabled);
+  const profileEnabled = resolveBooleanSetting(props?.profileSettingsEnabled);
+
+  const hasGreeting = greetingEnabled && !!(greeting?.title || greeting?.name);
 
   const hasLeftIcon = !!appBar?.leftIcon;
 
@@ -180,7 +195,7 @@ export default function Header2({ section }) {
           </View>
         )}
 
-        {profile?.show && (
+        {profileEnabled && profile?.show && (
           <View
             style={[
               convertStyles(profileStyle),
@@ -212,10 +227,10 @@ export default function Header2({ section }) {
       </View>
 
       <View style={convertStyles(searchContainerStyle)}>
-        {searchAndIcons?.showSearch && (
+        {searchEnabled && searchAndIcons?.showSearch && (
           <View style={convertStyles(searchBarStyle)}>
-            <FontAwesome 
-              name="search" 
+            <FontAwesome
+              name="search"
               size={18} 
               color={searchAndIcons?.searchIconColor || "#39444D"} 
             />
@@ -229,7 +244,7 @@ export default function Header2({ section }) {
           </View>
         )}
 
-        {searchAndIcons?.showNotification && (
+        {notificationEnabled && searchAndIcons?.showNotification && (
           <View style={convertStyles(notificationContainerStyle)}>
             <FontAwesome
               name="bell"
