@@ -1,5 +1,5 @@
 import React from "react";
-import { View, Text, TextInput } from "react-native";
+import { View, Text, TextInput, Image } from "react-native";
 import LinearGradient from "react-native-linear-gradient";
 import FontAwesome from "react-native-vector-icons/FontAwesome";
 import { convertStyles, extractGradientInfo } from "../utils/convertStyles";
@@ -96,17 +96,32 @@ export default function Header2({ section }) {
         </View>
 
         {profile?.show && (
-          <View style={[
-            convertStyles(profileStyle),
-            profile.borderColor && { borderColor: profile.borderColor },
-            profileBorderWidth && { borderWidth: profileBorderWidth },
-            profile.backgroundColor && { backgroundColor: profile.backgroundColor }
-          ]}>
-            <FontAwesome
-              name="user"
-              size={profile?.size || 30}
-              color={profile?.borderColor || "#0E6A70"}
-            />
+          <View
+            style={[
+              convertStyles(profileStyle),
+              profile.borderColor && { borderColor: profile.borderColor },
+              profileBorderWidth && { borderWidth: profileBorderWidth },
+              profile.backgroundColor && { backgroundColor: profile.backgroundColor },
+              { overflow: "hidden" },
+            ]}
+          >
+            {profile?.image ? (
+              <Image
+                source={{ uri: profile.image }}
+                style={{
+                  width: profile?.size || 30,
+                  height: profile?.size || 30,
+                  borderRadius: (profile?.size || 30) / 2,
+                }}
+                resizeMode="cover"
+              />
+            ) : (
+              <FontAwesome
+                name="user"
+                size={profile?.size || 30}
+                color={profile?.borderColor || "#0E6A70"}
+              />
+            )}
           </View>
         )}
       </View>
