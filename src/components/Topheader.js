@@ -3,6 +3,8 @@ import React from "react";
 import { View, Image, StyleSheet } from "react-native";
 import Icon from "react-native-vector-icons/FontAwesome6";
 
+const isEnabled = (value) => value === true || value === "true";
+
 export default function Header({ section }) {
 
   const props = section?.properties?.props?.properties || {};
@@ -40,7 +42,7 @@ export default function Header({ section }) {
 
       {/* LEFT ICON */}
       <View style={[styles.leftSlot, layout.leftSlot]}>
-        {props.sideMenu?.properties?.visible?.value && (
+        {isEnabled(props.sideMenu?.properties?.visible?.value) && (
           <Icon
             name={props.sideMenu.properties.iconId.value}
             size={props.sideMenu.properties.width.value}
@@ -50,7 +52,7 @@ export default function Header({ section }) {
       </View>
 
       {/* LOGO */}
-      {props.enableLogo?.value && (
+      {isEnabled(props.enableLogo?.value) && (
         <View style={[styles.logoSlot, layout.logoSlot]}>
           <Image
             source={{ uri: logoUrl }}   // <--- FIX APPLIED HERE
@@ -67,16 +69,16 @@ export default function Header({ section }) {
       <View style={[styles.rightSlot, layout.rightSlot]}>
 
         {/* Notification */}
-        {props.notification?.properties?.visible?.value && (
-         
+        {isEnabled(props.notification?.properties?.visible?.value) && (
+
            <View style={{ position: "relative" }}>
            <Icon
-             name={props.cart.properties.iconId.value}
-             size={props.cart.properties.width.value}
-             color={props.cart.properties.color.value}
+             name={props.notification.properties.iconId.value}
+             size={props.notification.properties.width.value}
+             color={props.notification.properties.color.value}
            />
 
-           {props.cart.properties.showBadge?.value && (
+           {isEnabled(props.notification.properties.showBadge?.value) && (
              <View
                style={[
                  styles.badge,
@@ -94,15 +96,15 @@ export default function Header({ section }) {
         )}
 
         {/* Cart */}
-        {props.cart?.properties?.visible?.value && (
+        {isEnabled(props.cart?.properties?.visible?.value) && (
           <View style={{ position: "relative" }}>
           <Icon
-            name={props.notification.properties.iconId.value}
-            size={props.notification.properties.width.value}
-            color={props.notification.properties.color.value}
+            name={props.cart.properties.iconId.value}
+            size={props.cart.properties.width.value}
+            color={props.cart.properties.color.value}
           />
 
-          {props.notification.properties.showBadge?.value && (
+          {isEnabled(props.cart.properties.showBadge?.value) && (
             <View
               style={[
                 styles.badge,
