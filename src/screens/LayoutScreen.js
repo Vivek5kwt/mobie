@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from "react";
 import { RefreshControl, ScrollView, Text, View, StyleSheet, Button } from "react-native";
 import DynamicRenderer from "../engine/DynamicRenderer";
 import { fetchDSL } from "../engine/dslHandler";
+import { shouldRenderSectionOnMobile } from "../engine/visibility";
 import { SafeArea } from "../utils/SafeAreaHandler";
 
 export default function LayoutScreen() {
@@ -108,7 +109,9 @@ export default function LayoutScreen() {
   // ---------------------------------------------------------
   // ⭐ IMPORTANT FIX: SORT HEADERS IN CORRECT ORDER
   // ---------------------------------------------------------
-  const sortedSections = [...(dsl?.sections || [])].sort((a, b) => {
+  const mobileSections = (dsl?.sections || []).filter(shouldRenderSectionOnMobile);
+
+  const sortedSections = [...mobileSections].sort((a, b) => {
     const A = a?.properties?.component?.const || "";
     const B = b?.properties?.component?.const || "";
 
