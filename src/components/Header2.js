@@ -57,7 +57,7 @@ export default function Header2({ section }) {
   console.log("👋 Greeting:", greeting);
   console.log("🔍 Profile:", profile);
   
-  const containerStyle = styleBlock?.container || {};
+  const containerStyle = { ...(styleBlock?.container || {}) };
   const topRowStyle = styleBlock?.topRow || {};
   const profileStyle = styleBlock?.profile || {};
   const greetingTitleStyle = styleBlock?.greetingTitle || styleBlock?.greeting || {};
@@ -146,6 +146,13 @@ export default function Header2({ section }) {
     );
   };
   
+  // Avoid full-height blocks that swallow scroll gestures when a DSL
+  // provides `height: "100%"` for the header container. Let the content
+  // size itself naturally so subsequent sections remain reachable.
+  if (typeof containerStyle.height === "string" && containerStyle.height.includes("%")) {
+    delete containerStyle.height;
+  }
+
   return (
     <LinearGradient
       style={convertStyles(containerStyle)}
