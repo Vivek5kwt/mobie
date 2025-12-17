@@ -176,6 +176,14 @@ export default function BannerSlider({ section }) {
                 },
               ]}
             >
+              {slide.image ? (
+                <Image
+                  source={{ uri: slide.image }}
+                  style={[styles.imageBackground, { borderRadius: bannerRadius }]}
+                  resizeMode={buttonStyleFromCss?.resizeMode || "cover"}
+                />
+              ) : null}
+
               <View style={styles.textBlock}>
                 {slide.headline ? (
                   <Text
@@ -209,14 +217,6 @@ export default function BannerSlider({ section }) {
                   </TouchableOpacity>
                 ) : null}
               </View>
-
-              {slide.image ? (
-                <Image
-                  source={{ uri: slide.image }}
-                  style={[styles.image, { borderRadius: bannerRadius }]}
-                  resizeMode={buttonStyleFromCss?.resizeMode || "cover"}
-                />
-              ) : null}
             </View>
           </View>
         ))}
@@ -284,9 +284,8 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: "600",
   },
-  image: {
-    width: 140,
-    height: 140,
+  imageBackground: {
+    ...StyleSheet.absoluteFillObject,
   },
   dotsRow: {
     flexDirection: "row",
