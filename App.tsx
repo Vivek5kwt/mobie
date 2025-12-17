@@ -4,6 +4,7 @@ import { ApolloProvider } from "@apollo/client/react";
 import client from "./src/apollo/client";
 import { NavigationContainer } from "@react-navigation/native";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
+import { SafeAreaProvider } from "react-native-safe-area-context";
 import SplashScreen from "./src/screens/saplash";
 import LayoutScreen from './src/screens/LayoutScreen';
 
@@ -43,18 +44,20 @@ export default function App() {
   };
 
   return (
-    <ApolloProvider client={client}>
-      <NavigationContainer>
-        <Stack.Navigator screenOptions={{ headerShown: false }}>
-          
-          {/* 🔥 First Screen: Splash */}
-          <Stack.Screen name="Splash" component={SplashScreen} />
+    <SafeAreaProvider>
+      <ApolloProvider client={client}>
+        <NavigationContainer>
+          <Stack.Navigator screenOptions={{ headerShown: false }}>
 
-          {/* 🔥 Main Screen: Your builder UI */}
-          <Stack.Screen name="LayoutScreen" component={LayoutScreen} />
+            {/* 🔥 First Screen: Splash */}
+            <Stack.Screen name="Splash" component={SplashScreen} />
 
-        </Stack.Navigator>
-      </NavigationContainer>
-    </ApolloProvider>
+            {/* 🔥 Main Screen: Your builder UI */}
+            <Stack.Screen name="LayoutScreen" component={LayoutScreen} />
+
+          </Stack.Navigator>
+        </NavigationContainer>
+      </ApolloProvider>
+    </SafeAreaProvider>
   );
 }
