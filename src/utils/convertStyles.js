@@ -191,6 +191,23 @@ export function convertStyles(styleObj = {}) {
 
     // --------- REST OF YOUR EXISTING CODE (with slight modifications) ---------
     // --------- 0) BASIC NORMALIZATION ---------
+    if (key === "lineHeight") {
+      const resolvedFontSize = pxToNum(styleObj.fontSize ?? styleObj["font-size"] ?? 16);
+
+      if (typeof val === "string") {
+        if (isPx(val)) {
+          out.lineHeight = pxToNum(val);
+        } else {
+          const parsed = parseFloat(val);
+          out.lineHeight = Number.isNaN(parsed) ? val : parsed * resolvedFontSize;
+        }
+      } else if (typeof val === "number") {
+        out.lineHeight = val < 10 ? val * resolvedFontSize : val;
+      }
+
+      continue;
+    }
+
     const isLengthProp =
       [
         "width",
@@ -208,8 +225,7 @@ export function convertStyles(styleObj = {}) {
         "borderRightWidth",
         "borderBottomWidth",
         "borderLeftWidth",
-        "fontSize",
-        "lineHeight"
+        "fontSize"
       ].includes(key);
 
     if (isLengthProp) {
