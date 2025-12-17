@@ -37,8 +37,30 @@ const asNumber = (value, fallback = undefined) => {
 
 const parseDateValue = (value) => {
   const raw = unwrapValue(value, null);
+
   if (!raw) return null;
-  const parsed = new Date(raw);
+
+  const normalize = (input) => {
+    if (typeof input === "number") {
+      return input < 1e12 ? input * 1000 : input;
+    }
+
+    if (typeof input === "string") {
+      const trimmed = input.trim();
+      const asNumberValue = Number(trimmed);
+
+      if (!Number.isNaN(asNumberValue)) {
+        return asNumberValue < 1e12 ? asNumberValue * 1000 : asNumberValue;
+      }
+
+      return trimmed;
+    }
+
+    return input;
+  };
+
+  const parsed = new Date(normalize(raw));
+
   return Number.isNaN(parsed.getTime()) ? null : parsed;
 };
 
@@ -52,7 +74,7 @@ const buildCountdown = (endTime, startTime) => {
   const hours = Math.floor((totalSeconds % 86400) / 3600);
   const minutes = Math.floor((totalSeconds % 3600) / 60);
   const seconds = totalSeconds % 60;
-  return { days, hours, minutes, seconds };
+  return { days, hours, minutes, seconds, remainingMs: diff };
 };
 
 const getRawProps = (section) =>
@@ -66,10 +88,15 @@ const deriveContainerStyles = (layoutCss, styleBlock) => {
   return { containerStyle: rest, gradientInfo: extractGradientInfo(converted) };
 };
 
-const parseTiming = (rawProps) => ({
-  endTime: parseDateValue(rawProps?.endTime),
-  startTime: parseDateValue(rawProps?.startTime),
-});
+const parseTiming = (rawProps, fallbackStartTime = null) => {
+  const parsedEndTime = parseDateValue(rawProps?.endTime);
+  const parsedStartTime = parseDateValue(rawProps?.startTime) || fallbackStartTime;
+
+  return {
+    endTime: parsedEndTime,
+    startTime: parsedStartTime,
+  };
+};
 
 const isSameTime = (a, b) => {
   if (!a && !b) return true;
@@ -82,7 +109,7 @@ class Countdown extends PureComponent {
     super(props);
 
     const rawProps = getRawProps(props.section);
-    const { endTime, startTime } = parseTiming(rawProps);
+    const { endTime, startTime } = parseTiming(rawProps, new Date());
 
     this.state = {
       endTime,
@@ -99,7 +126,7 @@ class Countdown extends PureComponent {
 
   componentDidUpdate(prevProps, prevState) {
     const rawProps = getRawProps(this.props.section);
-    const { endTime, startTime } = parseTiming(rawProps);
+    const { endTime, startTime } = parseTiming(rawProps, this.state.startTime || new Date());
 
     if (!isSameTime(endTime, prevState.endTime) || !isSameTime(startTime, prevState.startTime)) {
       this.updateTiming(endTime, startTime);
@@ -129,7 +156,13 @@ class Countdown extends PureComponent {
     if (!endTime) return;
 
     this.intervalId = setInterval(() => {
-      this.setState({ countdown: buildCountdown(endTime, startTime) });
+      const nextCountdown = buildCountdown(endTime, startTime);
+
+      if (!nextCountdown || nextCountdown.remainingMs === 0) {
+        this.clearTimer();
+      }
+
+      this.setState({ countdown: nextCountdown });
     }, 1000);
   }
 
