@@ -10,6 +10,7 @@ import MediaGrid from "../components/MediaGrid";
 import BannerSlider from "../components/BannerSlider";
 import HeroBanner from "../components/HeroBanner";
 import SocialMediaIcons from "../components/SocialMediaIcons";
+import ProductGrid from "../components/ProductGrid";
 
 // COMPONENT MAP — ALL LIVE ONLY
 const componentMap = {
@@ -23,6 +24,7 @@ const componentMap = {
   banner_slider: BannerSlider,
   hero_banner: HeroBanner,
   social_media_icons: SocialMediaIcons,
+  product_grid: ProductGrid,
 };
 
 // detect mobile version for header_2
