@@ -7,6 +7,7 @@ import Header2 from "../components/Header2";     // Live Header (v2 / mobile)
 import CollectionImage from "../components/CollectionImage";
 import Countdown from "../components/Countdown";
 import MediaGrid from "../components/MediaGrid";
+import BannerSlider from "../components/BannerSlider";
 
 // COMPONENT MAP — ALL LIVE ONLY
 const componentMap = {
@@ -17,6 +18,7 @@ const componentMap = {
   collection_image: CollectionImage,
   countdown: Countdown,
   media_grid: MediaGrid,
+  banner_slider: BannerSlider,
 };
 
 // detect mobile version for header_2
