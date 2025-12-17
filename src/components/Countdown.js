@@ -42,9 +42,11 @@ const parseDateValue = (value) => {
   return Number.isNaN(parsed.getTime()) ? null : parsed;
 };
 
-const buildCountdown = (endTime) => {
+const buildCountdown = (endTime, startTime) => {
   if (!endTime) return null;
-  const diff = Math.max(0, endTime.getTime() - Date.now());
+  const now = Date.now();
+  const baseline = startTime ? Math.max(now, startTime.getTime()) : now;
+  const diff = Math.max(0, endTime.getTime() - baseline);
   const totalSeconds = Math.floor(diff / 1000);
   const days = Math.floor(totalSeconds / 86400);
   const hours = Math.floor((totalSeconds % 86400) / 3600);
@@ -104,17 +106,18 @@ export default function Countdown({ section }) {
   const showImage = asBoolean(rawProps?.showImage, false);
 
   const endTime = useMemo(() => parseDateValue(rawProps?.endTime), [rawProps?.endTime]);
-  const [countdown, setCountdown] = useState(() => buildCountdown(endTime));
+  const startTime = useMemo(() => parseDateValue(rawProps?.startTime), [rawProps?.startTime]);
+  const [countdown, setCountdown] = useState(() => buildCountdown(endTime, startTime));
 
   useEffect(() => {
     if (!endTime) return undefined;
 
     const id = setInterval(() => {
-      setCountdown(buildCountdown(endTime));
+      setCountdown(buildCountdown(endTime, startTime));
     }, 1000);
 
     return () => clearInterval(id);
-  }, [endTime]);
+  }, [endTime, startTime]);
 
   const ContainerComponent = gradientInfo ? LinearGradient : View;
   const containerProps = gradientInfo
