@@ -4,6 +4,7 @@ import React from "react";
 // LIVE COMPONENTS
 import Header from "../components/Topheader";       // Live Header (v1)
 import Header2 from "../components/Header2";     // Live Header (v2 / mobile)
+import CollectionImage from "../components/CollectionImage";
 
 // COMPONENT MAP — ALL LIVE ONLY
 const componentMap = {
@@ -11,6 +12,7 @@ const componentMap = {
   header_mobile: Header,
   header_2: Header2,
   header_2_mobile: Header2,
+  collection_image: CollectionImage,
 };
 
 // detect mobile version for header_2
