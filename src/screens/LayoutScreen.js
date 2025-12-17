@@ -171,7 +171,7 @@ const styles = StyleSheet.create({
     paddingBottom: 24,
   },
   sectionWrapper: {
-    marginBottom: 12,
+    marginBottom: 10,
   },
   centerContainer: {
     flex: 1,
