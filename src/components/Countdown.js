@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { PureComponent } from "react";
 import { Image, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import LinearGradient from "react-native-linear-gradient";
 import FontAwesome from "react-native-vector-icons/FontAwesome";
@@ -55,151 +55,224 @@ const buildCountdown = (endTime, startTime) => {
   return { days, hours, minutes, seconds };
 };
 
-export default function Countdown({ section }) {
-  const rawProps =
-    section?.props ||
-    section?.properties?.props?.properties ||
-    section?.properties?.props ||
-    {};
+const getRawProps = (section) =>
+  section?.props || section?.properties?.props?.properties || section?.properties?.props || {};
 
-  const layoutCss = rawProps?.layout?.properties?.css || rawProps?.layout?.css || {};
-  const styleBlock = rawProps?.style?.properties || rawProps?.style || {};
+const getLayoutCss = (rawProps) => rawProps?.layout?.properties?.css || rawProps?.layout?.css || {};
 
-  const { containerStyle, gradientInfo } = useMemo(() => {
-    const converted = convertStyles({ ...(layoutCss.container || {}), ...styleBlock });
-    const { _gradient, ...rest } = converted;
-    return { containerStyle: rest, gradientInfo: extractGradientInfo(converted) };
-  }, [layoutCss.container, styleBlock]);
-  const titleStyle = convertStyles(layoutCss.title || {});
-  const subtextStyle = convertStyles(layoutCss.subtext || {});
-  const timerStyle = convertStyles(layoutCss.timer || {});
-  const buttonStyle = convertStyles(layoutCss.button || {});
-  const iconStyle = convertStyles(layoutCss.icon || {});
+const deriveContainerStyles = (layoutCss, styleBlock) => {
+  const converted = convertStyles({ ...(layoutCss.container || {}), ...styleBlock });
+  const { _gradient, ...rest } = converted;
+  return { containerStyle: rest, gradientInfo: extractGradientInfo(converted) };
+};
 
-  const titleText = unwrapValue(rawProps?.title, "Sale Ends In");
-  const subtextText = unwrapValue(rawProps?.subtext, "Limited time offer. Don’t miss out on this deal.");
+const parseTiming = (rawProps) => ({
+  endTime: parseDateValue(rawProps?.endTime),
+  startTime: parseDateValue(rawProps?.startTime),
+});
 
-  const buttonAttributes = rawProps?.buttonAttributes?.properties || rawProps?.buttonAttributes || {};
-  const buttonLabel = unwrapValue(buttonAttributes?.label, "");
-  const buttonBgColor = unwrapValue(buttonAttributes?.bgColor, buttonStyle.backgroundColor);
-  const buttonTextColor = unwrapValue(buttonAttributes?.textColor, "#FFFFFF");
+const isSameTime = (a, b) => {
+  if (!a && !b) return true;
+  if (!a || !b) return false;
+  return a.getTime() === b.getTime();
+};
 
-  const timerAttributes = rawProps?.timerAttributes?.properties || rawProps?.timerAttributes || {};
-  const timerLabelColor = unwrapValue(timerAttributes?.labelColor, "#6B7280");
-  const timerValueColor = unwrapValue(timerAttributes?.valueColor, "#111111");
-  const timerHeight = asNumber(timerAttributes?.height, timerStyle.height);
-  const timerBackgroundColor = unwrapValue(
-    timerAttributes?.bgColor,
-    timerStyle.backgroundColor || "#FFFFFF"
-  );
+class Countdown extends PureComponent {
+  constructor(props) {
+    super(props);
 
-  const iconAttributes = rawProps?.iconAttributes?.properties || rawProps?.iconAttributes || {};
-  const iconName = unwrapValue(iconAttributes?.iconName, "clock-o");
-  const iconColor = unwrapValue(iconAttributes?.iconColor, iconStyle.color || "#111827");
-  const iconBgColor = unwrapValue(iconAttributes?.iconBgColor, iconStyle.backgroundColor);
+    const rawProps = getRawProps(props.section);
+    const { endTime, startTime } = parseTiming(rawProps);
 
-  const showTitle = asBoolean(rawProps?.showTitle, true);
-  const showSubtext = asBoolean(rawProps?.showSubtext, true);
-  const showTimer = asBoolean(rawProps?.showTimer, true);
-  const showButton = asBoolean(rawProps?.showButton, true) && !!buttonLabel;
-  const showIcon = asBoolean(rawProps?.showIcon, true);
-  const showImage = asBoolean(rawProps?.showImage, false);
+    this.state = {
+      endTime,
+      startTime,
+      countdown: buildCountdown(endTime, startTime),
+    };
 
-  const endTime = useMemo(() => parseDateValue(rawProps?.endTime), [rawProps?.endTime]);
-  const startTime = useMemo(() => parseDateValue(rawProps?.startTime), [rawProps?.startTime]);
-  const [countdown, setCountdown] = useState(() => buildCountdown(endTime, startTime));
+    this.intervalId = null;
+  }
 
-  useEffect(() => {
-    if (!endTime) return undefined;
+  componentDidMount() {
+    this.setupTimer();
+  }
 
-    const id = setInterval(() => {
-      setCountdown(buildCountdown(endTime, startTime));
+  componentDidUpdate(prevProps, prevState) {
+    const rawProps = getRawProps(this.props.section);
+    const { endTime, startTime } = parseTiming(rawProps);
+
+    if (!isSameTime(endTime, prevState.endTime) || !isSameTime(startTime, prevState.startTime)) {
+      this.updateTiming(endTime, startTime);
+    }
+  }
+
+  componentWillUnmount() {
+    this.clearTimer();
+  }
+
+  updateTiming(endTime, startTime) {
+    this.clearTimer();
+
+    this.setState(
+      {
+        endTime,
+        startTime,
+        countdown: buildCountdown(endTime, startTime),
+      },
+      () => this.setupTimer()
+    );
+  }
+
+  setupTimer() {
+    const { endTime, startTime } = this.state;
+
+    if (!endTime) return;
+
+    this.intervalId = setInterval(() => {
+      this.setState({ countdown: buildCountdown(endTime, startTime) });
     }, 1000);
+  }
 
-    return () => clearInterval(id);
-  }, [endTime, startTime]);
+  clearTimer() {
+    if (this.intervalId) {
+      clearInterval(this.intervalId);
+      this.intervalId = null;
+    }
+  }
 
-  const ContainerComponent = gradientInfo ? LinearGradient : View;
-  const containerProps = gradientInfo
-    ? {
-        colors: gradientInfo.colors || ["#F3F4F6", "#E5E7EB"],
-        angle: gradientInfo.angle || 0,
-        useAngle: true,
-      }
-    : {};
+  render() {
+    const { countdown } = this.state;
+    const rawProps = getRawProps(this.props.section);
 
-  const renderTimerValue = (value) => String(value ?? "00").padStart(2, "0");
-  const resolvedCountdown = countdown || { days: 0, hours: 0, minutes: 0, seconds: 0 };
+    const layoutCss = getLayoutCss(rawProps);
+    const styleBlock = rawProps?.style?.properties || rawProps?.style || {};
 
-  const timerUnits = [
-    { key: "days", label: "DAYS" },
-    { key: "hours", label: "HRS" },
-    { key: "minutes", label: "MINS" },
-    { key: "seconds", label: "SEC" },
-  ];
+    const { containerStyle, gradientInfo } = deriveContainerStyles(layoutCss, styleBlock);
+    const titleStyle = convertStyles(layoutCss.title || {});
+    const subtextStyle = convertStyles(layoutCss.subtext || {});
+    const timerStyle = convertStyles(layoutCss.timer || {});
+    const buttonStyle = convertStyles(layoutCss.button || {});
+    const iconStyle = convertStyles(layoutCss.icon || {});
 
-  return (
-    <ContainerComponent
-      style={[styles.container, containerStyle]}
-      {...containerProps}
-    >
-      {showImage && rawProps?.image ? (
-        <Image
-          source={{ uri: unwrapValue(rawProps.image) }}
-          style={{ width: "100%", height: 120, borderRadius: 8, marginBottom: 12 }}
-          resizeMode="cover"
-        />
-      ) : null}
+    const titleText = unwrapValue(rawProps?.title, "Sale Ends In");
+    const subtextText = unwrapValue(
+      rawProps?.subtext,
+      "Limited time offer. Don’t miss out on this deal."
+    );
 
-      <View style={styles.headerRow}>
-        {showIcon && (
-          <View style={[styles.iconWrap, iconStyle, iconBgColor ? { backgroundColor: iconBgColor } : null]}>
-            <FontAwesome name={iconName || "clock-o"} size={18} color={iconColor || "#111827"} />
+    const buttonAttributes = rawProps?.buttonAttributes?.properties || rawProps?.buttonAttributes || {};
+    const buttonLabel = unwrapValue(buttonAttributes?.label, "");
+    const buttonBgColor = unwrapValue(buttonAttributes?.bgColor, buttonStyle.backgroundColor);
+    const buttonTextColor = unwrapValue(buttonAttributes?.textColor, "#FFFFFF");
+
+    const timerAttributes = rawProps?.timerAttributes?.properties || rawProps?.timerAttributes || {};
+    const timerLabelColor = unwrapValue(timerAttributes?.labelColor, "#6B7280");
+    const timerValueColor = unwrapValue(timerAttributes?.valueColor, "#111111");
+    const timerHeight = asNumber(timerAttributes?.height, timerStyle.height);
+    const timerBackgroundColor = unwrapValue(
+      timerAttributes?.bgColor,
+      timerStyle.backgroundColor || "#FFFFFF"
+    );
+
+    const iconAttributes = rawProps?.iconAttributes?.properties || rawProps?.iconAttributes || {};
+    const iconName = unwrapValue(iconAttributes?.iconName, "clock-o");
+    const iconColor = unwrapValue(iconAttributes?.iconColor, iconStyle.color || "#111827");
+    const iconBgColor = unwrapValue(iconAttributes?.iconBgColor, iconStyle.backgroundColor);
+
+    const showTitle = asBoolean(rawProps?.showTitle, true);
+    const showSubtext = asBoolean(rawProps?.showSubtext, true);
+    const showTimer = asBoolean(rawProps?.showTimer, true);
+    const showButton = asBoolean(rawProps?.showButton, true) && !!buttonLabel;
+    const showIcon = asBoolean(rawProps?.showIcon, true);
+    const showImage = asBoolean(rawProps?.showImage, false);
+
+    const ContainerComponent = gradientInfo ? LinearGradient : View;
+    const containerProps = gradientInfo
+      ? {
+          colors: gradientInfo.colors || ["#F3F4F6", "#E5E7EB"],
+          angle: gradientInfo.angle || 0,
+          useAngle: true,
+        }
+      : {};
+
+    const renderTimerValue = (value) => String(value ?? "00").padStart(2, "0");
+    const resolvedCountdown = countdown || { days: 0, hours: 0, minutes: 0, seconds: 0 };
+
+    const timerUnits = [
+      { key: "days", label: "DAYS" },
+      { key: "hours", label: "HRS" },
+      { key: "minutes", label: "MINS" },
+      { key: "seconds", label: "SEC" },
+    ];
+
+    return (
+      <ContainerComponent
+        style={[styles.container, containerStyle]}
+        {...containerProps}
+      >
+        {showImage && rawProps?.image ? (
+          <Image
+            source={{ uri: unwrapValue(rawProps.image) }}
+            style={{ width: "100%", height: 120, borderRadius: 8, marginBottom: 12 }}
+            resizeMode="cover"
+          />
+        ) : null}
+
+        <View style={styles.headerRow}>
+          {showIcon && (
+            <View style={[styles.iconWrap, iconStyle, iconBgColor ? { backgroundColor: iconBgColor } : null]}>
+              <FontAwesome name={iconName || "clock-o"} size={18} color={iconColor || "#111827"} />
+            </View>
+          )}
+          <View style={{ flex: 1 }}>
+            {showTitle && (
+              <Text style={[styles.title, titleStyle]}>{titleText}</Text>
+            )}
+            {showSubtext && (
+              <Text style={[styles.subtext, subtextStyle]}>{subtextText}</Text>
+            )}
+          </View>
+        </View>
+
+        {showTimer && (
+          <View
+            style={[
+              styles.timer,
+              timerStyle,
+              timerHeight ? { height: timerHeight } : null,
+            ]}
+          >
+            {timerUnits.map(({ key, label }) => (
+              <View
+                key={key}
+                style={[
+                  styles.timerSegment,
+                  timerBackgroundColor ? { backgroundColor: timerBackgroundColor } : null,
+                ]}
+              >
+                <Text style={[styles.timerValue, { color: timerValueColor }]}>
+                  {renderTimerValue(resolvedCountdown[key])}
+                </Text>
+                <Text style={[styles.timerLabel, { color: timerLabelColor }]}>{label}</Text>
+              </View>
+            ))}
           </View>
         )}
-        <View style={{ flex: 1 }}>
-          {showTitle && (
-            <Text style={[styles.title, titleStyle]}>{titleText}</Text>
-          )}
-          {showSubtext && (
-            <Text style={[styles.subtext, subtextStyle]}>{subtextText}</Text>
-          )}
-        </View>
-      </View>
 
-      {showTimer && (
-        <View
-          style={[
-            styles.timer,
-            timerStyle,
-            timerHeight ? { height: timerHeight } : null,
-          ]}
-        >
-          {timerUnits.map(({ key, label }) => (
-            <View
-              key={key}
-              style={[styles.timerSegment, timerBackgroundColor ? { backgroundColor: timerBackgroundColor } : null]}
-            >
-              <Text style={[styles.timerValue, { color: timerValueColor }]}>
-                {renderTimerValue(resolvedCountdown[key])}
-              </Text>
-              <Text style={[styles.timerLabel, { color: timerLabelColor }]}>{label}</Text>
-            </View>
-          ))}
-        </View>
-      )}
-
-      {showButton && (
-        <TouchableOpacity
-          activeOpacity={0.9}
-          style={[styles.button, buttonStyle, buttonBgColor ? { backgroundColor: buttonBgColor } : null]}
-        >
-          <Text style={[styles.buttonText, { color: buttonTextColor }]}>{buttonLabel}</Text>
-        </TouchableOpacity>
-      )}
-    </ContainerComponent>
-  );
+        {showButton && (
+          <TouchableOpacity
+            activeOpacity={0.9}
+            style={[styles.button, buttonStyle, buttonBgColor ? { backgroundColor: buttonBgColor } : null]}
+          >
+            <Text style={[styles.buttonText, { color: buttonTextColor }]}>{buttonLabel}</Text>
+          </TouchableOpacity>
+        )}
+      </ContainerComponent>
+    );
+  }
 }
+
+export default Countdown;
 
 const styles = StyleSheet.create({
   container: {
