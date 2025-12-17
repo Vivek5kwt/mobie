@@ -4,7 +4,6 @@ import {
   Text,
   Image,
   TouchableOpacity,
-  FlatList,
   StyleSheet,
 } from "react-native";
 import Icon from "react-native-vector-icons/FontAwesome6";
@@ -35,26 +34,6 @@ export default function ProductGrid({ section }) {
     fetchShopifyProducts(limit).then(setProducts);
   }, [limit]);
 
-  const renderItem = ({ item }) => (
-    <View style={styles.card}>
-      <Image source={{ uri: item.image }} style={styles.image} />
-
-      <Text numberOfLines={1} style={styles.name}>
-        {item.name}
-      </Text>
-
-      <Text style={styles.price}>
-        {item.currency} {item.price}
-      </Text>
-
-      {favEnabled && (
-        <TouchableOpacity style={styles.favIcon}>
-          <Icon name="heart" size={18} color="red" />
-        </TouchableOpacity>
-      )}
-    </View>
-  );
-
   return (
     <View style={styles.wrapper}>
       <Text
@@ -68,19 +47,38 @@ export default function ProductGrid({ section }) {
         {title}
       </Text>
 
-      <FlatList
-        data={products}
-        renderItem={renderItem}
-        keyExtractor={(item) => item.id}
-        numColumns={2}
-        columnWrapperStyle={{ justifyContent: "space-between" }}
-      />
+      <View style={styles.grid}>
+        {products.map((item) => (
+          <View key={item.id} style={styles.card}>
+            <Image source={{ uri: item.image }} style={styles.image} />
+
+            <Text numberOfLines={1} style={styles.name}>
+              {item.name}
+            </Text>
+
+            <Text style={styles.price}>
+              {item.currency} {item.price}
+            </Text>
+
+            {favEnabled && (
+              <TouchableOpacity style={styles.favIcon}>
+                <Icon name="heart" size={18} color="red" />
+              </TouchableOpacity>
+            )}
+          </View>
+        ))}
+      </View>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   wrapper: { padding: 12 },
+  grid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    justifyContent: "space-between",
+  },
   card: {
     width: "48%",
     backgroundColor: "#fff",
