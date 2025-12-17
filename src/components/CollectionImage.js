@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import { Image, ScrollView, StyleSheet, Text, View } from "react-native";
+import { Animated, Image, StyleSheet, Text, View } from "react-native";
 import { convertStyles } from "../utils/convertStyles";
 
 const unwrapValue = (value, fallback) => {
@@ -32,7 +32,10 @@ const asNumber = (value, fallback) => {
 };
 
 const buildCollections = (collectionsBlock = {}) => {
-  const values = Object.values(collectionsBlock).filter((item) => item);
+  const normalized = Array.isArray(collectionsBlock)
+    ? collectionsBlock
+    : Object.values(collectionsBlock);
+  const values = normalized.filter((item) => item);
 
   return values
     .map((item) => {
@@ -80,7 +83,11 @@ export default function CollectionImage({ section }) {
   const showCardImage = asBoolean(rawProps?.showCardImage, true);
 
   const headerText = unwrapValue(
-    headerCfg?.headerText ?? headerCfg?.title ?? headerCfg?.text,
+    headerCfg?.headerText ??
+      headerCfg?.title ??
+      headerCfg?.text ??
+      section?.properties?.title ??
+      section?.title,
     "Featured Collections"
   );
   const headerSize = asNumber(headerCfg?.headerSize, 16);
@@ -125,6 +132,7 @@ export default function CollectionImage({ section }) {
   const scrollRef = useRef(null);
   const indexRef = useRef(0);
   const [currentIndex, setCurrentIndex] = useState(0);
+  const scrollX = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
     indexRef.current = 0;
@@ -170,13 +178,19 @@ export default function CollectionImage({ section }) {
         </Text>
       )}
 
-      <ScrollView
+      <Animated.ScrollView
         ref={scrollRef}
         horizontal
+        pagingEnabled
         showsHorizontalScrollIndicator={false}
         contentContainerStyle={{ paddingHorizontal: 4 }}
-        onScroll={handleScroll}
+        onScroll={Animated.event(
+          [{ nativeEvent: { contentOffset: { x: scrollX } } }],
+          { useNativeDriver: false, listener: handleScroll }
+        )}
         scrollEventThrottle={16}
+        snapToInterval={cardWidth + gapPx}
+        decelerationRate="fast"
       >
         {collections.map((item, idx) => (
           <View
@@ -248,7 +262,7 @@ export default function CollectionImage({ section }) {
             )}
           </View>
         ))}
-      </ScrollView>
+      </Animated.ScrollView>
 
       {showIndicators && collections.length > 1 && (
         <View style={styles.dotsRow}>
