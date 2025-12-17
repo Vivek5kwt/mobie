@@ -1,6 +1,7 @@
 name: Build Android APK
 
 on:
+  workflow_dispatch:   # 👈 THIS LINE IS REQUIRED
   repository_dispatch:
     types: [android_build]
 
