@@ -286,11 +286,11 @@ export default function CollectionImage({ section }) {
 
 const styles = StyleSheet.create({
   container: {
-    padding: 16,
+    padding: 12,
     backgroundColor: "#FFFFFF",
   },
   header: {
-    marginBottom: 12,
+    marginBottom: 8,
     fontSize: 16,
     fontWeight: "700",
   },
@@ -303,10 +303,10 @@ const styles = StyleSheet.create({
     backgroundColor: "#FFFFFF",
   },
   cardTitle: {
-    marginTop: 8,
+    marginTop: 6,
   },
   dotsRow: {
-    marginTop: 12,
+    marginTop: 8,
     flexDirection: "row",
     justifyContent: "center",
   },

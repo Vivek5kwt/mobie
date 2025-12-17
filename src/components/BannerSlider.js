@@ -250,18 +250,19 @@ export default function BannerSlider({ section }) {
 const styles = StyleSheet.create({
   container: {
     backgroundColor: "#FFFFFF",
-    paddingVertical: 8,
+    paddingVertical: 0,
+    paddingHorizontal: 8,
   },
   slide: {
     overflow: "hidden",
     flexDirection: "row",
     alignItems: "center",
-    padding: 16,
-    gap: 12,
+    padding: 12,
+    gap: 10,
   },
   textBlock: {
     flex: 1,
-    gap: 8,
+    gap: 6,
   },
   heading: {
     fontSize: 17,
@@ -292,8 +293,8 @@ const styles = StyleSheet.create({
   dotsRow: {
     flexDirection: "row",
     justifyContent: "center",
-    marginTop: 8,
-    gap: 8,
+    marginTop: 4,
+    gap: 6,
   },
   dot: {
     width: 8,
