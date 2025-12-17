@@ -68,9 +68,34 @@ export default function Header({ section }) {
       {/* RIGHT ICONS */}
       <View style={[styles.rightSlot, layout.rightSlot]}>
 
+        {/* Cart */}
+        {isEnabled(props.cart?.properties?.visible?.value) && (
+          <View style={{ position: "relative" }}>
+            <Icon
+              name={props.cart.properties.iconId.value}
+              size={props.cart.properties.width.value}
+              color={props.cart.properties.color.value}
+            />
+
+            {isEnabled(props.cart.properties.showBadge?.value) && (
+              <View
+                style={[
+                  styles.badge,
+                  {
+                    backgroundColor: layout.badge.backgroundColor,
+                    width: layout.badge.width,
+                    height: layout.badge.height,
+                    top: layout.badge.top,
+                    right: layout.badge.right,
+                  }
+                ]}
+              />
+            )}
+          </View>
+        )}
+
         {/* Notification */}
         {isEnabled(props.notification?.properties?.visible?.value) && (
-
            <View style={{ position: "relative" }}>
            <Icon
              name={props.notification.properties.iconId.value}
@@ -93,32 +118,6 @@ export default function Header({ section }) {
              />
            )}
          </View>
-        )}
-
-        {/* Cart */}
-        {isEnabled(props.cart?.properties?.visible?.value) && (
-          <View style={{ position: "relative" }}>
-          <Icon
-            name={props.cart.properties.iconId.value}
-            size={props.cart.properties.width.value}
-            color={props.cart.properties.color.value}
-          />
-
-          {isEnabled(props.cart.properties.showBadge?.value) && (
-            <View
-              style={[
-                styles.badge,
-                {
-                  backgroundColor: layout.badge.backgroundColor,
-                  width: layout.badge.width,
-                  height: layout.badge.height,
-                  top: layout.badge.top,
-                  right: layout.badge.right,
-                }
-              ]}
-            />
-          )}
-        </View>
         )}
 
       </View>
