@@ -149,11 +149,21 @@ export default function MediaGrid({ section }) {
       ]}
     >
       {toBoolean(rawProps?.showMediaImage, true) && (
-        <View style={{ width: "100%", aspectRatio: cardAspectRatio }}>
+        <View
+          style={[
+            styles.mediaContainer,
+            {
+              width: "100%",
+              aspectRatio: cardAspectRatio,
+              borderRadius: cardRadius,
+            },
+            mediaStyle,
+          ]}
+        >
           {item.src ? (
-            <Image source={{ uri: item.src }} style={[styles.media, mediaStyle]} resizeMode="cover" />
+            <Image source={{ uri: item.src }} style={styles.media} resizeMode="cover" />
           ) : (
-            <View style={[styles.placeholder, mediaStyle]}>
+            <View style={styles.placeholder}>
               <Text style={styles.placeholderText}>Image</Text>
             </View>
           )}
@@ -254,6 +264,10 @@ const styles = StyleSheet.create({
   header: {
     marginBottom: 12,
     fontWeight: "700",
+  },
+  mediaContainer: {
+    overflow: "hidden",
+    backgroundColor: "#E5E7EB",
   },
   media: {
     width: "100%",
