@@ -86,6 +86,10 @@ export default function Countdown({ section }) {
   const timerLabelColor = unwrapValue(timerAttributes?.labelColor, "#6B7280");
   const timerValueColor = unwrapValue(timerAttributes?.valueColor, "#111111");
   const timerHeight = asNumber(timerAttributes?.height, timerStyle.height);
+  const timerBackgroundColor = unwrapValue(
+    timerAttributes?.bgColor,
+    timerStyle.backgroundColor || "#FFFFFF"
+  );
 
   const iconAttributes = rawProps?.iconAttributes?.properties || rawProps?.iconAttributes || {};
   const iconName = unwrapValue(iconAttributes?.iconName, "clock-o");
@@ -122,6 +126,14 @@ export default function Countdown({ section }) {
     : {};
 
   const renderTimerValue = (value) => String(value ?? "00").padStart(2, "0");
+  const resolvedCountdown = countdown || { days: 0, hours: 0, minutes: 0, seconds: 0 };
+
+  const timerUnits = [
+    { key: "days", label: "DAYS" },
+    { key: "hours", label: "HRS" },
+    { key: "minutes", label: "MINS" },
+    { key: "seconds", label: "SEC" },
+  ];
 
   return (
     <ContainerComponent
@@ -160,16 +172,17 @@ export default function Countdown({ section }) {
             timerHeight ? { height: timerHeight } : null,
           ]}
         >
-          {countdown ? (
-            <>
-              <Text style={[styles.timerLabel, { color: timerLabelColor }]}>Ends in</Text>
+          {timerUnits.map(({ key, label }) => (
+            <View
+              key={key}
+              style={[styles.timerSegment, timerBackgroundColor ? { backgroundColor: timerBackgroundColor } : null]}
+            >
               <Text style={[styles.timerValue, { color: timerValueColor }]}>
-                {renderTimerValue(countdown.days)}d {renderTimerValue(countdown.hours)}h {renderTimerValue(countdown.minutes)}m {renderTimerValue(countdown.seconds)}s
+                {renderTimerValue(resolvedCountdown[key])}
               </Text>
-            </>
-          ) : (
-            <Text style={[styles.timerValue, { color: timerValueColor }]}>--</Text>
-          )}
+              <Text style={[styles.timerLabel, { color: timerLabelColor }]}>{label}</Text>
+            </View>
+          ))}
         </View>
       )}
 
@@ -221,20 +234,29 @@ const styles = StyleSheet.create({
     marginTop: 4,
     paddingVertical: 10,
     paddingHorizontal: 14,
-    backgroundColor: "#FFFFFF",
-    borderRadius: 999,
+    borderRadius: 16,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
   },
+  timerSegment: {
+    minWidth: 60,
+    paddingVertical: 8,
+    paddingHorizontal: 10,
+    backgroundColor: "#FFFFFF",
+    borderRadius: 12,
+    alignItems: "center",
+    justifyContent: "center",
+    marginHorizontal: 4,
+  },
   timerLabel: {
-    fontSize: 14,
+    fontSize: 12,
     fontWeight: "600",
+    marginTop: 4,
   },
   timerValue: {
-    fontSize: 14,
-    fontWeight: "600",
-    marginLeft: 8,
+    fontSize: 18,
+    fontWeight: "700",
   },
   button: {
     marginTop: 12,
