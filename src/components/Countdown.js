@@ -314,9 +314,13 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
+    flexWrap: "wrap",
   },
   timerSegment: {
-    minWidth: 60,
+    flexGrow: 1,
+    flexBasis: "22%",
+    minWidth: 66,
+    maxWidth: 100,
     paddingVertical: 8,
     paddingHorizontal: 10,
     backgroundColor: "#FFFFFF",
@@ -324,6 +328,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     marginHorizontal: 4,
+    marginVertical: 4,
   },
   timerLabel: {
     fontSize: 12,
