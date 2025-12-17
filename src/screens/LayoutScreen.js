@@ -136,7 +136,8 @@ export default function LayoutScreen() {
           contentInsetAdjustmentBehavior="automatic"
           style={{ flex: 1 }}
           showsVerticalScrollIndicator
-          contentContainerStyle={styles.scrollContent}
+          contentContainerStyle={[styles.scrollContent, { flexGrow: 1 }]}
+          keyboardShouldPersistTaps="handled"
           refreshControl={
             <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
           }

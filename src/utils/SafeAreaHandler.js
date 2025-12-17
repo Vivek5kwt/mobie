@@ -3,7 +3,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 
 export const SafeArea = ({ children }) => {
   return (
-    <SafeAreaView style={{ flex: 1 }} edges={["top", "left", "right"]}>
+    <SafeAreaView style={{ flex: 1 }} edges={["top", "left", "right", "bottom"]}>
       {children}
     </SafeAreaView>
   );
