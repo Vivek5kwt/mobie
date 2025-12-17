@@ -87,6 +87,7 @@ export default function BannerSlider({ section }) {
   const buttonStyleFromCss = convertStyles(layoutCss?.button || {});
   const containerStyleFromCss = convertStyles(layoutCss?.container || {});
   const slideStyleFromCss = convertStyles(layoutCss?.slide || {});
+  const imageStyleFromCss = convertStyles(layoutCss?.image || {});
 
   const showDots = asBoolean(
     behavior?.showDots ?? behavior?.showIndicators ?? sliderCfg?.showIndicators,
@@ -99,6 +100,7 @@ export default function BannerSlider({ section }) {
   );
   const bannerHeight = asNumber(sliderCfg?.bannerHeight, 180);
   const bannerRadius = asNumber(sliderCfg?.bannerRadius, 12);
+  const imageResizeMode = imageStyleFromCss?.resizeMode || sliderCfg?.resizeMode || "cover";
   const headingAlign = unwrapValue(sliderCfg?.headingAlign ?? layoutCss?.heading?.align, "Center");
   const subheadingAlign = unwrapValue(
     sliderCfg?.subheadingAlign ?? layoutCss?.subheading?.align,
@@ -179,8 +181,8 @@ export default function BannerSlider({ section }) {
               {slide.image ? (
                 <Image
                   source={{ uri: slide.image }}
-                  style={[styles.imageBackground, { borderRadius: bannerRadius }]}
-                  resizeMode={buttonStyleFromCss?.resizeMode || "cover"}
+                  style={[styles.imageBackground, imageStyleFromCss, { borderRadius: bannerRadius }]}
+                  resizeMode={imageResizeMode}
                 />
               ) : null}
 
