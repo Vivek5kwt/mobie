@@ -44,6 +44,38 @@ export default function HeroBanner({ section }) {
   const buttonStyle = convertStyles(layoutCss?.button || {});
   const imageStyle = convertStyles(layoutCss?.image || {});
 
+  const imageAttributes = rawProps?.imageAttributes?.properties || rawProps?.imageAttributes || {};
+  const imageScale = unwrapValue(imageAttributes?.scale, "Cover")?.toString().toLowerCase();
+  const imageCornerRadius = toNumber(imageAttributes?.imageCorner, 0);
+  const parseImageRatio = (value) => {
+    const ratio = unwrapValue(value, undefined);
+    if (ratio === undefined) return undefined;
+
+    if (typeof ratio === "string") {
+      const trimmed = ratio.trim();
+      if (!trimmed || trimmed.toLowerCase() === "auto") return undefined;
+      if (trimmed.includes(":")) {
+        const [width, height] = trimmed.split(":").map(Number);
+        if (width > 0 && height > 0) return width / height;
+      }
+      const parsed = parseFloat(trimmed);
+      return Number.isNaN(parsed) || parsed <= 0 ? undefined : parsed;
+    }
+
+    if (typeof ratio === "number" && ratio > 0) return ratio;
+    return undefined;
+  };
+
+  const imageAspectRatio = parseImageRatio(imageAttributes?.imageRatio);
+  const resizeMode =
+    imageScale === "fit"
+      ? "contain"
+      : imageScale === "stretch"
+        ? "stretch"
+        : imageScale === "center"
+          ? "center"
+          : "cover";
+
   const headline = unwrapValue(rawProps?.headline, "");
   const subtext = unwrapValue(rawProps?.subtext, "");
   const button = rawProps?.button || {};
@@ -66,9 +98,21 @@ export default function HeroBanner({ section }) {
   if (!headline && !subtext && !imageSrc) return null;
 
   return (
-    <View style={[styles.container, containerStyle, { backgroundColor }]}>
+    <View
+      style={[
+        styles.container,
+        containerStyle,
+        { backgroundColor },
+        imageAspectRatio ? { aspectRatio: imageAspectRatio } : null,
+        imageCornerRadius ? { borderRadius: imageCornerRadius } : null,
+      ]}
+    >
       {imageSrc ? (
-        <Image source={{ uri: imageSrc }} style={[styles.image, imageStyle]} resizeMode="cover" />
+        <Image
+          source={{ uri: imageSrc }}
+          style={[styles.image, imageStyle, imageCornerRadius ? { borderRadius: imageCornerRadius } : null]}
+          resizeMode={resizeMode}
+        />
       ) : null}
 
       {overlayOpacity ? (
@@ -79,6 +123,7 @@ export default function HeroBanner({ section }) {
               opacity: overlayOpacity / 100,
               backgroundColor: "#000",
             },
+            imageCornerRadius ? { borderRadius: imageCornerRadius } : null,
           ]}
         />
       ) : null}
