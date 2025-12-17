@@ -130,17 +130,28 @@ export default function LayoutScreen() {
 
   return (
     <SafeArea>
-      <View style={{ flex: 1 }}>
+      <View style={styles.screen}>
         {/* RENDER SORTED DSL COMPONENTS */}
         <ScrollView
+          contentInsetAdjustmentBehavior="automatic"
           style={{ flex: 1 }}
+          showsVerticalScrollIndicator
+          contentContainerStyle={styles.scrollContent}
           refreshControl={
             <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
           }
         >
-          {sortedSections.map((s, i) => (
-            <DynamicRenderer key={i} section={s} />
-          ))}
+          {sortedSections.length ? (
+            sortedSections.map((s, i) => (
+              <View key={i} style={styles.sectionWrapper}>
+                <DynamicRenderer section={s} />
+              </View>
+            ))
+          ) : (
+            <View style={styles.centerContainer}>
+              <Text style={styles.subtle}>No content available right now.</Text>
+            </View>
+          )}
         </ScrollView>
       </View>
     </SafeArea>
@@ -150,6 +161,17 @@ export default function LayoutScreen() {
 // -----------------------------------------------------
 
 const styles = StyleSheet.create({
+  screen: {
+    flex: 1,
+    backgroundColor: "#F7F7F7",
+  },
+  scrollContent: {
+    paddingHorizontal: 12,
+    paddingBottom: 24,
+  },
+  sectionWrapper: {
+    marginBottom: 12,
+  },
   centerContainer: {
     flex: 1,
     justifyContent: "center",
@@ -166,6 +188,10 @@ const styles = StyleSheet.create({
     marginBottom: 20,
     fontSize: 16,
     color: "red",
+  },
+  subtle: {
+    fontSize: 14,
+    color: "#666",
   },
 });
 
