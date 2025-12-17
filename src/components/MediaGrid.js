@@ -55,7 +55,20 @@ const parseAspectRatio = (value, fallback = 1) => {
 };
 
 const normalizeItems = (rawItems) => {
-  const source = Array.isArray(rawItems) ? rawItems : Object.values(rawItems || {});
+  let source = [];
+
+  if (Array.isArray(rawItems)) {
+    source = rawItems;
+  } else if (Array.isArray(rawItems?.items)) {
+    // DSL shape: { type: "array", items: [ ... ] }
+    source = rawItems.items;
+  } else if (rawItems && typeof rawItems === "object") {
+    // DSL shape: { item-1: {...}, item-2: {...} }
+    source = Object.values(rawItems).filter(
+      (entry) => entry && typeof entry === "object" && !Array.isArray(entry)
+    );
+  }
+
   return source
     .map((item, idx) => {
       const props = item?.properties || item || {};
