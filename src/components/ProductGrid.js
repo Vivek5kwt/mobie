@@ -29,51 +29,117 @@ export default function ProductGrid({ section }) {
     false;
 
   const [products, setProducts] = useState([]);
+  const [loading, setLoading] = useState(false);
+
+  const FALLBACK_PRODUCTS = [
+    {
+      id: "demo-1",
+      name: "Demo Hat",
+      image:
+        "https://images.unsplash.com/photo-1504595403659-9088ce801e29?auto=format&fit=crop&w=400&q=80",
+      price: "14.99",
+      currency: "USD",
+    },
+    {
+      id: "demo-2",
+      name: "Demo Sunglasses",
+      image:
+        "https://images.unsplash.com/photo-1465805139202-a644e217f00e?auto=format&fit=crop&w=400&q=80",
+      price: "29.00",
+      currency: "USD",
+    },
+    {
+      id: "demo-3",
+      name: "Demo Backpack",
+      image:
+        "https://images.unsplash.com/photo-1505693416388-ac5ce068fe85?auto=format&fit=crop&w=400&q=80",
+      price: "54.00",
+      currency: "USD",
+    },
+    {
+      id: "demo-4",
+      name: "Demo Sneakers",
+      image:
+        "https://images.unsplash.com/photo-1521093470119-a3acdc43374b?auto=format&fit=crop&w=400&q=80",
+      price: "79.00",
+      currency: "USD",
+    },
+  ];
 
   useEffect(() => {
-    fetchShopifyProducts(limit).then(setProducts);
+    let isMounted = true;
+
+    const loadProducts = async () => {
+      try {
+        setLoading(true);
+        const response = await fetchShopifyProducts(limit);
+
+        if (isMounted) {
+          // Use fallback demo products when API returns nothing or fails
+          const nextProducts = response?.length ? response : FALLBACK_PRODUCTS;
+          setProducts(nextProducts);
+        }
+      } catch (error) {
+        if (isMounted) setProducts(FALLBACK_PRODUCTS);
+      } finally {
+        if (isMounted) setLoading(false);
+      }
+    };
+
+    loadProducts();
+
+    return () => {
+      isMounted = false;
+    };
   }, [limit]);
 
   return (
     <View style={styles.wrapper}>
-      <Text
-        style={{
-          fontSize: titleSize,
-          fontWeight: "700",
-          marginBottom: 12,
-          textAlign: alignText,
-        }}
-      >
-        {title}
-      </Text>
+      {!!title && (
+        <Text
+          style={{
+            fontSize: titleSize,
+            fontWeight: "700",
+            marginBottom: 12,
+            textAlign: alignText,
+          }}
+        >
+          {title}
+        </Text>
+      )}
 
-      <View style={styles.grid}>
-        {products.map((item) => (
-          <View key={item.id} style={styles.card}>
-            <Image source={{ uri: item.image }} style={styles.image} />
+      {loading && !products.length ? (
+        <Text style={styles.statusText}>Loading products...</Text>
+      ) : (
+        <View style={styles.grid}>
+          {products.map((item) => (
+            <View key={item.id} style={styles.card}>
+              <Image source={{ uri: item.image }} style={styles.image} />
 
-            <Text numberOfLines={1} style={styles.name}>
-              {item.name}
-            </Text>
+              <Text numberOfLines={1} style={styles.name}>
+                {item.name}
+              </Text>
 
-            <Text style={styles.price}>
-              {item.currency} {item.price}
-            </Text>
+              <Text style={styles.price}>
+                {item.currency} {item.price}
+              </Text>
 
-            {favEnabled && (
-              <TouchableOpacity style={styles.favIcon}>
-                <Icon name="heart" size={18} color="red" />
-              </TouchableOpacity>
-            )}
-          </View>
-        ))}
-      </View>
+              {favEnabled && (
+                <TouchableOpacity style={styles.favIcon}>
+                  <Icon name="heart" size={18} color="red" />
+                </TouchableOpacity>
+              )}
+            </View>
+          ))}
+        </View>
+      )}
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   wrapper: { padding: 12 },
+  statusText: { textAlign: "center", color: "#666" },
   grid: {
     flexDirection: "row",
     flexWrap: "wrap",
