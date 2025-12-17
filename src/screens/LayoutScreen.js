@@ -167,7 +167,7 @@ const styles = StyleSheet.create({
     backgroundColor: "#F7F7F7",
   },
   scrollContent: {
-    paddingHorizontal: 12,
+    paddingHorizontal: 0,
     paddingBottom: 24,
   },
   sectionWrapper: {
