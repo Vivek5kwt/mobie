@@ -14,24 +14,44 @@ export default function LayoutScreen() {
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState(null);
   const [refreshing, setRefreshing] = useState(false);
+  const [snackbar, setSnackbar] = useState({ visible: false, message: "", type: "info" });
   const versionRef = useRef(null);
+  const snackbarTimer = useRef(null);
+
+  const showSnackbar = (message, type = "info") => {
+    setSnackbar({ visible: true, message, type });
+
+    if (snackbarTimer.current) clearTimeout(snackbarTimer.current);
+
+    snackbarTimer.current = setTimeout(() => {
+      setSnackbar((prev) => ({ ...prev, visible: false }));
+    }, 3200);
+  };
+
+  useEffect(() => {
+    return () => {
+      if (snackbarTimer.current) clearTimeout(snackbarTimer.current);
+    };
+  }, []);
 
   // Reload DSL
-  const refreshDSL = async () => {
+  const refreshDSL = async (withFeedback = false) => {
     try {
       const dslData = await fetchDSL();
       if (dslData?.dsl) {
         setDsl(dslData.dsl);
         versionRef.current = dslData.versionNumber ?? null;
+        if (withFeedback) showSnackbar("Live layout refreshed", "success");
       }
     } catch (e) {
       console.log("❌ Refresh error:", e);
+      if (withFeedback) showSnackbar("Couldn't refresh right now", "error");
     }
   };
 
   const onRefresh = async () => {
     setRefreshing(true);
-    await refreshDSL();
+    await refreshDSL(true);
     setRefreshing(false);
   };
 
@@ -59,6 +79,7 @@ export default function LayoutScreen() {
     } catch (e) {
       setErr(e.message);
       console.log("❌ DSL LOAD ERROR >>>", e);
+      showSnackbar("We hit a snag loading your workspace", "error");
     } finally {
       setLoading(false);
     }
@@ -179,6 +200,19 @@ export default function LayoutScreen() {
             </View>
           )}
         </ScrollView>
+        {snackbar.visible && (
+          <View
+            style={[
+              styles.snackbar,
+              snackbar.type === "success" ? styles.snackbarSuccess : styles.snackbarError,
+            ]}
+          >
+            <Text style={styles.snackbarText}>{snackbar.message}</Text>
+            <TouchableOpacity onPress={() => setSnackbar((prev) => ({ ...prev, visible: false }))}>
+              <Text style={styles.snackbarAction}>Dismiss</Text>
+            </TouchableOpacity>
+          </View>
+        )}
       </View>
     </SafeArea>
   );
@@ -268,6 +302,43 @@ const styles = StyleSheet.create({
   subtle: {
     fontSize: 14,
     color: "#666",
+  },
+  snackbar: {
+    position: "absolute",
+    bottom: 20,
+    left: 16,
+    right: 16,
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+    borderRadius: 14,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    shadowColor: "#000",
+    shadowOpacity: 0.18,
+    shadowOffset: { width: 0, height: 12 },
+    shadowRadius: 18,
+    elevation: 8,
+  },
+  snackbarSuccess: {
+    backgroundColor: "#0F172A",
+    borderColor: "#22C55E",
+    borderWidth: 1,
+  },
+  snackbarError: {
+    backgroundColor: "#0F172A",
+    borderColor: "#F87171",
+    borderWidth: 1,
+  },
+  snackbarText: {
+    color: "#E5E7EB",
+    fontWeight: "600",
+    flex: 1,
+    marginRight: 16,
+  },
+  snackbarAction: {
+    color: "#A5B4FC",
+    fontWeight: "700",
   },
 });
 
