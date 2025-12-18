@@ -114,6 +114,10 @@ export default function Header2({ section }) {
 
   const hasLeftIcon = !!appBar?.leftIcon;
 
+  const shouldShowSearchRow =
+    (searchEnabled && searchAndIcons?.showSearch) ||
+    (notificationEnabled && searchAndIcons?.showNotification);
+
   const shouldShowAppBar = !!(appBar?.show ?? (
     appBar && (
       appBar.title ||
@@ -245,35 +249,37 @@ export default function Header2({ section }) {
         )}
       </View>
 
-      <View style={convertStyles(searchContainerStyle)}>
-        {searchEnabled && searchAndIcons?.showSearch && (
-          <View style={convertStyles(searchBarStyle)}>
-            <FontAwesome
-              name="search"
-              size={18} 
-              color={searchAndIcons?.searchIconColor || "#39444D"} 
-            />
-            <TextInput
-              placeholder={searchAndIcons?.placeholder || "Search products"}
-              placeholderTextColor={placeholderColor}
-              style={convertStyles(searchBarInputStyle)}
-              underlineColorAndroid="transparent"
-              selectionColor="#131A1D"
-            />
-          </View>
-        )}
+      {shouldShowSearchRow ? (
+        <View style={convertStyles(searchContainerStyle)}>
+          {searchEnabled && searchAndIcons?.showSearch && (
+            <View style={convertStyles(searchBarStyle)}>
+              <FontAwesome
+                name="search"
+                size={18}
+                color={searchAndIcons?.searchIconColor || "#39444D"}
+              />
+              <TextInput
+                placeholder={searchAndIcons?.placeholder || "Search products"}
+                placeholderTextColor={placeholderColor}
+                style={convertStyles(searchBarInputStyle)}
+                underlineColorAndroid="transparent"
+                selectionColor="#131A1D"
+              />
+            </View>
+          )}
 
-        {notificationEnabled && searchAndIcons?.showNotification && (
-          <View style={convertStyles(notificationContainerStyle)}>
-            <FontAwesome
-              name="bell"
-              size={searchAndIcons?.notificationIconSize || 36}
-              color={searchAndIcons?.notificationIconColor || "#FFFFFF"}
-            />
-            {searchAndIcons?.showBadge && <View style={convertStyles(badgeStyle)} />}
-          </View>
-        )}
-      </View>
+          {notificationEnabled && searchAndIcons?.showNotification && (
+            <View style={convertStyles(notificationContainerStyle)}>
+              <FontAwesome
+                name="bell"
+                size={searchAndIcons?.notificationIconSize || 36}
+                color={searchAndIcons?.notificationIconColor || "#FFFFFF"}
+              />
+              {searchAndIcons?.showBadge && <View style={convertStyles(badgeStyle)} />}
+            </View>
+          )}
+        </View>
+      ) : null}
     </LinearGradient>
   );
 }
