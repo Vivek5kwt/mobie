@@ -89,8 +89,35 @@ const deriveContainerStyles = (layoutCss, styleBlock) => {
 };
 
 const parseTiming = (rawProps, fallbackStartTime = null) => {
-  const parsedEndTime = parseDateValue(rawProps?.endTime);
-  const parsedStartTime = parseDateValue(rawProps?.startTime) || fallbackStartTime;
+  const timerAttributes = rawProps?.timerAttributes?.properties || rawProps?.timerAttributes || {};
+  const timingBlock = rawProps?.timing?.properties || rawProps?.timing || {};
+
+  const parsedEndTime = parseDateValue(
+    rawProps?.endTime ??
+      rawProps?.end_date ??
+      timerAttributes?.endTime ??
+      timerAttributes?.end_time ??
+      timerAttributes?.end_date ??
+      timingBlock?.endTime ??
+      timingBlock?.end_time ??
+      timingBlock?.end_date
+  );
+
+  const parsedStartTime =
+    parseDateValue(
+      rawProps?.startTime ??
+        rawProps?.start_time ??
+        rawProps?.startDate ??
+        rawProps?.start_date ??
+        timerAttributes?.startTime ??
+        timerAttributes?.start_time ??
+        timerAttributes?.startDate ??
+        timerAttributes?.start_date ??
+        timingBlock?.startTime ??
+        timingBlock?.start_time ??
+        timingBlock?.startDate ??
+        timingBlock?.start_date
+    ) || fallbackStartTime;
 
   return {
     endTime: parsedEndTime,
