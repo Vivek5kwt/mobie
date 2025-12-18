@@ -1,4 +1,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import client from '../apollo/client';
+import CREATE_USER_MUTATION from '../graphql/mutations/createUserMutation';
 
 type UserProfile = {
   email: string;
@@ -12,6 +14,10 @@ export type AuthSession = {
 
 const TOKEN_KEY = '@auth_jwt_token';
 const USER_KEY = '@auth_user_profile';
+const DEFAULT_APP_ID = 1;
+const DEFAULT_USER_TYPE = 'mobile';
+const DEFAULT_STATUS = 'active';
+const DEFAULT_SHOPIFY_DOMAIN = 'mobistore-9777.myshopify.com';
 
 const wait = (duration: number) =>
   new Promise((resolve) => setTimeout(resolve, duration));
@@ -19,6 +25,20 @@ const wait = (duration: number) =>
 const saveSession = async (session: AuthSession) => {
   await AsyncStorage.setItem(TOKEN_KEY, session.token);
   await AsyncStorage.setItem(USER_KEY, JSON.stringify(session.user));
+};
+
+type CreateUserResponse = {
+  createUser?: {
+    user?: {
+      id?: string;
+      email: string;
+      name?: string;
+    };
+    store?: {
+      access_token?: string;
+    };
+    message?: string;
+  };
 };
 
 export const restoreSession = async (): Promise<AuthSession | null> => {
@@ -72,8 +92,43 @@ export const signup = async (
     throw new Error('Email and password are required.');
   }
 
-  await wait(700);
-  const session = buildSession(email, fullName);
-  await saveSession(session);
-  return session;
+  const name = fullName?.trim() || email.split('@')[0];
+
+  try {
+    const { data } = await client.mutate<CreateUserResponse>({
+      mutation: CREATE_USER_MUTATION,
+      variables: {
+        name,
+        email,
+        password,
+        status: DEFAULT_STATUS,
+        appId: DEFAULT_APP_ID,
+        userType: DEFAULT_USER_TYPE,
+        shopifyDomain: DEFAULT_SHOPIFY_DOMAIN,
+      },
+    });
+
+    const payload = data?.createUser;
+
+    if (!payload?.user) {
+      throw new Error(payload?.message || 'Unable to create account.');
+    }
+
+    const session: AuthSession = {
+      token: payload.store?.access_token || `user-${payload.user.id || Date.now()}`,
+      user: {
+        email: payload.user.email,
+        name: payload.user.name || name,
+      },
+    };
+
+    await saveSession(session);
+    return session;
+  } catch (error) {
+    if (error instanceof Error) {
+      throw error;
+    }
+
+    throw new Error('Failed to create account.');
+  }
 };
