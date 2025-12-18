@@ -11,6 +11,7 @@ type UserProfile = {
   userType?: string;
   shopifyDomain?: string;
   status?: string;
+  timezone?: string;
   createdAt?: string;
   updatedAt?: string;
   userToken?: string;
@@ -27,6 +28,7 @@ const DEFAULT_APP_ID = 1;
 const DEFAULT_USER_TYPE = 'mobile';
 const DEFAULT_STATUS = 'active';
 const DEFAULT_SHOPIFY_DOMAIN = 'newmobidrag.myshopify.com';
+const generateToken = () => `jwt-${Date.now()}-${Math.random().toString(36).slice(2)}`;
 
 const wait = (duration: number) =>
   new Promise((resolve) => setTimeout(resolve, duration));
@@ -51,6 +53,7 @@ type LoginUserResponse = {
       name?: string;
       app_id?: number;
       user_type?: string;
+      timezone?: string;
       shopify_domain?: string;
       status?: string;
       token?: string;
@@ -84,7 +87,7 @@ export const clearSession = async () => {
 };
 
 const buildSession = (email: string, name?: string): AuthSession => ({
-  token: `jwt-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+  token: generateToken(),
   user: {
     email,
     name: name || email.split('@')[0],
@@ -105,18 +108,21 @@ export const login = async (email: string, password: string): Promise<AuthSessio
     const payload = data?.loginUser;
     const user = payload?.user;
 
-    if (!payload?.token || !user?.email) {
+    if (!user?.email) {
       throw new Error('Invalid email or password.');
     }
 
+    const sessionToken = payload?.token || generateToken();
+
     const session: AuthSession = {
-      token: payload.token,
+      token: sessionToken,
       user: {
         id: user.id,
         email: user.email,
         name: user.name,
         appId: user.app_id,
         userType: user.user_type,
+        timezone: user.timezone,
         shopifyDomain: user.shopify_domain,
         status: user.status,
         createdAt: user.created_at,
