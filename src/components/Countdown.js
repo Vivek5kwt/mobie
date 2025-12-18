@@ -66,15 +66,23 @@ const parseDateValue = (value) => {
 
 const buildCountdown = (endTime, startTime) => {
   if (!endTime) return null;
+
   const now = Date.now();
-  const baseline = startTime ? Math.max(now, startTime.getTime()) : now;
-  const diff = Math.max(0, endTime.getTime() - baseline);
+  const baseline = startTime?.getTime?.() || now;
+  const diff = Math.max(0, endTime.getTime() - now);
+
+  // If a future start time is configured, keep showing the time until start
+  // instead of freezing the countdown. This prevents the timer from looking
+  // stuck when the start time is later than "now".
+  const effectiveDiff = Math.max(diff, baseline - now);
+
   const totalSeconds = Math.floor(diff / 1000);
   const days = Math.floor(totalSeconds / 86400);
   const hours = Math.floor((totalSeconds % 86400) / 3600);
   const minutes = Math.floor((totalSeconds % 3600) / 60);
   const seconds = totalSeconds % 60;
-  return { days, hours, minutes, seconds, remainingMs: diff };
+
+  return { days, hours, minutes, seconds, remainingMs: effectiveDiff };
 };
 
 const getRawProps = (section) =>
