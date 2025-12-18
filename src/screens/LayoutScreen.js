@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from "react";
-import { RefreshControl, ScrollView, Text, View, StyleSheet, Button } from "react-native";
+import { ActivityIndicator, RefreshControl, ScrollView, Text, View, StyleSheet, Button } from "react-native";
 import DynamicRenderer from "../engine/DynamicRenderer";
 import { fetchDSL } from "../engine/dslHandler";
 import { shouldRenderSectionOnMobile } from "../engine/visibility";
@@ -89,8 +89,11 @@ export default function LayoutScreen() {
   if (loading)
     return (
       <SafeArea>
-        <View style={styles.centerContainer}>
-          <Text style={styles.loading}>Loading Live Data...</Text>
+        <View style={styles.loaderBackdrop}>
+          <View style={styles.loaderCard}>
+            <ActivityIndicator size="large" color="#4F46E5" />
+            <Text style={styles.loaderText}>Preparing your experience…</Text>
+          </View>
         </View>
       </SafeArea>
     );
@@ -179,10 +182,31 @@ const styles = StyleSheet.create({
     alignItems: "center",
     padding: 20,
   },
-  loading: {
-    textAlign: "center",
-    marginBottom: 20,
-    fontSize: 16,
+  loaderBackdrop: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    backgroundColor: "#0E1023",
+  },
+  loaderCard: {
+    paddingHorizontal: 28,
+    paddingVertical: 24,
+    borderRadius: 16,
+    backgroundColor: "rgba(255,255,255,0.08)",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.12)",
+    shadowColor: "#000",
+    shadowOpacity: 0.15,
+    shadowOffset: { width: 0, height: 10 },
+    shadowRadius: 20,
+    alignItems: "center",
+    gap: 12,
+  },
+  loaderText: {
+    color: "#E5E7EB",
+    fontSize: 15,
+    fontWeight: "600",
+    letterSpacing: 0.2,
   },
   error: {
     textAlign: "center",
