@@ -1,10 +1,19 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import client from '../apollo/client';
 import CREATE_USER_MUTATION from '../graphql/mutations/createUserMutation';
+import LOGIN_USER_MUTATION from '../graphql/mutations/loginUserMutation';
 
 type UserProfile = {
+  id?: number;
   email: string;
   name?: string;
+  appId?: number;
+  userType?: string;
+  shopifyDomain?: string;
+  status?: string;
+  createdAt?: string;
+  updatedAt?: string;
+  userToken?: string;
 };
 
 export type AuthSession = {
@@ -30,6 +39,24 @@ const saveSession = async (session: AuthSession) => {
 type CreateUserResponse = {
   createUser?: {
     message?: string;
+  };
+};
+
+type LoginUserResponse = {
+  loginUser?: {
+    token?: string;
+    user?: {
+      id?: number;
+      email?: string;
+      name?: string;
+      app_id?: number;
+      user_type?: string;
+      shopify_domain?: string;
+      status?: string;
+      token?: string;
+      created_at?: string;
+      updated_at?: string;
+    };
   };
 };
 
@@ -69,10 +96,44 @@ export const login = async (email: string, password: string): Promise<AuthSessio
     throw new Error('Email and password are required.');
   }
 
-  await wait(500);
-  const session = buildSession(email);
-  await saveSession(session);
-  return session;
+  try {
+    const { data } = await client.mutate<LoginUserResponse>({
+      mutation: LOGIN_USER_MUTATION,
+      variables: { email, password },
+    });
+
+    const payload = data?.loginUser;
+    const user = payload?.user;
+
+    if (!payload?.token || !user?.email) {
+      throw new Error('Invalid email or password.');
+    }
+
+    const session: AuthSession = {
+      token: payload.token,
+      user: {
+        id: user.id,
+        email: user.email,
+        name: user.name,
+        appId: user.app_id,
+        userType: user.user_type,
+        shopifyDomain: user.shopify_domain,
+        status: user.status,
+        createdAt: user.created_at,
+        updatedAt: user.updated_at,
+        userToken: user.token,
+      },
+    };
+
+    await saveSession(session);
+    return session;
+  } catch (error) {
+    if (error instanceof Error) {
+      throw error;
+    }
+
+    throw new Error('Failed to login.');
+  }
 };
 
 export const signup = async (
