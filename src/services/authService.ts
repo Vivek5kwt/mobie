@@ -17,7 +17,7 @@ const USER_KEY = '@auth_user_profile';
 const DEFAULT_APP_ID = 1;
 const DEFAULT_USER_TYPE = 'mobile';
 const DEFAULT_STATUS = 'active';
-const DEFAULT_SHOPIFY_DOMAIN = 'mobistore-9777.myshopify.com';
+const DEFAULT_SHOPIFY_DOMAIN = 'newmobidrag.myshopify.com';
 
 const wait = (duration: number) =>
   new Promise((resolve) => setTimeout(resolve, duration));
@@ -29,14 +29,6 @@ const saveSession = async (session: AuthSession) => {
 
 type CreateUserResponse = {
   createUser?: {
-    user?: {
-      id?: string;
-      email: string;
-      name?: string;
-    };
-    store?: {
-      access_token?: string;
-    };
     message?: string;
   };
 };
@@ -110,17 +102,11 @@ export const signup = async (
 
     const payload = data?.createUser;
 
-    if (!payload?.user) {
+    if (!payload?.message) {
       throw new Error(payload?.message || 'Unable to create account.');
     }
 
-    const session: AuthSession = {
-      token: payload.store?.access_token || `user-${payload.user.id || Date.now()}`,
-      user: {
-        email: payload.user.email,
-        name: payload.user.name || name,
-      },
-    };
+    const session = buildSession(email, name);
 
     await saveSession(session);
     return session;
