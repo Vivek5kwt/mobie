@@ -2,10 +2,12 @@ import React, { useEffect, useRef } from "react";
 import { View, StyleSheet, Animated, Text, Image } from "react-native";
 import LinearGradient from "react-native-linear-gradient";
 import { useNavigation } from "@react-navigation/native";
+import { useAuth } from "../services/AuthContext";
 const LOGO = require("../assets/logo/mobidraglogo.png");
 
 export default function SplashScreen() {
   const navigation = useNavigation();
+  const { session, initializing } = useAuth();
 
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const scaleAnim = useRef(new Animated.Value(0.4)).current;
@@ -33,13 +35,16 @@ export default function SplashScreen() {
       }),
     ]).start();
 
-    // After 3 seconds → navigate
+    if (initializing) return;
+
+    // After animation → navigate based on auth state
     const timeout = setTimeout(() => {
-      navigation.replace("LayoutScreen");
+      const nextRoute = session ? "LayoutScreen" : "Auth";
+      navigation.reset({ index: 0, routes: [{ name: nextRoute }] });
     }, 3000);
 
     return () => clearTimeout(timeout);
-  }, []);
+  }, [navigation, session, initializing]);
 
   return (
     <LinearGradient
