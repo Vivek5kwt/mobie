@@ -7,6 +7,8 @@ import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import SplashScreen from "./src/screens/saplash";
 import LayoutScreen from './src/screens/LayoutScreen';
+import AuthScreen from "./src/screens/AuthScreen";
+import { AuthProvider } from "./src/services/AuthContext";
 
 import tokenLogger from './src/utils/tokenLogger';
 
@@ -45,19 +47,24 @@ export default function App() {
 
   return (
     <SafeAreaProvider>
-      <ApolloProvider client={client}>
-        <NavigationContainer>
-          <Stack.Navigator screenOptions={{ headerShown: false }}>
+      <AuthProvider>
+        <ApolloProvider client={client}>
+          <NavigationContainer>
+            <Stack.Navigator screenOptions={{ headerShown: false }} initialRouteName="Splash">
 
-            {/* 🔥 First Screen: Splash */}
-            <Stack.Screen name="Splash" component={SplashScreen} />
+              {/* 🔥 First Screen: Splash */}
+              <Stack.Screen name="Splash" component={SplashScreen} />
 
-            {/* 🔥 Main Screen: Your builder UI */}
-            <Stack.Screen name="LayoutScreen" component={LayoutScreen} />
+              {/* 🔥 Auth Screen: Login & Signup */}
+              <Stack.Screen name="Auth" component={AuthScreen} />
 
-          </Stack.Navigator>
-        </NavigationContainer>
-      </ApolloProvider>
+              {/* 🔥 Main Screen: Your builder UI */}
+              <Stack.Screen name="LayoutScreen" component={LayoutScreen} />
+
+            </Stack.Navigator>
+          </NavigationContainer>
+        </ApolloProvider>
+      </AuthProvider>
     </SafeAreaProvider>
   );
 }
