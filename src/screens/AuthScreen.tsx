@@ -22,6 +22,7 @@ const AuthScreen = () => {
   const [fullName, setFullName] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [passwordVisible, setPasswordVisible] = useState(false);
 
   useEffect(() => {
     if (session) {
@@ -42,26 +43,57 @@ const AuthScreen = () => {
     setError('');
   };
 
+  const validateForm = () => {
+    const trimmedEmail = email.trim();
+    const trimmedPassword = password.trim();
+    const trimmedFullName = fullName.trim();
+
+    if (!trimmedEmail || !trimmedPassword) {
+      return 'Email and password are required.';
+    }
+
+    const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailPattern.test(trimmedEmail)) {
+      return 'Enter a valid email address.';
+    }
+
+    if (trimmedPassword.length < 6) {
+      return 'Use a password with at least 6 characters.';
+    }
+
+    if (mode === 'signup') {
+      if (!trimmedFullName) {
+        return 'Please enter your full name.';
+      }
+
+      if (trimmedPassword.length < 8) {
+        return 'Use a password with at least 8 characters for new accounts.';
+      }
+
+      if (!/[A-Z]/.test(trimmedPassword) || !/[0-9]/.test(trimmedPassword)) {
+        return 'Include a number and an uppercase letter in your password.';
+      }
+    }
+
+    return '';
+  };
+
   const handleSubmit = async () => {
     setError('');
     if (loading) return;
 
-    if (!email || !password) {
-      setError('Email and password are required.');
-      return;
-    }
-
-    if (mode === 'signup' && password.length < 6) {
-      setError('Choose a password with at least 6 characters.');
+    const validationError = validateForm();
+    if (validationError) {
+      setError(validationError);
       return;
     }
 
     try {
       setLoading(true);
       if (mode === 'login') {
-        await login(email.trim(), password);
+        await login(email.trim(), password.trim());
       } else {
-        await signup(email.trim(), password, fullName.trim());
+        await signup(email.trim(), password.trim(), fullName.trim());
       }
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : 'Something went wrong';
@@ -114,14 +146,24 @@ const AuthScreen = () => {
 
           <View style={styles.fieldGroup}>
             <Text style={styles.label}>Password</Text>
-            <TextInput
-              placeholder="••••••••"
-              placeholderTextColor="#A0AEC0"
-              value={password}
-              onChangeText={setPassword}
-              secureTextEntry
-              style={styles.input}
-            />
+            <View style={styles.passwordRow}>
+              <TextInput
+                placeholder="••••••••"
+                placeholderTextColor="#A0AEC0"
+                value={password}
+                onChangeText={setPassword}
+                secureTextEntry={!passwordVisible}
+                style={[styles.input, styles.passwordInput]}
+              />
+              <TouchableOpacity
+                onPress={() => setPasswordVisible((prev) => !prev)}
+                style={styles.visibilityToggle}
+                accessibilityRole="button"
+                accessibilityLabel={passwordVisible ? 'Hide password' : 'Show password'}
+              >
+                <Text style={styles.visibilityText}>{passwordVisible ? 'Hide' : 'Show'}</Text>
+              </TouchableOpacity>
+            </View>
           </View>
 
           {error ? <Text style={styles.error}>{error}</Text> : null}
@@ -191,6 +233,26 @@ const styles = StyleSheet.create({
     color: '#F8FAFC',
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.08)',
+  },
+  passwordRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  passwordInput: {
+    flex: 1,
+    marginRight: 10,
+  },
+  visibilityToggle: {
+    paddingHorizontal: 12,
+    paddingVertical: Platform.OS === 'ios' ? 10 : 8,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.12)',
+    backgroundColor: '#0B0F24',
+  },
+  visibilityText: {
+    color: '#A5B4FC',
+    fontWeight: '700',
   },
   error: {
     color: '#F87171',
