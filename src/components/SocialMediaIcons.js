@@ -61,11 +61,30 @@ const normalizePlatforms = (rawPlatforms) => {
     .filter(Boolean);
 };
 
+const getPlatformKey = (platform) =>
+  (platform.platform || platform.id || "").toString().trim().toLowerCase();
+
+const mergeWithDefaults = (platforms) => {
+  const existingKeys = new Set(platforms.map(getPlatformKey).filter(Boolean));
+  const merged = [...platforms];
+
+  DEFAULT_PLATFORMS.forEach((defaultPlatform) => {
+    const key = getPlatformKey(defaultPlatform);
+    if (!key) return;
+    if (!existingKeys.has(key)) {
+      merged.push(defaultPlatform);
+    }
+  });
+
+  return merged;
+};
+
 const brandColors = {
   facebook: "#1877F2",
   twitter: "#1DA1F2",
   instagram: "#C13584",
   youtube: "#FF0000",
+  whatsapp: "#25D366",
   linkedin: "#0A66C2",
   pinterest: "#E60023",
   tiktok: "#000000",
@@ -76,10 +95,21 @@ const iconNameMap = {
   twitter: "twitter",
   instagram: "instagram",
   youtube: "youtube",
+  whatsapp: "whatsapp",
   linkedin: "linkedin",
   pinterest: "pinterest",
   tiktok: "tiktok",
 };
+
+const DEFAULT_PLATFORMS = [
+  { id: "facebook", platform: "facebook", url: "" },
+  { id: "twitter", platform: "twitter", url: "" },
+  { id: "instagram", platform: "instagram", url: "" },
+  { id: "youtube", platform: "youtube", url: "" },
+  { id: "whatsapp", platform: "whatsapp", url: "" },
+  { id: "linkedin", platform: "linkedin", url: "" },
+  { id: "pinterest", platform: "pinterest", url: "" },
+];
 
 export default function SocialMediaIcons({ section }) {
   const rawProps =
@@ -87,7 +117,10 @@ export default function SocialMediaIcons({ section }) {
 
   const layoutCss = rawProps?.layout?.properties?.css || rawProps?.layout?.css || {};
 
-  const platforms = useMemo(() => normalizePlatforms(rawProps?.platforms || []), [rawProps?.platforms]);
+  const platforms = useMemo(
+    () => mergeWithDefaults(normalizePlatforms(rawProps?.platforms || [])),
+    [rawProps?.platforms]
+  );
 
   if (!platforms.length) return null;
 
