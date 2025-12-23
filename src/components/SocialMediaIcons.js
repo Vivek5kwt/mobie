@@ -61,24 +61,6 @@ const normalizePlatforms = (rawPlatforms) => {
     .filter(Boolean);
 };
 
-const getPlatformKey = (platform) =>
-  (platform.platform || platform.id || "").toString().trim().toLowerCase();
-
-const mergeWithDefaults = (platforms) => {
-  const existingKeys = new Set(platforms.map(getPlatformKey).filter(Boolean));
-  const merged = [...platforms];
-
-  DEFAULT_PLATFORMS.forEach((defaultPlatform) => {
-    const key = getPlatformKey(defaultPlatform);
-    if (!key) return;
-    if (!existingKeys.has(key)) {
-      merged.push(defaultPlatform);
-    }
-  });
-
-  return merged;
-};
-
 const brandColors = {
   facebook: "#1877F2",
   twitter: "#1DA1F2",
@@ -117,10 +99,13 @@ export default function SocialMediaIcons({ section }) {
 
   const layoutCss = rawProps?.layout?.properties?.css || rawProps?.layout?.css || {};
 
-  const platforms = useMemo(
-    () => mergeWithDefaults(normalizePlatforms(rawProps?.platforms || [])),
-    [rawProps?.platforms]
-  );
+  const platforms = useMemo(() => {
+    const normalizedPlatforms = normalizePlatforms(rawProps?.platforms || []);
+
+    if (normalizedPlatforms.length > 0) return normalizedPlatforms;
+
+    return DEFAULT_PLATFORMS;
+  }, [rawProps?.platforms]);
 
   if (!platforms.length) return null;
 
