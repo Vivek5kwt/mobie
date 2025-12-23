@@ -93,6 +93,8 @@ const DEFAULT_PLATFORMS = [
   { id: "pinterest", platform: "pinterest", url: "" },
 ];
 
+const brandIconNames = new Set(Object.values(iconNameMap));
+
 export default function SocialMediaIcons({ section }) {
   const rawProps =
     section?.properties?.props?.properties || section?.properties?.props || section?.props || {};
@@ -214,6 +216,7 @@ export default function SocialMediaIcons({ section }) {
                   name={resolvedIconName || "link"}
                   size={iconSize}
                   color={useBrand ? "#FFFFFF" : iconStyle.color || iconColor}
+                  brands={brandIconNames.has(resolvedIconName)}
                   style={[iconStyle, { color: useBrand ? "#FFFFFF" : iconStyle.color || iconColor }]}
                 />
               </View>
