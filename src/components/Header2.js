@@ -97,6 +97,11 @@ export default function Header2({ section }) {
   if (greeting.textDecoration) greetingTextStyle.textDecorationLine = greeting.textDecoration;
   
   const placeholderColor = searchAndIcons?.placeholderColor || "#4B4B4B";
+  const searchPlaceholder =
+    searchAndIcons?.searchPlaceholder ||
+    searchAndIcons?.placeholder ||
+    props?.searchPlaceholder ||
+    "Search products...";
 
   const profileBorderWidth = profile?.borderWidth ||
                             (profileStyle.borderWidth ? parseFloat(profileStyle.borderWidth) : 4);
@@ -259,7 +264,7 @@ export default function Header2({ section }) {
                 color={searchAndIcons?.searchIconColor || "#39444D"}
               />
               <TextInput
-                placeholder={searchAndIcons?.placeholder || "Search products"}
+                placeholder={searchPlaceholder}
                 placeholderTextColor={placeholderColor}
                 style={convertStyles(searchBarInputStyle)}
                 underlineColorAndroid="transparent"
