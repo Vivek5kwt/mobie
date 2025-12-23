@@ -21,6 +21,46 @@ export default function LayoutScreen() {
   const versionRef = useRef(null);
   const snackbarTimer = useRef(null);
 
+  const mobileSections = useMemo(
+    () => (dsl?.sections || []).filter(shouldRenderSectionOnMobile),
+    [dsl]
+  );
+
+  const sortedSections = useMemo(() => {
+    const sectionsCopy = [...mobileSections];
+
+    return sectionsCopy.sort((a, b) => {
+      const A = a?.properties?.component?.const || "";
+      const B = b?.properties?.component?.const || "";
+
+      // 1️⃣ Top Header
+      if (A === "header") return -1;
+      if (B === "header") return 1;
+
+      // 2️⃣ Header 2 (mobile variant)
+      if (A === "header_2" || A === "header_2_mobile") return -1;
+      if (B === "header_2" || B === "header_2_mobile") return 1;
+
+      return 0;
+    });
+  }, [mobileSections]);
+
+  const sideNavSection = useMemo(
+    () =>
+      sortedSections.find(
+        (section) => section?.properties?.component?.const?.toLowerCase() === "side_navigation"
+      ) || null,
+    [sortedSections]
+  );
+
+  const visibleSections = useMemo(
+    () =>
+      sortedSections.filter(
+        (section) => section?.properties?.component?.const?.toLowerCase() !== "side_navigation"
+      ),
+    [sortedSections]
+  );
+
   const showSnackbar = (message, type = "info") => {
     setSnackbar({ visible: true, message, type });
 
@@ -154,44 +194,6 @@ export default function LayoutScreen() {
         </View>
       </SafeArea>
     );
-
-  // ---------------------------------------------------------
-  // ⭐ IMPORTANT FIX: SORT HEADERS IN CORRECT ORDER
-  // ---------------------------------------------------------
-  const mobileSections = (dsl?.sections || []).filter(shouldRenderSectionOnMobile);
-
-  const sortedSections = [...mobileSections].sort((a, b) => {
-    const A = a?.properties?.component?.const || "";
-    const B = b?.properties?.component?.const || "";
-
-    // 1️⃣ Top Header
-    if (A === "header") return -1;
-    if (B === "header") return 1;
-
-    // 2️⃣ Header 2 (mobile variant)
-    if (A === "header_2" || A === "header_2_mobile") return -1;
-    if (B === "header_2" || B === "header_2_mobile") return 1;
-
-    return 0;
-  });
-
-  const sideNavSection = useMemo(
-    () =>
-      sortedSections.find(
-        (section) => section?.properties?.component?.const?.toLowerCase() === "side_navigation"
-      ) || null,
-    [sortedSections]
-  );
-
-  const visibleSections = useMemo(
-    () =>
-      sortedSections.filter(
-        (section) => section?.properties?.component?.const?.toLowerCase() !== "side_navigation"
-      ),
-    [sortedSections]
-  );
-
-  // --------------------------------------------------------------------
 
   return (
     <SafeArea>
