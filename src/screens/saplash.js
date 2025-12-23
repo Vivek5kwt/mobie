@@ -7,7 +7,7 @@ const LOGO = require("../assets/logo/mobidraglogo.png");
 
 export default function SplashScreen() {
   const navigation = useNavigation();
-  const { session, initializing } = useAuth();
+  const { initializing } = useAuth();
 
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const scaleAnim = useRef(new Animated.Value(0.4)).current;
@@ -37,14 +37,13 @@ export default function SplashScreen() {
 
     if (initializing) return;
 
-    // After animation → navigate based on auth state
+    // After animation → always navigate directly to the main layout
     const timeout = setTimeout(() => {
-      const nextRoute = session ? "LayoutScreen" : "Auth";
-      navigation.reset({ index: 0, routes: [{ name: nextRoute }] });
+      navigation.reset({ index: 0, routes: [{ name: "LayoutScreen" }] });
     }, 3000);
 
     return () => clearTimeout(timeout);
-  }, [navigation, session, initializing]);
+  }, [navigation, initializing]);
 
   return (
     <LinearGradient
