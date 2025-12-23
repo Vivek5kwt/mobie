@@ -12,6 +12,7 @@ import HeroBanner from "../components/HeroBanner";
 import SocialMediaIcons from "../components/SocialMediaIcons";
 import ProductGrid from "../components/ProductGrid";
 import TextBlock from "../components/TextBlock";
+import SideNavigation from "../components/SideNavigation";
 
 // COMPONENT MAP — ALL LIVE ONLY
 const componentMap = {
@@ -27,6 +28,7 @@ const componentMap = {
   social_media_icons: SocialMediaIcons,
   product_grid: ProductGrid,
   text_block: TextBlock,
+  side_navigation: SideNavigation,
 };
 
 // detect mobile version for header_2
