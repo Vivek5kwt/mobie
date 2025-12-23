@@ -164,7 +164,9 @@ export default function SideNavigation({ section }) {
 
 const styles = StyleSheet.create({
   drawer: {
-    width: 260,
+    width: "100%",
+    minWidth: 260,
+    alignSelf: "stretch",
     backgroundColor: "#FFFFFF",
   },
   drawerWithBackground: {
