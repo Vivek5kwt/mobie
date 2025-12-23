@@ -26,6 +26,18 @@ const resolveBooleanSetting = (input, defaultValue = true) => {
   return normalize(input);
 };
 
+const resolveValue = (input, defaultValue = undefined) => {
+  if (input === undefined || input === null) return defaultValue;
+
+  if (typeof input === "object") {
+    if (input.value !== undefined) return input.value;
+    if (input.properties?.value !== undefined) return input.properties.value;
+    if (input.const !== undefined) return input.const;
+  }
+
+  return input;
+};
+
 export default function Header2({ section }) {
   console.log("🔍 Header2 section:", JSON.stringify(section, null, 2));
 
@@ -97,6 +109,10 @@ export default function Header2({ section }) {
   if (greeting.textDecoration) greetingTextStyle.textDecorationLine = greeting.textDecoration;
   
   const placeholderColor = searchAndIcons?.placeholderColor || "#4B4B4B";
+  const searchPlaceholder = resolveValue(
+    searchAndIcons?.searchPlaceholder,
+    resolveValue(searchAndIcons?.placeholder, "Search products"),
+  );
 
   const profileBorderWidth = profile?.borderWidth ||
                             (profileStyle.borderWidth ? parseFloat(profileStyle.borderWidth) : 4);
@@ -259,7 +275,7 @@ export default function Header2({ section }) {
                 color={searchAndIcons?.searchIconColor || "#39444D"}
               />
               <TextInput
-                placeholder={searchAndIcons?.placeholder || "Search products"}
+                placeholder={searchPlaceholder}
                 placeholderTextColor={placeholderColor}
                 style={convertStyles(searchBarInputStyle)}
                 underlineColorAndroid="transparent"
