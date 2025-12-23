@@ -1,7 +1,9 @@
 // components/Header.js
-import React from "react";
+import React, { useMemo, useState } from "react";
 import { View, Image, StyleSheet } from "react-native";
 import Icon from "react-native-vector-icons/FontAwesome6";
+
+const DEFAULT_LOGO = require("../assets/logo/mobidraglogo.png");
 
 const isEnabled = (value) => value === true || value === "true";
 
@@ -9,6 +11,8 @@ export default function Header({ section }) {
 
   const props = section?.properties?.props?.properties || {};
   const layout = props?.layout?.properties?.css || {};
+
+  const [logoFailed, setLogoFailed] = useState(false);
 
   // -----------------------------------------
   // 1️⃣ Extract Logo URL properly (IMPORTANT)
@@ -22,6 +26,14 @@ export default function Header({ section }) {
   }
 
   // -----------------------------------------
+
+  const logoSource = useMemo(() => {
+    if (!logoUrl || logoFailed) {
+      return DEFAULT_LOGO;
+    }
+
+    return { uri: logoUrl };
+  }, [logoFailed, logoUrl]);
 
   return (
     <View
@@ -55,12 +67,13 @@ export default function Header({ section }) {
       {isEnabled(props.enableLogo?.value) && (
         <View style={[styles.logoSlot, layout.logoSlot]}>
           <Image
-            source={{ uri: logoUrl }}   // <--- FIX APPLIED HERE
+            source={logoSource}
             style={{
               width: layout.logoImage?.width === "auto" ? 80 : layout.logoImage?.width,
               height: layout.logoImage?.height || 26,
               resizeMode: "contain",
             }}
+            onError={() => setLogoFailed(true)}
           />
         </View>
       )}
