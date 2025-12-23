@@ -258,7 +258,6 @@ export default function LayoutScreen() {
                 pointerEvents="none"
               />
               <View style={{ flex: 1, flexDirection: "row" }}>
-                <TouchableOpacity style={{ flex: 1 }} activeOpacity={1} onPress={closeSideMenu} />
                 <Animated.View
                   style={[
                     styles.sideMenuContainer,
@@ -267,6 +266,7 @@ export default function LayoutScreen() {
                 >
                   <SideNavigation section={sideNavSection} />
                 </Animated.View>
+                <TouchableOpacity style={{ flex: 1 }} activeOpacity={1} onPress={closeSideMenu} />
               </View>
             </View>
           )}
