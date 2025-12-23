@@ -1,17 +1,13 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import { ActivityIndicator, RefreshControl, ScrollView, Text, View, StyleSheet, Button, TouchableOpacity } from "react-native";
+import { ActivityIndicator, RefreshControl, ScrollView, Text, View, StyleSheet, Button } from "react-native";
 import DynamicRenderer from "../engine/DynamicRenderer";
 import { fetchDSL } from "../engine/dslHandler";
 import { shouldRenderSectionOnMobile } from "../engine/visibility";
 import { SafeArea } from "../utils/SafeAreaHandler";
-import { useNavigation } from "@react-navigation/native";
-import { useAuth } from "../services/AuthContext";
 import SideNavigation from "../components/SideNavigation";
 import { SideMenuProvider } from "../services/SideMenuContext";
 
 export default function LayoutScreen() {
-  const navigation = useNavigation();
-  const { session, logout } = useAuth();
   const [dsl, setDsl] = useState(null);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState(null);
@@ -132,11 +128,6 @@ export default function LayoutScreen() {
     loadDSL();
   }, []);
 
-  const handleLogout = async () => {
-    await logout();
-    navigation.reset({ index: 0, routes: [{ name: "Auth" }] });
-  };
-
   const closeSideMenu = () => setIsSideMenuOpen(false);
 
   const openSideMenu = () => {
@@ -218,19 +209,6 @@ export default function LayoutScreen() {
               <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
             }
           >
-            <View style={styles.topBar}>
-              <View>
-                <Text style={styles.welcomeTitle}>Workspace</Text>
-                <Text style={styles.welcomeSubtitle}>
-                  Signed in as {session?.user?.name || session?.user?.email || "Guest"}
-                </Text>
-              </View>
-
-              <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
-                <Text style={styles.logoutText}>Logout</Text>
-              </TouchableOpacity>
-            </View>
-
             {visibleSections.length ? (
               visibleSections.map((s, i) => (
                 <View key={i} style={styles.sectionWrapper}>
@@ -282,35 +260,6 @@ const styles = StyleSheet.create({
   scrollContent: {
     paddingHorizontal: 0,
     paddingBottom: 24,
-  },
-  topBar: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    backgroundColor: "#fff",
-    borderBottomWidth: 1,
-    borderBottomColor: "#E5E7EB",
-  },
-  welcomeTitle: {
-    fontSize: 18,
-    fontWeight: "700",
-    color: "#111827",
-  },
-  welcomeSubtitle: {
-    color: "#6B7280",
-    marginTop: 2,
-  },
-  logoutButton: {
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    backgroundColor: "#F3F4F6",
-    borderRadius: 12,
-  },
-  logoutText: {
-    color: "#EF4444",
-    fontWeight: "700",
   },
   sectionWrapper: {
     marginBottom: 10,
