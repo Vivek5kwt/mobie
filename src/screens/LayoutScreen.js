@@ -8,6 +8,8 @@ import {
   StyleSheet,
   Button,
   TouchableOpacity,
+  Animated,
+  PanResponder,
 } from "react-native";
 import DynamicRenderer from "../engine/DynamicRenderer";
 import { fetchDSL } from "../engine/dslHandler";
@@ -23,8 +25,13 @@ export default function LayoutScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [snackbar, setSnackbar] = useState({ visible: false, message: "", type: "info" });
   const [isSideMenuOpen, setIsSideMenuOpen] = useState(false);
+  const [isDraggingMenu, setIsDraggingMenu] = useState(false);
   const versionRef = useRef(null);
   const snackbarTimer = useRef(null);
+  const startOffsetRef = useRef(0);
+  const startOpenRef = useRef(false);
+  const SIDE_MENU_WIDTH = 280;
+  const sideMenuTranslateX = useRef(new Animated.Value(-SIDE_MENU_WIDTH)).current;
 
   const mobileSections = useMemo(
     () => (dsl?.sections || []).filter(shouldRenderSectionOnMobile),
@@ -150,6 +157,57 @@ export default function LayoutScreen() {
     setIsSideMenuOpen((prev) => !prev);
   };
 
+  useEffect(() => {
+    Animated.spring(sideMenuTranslateX, {
+      toValue: isSideMenuOpen ? 0 : -SIDE_MENU_WIDTH,
+      useNativeDriver: true,
+      speed: 16,
+      bounciness: 6,
+    }).start(() => setIsDraggingMenu(false));
+  }, [SIDE_MENU_WIDTH, isSideMenuOpen, sideMenuTranslateX]);
+
+  const panResponder = useMemo(
+    () =>
+      PanResponder.create({
+        onMoveShouldSetPanResponder: (_, gestureState) => {
+          const { dx, dy, moveX } = gestureState;
+          if (Math.abs(dx) < Math.abs(dy)) return false;
+          if (!isSideMenuOpen && moveX <= 24 && dx > 10) return true;
+          if (isSideMenuOpen && dx < -10) return true;
+          return false;
+        },
+        onPanResponderGrant: () => {
+          startOpenRef.current = isSideMenuOpen;
+          startOffsetRef.current = startOpenRef.current ? 0 : -SIDE_MENU_WIDTH;
+          sideMenuTranslateX.stopAnimation();
+          setIsDraggingMenu(true);
+        },
+        onPanResponderMove: (_, gestureState) => {
+          const next = startOffsetRef.current + gestureState.dx;
+          const clamped = Math.min(0, Math.max(-SIDE_MENU_WIDTH, next));
+          sideMenuTranslateX.setValue(clamped);
+        },
+        onPanResponderRelease: (_, gestureState) => {
+          const traveled = gestureState.dx;
+          const velocity = gestureState.vx;
+          const opening = startOpenRef.current
+            ? !(traveled < -SIDE_MENU_WIDTH / 4 || velocity < -0.35)
+            : traveled > SIDE_MENU_WIDTH / 3 || velocity > 0.35;
+
+          setIsSideMenuOpen(opening);
+        },
+      }),
+    [SIDE_MENU_WIDTH, isSideMenuOpen, sideMenuTranslateX]
+  );
+
+  const overlayOpacity = sideMenuTranslateX.interpolate({
+    inputRange: [-SIDE_MENU_WIDTH, 0],
+    outputRange: [0, 0.35],
+    extrapolate: "clamp",
+  });
+
+  const showOverlay = isSideMenuOpen || isDraggingMenu;
+
   // Auto-refresh DSL periodically to pick up newly published versions
   useEffect(() => {
     const intervalId = setInterval(async () => {
@@ -206,7 +264,7 @@ export default function LayoutScreen() {
           closeSideMenu,
         }}
       >
-        <View style={styles.screen}>
+        <View style={styles.screen} {...panResponder.panHandlers}>
           {/* RENDER SORTED DSL COMPONENTS */}
           <ScrollView
             contentInsetAdjustmentBehavior="automatic"
@@ -231,11 +289,22 @@ export default function LayoutScreen() {
             )}
           </ScrollView>
 
-          {sideNavSection && isSideMenuOpen && (
-            <View style={styles.sideMenuOverlay}>
-              <TouchableOpacity style={StyleSheet.absoluteFill} activeOpacity={1} onPress={closeSideMenu} />
-              <View style={styles.sideMenuContainer}>
-                <SideNavigation section={sideNavSection} />
+          {sideNavSection && showOverlay && (
+            <View style={StyleSheet.absoluteFill} pointerEvents={showOverlay ? "auto" : "none"} {...panResponder.panHandlers}>
+              <Animated.View
+                style={[StyleSheet.absoluteFill, styles.sideMenuOverlay, { opacity: overlayOpacity }]}
+                pointerEvents="none"
+              />
+              <View style={{ flex: 1, flexDirection: "row" }}>
+                <TouchableOpacity style={{ flex: 1 }} activeOpacity={1} onPress={closeSideMenu} />
+                <Animated.View
+                  style={[
+                    styles.sideMenuContainer,
+                    { transform: [{ translateX: sideMenuTranslateX }] },
+                  ]}
+                >
+                  <SideNavigation section={sideNavSection} />
+                </Animated.View>
               </View>
             </View>
           )}
@@ -274,10 +343,7 @@ const styles = StyleSheet.create({
     marginBottom: 10,
   },
   sideMenuOverlay: {
-    ...StyleSheet.absoluteFillObject,
     backgroundColor: "rgba(0,0,0,0.3)",
-    flexDirection: "row",
-    justifyContent: "flex-start",
   },
   sideMenuContainer: {
     width: 280,

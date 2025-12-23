@@ -91,7 +91,8 @@ export default function SideNavigation({ section }) {
     }),
   ];
 
-  const headerTitle = unwrapValue(raw?.headerTitle, "Side Navigation");
+  const headerTitle = unwrapValue(raw?.headerTitle, "Mobidrag");
+  const subtitle = unwrapValue(raw?.subtitle, "Effortless browsing at your fingertips");
   const logoUrl = unwrapValue(raw?.logoUrl, "");
   const logoText = unwrapValue(raw?.logoText, "");
 
@@ -113,9 +114,14 @@ export default function SideNavigation({ section }) {
               <Text style={styles.logoText}>{logoText}</Text>
             </View>
           ) : null}
-          <Text style={styles.headerTitle} numberOfLines={1}>
-            {headerTitle}
-          </Text>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.headerTitle} numberOfLines={1}>
+              {headerTitle}
+            </Text>
+            <Text style={styles.subtitle} numberOfLines={1}>
+              {subtitle}
+            </Text>
+          </View>
         </View>
       )}
 
@@ -159,7 +165,11 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: "700",
     color: "#111827",
-    flex: 1,
+  },
+  subtitle: {
+    fontSize: 13,
+    color: "#6B7280",
+    marginTop: 2,
   },
   logoImage: {
     width: 32,
