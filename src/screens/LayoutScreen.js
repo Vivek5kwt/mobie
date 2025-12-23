@@ -9,7 +9,6 @@ import {
   Button,
   TouchableOpacity,
   Animated,
-  PanResponder,
 } from "react-native";
 import DynamicRenderer from "../engine/DynamicRenderer";
 import { fetchDSL } from "../engine/dslHandler";
@@ -25,11 +24,8 @@ export default function LayoutScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [snackbar, setSnackbar] = useState({ visible: false, message: "", type: "info" });
   const [isSideMenuOpen, setIsSideMenuOpen] = useState(false);
-  const [isDraggingMenu, setIsDraggingMenu] = useState(false);
   const versionRef = useRef(null);
   const snackbarTimer = useRef(null);
-  const startOffsetRef = useRef(0);
-  const startOpenRef = useRef(false);
   const SIDE_MENU_WIDTH = 280;
   const sideMenuTranslateX = useRef(new Animated.Value(-SIDE_MENU_WIDTH)).current;
 
@@ -163,42 +159,8 @@ export default function LayoutScreen() {
       useNativeDriver: true,
       speed: 16,
       bounciness: 6,
-    }).start(() => setIsDraggingMenu(false));
+    }).start();
   }, [SIDE_MENU_WIDTH, isSideMenuOpen, sideMenuTranslateX]);
-
-  const panResponder = useMemo(
-    () =>
-      PanResponder.create({
-        onMoveShouldSetPanResponder: (_, gestureState) => {
-          const { dx, dy, moveX } = gestureState;
-          if (Math.abs(dx) < Math.abs(dy)) return false;
-          if (!isSideMenuOpen && moveX <= 24 && dx > 10) return true;
-          if (isSideMenuOpen && dx < -10) return true;
-          return false;
-        },
-        onPanResponderGrant: () => {
-          startOpenRef.current = isSideMenuOpen;
-          startOffsetRef.current = startOpenRef.current ? 0 : -SIDE_MENU_WIDTH;
-          sideMenuTranslateX.stopAnimation();
-          setIsDraggingMenu(true);
-        },
-        onPanResponderMove: (_, gestureState) => {
-          const next = startOffsetRef.current + gestureState.dx;
-          const clamped = Math.min(0, Math.max(-SIDE_MENU_WIDTH, next));
-          sideMenuTranslateX.setValue(clamped);
-        },
-        onPanResponderRelease: (_, gestureState) => {
-          const traveled = gestureState.dx;
-          const velocity = gestureState.vx;
-          const opening = startOpenRef.current
-            ? !(traveled < -SIDE_MENU_WIDTH / 4 || velocity < -0.35)
-            : traveled > SIDE_MENU_WIDTH / 3 || velocity > 0.35;
-
-          setIsSideMenuOpen(opening);
-        },
-      }),
-    [SIDE_MENU_WIDTH, isSideMenuOpen, sideMenuTranslateX]
-  );
 
   const overlayOpacity = sideMenuTranslateX.interpolate({
     inputRange: [-SIDE_MENU_WIDTH, 0],
@@ -206,7 +168,7 @@ export default function LayoutScreen() {
     extrapolate: "clamp",
   });
 
-  const showOverlay = isSideMenuOpen || isDraggingMenu;
+  const showOverlay = isSideMenuOpen;
 
   // Auto-refresh DSL periodically to pick up newly published versions
   useEffect(() => {
@@ -264,7 +226,7 @@ export default function LayoutScreen() {
           closeSideMenu,
         }}
       >
-        <View style={styles.screen} {...panResponder.panHandlers}>
+        <View style={styles.screen}>
           {/* RENDER SORTED DSL COMPONENTS */}
           <ScrollView
             contentInsetAdjustmentBehavior="automatic"
@@ -290,7 +252,7 @@ export default function LayoutScreen() {
           </ScrollView>
 
           {sideNavSection && showOverlay && (
-            <View style={StyleSheet.absoluteFill} pointerEvents={showOverlay ? "auto" : "none"} {...panResponder.panHandlers}>
+            <View style={StyleSheet.absoluteFill} pointerEvents={showOverlay ? "auto" : "none"}>
               <Animated.View
                 style={[StyleSheet.absoluteFill, styles.sideMenuOverlay, { opacity: overlayOpacity }]}
                 pointerEvents="none"
