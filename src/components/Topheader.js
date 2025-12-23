@@ -1,11 +1,13 @@
 // components/Header.js
 import React from "react";
-import { View, Image, StyleSheet } from "react-native";
+import { View, Image, StyleSheet, TouchableOpacity } from "react-native";
 import Icon from "react-native-vector-icons/FontAwesome6";
+import { useSideMenu } from "../services/SideMenuContext";
 
 const isEnabled = (value) => value === true || value === "true";
 
 export default function Header({ section }) {
+  const { toggleSideMenu, hasSideNav } = useSideMenu();
 
   const props = section?.properties?.props?.properties || {};
   const layout = props?.layout?.properties?.css || {};
@@ -35,12 +37,14 @@ export default function Header({ section }) {
 
       {/* LEFT ICON */}
       <View style={[styles.leftSlot, layout.leftSlot]}>
-        {isEnabled(props.sideMenu?.properties?.visible?.value) && (
-          <Icon
-            name={props.sideMenu.properties.iconId.value}
-            size={props.sideMenu.properties.width.value}
-            color={props.sideMenu.properties.color.value}
-          />
+        {isEnabled(props.sideMenu?.properties?.visible?.value) && hasSideNav && (
+          <TouchableOpacity onPress={toggleSideMenu} activeOpacity={0.7}>
+            <Icon
+              name={props.sideMenu.properties.iconId.value}
+              size={props.sideMenu.properties.width.value}
+              color={props.sideMenu.properties.color.value}
+            />
+          </TouchableOpacity>
         )}
       </View>
 
