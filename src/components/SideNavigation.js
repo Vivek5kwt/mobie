@@ -1,5 +1,5 @@
 import React from "react";
-import { Image, StyleSheet, Text, View } from "react-native";
+import { Image, ImageBackground, StyleSheet, Text, View } from "react-native";
 import Icon from "react-native-vector-icons/FontAwesome6";
 import { convertStyles } from "../utils/convertStyles";
 
@@ -77,6 +77,8 @@ export default function SideNavigation({ section }) {
   const showLogo = asBoolean(visibility.headerLogo ?? visibility.logo, true);
   const showItemIcons = asBoolean(visibility.itemsIcons, true);
   const showItemText = asBoolean(visibility.itemsText, true);
+  const backgroundImage = unwrapValue(raw?.bgImage || raw?.backgroundImageUrl, "");
+  const backgroundFit = unwrapValue(raw?.bgImageFit, "cover");
 
   const drawerStyle = [
     styles.drawer,
@@ -102,8 +104,15 @@ export default function SideNavigation({ section }) {
 
   if (!showHeader && !showItems) return null;
 
+  const DrawerWrapper = backgroundImage ? ImageBackground : View;
+
   return (
-    <View style={drawerStyle}>
+    <DrawerWrapper
+      source={backgroundImage ? { uri: backgroundImage } : undefined}
+      style={drawerStyle}
+      imageStyle={backgroundImage ? presentation.drawer : undefined}
+      resizeMode={backgroundImage ? backgroundFit : undefined}
+    >
       {showHeader && (
         <View style={[styles.headerRow, presentation.headerRow]}>
           {showLogo && logoUrl ? (
@@ -145,7 +154,7 @@ export default function SideNavigation({ section }) {
           )}
         </View>
       ))}
-    </View>
+    </DrawerWrapper>
   );
 }
 
