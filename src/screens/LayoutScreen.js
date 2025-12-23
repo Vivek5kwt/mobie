@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { ActivityIndicator, RefreshControl, ScrollView, Text, View, StyleSheet, Button, TouchableOpacity } from "react-native";
 import DynamicRenderer from "../engine/DynamicRenderer";
 import { fetchDSL } from "../engine/dslHandler";
@@ -6,6 +6,8 @@ import { shouldRenderSectionOnMobile } from "../engine/visibility";
 import { SafeArea } from "../utils/SafeAreaHandler";
 import { useNavigation } from "@react-navigation/native";
 import { useAuth } from "../services/AuthContext";
+import SideNavigation from "../components/SideNavigation";
+import { SideMenuProvider } from "../services/SideMenuContext";
 
 export default function LayoutScreen() {
   const navigation = useNavigation();
@@ -15,6 +17,7 @@ export default function LayoutScreen() {
   const [err, setErr] = useState(null);
   const [refreshing, setRefreshing] = useState(false);
   const [snackbar, setSnackbar] = useState({ visible: false, message: "", type: "info" });
+  const [isSideMenuOpen, setIsSideMenuOpen] = useState(false);
   const versionRef = useRef(null);
   const snackbarTimer = useRef(null);
 
@@ -94,6 +97,19 @@ export default function LayoutScreen() {
     navigation.reset({ index: 0, routes: [{ name: "Auth" }] });
   };
 
+  const closeSideMenu = () => setIsSideMenuOpen(false);
+
+  const openSideMenu = () => {
+    if (sideNavSection) {
+      setIsSideMenuOpen(true);
+    }
+  };
+
+  const toggleSideMenu = () => {
+    if (!sideNavSection) return;
+    setIsSideMenuOpen((prev) => !prev);
+  };
+
   // Auto-refresh DSL periodically to pick up newly published versions
   useEffect(() => {
     const intervalId = setInterval(async () => {
@@ -159,61 +175,97 @@ export default function LayoutScreen() {
     return 0;
   });
 
+  const sideNavSection = useMemo(
+    () =>
+      sortedSections.find(
+        (section) => section?.properties?.component?.const?.toLowerCase() === "side_navigation"
+      ) || null,
+    [sortedSections]
+  );
+
+  const visibleSections = useMemo(
+    () =>
+      sortedSections.filter(
+        (section) => section?.properties?.component?.const?.toLowerCase() !== "side_navigation"
+      ),
+    [sortedSections]
+  );
+
   // --------------------------------------------------------------------
 
   return (
     <SafeArea>
-      <View style={styles.screen}>
-        {/* RENDER SORTED DSL COMPONENTS */}
-        <ScrollView
-          contentInsetAdjustmentBehavior="automatic"
-          style={{ flex: 1 }}
-          showsVerticalScrollIndicator
-          contentContainerStyle={[styles.scrollContent, { flexGrow: 1 }]}
-          keyboardShouldPersistTaps="handled"
-          refreshControl={
-            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
-          }
-        >
-          <View style={styles.topBar}>
-            <View>
-              <Text style={styles.welcomeTitle}>Workspace</Text>
-              <Text style={styles.welcomeSubtitle}>
-                Signed in as {session?.user?.name || session?.user?.email || "Guest"}
-              </Text>
+      <SideMenuProvider
+        value={{
+          isOpen: isSideMenuOpen,
+          hasSideNav: !!sideNavSection,
+          toggleSideMenu,
+          openSideMenu,
+          closeSideMenu,
+        }}
+      >
+        <View style={styles.screen}>
+          {/* RENDER SORTED DSL COMPONENTS */}
+          <ScrollView
+            contentInsetAdjustmentBehavior="automatic"
+            style={{ flex: 1 }}
+            showsVerticalScrollIndicator
+            contentContainerStyle={[styles.scrollContent, { flexGrow: 1 }]}
+            keyboardShouldPersistTaps="handled"
+            refreshControl={
+              <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+            }
+          >
+            <View style={styles.topBar}>
+              <View>
+                <Text style={styles.welcomeTitle}>Workspace</Text>
+                <Text style={styles.welcomeSubtitle}>
+                  Signed in as {session?.user?.name || session?.user?.email || "Guest"}
+                </Text>
+              </View>
+
+              <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
+                <Text style={styles.logoutText}>Logout</Text>
+              </TouchableOpacity>
             </View>
 
-            <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
-              <Text style={styles.logoutText}>Logout</Text>
-            </TouchableOpacity>
-          </View>
-
-          {sortedSections.length ? (
-            sortedSections.map((s, i) => (
-              <View key={i} style={styles.sectionWrapper}>
-                <DynamicRenderer section={s} />
+            {visibleSections.length ? (
+              visibleSections.map((s, i) => (
+                <View key={i} style={styles.sectionWrapper}>
+                  <DynamicRenderer section={s} />
+                </View>
+              ))
+            ) : (
+              <View style={styles.centerContainer}>
+                <Text style={styles.subtle}>No content available right now.</Text>
               </View>
-            ))
-          ) : (
-            <View style={styles.centerContainer}>
-              <Text style={styles.subtle}>No content available right now.</Text>
+            )}
+          </ScrollView>
+
+          {sideNavSection && isSideMenuOpen && (
+            <View style={styles.sideMenuOverlay}>
+              <TouchableOpacity style={StyleSheet.absoluteFill} activeOpacity={1} onPress={closeSideMenu} />
+              <View style={styles.sideMenuContainer}>
+                <SideNavigation section={sideNavSection} />
+              </View>
             </View>
           )}
-        </ScrollView>
-        {snackbar.visible && (
-          <View
-            style={[
-              styles.snackbar,
-              snackbar.type === "success" ? styles.snackbarSuccess : styles.snackbarError,
-            ]}
-          >
-            <Text style={styles.snackbarText}>{snackbar.message}</Text>
-            <TouchableOpacity onPress={() => setSnackbar((prev) => ({ ...prev, visible: false }))}>
-              <Text style={styles.snackbarAction}>Dismiss</Text>
-            </TouchableOpacity>
-          </View>
-        )}
-      </View>
+
+          {snackbar.visible && (
+            <View
+              style={[
+                styles.snackbar,
+                snackbar.type === "success" ? styles.snackbarSuccess : styles.snackbarError,
+              ]}
+            >
+              <Text style={styles.snackbarText}>{snackbar.message}</Text>
+              <TouchableOpacity onPress={() => setSnackbar((prev) => ({ ...prev, visible: false }))}>
+                <Text style={styles.snackbarAction}>Dismiss</Text>
+              </TouchableOpacity>
+            </View>
+          )}
+        </View>
+      </SideMenuProvider>
     </SafeArea>
   );
 }
@@ -260,6 +312,22 @@ const styles = StyleSheet.create({
   },
   sectionWrapper: {
     marginBottom: 10,
+  },
+  sideMenuOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: "rgba(0,0,0,0.3)",
+    flexDirection: "row",
+    justifyContent: "flex-start",
+  },
+  sideMenuContainer: {
+    width: 280,
+    maxWidth: "80%",
+    backgroundColor: "#fff",
+    shadowColor: "#000",
+    shadowOpacity: 0.25,
+    shadowOffset: { width: 0, height: 2 },
+    shadowRadius: 8,
+    elevation: 8,
   },
   centerContainer: {
     flex: 1,
