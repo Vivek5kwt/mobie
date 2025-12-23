@@ -80,17 +80,18 @@ export default function SideNavigation({ section }) {
   const backgroundImage = unwrapValue(raw?.bgImage || raw?.backgroundImageUrl, "");
   const backgroundFit = unwrapValue(raw?.bgImageFit, "cover");
 
+  const paddingStyles = convertStyles({
+    paddingTop: raw?.pt ?? raw?.paddingTop,
+    paddingBottom: raw?.pb ?? raw?.paddingBottom,
+    paddingLeft: raw?.pl ?? raw?.paddingLeft,
+    paddingRight: raw?.pr ?? raw?.paddingRight,
+  });
+
   const drawerStyle = [
     styles.drawer,
     presentation.drawer,
-    convertStyles({
-      paddingTop: raw?.pt ?? raw?.paddingTop,
-      paddingBottom: raw?.pb ?? raw?.paddingBottom,
-      paddingLeft: raw?.pl ?? raw?.paddingLeft,
-      paddingRight: raw?.pr ?? raw?.paddingRight,
-      backgroundColor: raw?.bgColor,
-      backgroundImage: raw?.bgImage,
-    }),
+    backgroundImage ? styles.drawerWithBackground : null,
+    backgroundImage ? { backgroundColor: "transparent" } : { backgroundColor: raw?.bgColor },
   ];
 
   const headerTitle = unwrapValue(raw?.headerTitle, "Mobidrag");
@@ -110,50 +111,53 @@ export default function SideNavigation({ section }) {
     <DrawerWrapper
       source={backgroundImage ? { uri: backgroundImage } : undefined}
       style={drawerStyle}
-      imageStyle={backgroundImage ? presentation.drawer : undefined}
+      imageStyle={backgroundImage ? [styles.drawerImage, presentation.drawer] : undefined}
       resizeMode={backgroundImage ? backgroundFit : undefined}
     >
-      {showHeader && (
-        <View style={[styles.headerRow, presentation.headerRow]}>
-          {showLogo && logoUrl ? (
-            <Image source={{ uri: logoUrl }} style={styles.logoImage} />
-          ) : null}
-          {showLogo && !logoUrl && logoText ? (
-            <View style={styles.logoPlaceholder}>
-              <Text style={styles.logoText}>{logoText}</Text>
+      <View style={[styles.drawerContent, paddingStyles]}>
+        {showHeader && (
+          <View style={[styles.headerRow, presentation.headerRow]}>
+            {showLogo && logoUrl ? (
+              <Image source={{ uri: logoUrl }} style={styles.logoImage} />
+            ) : null}
+            {showLogo && !logoUrl && logoText ? (
+              <View style={styles.logoPlaceholder}>
+                <Text style={styles.logoText}>{logoText}</Text>
+              </View>
+            ) : null}
+            <View style={{ flex: 1 }}>
+              <Text style={styles.headerTitle} numberOfLines={1}>
+                {headerTitle}
+              </Text>
+              <Text style={styles.subtitle} numberOfLines={1}>
+                {subtitle}
+              </Text>
             </View>
-          ) : null}
-          <View style={{ flex: 1 }}>
-            <Text style={styles.headerTitle} numberOfLines={1}>
-              {headerTitle}
-            </Text>
-            <Text style={styles.subtitle} numberOfLines={1}>
-              {subtitle}
-            </Text>
           </View>
-        </View>
-      )}
+        )}
 
-      {showItems && itemsArray.map((item) => (
-        <View key={item.id || item.label} style={[styles.itemRow, presentation.itemRow]}>
-          {showItemIcons && (
-            <Icon
-              name={normalizeIconName(item.icon)}
-              size={itemIconSize}
-              color={itemIconColor}
-              style={[styles.itemIcon, presentation.itemIcon]}
-            />
-          )}
-          {showItemText && (
-            <Text
-              style={[styles.itemText, presentation.itemText, { color: itemTextColor }]}
-              numberOfLines={1}
-            >
-              {item.label || item.title}
-            </Text>
-          )}
-        </View>
-      ))}
+        {showItems &&
+          itemsArray.map((item) => (
+            <View key={item.id || item.label} style={[styles.itemRow, presentation.itemRow]}>
+              {showItemIcons && (
+                <Icon
+                  name={normalizeIconName(item.icon)}
+                  size={itemIconSize}
+                  color={itemIconColor}
+                  style={[styles.itemIcon, presentation.itemIcon]}
+                />
+              )}
+              {showItemText && (
+                <Text
+                  style={[styles.itemText, presentation.itemText, { color: itemTextColor }]}
+                  numberOfLines={1}
+                >
+                  {item.label || item.title}
+                </Text>
+              )}
+            </View>
+          ))}
+      </View>
     </DrawerWrapper>
   );
 }
@@ -161,8 +165,17 @@ export default function SideNavigation({ section }) {
 const styles = StyleSheet.create({
   drawer: {
     width: 260,
-    padding: 16,
     backgroundColor: "#FFFFFF",
+  },
+  drawerWithBackground: {
+    overflow: "hidden",
+  },
+  drawerImage: {
+    width: "100%",
+    height: "100%",
+  },
+  drawerContent: {
+    padding: 16,
   },
   headerRow: {
     flexDirection: "row",
