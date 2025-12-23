@@ -10,16 +10,9 @@ export default function Header({ section }) {
   const props = section?.properties?.props?.properties || {};
   const layout = props?.layout?.properties?.css || {};
 
-  // -----------------------------------------
-  // 1️⃣ Extract Logo URL properly (IMPORTANT)
-  // -----------------------------------------
-
-  let logoUrl = props?.logoImage?.value || "";
-
-  // If backend gives relative path → convert to absolute
-  if (logoUrl?.startsWith("/")) {
-    logoUrl = "https://your-live-domain.com" + logoUrl;
-  }
+  // Extract logo URL directly from JSON (no fallback)
+  const rawLogo = props?.logoImage?.value ?? props?.logoImage?.const ?? props?.logoImage;
+  const logoUrl = typeof rawLogo === "string" ? rawLogo.trim() : "";
 
   // -----------------------------------------
 
@@ -51,19 +44,19 @@ export default function Header({ section }) {
         )}
       </View>
 
-      {/* LOGO */}
-      {isEnabled(props.enableLogo?.value) && (
-        <View style={[styles.logoSlot, layout.logoSlot]}>
-          <Image
-            source={{ uri: logoUrl }}   // <--- FIX APPLIED HERE
-            style={{
-              width: layout.logoImage?.width === "auto" ? 80 : layout.logoImage?.width,
-              height: layout.logoImage?.height || 26,
-              resizeMode: "contain",
-            }}
-          />
-        </View>
-      )}
+        {/* LOGO */}
+        {isEnabled(props.enableLogo?.value) && logoUrl && (
+          <View style={[styles.logoSlot, layout.logoSlot]}>
+            <Image
+              source={{ uri: logoUrl }}
+              style={{
+                width: layout.logoImage?.width === "auto" ? 80 : layout.logoImage?.width,
+                height: layout.logoImage?.height || 26,
+                resizeMode: "contain",
+              }}
+            />
+          </View>
+        )}
 
       {/* RIGHT ICONS */}
       <View style={[styles.rightSlot, layout.rightSlot]}>
