@@ -5,6 +5,7 @@ import Icon from "react-native-vector-icons/FontAwesome6";
 import { useSideMenu } from "../services/SideMenuContext";
 
 const isEnabled = (value) => value === true || value === "true";
+const DEFAULT_LOGO = require("../assets/logo/mobidraglogo.png");
 
 export default function Header({ section }) {
   const { toggleSideMenu, hasSideNav } = useSideMenu();
@@ -15,6 +16,7 @@ export default function Header({ section }) {
   // Extract logo URL directly from JSON (no fallback)
   const rawLogo = props?.logoImage?.value ?? props?.logoImage?.const ?? props?.logoImage;
   const logoUrl = typeof rawLogo === "string" ? rawLogo.trim() : "";
+  const logoSource = logoUrl ? { uri: logoUrl } : DEFAULT_LOGO;
 
   // -----------------------------------------
 
@@ -49,10 +51,10 @@ export default function Header({ section }) {
       </View>
 
         {/* LOGO */}
-        {isEnabled(props.enableLogo?.value) && logoUrl && (
+        {isEnabled(props.enableLogo?.value) && (
           <View style={[styles.logoSlot, layout.logoSlot]}>
             <Image
-              source={{ uri: logoUrl }}
+              source={logoSource}
               style={{
                 width: layout.logoImage?.width === "auto" ? 80 : layout.logoImage?.width,
                 height: layout.logoImage?.height || 26,
