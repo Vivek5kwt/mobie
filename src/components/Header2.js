@@ -133,6 +133,7 @@ export default function Header2({ section }) {
   const shouldShowSearchRow =
     (searchEnabled && searchAndIcons?.showSearch) ||
     (notificationEnabled && searchAndIcons?.showNotification);
+  const shouldShowTopRow = hasGreeting || (profileEnabled && profile?.show);
 
   const shouldShowAppBar = !!(appBar?.show ?? (
     appBar && (
@@ -230,52 +231,54 @@ export default function Header2({ section }) {
       )}
 
       {/* Top Row */}
-      <View style={convertStyles(topRowStyle)}>
-        {hasGreeting && (
-          <View>
-            {greeting?.title && (
-              <Text style={[convertStyles(greetingTitleStyle), greetingTextStyle]}>
-                {greeting.title}
-              </Text>
-            )}
-            {greeting?.name && (
-              <Text style={[convertStyles(greetingNameStyle), greetingTextStyle]}>
-                {greeting.name}
-              </Text>
-            )}
-          </View>
-        )}
+      {shouldShowTopRow && (
+        <View style={convertStyles(topRowStyle)}>
+          {hasGreeting && (
+            <View>
+              {greeting?.title && (
+                <Text style={[convertStyles(greetingTitleStyle), greetingTextStyle]}>
+                  {greeting.title}
+                </Text>
+              )}
+              {greeting?.name && (
+                <Text style={[convertStyles(greetingNameStyle), greetingTextStyle]}>
+                  {greeting.name}
+                </Text>
+              )}
+            </View>
+          )}
 
-        {profileEnabled && profile?.show && (
-          <View
-            style={[
-              convertStyles(profileStyle),
-              profile.borderColor && { borderColor: profile.borderColor },
-              profileBorderWidth && { borderWidth: profileBorderWidth },
-              profile.backgroundColor && { backgroundColor: profile.backgroundColor },
-              { overflow: "hidden" },
-            ]}
-          >
-            {profile?.image ? (
-              <Image
-                source={{ uri: profile.image }}
-                style={{
-                  width: profile?.size || 30,
-                  height: profile?.size || 30,
-                  borderRadius: (profile?.size || 30) / 2,
-                }}
-                resizeMode="cover"
-              />
-            ) : (
-              <FontAwesome
-                name="user"
-                size={profile?.size || 30}
-                color={profile?.borderColor || "#0E6A70"}
-              />
-            )}
-          </View>
-        )}
-      </View>
+          {profileEnabled && profile?.show && (
+            <View
+              style={[
+                convertStyles(profileStyle),
+                profile.borderColor && { borderColor: profile.borderColor },
+                profileBorderWidth && { borderWidth: profileBorderWidth },
+                profile.backgroundColor && { backgroundColor: profile.backgroundColor },
+                { overflow: "hidden" },
+              ]}
+            >
+              {profile?.image ? (
+                <Image
+                  source={{ uri: profile.image }}
+                  style={{
+                    width: profile?.size || 30,
+                    height: profile?.size || 30,
+                    borderRadius: (profile?.size || 30) / 2,
+                  }}
+                  resizeMode="cover"
+                />
+              ) : (
+                <FontAwesome
+                  name="user"
+                  size={profile?.size || 30}
+                  color={profile?.borderColor || "#0E6A70"}
+                />
+              )}
+            </View>
+          )}
+        </View>
+      )}
 
       {shouldShowSearchRow ? (
         <View style={convertStyles(searchContainerStyle)}>
