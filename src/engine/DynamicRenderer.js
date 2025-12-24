@@ -16,6 +16,7 @@ import SearchBar from "../components/SearchBar";
 import SideNavigation from "../components/SideNavigation";
 import TrendingCollections from "../components/TrendingCollections";
 import TrendingSearches from "../components/TrendingSearches";
+import TabProductGrid from "../components/TabProductGrid";
 
 // COMPONENT MAP — ALL LIVE ONLY
 const componentMap = {
@@ -35,6 +36,7 @@ const componentMap = {
   side_navigation: SideNavigation,
   trending_collections: TrendingCollections,
   trending_searches: TrendingSearches,
+  tab_product_grid: TabProductGrid,
 };
 
 // detect mobile version for header_2
