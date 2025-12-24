@@ -14,6 +14,7 @@ import ProductGrid from "../components/ProductGrid";
 import TextBlock from "../components/TextBlock";
 import SideNavigation from "../components/SideNavigation";
 import TrendingCollections from "../components/TrendingCollections";
+import TrendingSearches from "../components/TrendingSearches";
 
 // COMPONENT MAP — ALL LIVE ONLY
 const componentMap = {
@@ -31,6 +32,7 @@ const componentMap = {
   text_block: TextBlock,
   side_navigation: SideNavigation,
   trending_collections: TrendingCollections,
+  trending_searches: TrendingSearches,
 };
 
 // detect mobile version for header_2
