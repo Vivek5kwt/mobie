@@ -95,7 +95,7 @@ export default function SideNavigation({ section }) {
   ];
 
   const headerTitle = unwrapValue(raw?.headerTitle, "Mobidrag");
-  const subtitle = unwrapValue(raw?.subtitle, "Effortless browsing at your fingertips");
+  const subtitle = unwrapValue(raw?.subtitle, "");
   const logoUrl = unwrapValue(raw?.logoUrl, "");
   const logoText = unwrapValue(raw?.logoText, "");
 

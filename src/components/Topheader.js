@@ -16,7 +16,11 @@ export default function Header({ section }) {
   // Extract logo URL directly from JSON (no fallback)
   const rawLogo = props?.logoImage?.value ?? props?.logoImage?.const ?? props?.logoImage;
   const logoUrl = typeof rawLogo === "string" ? rawLogo.trim() : "";
-  const logoSource = logoUrl ? { uri: logoUrl } : DEFAULT_LOGO;
+  const logoSource =
+  logoUrl && logoUrl !== '/images/mobidrag.png'
+    ? { uri: logoUrl }
+    : DEFAULT_LOGO;
+
 
   // -----------------------------------------
 
