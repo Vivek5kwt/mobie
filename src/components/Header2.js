@@ -167,10 +167,22 @@ export default function Header2({ section }) {
   };
   
   // Avoid full-height blocks that swallow scroll gestures when a DSL
-  // provides `height: "100%"` for the header container. Let the content
-  // size itself naturally so subsequent sections remain reachable.
+  // provides `height: "100%"` or flex styles for the header container.
+  // Let the content size itself naturally so subsequent sections remain reachable.
   if (typeof containerStyle.height === "string" && containerStyle.height.includes("%")) {
     delete containerStyle.height;
+  }
+
+  if (typeof containerStyle.minHeight === "string" && containerStyle.minHeight.includes("%")) {
+    delete containerStyle.minHeight;
+  }
+
+  if (containerStyle.flex != null) {
+    delete containerStyle.flex;
+  }
+
+  if (containerStyle.flexGrow != null) {
+    delete containerStyle.flexGrow;
   }
 
   return (
