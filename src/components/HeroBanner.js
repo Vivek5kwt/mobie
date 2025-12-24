@@ -45,7 +45,7 @@ export default function HeroBanner({ section }) {
   const imageStyle = convertStyles(layoutCss?.image || {});
 
   const imageAttributes = rawProps?.imageAttributes?.properties || rawProps?.imageAttributes || {};
-  const imageScale = unwrapValue(imageAttributes?.scale, "Cover")?.toString().toLowerCase();
+  const imageScale = unwrapValue(imageAttributes?.scale, "Fit")?.toString().toLowerCase();
   const imageCornerRadius = toNumber(imageAttributes?.imageCorner, 0);
   const parseImageRatio = (value) => {
     const ratio = unwrapValue(value, undefined);
