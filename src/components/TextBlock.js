@@ -65,9 +65,17 @@ export default function TextBlock({ section }) {
   const resolvedHeadlineLines = headlineStyle?.numberOfLines || undefined;
   const resolvedSubtextLines = subtextStyle?.numberOfLines || undefined;
 
+  const hasIcon = showIcon && !!iconEmoji;
+  const hasHeadline = showHeadline && !!headline;
+  const hasSubtext = showSubtext && !!subtext;
+
+  if (!hasIcon && !hasHeadline && !hasSubtext) {
+    return null;
+  }
+
   return (
     <View style={[styles.container, containerStyle, overrideStyle]}>
-      {showIcon && !!iconEmoji && (
+      {hasIcon && (
         <View
           style={[
             styles.icon,
