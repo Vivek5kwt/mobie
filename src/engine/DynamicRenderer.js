@@ -12,6 +12,7 @@ import HeroBanner from "../components/HeroBanner";
 import SocialMediaIcons from "../components/SocialMediaIcons";
 import ProductGrid from "../components/ProductGrid";
 import TextBlock from "../components/TextBlock";
+import SearchBar from "../components/SearchBar";
 import SideNavigation from "../components/SideNavigation";
 import TrendingCollections from "../components/TrendingCollections";
 import TrendingSearches from "../components/TrendingSearches";
@@ -30,6 +31,7 @@ const componentMap = {
   social_media_icons: SocialMediaIcons,
   product_grid: ProductGrid,
   text_block: TextBlock,
+  search_bar: SearchBar,
   side_navigation: SideNavigation,
   trending_collections: TrendingCollections,
   trending_searches: TrendingSearches,
