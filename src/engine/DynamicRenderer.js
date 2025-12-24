@@ -13,6 +13,7 @@ import SocialMediaIcons from "../components/SocialMediaIcons";
 import ProductGrid from "../components/ProductGrid";
 import TextBlock from "../components/TextBlock";
 import SideNavigation from "../components/SideNavigation";
+import TrendingCollections from "../components/TrendingCollections";
 
 // COMPONENT MAP — ALL LIVE ONLY
 const componentMap = {
@@ -29,6 +30,7 @@ const componentMap = {
   product_grid: ProductGrid,
   text_block: TextBlock,
   side_navigation: SideNavigation,
+  trending_collections: TrendingCollections,
 };
 
 // detect mobile version for header_2
