@@ -23,8 +23,7 @@ export default function App() {
     try {
       const storedToken = await tokenLogger.getStoredToken();
       if (storedToken) {
-        tokenLogger.setToken(storedToken);
-        return;
+        await tokenLogger.setToken(storedToken, true);
       }
       await getFCMToken();
     } catch (error) {}
@@ -40,7 +39,9 @@ export default function App() {
 
       if (enabled) {
         const fcmToken = await messaging().getToken();
-        if (fcmToken) tokenLogger.setToken(fcmToken);
+        if (fcmToken) {
+          await tokenLogger.setToken(fcmToken, true);
+        }
       }
     } catch (error) {}
   };
