@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "1079926372274",
+    "project_id": "mobidrag-app-2025",
+    "storage_bucket": "mobidrag-app-2025.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:1079926372274:android:90bc97fa70517ff6e3d6ab",
+        "android_client_info": {
+          "package_name": "com.mobidrag"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyB_dH0IrsZ0Obicv-StZB1fNYYeE9oL3Ok"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
