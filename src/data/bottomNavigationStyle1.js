@@ -49,24 +49,24 @@ const bottomNavigationStyle1Section = {
             showText: true,
             iconWidth: 20,
             itemWidth: 72,
-            libraryId: "30",
+            libraryId: "31",
             showIcons: true,
             gradientTo: "",
             iconHeight: 20,
             itemHeight: 56,
-            borderRadius: 0,
+            borderRadius: 28,
             gradientFrom: "",
             textFontSize: 12,
-            indicatorMode: "Underline",
-            indicatorSize: 28,
+            indicatorMode: "Bubble",
+            indicatorSize: 36,
             indicatorColor: "#096d70",
             textFontFamily: "Inter",
             textFontWeight: "Bold",
-            iconActiveColor: "#096d70",
+            iconActiveColor: "#FFFFFF",
             textActiveColor: "#096d70",
             iconPrimaryColor: "#9CA3AF",
             textPrimaryColor: "#6B7280",
-            indicatorThickness: 4,
+            indicatorThickness: 6,
             showActiveIndicator: true,
           },
           description:
@@ -118,7 +118,7 @@ const bottomNavigationStyle1Section = {
             },
             activeColor: {
               type: "string",
-              value: "#096d70",
+              value: "#FFFFFF",
             },
             primaryColor: {
               type: "string",
@@ -159,21 +159,12 @@ const bottomNavigationStyle1Section = {
           type: "object",
           properties: {
             css: {
-              row: {
-                gap: 8,
-                width: "100%",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "space-around",
-              },
               icon: {
-                fontSize: "20px",
-                lineHeight: "1",
+                fontSize: "18px",
+                lineHeight: "18px",
               },
               item: {
                 gap: "4px",
-                width: "72px",
-                height: "56px",
                 display: "flex",
                 position: "relative",
                 alignItems: "center",
@@ -182,25 +173,22 @@ const bottomNavigationStyle1Section = {
               },
               label: {
                 fontSize: "12px",
-                fontFamily: "Inter",
-                fontWeight: 700,
-                lineHeight: "1.1",
+                lineHeight: "14px",
               },
               container: {
                 width: "100%",
                 display: "flex",
-                padding: "8px 12px 8px 12px",
-                boxSizing: "border-box",
+                padding: "12px",
                 alignItems: "center",
                 background: "#FFFFFF",
-                borderRadius: "0px",
+                borderRadius: "28px",
                 justifyContent: "space-around",
               },
               indicator: {
-                mode: "Underline",
-                size: 28,
+                mode: "Bubble",
+                size: 36,
                 color: "#096d70",
-                thickness: 4,
+                thickness: 6,
               },
               classNames: {
                 icon: "ab-bottomNavIcon",
@@ -220,100 +208,15 @@ const bottomNavigationStyle1Section = {
                 "Apply layout.css as CSS; coordinates in layout.metrics are relative to the container's top-left (px). Keep provided classNames.",
             },
             metrics: {
-              elements: {
-                container: {
-                  x: 0,
-                  y: 0,
-                  width: 387,
-                  height: 72,
-                },
-                icon_cart: {
-                  x: 127,
-                  y: 17,
-                  width: 20,
-                  height: 20,
-                },
-                icon_home: {
-                  x: 38,
-                  y: 10,
-                  width: 20,
-                  height: 20,
-                },
-                item_cart: {
-                  x: 101,
-                  y: 8,
-                  width: 72,
-                  height: 56,
-                },
-                item_home: {
-                  x: 12,
-                  y: 8,
-                  width: 72,
-                  height: 56,
-                },
-                label_cart: {
-                  x: 125,
-                  y: 41,
-                  width: 24,
-                  height: 13,
-                },
-                label_home: {
-                  x: 33,
-                  y: 48,
-                  width: 31,
-                  height: 13,
-                },
-                icon_profile: {
-                  x: 305,
-                  y: 17,
-                  width: 20,
-                  height: 20,
-                },
-                item_profile: {
-                  x: 279,
-                  y: 8,
-                  width: 72,
-                  height: 56,
-                },
-                label_profile: {
-                  x: 298,
-                  y: 41,
-                  width: 34,
-                  height: 13,
-                },
-                indicator_home: {
-                  x: 34,
-                  y: 40,
-                  width: 28,
-                  height: 4,
-                },
-                icon_notification: {
-                  x: 216,
-                  y: 17,
-                  width: 20,
-                  height: 20,
-                },
-                item_notification: {
-                  x: 190,
-                  y: 8,
-                  width: 72,
-                  height: 56,
-                },
-                label_notification: {
-                  x: 193,
-                  y: 41,
-                  width: 65,
-                  height: 13,
-                },
-              },
-              available: true,
+              elements: {},
+              available: false,
               container: {
-                width: 387,
-                height: 72,
+                width: 278,
+                height: 56,
               },
-              timestamp: 1766731041996,
+              timestamp: 1766731247604,
               description:
-                "Absolute positions (x,y) and sizes (width,height) of Bottom Navigation elements relative to the container (top-left origin, px).",
+                "Fallback metrics for Bottom Navigation (no live measurement captured).",
               coordinateSystem: {
                 unit: "px",
                 origin: "top-left of .ab-bottomNav container",
@@ -328,11 +231,11 @@ const bottomNavigationStyle1Section = {
           properties: {
             mode: {
               type: "string",
-              value: "None",
+              value: "Bubble",
             },
             size: {
               type: "number",
-              value: 28,
+              value: 36,
             },
             color: {
               type: "string",
@@ -340,7 +243,7 @@ const bottomNavigationStyle1Section = {
             },
             thickness: {
               type: "number",
-              value: 4,
+              value: 6,
             },
           },
         },
@@ -373,21 +276,12 @@ const bottomNavigationStyle1Section = {
           type: "object",
           properties: {
             css: {
-              row: {
-                gap: 8,
-                width: "100%",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "space-around",
-              },
               icon: {
-                fontSize: "20px",
-                lineHeight: "1",
+                fontSize: "18px",
+                lineHeight: "18px",
               },
               item: {
                 gap: "4px",
-                width: "72px",
-                height: "56px",
                 display: "flex",
                 position: "relative",
                 alignItems: "center",
@@ -396,25 +290,22 @@ const bottomNavigationStyle1Section = {
               },
               label: {
                 fontSize: "12px",
-                fontFamily: "Inter",
-                fontWeight: 700,
-                lineHeight: "1.1",
+                lineHeight: "14px",
               },
               container: {
                 width: "100%",
                 display: "flex",
-                padding: "8px 12px 8px 12px",
-                boxSizing: "border-box",
+                padding: "12px",
                 alignItems: "center",
                 background: "#FFFFFF",
-                borderRadius: "0px",
+                borderRadius: "28px",
                 justifyContent: "space-around",
               },
               indicator: {
-                mode: "Underline",
-                size: 28,
+                mode: "Bubble",
+                size: 36,
                 color: "#096d70",
-                thickness: 4,
+                thickness: 6,
               },
               classNames: {
                 icon: "ab-bottomNavIcon",
@@ -434,100 +325,15 @@ const bottomNavigationStyle1Section = {
                 "Apply presentation.css as CSS; coordinates in presentation.metrics are relative to the container's top-left (px). Keep provided classNames.",
             },
             metrics: {
-              elements: {
-                container: {
-                  x: 0,
-                  y: 0,
-                  width: 387,
-                  height: 72,
-                },
-                icon_cart: {
-                  x: 127,
-                  y: 17,
-                  width: 20,
-                  height: 20,
-                },
-                icon_home: {
-                  x: 38,
-                  y: 10,
-                  width: 20,
-                  height: 20,
-                },
-                item_cart: {
-                  x: 101,
-                  y: 8,
-                  width: 72,
-                  height: 56,
-                },
-                item_home: {
-                  x: 12,
-                  y: 8,
-                  width: 72,
-                  height: 56,
-                },
-                label_cart: {
-                  x: 125,
-                  y: 41,
-                  width: 24,
-                  height: 13,
-                },
-                label_home: {
-                  x: 33,
-                  y: 48,
-                  width: 31,
-                  height: 13,
-                },
-                icon_profile: {
-                  x: 305,
-                  y: 17,
-                  width: 20,
-                  height: 20,
-                },
-                item_profile: {
-                  x: 279,
-                  y: 8,
-                  width: 72,
-                  height: 56,
-                },
-                label_profile: {
-                  x: 298,
-                  y: 41,
-                  width: 34,
-                  height: 13,
-                },
-                indicator_home: {
-                  x: 34,
-                  y: 40,
-                  width: 28,
-                  height: 4,
-                },
-                icon_notification: {
-                  x: 216,
-                  y: 17,
-                  width: 20,
-                  height: 20,
-                },
-                item_notification: {
-                  x: 190,
-                  y: 8,
-                  width: 72,
-                  height: 56,
-                },
-                label_notification: {
-                  x: 193,
-                  y: 41,
-                  width: 65,
-                  height: 13,
-                },
-              },
-              available: true,
+              elements: {},
+              available: false,
               container: {
-                width: 387,
-                height: 72,
+                width: 278,
+                height: 56,
               },
-              timestamp: 1766731041996,
+              timestamp: 1766731247604,
               description:
-                "Absolute positions (x,y) and sizes (width,height) of Bottom Navigation elements relative to the container (top-left origin, px).",
+                "Fallback metrics for Bottom Navigation (no live measurement captured).",
               coordinateSystem: {
                 unit: "px",
                 origin: "top-left of .ab-bottomNav container",
@@ -540,8 +346,7 @@ const bottomNavigationStyle1Section = {
               label: "ab-bottomNavLabel",
               container: "ab-bottomNav",
               indicator: "ab-bottomNavIndicator",
-              description:
-                "DOM classes used by web builder for Bottom Navigation.",
+              description: "DOM classes used by web builder for Bottom Navigation.",
             },
           },
           description:
@@ -581,7 +386,7 @@ const bottomNavigationStyle1Section = {
             },
             borderRadius: {
               type: "number",
-              value: 0,
+              value: 28,
             },
             gradientFrom: {
               type: "string",
@@ -596,7 +401,7 @@ const bottomNavigationStyle1Section = {
       },
     },
     component: {
-      const: "bottom_navigation_style_1",
+      const: "bottom_navigation_style_2",
     },
   },
 };
