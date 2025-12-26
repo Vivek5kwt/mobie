@@ -163,9 +163,10 @@ export default function TrendingCollections({ section }) {
 
       <View style={styles.list}>
         {collections.map((item, index) => (
-          <View key={`${item.label}-${index}`} style={styles.row}>
+          <View key={`${item.label}-${index}`} style={styles.item}>
             <View style={[styles.circle, { backgroundColor: circleBg }]}>
-              <Text style={[styles.circleIcon, { color: circleIcon }]}>›</Text>
+              <View style={[styles.circleIcon, { borderColor: circleIcon }]} />
+              <View style={[styles.circleIconDot, { backgroundColor: circleIcon }]} />
             </View>
             <Text
               style={[
@@ -194,25 +195,36 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   list: {
-    gap: 12,
-  },
-  row: {
     flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 20,
+  },
+  item: {
     alignItems: "center",
-    gap: 12,
+    gap: 10,
   },
   circle: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
+    width: 64,
+    height: 64,
+    borderRadius: 32,
     alignItems: "center",
     justifyContent: "center",
   },
   circleIcon: {
-    fontSize: 20,
-    fontWeight: "700",
+    width: 22,
+    height: 22,
+    borderRadius: 4,
+    borderWidth: 2,
+  },
+  circleIconDot: {
+    position: "absolute",
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    right: 18,
+    top: 18,
   },
   label: {
-    flex: 1,
+    textAlign: "center",
   },
 });
