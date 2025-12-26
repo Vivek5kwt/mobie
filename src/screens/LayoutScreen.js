@@ -16,6 +16,7 @@ import { shouldRenderSectionOnMobile } from "../engine/visibility";
 import { SafeArea } from "../utils/SafeAreaHandler";
 import SideNavigation from "../components/SideNavigation";
 import { SideMenuProvider } from "../services/SideMenuContext";
+import bottomNavigationStyle1Section from "../data/bottomNavigationStyle1";
 
 export default function LayoutScreen() {
   const [dsl, setDsl] = useState(null);
@@ -91,6 +92,22 @@ export default function LayoutScreen() {
     }, 3200);
   };
 
+  const ensureBottomNavigationSection = (incomingDsl) => {
+    if (!incomingDsl || !Array.isArray(incomingDsl.sections)) return incomingDsl;
+
+    const hasBottomNavigation = incomingDsl.sections.some(
+      (section) =>
+        section?.properties?.component?.const?.toLowerCase() === "bottom_navigation"
+    );
+
+    if (hasBottomNavigation) return incomingDsl;
+
+    return {
+      ...incomingDsl,
+      sections: [...incomingDsl.sections, bottomNavigationStyle1Section],
+    };
+  };
+
   useEffect(() => {
     return () => {
       if (snackbarTimer.current) clearTimeout(snackbarTimer.current);
@@ -102,7 +119,7 @@ export default function LayoutScreen() {
     try {
       const dslData = await fetchDSL();
       if (dslData?.dsl) {
-        setDsl(dslData.dsl);
+        setDsl(ensureBottomNavigationSection(dslData.dsl));
         versionRef.current = dslData.versionNumber ?? null;
         if (withFeedback) showSnackbar("Live layout refreshed", "success");
       }
@@ -130,7 +147,7 @@ export default function LayoutScreen() {
         return;
       }
 
-      setDsl(dslData.dsl);
+      setDsl(ensureBottomNavigationSection(dslData.dsl));
       versionRef.current = dslData.versionNumber ?? null;
 
       console.log(
@@ -192,7 +209,7 @@ export default function LayoutScreen() {
         const incomingVersion = latest.versionNumber ?? null;
 
         if (incomingVersion !== versionRef.current) {
-          setDsl(latest.dsl);
+          setDsl(ensureBottomNavigationSection(latest.dsl));
           versionRef.current = incomingVersion;
         }
       } catch (e) {
