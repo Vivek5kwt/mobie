@@ -61,10 +61,22 @@ export default function LayoutScreen() {
     [sortedSections]
   );
 
+  const bottomNavSection = useMemo(
+    () =>
+      sortedSections.find(
+        (section) =>
+          section?.properties?.component?.const?.toLowerCase() === "bottom_navigation"
+      ) || null,
+    [sortedSections]
+  );
+
   const visibleSections = useMemo(
     () =>
       sortedSections.filter(
-        (section) => section?.properties?.component?.const?.toLowerCase() !== "side_navigation"
+        (section) =>
+          !["side_navigation", "bottom_navigation"].includes(
+            section?.properties?.component?.const?.toLowerCase()
+          )
       ),
     [sortedSections]
   );
@@ -232,7 +244,10 @@ export default function LayoutScreen() {
             contentInsetAdjustmentBehavior="automatic"
             style={{ flex: 1 }}
             showsVerticalScrollIndicator
-            contentContainerStyle={[styles.scrollContent, { flexGrow: 1 }]}
+            contentContainerStyle={[
+              styles.scrollContent,
+              { flexGrow: 1, paddingBottom: bottomNavSection ? 88 : 24 },
+            ]}
             keyboardShouldPersistTaps="handled"
             refreshControl={
               <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
@@ -271,6 +286,12 @@ export default function LayoutScreen() {
             </View>
           )}
 
+          {bottomNavSection && (
+            <View style={styles.bottomNav}>
+              <DynamicRenderer section={bottomNavSection} />
+            </View>
+          )}
+
           {snackbar.visible && (
             <View
               style={[
@@ -300,6 +321,12 @@ const styles = StyleSheet.create({
   scrollContent: {
     paddingHorizontal: 0,
     paddingBottom: 24,
+  },
+  bottomNav: {
+    position: "absolute",
+    left: 0,
+    right: 0,
+    bottom: 0,
   },
   sectionWrapper: {
     marginBottom: 10,
@@ -397,4 +424,3 @@ const styles = StyleSheet.create({
     fontWeight: "700",
   },
 });
-
