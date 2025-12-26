@@ -254,11 +254,28 @@ export default function LayoutScreen() {
             }
           >
             {visibleSections.length ? (
-              visibleSections.map((s, i) => (
-                <View key={i} style={styles.sectionWrapper}>
-                  <DynamicRenderer section={s} />
-                </View>
-              ))
+              visibleSections.map((s, i) => {
+                const componentName =
+                  s?.properties?.component?.const?.toLowerCase() || "";
+                const nextComponentName =
+                  visibleSections[i + 1]?.properties?.component?.const?.toLowerCase() ||
+                  "";
+                const tightenHeaderSpacing =
+                  componentName === "header" &&
+                  ["header_2", "header_2_mobile"].includes(nextComponentName);
+
+                return (
+                  <View
+                    key={i}
+                    style={[
+                      styles.sectionWrapper,
+                      tightenHeaderSpacing && styles.sectionWrapperTight,
+                    ]}
+                  >
+                    <DynamicRenderer section={s} />
+                  </View>
+                );
+              })
             ) : (
               <View style={styles.centerContainer}>
                 <Text style={styles.subtle}>No content available right now.</Text>
@@ -330,6 +347,9 @@ const styles = StyleSheet.create({
   },
   sectionWrapper: {
     marginBottom: 10,
+  },
+  sectionWrapperTight: {
+    marginBottom: 0,
   },
   sideMenuOverlay: {
     backgroundColor: "rgba(0,0,0,0.3)",
