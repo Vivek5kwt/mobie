@@ -147,6 +147,9 @@ export default function Header2({ section }) {
   const renderIconButton = (icon, index, extraStyle) => {
     if (!icon) return null;
 
+    const iconName = icon.name || icon.icon;
+    if (!iconName) return null;
+
     const iconContainer = icon.containerStyle || {};
     const fallbackSize = icon.size || 20;
 
@@ -159,7 +162,7 @@ export default function Header2({ section }) {
         disabled={!icon?.onPress}
       >
         <FontAwesome
-          name={icon.name || icon.icon || "circle"}
+          name={iconName}
           size={fallbackSize}
           color={icon.color || "#131A1D"}
         />
