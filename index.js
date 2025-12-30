@@ -8,16 +8,26 @@ import App from './App';
 import { name as appName } from './app.json';
 
 // ✅ Define toast globally for BOTH platforms
+const resolveToastDuration = duration => {
+  if (typeof duration === 'number') {
+    return duration;
+  }
+
+  if (duration === 'LONG') {
+    return ToastAndroid.LENGTH_LONG ?? 3500;
+  }
+
+  return ToastAndroid.LENGTH_SHORT ?? 2000;
+};
+
 global.showToast = (message, duration = 'SHORT') => {
   if (Platform.OS === 'android') {
-    ToastAndroid.show(
-      message,
-      duration === 'LONG'
-        ? ToastAndroid.LENGTH_LONG
-        : ToastAndroid.LENGTH_SHORT,
-    );
+    const safeMessage =
+      typeof message === 'string' ? message : JSON.stringify(message ?? '');
+
+    ToastAndroid.show(safeMessage, resolveToastDuration(duration));
   } else {
-    Alert.alert('', message);
+    Alert.alert('', String(message ?? ''));
   }
 };
 
