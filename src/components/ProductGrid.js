@@ -1,4 +1,5 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useState } from "react";
+import { Dimensions, Image, StyleSheet, Text, View } from "react-native";
 
 const SHOPIFY_DOMAIN = "YOUR_SHOP_DOMAIN";
 const STOREFRONT_TOKEN = "YOUR_STOREFRONT_TOKEN";
@@ -35,69 +36,7 @@ export default function ProductGrid({ limit = 8, title = "Products" }) {
   const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
-
-  const styles = useMemo(
-    () => ({
-      wrapper: {
-        maxWidth: "1200px",
-        margin: "0 auto",
-        padding: "24px",
-        fontFamily: "system-ui, -apple-system, sans-serif",
-      },
-      heading: {
-        fontSize: "1.5rem",
-        fontWeight: 700,
-        marginBottom: "16px",
-      },
-      grid: {
-        display: "grid",
-        gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))",
-        gap: "16px",
-      },
-      card: {
-        border: "1px solid #e5e7eb",
-        borderRadius: "12px",
-        overflow: "hidden",
-        backgroundColor: "#fff",
-        boxShadow: "0 4px 10px rgba(0, 0, 0, 0.05)",
-      },
-      image: {
-        width: "100%",
-        height: "200px",
-        objectFit: "cover",
-        backgroundColor: "#f3f4f6",
-        display: "block",
-      },
-      content: {
-        padding: "12px 14px 16px",
-      },
-      name: {
-        fontSize: "1rem",
-        fontWeight: 600,
-        margin: 0,
-      },
-      price: {
-        marginTop: "6px",
-        color: "#111827",
-        fontWeight: 600,
-      },
-      link: {
-        textDecoration: "none",
-        color: "inherit",
-      },
-      status: {
-        padding: "12px",
-        textAlign: "center",
-        color: "#6b7280",
-      },
-      error: {
-        padding: "12px",
-        textAlign: "center",
-        color: "#b91c1c",
-      },
-    }),
-    []
-  );
+  const cardWidth = Math.max(160, (Dimensions.get("window").width - 72) / 2);
 
   useEffect(() => {
     let isMounted = true;
@@ -162,40 +101,96 @@ export default function ProductGrid({ limit = 8, title = "Products" }) {
   }, [limit]);
 
   return (
-    <section style={styles.wrapper}>
-      <h2 style={styles.heading}>{title}</h2>
+    <View style={styles.wrapper}>
+      <Text style={styles.heading}>{title}</Text>
 
-      {loading && <div style={styles.status}>Loading products...</div>}
-      {error && <div style={styles.error}>{error}</div>}
+      {loading && <Text style={styles.status}>Loading products...</Text>}
+      {error && <Text style={styles.error}>{error}</Text>}
 
       {!loading && !error && (
-        <div style={styles.grid}>
+        <View style={styles.grid}>
           {products.map((product) => (
-            <article key={product.id} style={styles.card}>
-              <a href={`/products/${product.handle}`} style={styles.link}>
-                {product.imageUrl && (
-                  <img
-                    src={product.imageUrl}
-                    alt={product.title}
-                    style={styles.image}
-                  />
-                )}
+            <View key={product.id} style={[styles.card, { width: cardWidth }]}>
+              {product.imageUrl && (
+                <Image
+                  source={{ uri: product.imageUrl }}
+                  style={styles.image}
+                  resizeMode="cover"
+                />
+              )}
 
-                <div style={styles.content}>
-                  <h3 style={styles.name}>{product.title}</h3>
-                  <div style={styles.price}>
-                    {product.priceCurrency} {product.priceAmount}
-                  </div>
-                </div>
-              </a>
-            </article>
+              <View style={styles.content}>
+                <Text numberOfLines={2} style={styles.name}>
+                  {product.title}
+                </Text>
+                <Text style={styles.price}>
+                  {product.priceCurrency} {product.priceAmount}
+                </Text>
+              </View>
+            </View>
           ))}
-        </div>
+        </View>
       )}
-    </section>
+    </View>
   );
 }
 
 export function ProductGridExample() {
   return <ProductGrid limit={8} title="Featured Products" />;
 }
+
+const styles = StyleSheet.create({
+  wrapper: {
+    width: "100%",
+    paddingHorizontal: 24,
+    paddingVertical: 20,
+  },
+  heading: {
+    fontSize: 22,
+    fontWeight: "700",
+    marginBottom: 16,
+    color: "#111827",
+  },
+  grid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    justifyContent: "space-between",
+  },
+  card: {
+    borderWidth: 1,
+    borderColor: "#e5e7eb",
+    borderRadius: 12,
+    overflow: "hidden",
+    backgroundColor: "#fff",
+    marginBottom: 16,
+  },
+  image: {
+    width: "100%",
+    height: 200,
+    backgroundColor: "#f3f4f6",
+  },
+  content: {
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+  },
+  name: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: "#111827",
+  },
+  price: {
+    marginTop: 6,
+    color: "#111827",
+    fontWeight: "600",
+  },
+  status: {
+    paddingVertical: 12,
+    textAlign: "center",
+    color: "#6b7280",
+  },
+  error: {
+    paddingVertical: 12,
+    textAlign: "center",
+    color: "#b91c1c",
+  },
+});
