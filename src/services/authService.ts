@@ -27,7 +27,7 @@ const USER_KEY = '@auth_user_profile';
 const DEFAULT_APP_ID = 1;
 const DEFAULT_USER_TYPE = 'mobile';
 const DEFAULT_STATUS = 'active';
-const DEFAULT_SHOPIFY_DOMAIN = 'newmobidrag.myshopify.com';
+const DEFAULT_SHOPIFY_DOMAIN = '5kwebtech-test.myshopify.com';
 const generateToken = () => `jwt-${Date.now()}-${Math.random().toString(36).slice(2)}`;
 
 const wait = (duration: number) =>

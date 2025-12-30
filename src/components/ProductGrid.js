@@ -1,9 +1,9 @@
 import React, { useEffect, useState } from "react";
 import { Dimensions, Image, StyleSheet, Text, View } from "react-native";
 
-const SHOPIFY_DOMAIN = "YOUR_SHOP_DOMAIN";
-const STOREFRONT_TOKEN = "YOUR_STOREFRONT_TOKEN";
-const SHOPIFY_ENDPOINT = `https://${SHOPIFY_DOMAIN}.myshopify.com/api/2024-10/graphql.json`;
+const SHOPIFY_DOMAIN = "5kwebtech-test.myshopify.com";
+const STOREFRONT_TOKEN = "79363ed16cc2c1e01f4dc18f813c41a8";
+const SHOPIFY_ENDPOINT = `https://${SHOPIFY_DOMAIN}/api/2024-10/graphql.json`;
 
 const PRODUCT_QUERY = `
   query GetProducts($first: Int!) {
