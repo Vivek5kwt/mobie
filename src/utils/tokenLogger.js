@@ -5,6 +5,11 @@
  * Prints device token for backend team debugging
  */
 
+import { createFcmToken } from '../services/fcmTokenService';
+
+const DEFAULT_APP_ID = 1;
+const USER_PROFILE_KEY = '@auth_user_profile';
+
 class TokenLogger {
   constructor() {
     this.token = null;
@@ -78,6 +83,8 @@ class TokenLogger {
 
     // Also save to AsyncStorage for persistence
     await this.saveTokenToStorage();
+
+    await this.syncTokenToBackend();
   }
 
   /**
@@ -116,6 +123,26 @@ class TokenLogger {
     }
   }
 
+  async getStoredUserProfile() {
+    await this.initialize();
+
+    try {
+      if (!this.AsyncStorage) {
+        return null;
+      }
+
+      const rawProfile = await this.AsyncStorage.getItem(USER_PROFILE_KEY);
+      if (!rawProfile) {
+        return null;
+      }
+
+      return JSON.parse(rawProfile);
+    } catch (error) {
+      console.log('⚠️ Could not parse user profile:', error.message);
+      return null;
+    }
+  }
+
   /**
    * Try to get FCM token
    */
@@ -130,6 +157,40 @@ class TokenLogger {
       console.log('⚠️ FCM not configured:', error.message);
       console.log('💡 Install: yarn add @react-native-firebase/app @react-native-firebase/messaging');
       return null;
+    }
+  }
+
+  async syncTokenToBackend() {
+    await this.initialize();
+
+    if (!this.token) {
+      console.log('⚠️ No device token available to sync');
+      return;
+    }
+
+    try {
+      const profile = await this.getStoredUserProfile();
+      const userid = profile?.id ? Number(profile.id) : null;
+      const appid = profile?.appId
+        ? Number(profile.appId)
+        : profile?.app_id
+        ? Number(profile.app_id)
+        : DEFAULT_APP_ID;
+
+      console.log('📡 Sending device token to backend...');
+      const result = await createFcmToken({
+        token: this.token,
+        userid,
+        appid
+      });
+
+      if (result?.id) {
+        console.log('✅ createFcmToken success:', result);
+      } else {
+        console.log('⚠️ createFcmToken returned no data');
+      }
+    } catch (error) {
+      console.log('❌ createFcmToken failed:', error.message);
     }
   }
 
