@@ -3,6 +3,7 @@
  */
 
 import { AppRegistry, Platform, ToastAndroid, Alert } from 'react-native';
+import messaging from '@react-native-firebase/messaging';
 import App from './App';
 import { name as appName } from './app.json';
 
@@ -19,5 +20,10 @@ global.showToast = (message, duration = 'SHORT') => {
     Alert.alert('', message);
   }
 };
+
+// ✅ Handle background messages (data-only or notification + data)
+messaging().setBackgroundMessageHandler(async remoteMessage => {
+  console.log('🔕 Background message received:', remoteMessage?.messageId);
+});
 
 AppRegistry.registerComponent(appName, () => App);

@@ -1,4 +1,5 @@
 import React, { useEffect } from 'react';
+import { Alert } from 'react-native';
 import { ApolloProvider } from "@apollo/client/react";
 import client from "./src/apollo/client";
 import { NavigationContainer } from "@react-navigation/native";
@@ -83,6 +84,60 @@ export default function App() {
    */
   useEffect(() => {
     setupDeviceToken();
+  }, []);
+
+  /**
+   * Listen for FCM notifications while app is open
+   */
+  useEffect(() => {
+    const unsubscribe = messaging().onMessage(async remoteMessage => {
+      const title = remoteMessage?.notification?.title || 'New Notification';
+      const body = remoteMessage?.notification?.body || 'You have a new message.';
+      const messageText = body ? `${title}\n${body}` : title;
+
+      if (typeof global?.showToast === 'function') {
+        global.showToast(messageText, 'LONG');
+      } else {
+        Alert.alert(title, body);
+      }
+    });
+
+    return unsubscribe;
+  }, []);
+
+  /**
+   * Handle notifications opened from background/quit state
+   */
+  useEffect(() => {
+    const unsubscribe = messaging().onNotificationOpenedApp(remoteMessage => {
+      const title = remoteMessage?.notification?.title || 'Notification Opened';
+      const body = remoteMessage?.notification?.body || '';
+      const messageText = body ? `${title}\n${body}` : title;
+
+      if (typeof global?.showToast === 'function') {
+        global.showToast(messageText, 'LONG');
+      } else {
+        Alert.alert(title, body);
+      }
+    });
+
+    messaging()
+      .getInitialNotification()
+      .then(remoteMessage => {
+        if (remoteMessage) {
+          const title = remoteMessage?.notification?.title || 'Notification Opened';
+          const body = remoteMessage?.notification?.body || '';
+          const messageText = body ? `${title}\n${body}` : title;
+
+          if (typeof global?.showToast === 'function') {
+            global.showToast(messageText, 'LONG');
+          } else {
+            Alert.alert(title, body);
+          }
+        }
+      });
+
+    return unsubscribe;
   }, []);
 
 
