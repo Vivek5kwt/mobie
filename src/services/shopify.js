@@ -1,13 +1,34 @@
-export const SHOPIFY_DOMAIN =
-  "https://newmobidrag.myshopify.com/api/2024-10/graphql.json";
+const STOREFRONT_VERSION = "2024-10";
+export const SHOPIFY_SHOP = "newmobidrag.myshopify.com";
 
 export const SHOPIFY_TOKEN =
   "shpua_5467f837b05502095a558b7d58ef91a2";
 
-export async function fetchShopifyProducts(limit = 10) {
+export async function directStorefrontGraphQL({
+  shop,
+  token,
+  query,
+  variables,
+}) {
+  const endpoint = `https://${shop}/api/${STOREFRONT_VERSION}/graphql.json`;
+  const res = await fetch(endpoint, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "X-Shopify-Storefront-Access-Token": token,
+    },
+    body: JSON.stringify({ query, variables }),
+  });
+  if (!res.ok) throw new Error(`Storefront ${res.status}`);
+  return res.json();
+}
+
+export async function fetchShopifyProducts(limit = 10, options = {}) {
+  const shop = options.shop || SHOPIFY_SHOP;
+  const token = options.token || SHOPIFY_TOKEN;
   const query = `
-    {
-      products(first: ${limit}) {
+    query Products($first: Int!) {
+      products(first: $first) {
         edges {
           node {
             id
@@ -26,16 +47,12 @@ export async function fetchShopifyProducts(limit = 10) {
   `;
 
   try {
-    const res = await fetch(SHOPIFY_DOMAIN, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "X-Shopify-Storefront-Access-Token": SHOPIFY_TOKEN,
-      },
-      body: JSON.stringify({ query }),
+    const json = await directStorefrontGraphQL({
+      shop,
+      token,
+      query,
+      variables: { first: limit },
     });
-
-    const json = await res.json();
 
     return (
       json?.data?.products?.edges?.map((edge) => ({
