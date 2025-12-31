@@ -19,6 +19,7 @@ import TrendingSearches from "../components/TrendingSearches";
 import TabProductGrid from "../components/TabProductGrid";
 import BottomNavigation from "../components/BottomNavigation";
 import AccountProfile from "../components/AccountProfile";
+import AccountMenu from "../components/AccountMenu";
 
 // COMPONENT MAP — ALL LIVE ONLY
 const componentMap = {
@@ -41,6 +42,7 @@ const componentMap = {
   trending_searches: TrendingSearches,
   tab_product_grid: TabProductGrid,
   account_profile: AccountProfile,
+  account_menu: AccountMenu,
 };
 
 // detect mobile version for header_2
