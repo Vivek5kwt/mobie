@@ -1,6 +1,6 @@
 // components/Header.js
 import React from "react";
-import { View, Image, StyleSheet, TouchableOpacity } from "react-native";
+import { View, StyleSheet, TouchableOpacity } from "react-native";
 import Icon from "react-native-vector-icons/FontAwesome6";
 import { useSideMenu } from "../services/SideMenuContext";
 
@@ -32,23 +32,11 @@ const normalizeIconName = (name, fallback = "bars") => {
   return cleaned || fallback;
 };
 
-const isEnabled = (value) => resolveBoolean(value, false);
-const DEFAULT_LOGO = require("../assets/logo/mobidraglogo.png");
-
 export default function Header({ section }) {
   const { toggleSideMenu, hasSideNav } = useSideMenu();
 
   const props = section?.properties?.props?.properties || {};
   const layout = props?.layout?.properties?.css || {};
-
-  // Extract logo URL directly from JSON (no fallback)
-  const rawLogo = props?.logoImage?.value ?? props?.logoImage?.const ?? props?.logoImage;
-  const logoUrl = typeof rawLogo === "string" ? rawLogo.trim() : "";
-  const logoSource =
-  logoUrl && logoUrl !== '/images/mobidrag.png'
-    ? { uri: logoUrl }
-    : DEFAULT_LOGO;
-
 
   // -----------------------------------------
 
@@ -76,7 +64,6 @@ export default function Header({ section }) {
         }
       ]}
     >
-
       {/* LEFT ICON */}
       <View style={[styles.leftSlot, layout.leftSlot]}>
         {sideMenuVisible && hasSideNav && (
@@ -89,78 +76,6 @@ export default function Header({ section }) {
           </TouchableOpacity>
         )}
       </View>
-
-        {/* LOGO */}
-        {isEnabled(props.enableLogo?.value) && (
-          <View style={[styles.logoSlot, layout.logoSlot]}>
-            <Image
-              source={logoSource}
-              style={{
-                width: layout.logoImage?.width === "auto" ? 80 : layout.logoImage?.width,
-                height: layout.logoImage?.height || 26,
-                resizeMode: "contain",
-              }}
-            />
-          </View>
-        )}
-
-      {/* RIGHT ICONS */}
-      <View style={[styles.rightSlot, layout.rightSlot]}>
-
-        {/* Cart */}
-        {isEnabled(props.cart?.properties?.visible?.value) && (
-          <View style={{ position: "relative" }}>
-            <Icon
-              name={props.cart.properties.iconId.value}
-              size={props.cart.properties.width.value}
-              color={props.cart.properties.color.value}
-            />
-
-            {isEnabled(props.cart.properties.showBadge?.value) && (
-              <View
-                style={[
-                  styles.badge,
-                  {
-                    backgroundColor: layout.badge.backgroundColor,
-                    width: layout.badge.width,
-                    height: layout.badge.height,
-                    top: layout.badge.top,
-                    right: layout.badge.right,
-                  }
-                ]}
-              />
-            )}
-          </View>
-        )}
-
-        {/* Notification */}
-        {isEnabled(props.notification?.properties?.visible?.value) && (
-           <View style={{ position: "relative" }}>
-           <Icon
-             name={props.notification.properties.iconId.value}
-             size={props.notification.properties.width.value}
-             color={props.notification.properties.color.value}
-           />
-
-           {isEnabled(props.notification.properties.showBadge?.value) && (
-             <View
-               style={[
-                 styles.badge,
-                 {
-                   backgroundColor: layout.badge.backgroundColor,
-                   width: layout.badge.width,
-                   height: layout.badge.height,
-                   top: layout.badge.top,
-                   right: layout.badge.right,
-                 }
-               ]}
-             />
-           )}
-         </View>
-        )}
-
-      </View>
-
     </View>
   );
 }
@@ -175,7 +90,4 @@ function convertPadding(str) {
 const styles = StyleSheet.create({
   container: {},
   leftSlot: { flexDirection: "row", alignItems: "center" },
-  logoSlot: { flex: 1, alignItems: "center" },
-  rightSlot: { flexDirection: "row", alignItems: "center", gap: 14 },
-  badge: { position: "absolute", borderRadius: 20 },
 });
