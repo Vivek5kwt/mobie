@@ -1,5 +1,5 @@
-import React, { useMemo } from "react";
-import { StyleSheet, Text, View } from "react-native";
+import React, { useEffect, useMemo, useState } from "react";
+import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import Icon from "react-native-vector-icons/FontAwesome6";
 import { convertStyles } from "../utils/convertStyles";
 
@@ -70,6 +70,24 @@ const resolveItems = (rawProps = {}, raw = {}) => {
   return [];
 };
 
+const resolveActiveIndex = (items = [], rawProps = {}, raw = {}) => {
+  const fromProps = unwrapValue(rawProps?.activeIndex, raw?.activeIndex);
+  const parsed = Number(fromProps);
+  if (!Number.isNaN(parsed)) return parsed;
+
+  const activeItemIndex = items.findIndex(
+    (item) => item?.active === true || item?.isActive === true || item?.selected === true
+  );
+  if (activeItemIndex >= 0) return activeItemIndex;
+
+  return 0;
+};
+
+const clampIndex = (index, count) => {
+  if (!count || Number.isNaN(index)) return 0;
+  return Math.max(0, Math.min(index, count - 1));
+};
+
 export default function BottomNavigation({ section }) {
   const rawProps =
     section?.props || section?.properties?.props?.properties || section?.properties?.props || {};
@@ -118,12 +136,15 @@ export default function BottomNavigation({ section }) {
   const backgroundColor =
     raw?.bgColor || unwrapValue(rawProps?.backgroundAndPadding?.properties?.backgroundColor);
 
-  const activeIndex = Number(
-    unwrapValue(rawProps?.activeIndex, raw?.activeIndex ?? 0)
-  );
+  const resolvedActiveIndex = clampIndex(resolveActiveIndex(items, rawProps, raw), items.length);
+  const [activeIndex, setActiveIndex] = useState(resolvedActiveIndex);
 
   const indicatorColor = unwrapValue(raw?.indicatorColor, "#00000022");
   const indicatorSize = unwrapValue(raw?.indicatorSize, 36);
+
+  useEffect(() => {
+    setActiveIndex(resolvedActiveIndex);
+  }, [resolvedActiveIndex, items.length]);
 
   if (!items.length) return null;
 
@@ -144,13 +165,15 @@ export default function BottomNavigation({ section }) {
           const indicatorOffset = Math.max(0, (itemHeight - indicatorSize) / 2);
 
           return (
-            <View
+            <TouchableOpacity
               key={item.id || item.label || index}
               style={[
                 styles.item,
                 presentation.item,
                 { width: itemWidth, height: itemHeight },
               ]}
+              activeOpacity={0.85}
+              onPress={() => setActiveIndex(index)}
             >
               {showActiveIndicator && isActive && (
                 <View
@@ -191,7 +214,7 @@ export default function BottomNavigation({ section }) {
                   {item.label}
                 </Text>
               )}
-            </View>
+            </TouchableOpacity>
           );
         })}
       </View>
