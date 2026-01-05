@@ -1,9 +1,11 @@
 import React from "react";
 import { View, Text, TextInput, Image, TouchableOpacity } from "react-native";
+import { StackActions, useNavigation } from "@react-navigation/native";
 import LinearGradient from "react-native-linear-gradient";
 import FontAwesome from "react-native-vector-icons/FontAwesome";
 import { convertStyles, extractGradientInfo } from "../utils/convertStyles";
 import { useSideMenu } from "../services/SideMenuContext";
+import bottomNavigationStyle1Section from "../data/bottomNavigationStyle1";
 
 const resolveBooleanSetting = (input, defaultValue = true) => {
   const normalize = (value) => {
@@ -51,6 +53,8 @@ export default function Header2({ section }) {
   console.log("🔍 Header2 section:", JSON.stringify(section, null, 2));
 
   const { toggleSideMenu, hasSideNav } = useSideMenu();
+  const navigation = useNavigation();
+  const bottomNavSection = section?.bottomNavSection || bottomNavigationStyle1Section;
 
   let props, styleBlock, greeting, profile, searchAndIcons, appBar;
   
@@ -156,6 +160,69 @@ export default function Header2({ section }) {
     )
   ));
 
+  const resolveBottomNavItems = (rawSection) => {
+    if (!rawSection) return [];
+    const rawProps =
+      rawSection?.props || rawSection?.properties?.props?.properties || rawSection?.properties?.props || {};
+    const raw = resolveValue(rawProps?.raw, {});
+    let items = resolveValue(raw?.items, undefined);
+    if (!items) {
+      items = resolveValue(rawProps?.items, []);
+    }
+    if (items?.value && Array.isArray(items.value)) return items.value;
+    return Array.isArray(items) ? items : [];
+  };
+
+  const normalizeBottomNavTarget = (value) => String(value || "").trim().toLowerCase();
+
+  const resolveBottomNavIndex = (items, target) => {
+    const normalizedTarget = normalizeBottomNavTarget(target);
+    if (!normalizedTarget) return -1;
+    return items.findIndex((item) => {
+      const id = normalizeBottomNavTarget(item?.id);
+      const label = normalizeBottomNavTarget(
+        item?.label ?? item?.title ?? item?.name ?? item?.text ?? item?.value,
+      );
+      return id.includes(normalizedTarget) || label.includes(normalizedTarget);
+    });
+  };
+
+  const openBottomNavTarget = (target) => {
+    const items = resolveBottomNavItems(bottomNavSection);
+    const fallbackIndex = target === "cart" ? 1 : 2;
+    const resolvedIndex = resolveBottomNavIndex(items, target);
+    const activeIndex = resolvedIndex >= 0 ? resolvedIndex : fallbackIndex;
+    const item = items[activeIndex];
+    const title =
+      item?.label ||
+      item?.title ||
+      item?.name ||
+      (target === "cart" ? "Cart" : "Notifications");
+    const rawLink = item?.link ?? item?.href ?? item?.url ?? "";
+    const link = typeof rawLink === "string" ? rawLink.replace(/^\//, "") : "";
+    const params = {
+      title,
+      link,
+      activeIndex,
+      bottomNavSection,
+    };
+    const state = navigation.getState();
+    const currentRoute = state?.routes?.[state.index];
+    if (currentRoute?.name === "BottomNavScreen") {
+      navigation.navigate({ name: "BottomNavScreen", params, merge: true });
+      return;
+    }
+    navigation.dispatch(StackActions.replace("BottomNavScreen", params));
+  };
+
+  const resolveDefaultIconTarget = (iconName) => {
+    const normalized = normalizeBottomNavTarget(iconName);
+    if (!normalized) return null;
+    if (normalized.includes("cart")) return "cart";
+    if (normalized.includes("bell") || normalized.includes("notif")) return "notification";
+    return null;
+  };
+
   const renderIconButton = (icon, index, extraStyle) => {
     if (!icon) return null;
 
@@ -165,13 +232,19 @@ export default function Header2({ section }) {
     const iconContainer = icon.containerStyle || {};
     const fallbackSize = icon.size || 20;
 
+    const defaultTarget = resolveDefaultIconTarget(iconName);
+    const onPress =
+      icon?.onPress ||
+      (defaultTarget ? () => openBottomNavTarget(defaultTarget) : undefined);
+    const isPressable = !!onPress;
+
     return (
       <TouchableOpacity
         key={index}
         style={[convertStyles(iconContainer), extraStyle]}
-        activeOpacity={icon?.onPress ? 0.7 : 1}
-        onPress={icon?.onPress}
-        disabled={!icon?.onPress}
+        activeOpacity={isPressable ? 0.7 : 1}
+        onPress={onPress}
+        disabled={!isPressable}
       >
         <FontAwesome
           name={iconName}
@@ -332,7 +405,11 @@ export default function Header2({ section }) {
           )}
 
           {notificationEnabled && searchAndIcons?.showNotification && (
-            <View style={convertStyles(notificationContainerStyle)}>
+            <TouchableOpacity
+              style={convertStyles(notificationContainerStyle)}
+              activeOpacity={0.7}
+              onPress={() => openBottomNavTarget("notification")}
+            >
               <View>
                 <FontAwesome
                   name="bell"
@@ -341,7 +418,7 @@ export default function Header2({ section }) {
                 />
                 {searchAndIcons?.showBadge && <View style={convertStyles(badgeStyle)} />}
               </View>
-            </View>
+            </TouchableOpacity>
           )}
         </View>
       ) : null}

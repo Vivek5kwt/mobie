@@ -301,6 +301,13 @@ export default function LayoutScreen() {
                   getComponentName(visibleSections[i + 1]).toLowerCase();
                 const tightenHeaderSpacing =
                   componentName === "header" && nextComponentName === "header_2";
+                const shouldAttachBottomNav =
+                  componentName === "header" ||
+                  componentName === "header_2" ||
+                  componentName === "header_mobile";
+                const sectionWithNav = shouldAttachBottomNav
+                  ? { ...s, bottomNavSection }
+                  : s;
 
                 return (
                   <View
@@ -310,7 +317,7 @@ export default function LayoutScreen() {
                       tightenHeaderSpacing && styles.sectionWrapperTight,
                     ]}
                   >
-                    <DynamicRenderer section={s} />
+                    <DynamicRenderer section={sectionWithNav} />
                   </View>
                 );
               })
