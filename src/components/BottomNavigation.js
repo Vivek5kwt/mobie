@@ -170,7 +170,7 @@ export default function BottomNavigation({ section }) {
   const indicatorSize = Math.min(indicatorSizeRaw, maxIndicatorSize);
   const normalizedIndicatorMode = String(indicatorMode || "").toLowerCase();
   const indicatorIsBubble = normalizedIndicatorMode === "bubble" || isStyle2;
-  const indicatorIsLine = !indicatorIsBubble;
+  const indicatorIsLine = normalizedIndicatorMode === "line";
   const safeItemHeight = Number.isNaN(Number(itemHeight)) ? 0 : Number(itemHeight);
   const bubbleSize = Math.max(
     iconSize + 8,
