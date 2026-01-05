@@ -53,9 +53,9 @@ export default function LayoutScreen() {
       if (A === "header") return -1;
       if (B === "header") return 1;
 
-      // 2️⃣ Header 2 (mobile variant)
-      if (A === "header_2" || A === "header_2_mobile") return -1;
-      if (B === "header_2" || B === "header_2_mobile") return 1;
+      // 2️⃣ Header 2
+      if (A === "header_2") return -1;
+      if (B === "header_2") return 1;
 
       return 0;
     });
@@ -300,8 +300,7 @@ export default function LayoutScreen() {
                 const nextComponentName =
                   getComponentName(visibleSections[i + 1]).toLowerCase();
                 const tightenHeaderSpacing =
-                  componentName === "header" &&
-                  ["header_2", "header_2_mobile"].includes(nextComponentName);
+                  componentName === "header" && nextComponentName === "header_2";
 
                 return (
                   <View

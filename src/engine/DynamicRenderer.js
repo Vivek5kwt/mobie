@@ -3,7 +3,7 @@ import React from "react";
 
 // LIVE COMPONENTS
 import Header from "../components/Topheader";       // Live Header (v1)
-import Header2 from "../components/Header2";     // Live Header (v2 / mobile)
+import Header2 from "../components/Header2";     // Live Header (v2)
 import CollectionImage from "../components/CollectionImage";
 import Countdown from "../components/Countdown";
 import MediaGrid from "../components/MediaGrid";
@@ -26,7 +26,6 @@ const componentMap = {
   header: Header,               // LIVE HEADER 1
   header_mobile: Header,
   header_2: Header2,
-  header_2_mobile: Header2,
   collection_image: CollectionImage,
   countdown: Countdown,
   media_grid: MediaGrid,
@@ -47,19 +46,6 @@ const componentMap = {
   account_menu: AccountMenu,
 };
 
-// detect mobile version for header_2
-function inferMobileVariant(section) {
-  const title = section?.title || "";
-  if (String(title).toLowerCase().includes("mobile")) {
-    return true;
-  }
-
-  const comp = section?.properties?.component?.const;
-  if (/header_2_mobile/i.test(comp)) return true;
-
-  return false;
-}
-
 export default function DynamicRenderer({ section }) {
   try {
     // extract DSL component name
@@ -69,12 +55,6 @@ export default function DynamicRenderer({ section }) {
       section?.properties?.component?.const ||
       section?.properties?.component ||
       "";
-
-    // auto-switch for header_2 mobile
-    if (compName === "header_2") {
-      const isMobile = inferMobileVariant(section);
-      if (isMobile) compName = "header_2_mobile";
-    }
 
     compName = compName.toLowerCase();
 
