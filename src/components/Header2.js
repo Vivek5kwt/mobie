@@ -128,7 +128,7 @@ export default function Header2({ section }) {
   const notificationEnabled = resolveBooleanSetting(props?.notificationSettingsEnabled);
   const profileEnabled = resolveBooleanSetting(props?.profileSettingsEnabled);
   const showSideMenu =
-    hasSideNav && resolveBooleanSetting(searchAndIcons?.showSideMenu, false);
+    hasSideNav && resolveBooleanSetting(searchAndIcons?.showSideMenu, true);
 
   const hasGreeting = greetingEnabled && !!(greeting?.title || greeting?.name);
 
