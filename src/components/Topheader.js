@@ -1,8 +1,10 @@
 // components/Header.js
 import React from "react";
 import { Image, StyleSheet, TouchableOpacity, View } from "react-native";
+import { StackActions, useNavigation } from "@react-navigation/native";
 import Icon from "react-native-vector-icons/FontAwesome6";
 import { useSideMenu } from "../services/SideMenuContext";
+import bottomNavigationStyle1Section from "../data/bottomNavigationStyle1";
 
 const unwrapValue = (value, fallback = undefined) => {
   if (value === undefined || value === null) return fallback;
@@ -34,9 +36,11 @@ const normalizeIconName = (name, fallback = "bars") => {
 
 export default function Header({ section }) {
   const { toggleSideMenu, hasSideNav } = useSideMenu();
+  const navigation = useNavigation();
 
   const props = section?.props || section?.properties?.props?.properties || {};
   const layout = props?.layout?.properties?.css || props?.layout?.css || {};
+  const bottomNavSection = section?.bottomNavSection || bottomNavigationStyle1Section;
 
   // -----------------------------------------
 
@@ -68,6 +72,61 @@ export default function Header({ section }) {
   const notificationShowBadge = resolveBoolean(notificationProps?.showBadge, false);
 
   const badgeStyle = layout.badge || {};
+
+  const resolveBottomNavItems = (rawSection) => {
+    if (!rawSection) return [];
+    const rawProps =
+      rawSection?.props || rawSection?.properties?.props?.properties || rawSection?.properties?.props || {};
+    const raw = unwrapValue(rawProps?.raw, {});
+    let items = unwrapValue(raw?.items, undefined);
+    if (!items) {
+      items = unwrapValue(rawProps?.items, []);
+    }
+    if (items?.value && Array.isArray(items.value)) return items.value;
+    return Array.isArray(items) ? items : [];
+  };
+
+  const normalizeBottomNavTarget = (value) => String(value || "").trim().toLowerCase();
+
+  const resolveBottomNavIndex = (items, target) => {
+    const normalizedTarget = normalizeBottomNavTarget(target);
+    if (!normalizedTarget) return -1;
+    return items.findIndex((item) => {
+      const id = normalizeBottomNavTarget(item?.id);
+      const label = normalizeBottomNavTarget(
+        item?.label ?? item?.title ?? item?.name ?? item?.text ?? item?.value,
+      );
+      return id.includes(normalizedTarget) || label.includes(normalizedTarget);
+    });
+  };
+
+  const openBottomNavTarget = (target) => {
+    const items = resolveBottomNavItems(bottomNavSection);
+    const fallbackIndex = target === "cart" ? 1 : 2;
+    const resolvedIndex = resolveBottomNavIndex(items, target);
+    const activeIndex = resolvedIndex >= 0 ? resolvedIndex : fallbackIndex;
+    const item = items[activeIndex];
+    const title =
+      item?.label ||
+      item?.title ||
+      item?.name ||
+      (target === "cart" ? "Cart" : "Notifications");
+    const rawLink = item?.link ?? item?.href ?? item?.url ?? "";
+    const link = typeof rawLink === "string" ? rawLink.replace(/^\//, "") : "";
+    const params = {
+      title,
+      link,
+      activeIndex,
+      bottomNavSection,
+    };
+    const state = navigation.getState();
+    const currentRoute = state?.routes?.[state.index];
+    if (currentRoute?.name === "BottomNavScreen") {
+      navigation.navigate({ name: "BottomNavScreen", params, merge: true });
+      return;
+    }
+    navigation.dispatch(StackActions.replace("BottomNavScreen", params));
+  };
 
   return (
     <View
@@ -112,24 +171,28 @@ export default function Header({ section }) {
       {/* RIGHT ICONS */}
       <View style={[styles.rightSlot, layout.rightSlot]}>
         {cartVisible && (
-          <View style={styles.iconWrapper}>
-            <Icon
-              name={cartIconName}
-              size={cartIconSize}
-              color={cartIconColor}
-            />
+          <TouchableOpacity
+            style={styles.iconWrapper}
+            activeOpacity={0.7}
+            onPress={() => openBottomNavTarget("cart")}
+          >
+            <Icon name={cartIconName} size={cartIconSize} color={cartIconColor} />
             {cartShowBadge && <View style={[styles.badge, badgeStyle]} />}
-          </View>
+          </TouchableOpacity>
         )}
         {notificationVisible && (
-          <View style={styles.iconWrapper}>
+          <TouchableOpacity
+            style={styles.iconWrapper}
+            activeOpacity={0.7}
+            onPress={() => openBottomNavTarget("notification")}
+          >
             <Icon
               name={notificationIconName}
               size={notificationIconSize}
               color={notificationIconColor}
             />
             {notificationShowBadge && <View style={[styles.badge, badgeStyle]} />}
-          </View>
+          </TouchableOpacity>
         )}
       </View>
     </View>
