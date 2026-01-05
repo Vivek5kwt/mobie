@@ -103,19 +103,20 @@ export default function BottomNavigation({ section }) {
   const showBg = asBoolean(visibility?.bgPadding ?? raw?.showBg, true);
   const showActiveIndicator = asBoolean(
     visibility?.activeIndicator ?? raw?.showActiveIndicator,
-    true
+    false
   );
 
   const indicatorMode = unwrapValue(
     raw?.indicatorMode,
     rawProps?.indicator?.properties?.mode?.value
   );
+  const textActiveColor =
+    raw?.textActiveColor || unwrapValue(rawProps?.text?.properties?.activeColor, "#0F766E");
   const iconActiveColor =
-    raw?.iconActiveColor || unwrapValue(rawProps?.icons?.properties?.activeColor, "#111827");
+    raw?.iconActiveColor ||
+    unwrapValue(rawProps?.icons?.properties?.activeColor, textActiveColor);
   const iconPrimaryColor =
     raw?.iconPrimaryColor || unwrapValue(rawProps?.icons?.properties?.primaryColor, "#6B7280");
-  const textActiveColor =
-    raw?.textActiveColor || unwrapValue(rawProps?.text?.properties?.activeColor, "#111827");
   const textPrimaryColor =
     raw?.textPrimaryColor || unwrapValue(rawProps?.text?.properties?.primaryColor, "#6B7280");
 
@@ -123,12 +124,13 @@ export default function BottomNavigation({ section }) {
   const iconHeight = unwrapValue(raw?.iconHeight, iconWidth) || 20;
   const iconSize = Math.max(iconWidth, iconHeight);
 
-  const fontSize = unwrapValue(raw?.textFontSize, rawProps?.text?.properties?.fontSize?.value) || 13;
+  const fontSize = unwrapValue(raw?.textFontSize, rawProps?.text?.properties?.fontSize?.value) || 12;
   const fontFamily = unwrapValue(raw?.textFontFamily, rawProps?.text?.properties?.fontFamily?.value);
-  const fontWeight = unwrapValue(raw?.textFontWeight, rawProps?.text?.properties?.fontWeight?.value);
+  const fontWeight =
+    unwrapValue(raw?.textFontWeight, rawProps?.text?.properties?.fontWeight?.value) || "600";
 
-  const itemWidth = unwrapValue(raw?.itemWidth, rawProps?.text?.properties?.itemWidth?.value) || 72;
-  const itemHeight = unwrapValue(raw?.itemHeight, rawProps?.text?.properties?.itemHeight?.value) || 56;
+  const itemWidth = unwrapValue(raw?.itemWidth, rawProps?.text?.properties?.itemWidth?.value);
+  const itemHeight = unwrapValue(raw?.itemHeight, rawProps?.text?.properties?.itemHeight?.value) || 64;
 
   const paddingStyles = convertStyles({
     paddingTop: raw?.pt,
@@ -143,7 +145,7 @@ export default function BottomNavigation({ section }) {
   const resolvedActiveIndex = clampIndex(resolveActiveIndex(items, rawProps, raw), items.length);
   const [activeIndex, setActiveIndex] = useState(resolvedActiveIndex);
 
-  const indicatorColor = unwrapValue(raw?.indicatorColor, "#00000022");
+  const indicatorColor = unwrapValue(raw?.indicatorColor, `${textActiveColor}22`);
   const indicatorSizeRaw = unwrapValue(raw?.indicatorSize, 24);
   const indicatorThickness = unwrapValue(raw?.indicatorThickness, 4);
   const maxIndicatorSize = Math.min(itemWidth, itemHeight) * 0.7;
@@ -177,7 +179,8 @@ export default function BottomNavigation({ section }) {
               style={[
                 styles.item,
                 presentation.item,
-                { width: itemWidth, height: itemHeight },
+                itemWidth ? { width: itemWidth } : styles.dynamicItem,
+                { height: itemHeight },
               ]}
               activeOpacity={0.85}
               onPress={() => setActiveIndex(index)}
@@ -243,12 +246,15 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
+  dynamicItem: {
+    flex: 1,
+  },
   icon: {
     lineHeight: 1,
   },
   label: {
-    marginTop: 4,
-    fontWeight: "700",
+    marginTop: 6,
+    fontWeight: "600",
   },
   indicator: {
     alignSelf: "center",
