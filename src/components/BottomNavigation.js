@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { Linking, StyleSheet, Text, TouchableOpacity, View } from "react-native";
-import { useNavigation } from "@react-navigation/native";
+import { StackActions, useNavigation } from "@react-navigation/native";
 import Icon from "react-native-vector-icons/FontAwesome6";
 import { convertStyles } from "../utils/convertStyles";
 
@@ -249,11 +249,21 @@ export default function BottomNavigation({ section, activeIndexOverride }) {
     }
 
     if (target.type === "stack" && target.name) {
-      navigation.navigate(target.name, {
+      const params = {
         ...target.params,
         activeIndex: index,
         bottomNavSection: section,
-      });
+      };
+      const state = navigation.getState();
+      const currentRoute = state?.routes?.[state.index];
+      const isSameRoute = currentRoute?.name === target.name;
+
+      if (isSameRoute) {
+        navigation.navigate({ name: target.name, params, merge: true });
+        return;
+      }
+
+      navigation.dispatch(StackActions.replace(target.name, params));
     }
   };
 

@@ -159,10 +159,18 @@ export default function App() {
               <Stack.Screen name="Auth" component={AuthScreen} />
 
               {/* 🔥 Main Screen */}
-              <Stack.Screen name="LayoutScreen" component={LayoutScreen} />
+              <Stack.Screen
+                name="LayoutScreen"
+                component={LayoutScreen}
+                options={{ animation: "none" }}
+              />
 
               {/* 🔥 Bottom navigation destinations */}
-              <Stack.Screen name="BottomNavScreen" component={BottomNavScreen} />
+              <Stack.Screen
+                name="BottomNavScreen"
+                component={BottomNavScreen}
+                options={{ animation: "none" }}
+              />
 
             </Stack.Navigator>
           </NavigationContainer>
