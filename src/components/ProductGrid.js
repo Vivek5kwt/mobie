@@ -32,11 +32,46 @@ const PRODUCT_QUERY = `
   }
 `;
 
-export default function ProductGrid({ limit = 8, title = "Products" }) {
+const unwrapValue = (value, fallback = undefined) => {
+  if (value === undefined || value === null) return fallback;
+  if (typeof value === "object") {
+    if (value.value !== undefined) return value.value;
+    if (value.const !== undefined) return value.const;
+    if (value.properties) return unwrapValue(value.properties, fallback);
+  }
+  return value;
+};
+
+const toNumber = (value, fallback) => {
+  const resolved = unwrapValue(value, undefined);
+  if (resolved === undefined || resolved === "") return fallback;
+  if (typeof resolved === "number") return resolved;
+  const parsed = parseFloat(resolved);
+  return Number.isNaN(parsed) ? fallback : parsed;
+};
+
+const toString = (value, fallback = "") => {
+  const resolved = unwrapValue(value, fallback);
+  if (resolved === undefined || resolved === null) return fallback;
+  return String(resolved);
+};
+
+export default function ProductGrid({ section, limit = 8, title = "Products" }) {
   const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
-  const cardWidth = Math.max(160, (Dimensions.get("window").width - 72) / 2);
+
+  const rawProps =
+    section?.properties?.props?.properties || section?.properties?.props || section?.props || {};
+  const resolvedLimit = toNumber(rawProps?.limit, limit);
+  const resolvedTitle = toString(rawProps?.title, title);
+  const gridGap = 16;
+  const horizontalPadding = 24;
+  const screenWidth = Dimensions.get("window").width;
+  const cardWidth = Math.max(
+    0,
+    (screenWidth - horizontalPadding * 2 - gridGap) / 2
+  );
 
   useEffect(() => {
     let isMounted = true;
@@ -55,7 +90,7 @@ export default function ProductGrid({ limit = 8, title = "Products" }) {
           },
           body: JSON.stringify({
             query: PRODUCT_QUERY,
-            variables: { first: limit },
+            variables: { first: resolvedLimit },
           }),
           signal: controller.signal,
         });
@@ -98,11 +133,11 @@ export default function ProductGrid({ limit = 8, title = "Products" }) {
       isMounted = false;
       controller.abort();
     };
-  }, [limit]);
+  }, [resolvedLimit]);
 
   return (
     <View style={styles.wrapper}>
-      <Text style={styles.heading}>{title}</Text>
+      <Text style={styles.heading}>{resolvedTitle}</Text>
 
       {loading && <Text style={styles.status}>Loading products...</Text>}
       {error && <Text style={styles.error}>{error}</Text>}
