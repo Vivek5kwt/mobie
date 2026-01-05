@@ -57,7 +57,7 @@ const bottomNavigationStyle1Section = {
             borderRadius: 28,
             gradientFrom: "",
             textFontSize: 12,
-            indicatorMode: "Bubble",
+            indicatorMode: "Line",
             indicatorSize: 24,
             indicatorColor: "#096d70",
             textFontFamily: "Inter",
@@ -185,7 +185,7 @@ const bottomNavigationStyle1Section = {
                 justifyContent: "space-around",
               },
               indicator: {
-                mode: "Bubble",
+                mode: "Line",
                 size: 24,
                 color: "#096d70",
                 thickness: 6,
@@ -231,7 +231,7 @@ const bottomNavigationStyle1Section = {
           properties: {
             mode: {
               type: "string",
-              value: "Bubble",
+              value: "Line",
             },
             size: {
               type: "number",
@@ -302,7 +302,7 @@ const bottomNavigationStyle1Section = {
                 justifyContent: "space-around",
               },
               indicator: {
-                mode: "Bubble",
+                mode: "Line",
                 size: 36,
                 color: "#096d70",
                 thickness: 6,

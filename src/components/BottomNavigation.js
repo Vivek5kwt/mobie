@@ -106,6 +106,10 @@ export default function BottomNavigation({ section }) {
     true
   );
 
+  const indicatorMode = unwrapValue(
+    raw?.indicatorMode,
+    rawProps?.indicator?.properties?.mode?.value
+  );
   const iconActiveColor =
     raw?.iconActiveColor || unwrapValue(rawProps?.icons?.properties?.activeColor, "#111827");
   const iconPrimaryColor =
@@ -141,8 +145,10 @@ export default function BottomNavigation({ section }) {
 
   const indicatorColor = unwrapValue(raw?.indicatorColor, "#00000022");
   const indicatorSizeRaw = unwrapValue(raw?.indicatorSize, 24);
+  const indicatorThickness = unwrapValue(raw?.indicatorThickness, 4);
   const maxIndicatorSize = Math.min(itemWidth, itemHeight) * 0.7;
   const indicatorSize = Math.min(indicatorSizeRaw, maxIndicatorSize);
+  const indicatorIsLine = String(indicatorMode || "").toLowerCase() !== "bubble";
 
   useEffect(() => {
     setActiveIndex(resolvedActiveIndex);
@@ -164,7 +170,6 @@ export default function BottomNavigation({ section }) {
           const isActive = index === activeIndex;
           const itemIconColor = isActive ? iconActiveColor : iconPrimaryColor;
           const itemTextColor = isActive ? textActiveColor : textPrimaryColor;
-          const indicatorOffset = Math.max(0, (itemHeight - indicatorSize) / 2);
 
           return (
             <TouchableOpacity
@@ -177,6 +182,14 @@ export default function BottomNavigation({ section }) {
               activeOpacity={0.85}
               onPress={() => setActiveIndex(index)}
             >
+              {showIcons && (
+                <Icon
+                  name={normalizeIconName(item.icon)}
+                  size={iconSize}
+                  color={itemIconColor}
+                  style={[styles.icon, presentation.icon]}
+                />
+              )}
               {showActiveIndicator && isActive && (
                 <View
                   style={[
@@ -184,19 +197,10 @@ export default function BottomNavigation({ section }) {
                     {
                       backgroundColor: indicatorColor,
                       width: indicatorSize,
-                      height: indicatorSize,
-                      borderRadius: indicatorSize / 2,
-                      top: indicatorOffset,
+                      height: indicatorIsLine ? indicatorThickness : indicatorSize,
+                      borderRadius: indicatorIsLine ? indicatorThickness / 2 : indicatorSize / 2,
                     },
                   ]}
-                />
-              )}
-              {showIcons && (
-                <Icon
-                  name={normalizeIconName(item.icon)}
-                  size={iconSize}
-                  color={itemIconColor}
-                  style={[styles.icon, presentation.icon]}
                 />
               )}
               {showLabels && (
@@ -247,7 +251,7 @@ const styles = StyleSheet.create({
     fontWeight: "700",
   },
   indicator: {
-    position: "absolute",
     alignSelf: "center",
+    marginTop: 4,
   },
 });
