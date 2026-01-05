@@ -140,7 +140,9 @@ export default function BottomNavigation({ section }) {
   const [activeIndex, setActiveIndex] = useState(resolvedActiveIndex);
 
   const indicatorColor = unwrapValue(raw?.indicatorColor, "#00000022");
-  const indicatorSize = unwrapValue(raw?.indicatorSize, 36);
+  const indicatorSizeRaw = unwrapValue(raw?.indicatorSize, 24);
+  const maxIndicatorSize = Math.min(itemWidth, itemHeight) * 0.7;
+  const indicatorSize = Math.min(indicatorSizeRaw, maxIndicatorSize);
 
   useEffect(() => {
     setActiveIndex(resolvedActiveIndex);

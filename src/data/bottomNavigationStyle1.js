@@ -58,7 +58,7 @@ const bottomNavigationStyle1Section = {
             gradientFrom: "",
             textFontSize: 12,
             indicatorMode: "Bubble",
-            indicatorSize: 36,
+            indicatorSize: 24,
             indicatorColor: "#096d70",
             textFontFamily: "Inter",
             textFontWeight: "Bold",
@@ -186,7 +186,7 @@ const bottomNavigationStyle1Section = {
               },
               indicator: {
                 mode: "Bubble",
-                size: 36,
+                size: 24,
                 color: "#096d70",
                 thickness: 6,
               },
