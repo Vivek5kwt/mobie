@@ -274,6 +274,22 @@ export default function Header2({ section }) {
     delete containerStyle.flexGrow;
   }
 
+  if (containerStyle.borderRadius != null) {
+    delete containerStyle.borderRadius;
+  }
+  if (containerStyle.borderTopLeftRadius != null) {
+    delete containerStyle.borderTopLeftRadius;
+  }
+  if (containerStyle.borderTopRightRadius != null) {
+    delete containerStyle.borderTopRightRadius;
+  }
+  if (containerStyle.borderBottomLeftRadius != null) {
+    delete containerStyle.borderBottomLeftRadius;
+  }
+  if (containerStyle.borderBottomRightRadius != null) {
+    delete containerStyle.borderBottomRightRadius;
+  }
+
   return (
     <LinearGradient
       style={convertStyles(containerStyle)}
