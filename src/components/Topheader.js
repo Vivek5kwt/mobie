@@ -6,6 +6,8 @@ import Icon from "react-native-vector-icons/FontAwesome6";
 import { useSideMenu } from "../services/SideMenuContext";
 import bottomNavigationStyle1Section from "../data/bottomNavigationStyle1";
 
+const LOCAL_LOGO_IMAGE = require("../assets/logo/mobidraglogo.png");
+
 const unwrapValue = (value, fallback = undefined) => {
   if (value === undefined || value === null) return fallback;
   if (typeof value === "object") {
@@ -34,6 +36,12 @@ const normalizeIconName = (name, fallback = "bars") => {
   return cleaned || fallback;
 };
 
+const resolveLogoSource = (logoImage) => {
+  if (!logoImage) return null;
+  if (logoImage === "/images/mobidrag.png") return LOCAL_LOGO_IMAGE;
+  return { uri: logoImage };
+};
+
 export default function Header({ section }) {
   const { toggleSideMenu, hasSideNav } = useSideMenu();
   const navigation = useNavigation();
@@ -54,6 +62,7 @@ export default function Header({ section }) {
 
   const logoEnabled = resolveBoolean(props?.enableLogo, true);
   const logoImage = unwrapValue(props?.logoImage, "");
+  const logoSource = resolveLogoSource(logoImage);
 
   const cartProps = props?.cart?.properties || props?.cart || {};
   const cartVisible = resolveBoolean(cartProps?.visible, true);
@@ -159,9 +168,9 @@ export default function Header({ section }) {
 
       {/* LOGO */}
       <View style={[styles.logoSlot, layout.logoSlot]}>
-        {logoEnabled && logoImage ? (
+        {logoEnabled && logoSource ? (
           <Image
-            source={{ uri: logoImage }}
+            source={logoSource}
             style={[styles.logoImage, layout.logoImage]}
             resizeMode="contain"
           />
