@@ -4,7 +4,35 @@ import { View, Image, StyleSheet, TouchableOpacity } from "react-native";
 import Icon from "react-native-vector-icons/FontAwesome6";
 import { useSideMenu } from "../services/SideMenuContext";
 
-const isEnabled = (value) => value === true || value === "true";
+const unwrapValue = (value, fallback = undefined) => {
+  if (value === undefined || value === null) return fallback;
+  if (typeof value === "object") {
+    if (value.value !== undefined) return value.value;
+    if (value.const !== undefined) return value.const;
+    if (value.properties !== undefined) return value.properties;
+  }
+  return value;
+};
+
+const resolveBoolean = (value, fallback = false) => {
+  const resolved = unwrapValue(value, fallback);
+  if (typeof resolved === "boolean") return resolved;
+  if (typeof resolved === "string") {
+    const lowered = resolved.trim().toLowerCase();
+    if (["true", "1", "yes", "y"].includes(lowered)) return true;
+    if (["false", "0", "no", "n"].includes(lowered)) return false;
+  }
+  if (typeof resolved === "number") return resolved !== 0;
+  return fallback;
+};
+
+const normalizeIconName = (name, fallback = "bars") => {
+  if (!name) return fallback;
+  const cleaned = String(name).replace(/^fa[srldb]?[-_]?/, "");
+  return cleaned || fallback;
+};
+
+const isEnabled = (value) => resolveBoolean(value, false);
 const DEFAULT_LOGO = require("../assets/logo/mobidraglogo.png");
 
 export default function Header({ section }) {
@@ -23,6 +51,14 @@ export default function Header({ section }) {
 
 
   // -----------------------------------------
+
+  const sideMenuProps = props?.sideMenu?.properties || props?.sideMenu || {};
+  const sideMenuVisible = resolveBoolean(sideMenuProps?.visible, true);
+  const sideMenuIconName = normalizeIconName(
+    unwrapValue(sideMenuProps?.iconId ?? sideMenuProps?.iconName ?? sideMenuProps?.icon, "")
+  );
+  const sideMenuIconSize = unwrapValue(sideMenuProps?.width, 24);
+  const sideMenuIconColor = unwrapValue(sideMenuProps?.color, "#111827");
 
   return (
     <View
@@ -43,12 +79,12 @@ export default function Header({ section }) {
 
       {/* LEFT ICON */}
       <View style={[styles.leftSlot, layout.leftSlot]}>
-        {isEnabled(props.sideMenu?.properties?.visible?.value) && hasSideNav && (
+        {sideMenuVisible && hasSideNav && (
           <TouchableOpacity onPress={toggleSideMenu} activeOpacity={0.7}>
             <Icon
-              name={props.sideMenu.properties.iconId.value}
-              size={props.sideMenu.properties.width.value}
-              color={props.sideMenu.properties.color.value}
+              name={sideMenuIconName}
+              size={sideMenuIconSize}
+              color={sideMenuIconColor}
             />
           </TouchableOpacity>
         )}
