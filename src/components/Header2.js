@@ -145,7 +145,7 @@ export default function Header2({ section }) {
     (notificationEnabled && searchAndIcons?.showNotification);
   const shouldShowSideMenu =
     hasSideNav &&
-    resolveBooleanSetting(searchAndIcons?.showSideMenu, false);
+    resolveBooleanSetting(searchAndIcons?.showSideMenu, true);
   const shouldShowSearchRowOrMenu = shouldShowSearchRow || shouldShowSideMenu;
   const shouldShowTopRow = hasGreeting || (profileEnabled && profile?.show);
 
