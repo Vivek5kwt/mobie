@@ -1,28 +1,24 @@
 import React from "react";
-import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
-import { useNavigation, useRoute } from "@react-navigation/native";
+import { StyleSheet, Text, View } from "react-native";
+import { useRoute } from "@react-navigation/native";
 import { SafeArea } from "../utils/SafeAreaHandler";
+import BottomNavigation from "../components/BottomNavigation";
+import bottomNavigationStyle1Section from "../data/bottomNavigationStyle1";
 
 export default function BottomNavScreen() {
-  const navigation = useNavigation();
   const route = useRoute();
   const title = route?.params?.title || "Page";
   const link = route?.params?.link || "";
+  const bottomNavSection = route?.params?.bottomNavSection || bottomNavigationStyle1Section;
+  const activeIndex = route?.params?.activeIndex;
+  const hasBottomNav = !!bottomNavSection;
 
   return (
     <SafeArea>
       <View style={styles.container}>
         <View style={styles.header}>
-          <TouchableOpacity
-            style={styles.backButton}
-            onPress={() => navigation.goBack()}
-            accessibilityRole="button"
-          >
-            <Text style={styles.backText}>Back</Text>
-          </TouchableOpacity>
           <Text style={styles.headerTitle}>{title}</Text>
         </View>
-
         <View style={styles.content}>
           <Text style={styles.titleText}>{title}</Text>
           <Text style={styles.subtitleText}>You are viewing the {title} page.</Text>
@@ -32,6 +28,12 @@ export default function BottomNavScreen() {
             <Text style={styles.linkText}>Link: /{title.toLowerCase()}</Text>
           )}
         </View>
+
+        {hasBottomNav && (
+          <View style={styles.bottomNav}>
+            <BottomNavigation section={bottomNavSection} activeIndexOverride={activeIndex} />
+          </View>
+        )}
       </View>
     </SafeArea>
   );
@@ -46,20 +48,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingTop: 12,
     paddingBottom: 8,
-    flexDirection: "row",
-    alignItems: "center",
-  },
-  backButton: {
-    paddingVertical: 6,
-    paddingHorizontal: 10,
-    borderRadius: 12,
-    backgroundColor: "#E2E8F0",
-    marginRight: 12,
-  },
-  backText: {
-    fontSize: 14,
-    fontWeight: "600",
-    color: "#0F172A",
   },
   headerTitle: {
     fontSize: 18,
@@ -71,6 +59,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     paddingHorizontal: 24,
+    paddingBottom: 96,
   },
   titleText: {
     fontSize: 28,
@@ -87,5 +76,11 @@ const styles = StyleSheet.create({
   linkText: {
     fontSize: 14,
     color: "#64748B",
+  },
+  bottomNav: {
+    position: "absolute",
+    left: 0,
+    right: 0,
+    bottom: 0,
   },
 });
