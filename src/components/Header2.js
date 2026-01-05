@@ -3,6 +3,7 @@ import { View, Text, TextInput, Image, TouchableOpacity } from "react-native";
 import LinearGradient from "react-native-linear-gradient";
 import FontAwesome from "react-native-vector-icons/FontAwesome";
 import { convertStyles, extractGradientInfo } from "../utils/convertStyles";
+import { useSideMenu } from "../services/SideMenuContext";
 
 const resolveBooleanSetting = (input, defaultValue = true) => {
   const normalize = (value) => {
@@ -39,6 +40,7 @@ const resolveValue = (input, defaultValue = undefined) => {
 };
 
 export default function Header2({ section }) {
+  const { toggleSideMenu, hasSideNav } = useSideMenu();
   console.log("🔍 Header2 section:", JSON.stringify(section, null, 2));
 
   let props, styleBlock, greeting, profile, searchAndIcons, appBar;
@@ -125,6 +127,8 @@ export default function Header2({ section }) {
   const searchEnabled = resolveBooleanSetting(props?.searchSettingsEnabled);
   const notificationEnabled = resolveBooleanSetting(props?.notificationSettingsEnabled);
   const profileEnabled = resolveBooleanSetting(props?.profileSettingsEnabled);
+  const showSideMenu =
+    hasSideNav && resolveBooleanSetting(searchAndIcons?.showSideMenu, false);
 
   const hasGreeting = greetingEnabled && !!(greeting?.title || greeting?.name);
 
@@ -132,7 +136,8 @@ export default function Header2({ section }) {
 
   const shouldShowSearchRow =
     (searchEnabled && searchAndIcons?.showSearch) ||
-    (notificationEnabled && searchAndIcons?.showNotification);
+    (notificationEnabled && searchAndIcons?.showNotification) ||
+    showSideMenu;
   const shouldShowTopRow = hasGreeting || (profileEnabled && profile?.show);
 
   const shouldShowAppBar = !!(appBar?.show ?? (
@@ -169,6 +174,17 @@ export default function Header2({ section }) {
       </TouchableOpacity>
     );
   };
+
+  const resolveSideMenuIcon = (variant) => {
+    const normalized = String(variant || "").toLowerCase();
+    if (normalized.includes("hamburger") || normalized.includes("menu")) return "bars";
+    return "bars";
+  };
+
+  const sideMenuIconColor = searchAndIcons?.sideMenuIconColor || "#FFFFFF";
+  const sideMenuIconWidth = searchAndIcons?.sideMenuIconWidth || 16;
+  const sideMenuIconHeight = searchAndIcons?.sideMenuIconHeight || 16;
+  const sideMenuIconSize = Math.max(sideMenuIconWidth, sideMenuIconHeight);
   
   // Avoid full-height blocks that swallow scroll gestures when a DSL
   // provides `height: "100%"` or flex styles for the header container.
@@ -302,14 +318,27 @@ export default function Header2({ section }) {
             </View>
           )}
 
-          {notificationEnabled && searchAndIcons?.showNotification && (
+          {(showSideMenu || (notificationEnabled && searchAndIcons?.showNotification)) && (
             <View style={convertStyles(notificationContainerStyle)}>
-              <FontAwesome
-                name="bell"
-                size={searchAndIcons?.notificationIconSize || 36}
-                color={searchAndIcons?.notificationIconColor || "#FFFFFF"}
-              />
-              {searchAndIcons?.showBadge && <View style={convertStyles(badgeStyle)} />}
+              {showSideMenu && (
+                <TouchableOpacity onPress={toggleSideMenu} activeOpacity={0.7}>
+                  <FontAwesome
+                    name={resolveSideMenuIcon(searchAndIcons?.sideMenuIconVariant)}
+                    size={sideMenuIconSize}
+                    color={sideMenuIconColor}
+                  />
+                </TouchableOpacity>
+              )}
+              {notificationEnabled && searchAndIcons?.showNotification && (
+                <View style={showSideMenu ? { marginLeft: 12 } : null}>
+                  <FontAwesome
+                    name="bell"
+                    size={searchAndIcons?.notificationIconSize || 36}
+                    color={searchAndIcons?.notificationIconColor || "#FFFFFF"}
+                  />
+                  {searchAndIcons?.showBadge && <View style={convertStyles(badgeStyle)} />}
+                </View>
+              )}
             </View>
           )}
         </View>
