@@ -3,6 +3,7 @@ import { View, Text, TextInput, Image, TouchableOpacity } from "react-native";
 import LinearGradient from "react-native-linear-gradient";
 import FontAwesome from "react-native-vector-icons/FontAwesome";
 import { convertStyles, extractGradientInfo } from "../utils/convertStyles";
+import { useSideMenu } from "../services/SideMenuContext";
 
 const resolveBooleanSetting = (input, defaultValue = true) => {
   const normalize = (value) => {
@@ -38,8 +39,18 @@ const resolveValue = (input, defaultValue = undefined) => {
   return input;
 };
 
+const resolveSideMenuIcon = (variant) => {
+  if (!variant) return "bars";
+  const normalized = String(variant).trim().toLowerCase();
+  if (["hamburger", "menu", "bars"].includes(normalized)) return "bars";
+  if (["dots", "ellipsis"].includes(normalized)) return "ellipsis-h";
+  return normalized;
+};
+
 export default function Header2({ section }) {
   console.log("🔍 Header2 section:", JSON.stringify(section, null, 2));
+
+  const { toggleSideMenu, hasSideNav } = useSideMenu();
 
   let props, styleBlock, greeting, profile, searchAndIcons, appBar;
   
@@ -132,6 +143,10 @@ export default function Header2({ section }) {
   const shouldShowSearchRow =
     (searchEnabled && searchAndIcons?.showSearch) ||
     (notificationEnabled && searchAndIcons?.showNotification);
+  const shouldShowSideMenu =
+    hasSideNav &&
+    resolveBooleanSetting(searchAndIcons?.showSideMenu, false);
+  const shouldShowSearchRowOrMenu = shouldShowSearchRow || shouldShowSideMenu;
   const shouldShowTopRow = hasGreeting || (profileEnabled && profile?.show);
 
   const shouldShowAppBar = !!(appBar?.show ?? (
@@ -282,8 +297,25 @@ export default function Header2({ section }) {
         </View>
       )}
 
-      {shouldShowSearchRow ? (
+      {shouldShowSearchRowOrMenu ? (
         <View style={convertStyles(searchContainerStyle)}>
+          {shouldShowSideMenu && (
+            <TouchableOpacity
+              onPress={toggleSideMenu}
+              activeOpacity={0.7}
+              style={{ alignItems: "center", justifyContent: "center" }}
+            >
+              <FontAwesome
+                name={resolveSideMenuIcon(searchAndIcons?.sideMenuIconVariant)}
+                size={
+                  searchAndIcons?.sideMenuIconWidth ||
+                  searchAndIcons?.sideMenuIconHeight ||
+                  20
+                }
+                color={searchAndIcons?.sideMenuIconColor || "#FFFFFF"}
+              />
+            </TouchableOpacity>
+          )}
           {searchEnabled && searchAndIcons?.showSearch && (
             <View style={convertStyles(searchBarStyle)}>
               <FontAwesome
