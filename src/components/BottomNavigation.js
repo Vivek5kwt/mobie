@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { Linking, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { useNavigation } from "@react-navigation/native";
 import Icon from "react-native-vector-icons/FontAwesome6";
 import { convertStyles } from "../utils/convertStyles";
 
@@ -42,6 +43,14 @@ const resolveItemIcon = (item = {}) => {
 
 const resolveItemLabel = (item = {}) =>
   item?.label ?? item?.title ?? item?.name ?? item?.text ?? item?.value ?? "";
+
+const resolveItemLink = (item = {}) => {
+  if (!item) return "";
+  if (typeof item.link === "string") return item.link.trim();
+  if (typeof item.href === "string") return item.href.trim();
+  if (typeof item.url === "string") return item.url.trim();
+  return "";
+};
 
 const buildRawProps = (rawProps = {}) => {
   const rawBlock = unwrapValue(rawProps.raw, {});
@@ -103,7 +112,37 @@ const clampIndex = (index, count) => {
   return Math.max(0, Math.min(index, count - 1));
 };
 
+const resolveNavigationTarget = (item = {}) => {
+  const link = resolveItemLink(item);
+  const label = resolveItemLabel(item);
+  const id = item?.id ? String(item.id) : "";
+  const fallbackLabel = label || id || "Destination";
+
+  if (!link) {
+    if (id.toLowerCase() === "home" || label.toLowerCase() === "home") {
+      return { type: "stack", name: "LayoutScreen" };
+    }
+    return { type: "stack", name: "BottomNavScreen", params: { title: fallbackLabel } };
+  }
+
+  if (/^https?:\/\//i.test(link)) {
+    return { type: "external", url: link };
+  }
+
+  const cleaned = link.replace(/^\//, "");
+  if (cleaned.toLowerCase() === "home") {
+    return { type: "stack", name: "LayoutScreen" };
+  }
+
+  return {
+    type: "stack",
+    name: "BottomNavScreen",
+    params: { title: fallbackLabel, link: cleaned },
+  };
+};
+
 export default function BottomNavigation({ section }) {
+  const navigation = useNavigation();
   const componentName =
     section?.component || section?.properties?.component?.const || section?.properties?.component;
   const isStyle2 = String(componentName || "").toLowerCase() === "bottom_navigation_style_2";
@@ -186,6 +225,29 @@ export default function BottomNavigation({ section }) {
 
   if (!items.length) return null;
 
+  const handlePress = async (item, index) => {
+    setActiveIndex(index);
+    const target = resolveNavigationTarget(item);
+
+    if (!target) return;
+
+    if (target.type === "external") {
+      try {
+        const canOpen = await Linking.canOpenURL(target.url);
+        if (canOpen) {
+          await Linking.openURL(target.url);
+        }
+      } catch (error) {
+        console.log("Failed to open link:", error);
+      }
+      return;
+    }
+
+    if (target.type === "stack" && target.name) {
+      navigation.navigate(target.name, target.params);
+    }
+  };
+
   return (
     <View
       style={[
@@ -211,7 +273,7 @@ export default function BottomNavigation({ section }) {
                 { height: itemHeight },
               ]}
               activeOpacity={0.85}
-              onPress={() => setActiveIndex(index)}
+              onPress={() => handlePress(item, index)}
             >
               {showIcons && (
                 <View

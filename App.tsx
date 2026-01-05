@@ -9,6 +9,7 @@ import { SafeAreaProvider } from "react-native-safe-area-context";
 import SplashScreen from "./src/screens/saplash";
 import LayoutScreen from './src/screens/LayoutScreen';
 import AuthScreen from "./src/screens/AuthScreen";
+import BottomNavScreen from "./src/screens/BottomNavScreen";
 import { AuthProvider } from "./src/services/AuthContext";
 
 import tokenLogger from './src/utils/tokenLogger';
@@ -159,6 +160,9 @@ export default function App() {
 
               {/* 🔥 Main Screen */}
               <Stack.Screen name="LayoutScreen" component={LayoutScreen} />
+
+              {/* 🔥 Bottom navigation destinations */}
+              <Stack.Screen name="BottomNavScreen" component={BottomNavScreen} />
 
             </Stack.Navigator>
           </NavigationContainer>
