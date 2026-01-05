@@ -30,6 +30,13 @@ export default function LayoutScreen() {
   const SIDE_MENU_WIDTH = 280;
   const sideMenuTranslateX = useRef(new Animated.Value(-SIDE_MENU_WIDTH)).current;
 
+  const getComponentName = (section) =>
+    section?.component?.const ||
+    section?.component ||
+    section?.properties?.component?.const ||
+    section?.properties?.component ||
+    "";
+
   const mobileSections = useMemo(
     () => (dsl?.sections || []).filter(shouldRenderSectionOnMobile),
     [dsl]
@@ -39,8 +46,8 @@ export default function LayoutScreen() {
     const sectionsCopy = [...mobileSections];
 
     return sectionsCopy.sort((a, b) => {
-      const A = a?.properties?.component?.const || "";
-      const B = b?.properties?.component?.const || "";
+      const A = getComponentName(a);
+      const B = getComponentName(b);
 
       // 1️⃣ Top Header
       if (A === "header") return -1;
@@ -57,7 +64,7 @@ export default function LayoutScreen() {
   const sideNavSection = useMemo(
     () =>
       sortedSections.find(
-        (section) => section?.properties?.component?.const?.toLowerCase() === "side_navigation"
+        (section) => getComponentName(section).toLowerCase() === "side_navigation"
       ) || null,
     [sortedSections]
   );
@@ -66,7 +73,7 @@ export default function LayoutScreen() {
     () =>
       sortedSections.find(
         (section) => {
-          const component = section?.properties?.component?.const?.toLowerCase();
+          const component = getComponentName(section).toLowerCase();
           return [
             "bottom_navigation",
             "bottom_navigation_style_1",
@@ -81,7 +88,7 @@ export default function LayoutScreen() {
     () =>
       sortedSections.filter(
         (section) => {
-          const component = section?.properties?.component?.const?.toLowerCase();
+          const component = getComponentName(section).toLowerCase();
           return ![
             "side_navigation",
             "bottom_navigation",
@@ -289,11 +296,9 @@ export default function LayoutScreen() {
           >
             {visibleSections.length ? (
               visibleSections.map((s, i) => {
-                const componentName =
-                  s?.properties?.component?.const?.toLowerCase() || "";
+                const componentName = getComponentName(s).toLowerCase();
                 const nextComponentName =
-                  visibleSections[i + 1]?.properties?.component?.const?.toLowerCase() ||
-                  "";
+                  getComponentName(visibleSections[i + 1]).toLowerCase();
                 const tightenHeaderSpacing =
                   componentName === "header" &&
                   ["header_2", "header_2_mobile"].includes(nextComponentName);
