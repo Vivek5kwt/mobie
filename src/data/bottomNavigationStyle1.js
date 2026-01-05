@@ -401,7 +401,7 @@ const bottomNavigationStyle1Section = {
       },
     },
     component: {
-      const: "bottom_navigation_style_2",
+      const: "bottom_navigation_style_1",
     },
   },
 };

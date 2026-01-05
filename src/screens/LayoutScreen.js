@@ -65,8 +65,14 @@ export default function LayoutScreen() {
   const bottomNavSection = useMemo(
     () =>
       sortedSections.find(
-        (section) =>
-          section?.properties?.component?.const?.toLowerCase() === "bottom_navigation"
+        (section) => {
+          const component = section?.properties?.component?.const?.toLowerCase();
+          return [
+            "bottom_navigation",
+            "bottom_navigation_style_1",
+            "bottom_navigation_style_2",
+          ].includes(component);
+        }
       ) || null,
     [sortedSections]
   );
@@ -74,10 +80,15 @@ export default function LayoutScreen() {
   const visibleSections = useMemo(
     () =>
       sortedSections.filter(
-        (section) =>
-          !["side_navigation", "bottom_navigation"].includes(
-            section?.properties?.component?.const?.toLowerCase()
-          )
+        (section) => {
+          const component = section?.properties?.component?.const?.toLowerCase();
+          return ![
+            "side_navigation",
+            "bottom_navigation",
+            "bottom_navigation_style_1",
+            "bottom_navigation_style_2",
+          ].includes(component);
+        }
       ),
     [sortedSections]
   );
@@ -96,8 +107,14 @@ export default function LayoutScreen() {
     if (!incomingDsl || !Array.isArray(incomingDsl.sections)) return incomingDsl;
 
     const hasBottomNavigation = incomingDsl.sections.some(
-      (section) =>
-        section?.properties?.component?.const?.toLowerCase() === "bottom_navigation"
+      (section) => {
+        const component = section?.properties?.component?.const?.toLowerCase();
+        return [
+          "bottom_navigation",
+          "bottom_navigation_style_1",
+          "bottom_navigation_style_2",
+        ].includes(component);
+      }
     );
 
     if (hasBottomNavigation) return incomingDsl;
