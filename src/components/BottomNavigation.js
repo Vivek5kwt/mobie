@@ -141,7 +141,7 @@ const resolveNavigationTarget = (item = {}) => {
   };
 };
 
-export default function BottomNavigation({ section }) {
+export default function BottomNavigation({ section, activeIndexOverride }) {
   const navigation = useNavigation();
   const componentName =
     section?.component || section?.properties?.component?.const || section?.properties?.component;
@@ -199,7 +199,12 @@ export default function BottomNavigation({ section }) {
   const backgroundColor =
     raw?.bgColor || unwrapValue(rawProps?.backgroundAndPadding?.properties?.backgroundColor);
 
-  const resolvedActiveIndex = clampIndex(resolveActiveIndex(items, rawProps, raw), items.length);
+  const parsedActiveIndexOverride = Number(activeIndexOverride);
+  const hasActiveIndexOverride = Number.isFinite(parsedActiveIndexOverride);
+  const resolvedActiveIndex = clampIndex(
+    hasActiveIndexOverride ? parsedActiveIndexOverride : resolveActiveIndex(items, rawProps, raw),
+    items.length
+  );
   const [activeIndex, setActiveIndex] = useState(resolvedActiveIndex);
 
   const indicatorColor = unwrapValue(raw?.indicatorColor, `${textActiveColor}22`);
@@ -244,7 +249,11 @@ export default function BottomNavigation({ section }) {
     }
 
     if (target.type === "stack" && target.name) {
-      navigation.navigate(target.name, target.params);
+      navigation.navigate(target.name, {
+        ...target.params,
+        activeIndex: index,
+        bottomNavSection: section,
+      });
     }
   };
 
