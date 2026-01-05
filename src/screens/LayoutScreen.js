@@ -63,10 +63,10 @@ export default function LayoutScreen() {
 
   const sideNavSection = useMemo(
     () =>
-      sortedSections.find(
+      (dsl?.sections || []).find(
         (section) => getComponentName(section).toLowerCase() === "side_navigation"
       ) || null,
-    [sortedSections]
+    [dsl]
   );
 
   const bottomNavSection = useMemo(
