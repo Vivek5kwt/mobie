@@ -38,6 +38,8 @@ const componentMap = {
   search_bar: SearchBar,
   side_navigation: SideNavigation,
   bottom_navigation: BottomNavigation,
+  bottom_navigation_style_1: BottomNavigation,
+  bottom_navigation_style_2: BottomNavigation,
   trending_collections: TrendingCollections,
   trending_searches: TrendingSearches,
   tab_product_grid: TabProductGrid,
