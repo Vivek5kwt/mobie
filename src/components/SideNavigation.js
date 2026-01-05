@@ -3,6 +3,8 @@ import { Image, ImageBackground, StyleSheet, Text, View } from "react-native";
 import Icon from "react-native-vector-icons/FontAwesome6";
 import { convertStyles } from "../utils/convertStyles";
 
+const LOCAL_LOGO_IMAGE = require("../assets/logo/mobidraglogo.png");
+
 const unwrapValue = (value, fallback = undefined) => {
   if (value === undefined || value === null) return fallback;
   if (typeof value === "object") {
@@ -29,6 +31,12 @@ const normalizeIconName = (name) => {
   if (!name) return "circle";
   const cleaned = String(name).replace(/^fa[srldb]?[-_]?/, "");
   return cleaned || "circle";
+};
+
+const resolveLogoSource = (logoUrl) => {
+  if (!logoUrl) return null;
+  if (logoUrl === "/images/mobidrag.png") return LOCAL_LOGO_IMAGE;
+  return { uri: logoUrl };
 };
 
 const buildRawProps = (rawProps = {}) => {
@@ -97,6 +105,7 @@ export default function SideNavigation({ section }) {
   const headerTitle = unwrapValue(raw?.headerTitle, "Mobidrag");
   const subtitle = unwrapValue(raw?.subtitle, "");
   const logoUrl = unwrapValue(raw?.logoUrl, "");
+  const logoSource = resolveLogoSource(logoUrl);
   const logoText = unwrapValue(raw?.logoText, "");
 
   const itemIconColor = raw?.iconColor || presentation.itemIcon?.color || "#111827";
@@ -117,8 +126,8 @@ export default function SideNavigation({ section }) {
       <View style={[styles.drawerContent, paddingStyles]}>
         {showHeader && (
           <View style={[styles.headerRow, presentation.headerRow]}>
-            {showLogo && logoUrl ? (
-              <Image source={{ uri: logoUrl }} style={styles.logoImage} />
+            {showLogo && logoSource ? (
+              <Image source={logoSource} style={styles.logoImage} />
             ) : null}
             {showLogo && !logoUrl && logoText ? (
               <View style={styles.logoPlaceholder}>
