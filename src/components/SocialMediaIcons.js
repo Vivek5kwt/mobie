@@ -46,7 +46,11 @@ const deriveWeight = (value, fallback = "700") => {
 };
 
 const normalizePlatforms = (rawPlatforms) => {
-  const source = Array.isArray(rawPlatforms) ? rawPlatforms : Object.values(rawPlatforms || {});
+  const source = Array.isArray(rawPlatforms)
+    ? rawPlatforms
+    : Array.isArray(rawPlatforms?.items)
+      ? rawPlatforms.items
+      : Object.values(rawPlatforms || {});
   return source
     .map((item, idx) => {
       const props = item?.properties || item || {};
