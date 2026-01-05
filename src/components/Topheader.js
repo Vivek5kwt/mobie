@@ -37,7 +37,7 @@ const normalizeIconName = (name, fallback = "bars") => {
 };
 
 const resolveLogoSource = (logoImage) => {
-  if (!logoImage) return null;
+  if (!logoImage) return LOCAL_LOGO_IMAGE;
   if (logoImage === "/images/mobidrag.png") return LOCAL_LOGO_IMAGE;
   return { uri: logoImage };
 };
@@ -219,7 +219,7 @@ const styles = StyleSheet.create({
   container: {},
   leftSlot: { flexDirection: "row", alignItems: "center" },
   logoSlot: { flex: 1, alignItems: "center", justifyContent: "center" },
-  logoImage: { height: 26, width: "auto" },
+  logoImage: { height: 26, width: 120 },
   rightSlot: { flexDirection: "row", alignItems: "center", gap: 14 },
   iconWrapper: { position: "relative" },
   badge: {
