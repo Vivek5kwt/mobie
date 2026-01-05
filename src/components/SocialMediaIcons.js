@@ -46,11 +46,14 @@ const deriveWeight = (value, fallback = "700") => {
 };
 
 const normalizePlatforms = (rawPlatforms) => {
-  const source = Array.isArray(rawPlatforms)
-    ? rawPlatforms
-    : Array.isArray(rawPlatforms?.items)
-      ? rawPlatforms.items
-      : Object.values(rawPlatforms || {});
+  const resolvedPlatforms = unwrapValue(rawPlatforms, rawPlatforms);
+  const source = Array.isArray(resolvedPlatforms)
+    ? resolvedPlatforms
+    : Array.isArray(resolvedPlatforms?.items)
+      ? resolvedPlatforms.items
+      : Array.isArray(resolvedPlatforms?.properties?.items)
+        ? resolvedPlatforms.properties.items
+        : Object.values(resolvedPlatforms || {});
   return source
     .map((item, idx) => {
       const props = item?.properties || item || {};
@@ -87,16 +90,6 @@ const iconNameMap = {
   tiktok: "tiktok",
 };
 
-const DEFAULT_PLATFORMS = [
-  { id: "facebook", platform: "facebook", url: "" },
-  { id: "twitter", platform: "twitter", url: "" },
-  { id: "instagram", platform: "instagram", url: "" },
-  { id: "youtube", platform: "youtube", url: "" },
-  { id: "whatsapp", platform: "whatsapp", url: "" },
-  { id: "linkedin", platform: "linkedin", url: "" },
-  { id: "pinterest", platform: "pinterest", url: "" },
-];
-
 const brandIconNames = new Set(Object.values(iconNameMap));
 
 export default function SocialMediaIcons({ section }) {
@@ -105,13 +98,10 @@ export default function SocialMediaIcons({ section }) {
 
   const layoutCss = rawProps?.layout?.properties?.css || rawProps?.layout?.css || {};
 
-  const platforms = useMemo(() => {
-    const normalizedPlatforms = normalizePlatforms(rawProps?.platforms || []);
-
-    if (normalizedPlatforms.length > 0) return normalizedPlatforms;
-
-    return DEFAULT_PLATFORMS;
-  }, [rawProps?.platforms]);
+  const platforms = useMemo(
+    () => normalizePlatforms(rawProps?.platforms || []),
+    [rawProps?.platforms],
+  );
 
   if (!platforms.length) return null;
 
