@@ -63,7 +63,12 @@ function inferMobileVariant(section) {
 export default function DynamicRenderer({ section }) {
   try {
     // extract DSL component name
-    let compName = section?.properties?.component?.const || "";
+    let compName =
+      section?.component?.const ||
+      section?.component ||
+      section?.properties?.component?.const ||
+      section?.properties?.component ||
+      "";
 
     // auto-switch for header_2 mobile
     if (compName === "header_2") {
