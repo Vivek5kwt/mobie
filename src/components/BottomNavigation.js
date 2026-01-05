@@ -31,6 +31,18 @@ const normalizeIconName = (name) => {
   return cleaned || "circle";
 };
 
+const resolveItemIcon = (item = {}) => {
+  if (!item) return "";
+  const rawIcon = item.iconName ?? item.icon ?? item.iconId ?? item.iconKey;
+  if (rawIcon && typeof rawIcon === "object") {
+    return unwrapValue(rawIcon, "");
+  }
+  return rawIcon;
+};
+
+const resolveItemLabel = (item = {}) =>
+  item?.label ?? item?.title ?? item?.name ?? item?.text ?? item?.value ?? "";
+
 const buildRawProps = (rawProps = {}) => {
   const rawBlock = unwrapValue(rawProps.raw, {});
   if (rawBlock && typeof rawBlock === "object" && rawBlock.value !== undefined) {
@@ -76,7 +88,10 @@ const resolveActiveIndex = (items = [], rawProps = {}, raw = {}) => {
   if (!Number.isNaN(parsed)) return parsed;
 
   const activeItemIndex = items.findIndex(
-    (item) => item?.active === true || item?.isActive === true || item?.selected === true
+    (item) =>
+      asBoolean(item?.active, false) ||
+      asBoolean(item?.isActive, false) ||
+      asBoolean(item?.selected, false)
   );
   if (activeItemIndex >= 0) return activeItemIndex;
 
@@ -89,6 +104,9 @@ const clampIndex = (index, count) => {
 };
 
 export default function BottomNavigation({ section }) {
+  const componentName =
+    section?.component || section?.properties?.component?.const || section?.properties?.component;
+  const isStyle2 = String(componentName || "").toLowerCase() === "bottom_navigation_style_2";
   const rawProps =
     section?.props || section?.properties?.props?.properties || section?.properties?.props || {};
 
@@ -103,7 +121,7 @@ export default function BottomNavigation({ section }) {
   const showBg = asBoolean(visibility?.bgPadding ?? raw?.showBg, true);
   const showActiveIndicator = asBoolean(
     visibility?.activeIndicator ?? raw?.showActiveIndicator,
-    false
+    isStyle2
   );
 
   const indicatorMode = unwrapValue(
@@ -150,7 +168,17 @@ export default function BottomNavigation({ section }) {
   const indicatorThickness = unwrapValue(raw?.indicatorThickness, 4);
   const maxIndicatorSize = Math.min(itemWidth, itemHeight) * 0.7;
   const indicatorSize = Math.min(indicatorSizeRaw, maxIndicatorSize);
-  const indicatorIsLine = String(indicatorMode || "").toLowerCase() !== "bubble";
+  const normalizedIndicatorMode = String(indicatorMode || "").toLowerCase();
+  const indicatorIsBubble = normalizedIndicatorMode === "bubble" || isStyle2;
+  const indicatorIsLine = !indicatorIsBubble;
+  const safeItemHeight = Number.isNaN(Number(itemHeight)) ? 0 : Number(itemHeight);
+  const bubbleSize = Math.max(
+    iconSize + 8,
+    Math.min(
+      safeItemHeight ? safeItemHeight - 12 : iconSize + 16,
+      Math.max(iconSize + 14, indicatorSize || iconSize + 14)
+    )
+  );
 
   useEffect(() => {
     setActiveIndex(resolvedActiveIndex);
@@ -186,14 +214,28 @@ export default function BottomNavigation({ section }) {
               onPress={() => setActiveIndex(index)}
             >
               {showIcons && (
-                <Icon
-                  name={normalizeIconName(item.icon)}
-                  size={iconSize}
-                  color={itemIconColor}
-                  style={[styles.icon, presentation.icon]}
-                />
+                <View
+                  style={[
+                    styles.iconWrapper,
+                    indicatorIsBubble && showActiveIndicator && isActive
+                      ? {
+                          backgroundColor: indicatorColor,
+                          width: bubbleSize,
+                          height: bubbleSize,
+                          borderRadius: bubbleSize / 2,
+                        }
+                      : null,
+                  ]}
+                >
+                  <Icon
+                    name={normalizeIconName(resolveItemIcon(item))}
+                    size={iconSize}
+                    color={itemIconColor}
+                    style={[styles.icon, presentation.icon]}
+                  />
+                </View>
               )}
-              {showActiveIndicator && isActive && (
+              {showActiveIndicator && isActive && indicatorIsLine && (
                 <View
                   style={[
                     styles.indicator,
@@ -220,7 +262,7 @@ export default function BottomNavigation({ section }) {
                     },
                   ]}
                 >
-                  {item.label}
+                  {resolveItemLabel(item)}
                 </Text>
               )}
             </TouchableOpacity>
@@ -251,6 +293,10 @@ const styles = StyleSheet.create({
   },
   icon: {
     lineHeight: 1,
+  },
+  iconWrapper: {
+    alignItems: "center",
+    justifyContent: "center",
   },
   label: {
     marginTop: 6,
