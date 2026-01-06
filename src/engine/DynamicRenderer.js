@@ -20,6 +20,9 @@ import TabProductGrid from "../components/TabProductGrid";
 import BottomNavigation from "../components/BottomNavigation";
 import AccountProfile from "../components/AccountProfile";
 import AccountMenu from "../components/AccountMenu";
+import ProductLibrary from "../components/ProductLibrary";
+import ProductInfo from "../components/ProductInfo";
+import ProductDescription from "../components/ProductDescription";
 
 // COMPONENT MAP — ALL LIVE ONLY
 const componentMap = {
@@ -44,6 +47,9 @@ const componentMap = {
   tab_product_grid: TabProductGrid,
   account_profile: AccountProfile,
   account_menu: AccountMenu,
+  product_library: ProductLibrary,
+  product_info: ProductInfo,
+  product_description: ProductDescription,
 };
 
 export default function DynamicRenderer({ section }) {
