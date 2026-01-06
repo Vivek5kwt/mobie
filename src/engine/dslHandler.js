@@ -1,6 +1,47 @@
 import client from "../apollo/client";
 import LAYOUT_VERSION_QUERY from "../graphql/queries/layoutVersionQuery";
 
+const normalizeName = (value) => (value ? String(value).trim().toLowerCase() : "");
+
+const selectDslPage = (dslData, layoutMeta) => {
+  if (!dslData?.pages || typeof dslData.pages !== "object") return dslData;
+
+  const entries = Object.entries(dslData.pages);
+  if (!entries.length) return dslData;
+
+  const targetName = normalizeName(layoutMeta?.page_name);
+
+  const match =
+    targetName &&
+    entries.find(([key, page]) => {
+      const pageInfo = page?.page || {};
+      const candidates = [
+        normalizeName(key),
+        normalizeName(pageInfo?.name),
+        normalizeName(pageInfo?.handle),
+      ];
+      return candidates.includes(targetName);
+    });
+
+  const homeFallback =
+    entries.find(([key, page]) => {
+      const pageInfo = page?.page || {};
+      return [
+        normalizeName(key),
+        normalizeName(pageInfo?.name),
+        normalizeName(pageInfo?.handle),
+      ].includes("home");
+    }) || entries[0];
+
+  const selected = (match && match[1]) || (homeFallback && homeFallback[1]);
+
+  if (selected) {
+    console.log("📄 Using page DSL:", selected?.page?.name || selected?.page?.handle || "Unknown");
+  }
+
+  return selected || dslData;
+};
+
 export async function fetchLiveDSL(appId = 1) {
   try {
     console.log("🔄 Fetching LIVE data from API...");
@@ -30,7 +71,7 @@ export async function fetchLiveDSL(appId = 1) {
     );
 
     const latestVersion = sortedVersions[0];
-    const dslData = latestVersion?.dsl;
+    const dslData = selectDslPage(latestVersion?.dsl, layout);
     const versionNumber = latestVersion?.version_number ?? null;
 
     console.log(`✅ LIVE DATA FETCHED - Version ${latestVersion.version_number}`);
