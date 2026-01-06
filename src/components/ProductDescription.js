@@ -105,8 +105,7 @@ export default function ProductDescription({ section }) {
 const styles = StyleSheet.create({
   container: {
     width: "100%",
-    paddingHorizontal: 16,
-    paddingBottom: 16,
+    padding: 0,
   },
   title: {
     marginBottom: 8,
