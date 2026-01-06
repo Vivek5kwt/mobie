@@ -129,3 +129,118 @@ export async function fetchShopifyProducts(limit = 10, options = {}) {
     return [];
   }
 }
+
+// ----------------------
+// FETCH PRODUCT DETAILS
+// ----------------------
+export async function fetchShopifyProductDetails({ handle, id, options = {} }) {
+  const shop = options.shop || SHOPIFY_SHOP;
+  const token = options.token || SHOPIFY_TOKEN;
+
+  const queryByHandle = `
+    query ProductByHandle($handle: String!) {
+      productByHandle(handle: $handle) {
+        id
+        title
+        handle
+        vendor
+        description
+        featuredImage {
+          url
+        }
+        options {
+          name
+          values
+        }
+        variants(first: 1) {
+          edges {
+            node {
+              price {
+                amount
+                currencyCode
+              }
+            }
+          }
+        }
+      }
+    }
+  `;
+
+  const queryById = `
+    query ProductById($id: ID!) {
+      product(id: $id) {
+        id
+        title
+        handle
+        vendor
+        description
+        featuredImage {
+          url
+        }
+        options {
+          name
+          values
+        }
+        variants(first: 1) {
+          edges {
+            node {
+              price {
+                amount
+                currencyCode
+              }
+            }
+          }
+        }
+      }
+    }
+  `;
+
+  try {
+    const query = handle ? queryByHandle : queryById;
+    const variables = handle ? { handle } : { id };
+
+    if (!variables.handle && !variables.id) {
+      return null;
+    }
+
+    const json = await directStorefrontGraphQL({
+      shop,
+      token,
+      query,
+      variables,
+    });
+
+    if (json.errors) {
+      console.error("❌ Shopify GraphQL Errors →", json.errors);
+      return null;
+    }
+
+    const product = handle ? json?.data?.productByHandle : json?.data?.product;
+    if (!product) return null;
+
+    const priceNode = product?.variants?.edges?.[0]?.node?.price;
+    const variantOptions =
+      product?.options?.flatMap((option) =>
+        (option?.values || []).map((value) => ({
+          id: `${option?.name}-${value}`,
+          name: option?.name,
+          value,
+        }))
+      ) || [];
+
+    return {
+      id: product?.id,
+      title: product?.title,
+      handle: product?.handle,
+      vendor: product?.vendor,
+      description: product?.description,
+      imageUrl: product?.featuredImage?.url,
+      priceAmount: priceNode?.amount,
+      priceCurrency: priceNode?.currencyCode,
+      variantOptions,
+    };
+  } catch (error) {
+    console.error("❌ Shopify Product Detail Fetch Error:", error);
+    return null;
+  }
+}

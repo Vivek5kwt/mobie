@@ -1,8 +1,9 @@
-import React, { useMemo } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { ScrollView, StyleSheet, Text, View } from "react-native";
 import { useRoute } from "@react-navigation/native";
 import DynamicRenderer from "../engine/DynamicRenderer";
 import { SafeArea } from "../utils/SafeAreaHandler";
+import { fetchShopifyProductDetails } from "../services/shopify";
 
 const unwrapValue = (value, fallback = undefined) => {
   if (value === undefined || value === null) return fallback;
@@ -27,6 +28,11 @@ const buildProductDefaults = (product = {}) => ({
   salePrice: product?.priceAmount,
   standardPrice: product?.priceAmount,
   currencySymbol: product?.priceCurrency ? `${product.priceCurrency} ` : undefined,
+  vendorText: product?.vendor,
+  shop: product?.vendor,
+  description: product?.description,
+  descriptionText: product?.description,
+  variantOptions: product?.variantOptions,
 });
 
 const mergeRawNode = (rawNode, mergedRaw) => {
@@ -103,18 +109,53 @@ export default function ProductDetailScreen() {
   const route = useRoute();
   const product = route?.params?.product || {};
   const detailSections = route?.params?.detailSections;
+  const [detailProduct, setDetailProduct] = useState(product);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    let isMounted = true;
+
+    const loadProductDetails = async () => {
+      if (!product?.handle && !product?.id) return;
+      setLoading(true);
+      setError("");
+
+      const details = await fetchShopifyProductDetails({
+        handle: product?.handle,
+        id: product?.id,
+      });
+
+      if (!isMounted) return;
+      if (details) {
+        setDetailProduct({ ...product, ...details });
+      } else {
+        setDetailProduct(product);
+        setError("Unable to load product details right now.");
+      }
+      setLoading(false);
+    };
+
+    loadProductDetails();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [product]);
 
   const sectionsToRender = useMemo(
     () =>
       resolveSections(detailSections).map((section) =>
-        mergeSectionWithProduct(section, product)
+        mergeSectionWithProduct(section, detailProduct)
       ),
-    [detailSections, product]
+    [detailSections, detailProduct]
   );
 
   return (
     <SafeArea>
       <ScrollView contentContainerStyle={styles.scrollContent}>
+        {loading && <Text style={styles.status}>Loading product details...</Text>}
+        {!!error && <Text style={styles.error}>{error}</Text>}
         {sectionsToRender.length ? (
           sectionsToRender.map((section, index) => (
             <View key={section?.id || section?.component || index} style={styles.section}>
@@ -142,6 +183,16 @@ const styles = StyleSheet.create({
   },
   section: {
     marginBottom: 10,
+  },
+  status: {
+    paddingTop: 12,
+    textAlign: "center",
+    color: "#6b7280",
+  },
+  error: {
+    paddingTop: 12,
+    textAlign: "center",
+    color: "#b91c1c",
   },
   emptyState: {
     padding: 24,
