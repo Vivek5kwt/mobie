@@ -117,12 +117,17 @@ const resolveNavigationTarget = (item = {}) => {
   const label = resolveItemLabel(item);
   const id = item?.id ? String(item.id) : "";
   const fallbackLabel = label || id || "Destination";
+  const pageName = id || label || "";
 
   if (!link) {
     if (id.toLowerCase() === "home" || label.toLowerCase() === "home") {
       return { type: "stack", name: "LayoutScreen" };
     }
-    return { type: "stack", name: "BottomNavScreen", params: { title: fallbackLabel } };
+    return {
+      type: "stack",
+      name: "BottomNavScreen",
+      params: { title: fallbackLabel, pageName },
+    };
   }
 
   if (/^https?:\/\//i.test(link)) {
@@ -137,7 +142,7 @@ const resolveNavigationTarget = (item = {}) => {
   return {
     type: "stack",
     name: "BottomNavScreen",
-    params: { title: fallbackLabel, link: cleaned },
+    params: { title: fallbackLabel, link: cleaned, pageName: cleaned || pageName },
   };
 };
 

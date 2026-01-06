@@ -1,35 +1,145 @@
-import React from "react";
-import { StyleSheet, Text, View } from "react-native";
+import React, { useEffect, useMemo, useState } from "react";
+import { ActivityIndicator, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useRoute } from "@react-navigation/native";
 import { SafeArea } from "../utils/SafeAreaHandler";
 import BottomNavigation from "../components/BottomNavigation";
 import bottomNavigationStyle1Section from "../data/bottomNavigationStyle1";
+import { fetchDSL } from "../engine/dslHandler";
+import { shouldRenderSectionOnMobile } from "../engine/visibility";
+import DynamicRenderer from "../engine/DynamicRenderer";
 
 export default function BottomNavScreen() {
   const route = useRoute();
   const title = route?.params?.title || "Page";
   const link = route?.params?.link || "";
-  const bottomNavSection = route?.params?.bottomNavSection || bottomNavigationStyle1Section;
+  const pageName = route?.params?.pageName || link || title;
+  const bottomNavSectionProp = route?.params?.bottomNavSection || bottomNavigationStyle1Section;
   const activeIndex = route?.params?.activeIndex;
-  const hasBottomNav = !!bottomNavSection;
+  const [dsl, setDsl] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [err, setErr] = useState(null);
+
+  const getComponentName = (section) =>
+    section?.component?.const ||
+    section?.component ||
+    section?.properties?.component?.const ||
+    section?.properties?.component ||
+    "";
+
+  const mobileSections = useMemo(
+    () => (dsl?.sections || []).filter(shouldRenderSectionOnMobile),
+    [dsl]
+  );
+
+  const sortedSections = useMemo(() => {
+    const sectionsCopy = [...mobileSections];
+
+    return sectionsCopy.sort((a, b) => {
+      const A = getComponentName(a);
+      const B = getComponentName(b);
+
+      if (A === "header") return -1;
+      if (B === "header") return 1;
+
+      if (A === "header_2") return -1;
+      if (B === "header_2") return 1;
+
+      return 0;
+    });
+  }, [mobileSections]);
+
+  const bottomNavSection = useMemo(
+    () =>
+      sortedSections.find((section) => {
+        const component = getComponentName(section).toLowerCase();
+        return [
+          "bottom_navigation",
+          "bottom_navigation_style_1",
+          "bottom_navigation_style_2",
+        ].includes(component);
+      }) || bottomNavSectionProp,
+    [bottomNavSectionProp, sortedSections]
+  );
+
+  const visibleSections = useMemo(
+    () =>
+      sortedSections.filter((section) => {
+        const component = getComponentName(section).toLowerCase();
+        return ![
+          "bottom_navigation",
+          "bottom_navigation_style_1",
+          "bottom_navigation_style_2",
+        ].includes(component);
+      }),
+    [sortedSections]
+  );
+
+  useEffect(() => {
+    let isMounted = true;
+
+    const loadDSL = async () => {
+      try {
+        setLoading(true);
+        setErr(null);
+        const dslData = await fetchDSL(1, pageName);
+        if (!dslData?.dsl) {
+          setErr("No live DSL returned from server");
+          return;
+        }
+        if (isMounted) setDsl(dslData.dsl);
+      } catch (error) {
+        if (isMounted) setErr(error.message);
+      } finally {
+        if (isMounted) setLoading(false);
+      }
+    };
+
+    loadDSL();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [pageName]);
 
   return (
     <SafeArea>
       <View style={styles.container}>
-        <View style={styles.header}>
-          <Text style={styles.headerTitle}>{title}</Text>
-        </View>
-        <View style={styles.content}>
-          <Text style={styles.titleText}>{title}</Text>
-          <Text style={styles.subtitleText}>You are viewing the {title} page.</Text>
-          {link ? (
-            <Text style={styles.linkText}>Link: {link}</Text>
-          ) : (
-            <Text style={styles.linkText}>Link: /{title.toLowerCase()}</Text>
-          )}
-        </View>
+        {loading ? (
+          <View style={styles.loader}>
+            <ActivityIndicator size="large" color="#4F46E5" />
+            <Text style={styles.loaderText}>Loading {title}...</Text>
+          </View>
+        ) : err ? (
+          <View style={styles.content}>
+            <Text style={styles.error}>Error loading: {err}</Text>
+            <Text style={styles.linkText}>Please try again.</Text>
+          </View>
+        ) : (
+          <ScrollView
+            contentInsetAdjustmentBehavior="automatic"
+            style={{ flex: 1 }}
+            showsVerticalScrollIndicator
+            contentContainerStyle={[
+              styles.scrollContent,
+              { flexGrow: 1, paddingBottom: bottomNavSection ? 88 : 24 },
+            ]}
+            keyboardShouldPersistTaps="handled"
+          >
+            {visibleSections.length ? (
+              visibleSections.map((section, index) => (
+                <View key={index} style={styles.sectionWrapper}>
+                  <DynamicRenderer section={section} />
+                </View>
+              ))
+            ) : (
+              <View style={styles.content}>
+                <Text style={styles.subtitleText}>No content available yet.</Text>
+              </View>
+            )}
+          </ScrollView>
+        )}
 
-        {hasBottomNav && (
+        {bottomNavSection && (
           <View style={styles.bottomNav}>
             <BottomNavigation section={bottomNavSection} activeIndexOverride={activeIndex} />
           </View>
@@ -44,15 +154,9 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: "#F7F7F7",
   },
-  header: {
-    paddingHorizontal: 16,
-    paddingTop: 12,
-    paddingBottom: 8,
-  },
-  headerTitle: {
-    fontSize: 18,
-    fontWeight: "700",
-    color: "#0F172A",
+  scrollContent: {
+    paddingHorizontal: 0,
+    paddingBottom: 24,
   },
   content: {
     flex: 1,
@@ -60,12 +164,6 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     paddingHorizontal: 24,
     paddingBottom: 96,
-  },
-  titleText: {
-    fontSize: 28,
-    fontWeight: "700",
-    color: "#0F172A",
-    marginBottom: 12,
   },
   subtitleText: {
     fontSize: 16,
@@ -82,5 +180,26 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     bottom: 0,
+  },
+  loader: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 24,
+    paddingBottom: 96,
+  },
+  loaderText: {
+    marginTop: 12,
+    fontSize: 14,
+    color: "#475569",
+  },
+  error: {
+    fontSize: 16,
+    color: "#DC2626",
+    textAlign: "center",
+    marginBottom: 8,
+  },
+  sectionWrapper: {
+    marginBottom: 10,
   },
 });
