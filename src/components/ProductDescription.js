@@ -56,10 +56,10 @@ export default function ProductDescription({ section }) {
         styles.container,
         {
           backgroundColor: toString(info?.backgroundColor, "#ffffff"),
-          paddingTop: toNumber(info?.paddingTop, 0),
-          paddingRight: toNumber(info?.paddingRight, 0),
-          paddingBottom: toNumber(info?.paddingBottom, 0),
-          paddingLeft: toNumber(info?.paddingLeft, 0),
+          paddingTop: toNumber(info?.paddingTop, 16),
+          paddingRight: toNumber(info?.paddingRight, 16),
+          paddingBottom: toNumber(info?.paddingBottom, 16),
+          paddingLeft: toNumber(info?.paddingLeft, 16),
         },
       ]}
     >

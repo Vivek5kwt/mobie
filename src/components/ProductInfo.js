@@ -66,10 +66,10 @@ export default function ProductInfo({ section }) {
   const showVariants = toBoolean(visibility?.variants, true);
 
   const paddingStyle = {
-    paddingTop: toNumber(background?.paddingTop, 0),
-    paddingRight: toNumber(background?.paddingRight, 0),
-    paddingBottom: toNumber(background?.paddingBottom, 0),
-    paddingLeft: toNumber(background?.paddingLeft, 0),
+    paddingTop: toNumber(background?.paddingTop, 16),
+    paddingRight: toNumber(background?.paddingRight, 16),
+    paddingBottom: toNumber(background?.paddingBottom, 16),
+    paddingLeft: toNumber(background?.paddingLeft, 16),
     backgroundColor: toString(background?.bgColor, "#ffffff"),
     borderRadius: toNumber(background?.cornerRadius, 0),
     borderWidth: background?.borderLine ? 1 : 0,
