@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from "react";
 import { Animated, Dimensions, Image, Modal, Pressable, StyleSheet, Text, View } from "react-native";
+import { useNavigation } from "@react-navigation/native";
 import { PinchGestureHandler, State } from "react-native-gesture-handler";
 
 const unwrapValue = (value, fallback = undefined) => {
@@ -42,7 +43,9 @@ const buildInsets = (layout = {}) => ({
 });
 
 export default function ProductLibrary({ section }) {
+  const navigation = useNavigation();
   const [isFullscreenVisible, setIsFullscreenVisible] = useState(false);
+  const [isFavourite, setIsFavourite] = useState(false);
   const baseScale = useRef(new Animated.Value(1)).current;
   const pinchScale = useRef(new Animated.Value(1)).current;
   const lastScale = useRef(1);
@@ -61,6 +64,8 @@ export default function ProductLibrary({ section }) {
   const showRating = toBoolean(raw?.showRating, true);
   const ratingText = toString(raw?.ratingText, "0");
   const ratingCountText = toString(raw?.ratingCountText, "(0)");
+  const showBackButton = toBoolean(raw?.showBackButton, true);
+  const initialFavourite = toBoolean(raw?.isFavourite, false);
 
   const containerStyle = [
     styles.container,
@@ -82,6 +87,10 @@ export default function ProductLibrary({ section }) {
   const ratingVisible = toBoolean(visibility?.reviews, showRating);
   const shareVisible = toBoolean(visibility?.share, true);
   const favouriteVisible = toBoolean(visibility?.favourite, true);
+
+  useEffect(() => {
+    setIsFavourite(initialFavourite);
+  }, [initialFavourite]);
 
   useEffect(() => {
     if (!isFullscreenVisible) {
@@ -127,10 +136,32 @@ export default function ProductLibrary({ section }) {
           </View>
         )}
 
+        {showBackButton && navigation?.canGoBack?.() && (
+          <Pressable
+            onPress={() => navigation.goBack()}
+            style={[styles.iconBubble, styles.backBubble]}
+            accessibilityRole="button"
+            accessibilityLabel="Go back"
+          >
+            <Text style={styles.iconText}>←</Text>
+          </Pressable>
+        )}
+
         {favouriteVisible && (
-          <View style={[styles.iconBubble, styles.favoriteBubble]}>
-            <Text style={styles.iconText}>❤</Text>
-          </View>
+          <Pressable
+            onPress={() => setIsFavourite((prev) => !prev)}
+            style={[
+              styles.iconBubble,
+              styles.favoriteBubble,
+              isFavourite ? styles.favoriteActiveBubble : null,
+            ]}
+            accessibilityRole="button"
+            accessibilityLabel={isFavourite ? "Remove from favorites" : "Add to favorites"}
+          >
+            <Text style={[styles.iconText, isFavourite ? styles.favoriteActiveText : null]}>
+              {isFavourite ? "❤" : "♡"}
+            </Text>
+          </Pressable>
         )}
 
         {shareVisible && (
@@ -233,6 +264,16 @@ const styles = StyleSheet.create({
   favoriteBubble: {
     top: 16,
     right: 16,
+  },
+  favoriteActiveBubble: {
+    backgroundColor: "#111827",
+  },
+  favoriteActiveText: {
+    color: "#ffffff",
+  },
+  backBubble: {
+    top: 16,
+    left: 16,
   },
   shareBubble: {
     top: 64,
