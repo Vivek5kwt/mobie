@@ -232,7 +232,7 @@ export default function ProductLibrary({ section }) {
 const styles = StyleSheet.create({
   container: {
     width: "100%",
-    padding: 16,
+    padding: 0,
   },
   imageWrap: {
     alignItems: "center",
