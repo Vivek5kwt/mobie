@@ -244,15 +244,24 @@ export default function LayoutScreen() {
     return () => clearInterval(intervalId);
   }, []);
 
+  const fallbackBottomNavSection = bottomNavSection || bottomNavigationStyle1Section;
+
   // LOADING SCREEN
   if (loading)
     return (
       <SafeArea>
-        <View style={styles.loaderBackdrop}>
-          <View style={styles.loaderCard}>
-            <ActivityIndicator size="large" color="#4F46E5" />
-            <Text style={styles.loaderText}>Preparing your experience…</Text>
+        <View style={styles.screen}>
+          <View style={[styles.loaderBackdrop, styles.loaderOverlay]}>
+            <View style={styles.loaderCard}>
+              <ActivityIndicator size="large" color="#4F46E5" />
+              <Text style={styles.loaderText}>Preparing your experience…</Text>
+            </View>
           </View>
+          {fallbackBottomNavSection && (
+            <View style={styles.bottomNav}>
+              <DynamicRenderer section={fallbackBottomNavSection} />
+            </View>
+          )}
         </View>
       </SafeArea>
     );
@@ -421,6 +430,9 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
     backgroundColor: "#0E1023",
+  },
+  loaderOverlay: {
+    ...StyleSheet.absoluteFillObject,
   },
   loaderCard: {
     paddingHorizontal: 28,
