@@ -1,6 +1,16 @@
 import client from "../apollo/client";
 import LAYOUT_VERSION_QUERY from "../graphql/queries/layoutVersionQuery";
 
+const resolveAppId = (appId) => {
+  const provided = Number(appId);
+  if (Number.isFinite(provided) && provided > 0) return provided;
+
+  const envAppId = Number(process.env.REACT_APP_APP_ID);
+  if (Number.isFinite(envAppId) && envAppId > 0) return envAppId;
+
+  return 1;
+};
+
 const normalizeName = (value) => (value ? String(value).trim().toLowerCase() : "");
 
 const selectDslPage = (dslData, layoutMeta, pageOverride) => {
@@ -42,13 +52,14 @@ const selectDslPage = (dslData, layoutMeta, pageOverride) => {
   return selected || dslData;
 };
 
-export async function fetchLiveDSL(appId = 1, pageName) {
+export async function fetchLiveDSL(appId, pageName) {
   try {
     console.log("🔄 Fetching LIVE data from API...");
+    const resolvedAppId = resolveAppId(appId);
 
     const res = await client.query({
       query: LAYOUT_VERSION_QUERY,
-      variables: { appId },
+      variables: { appId: resolvedAppId },
       fetchPolicy: "no-cache",
     });
 
@@ -94,7 +105,7 @@ export async function fetchLiveDSL(appId = 1, pageName) {
  * - Now ALWAYS attempts to fetch live DSL and returns it (or null on failure).
  * - No dummy/local fallback exists anymore.
  */
-export async function fetchDSL(appId = 1, pageName) {
+export async function fetchDSL(appId, pageName) {
   console.log("📊 fetchDSL called - fetching LIVE data only");
   const live = await fetchLiveDSL(appId, pageName);
   if (!live) {
