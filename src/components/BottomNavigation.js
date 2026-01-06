@@ -112,12 +112,19 @@ const clampIndex = (index, count) => {
   return Math.max(0, Math.min(index, count - 1));
 };
 
+const slugifyPageName = (value) =>
+  String(value || "")
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+
 const resolveNavigationTarget = (item = {}) => {
   const link = resolveItemLink(item);
   const label = resolveItemLabel(item);
   const id = item?.id ? String(item.id) : "";
   const fallbackLabel = label || id || "Destination";
-  const pageName = id || label || "";
+  const pageName = slugifyPageName(id || label || "");
 
   if (!link) {
     if (id.toLowerCase() === "home" || label.toLowerCase() === "home") {
