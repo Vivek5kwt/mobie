@@ -279,7 +279,8 @@ export default function BottomNavigation({ section, activeIndexOverride }) {
       <View style={[styles.row, presentation.row]}>
         {items.map((item, index) => {
           const isActive = index === activeIndex;
-          const itemIconColor = isActive ? iconActiveColor : iconPrimaryColor;
+          const activeIconColor = indicatorIsBubble ? iconActiveColor : textActiveColor;
+          const itemIconColor = isActive ? activeIconColor : iconPrimaryColor;
           const itemTextColor = isActive ? textActiveColor : textPrimaryColor;
 
           return (
