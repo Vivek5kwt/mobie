@@ -1,5 +1,5 @@
-import React from "react";
-import { Dimensions, Image, StyleSheet, Text, View } from "react-native";
+import React, { useState } from "react";
+import { Dimensions, Image, Modal, Pressable, StyleSheet, Text, View } from "react-native";
 
 const unwrapValue = (value, fallback = undefined) => {
   if (value === undefined || value === null) return fallback;
@@ -41,6 +41,7 @@ const buildInsets = (layout = {}) => ({
 });
 
 export default function ProductLibrary({ section }) {
+  const [isFullscreenVisible, setIsFullscreenVisible] = useState(false);
   const propsNode =
     section?.properties?.props?.properties || section?.properties?.props || section?.props || {};
   const layout = unwrapValue(propsNode?.layout, {});
@@ -81,12 +82,18 @@ export default function ProductLibrary({ section }) {
     <View style={containerStyle}>
       <View style={styles.imageWrap}>
         {resolvedImageUrl ? (
-          <Image
-            source={{ uri: resolvedImageUrl }}
-            style={[styles.image, { width: imageWidth, height: imageHeight }]}
-            resizeMode="cover"
-            accessibilityLabel="Product"
-          />
+          <Pressable
+            onPress={() => setIsFullscreenVisible(true)}
+            accessibilityRole="button"
+            accessibilityLabel="Open product image fullscreen"
+          >
+            <Image
+              source={{ uri: resolvedImageUrl }}
+              style={[styles.image, { width: imageWidth, height: imageHeight }]}
+              resizeMode="cover"
+              accessibilityLabel="Product"
+            />
+          </Pressable>
         ) : (
           <View style={[styles.imagePlaceholder, { width: imageWidth, height: imageHeight }]}>
             <Text style={styles.placeholderText}>Product image</Text>
@@ -120,6 +127,38 @@ export default function ProductLibrary({ section }) {
           {classNames.container ? `.${classNames.container}` : "Product Library"}
         </Text>
       )}
+
+      <Modal
+        visible={isFullscreenVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setIsFullscreenVisible(false)}
+      >
+        <Pressable
+          style={styles.fullscreenBackdrop}
+          onPress={() => setIsFullscreenVisible(false)}
+        >
+          <Pressable
+            style={styles.fullscreenImageWrap}
+            onPress={() => setIsFullscreenVisible(false)}
+          >
+            <Image
+              source={{ uri: resolvedImageUrl }}
+              style={styles.fullscreenImage}
+              resizeMode="contain"
+              accessibilityLabel="Product image fullscreen"
+            />
+          </Pressable>
+          <Pressable
+            style={styles.closeButton}
+            onPress={() => setIsFullscreenVisible(false)}
+            accessibilityRole="button"
+            accessibilityLabel="Close fullscreen image"
+          >
+            <Text style={styles.closeButtonText}>✕</Text>
+          </Pressable>
+        </Pressable>
+      </Modal>
     </View>
   );
 }
@@ -198,5 +237,37 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: "#9ca3af",
     textAlign: "center",
+  },
+  fullscreenBackdrop: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.9)",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  fullscreenImageWrap: {
+    width: "90%",
+    height: "80%",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  fullscreenImage: {
+    width: "100%",
+    height: "100%",
+  },
+  closeButton: {
+    position: "absolute",
+    top: 48,
+    right: 24,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: "rgba(255,255,255,0.2)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  closeButtonText: {
+    color: "#fff",
+    fontSize: 18,
+    fontWeight: "600",
   },
 });
