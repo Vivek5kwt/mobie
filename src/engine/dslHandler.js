@@ -3,13 +3,13 @@ import LAYOUT_VERSION_QUERY from "../graphql/queries/layoutVersionQuery";
 
 const normalizeName = (value) => (value ? String(value).trim().toLowerCase() : "");
 
-const selectDslPage = (dslData, layoutMeta) => {
+const selectDslPage = (dslData, layoutMeta, pageOverride) => {
   if (!dslData?.pages || typeof dslData.pages !== "object") return dslData;
 
   const entries = Object.entries(dslData.pages);
   if (!entries.length) return dslData;
 
-  const targetName = normalizeName(layoutMeta?.page_name);
+  const targetName = normalizeName(pageOverride || layoutMeta?.page_name);
 
   const match =
     targetName &&
@@ -42,7 +42,7 @@ const selectDslPage = (dslData, layoutMeta) => {
   return selected || dslData;
 };
 
-export async function fetchLiveDSL(appId = 1) {
+export async function fetchLiveDSL(appId = 1, pageName) {
   try {
     console.log("🔄 Fetching LIVE data from API...");
 
@@ -71,7 +71,7 @@ export async function fetchLiveDSL(appId = 1) {
     );
 
     const latestVersion = sortedVersions[0];
-    const dslData = selectDslPage(latestVersion?.dsl, layout);
+    const dslData = selectDslPage(latestVersion?.dsl, layout, pageName);
     const versionNumber = latestVersion?.version_number ?? null;
 
     console.log(`✅ LIVE DATA FETCHED - Version ${latestVersion.version_number}`);
@@ -94,9 +94,9 @@ export async function fetchLiveDSL(appId = 1) {
  * - Now ALWAYS attempts to fetch live DSL and returns it (or null on failure).
  * - No dummy/local fallback exists anymore.
  */
-export async function fetchDSL(appId = 1) {
+export async function fetchDSL(appId = 1, pageName) {
   console.log("📊 fetchDSL called - fetching LIVE data only");
-  const live = await fetchLiveDSL(appId);
+  const live = await fetchLiveDSL(appId, pageName);
   if (!live) {
     console.log("❌ Live data fetch failed. No dummy fallback available.");
   }
