@@ -1,5 +1,6 @@
-import React, { useState } from "react";
-import { Dimensions, Image, Modal, Pressable, StyleSheet, Text, View } from "react-native";
+import React, { useEffect, useRef, useState } from "react";
+import { Animated, Dimensions, Image, Modal, Pressable, StyleSheet, Text, View } from "react-native";
+import { PinchGestureHandler, State } from "react-native-gesture-handler";
 
 const unwrapValue = (value, fallback = undefined) => {
   if (value === undefined || value === null) return fallback;
@@ -42,6 +43,10 @@ const buildInsets = (layout = {}) => ({
 
 export default function ProductLibrary({ section }) {
   const [isFullscreenVisible, setIsFullscreenVisible] = useState(false);
+  const baseScale = useRef(new Animated.Value(1)).current;
+  const pinchScale = useRef(new Animated.Value(1)).current;
+  const lastScale = useRef(1);
+  const scale = Animated.multiply(baseScale, pinchScale);
   const propsNode =
     section?.properties?.props?.properties || section?.properties?.props || section?.props || {};
   const layout = unwrapValue(propsNode?.layout, {});
@@ -77,6 +82,28 @@ export default function ProductLibrary({ section }) {
   const ratingVisible = toBoolean(visibility?.reviews, showRating);
   const shareVisible = toBoolean(visibility?.share, true);
   const favouriteVisible = toBoolean(visibility?.favourite, true);
+
+  useEffect(() => {
+    if (!isFullscreenVisible) {
+      baseScale.setValue(1);
+      pinchScale.setValue(1);
+      lastScale.current = 1;
+    }
+  }, [baseScale, pinchScale, isFullscreenVisible]);
+
+  const onPinchGestureEvent = Animated.event([{ nativeEvent: { scale: pinchScale } }], {
+    useNativeDriver: true,
+  });
+
+  const onPinchHandlerStateChange = (event) => {
+    if (event.nativeEvent.oldState === State.ACTIVE) {
+      const rawNextScale = lastScale.current * event.nativeEvent.scale;
+      const nextScale = Math.max(1, Math.min(rawNextScale, 4));
+      lastScale.current = nextScale;
+      baseScale.setValue(nextScale);
+      pinchScale.setValue(1);
+    }
+  };
 
   return (
     <View style={containerStyle}>
@@ -138,17 +165,21 @@ export default function ProductLibrary({ section }) {
           style={styles.fullscreenBackdrop}
           onPress={() => setIsFullscreenVisible(false)}
         >
-          <Pressable
-            style={styles.fullscreenImageWrap}
-            onPress={() => setIsFullscreenVisible(false)}
-          >
-            <Image
-              source={{ uri: resolvedImageUrl }}
-              style={styles.fullscreenImage}
-              resizeMode="contain"
-              accessibilityLabel="Product image fullscreen"
-            />
-          </Pressable>
+          <View style={styles.fullscreenImageWrap}>
+            <PinchGestureHandler
+              onGestureEvent={onPinchGestureEvent}
+              onHandlerStateChange={onPinchHandlerStateChange}
+            >
+              <Animated.View style={[styles.fullscreenImage, { transform: [{ scale }] }]}>
+                <Image
+                  source={{ uri: resolvedImageUrl }}
+                  style={styles.fullscreenImage}
+                  resizeMode="contain"
+                  accessibilityLabel="Product image fullscreen"
+                />
+              </Animated.View>
+            </PinchGestureHandler>
+          </View>
           <Pressable
             style={styles.closeButton}
             onPress={() => setIsFullscreenVisible(false)}
