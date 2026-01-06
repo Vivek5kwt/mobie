@@ -47,7 +47,7 @@ export default function SplashScreen() {
 
   return (
     <LinearGradient
-      colors={["#0A0F29", "#1F233E", "#2D3A78"]}
+      colors={["#F7F9FF", "#E7EEFF", "#D7E2FF"]}
       style={styles.container}
     >
       {/* Glowing expanding circle */}
@@ -97,7 +97,7 @@ const styles = StyleSheet.create({
     position: "absolute",
     width: 340,
     height: 340,
-    backgroundColor: "#657CFF",
+    backgroundColor: "#9BB0FF",
     borderRadius: 200,
     opacity: 0.3,
     zIndex: -1,
@@ -112,11 +112,16 @@ const styles = StyleSheet.create({
     height: 200,
     resizeMode: "contain",
     marginBottom: 12,
+    shadowColor: "#3C4A8A",
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.18,
+    shadowRadius: 18,
+    elevation: 8,
   },
 
   title: {
     fontSize: 34,
-    color: "#FFFFFF",
+    color: "#1F2A4B",
     fontWeight: "700",
     letterSpacing: 1.2,
   },
@@ -124,14 +129,14 @@ const styles = StyleSheet.create({
   tagline: {
     fontSize: 16,
     marginTop: -64,
-    color: "#A9BEF9",
+    color: "#5A6BA8",
     letterSpacing: 0.5,
   },
 
   footerText: {
     position: "absolute",
     bottom: 40,
-    color: "#B0C4FF",
+    color: "#6B7BB3",
     fontSize: 13
   },
 });
