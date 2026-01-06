@@ -82,7 +82,9 @@ export default function ProductLibrary({ section }) {
   const metrics = layout?.metrics?.elements || {};
   const imageMetrics = metrics?.image || {};
   const imageWidth = imageMetrics?.width ? Number(imageMetrics.width) : screenWidth - 32;
-  const imageHeight = imageMetrics?.height ? Number(imageMetrics.height) : 220;
+  const imageHeight = imageMetrics?.height
+    ? Number(imageMetrics.height)
+    : Math.round(imageWidth * 1.05);
 
   const ratingVisible = toBoolean(visibility?.reviews, showRating);
   const shareVisible = toBoolean(visibility?.share, true);
@@ -123,15 +125,17 @@ export default function ProductLibrary({ section }) {
             accessibilityRole="button"
             accessibilityLabel="Open product image fullscreen"
           >
-            <Image
-              source={{ uri: resolvedImageUrl }}
-              style={[styles.image, { width: imageWidth, height: imageHeight }]}
-              resizeMode="cover"
-              accessibilityLabel="Product"
-            />
+            <View style={[styles.imageCard, { width: imageWidth, height: imageHeight }]}>
+              <Image
+                source={{ uri: resolvedImageUrl }}
+                style={styles.image}
+                resizeMode="contain"
+                accessibilityLabel="Product"
+              />
+            </View>
           </Pressable>
         ) : (
-          <View style={[styles.imagePlaceholder, { width: imageWidth, height: imageHeight }]}>
+          <View style={[styles.imageCard, styles.imagePlaceholder, { width: imageWidth, height: imageHeight }]}>
             <Text style={styles.placeholderText}>Product image</Text>
           </View>
         )}
@@ -233,14 +237,24 @@ const styles = StyleSheet.create({
   imageWrap: {
     alignItems: "center",
     justifyContent: "center",
+    paddingVertical: 8,
+  },
+  imageCard: {
+    borderRadius: 18,
+    overflow: "hidden",
+    backgroundColor: "#f8fafc",
+    shadowColor: "#111827",
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.12,
+    shadowRadius: 12,
+    elevation: 6,
   },
   image: {
-    borderRadius: 12,
-    backgroundColor: "#f3f4f6",
+    width: "100%",
+    height: "100%",
+    backgroundColor: "#f8fafc",
   },
   imagePlaceholder: {
-    borderRadius: 12,
-    backgroundColor: "#e5e7eb",
     alignItems: "center",
     justifyContent: "center",
   },
