@@ -151,25 +151,48 @@ export default function ProductDetailScreen() {
     [detailSections, detailProduct]
   );
 
+  const fallbackSections = useMemo(() => {
+    const defaults = buildProductDefaults(detailProduct);
+
+    return [
+      {
+        id: "product-detail-image",
+        component: "product_library",
+        props: {
+          raw: {
+            imageUrl: defaults.imageUrl,
+          },
+        },
+      },
+      {
+        id: "product-detail-info",
+        component: "product_info",
+        props: {
+          raw: defaults,
+        },
+      },
+      {
+        id: "product-detail-description",
+        component: "product_description",
+        props: {
+          raw: defaults,
+        },
+      },
+    ];
+  }, [detailProduct]);
+
+  const renderSections = sectionsToRender.length ? sectionsToRender : fallbackSections;
+
   return (
     <SafeArea>
       <ScrollView contentContainerStyle={styles.scrollContent}>
         {loading && <Text style={styles.status}>Loading product details...</Text>}
         {!!error && <Text style={styles.error}>{error}</Text>}
-        {sectionsToRender.length ? (
-          sectionsToRender.map((section, index) => (
-            <View key={section?.id || section?.component || index} style={styles.section}>
-              <DynamicRenderer section={section} />
-            </View>
-          ))
-        ) : (
-          <View style={styles.emptyState}>
-            <Text style={styles.emptyTitle}>No product details configured.</Text>
-            <Text style={styles.emptySubtitle}>
-              Add product detail components in the JSON to show them here.
-            </Text>
+        {renderSections.map((section, index) => (
+          <View key={section?.id || section?.component || index} style={styles.section}>
+            <DynamicRenderer section={section} />
           </View>
-        )}
+        ))}
       </ScrollView>
     </SafeArea>
   );
@@ -193,21 +216,5 @@ const styles = StyleSheet.create({
     paddingTop: 12,
     textAlign: "center",
     color: "#b91c1c",
-  },
-  emptyState: {
-    padding: 24,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  emptyTitle: {
-    fontSize: 18,
-    fontWeight: "700",
-    color: "#0F172A",
-    marginBottom: 8,
-  },
-  emptySubtitle: {
-    fontSize: 14,
-    color: "#64748B",
-    textAlign: "center",
   },
 });
