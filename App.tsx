@@ -10,6 +10,7 @@ import SplashScreen from "./src/screens/saplash";
 import LayoutScreen from './src/screens/LayoutScreen';
 import AuthScreen from "./src/screens/AuthScreen";
 import BottomNavScreen from "./src/screens/BottomNavScreen";
+import ProductDetailScreen from "./src/screens/ProductDetailScreen";
 import { AuthProvider } from "./src/services/AuthContext";
 
 import tokenLogger from './src/utils/tokenLogger';
@@ -170,6 +171,13 @@ export default function App() {
                 name="BottomNavScreen"
                 component={BottomNavScreen}
                 options={{ animation: "none" }}
+              />
+
+              {/* 🔥 Product Details Screen */}
+              <Stack.Screen
+                name="ProductDetail"
+                component={ProductDetailScreen}
+                options={{ animation: "slide_from_right" }}
               />
 
             </Stack.Navigator>

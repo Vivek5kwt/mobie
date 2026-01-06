@@ -1,5 +1,6 @@
-import React, { useEffect, useState } from "react";
-import { Dimensions, Image, StyleSheet, Text, View } from "react-native";
+import React, { useEffect, useMemo, useState } from "react";
+import { Dimensions, Image, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { useNavigation } from "@react-navigation/native";
 
 const SHOPIFY_DOMAIN = "5kwebtech-test.myshopify.com";
 const STOREFRONT_TOKEN = "79363ed16cc2c1e01f4dc18f813c41a8";
@@ -57,6 +58,7 @@ const toString = (value, fallback = "") => {
 };
 
 export default function ProductGrid({ section, limit = 8, title = "Products" }) {
+  const navigation = useNavigation();
   const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -65,6 +67,23 @@ export default function ProductGrid({ section, limit = 8, title = "Products" }) 
     section?.properties?.props?.properties || section?.properties?.props || section?.props || {};
   const resolvedLimit = toNumber(rawProps?.limit, limit);
   const resolvedTitle = toString(rawProps?.title, title);
+  const detailSections = useMemo(() => {
+    const candidates = [
+      rawProps?.productDetailSections,
+      rawProps?.detailSections,
+      rawProps?.productDetails,
+      rawProps?.detail,
+      rawProps?.details,
+    ];
+
+    for (const candidate of candidates) {
+      const resolved = unwrapValue(candidate, undefined);
+      if (Array.isArray(resolved)) return resolved;
+      if (Array.isArray(resolved?.sections)) return resolved.sections;
+    }
+
+    return [];
+  }, [rawProps]);
   const gridGap = 16;
   const horizontalPadding = 24;
   const screenWidth = Dimensions.get("window").width;
@@ -145,7 +164,17 @@ export default function ProductGrid({ section, limit = 8, title = "Products" }) 
       {!loading && !error && (
         <View style={styles.grid}>
           {products.map((product) => (
-            <View key={product.id} style={[styles.card, { width: cardWidth }]}>
+            <TouchableOpacity
+              key={product.id}
+              style={[styles.card, { width: cardWidth }]}
+              activeOpacity={0.85}
+              onPress={() =>
+                navigation.navigate("ProductDetail", {
+                  product,
+                  detailSections,
+                })
+              }
+            >
               {product.imageUrl && (
                 <Image
                   source={{ uri: product.imageUrl }}
@@ -162,7 +191,7 @@ export default function ProductGrid({ section, limit = 8, title = "Products" }) 
                   {product.priceCurrency} {product.priceAmount}
                 </Text>
               </View>
-            </View>
+            </TouchableOpacity>
           ))}
         </View>
       )}
