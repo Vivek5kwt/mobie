@@ -5,6 +5,7 @@ import client from "./src/apollo/client";
 import { NavigationContainer } from "@react-navigation/native";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import { SafeAreaProvider } from "react-native-safe-area-context";
+import { GestureHandlerRootView } from "react-native-gesture-handler";
 
 import SplashScreen from "./src/screens/saplash";
 import LayoutScreen from './src/screens/LayoutScreen';
@@ -144,14 +145,15 @@ export default function App() {
 
 
   return (
-    <SafeAreaProvider>
-      <AuthProvider>
-        <ApolloProvider client={client}>
-          <NavigationContainer>
-            <Stack.Navigator
-              screenOptions={{ headerShown: false }}
-              initialRouteName="Splash"
-            >
+    <GestureHandlerRootView style={{ flex: 1 }}>
+      <SafeAreaProvider>
+        <AuthProvider>
+          <ApolloProvider client={client}>
+            <NavigationContainer>
+              <Stack.Navigator
+                screenOptions={{ headerShown: false }}
+                initialRouteName="Splash"
+              >
 
               {/* 🔥 First Screen: Splash */}
               <Stack.Screen name="Splash" component={SplashScreen} />
@@ -180,10 +182,11 @@ export default function App() {
                 options={{ animation: "slide_from_right" }}
               />
 
-            </Stack.Navigator>
-          </NavigationContainer>
-        </ApolloProvider>
-      </AuthProvider>
-    </SafeAreaProvider>
+              </Stack.Navigator>
+            </NavigationContainer>
+          </ApolloProvider>
+        </AuthProvider>
+      </SafeAreaProvider>
+    </GestureHandlerRootView>
   );
 }
