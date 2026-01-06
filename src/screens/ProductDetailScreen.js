@@ -29,12 +29,28 @@ const buildProductDefaults = (product = {}) => ({
   currencySymbol: product?.priceCurrency ? `${product.priceCurrency} ` : undefined,
 });
 
+const mergeRawNode = (rawNode, mergedRaw) => {
+  if (rawNode && typeof rawNode === "object") {
+    if (rawNode.value !== undefined) {
+      return { ...rawNode, value: mergedRaw };
+    }
+    if (rawNode.const !== undefined) {
+      return { ...rawNode, const: mergedRaw };
+    }
+    if (rawNode.properties) {
+      return { ...rawNode, properties: mergedRaw };
+    }
+  }
+  return mergedRaw;
+};
+
 const mergeSectionWithProduct = (section, product) => {
   if (!section) return section;
   const propsNode =
     section?.properties?.props?.properties || section?.properties?.props || section?.props || {};
   const raw = unwrapValue(propsNode?.raw, {});
   const mergedRaw = { ...buildProductDefaults(product), ...(raw || {}) };
+  const mergedRawNode = mergeRawNode(propsNode?.raw, mergedRaw);
 
   if (section?.properties?.props?.properties) {
     return {
@@ -45,7 +61,7 @@ const mergeSectionWithProduct = (section, product) => {
           ...section.properties.props,
           properties: {
             ...section.properties.props.properties,
-            raw: mergedRaw,
+            raw: mergedRawNode,
           },
         },
       },
@@ -59,7 +75,7 @@ const mergeSectionWithProduct = (section, product) => {
         ...section.properties,
         props: {
           ...section.properties.props,
-          raw: mergedRaw,
+          raw: mergedRawNode,
         },
       },
     };
@@ -70,7 +86,7 @@ const mergeSectionWithProduct = (section, product) => {
       ...section,
       props: {
         ...section.props,
-        raw: mergedRaw,
+        raw: mergedRawNode,
       },
     };
   }
@@ -78,7 +94,7 @@ const mergeSectionWithProduct = (section, product) => {
   return {
     ...section,
     props: {
-      raw: mergedRaw,
+      raw: mergedRawNode,
     },
   };
 };
