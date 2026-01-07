@@ -4,6 +4,7 @@ import { useRoute } from "@react-navigation/native";
 import DynamicRenderer from "../engine/DynamicRenderer";
 import { SafeArea } from "../utils/SafeAreaHandler";
 import { fetchShopifyProductDetails } from "../services/shopify";
+import { fetchDSL } from "../engine/dslHandler";
 
 const unwrapValue = (value, fallback = undefined) => {
   if (value === undefined || value === null) return fallback;
@@ -110,6 +111,8 @@ export default function ProductDetailScreen() {
   const product = route?.params?.product || {};
   const detailSections = route?.params?.detailSections;
   const [detailProduct, setDetailProduct] = useState(product);
+  const [dslSections, setDslSections] = useState([]);
+  const [dslLoading, setDslLoading] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
@@ -143,12 +146,36 @@ export default function ProductDetailScreen() {
     };
   }, [product]);
 
+  useEffect(() => {
+    let isMounted = true;
+    const loadDetailLayout = async () => {
+      const resolvedSections = resolveSections(detailSections);
+      if (resolvedSections.length) {
+        setDslSections(resolvedSections);
+        return;
+      }
+
+      setDslLoading(true);
+      const liveDsl = await fetchDSL(1, "product-detail");
+      if (!isMounted) return;
+      const nextSections = resolveSections(liveDsl?.dsl);
+      setDslSections(nextSections);
+      setDslLoading(false);
+    };
+
+    loadDetailLayout();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [detailSections]);
+
   const sectionsToRender = useMemo(
     () =>
-      resolveSections(detailSections).map((section) =>
+      resolveSections(dslSections).map((section) =>
         mergeSectionWithProduct(section, detailProduct)
       ),
-    [detailSections, detailProduct]
+    [detailProduct, dslSections]
   );
 
   const fallbackSections = useMemo(() => {
@@ -186,6 +213,7 @@ export default function ProductDetailScreen() {
   return (
     <SafeArea>
       <ScrollView contentContainerStyle={styles.scrollContent}>
+        {dslLoading && <Text style={styles.status}>Loading product layout...</Text>}
         {loading && <Text style={styles.status}>Loading product details...</Text>}
         {!!error && <Text style={styles.error}>{error}</Text>}
         {renderSections.map((section, index) => (
