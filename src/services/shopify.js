@@ -315,3 +315,54 @@ export async function searchShopifyProducts(searchTerm, limit = 10, options = {}
     return [];
   }
 }
+
+// ----------------------
+// FETCH COLLECTIONS
+// ----------------------
+export async function fetchShopifyCollections(limit = 10, options = {}) {
+  const shop = options.shop || SHOPIFY_SHOP;
+  const token = options.token || SHOPIFY_TOKEN;
+
+  const query = `
+    query Collections($first: Int!) {
+      collections(first: $first) {
+        edges {
+          node {
+            id
+            title
+            handle
+            image {
+              url
+            }
+          }
+        }
+      }
+    }
+  `;
+
+  try {
+    const json = await directStorefrontGraphQL({
+      shop,
+      token,
+      query,
+      variables: { first: limit },
+    });
+
+    if (json.errors) {
+      console.error("❌ Shopify GraphQL Errors →", json.errors);
+      return [];
+    }
+
+    const edges = json?.data?.collections?.edges || [];
+
+    return edges.map(({ node }) => ({
+      id: node?.id,
+      title: node?.title,
+      handle: node?.handle,
+      imageUrl: node?.image?.url || null,
+    }));
+  } catch (error) {
+    console.error("❌ Shopify Collections Fetch Error:", error);
+    return [];
+  }
+}
