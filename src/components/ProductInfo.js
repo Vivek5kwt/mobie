@@ -65,11 +65,20 @@ export default function ProductInfo({ section }) {
   const showStrikethrough = toBoolean(visibility?.priceStrikethrough, true);
   const showVariants = toBoolean(visibility?.variants, true);
 
+  const resolvedPaddingRight = (() => {
+    const value = toNumber(background?.paddingRight, 16);
+    return value === 0 ? 16 : value;
+  })();
+  const resolvedPaddingLeft = (() => {
+    const value = toNumber(background?.paddingLeft, 16);
+    return value === 0 ? 16 : value;
+  })();
+
   const paddingStyle = {
     paddingTop: toNumber(background?.paddingTop, 16),
-    paddingRight: toNumber(background?.paddingRight, 16),
+    paddingRight: resolvedPaddingRight,
     paddingBottom: toNumber(background?.paddingBottom, 16),
-    paddingLeft: toNumber(background?.paddingLeft, 16),
+    paddingLeft: resolvedPaddingLeft,
     backgroundColor: toString(background?.bgColor, "#ffffff"),
     borderRadius: toNumber(background?.cornerRadius, 0),
     borderWidth: background?.borderLine ? 1 : 0,
