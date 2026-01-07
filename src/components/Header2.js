@@ -1,11 +1,12 @@
-import React from "react";
-import { View, Text, TextInput, Image, TouchableOpacity } from "react-native";
+import React, { useEffect, useMemo, useState } from "react";
+import { Image, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
 import { StackActions, useNavigation } from "@react-navigation/native";
 import LinearGradient from "react-native-linear-gradient";
 import FontAwesome from "react-native-vector-icons/FontAwesome";
 import { convertStyles, extractGradientInfo } from "../utils/convertStyles";
 import { useSideMenu } from "../services/SideMenuContext";
 import bottomNavigationStyle1Section from "../data/bottomNavigationStyle1";
+import { searchShopifyProducts } from "../services/shopify";
 
 const resolveBooleanSetting = (input, defaultValue = true) => {
   const normalize = (value) => {
@@ -39,6 +40,24 @@ const resolveValue = (input, defaultValue = undefined) => {
   }
 
   return input;
+};
+
+const extractDetailSections = (rawProps) => {
+  const candidates = [
+    rawProps?.productDetailSections,
+    rawProps?.detailSections,
+    rawProps?.productDetails,
+    rawProps?.detail,
+    rawProps?.details,
+  ];
+
+  for (const candidate of candidates) {
+    const resolved = resolveValue(candidate, undefined);
+    if (Array.isArray(resolved)) return resolved;
+    if (Array.isArray(resolved?.sections)) return resolved.sections;
+  }
+
+  return [];
 };
 
 const resolveSideMenuIcon = (variant) => {
@@ -150,6 +169,13 @@ export default function Header2({ section }) {
   const shouldShowSideMenu = false;
   const shouldShowSearchRowOrMenu = shouldShowSearchRow || shouldShowSideMenu;
   const shouldShowTopRow = hasGreeting || (profileEnabled && profile?.show);
+  const searchLimit = resolveValue(searchAndIcons?.searchLimit, 10);
+  const detailSections = useMemo(() => extractDetailSections(props), [props]);
+
+  const [searchValue, setSearchValue] = useState("");
+  const [searchResults, setSearchResults] = useState([]);
+  const [searchLoading, setSearchLoading] = useState(false);
+  const [searchError, setSearchError] = useState("");
 
   const shouldShowAppBar = !!(appBar?.show ?? (
     appBar && (
@@ -290,6 +316,43 @@ export default function Header2({ section }) {
     delete containerStyle.borderBottomRightRadius;
   }
 
+  useEffect(() => {
+    const term = searchValue.trim();
+    if (!term || !searchEnabled || !searchAndIcons?.showSearch) {
+      setSearchResults([]);
+      setSearchError("");
+      setSearchLoading(false);
+      return;
+    }
+
+    let isMounted = true;
+    setSearchLoading(true);
+    setSearchError("");
+
+    const timeout = setTimeout(async () => {
+      try {
+        const matches = await searchShopifyProducts(term, searchLimit);
+        if (isMounted) {
+          setSearchResults(matches);
+        }
+      } catch (err) {
+        if (isMounted) {
+          setSearchError("Unable to search products right now.");
+          setSearchResults([]);
+        }
+      } finally {
+        if (isMounted) {
+          setSearchLoading(false);
+        }
+      }
+    }, 350);
+
+    return () => {
+      isMounted = false;
+      clearTimeout(timeout);
+    };
+  }, [searchEnabled, searchAndIcons?.showSearch, searchLimit, searchValue]);
+
   return (
     <LinearGradient
       style={convertStyles(containerStyle)}
@@ -411,6 +474,8 @@ export default function Header2({ section }) {
                 color={searchAndIcons?.searchIconColor || "#39444D"}
               />
               <TextInput
+                value={searchValue}
+                onChangeText={setSearchValue}
                 placeholder={searchPlaceholder}
                 placeholderTextColor={placeholderColor}
                 style={convertStyles(searchBarInputStyle)}
@@ -438,6 +503,104 @@ export default function Header2({ section }) {
           )}
         </View>
       ) : null}
+      {searchEnabled && searchAndIcons?.showSearch && searchValue.trim().length > 0 && (
+        <View style={styles.resultsWrapper}>
+          {searchLoading && <Text style={styles.statusText}>Searching products...</Text>}
+          {!searchLoading && searchError.length > 0 && (
+            <Text style={styles.errorText}>{searchError}</Text>
+          )}
+          {!searchLoading && !searchError && searchResults.length === 0 && (
+            <Text style={styles.statusText}>No products found.</Text>
+          )}
+          {!searchLoading &&
+            !searchError &&
+            searchResults.map((product) => (
+              <TouchableOpacity
+                key={product.id}
+                style={styles.resultRow}
+                onPress={() =>
+                  navigation.navigate("ProductDetail", {
+                    product,
+                    detailSections,
+                  })
+                }
+              >
+                {product.imageUrl ? (
+                  <Image source={{ uri: product.imageUrl }} style={styles.resultImage} />
+                ) : (
+                  <View style={styles.resultImagePlaceholder}>
+                    <Text style={styles.resultPlaceholderText}>Image</Text>
+                  </View>
+                )}
+                <View style={styles.resultInfo}>
+                  <Text numberOfLines={2} style={styles.resultTitle}>
+                    {product.title}
+                  </Text>
+                  <Text style={styles.resultPrice}>
+                    {product.priceCurrency} {product.priceAmount}
+                  </Text>
+                </View>
+              </TouchableOpacity>
+            ))}
+        </View>
+      )}
     </LinearGradient>
   );
 }
+
+const styles = StyleSheet.create({
+  resultsWrapper: {
+    marginTop: 12,
+    gap: 10,
+  },
+  statusText: {
+    textAlign: "center",
+    color: "#6B7280",
+  },
+  errorText: {
+    textAlign: "center",
+    color: "#B91C1C",
+  },
+  resultRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    padding: 10,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "#E5E7EB",
+    backgroundColor: "#FFFFFF",
+  },
+  resultImage: {
+    width: 56,
+    height: 56,
+    borderRadius: 10,
+    backgroundColor: "#F3F4F6",
+  },
+  resultImagePlaceholder: {
+    width: 56,
+    height: 56,
+    borderRadius: 10,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#F3F4F6",
+  },
+  resultPlaceholderText: {
+    fontSize: 10,
+    color: "#9CA3AF",
+  },
+  resultInfo: {
+    flex: 1,
+    gap: 4,
+  },
+  resultTitle: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: "#111827",
+  },
+  resultPrice: {
+    fontSize: 12,
+    fontWeight: "600",
+    color: "#111827",
+  },
+});
