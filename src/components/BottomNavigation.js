@@ -128,7 +128,7 @@ const resolveNavigationTarget = (item = {}) => {
 
   if (!link) {
     if (id.toLowerCase() === "home" || label.toLowerCase() === "home") {
-      return { type: "stack", name: "LayoutScreen" };
+      return { type: "stack", name: "LayoutScreen", params: { pageName: "home" } };
     }
     return {
       type: "stack",

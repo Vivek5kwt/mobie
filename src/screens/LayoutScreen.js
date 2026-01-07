@@ -10,6 +10,7 @@ import {
   TouchableOpacity,
   Animated,
 } from "react-native";
+import { useRoute } from "@react-navigation/native";
 import DynamicRenderer from "../engine/DynamicRenderer";
 import { fetchDSL } from "../engine/dslHandler";
 import { shouldRenderSectionOnMobile } from "../engine/visibility";
@@ -19,6 +20,8 @@ import { SideMenuProvider } from "../services/SideMenuContext";
 import bottomNavigationStyle1Section from "../data/bottomNavigationStyle1";
 
 export default function LayoutScreen() {
+  const route = useRoute();
+  const pageName = route?.params?.pageName || "home";
   const [dsl, setDsl] = useState(null);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState(null);
@@ -141,7 +144,7 @@ export default function LayoutScreen() {
   // Reload DSL
   const refreshDSL = async (withFeedback = false) => {
     try {
-      const dslData = await fetchDSL();
+      const dslData = await fetchDSL(1, pageName);
       if (dslData?.dsl) {
         setDsl(ensureBottomNavigationSection(dslData.dsl));
         versionRef.current = dslData.versionNumber ?? null;
@@ -165,7 +168,7 @@ export default function LayoutScreen() {
       setLoading(true);
       setErr(null);
 
-      const dslData = await fetchDSL();
+      const dslData = await fetchDSL(1, pageName);
       if (!dslData?.dsl) {
         setErr("No live DSL returned from server");
         return;
@@ -191,7 +194,7 @@ export default function LayoutScreen() {
 
   useEffect(() => {
     loadDSL();
-  }, []);
+  }, [pageName]);
 
   const closeSideMenu = () => setIsSideMenuOpen(false);
 
@@ -227,7 +230,7 @@ export default function LayoutScreen() {
   useEffect(() => {
     const intervalId = setInterval(async () => {
       try {
-        const latest = await fetchDSL();
+        const latest = await fetchDSL(1, pageName);
         if (!latest?.dsl) return;
 
         const incomingVersion = latest.versionNumber ?? null;
@@ -242,7 +245,7 @@ export default function LayoutScreen() {
     }, 5000);
 
     return () => clearInterval(intervalId);
-  }, []);
+  }, [pageName]);
 
   const fallbackBottomNavSection = bottomNavSection || bottomNavigationStyle1Section;
 

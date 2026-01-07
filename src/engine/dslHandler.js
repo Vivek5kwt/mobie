@@ -1,7 +1,14 @@
 import client from "../apollo/client";
 import LAYOUT_VERSION_QUERY from "../graphql/queries/layoutVersionQuery";
 
-const normalizeName = (value) => (value ? String(value).trim().toLowerCase() : "");
+const normalizeName = (value) =>
+  value
+    ? String(value)
+        .trim()
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, "-")
+        .replace(/^-+|-+$/g, "")
+    : "";
 
 const selectDslPage = (dslData, layoutMeta, pageOverride) => {
   if (!dslData?.pages || typeof dslData.pages !== "object") return dslData;
