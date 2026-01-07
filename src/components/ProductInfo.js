@@ -180,9 +180,13 @@ export default function ProductInfo({ section }) {
           </Text>
           <View style={styles.variantsDots}>
             {raw.variantOptions.map((option) => (
-              <View key={option.id} style={styles.variantDot}>
-                <Text style={styles.variantText}>{option.value}</Text>
-              </View>
+              <View
+                key={option.id}
+                style={[
+                  styles.variantDot,
+                  { backgroundColor: toString(option?.value, "#f3f4f6") },
+                ]}
+              />
             ))}
           </View>
         </View>
@@ -227,13 +231,10 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   variantDot: {
-    paddingHorizontal: 10,
-    paddingVertical: 6,
+    width: 18,
+    height: 18,
     borderRadius: 999,
-    backgroundColor: "#f3f4f6",
-  },
-  variantText: {
-    fontSize: 12,
-    color: "#111827",
+    borderWidth: 1,
+    borderColor: "#e5e7eb",
   },
 });
