@@ -1,39 +1,5 @@
-import AsyncStorage from "@react-native-async-storage/async-storage";
 import client from "../apollo/client";
 import LAYOUT_VERSION_QUERY from "../graphql/queries/layoutVersionQuery";
-
-const USER_PROFILE_KEY = "@auth_user_profile";
-
-const loadStoredAppId = async () => {
-  try {
-    const rawProfile = await AsyncStorage.getItem(USER_PROFILE_KEY);
-    if (!rawProfile) return null;
-
-    const profile = JSON.parse(rawProfile);
-    const storedAppId = Number(profile?.appId ?? profile?.app_id);
-
-    if (Number.isFinite(storedAppId) && storedAppId > 0) {
-      return storedAppId;
-    }
-  } catch (error) {
-    console.log("⚠️ Could not load stored app_id:", error.message);
-  }
-
-  return null;
-};
-
-const resolveAppId = async (appId) => {
-  const provided = Number(appId);
-  if (Number.isFinite(provided) && provided > 0) return provided;
-
-  const storedAppId = await loadStoredAppId();
-  if (storedAppId) return storedAppId;
-
-  const envAppId = Number(process.env.REACT_APP_APP_ID);
-  if (Number.isFinite(envAppId) && envAppId > 0) return envAppId;
-
-  return null;
-};
 
 const normalizeName = (value) => (value ? String(value).trim().toLowerCase() : "");
 
@@ -76,19 +42,13 @@ const selectDslPage = (dslData, layoutMeta, pageOverride) => {
   return selected || dslData;
 };
 
-export async function fetchLiveDSL(appId, pageName) {
+export async function fetchLiveDSL(appId = 1, pageName) {
   try {
     console.log("🔄 Fetching LIVE data from API...");
-    const resolvedAppId = await resolveAppId(appId);
-    if (!resolvedAppId) {
-      console.log("❌ No valid app_id found for backend request");
-      return null;
-    }
-    console.log(`🆔 Using app_id for backend request: ${resolvedAppId}`);
 
     const res = await client.query({
       query: LAYOUT_VERSION_QUERY,
-      variables: { appId: resolvedAppId },
+      variables: { appId },
       fetchPolicy: "no-cache",
     });
 
@@ -134,7 +94,7 @@ export async function fetchLiveDSL(appId, pageName) {
  * - Now ALWAYS attempts to fetch live DSL and returns it (or null on failure).
  * - No dummy/local fallback exists anymore.
  */
-export async function fetchDSL(appId, pageName) {
+export async function fetchDSL(appId = 1, pageName) {
   console.log("📊 fetchDSL called - fetching LIVE data only");
   const live = await fetchLiveDSL(appId, pageName);
   if (!live) {
