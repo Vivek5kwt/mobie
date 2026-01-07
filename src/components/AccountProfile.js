@@ -13,6 +13,16 @@ const resolveValue = (input, fallback) => {
   return input;
 };
 
+const resolveObject = (input, fallback = {}) => {
+  const resolved = resolveValue(input, fallback);
+  if (resolved === undefined || resolved === null) return fallback;
+  if (typeof resolved !== "object") return resolved;
+  if (resolved.value !== undefined) {
+    return resolveValue(resolved.value, resolved) || fallback;
+  }
+  return resolved;
+};
+
 const resolveBoolean = (input, fallback = true) => {
   const value = resolveValue(input, fallback);
   if (typeof value === "boolean") return value;
@@ -59,9 +69,9 @@ export default function AccountProfile({ section }) {
   const propsRoot =
     section?.props || section?.properties?.props?.properties || section?.properties?.props || {};
 
-  const rawProps = resolveValue(propsRoot?.raw, {}) || {};
-  const presentation = propsRoot?.presentation?.properties || propsRoot?.presentation || {};
-  const css = resolveValue(presentation?.css, {}) || {};
+  const rawProps = resolveObject(propsRoot?.raw, {});
+  const presentation = resolveObject(propsRoot?.presentation, {});
+  const css = resolveObject(presentation?.css, {});
 
   const name = resolveValue(rawProps?.name, "");
   const email = resolveValue(rawProps?.email, "");
