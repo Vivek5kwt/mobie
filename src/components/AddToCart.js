@@ -212,6 +212,8 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "space-between",
     gap: 8,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
   },
   button: {
     flex: 1,
