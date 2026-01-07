@@ -1,5 +1,12 @@
-import React, { useEffect, useMemo, useState } from "react";
-import { ActivityIndicator, ScrollView, StyleSheet, Text, View } from "react-native";
+import React, { useEffect, useMemo, useRef, useState } from "react";
+import {
+  ActivityIndicator,
+  RefreshControl,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+} from "react-native";
 import { useRoute } from "@react-navigation/native";
 import { SafeArea } from "../utils/SafeAreaHandler";
 import BottomNavigation from "../components/BottomNavigation";
@@ -18,6 +25,8 @@ export default function BottomNavScreen() {
   const [dsl, setDsl] = useState(null);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState(null);
+  const [refreshing, setRefreshing] = useState(false);
+  const versionRef = useRef(null);
 
   const getComponentName = (section) =>
     section?.component?.const ||
@@ -86,7 +95,10 @@ export default function BottomNavScreen() {
           setErr("No live DSL returned from server");
           return;
         }
-        if (isMounted) setDsl(dslData.dsl);
+        if (isMounted) {
+          setDsl(dslData.dsl);
+          versionRef.current = dslData.versionNumber ?? null;
+        }
       } catch (error) {
         if (isMounted) setErr(error.message);
       } finally {
@@ -99,6 +111,43 @@ export default function BottomNavScreen() {
     return () => {
       isMounted = false;
     };
+  }, [pageName]);
+
+  const refreshDSL = async () => {
+    try {
+      const dslData = await fetchDSL(1, pageName);
+      if (dslData?.dsl) {
+        setDsl(dslData.dsl);
+        versionRef.current = dslData.versionNumber ?? null;
+      }
+    } catch (error) {
+      console.log("❌ Bottom nav refresh error:", error);
+    }
+  };
+
+  const onRefresh = async () => {
+    setRefreshing(true);
+    await refreshDSL();
+    setRefreshing(false);
+  };
+
+  useEffect(() => {
+    const intervalId = setInterval(async () => {
+      try {
+        const latest = await fetchDSL(1, pageName);
+        if (!latest?.dsl) return;
+
+        const incomingVersion = latest.versionNumber ?? null;
+        if (incomingVersion !== versionRef.current) {
+          setDsl(latest.dsl);
+          versionRef.current = incomingVersion;
+        }
+      } catch (error) {
+        console.log("❌ Bottom nav auto-refresh error:", error);
+      }
+    }, 5000);
+
+    return () => clearInterval(intervalId);
   }, [pageName]);
 
   return (
@@ -124,6 +173,9 @@ export default function BottomNavScreen() {
               { flexGrow: 1, paddingBottom: bottomNavSection ? 88 : 24 },
             ]}
             keyboardShouldPersistTaps="handled"
+            refreshControl={
+              <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+            }
           >
             {visibleSections.length ? (
               visibleSections.map((section, index) => (
