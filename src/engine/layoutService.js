@@ -3,7 +3,6 @@ import { LAYOUT_VERSION_QUERY } from "../apollo/queries";
 
 export async function fetchLayoutDSL(appId) {
   try {
-    console.log(`🆔 Using app_id for backend request: ${appId}`);
     const response = await client.query({
       query: LAYOUT_VERSION_QUERY,
       variables: { appId },
