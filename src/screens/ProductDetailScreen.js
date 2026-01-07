@@ -56,7 +56,7 @@ const mergeSectionWithProduct = (section, product) => {
   const propsNode =
     section?.properties?.props?.properties || section?.properties?.props || section?.props || {};
   const raw = unwrapValue(propsNode?.raw, {});
-  const mergedRaw = { ...buildProductDefaults(product), ...(raw || {}) };
+  const mergedRaw = { ...(raw || {}), ...buildProductDefaults(product) };
   const mergedRawNode = mergeRawNode(propsNode?.raw, mergedRaw);
 
   if (section?.properties?.props?.properties) {

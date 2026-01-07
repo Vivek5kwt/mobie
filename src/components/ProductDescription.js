@@ -43,9 +43,26 @@ export default function ProductDescription({ section }) {
 
   const titleText = toString(title?.text, raw?.title || "Description");
   const descriptionText = toString(
-    info?.descriptionText,
-    raw?.description || raw?.descriptionText || ""
+    raw?.description || raw?.descriptionText,
+    info?.descriptionText || ""
   );
+
+  const resolvedPaddingTop = (() => {
+    const value = toNumber(info?.paddingTop, 16);
+    return value === 0 ? 16 : value;
+  })();
+  const resolvedPaddingRight = (() => {
+    const value = toNumber(info?.paddingRight, 16);
+    return value === 0 ? 16 : value;
+  })();
+  const resolvedPaddingBottom = (() => {
+    const value = toNumber(info?.paddingBottom, 16);
+    return value === 0 ? 16 : value;
+  })();
+  const resolvedPaddingLeft = (() => {
+    const value = toNumber(info?.paddingLeft, 16);
+    return value === 0 ? 16 : value;
+  })();
 
   const showTitle = toBoolean(visibility?.title, true);
   const showDescription = toBoolean(visibility?.infoDescription, true);
@@ -56,10 +73,10 @@ export default function ProductDescription({ section }) {
         styles.container,
         {
           backgroundColor: toString(info?.backgroundColor, "#ffffff"),
-          paddingTop: toNumber(info?.paddingTop, 16),
-          paddingRight: toNumber(info?.paddingRight, 16),
-          paddingBottom: toNumber(info?.paddingBottom, 16),
-          paddingLeft: toNumber(info?.paddingLeft, 16),
+          paddingTop: resolvedPaddingTop,
+          paddingRight: resolvedPaddingRight,
+          paddingBottom: resolvedPaddingBottom,
+          paddingLeft: resolvedPaddingLeft,
         },
       ]}
     >

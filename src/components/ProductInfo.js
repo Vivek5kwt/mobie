@@ -51,11 +51,11 @@ export default function ProductInfo({ section }) {
   const visibility = unwrapValue(propsNode?.visibility, {});
   const background = unwrapValue(propsNode?.backgroundAndPadding, {});
 
-  const titleText = toString(title?.text, raw?.titleText || raw?.title || "Product title");
-  const vendorText = toString(vendor?.text, raw?.vendorText || raw?.shop || "");
-  const currencySymbol = toString(price?.currencySymbol, raw?.currencySymbol || "$");
-  const salePrice = price?.salePrice ?? raw?.salePrice;
-  const standardPrice = price?.standardPrice ?? raw?.standardPrice;
+  const titleText = toString(raw?.titleText || raw?.title, title?.text || "Product title");
+  const vendorText = toString(raw?.vendorText || raw?.shop, vendor?.text || "");
+  const currencySymbol = toString(raw?.currencySymbol, price?.currencySymbol || "$");
+  const salePrice = raw?.salePrice ?? price?.salePrice;
+  const standardPrice = raw?.standardPrice ?? price?.standardPrice;
 
   const showTitle = toBoolean(visibility?.productTitle, true);
   const showVendor = toBoolean(visibility?.vendor, true);
