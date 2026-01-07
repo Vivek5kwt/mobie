@@ -23,6 +23,7 @@ import AccountMenu from "../components/AccountMenu";
 import ProductLibrary from "../components/ProductLibrary";
 import ProductInfo from "../components/ProductInfo";
 import ProductDescription from "../components/ProductDescription";
+import AddToCart from "../components/AddToCart";
 
 // COMPONENT MAP — ALL LIVE ONLY
 const componentMap = {
@@ -50,6 +51,7 @@ const componentMap = {
   product_library: ProductLibrary,
   product_info: ProductInfo,
   product_description: ProductDescription,
+  add_to_cart: AddToCart,
 };
 
 export default function DynamicRenderer({ section }) {
