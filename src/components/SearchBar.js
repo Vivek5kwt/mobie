@@ -1,7 +1,9 @@
-import React, { useMemo, useState } from "react";
-import { StyleSheet, TextInput, TouchableOpacity, View } from "react-native";
+import React, { useEffect, useMemo, useState } from "react";
+import { Image, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
 import FontAwesome from "react-native-vector-icons/FontAwesome";
+import { useNavigation } from "@react-navigation/native";
 import { convertStyles } from "../utils/convertStyles";
+import { searchShopifyProducts } from "../services/shopify";
 
 const unwrapValue = (value, fallback) => {
   if (value === undefined || value === null) return fallback;
@@ -48,7 +50,26 @@ const buildBorderStyles = (borderSide, borderColor) => {
   return styles;
 };
 
+const extractDetailSections = (rawProps) => {
+  const candidates = [
+    rawProps?.productDetailSections,
+    rawProps?.detailSections,
+    rawProps?.productDetails,
+    rawProps?.detail,
+    rawProps?.details,
+  ];
+
+  for (const candidate of candidates) {
+    const resolved = unwrapValue(candidate, undefined);
+    if (Array.isArray(resolved)) return resolved;
+    if (Array.isArray(resolved?.sections)) return resolved.sections;
+  }
+
+  return [];
+};
+
 export default function SearchBar({ section }) {
+  const navigation = useNavigation();
   const rawProps =
     section?.props ||
     section?.properties?.props?.properties ||
@@ -84,8 +105,13 @@ export default function SearchBar({ section }) {
   const showClear = unwrapBoolean(rawProps?.clearButtonVisible, true);
   const showInput = unwrapBoolean(rawProps?.searchInputVisible, true);
   const showVoice = unwrapBoolean(rawProps?.voiceSearchVisible, true);
+  const searchLimit = unwrapValue(rawProps?.searchLimit, 10);
 
   const [value, setValue] = useState("");
+  const [results, setResults] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+  const detailSections = useMemo(() => extractDetailSections(rawProps), [rawProps]);
 
   const containerStyle = convertStyles({
     backgroundColor: bgColor,
@@ -120,6 +146,43 @@ export default function SearchBar({ section }) {
     textDecorationLine: placeholderUnderline ? "underline" : inputTextStyle?.textDecorationLine,
   };
 
+  useEffect(() => {
+    const term = value.trim();
+    if (!term) {
+      setResults([]);
+      setError("");
+      setLoading(false);
+      return;
+    }
+
+    let isMounted = true;
+    setLoading(true);
+    setError("");
+
+    const timeout = setTimeout(async () => {
+      try {
+        const matches = await searchShopifyProducts(term, searchLimit);
+        if (isMounted) {
+          setResults(matches);
+        }
+      } catch (err) {
+        if (isMounted) {
+          setError("Unable to search products right now.");
+          setResults([]);
+        }
+      } finally {
+        if (isMounted) {
+          setLoading(false);
+        }
+      }
+    }, 350);
+
+    return () => {
+      isMounted = false;
+      clearTimeout(timeout);
+    };
+  }, [searchLimit, value]);
+
   return (
     <View style={[styles.container, containerStyle, borderStyle]}>
       <View style={[styles.inputWrapper, inputWrapperStyle]}>
@@ -145,6 +208,45 @@ export default function SearchBar({ section }) {
           </TouchableOpacity>
         )}
       </View>
+      {value.trim().length > 0 && (
+        <View style={styles.resultsWrapper}>
+          {loading && <Text style={styles.statusText}>Searching products...</Text>}
+          {!loading && error.length > 0 && <Text style={styles.errorText}>{error}</Text>}
+          {!loading && !error && results.length === 0 && (
+            <Text style={styles.statusText}>No products found.</Text>
+          )}
+          {!loading &&
+            !error &&
+            results.map((product) => (
+              <TouchableOpacity
+                key={product.id}
+                style={styles.resultRow}
+                onPress={() =>
+                  navigation.navigate("ProductDetail", {
+                    product,
+                    detailSections,
+                  })
+                }
+              >
+                {product.imageUrl ? (
+                  <Image source={{ uri: product.imageUrl }} style={styles.resultImage} />
+                ) : (
+                  <View style={styles.resultImagePlaceholder}>
+                    <Text style={styles.resultPlaceholderText}>Image</Text>
+                  </View>
+                )}
+                <View style={styles.resultInfo}>
+                  <Text numberOfLines={2} style={styles.resultTitle}>
+                    {product.title}
+                  </Text>
+                  <Text style={styles.resultPrice}>
+                    {product.priceCurrency} {product.priceAmount}
+                  </Text>
+                </View>
+              </TouchableOpacity>
+            ))}
+        </View>
+      )}
     </View>
   );
 }
@@ -167,5 +269,59 @@ const styles = StyleSheet.create({
   iconButton: {
     paddingLeft: 4,
     paddingVertical: 2,
+  },
+  resultsWrapper: {
+    marginTop: 12,
+    gap: 10,
+  },
+  statusText: {
+    textAlign: "center",
+    color: "#6B7280",
+  },
+  errorText: {
+    textAlign: "center",
+    color: "#B91C1C",
+  },
+  resultRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    padding: 10,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "#E5E7EB",
+    backgroundColor: "#FFFFFF",
+  },
+  resultImage: {
+    width: 56,
+    height: 56,
+    borderRadius: 10,
+    backgroundColor: "#F3F4F6",
+  },
+  resultImagePlaceholder: {
+    width: 56,
+    height: 56,
+    borderRadius: 10,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#F3F4F6",
+  },
+  resultPlaceholderText: {
+    fontSize: 10,
+    color: "#9CA3AF",
+  },
+  resultInfo: {
+    flex: 1,
+    gap: 4,
+  },
+  resultTitle: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: "#111827",
+  },
+  resultPrice: {
+    fontSize: 12,
+    fontWeight: "600",
+    color: "#111827",
   },
 });
