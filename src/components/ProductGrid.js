@@ -7,8 +7,12 @@ const STOREFRONT_TOKEN = "79363ed16cc2c1e01f4dc18f813c41a8";
 const SHOPIFY_ENDPOINT = `https://${SHOPIFY_DOMAIN}/api/2024-10/graphql.json`;
 
 const PRODUCT_QUERY = `
-  query GetProducts($first: Int!) {
-    products(first: $first) {
+  query GetProducts($first: Int!, $after: String) {
+    products(first: $first, after: $after) {
+      pageInfo {
+        hasNextPage
+        endCursor
+      }
       edges {
         node {
           id
@@ -62,6 +66,8 @@ export default function ProductGrid({ section, limit = 8, title = "Products" }) 
   const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [showAll, setShowAll] = useState(false);
+  const [hasMore, setHasMore] = useState(false);
 
   const rawProps =
     section?.properties?.props?.properties || section?.properties?.props || section?.props || {};
@@ -93,47 +99,82 @@ export default function ProductGrid({ section, limit = 8, title = "Products" }) 
   );
 
   useEffect(() => {
+    setShowAll(false);
+  }, [resolvedLimit, resolvedTitle]);
+
+  useEffect(() => {
     let isMounted = true;
     const controller = new AbortController();
+
+    const fetchProductsPage = async ({ first, after }) => {
+      const response = await fetch(SHOPIFY_ENDPOINT, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "X-Shopify-Storefront-Access-Token": STOREFRONT_TOKEN,
+        },
+        body: JSON.stringify({
+          query: PRODUCT_QUERY,
+          variables: { first, after },
+        }),
+        signal: controller.signal,
+      });
+
+      if (!response.ok) {
+        throw new Error(`Request failed: ${response.status}`);
+      }
+
+      return response.json();
+    };
+
+    const mapProducts = (edges) =>
+      edges.map(({ node }) => {
+        const priceNode = node?.variants?.edges?.[0]?.node?.price;
+        return {
+          id: node?.id,
+          title: node?.title,
+          handle: node?.handle,
+          imageUrl: node?.featuredImage?.url,
+          priceAmount: priceNode?.amount,
+          priceCurrency: priceNode?.currencyCode,
+        };
+      });
 
     const loadProducts = async () => {
       setLoading(true);
       setError("");
 
       try {
-        const response = await fetch(SHOPIFY_ENDPOINT, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            "X-Shopify-Storefront-Access-Token": STOREFRONT_TOKEN,
-          },
-          body: JSON.stringify({
-            query: PRODUCT_QUERY,
-            variables: { first: resolvedLimit },
-          }),
-          signal: controller.signal,
-        });
+        if (!showAll) {
+          const payload = await fetchProductsPage({ first: resolvedLimit, after: null });
+          const edges = payload?.data?.products?.edges || [];
+          const nextProducts = mapProducts(edges);
+          const pageInfo = payload?.data?.products?.pageInfo || {};
 
-        if (!response.ok) {
-          throw new Error(`Request failed: ${response.status}`);
+          if (isMounted) {
+            setProducts(nextProducts);
+            setHasMore(Boolean(pageInfo?.hasNextPage));
+          }
+          return;
         }
 
-        const payload = await response.json();
-        const edges = payload?.data?.products?.edges || [];
-        const nextProducts = edges.map(({ node }) => {
-          const priceNode = node?.variants?.edges?.[0]?.node?.price;
-          return {
-            id: node?.id,
-            title: node?.title,
-            handle: node?.handle,
-            imageUrl: node?.featuredImage?.url,
-            priceAmount: priceNode?.amount,
-            priceCurrency: priceNode?.currencyCode,
-          };
-        });
+        let cursor = null;
+        let hasNextPage = true;
+        const allProducts = [];
+        const pageSize = 50;
+
+        while (hasNextPage) {
+          const payload = await fetchProductsPage({ first: pageSize, after: cursor });
+          const edges = payload?.data?.products?.edges || [];
+          const pageInfo = payload?.data?.products?.pageInfo || {};
+          allProducts.push(...mapProducts(edges));
+          hasNextPage = Boolean(pageInfo?.hasNextPage);
+          cursor = pageInfo?.endCursor || null;
+        }
 
         if (isMounted) {
-          setProducts(nextProducts);
+          setProducts(allProducts);
+          setHasMore(false);
         }
       } catch (err) {
         if (isMounted && err?.name !== "AbortError") {
@@ -152,7 +193,7 @@ export default function ProductGrid({ section, limit = 8, title = "Products" }) 
       isMounted = false;
       controller.abort();
     };
-  }, [resolvedLimit]);
+  }, [resolvedLimit, showAll]);
 
   return (
     <View style={styles.wrapper}>
@@ -162,38 +203,49 @@ export default function ProductGrid({ section, limit = 8, title = "Products" }) 
       {error && <Text style={styles.error}>{error}</Text>}
 
       {!loading && !error && (
-        <View style={styles.grid}>
-          {products.map((product) => (
-            <TouchableOpacity
-              key={product.id}
-              style={[styles.card, { width: cardWidth }]}
-              activeOpacity={0.85}
-              onPress={() =>
-                navigation.navigate("ProductDetail", {
-                  product,
-                  detailSections,
-                })
-              }
-            >
-              {product.imageUrl && (
-                <Image
-                  source={{ uri: product.imageUrl }}
-                  style={styles.image}
-                  resizeMode="cover"
-                />
-              )}
+        <>
+          <View style={styles.grid}>
+            {products.map((product) => (
+              <TouchableOpacity
+                key={product.id}
+                style={[styles.card, { width: cardWidth }]}
+                activeOpacity={0.85}
+                onPress={() =>
+                  navigation.navigate("ProductDetail", {
+                    product,
+                    detailSections,
+                  })
+                }
+              >
+                {product.imageUrl && (
+                  <Image
+                    source={{ uri: product.imageUrl }}
+                    style={styles.image}
+                    resizeMode="cover"
+                  />
+                )}
 
-              <View style={styles.content}>
-                <Text numberOfLines={2} style={styles.name}>
-                  {product.title}
-                </Text>
-                <Text style={styles.price}>
-                  {product.priceCurrency} {product.priceAmount}
-                </Text>
-              </View>
+                <View style={styles.content}>
+                  <Text numberOfLines={2} style={styles.name}>
+                    {product.title}
+                  </Text>
+                  <Text style={styles.price}>
+                    {product.priceCurrency} {product.priceAmount}
+                  </Text>
+                </View>
+              </TouchableOpacity>
+            ))}
+          </View>
+          {hasMore && !showAll && (
+            <TouchableOpacity
+              style={styles.viewAllButton}
+              activeOpacity={0.8}
+              onPress={() => setShowAll(true)}
+            >
+              <Text style={styles.viewAllText}>View all ›</Text>
             </TouchableOpacity>
-          ))}
-        </View>
+          )}
+        </>
       )}
     </View>
   );
@@ -256,5 +308,13 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     textAlign: "center",
     color: "#b91c1c",
+  },
+  viewAllButton: {
+    alignSelf: "flex-start",
+    paddingVertical: 8,
+  },
+  viewAllText: {
+    color: "#111827",
+    fontWeight: "600",
   },
 });
