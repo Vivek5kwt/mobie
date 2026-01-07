@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { Animated, Image, StyleSheet, Text, View } from "react-native";
+import { fetchShopifyCollections, SHOPIFY_SHOP } from "../services/shopify";
 import { convertStyles } from "../utils/convertStyles";
 
 const unwrapValue = (value, fallback) => {
@@ -78,6 +79,7 @@ export default function CollectionImage({ section }) {
     () => buildCollections(rawProps?.collections || {}),
     [rawProps?.collections]
   );
+  const [shopifyCollections, setShopifyCollections] = useState([]);
 
   const showHeader = asBoolean(rawProps?.showHeader, true);
   const showCardImage = asBoolean(rawProps?.showCardImage, true);
@@ -133,17 +135,46 @@ export default function CollectionImage({ section }) {
   const indexRef = useRef(0);
   const [currentIndex, setCurrentIndex] = useState(0);
   const scrollX = useRef(new Animated.Value(0)).current;
+  const collectionsLimit = asNumber(rawProps?.collectionsLimit, 12);
+  const resolvedCollections = collections.length ? collections : shopifyCollections;
 
   useEffect(() => {
     indexRef.current = 0;
     setCurrentIndex(0);
-  }, [collections.length]);
+  }, [resolvedCollections.length]);
 
   useEffect(() => {
-    if (!autoScrollEnabled || collections.length <= 1) return undefined;
+    if (collections.length) return;
+
+    let isMounted = true;
+
+    const loadCollections = async () => {
+      const response = await fetchShopifyCollections(collectionsLimit);
+      if (!isMounted) return;
+
+      const nextCollections = response.map((collection) => ({
+        title: collection?.title || "",
+        image: collection?.imageUrl || "",
+        link: collection?.handle
+          ? `https://${SHOPIFY_SHOP}/collections/${collection.handle}`
+          : "",
+      }));
+
+      setShopifyCollections(nextCollections.filter((item) => item.title || item.image));
+    };
+
+    loadCollections();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [collections.length, collectionsLimit]);
+
+  useEffect(() => {
+    if (!autoScrollEnabled || resolvedCollections.length <= 1) return undefined;
 
     const interval = setInterval(() => {
-      const nextIndex = (indexRef.current + 1) % collections.length;
+      const nextIndex = (indexRef.current + 1) % resolvedCollections.length;
       const xOffset = nextIndex * (cardWidth + gapPx);
       scrollRef.current?.scrollTo({ x: xOffset, animated: true });
       indexRef.current = nextIndex;
@@ -151,7 +182,7 @@ export default function CollectionImage({ section }) {
     }, Math.max(scrollSpeedSec, 1) * 1000);
 
     return () => clearInterval(interval);
-  }, [autoScrollEnabled, collections.length, cardWidth, gapPx, scrollSpeedSec]);
+  }, [autoScrollEnabled, resolvedCollections.length, cardWidth, gapPx, scrollSpeedSec]);
 
   const handleScroll = (event) => {
     const xOffset = event?.nativeEvent?.contentOffset?.x || 0;
@@ -162,7 +193,7 @@ export default function CollectionImage({ section }) {
     }
   };
 
-  if (!collections.length) return null;
+  if (!resolvedCollections.length) return null;
 
   return (
     <View style={[styles.container, containerStyle]}>
@@ -192,12 +223,15 @@ export default function CollectionImage({ section }) {
         snapToInterval={cardWidth + gapPx}
         decelerationRate="fast"
       >
-        {collections.map((item, idx) => (
+        {resolvedCollections.map((item, idx) => (
           <View
             key={`${item.title}-${idx}`}
             style={[
               styles.card,
-              { width: cardWidth, marginRight: idx === collections.length - 1 ? 0 : gapPx },
+              {
+                width: cardWidth,
+                marginRight: idx === resolvedCollections.length - 1 ? 0 : gapPx,
+              },
               cardContainerStyle,
             ]}
           >
@@ -264,9 +298,9 @@ export default function CollectionImage({ section }) {
         ))}
       </Animated.ScrollView>
 
-      {showIndicators && collections.length > 1 && (
+      {showIndicators && resolvedCollections.length > 1 && (
         <View style={styles.dotsRow}>
-          {collections.map((_, idx) => {
+          {resolvedCollections.map((_, idx) => {
             const isActive = idx === currentIndex;
             return (
               <View
@@ -317,4 +351,3 @@ const styles = StyleSheet.create({
     marginHorizontal: 4,
   },
 });
-
