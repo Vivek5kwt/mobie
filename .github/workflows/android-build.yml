@@ -1,20 +1,13 @@
 name: Build Android APK
  
 on:
-  workflow_dispatch:
-    inputs:
-      app_id:
-        description: "App ID"
-        required: true
+  workflow_dispatch:   # 👈 THIS LINE IS REQUIRED
   repository_dispatch:
     types: [android_build]
  
 jobs:
   build:
     runs-on: ubuntu-latest
- 
-    env:
-      APP_ID: ${{ github.event.client_payload.app_id || github.event.inputs.app_id }}
  
     steps:
       - name: Checkout repo
@@ -28,14 +21,6 @@ jobs:
       - name: Install dependencies
         run: npm install
  
-      - name: Show App ID
-        run: echo "Building for APP_ID=${APP_ID}"
- 
-      - name: Build React with App ID
-        run: |
-          export REACT_APP_APP_ID=${APP_ID}
-          npm run build
- 
       - name: Setup Java
         uses: actions/setup-java@v3
         with:
@@ -47,7 +32,6 @@ jobs:
           cd android
           chmod +x ./gradlew
           ./gradlew assembleRelease
- 
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
