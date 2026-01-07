@@ -56,6 +56,7 @@ export async function fetchLiveDSL(appId, pageName) {
   try {
     console.log("🔄 Fetching LIVE data from API...");
     const resolvedAppId = resolveAppId(appId);
+    console.log(`🆔 Using app_id for backend request: ${resolvedAppId}`);
 
     const res = await client.query({
       query: LAYOUT_VERSION_QUERY,
