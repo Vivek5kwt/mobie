@@ -30,6 +30,11 @@ const selectDslPage = (dslData, layoutMeta, pageOverride) => {
       return candidates.includes(targetName);
     });
 
+  if (pageOverride && !match) {
+    console.log(`📄 No DSL match for "${pageOverride}". Returning empty page data.`);
+    return { page: { name: pageOverride }, sections: [] };
+  }
+
   const homeFallback =
     entries.find(([key, page]) => {
       const pageInfo = page?.page || {};
