@@ -1,14 +1,38 @@
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import client from "../apollo/client";
 import LAYOUT_VERSION_QUERY from "../graphql/queries/layoutVersionQuery";
 
-const resolveAppId = (appId) => {
+const USER_PROFILE_KEY = "@auth_user_profile";
+
+const loadStoredAppId = async () => {
+  try {
+    const rawProfile = await AsyncStorage.getItem(USER_PROFILE_KEY);
+    if (!rawProfile) return null;
+
+    const profile = JSON.parse(rawProfile);
+    const storedAppId = Number(profile?.appId ?? profile?.app_id);
+
+    if (Number.isFinite(storedAppId) && storedAppId > 0) {
+      return storedAppId;
+    }
+  } catch (error) {
+    console.log("⚠️ Could not load stored app_id:", error.message);
+  }
+
+  return null;
+};
+
+const resolveAppId = async (appId) => {
   const provided = Number(appId);
   if (Number.isFinite(provided) && provided > 0) return provided;
+
+  const storedAppId = await loadStoredAppId();
+  if (storedAppId) return storedAppId;
 
   const envAppId = Number(process.env.REACT_APP_APP_ID);
   if (Number.isFinite(envAppId) && envAppId > 0) return envAppId;
 
-  return 1;
+  return null;
 };
 
 const normalizeName = (value) => (value ? String(value).trim().toLowerCase() : "");
@@ -55,7 +79,11 @@ const selectDslPage = (dslData, layoutMeta, pageOverride) => {
 export async function fetchLiveDSL(appId, pageName) {
   try {
     console.log("🔄 Fetching LIVE data from API...");
-    const resolvedAppId = resolveAppId(appId);
+    const resolvedAppId = await resolveAppId(appId);
+    if (!resolvedAppId) {
+      console.log("❌ No valid app_id found for backend request");
+      return null;
+    }
     console.log(`🆔 Using app_id for backend request: ${resolvedAppId}`);
 
     const res = await client.query({

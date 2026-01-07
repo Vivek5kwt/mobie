@@ -81,7 +81,7 @@ export default function BottomNavScreen() {
       try {
         setLoading(true);
         setErr(null);
-        const dslData = await fetchDSL(1, pageName);
+        const dslData = await fetchDSL(undefined, pageName);
         if (!dslData?.dsl) {
           setErr("No live DSL returned from server");
           return;
