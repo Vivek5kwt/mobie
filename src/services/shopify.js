@@ -244,3 +244,74 @@ export async function fetchShopifyProductDetails({ handle, id, options = {} }) {
     return null;
   }
 }
+
+// ----------------------
+// SEARCH PRODUCTS
+// ----------------------
+export async function searchShopifyProducts(searchTerm, limit = 10, options = {}) {
+  const term = String(searchTerm || "").trim();
+  if (!term) return [];
+
+  const shop = options.shop || SHOPIFY_SHOP;
+  const token = options.token || SHOPIFY_TOKEN;
+
+  const query = `
+    query SearchProducts($first: Int!, $query: String!) {
+      products(first: $first, query: $query) {
+        edges {
+          node {
+            id
+            title
+            handle
+            featuredImage {
+              url
+            }
+            variants(first: 1) {
+              edges {
+                node {
+                  price {
+                    amount
+                    currencyCode
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  `;
+
+  const searchQuery = `title:*${term}* OR handle:*${term}*`;
+
+  try {
+    const json = await directStorefrontGraphQL({
+      shop,
+      token,
+      query,
+      variables: { first: limit, query: searchQuery },
+    });
+
+    if (json.errors) {
+      console.error("❌ Shopify GraphQL Errors →", json.errors);
+      return [];
+    }
+
+    const edges = json?.data?.products?.edges || [];
+
+    return edges.map(({ node }) => {
+      const priceNode = node?.variants?.edges?.[0]?.node?.price;
+      return {
+        id: node?.id,
+        title: node?.title,
+        handle: node?.handle,
+        imageUrl: node?.featuredImage?.url || null,
+        priceAmount: priceNode?.amount || null,
+        priceCurrency: priceNode?.currencyCode || null,
+      };
+    });
+  } catch (error) {
+    console.error("❌ Shopify Product Search Error:", error);
+    return [];
+  }
+}
