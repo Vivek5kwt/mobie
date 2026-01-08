@@ -155,6 +155,7 @@ export async function fetchShopifyProductDetails({ handle, id, options = {} }) {
         variants(first: 1) {
           edges {
             node {
+              id
               price {
                 amount
                 currencyCode
@@ -184,6 +185,7 @@ export async function fetchShopifyProductDetails({ handle, id, options = {} }) {
         variants(first: 1) {
           edges {
             node {
+              id
               price {
                 amount
                 currencyCode
@@ -219,6 +221,7 @@ export async function fetchShopifyProductDetails({ handle, id, options = {} }) {
     if (!product) return null;
 
     const priceNode = product?.variants?.edges?.[0]?.node?.price;
+    const variantId = product?.variants?.edges?.[0]?.node?.id;
     const variantOptions =
       product?.options?.flatMap((option) =>
         (option?.values || []).map((value) => ({
@@ -238,6 +241,7 @@ export async function fetchShopifyProductDetails({ handle, id, options = {} }) {
       priceAmount: priceNode?.amount,
       priceCurrency: priceNode?.currencyCode,
       variantOptions,
+      variantId,
     };
   } catch (error) {
     console.error("❌ Shopify Product Detail Fetch Error:", error);
