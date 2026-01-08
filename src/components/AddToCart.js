@@ -81,18 +81,26 @@ const resolveIconName = (iconName) => {
   return trimmed.startsWith("fa-") ? trimmed.slice(3) : trimmed;
 };
 
-const extractVariantId = (value) => {
-  if (!value) return "";
+const extractVariantIdentifiers = (value) => {
+  if (!value) return { gid: "", numeric: "" };
   const raw = String(value);
-  const match = raw.match(/ProductVariant\/(\d+)/);
-  if (match) return match[1];
-  const parts = raw.split("/");
-  return parts[parts.length - 1] || "";
+  if (raw.startsWith("gid://")) {
+    const match = raw.match(/ProductVariant\/(\d+)/);
+    return { gid: raw, numeric: match ? match[1] : "" };
+  }
+  const match = raw.match(/(\d+)/);
+  if (match) {
+    return {
+      gid: `gid://shopify/ProductVariant/${match[1]}`,
+      numeric: match[1],
+    };
+  }
+  return { gid: raw, numeric: "" };
 };
 
-const buildCheckoutUrl = ({ shopifyDomain, variantId, quantity, handle }) => {
-  if (variantId) {
-    return `https://${shopifyDomain}/cart/${variantId}:${Math.max(1, quantity)}`;
+const buildCheckoutUrl = ({ shopifyDomain, variantNumericId, quantity, handle }) => {
+  if (variantNumericId) {
+    return `https://${shopifyDomain}/cart/${variantNumericId}:${Math.max(1, quantity)}`;
   }
 
   if (handle) {
@@ -129,7 +137,7 @@ export default function AddToCart({ section }) {
   const shopifyDomain = toString(raw?.shopifyDomain, getShopifyDomain());
   const shopifyToken = toString(raw?.storefrontToken, getShopifyToken());
   const productHandle = toString(raw?.handle, "");
-  const productVariantId = extractVariantId(
+  const { gid: productVariantGid, numeric: productVariantNumericId } = extractVariantIdentifiers(
     toString(raw?.variantId || raw?.defaultVariantId, "")
   );
 
@@ -141,11 +149,11 @@ export default function AddToCart({ section }) {
     () =>
       buildCheckoutUrl({
         shopifyDomain,
-        variantId: productVariantId,
+        variantNumericId: productVariantNumericId,
         quantity,
         handle: productHandle,
       }),
-    [shopifyDomain, productVariantId, quantity, productHandle]
+    [shopifyDomain, productVariantNumericId, quantity, productHandle]
   );
 
   const addToCartTextStyle = {
@@ -188,9 +196,9 @@ export default function AddToCart({ section }) {
     if (!buyNowUrl) return;
 
     try {
-      if (productVariantId) {
+      if (productVariantGid) {
         const checkoutUrl = await createShopifyCheckout({
-          variantId: productVariantId,
+          variantId: productVariantGid,
           quantity,
           options: { shop: shopifyDomain, token: shopifyToken },
         });
