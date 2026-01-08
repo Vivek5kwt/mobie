@@ -1,8 +1,7 @@
 import React, { useState } from "react";
-import { ActivityIndicator, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { ActivityIndicator, Linking, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { useNavigation, useRoute } from "@react-navigation/native";
 import FontAwesome from "react-native-vector-icons/FontAwesome";
-import { WebView } from "react-native-webview";
 import { SafeArea } from "../utils/SafeAreaHandler";
 
 export default function CheckoutWebViewScreen() {
@@ -10,7 +9,20 @@ export default function CheckoutWebViewScreen() {
   const route = useRoute();
   const checkoutUrl = route?.params?.url;
   const headerTitle = route?.params?.title || "Web View";
-  const [isLoading, setIsLoading] = useState(true);
+  const [isOpening, setIsOpening] = useState(false);
+
+  const handleOpenCheckout = async () => {
+    if (!checkoutUrl) {
+      return;
+    }
+
+    setIsOpening(true);
+    try {
+      await Linking.openURL(checkoutUrl);
+    } finally {
+      setIsOpening(false);
+    }
+  };
 
   return (
     <SafeArea>
@@ -27,17 +39,20 @@ export default function CheckoutWebViewScreen() {
           </View>
         ) : (
           <View style={styles.webViewContainer}>
-            <WebView
-              source={{ uri: checkoutUrl }}
-              onLoadStart={() => setIsLoading(true)}
-              onLoadEnd={() => setIsLoading(false)}
-              startInLoadingState
-            />
-            {isLoading ? (
-              <View style={styles.loadingOverlay}>
-                <ActivityIndicator size="large" color="#0EA5E9" />
-              </View>
-            ) : null}
+            <Text style={styles.helperText}>
+              Tap below to open the checkout link in your browser.
+            </Text>
+            <TouchableOpacity
+              style={styles.openButton}
+              onPress={handleOpenCheckout}
+              disabled={isOpening}
+            >
+              {isOpening ? (
+                <ActivityIndicator color="#ffffff" />
+              ) : (
+                <Text style={styles.openButtonText}>Open checkout</Text>
+              )}
+            </TouchableOpacity>
           </View>
         )}
       </View>
@@ -69,12 +84,27 @@ const styles = StyleSheet.create({
   },
   webViewContainer: {
     flex: 1,
-  },
-  loadingOverlay: {
-    ...StyleSheet.absoluteFillObject,
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: "rgba(255,255,255,0.85)",
+    paddingHorizontal: 24,
+    gap: 16,
+  },
+  helperText: {
+    textAlign: "center",
+    color: "#374151",
+    fontSize: 15,
+  },
+  openButton: {
+    minWidth: 200,
+    paddingVertical: 12,
+    paddingHorizontal: 20,
+    borderRadius: 999,
+    backgroundColor: "#0EA5E9",
+    alignItems: "center",
+  },
+  openButtonText: {
+    color: "#ffffff",
+    fontWeight: "600",
   },
   errorContainer: {
     flex: 1,
