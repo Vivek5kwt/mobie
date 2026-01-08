@@ -196,6 +196,11 @@ export default function LayoutScreen() {
     loadDSL();
   }, [pageName]);
 
+  useEffect(() => {
+    setIsSideMenuOpen(false);
+    sideMenuTranslateX.setValue(-SIDE_MENU_WIDTH);
+  }, [SIDE_MENU_WIDTH, pageName, sideMenuTranslateX]);
+
   useFocusEffect(
     useCallback(() => {
       return () => {
