@@ -1,6 +1,6 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ScrollView, StyleSheet, Text, View } from "react-native";
-import { useRoute } from "@react-navigation/native";
+import { useFocusEffect, useRoute } from "@react-navigation/native";
 import DynamicRenderer from "../engine/DynamicRenderer";
 import { SafeArea } from "../utils/SafeAreaHandler";
 import { fetchShopifyProductDetails } from "../services/shopify";
@@ -117,36 +117,44 @@ export default function ProductDetailScreen() {
   const [dslLoading, setDslLoading] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const isMountedRef = useRef(true);
 
-  useEffect(() => {
-    let isMounted = true;
+  const loadProductDetails = useCallback(async () => {
+    if (!product?.handle && !product?.id) return;
+    setLoading(true);
+    setError("");
 
-    const loadProductDetails = async () => {
-      if (!product?.handle && !product?.id) return;
-      setLoading(true);
-      setError("");
+    const details = await fetchShopifyProductDetails({
+      handle: product?.handle,
+      id: product?.id,
+    });
 
-      const details = await fetchShopifyProductDetails({
-        handle: product?.handle,
-        id: product?.id,
-      });
-
-      if (!isMounted) return;
-      if (details) {
-        setDetailProduct({ ...product, ...details });
-      } else {
-        setDetailProduct(product);
-        setError("Unable to load product details right now.");
-      }
-      setLoading(false);
-    };
-
-    loadProductDetails();
-
-    return () => {
-      isMounted = false;
-    };
+    if (!isMountedRef.current) return;
+    if (details) {
+      setDetailProduct({ ...product, ...details });
+    } else {
+      setDetailProduct(product);
+      setError("Unable to load product details right now.");
+    }
+    setLoading(false);
   }, [product]);
+
+  useEffect(() => () => {
+    isMountedRef.current = false;
+  }, []);
+
+  useFocusEffect(
+    useCallback(() => {
+      loadProductDetails();
+      if (!product?.handle && !product?.id) return undefined;
+
+      const refreshInterval = setInterval(() => {
+        loadProductDetails();
+      }, 30000);
+
+      return () => clearInterval(refreshInterval);
+    }, [loadProductDetails, product?.handle, product?.id])
+  );
 
   useEffect(() => {
     let isMounted = true;
