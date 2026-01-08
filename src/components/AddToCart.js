@@ -1,7 +1,11 @@
 import React, { useMemo, useState } from "react";
 import { Linking, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import FontAwesome from "react-native-vector-icons/FontAwesome";
-import { SHOPIFY_SHOP } from "../services/shopify";
+import {
+  createShopifyCheckout,
+  getShopifyDomain,
+  getShopifyToken,
+} from "../services/shopify";
 
 const unwrapValue = (value, fallback = undefined) => {
   if (value === undefined || value === null) return fallback;
@@ -122,7 +126,8 @@ export default function AddToCart({ section }) {
 
   const addToCartText = toString(raw?.buttonText, "ADD TO CART");
   const buyNowText = toString(raw?.buyNowText, "BUY NOW");
-  const shopifyDomain = toString(raw?.shopifyDomain, SHOPIFY_SHOP);
+  const shopifyDomain = toString(raw?.shopifyDomain, getShopifyDomain());
+  const shopifyToken = toString(raw?.storefrontToken, getShopifyToken());
   const productHandle = toString(raw?.handle, "");
   const productVariantId = extractVariantId(
     toString(raw?.variantId || raw?.defaultVariantId, "")
@@ -181,7 +186,18 @@ export default function AddToCart({ section }) {
 
   const handleBuyNow = async () => {
     if (!buyNowUrl) return;
+
     try {
+      if (productVariantId) {
+        const checkoutUrl = await createShopifyCheckout({
+          variantId: productVariantId,
+          quantity,
+          options: { shop: shopifyDomain, token: shopifyToken },
+        });
+        await Linking.openURL(checkoutUrl);
+        return;
+      }
+
       await Linking.openURL(buyNowUrl);
     } catch (error) {
       try {

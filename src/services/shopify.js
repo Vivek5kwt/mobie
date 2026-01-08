@@ -3,6 +3,15 @@ export const SHOPIFY_SHOP = "5kwebtech-test.myshopify.com";
 
 export const SHOPIFY_TOKEN = "79363ed16cc2c1e01f4dc18f813c41a8";
 
+const getWindowValue = (key) => {
+  if (typeof window === "undefined") return undefined;
+  return window?.[key];
+};
+
+export const getShopifyDomain = () => getWindowValue("__SHOP_DOMAIN__") || SHOPIFY_SHOP;
+
+export const getShopifyToken = () => getWindowValue("__STOREFRONT_TOKEN__") || SHOPIFY_TOKEN;
+
 // ----------------------
 // BASE GRAPHQL CALL
 // ----------------------
@@ -56,8 +65,8 @@ export async function directStorefrontGraphQL({
 // FETCH PRODUCTS
 // ----------------------
 export async function fetchShopifyProducts(limit = 10, options = {}) {
-  const shop = options.shop || SHOPIFY_SHOP;
-  const token = options.token || SHOPIFY_TOKEN;
+  const shop = options.shop || getShopifyDomain();
+  const token = options.token || getShopifyToken();
 
   const query = `
     query Products($first: Int!) {
@@ -134,8 +143,8 @@ export async function fetchShopifyProducts(limit = 10, options = {}) {
 // FETCH PRODUCT DETAILS
 // ----------------------
 export async function fetchShopifyProductDetails({ handle, id, options = {} }) {
-  const shop = options.shop || SHOPIFY_SHOP;
-  const token = options.token || SHOPIFY_TOKEN;
+  const shop = options.shop || getShopifyDomain();
+  const token = options.token || getShopifyToken();
 
   const queryByHandle = `
     query ProductByHandle($handle: String!) {
@@ -249,6 +258,59 @@ export async function fetchShopifyProductDetails({ handle, id, options = {} }) {
   }
 }
 
+export async function createShopifyCheckout({ variantId, quantity = 1, options = {} }) {
+  if (!variantId) {
+    throw new Error("Missing variant ID for checkout.");
+  }
+
+  const shop = options.shop || getShopifyDomain();
+  const token = options.token || getShopifyToken();
+
+  const mutation = `
+    mutation CreateCheckout($input: CheckoutCreateInput!) {
+      checkoutCreate(input: $input) {
+        checkout {
+          webUrl
+        }
+        userErrors {
+          field
+          message
+        }
+      }
+    }
+  `;
+
+  const json = await directStorefrontGraphQL({
+    shop,
+    token,
+    query: mutation,
+    variables: {
+      input: {
+        lineItems: [
+          {
+            variantId,
+            quantity: Math.max(1, quantity),
+          },
+        ],
+      },
+    },
+  });
+
+  const payload = json?.data?.checkoutCreate;
+  const errors = payload?.userErrors || [];
+
+  if (errors.length) {
+    throw new Error(errors.map((error) => error.message).join(" "));
+  }
+
+  const checkoutUrl = payload?.checkout?.webUrl;
+  if (!checkoutUrl) {
+    throw new Error("Checkout URL not returned.");
+  }
+
+  return checkoutUrl;
+}
+
 // ----------------------
 // SEARCH PRODUCTS
 // ----------------------
@@ -256,8 +318,8 @@ export async function searchShopifyProducts(searchTerm, limit = 10, options = {}
   const term = String(searchTerm || "").trim();
   if (!term) return [];
 
-  const shop = options.shop || SHOPIFY_SHOP;
-  const token = options.token || SHOPIFY_TOKEN;
+  const shop = options.shop || getShopifyDomain();
+  const token = options.token || getShopifyToken();
 
   const query = `
     query SearchProducts($first: Int!, $query: String!) {
@@ -324,8 +386,8 @@ export async function searchShopifyProducts(searchTerm, limit = 10, options = {}
 // FETCH COLLECTIONS
 // ----------------------
 export async function fetchShopifyCollections(limit = 10, options = {}) {
-  const shop = options.shop || SHOPIFY_SHOP;
-  const token = options.token || SHOPIFY_TOKEN;
+  const shop = options.shop || getShopifyDomain();
+  const token = options.token || getShopifyToken();
 
   const query = `
     query Collections($first: Int!) {

@@ -1,10 +1,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { Dimensions, Image, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { useNavigation } from "@react-navigation/native";
-
-const SHOPIFY_DOMAIN = "5kwebtech-test.myshopify.com";
-const STOREFRONT_TOKEN = "79363ed16cc2c1e01f4dc18f813c41a8";
-const SHOPIFY_ENDPOINT = `https://${SHOPIFY_DOMAIN}/api/2024-10/graphql.json`;
+import { getShopifyDomain, getShopifyToken } from "../services/shopify";
 
 const PRODUCT_QUERY = `
   query GetProducts($first: Int!, $after: String) {
@@ -107,11 +104,14 @@ export default function ProductGrid({ section, limit = 8, title = "Products" }) 
     const controller = new AbortController();
 
     const fetchProductsPage = async ({ first, after }) => {
-      const response = await fetch(SHOPIFY_ENDPOINT, {
+      const shopifyDomain = getShopifyDomain();
+      const shopifyToken = getShopifyToken();
+      const endpoint = `https://${shopifyDomain}/api/2024-10/graphql.json`;
+      const response = await fetch(endpoint, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "X-Shopify-Storefront-Access-Token": STOREFRONT_TOKEN,
+          "X-Shopify-Storefront-Access-Token": shopifyToken,
         },
         body: JSON.stringify({
           query: PRODUCT_QUERY,
