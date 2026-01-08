@@ -1,6 +1,7 @@
 import React, { useMemo, useState } from "react";
 import { Linking, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import FontAwesome from "react-native-vector-icons/FontAwesome";
+import { useNavigation } from "@react-navigation/native";
 import {
   createShopifyCheckout,
   getShopifyDomain,
@@ -111,6 +112,7 @@ const buildCheckoutUrl = ({ shopifyDomain, variantNumericId, quantity, handle })
 };
 
 export default function AddToCart({ section }) {
+  const navigation = useNavigation();
   const propsNode =
     section?.properties?.props?.properties || section?.properties?.props || section?.props || {};
   const raw = unwrapValue(propsNode?.raw, {});
@@ -203,11 +205,20 @@ export default function AddToCart({ section }) {
     }
   };
 
+  const openCheckoutUrl = async (url) => {
+    if (!url) return false;
+    if (navigation?.navigate) {
+      navigation.navigate("CheckoutWebView", { url });
+      return true;
+    }
+    return tryOpenUrl(url);
+  };
+
   const handleBuyNow = async () => {
     if (!buyNowUrl && !productVariantGid) return;
 
     if (buyNowUrl) {
-      const opened = await tryOpenUrl(buyNowUrl);
+      const opened = await openCheckoutUrl(buyNowUrl);
       if (opened) return;
     }
 
@@ -219,7 +230,7 @@ export default function AddToCart({ section }) {
         quantity,
         options: { shop: shopifyDomain, token: shopifyToken },
       });
-      await tryOpenUrl(checkoutUrl);
+      await openCheckoutUrl(checkoutUrl);
     } catch (error) {
       console.log("Unable to open Shopify checkout:", error);
     }

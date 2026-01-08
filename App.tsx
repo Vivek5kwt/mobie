@@ -12,6 +12,7 @@ import LayoutScreen from './src/screens/LayoutScreen';
 import AuthScreen from "./src/screens/AuthScreen";
 import BottomNavScreen from "./src/screens/BottomNavScreen";
 import ProductDetailScreen from "./src/screens/ProductDetailScreen";
+import CheckoutWebViewScreen from "./src/screens/CheckoutWebViewScreen";
 import { AuthProvider } from "./src/services/AuthContext";
 
 import tokenLogger from './src/utils/tokenLogger';
@@ -179,6 +180,13 @@ export default function App() {
               <Stack.Screen
                 name="ProductDetail"
                 component={ProductDetailScreen}
+                options={{ animation: "slide_from_right" }}
+              />
+
+              {/* 🔥 Checkout WebView Screen */}
+              <Stack.Screen
+                name="CheckoutWebView"
+                component={CheckoutWebViewScreen}
                 options={{ animation: "slide_from_right" }}
               />
 
