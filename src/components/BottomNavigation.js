@@ -3,6 +3,7 @@ import { Linking, StyleSheet, Text, TouchableOpacity, View } from "react-native"
 import { StackActions, useNavigation } from "@react-navigation/native";
 import Icon from "react-native-vector-icons/FontAwesome6";
 import { convertStyles } from "../utils/convertStyles";
+import { useSideMenu } from "../services/SideMenuContext";
 
 const unwrapValue = (value, fallback = undefined) => {
   if (value === undefined || value === null) return fallback;
@@ -157,6 +158,7 @@ const resolveNavigationTarget = (item = {}) => {
 
 export default function BottomNavigation({ section, activeIndexOverride }) {
   const navigation = useNavigation();
+  const { closeSideMenu, isOpen: isSideMenuOpen } = useSideMenu();
   const componentName =
     section?.component || section?.properties?.component?.const || section?.properties?.component;
   const isStyle2 = String(componentName || "").toLowerCase() === "bottom_navigation_style_2";
@@ -245,6 +247,9 @@ export default function BottomNavigation({ section, activeIndexOverride }) {
   if (!items.length) return null;
 
   const handlePress = async (item, index) => {
+    if (isSideMenuOpen) {
+      closeSideMenu();
+    }
     setActiveIndex(index);
     const target = resolveNavigationTarget(item);
 
