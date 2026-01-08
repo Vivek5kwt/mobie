@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from "react";
-import { Linking, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import FontAwesome from "react-native-vector-icons/FontAwesome";
 import { useNavigation } from "@react-navigation/native";
 import {
@@ -194,24 +194,14 @@ export default function AddToCart({ section }) {
   const addToCartIconName = resolveIconName(addToCartConfig?.icon);
   const buyNowIconName = resolveIconName(buyNowConfig?.icon);
 
-  const tryOpenUrl = async (url) => {
-    if (!url) return false;
-    try {
-      await Linking.openURL(url);
-      return true;
-    } catch (error) {
-      console.log("Unable to open Shopify checkout:", error);
-      return false;
-    }
-  };
-
   const openCheckoutUrl = async (url) => {
     if (!url) return false;
     if (navigation?.navigate) {
       navigation.navigate("CheckoutWebView", { url, title: "Checkout" });
       return true;
     }
-    return tryOpenUrl(url);
+    console.log("Checkout webview navigation not available.");
+    return false;
   };
 
   const handleBuyNow = async () => {
