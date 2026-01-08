@@ -34,6 +34,8 @@ const buildProductDefaults = (product = {}) => ({
   description: product?.description,
   descriptionText: product?.description,
   variantOptions: product?.variantOptions,
+  variantId: product?.variantId,
+  handle: product?.handle,
 });
 
 const mergeRawNode = (rawNode, mergedRaw) => {

@@ -1,6 +1,7 @@
 import React, { useMemo, useState } from "react";
-import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { Linking, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import FontAwesome from "react-native-vector-icons/FontAwesome";
+import { SHOPIFY_SHOP } from "../services/shopify";
 
 const unwrapValue = (value, fallback = undefined) => {
   if (value === undefined || value === null) return fallback;
@@ -76,6 +77,27 @@ const resolveIconName = (iconName) => {
   return trimmed.startsWith("fa-") ? trimmed.slice(3) : trimmed;
 };
 
+const extractVariantId = (value) => {
+  if (!value) return "";
+  const raw = String(value);
+  const match = raw.match(/ProductVariant\/(\d+)/);
+  if (match) return match[1];
+  const parts = raw.split("/");
+  return parts[parts.length - 1] || "";
+};
+
+const buildCheckoutUrl = ({ shopifyDomain, variantId, quantity, handle }) => {
+  if (variantId) {
+    return `https://${shopifyDomain}/cart/${variantId}:${Math.max(1, quantity)}`;
+  }
+
+  if (handle) {
+    return `https://${shopifyDomain}/products/${handle}`;
+  }
+
+  return "";
+};
+
 export default function AddToCart({ section }) {
   const propsNode =
     section?.properties?.props?.properties || section?.properties?.props || section?.props || {};
@@ -100,11 +122,26 @@ export default function AddToCart({ section }) {
 
   const addToCartText = toString(raw?.buttonText, "ADD TO CART");
   const buyNowText = toString(raw?.buyNowText, "BUY NOW");
+  const shopifyDomain = toString(raw?.shopifyDomain, SHOPIFY_SHOP);
+  const productHandle = toString(raw?.handle, "");
+  const productVariantId = extractVariantId(
+    toString(raw?.variantId || raw?.defaultVariantId, "")
+  );
 
   const [quantity, setQuantity] = useState(1);
 
   const addToCartButtonStyle = useMemo(() => buildButtonStyles(addToCartConfig), [addToCartConfig]);
   const buyNowButtonStyle = useMemo(() => buildButtonStyles(buyNowConfig), [buyNowConfig]);
+  const buyNowUrl = useMemo(
+    () =>
+      buildCheckoutUrl({
+        shopifyDomain,
+        variantId: productVariantId,
+        quantity,
+        handle: productHandle,
+      }),
+    [shopifyDomain, productVariantId, quantity, productHandle]
+  );
 
   const addToCartTextStyle = {
     color: toString(addToCartConfig?.textColor, "#111827"),
@@ -141,6 +178,18 @@ export default function AddToCart({ section }) {
   const plusIconName = resolveIconName(quantityConfig?.plusIcon);
   const addToCartIconName = resolveIconName(addToCartConfig?.icon);
   const buyNowIconName = resolveIconName(buyNowConfig?.icon);
+
+  const handleBuyNow = async () => {
+    if (!buyNowUrl) return;
+    try {
+      const canOpen = await Linking.canOpenURL(buyNowUrl);
+      if (canOpen) {
+        await Linking.openURL(buyNowUrl);
+      }
+    } catch (error) {
+      console.log("Unable to open Shopify checkout:", error);
+    }
+  };
 
   return (
     <View style={styles.container}>
@@ -190,7 +239,7 @@ export default function AddToCart({ section }) {
       )}
 
       {showBuyNow && (
-        <TouchableOpacity style={[styles.button, buyNowButtonStyle]}>
+        <TouchableOpacity style={[styles.button, buyNowButtonStyle]} onPress={handleBuyNow}>
           {showBuyNowIcon && !!buyNowIconName && (
             <FontAwesome
               name={buyNowIconName}
