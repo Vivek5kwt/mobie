@@ -182,11 +182,17 @@ export default function AddToCart({ section }) {
   const handleBuyNow = async () => {
     if (!buyNowUrl) return;
     try {
-      const canOpen = await Linking.canOpenURL(buyNowUrl);
-      if (canOpen) {
-        await Linking.openURL(buyNowUrl);
-      }
+      await Linking.openURL(buyNowUrl);
     } catch (error) {
+      try {
+        const canOpen = await Linking.canOpenURL(buyNowUrl);
+        if (canOpen) {
+          await Linking.openURL(buyNowUrl);
+          return;
+        }
+      } catch (canOpenError) {
+        console.log("Unable to confirm Shopify checkout URL:", canOpenError);
+      }
       console.log("Unable to open Shopify checkout:", error);
     }
   };
