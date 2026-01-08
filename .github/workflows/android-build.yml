@@ -1,4 +1,4 @@
-name: Build Android APK
+name: Build Android APK (Direct Download)
 
 on:
   workflow_dispatch:
@@ -31,8 +31,9 @@ jobs:
           chmod +x ./gradlew
           ./gradlew assembleRelease
 
-      - name: Upload APK artifact
-        uses: actions/upload-artifact@v4
+      - name: Create GitHub Release and Upload APK
+        uses: softprops/action-gh-release@v2
         with:
-          name: android-apk
-          path: android/app/build/outputs/apk/release/app-release.apk
+          tag_name: v1.0.0
+          name: Android APK v1.0.0
+          files: android/app/build/outputs/apk/release/app-release.apk

@@ -27,7 +27,7 @@ export async function directStorefrontGraphQL({
     endpoint,
     headers: {
       "Content-Type": "application/json",
-      "X-Shopify-Storefront-Access-Token": "***hidden***",
+      "X-Shopify-Storefront-Access-Token": "79363ed16cc2c1e01f4dc18f813c41a8",
     },
     variables,
   });
