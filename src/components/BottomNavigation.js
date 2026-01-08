@@ -112,6 +112,8 @@ const clampIndex = (index, count) => {
   return Math.max(0, Math.min(index, count - 1));
 };
 
+const isHttpUrl = (url = "") => /^https?:\/\//i.test(String(url));
+
 const slugifyPageName = (value) =>
   String(value || "")
     .trim()
@@ -250,6 +252,13 @@ export default function BottomNavigation({ section, activeIndexOverride }) {
 
     if (target.type === "external") {
       try {
+        if (navigation?.navigate && isHttpUrl(target.url)) {
+          navigation.navigate("CheckoutWebView", {
+            url: target.url,
+            title: resolveItemLabel(item) || "Web View",
+          });
+          return;
+        }
         const canOpen = await Linking.canOpenURL(target.url);
         if (canOpen) {
           await Linking.openURL(target.url);
