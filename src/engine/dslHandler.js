@@ -18,7 +18,21 @@ const sanitizeSections = (dslPage) => {
 };
 
 const selectDslPage = (dslData, layoutMeta, pageOverride) => {
-  if (!dslData?.pages || typeof dslData.pages !== "object") return dslData;
+  if (!dslData?.pages || typeof dslData.pages !== "object") {
+    if (!pageOverride) return dslData;
+
+    const currentPageName = normalizeName(
+      dslData?.page?.name || dslData?.page?.handle || layoutMeta?.page_name
+    );
+    const targetName = normalizeName(pageOverride);
+
+    if (currentPageName && currentPageName === targetName) {
+      return dslData;
+    }
+
+    console.log(`📄 No DSL match for "${pageOverride}". Returning empty page data.`);
+    return { page: { name: pageOverride }, sections: [] };
+  }
 
   const entries = Object.entries(dslData.pages);
   if (!entries.length) return dslData;
