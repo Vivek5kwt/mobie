@@ -280,15 +280,6 @@ export default function BottomNavigation({ section, activeIndexOverride }) {
         activeIndex: index,
         bottomNavSection: section,
       };
-      const state = navigation.getState();
-      const currentRoute = state?.routes?.[state.index];
-      const isSameRoute = currentRoute?.name === target.name;
-
-      if (isSameRoute) {
-        navigation.navigate({ name: target.name, params, merge: true });
-        return;
-      }
-
       navigation.dispatch(StackActions.replace(target.name, params));
     }
   };
