@@ -195,8 +195,6 @@ export default function AddToCart({ section }) {
   const tryOpenUrl = async (url) => {
     if (!url) return false;
     try {
-      const canOpen = await Linking.canOpenURL(url);
-      if (!canOpen) return false;
       await Linking.openURL(url);
       return true;
     } catch (error) {
