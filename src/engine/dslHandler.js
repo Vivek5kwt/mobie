@@ -10,6 +10,13 @@ const normalizeName = (value) =>
         .replace(/^-+|-+$/g, "")
     : "";
 
+const sanitizeSections = (dslPage) => {
+  if (!dslPage || !Array.isArray(dslPage.sections)) return dslPage;
+  const filteredSections = dslPage.sections.filter(Boolean);
+  if (filteredSections.length === dslPage.sections.length) return dslPage;
+  return { ...dslPage, sections: filteredSections };
+};
+
 const selectDslPage = (dslData, layoutMeta, pageOverride) => {
   if (!dslData?.pages || typeof dslData.pages !== "object") return dslData;
 
@@ -51,7 +58,7 @@ const selectDslPage = (dslData, layoutMeta, pageOverride) => {
     console.log("📄 Using page DSL:", selected?.page?.name || selected?.page?.handle || "Unknown");
   }
 
-  return selected || dslData;
+  return sanitizeSections(selected) || sanitizeSections(dslData);
 };
 
 export async function fetchLiveDSL(appId = 1, pageName) {
@@ -83,14 +90,16 @@ export async function fetchLiveDSL(appId = 1, pageName) {
     );
 
     const latestVersion = sortedVersions[0];
-    const dslData = selectDslPage(latestVersion?.dsl, layout, pageName);
+    const dslData = sanitizeSections(selectDslPage(latestVersion?.dsl, layout, pageName));
     const versionNumber = latestVersion?.version_number ?? null;
 
     console.log(`✅ LIVE DATA FETCHED - Version ${latestVersion.version_number}`);
     console.log(`📊 Sections count: ${dslData?.sections?.length || 0}`);
 
     if (dslData?.sections) {
-      const components = dslData.sections.map((s) => s.component || s.properties?.component);
+      const components = dslData.sections
+        .filter(Boolean)
+        .map((s) => s?.component || s?.properties?.component);
       console.log(`🔍 Components found:`, components);
     }
 
