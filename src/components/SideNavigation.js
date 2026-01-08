@@ -105,8 +105,7 @@ export default function SideNavigation({ section }) {
   const headerTitle = unwrapValue(raw?.headerTitle, "Mobidrag");
   const subtitle = unwrapValue(raw?.subtitle, "");
   const logoUrl = unwrapValue(raw?.logoUrl, "");
-  const logoSource = resolveLogoSource(logoUrl);
-  const logoText = unwrapValue(raw?.logoText, "");
+  const logoSource = logoUrl ? resolveLogoSource(logoUrl) : LOCAL_LOGO_IMAGE;
 
   const itemIconColor = raw?.iconColor || presentation.itemIcon?.color || "#111827";
   const itemIconSize = unwrapValue(raw?.iconSize, presentation.itemIcon?.width || 18);
@@ -126,14 +125,7 @@ export default function SideNavigation({ section }) {
       <View style={[styles.drawerContent, paddingStyles]}>
         {showHeader && (
           <View style={[styles.headerRow, presentation.headerRow]}>
-            {showLogo && logoSource ? (
-              <Image source={logoSource} style={styles.logoImage} />
-            ) : null}
-            {showLogo && !logoUrl && logoText ? (
-              <View style={styles.logoPlaceholder}>
-                <Text style={styles.logoText}>{logoText}</Text>
-              </View>
-            ) : null}
+            {showLogo && logoSource ? <Image source={logoSource} style={styles.logoImage} /> : null}
             <View style={{ flex: 1 }}>
               <Text style={styles.headerTitle} numberOfLines={1}>
                 {headerTitle}
@@ -146,7 +138,17 @@ export default function SideNavigation({ section }) {
         )}
 
         {showItems &&
-          itemsArray.map((item) => (
+          [
+            ...itemsArray,
+            !itemsArray.some(
+              (item) =>
+                String(item?.label || item?.title || "").trim().toLowerCase() === "logout",
+            )
+              ? { id: "logout", label: "Logout", icon: "right-from-bracket" }
+              : null,
+          ]
+            .filter(Boolean)
+            .map((item) => (
             <View key={item.id || item.label} style={[styles.itemRow, presentation.itemRow]}>
               {showItemIcons && (
                 <Icon
@@ -208,19 +210,6 @@ const styles = StyleSheet.create({
     width: 32,
     height: 32,
     borderRadius: 16,
-  },
-  logoPlaceholder: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: "#E5E7EB",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  logoText: {
-    fontSize: 12,
-    fontWeight: "700",
-    color: "#111827",
   },
   itemRow: {
     flexDirection: "row",
