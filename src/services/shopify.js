@@ -267,10 +267,10 @@ export async function createShopifyCheckout({ variantId, quantity = 1, options =
   const token = options.token || getShopifyToken();
 
   const mutation = `
-    mutation CreateCheckout($input: CheckoutCreateInput!) {
-      checkoutCreate(input: $input) {
-        checkout {
-          webUrl
+    mutation CreateCart($input: CartInput!) {
+      cartCreate(input: $input) {
+        cart {
+          checkoutUrl
         }
         userErrors {
           field
@@ -286,9 +286,9 @@ export async function createShopifyCheckout({ variantId, quantity = 1, options =
     query: mutation,
     variables: {
       input: {
-        lineItems: [
+        lines: [
           {
-            variantId,
+            merchandiseId: variantId,
             quantity: Math.max(1, quantity),
           },
         ],
@@ -296,14 +296,14 @@ export async function createShopifyCheckout({ variantId, quantity = 1, options =
     },
   });
 
-  const payload = json?.data?.checkoutCreate;
+  const payload = json?.data?.cartCreate;
   const errors = payload?.userErrors || [];
 
   if (errors.length) {
     throw new Error(errors.map((error) => error.message).join(" "));
   }
 
-  const checkoutUrl = payload?.checkout?.webUrl;
+  const checkoutUrl = payload?.cart?.checkoutUrl;
   if (!checkoutUrl) {
     throw new Error("Checkout URL not returned.");
   }
