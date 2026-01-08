@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
   RefreshControl,
@@ -10,7 +10,7 @@ import {
   TouchableOpacity,
   Animated,
 } from "react-native";
-import { useRoute } from "@react-navigation/native";
+import { useFocusEffect, useRoute } from "@react-navigation/native";
 import DynamicRenderer from "../engine/DynamicRenderer";
 import { fetchDSL } from "../engine/dslHandler";
 import { shouldRenderSectionOnMobile } from "../engine/visibility";
@@ -195,6 +195,15 @@ export default function LayoutScreen() {
   useEffect(() => {
     loadDSL();
   }, [pageName]);
+
+  useFocusEffect(
+    useCallback(() => {
+      return () => {
+        setIsSideMenuOpen(false);
+        sideMenuTranslateX.setValue(-SIDE_MENU_WIDTH);
+      };
+    }, [SIDE_MENU_WIDTH, sideMenuTranslateX])
+  );
 
   const closeSideMenu = () => setIsSideMenuOpen(false);
 

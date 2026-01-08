@@ -128,12 +128,6 @@ export default function Header({ section }) {
       activeIndex,
       bottomNavSection,
     };
-    const state = navigation.getState();
-    const currentRoute = state?.routes?.[state.index];
-    if (currentRoute?.name === "BottomNavScreen") {
-      navigation.navigate({ name: "BottomNavScreen", params, merge: true });
-      return;
-    }
     navigation.dispatch(StackActions.replace("BottomNavScreen", params));
   };
 
