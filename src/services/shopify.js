@@ -263,8 +263,20 @@ export async function createShopifyCheckout({ variantId, quantity = 1, options =
     throw new Error("Missing variant ID for checkout.");
   }
 
+  const ensureVariantGid = (value) => {
+    if (!value) return "";
+    const raw = String(value);
+    if (raw.startsWith("gid://")) return raw;
+    const match = raw.match(/(\d+)/);
+    if (match) {
+      return `gid://shopify/ProductVariant/${match[1]}`;
+    }
+    return raw;
+  };
+
   const shop = options.shop || getShopifyDomain();
   const token = options.token || getShopifyToken();
+  const merchandiseId = ensureVariantGid(variantId);
 
   const mutation = `
     mutation CreateCart($input: CartInput!) {
@@ -288,7 +300,7 @@ export async function createShopifyCheckout({ variantId, quantity = 1, options =
       input: {
         lines: [
           {
-            merchandiseId: variantId,
+            merchandiseId,
             quantity: Math.max(1, quantity),
           },
         ],
