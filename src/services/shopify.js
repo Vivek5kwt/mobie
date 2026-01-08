@@ -319,7 +319,7 @@ export async function createShopifyCheckout({ variantId, quantity = 1, options =
     throw new Error(errors.map((error) => error.message).join(" "));
   }
 
-  const checkoutUrl = payload?.cart?.checkoutUrl;
+  const checkoutUrl = payload?.cart?.checkoutUrl ?? payload?.cart?.checckoutUrl;
   if (!checkoutUrl) {
     throw new Error("Checkout URL not returned.");
   }
