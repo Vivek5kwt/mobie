@@ -1,5 +1,6 @@
 import React, { useMemo } from "react";
 import { Linking, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { useNavigation } from "@react-navigation/native";
 import Icon from "react-native-vector-icons/FontAwesome6";
 import { convertStyles } from "../utils/convertStyles";
 
@@ -91,8 +92,10 @@ const iconNameMap = {
 };
 
 const brandIconNames = new Set(Object.values(iconNameMap));
+const isHttpUrl = (url = "") => /^https?:\/\//i.test(String(url));
 
 export default function SocialMediaIcons({ section }) {
+  const navigation = useNavigation();
   const rawProps =
     section?.properties?.props?.properties || section?.properties?.props || section?.props || {};
 
@@ -139,6 +142,10 @@ export default function SocialMediaIcons({ section }) {
   const openLink = async (url) => {
     if (!url) return;
     try {
+      if (navigation?.navigate && isHttpUrl(url)) {
+        navigation.navigate("CheckoutWebView", { url, title: "Social" });
+        return;
+      }
       await Linking.openURL(url);
     } catch (err) {
       console.log("❌ Failed to open URL", url, err);

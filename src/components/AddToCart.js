@@ -208,7 +208,7 @@ export default function AddToCart({ section }) {
   const openCheckoutUrl = async (url) => {
     if (!url) return false;
     if (navigation?.navigate) {
-      navigation.navigate("CheckoutWebView", { url });
+      navigation.navigate("CheckoutWebView", { url, title: "Checkout" });
       return true;
     }
     return tryOpenUrl(url);

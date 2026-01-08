@@ -10,6 +10,7 @@ export default function CheckoutWebViewScreen() {
   const route = useRoute();
   const [loading, setLoading] = useState(true);
   const checkoutUrl = route?.params?.url;
+  const headerTitle = route?.params?.title || "Web View";
 
   return (
     <SafeArea>
@@ -18,7 +19,7 @@ export default function CheckoutWebViewScreen() {
           <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
             <FontAwesome name="angle-left" size={24} color="#111827" />
           </TouchableOpacity>
-          <Text style={styles.title}>Checkout</Text>
+          <Text style={styles.title}>{headerTitle}</Text>
         </View>
         {!checkoutUrl ? (
           <View style={styles.errorContainer}>
