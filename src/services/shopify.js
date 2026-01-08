@@ -308,6 +308,10 @@ export async function createShopifyCheckout({ variantId, quantity = 1, options =
     },
   });
 
+  if (json?.errors?.length) {
+    throw new Error(json.errors.map((error) => error.message).join(" "));
+  }
+
   const payload = json?.data?.cartCreate;
   const errors = payload?.userErrors || [];
 

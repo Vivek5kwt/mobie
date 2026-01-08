@@ -192,31 +192,37 @@ export default function AddToCart({ section }) {
   const addToCartIconName = resolveIconName(addToCartConfig?.icon);
   const buyNowIconName = resolveIconName(buyNowConfig?.icon);
 
+  const tryOpenUrl = async (url) => {
+    if (!url) return false;
+    try {
+      const canOpen = await Linking.canOpenURL(url);
+      if (!canOpen) return false;
+      await Linking.openURL(url);
+      return true;
+    } catch (error) {
+      console.log("Unable to open Shopify checkout:", error);
+      return false;
+    }
+  };
+
   const handleBuyNow = async () => {
-    if (!buyNowUrl) return;
+    if (!buyNowUrl && !productVariantGid) return;
+
+    if (buyNowUrl) {
+      const opened = await tryOpenUrl(buyNowUrl);
+      if (opened) return;
+    }
+
+    if (!productVariantGid) return;
 
     try {
-      if (productVariantGid) {
-        const checkoutUrl = await createShopifyCheckout({
-          variantId: productVariantGid,
-          quantity,
-          options: { shop: shopifyDomain, token: shopifyToken },
-        });
-        await Linking.openURL(checkoutUrl);
-        return;
-      }
-
-      await Linking.openURL(buyNowUrl);
+      const checkoutUrl = await createShopifyCheckout({
+        variantId: productVariantGid,
+        quantity,
+        options: { shop: shopifyDomain, token: shopifyToken },
+      });
+      await tryOpenUrl(checkoutUrl);
     } catch (error) {
-      try {
-        const canOpen = await Linking.canOpenURL(buyNowUrl);
-        if (canOpen) {
-          await Linking.openURL(buyNowUrl);
-          return;
-        }
-      } catch (canOpenError) {
-        console.log("Unable to confirm Shopify checkout URL:", canOpenError);
-      }
       console.log("Unable to open Shopify checkout:", error);
     }
   };
