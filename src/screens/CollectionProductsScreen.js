@@ -99,7 +99,17 @@ export default function CollectionProductsScreen() {
 
   return (
     <View style={styles.container}>
-      <Text style={styles.heading}>{collectionTitle || "Collection"}</Text>
+      <View style={styles.headerRow}>
+        <TouchableOpacity
+          style={styles.backButton}
+          onPress={() => navigation.goBack()}
+          accessibilityRole="button"
+          accessibilityLabel="Go back"
+        >
+          <Text style={styles.backIcon}>←</Text>
+        </TouchableOpacity>
+        <Text style={styles.heading}>{collectionTitle || "Collection"}</Text>
+      </View>
 
       {loading && <ActivityIndicator size="small" color="#111827" />}
       {error ? <Text style={styles.error}>{error}</Text> : null}
@@ -142,10 +152,24 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingTop: 16,
   },
+  headerRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: 16,
+  },
+  backButton: {
+    marginRight: 8,
+    paddingVertical: 4,
+    paddingHorizontal: 6,
+  },
+  backIcon: {
+    fontSize: 20,
+    color: "#111827",
+    fontWeight: "600",
+  },
   heading: {
     fontSize: 22,
     fontWeight: "700",
-    marginBottom: 16,
     color: "#111827",
   },
   row: {
