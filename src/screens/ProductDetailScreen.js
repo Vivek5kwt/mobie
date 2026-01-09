@@ -215,7 +215,10 @@ export default function ProductDetailScreen() {
     ];
   }, [detailProduct]);
 
-  const renderSections = sectionsToRender.length ? sectionsToRender : fallbackSections;
+  const renderSections = useMemo(() => {
+    const baseSections = sectionsToRender.length ? sectionsToRender : fallbackSections;
+    return baseSections.map((section) => mergeSectionWithProduct(section, detailProduct));
+  }, [detailProduct, fallbackSections, sectionsToRender]);
 
   return (
     <SafeArea>
