@@ -14,16 +14,16 @@ import { useNavigation } from '@react-navigation/native';
 import { useAuth } from '../services/AuthContext';
 
 const signInTokens = {
-  bgColor: '#FFFFFF',
-  titleColor: '#027579',
+  bgColor: '#F3F7F7',
+  titleColor: '#065F63',
   cardBgColor: '#FFFFFF',
-  cardBorderColor: '#0c9297',
-  inputBorderColor: '#027579',
+  cardBorderColor: '#D1E7E7',
+  inputBorderColor: '#C7DADA',
   footerTextColor: '#0a0a0a',
   footerLinkColor: '#027579',
-  buttonTextColor: 'rgba(5, 106, 109, 1)',
+  buttonTextColor: '#FFFFFF',
   buttonBorderColor: '#0c9297',
-  buttonFillColor: 'rgba(9, 170, 185, 0.36)',
+  buttonFillColor: '#0C9297',
   authTitle: 'Authentication',
   buttonText: 'Continue',
   footerText: "Don't have an account?",
@@ -33,12 +33,12 @@ const signInTokens = {
 };
 
 const forgotPasswordTokens = {
-  titleColor: '#027579',
+  titleColor: '#0C9297',
   cardBgColor: '#FFFFFF',
-  cardBorderColor: '#0c9297',
-  buttonTextColor: 'rgba(5, 106, 109, 1)',
+  cardBorderColor: '#D1E7E7',
+  buttonTextColor: '#0C9297',
   buttonBorderColor: '#0c9297',
-  buttonFillColor: 'rgba(9, 170, 185, 0.36)',
+  buttonFillColor: '#E6F6F6',
   headlineText: 'Forgot Password?',
   resetPasswordTitle: 'Reset Password Link',
   resetPasswordButtonText: 'Forgot Password?',
@@ -63,6 +63,17 @@ const AuthScreen = () => {
 
   const subtitle = useMemo(
     () => (mode === 'login' ? signInTokens.authTitle : 'Create Account'),
+    [mode]
+  );
+  const headline = useMemo(
+    () => (mode === 'login' ? 'Welcome back' : 'Create your account'),
+    [mode]
+  );
+  const description = useMemo(
+    () =>
+      mode === 'login'
+        ? 'Sign in to continue shopping, track orders, and manage your saved items.'
+        : 'Join Mobidrag to unlock faster checkout, order tracking, and personalized picks.',
     [mode]
   );
 
@@ -140,6 +151,8 @@ const AuthScreen = () => {
       >
         <View style={styles.header}>
           <Text style={styles.title}>{subtitle}</Text>
+          <Text style={styles.headline}>{headline}</Text>
+          <Text style={styles.description}>{description}</Text>
         </View>
 
         <View style={styles.card}>
@@ -191,11 +204,20 @@ const AuthScreen = () => {
                 <Text style={styles.visibilityText}>{passwordVisible ? 'Hide' : 'Show'}</Text>
               </TouchableOpacity>
             </View>
+            {mode === 'signup' ? (
+              <Text style={styles.helperText}>
+                Use at least 8 characters with a number and uppercase letter.
+              </Text>
+            ) : null}
           </View>
 
           {error ? <Text style={styles.error}>{error}</Text> : null}
 
-          <TouchableOpacity style={styles.submitButton} onPress={handleSubmit} disabled={loading || initializing}>
+          <TouchableOpacity
+            style={styles.submitButton}
+            onPress={handleSubmit}
+            disabled={loading || initializing}
+          >
             {loading ? (
               <ActivityIndicator color={signInTokens.buttonTextColor} />
             ) : (
@@ -203,14 +225,16 @@ const AuthScreen = () => {
             )}
           </TouchableOpacity>
 
-          <TouchableOpacity style={styles.switcher} onPress={toggleMode}>
+          <View style={styles.switcher}>
             <Text style={styles.switcherText}>
               {mode === 'login' ? signInTokens.footerText : 'Already have an account?'}
             </Text>
-            <Text style={styles.switcherLinkText}>
-              {mode === 'login' ? signInTokens.footerLinkText : 'Login'}
-            </Text>
-          </TouchableOpacity>
+            <TouchableOpacity onPress={toggleMode} accessibilityRole="button">
+              <Text style={styles.switcherLinkText}>
+                {mode === 'login' ? signInTokens.footerLinkText : 'Login'}
+              </Text>
+            </TouchableOpacity>
+          </View>
         </View>
 
         {mode === 'login' ? (
@@ -234,13 +258,27 @@ const styles = StyleSheet.create({
   },
   header: {
     paddingHorizontal: 24,
-    paddingTop: 30,
-    paddingBottom: 12,
+    paddingTop: 34,
+    paddingBottom: 20,
   },
   title: {
     color: signInTokens.titleColor,
-    fontSize: 24,
+    fontSize: 16,
     fontWeight: '700',
+    textTransform: 'uppercase',
+    letterSpacing: 1.2,
+  },
+  headline: {
+    color: '#0F172A',
+    fontSize: 26,
+    fontWeight: '700',
+    marginTop: 8,
+  },
+  description: {
+    color: '#475569',
+    fontSize: 14,
+    lineHeight: 20,
+    marginTop: 8,
   },
   card: {
     backgroundColor: signInTokens.cardBgColor,
@@ -250,6 +288,11 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     borderWidth: 1,
     borderColor: signInTokens.cardBorderColor,
+    shadowColor: '#0F172A',
+    shadowOpacity: 0.08,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 6 },
+    elevation: 3,
   },
   fieldGroup: {
     marginBottom: 16,
@@ -269,6 +312,11 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: signInTokens.inputBorderColor,
   },
+  helperText: {
+    marginTop: 8,
+    color: '#64748B',
+    fontSize: 12,
+  },
   passwordRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -283,7 +331,7 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     borderWidth: 1,
     borderColor: signInTokens.inputBorderColor,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: '#F8FAFC',
   },
   visibilityText: {
     color: signInTokens.titleColor,
@@ -296,9 +344,9 @@ const styles = StyleSheet.create({
   submitButton: {
     backgroundColor: signInTokens.buttonFillColor,
     paddingVertical: 14,
-    borderRadius: 12,
+    borderRadius: 14,
     alignItems: 'center',
-    marginTop: 4,
+    marginTop: 6,
     borderWidth: 1,
     borderColor: signInTokens.buttonBorderColor,
   },
@@ -308,7 +356,7 @@ const styles = StyleSheet.create({
     fontSize: 16,
   },
   switcher: {
-    marginTop: 14,
+    marginTop: 16,
     alignItems: 'center',
   },
   switcherText: {
@@ -318,7 +366,7 @@ const styles = StyleSheet.create({
   switcherLinkText: {
     color: signInTokens.footerLinkColor,
     fontWeight: '700',
-    marginTop: 4,
+    marginTop: 6,
   },
   forgotCard: {
     backgroundColor: forgotPasswordTokens.cardBgColor,
