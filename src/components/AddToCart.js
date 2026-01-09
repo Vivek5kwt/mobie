@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from "react";
-import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { Linking, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import FontAwesome from "react-native-vector-icons/FontAwesome";
 import { useNavigation } from "@react-navigation/native";
 import {
@@ -214,11 +214,24 @@ export default function AddToCart({ section }) {
     return false;
   };
 
+  const openExternalUrl = async (url) => {
+    if (!url) return false;
+    try {
+      const canOpen = await Linking.canOpenURL(url);
+      if (!canOpen) return false;
+      await Linking.openURL(url);
+      return true;
+    } catch (error) {
+      console.log("Unable to open external url:", error);
+      return false;
+    }
+  };
+
   const handleAddToCart = async () => {
     if (!addToCartUrl && !productVariantGid) return;
 
     if (addToCartUrl) {
-      const opened = await openCheckoutUrl(addToCartUrl, "Cart");
+      const opened = await openExternalUrl(addToCartUrl);
       if (opened) return;
     }
 
