@@ -147,6 +147,16 @@ export default function AddToCart({ section }) {
 
   const addToCartButtonStyle = useMemo(() => buildButtonStyles(addToCartConfig), [addToCartConfig]);
   const buyNowButtonStyle = useMemo(() => buildButtonStyles(buyNowConfig), [buyNowConfig]);
+  const addToCartUrl = useMemo(
+    () =>
+      buildCheckoutUrl({
+        shopifyDomain,
+        variantNumericId: productVariantNumericId,
+        quantity,
+        handle: productHandle,
+      }),
+    [shopifyDomain, productVariantNumericId, quantity, productHandle]
+  );
   const buyNowUrl = useMemo(
     () =>
       buildCheckoutUrl({
@@ -194,21 +204,21 @@ export default function AddToCart({ section }) {
   const addToCartIconName = resolveIconName(addToCartConfig?.icon);
   const buyNowIconName = resolveIconName(buyNowConfig?.icon);
 
-  const openCheckoutUrl = async (url) => {
+  const openCheckoutUrl = async (url, title = "Checkout") => {
     if (!url) return false;
     if (navigation?.navigate) {
-      navigation.navigate("CheckoutWebView", { url, title: "Checkout" });
+      navigation.navigate("CheckoutWebView", { url, title });
       return true;
     }
     console.log("Checkout webview navigation not available.");
     return false;
   };
 
-  const handleBuyNow = async () => {
-    if (!buyNowUrl && !productVariantGid) return;
+  const handleAddToCart = async () => {
+    if (!addToCartUrl && !productVariantGid) return;
 
-    if (buyNowUrl) {
-      const opened = await openCheckoutUrl(buyNowUrl);
+    if (addToCartUrl) {
+      const opened = await openCheckoutUrl(addToCartUrl, "Cart");
       if (opened) return;
     }
 
@@ -220,7 +230,29 @@ export default function AddToCart({ section }) {
         quantity,
         options: { shop: shopifyDomain, token: shopifyToken },
       });
-      await openCheckoutUrl(checkoutUrl);
+      await openCheckoutUrl(checkoutUrl, "Cart");
+    } catch (error) {
+      console.log("Unable to add Shopify item to cart:", error);
+    }
+  };
+
+  const handleBuyNow = async () => {
+    if (!buyNowUrl && !productVariantGid) return;
+
+    if (buyNowUrl) {
+      const opened = await openCheckoutUrl(buyNowUrl, "Checkout");
+      if (opened) return;
+    }
+
+    if (!productVariantGid) return;
+
+    try {
+      const checkoutUrl = await createShopifyCheckout({
+        variantId: productVariantGid,
+        quantity,
+        options: { shop: shopifyDomain, token: shopifyToken },
+      });
+      await openCheckoutUrl(checkoutUrl, "Checkout");
     } catch (error) {
       console.log("Unable to open Shopify checkout:", error);
     }
@@ -229,7 +261,11 @@ export default function AddToCart({ section }) {
   return (
     <View style={styles.container}>
       {showAddToCart && (
-        <TouchableOpacity style={[styles.button, addToCartButtonStyle]}>
+        <TouchableOpacity
+          style={[styles.button, addToCartButtonStyle]}
+          onPress={handleAddToCart}
+          disabled={!addToCartUrl && !productVariantGid}
+        >
           {showAddToCartIcon && !!addToCartIconName && (
             <FontAwesome
               name={addToCartIconName}
