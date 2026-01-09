@@ -448,3 +448,89 @@ export async function fetchShopifyCollections(limit = 10, options = {}) {
     return [];
   }
 }
+
+// ----------------------
+// FETCH COLLECTION PRODUCTS
+// ----------------------
+export async function fetchShopifyCollectionProducts({
+  handle,
+  first = 20,
+  after = null,
+  options = {},
+} = {}) {
+  if (!handle) return { products: [], pageInfo: { hasNextPage: false, endCursor: null } };
+
+  const shop = options.shop || getShopifyDomain();
+  const token = options.token || getShopifyToken();
+
+  const query = `
+    query CollectionProducts($handle: String!, $first: Int!, $after: String) {
+      collection(handle: $handle) {
+        products(first: $first, after: $after) {
+          pageInfo {
+            hasNextPage
+            endCursor
+          }
+          edges {
+            node {
+              id
+              title
+              handle
+              featuredImage {
+                url
+              }
+              variants(first: 1) {
+                edges {
+                  node {
+                    price {
+                      amount
+                      currencyCode
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  `;
+
+  try {
+    const json = await directStorefrontGraphQL({
+      shop,
+      token,
+      query,
+      variables: { handle, first, after },
+    });
+
+    if (json.errors) {
+      console.error("❌ Shopify GraphQL Errors →", json.errors);
+      return { products: [], pageInfo: { hasNextPage: false, endCursor: null } };
+    }
+
+    const productsNode = json?.data?.collection?.products;
+    const edges = productsNode?.edges || [];
+    const pageInfo = productsNode?.pageInfo || {
+      hasNextPage: false,
+      endCursor: null,
+    };
+
+    const products = edges.map(({ node }) => {
+      const priceNode = node?.variants?.edges?.[0]?.node?.price;
+      return {
+        id: node?.id,
+        title: node?.title,
+        handle: node?.handle,
+        imageUrl: node?.featuredImage?.url || null,
+        priceAmount: priceNode?.amount || null,
+        priceCurrency: priceNode?.currencyCode || null,
+      };
+    });
+
+    return { products, pageInfo };
+  } catch (error) {
+    console.error("❌ Shopify Collection Products Fetch Error:", error);
+    return { products: [], pageInfo: { hasNextPage: false, endCursor: null } };
+  }
+}
