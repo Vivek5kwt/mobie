@@ -1,7 +1,9 @@
-import React from "react";
-import { Image, ImageBackground, StyleSheet, Text, View } from "react-native";
+import React, { useCallback, useMemo } from "react";
+import { Image, ImageBackground, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { useNavigation } from "@react-navigation/native";
 import Icon from "react-native-vector-icons/FontAwesome6";
 import { convertStyles } from "../utils/convertStyles";
+import { useAuth } from "../services/AuthContext";
 
 const LOCAL_LOGO_IMAGE = require("../assets/logo/mobidraglogo.png");
 
@@ -32,6 +34,9 @@ const normalizeIconName = (name) => {
   const cleaned = String(name).replace(/^fa[srldb]?[-_]?/, "");
   return cleaned || "circle";
 };
+
+const isLogoutItem = (item) =>
+  String(item?.label || item?.title || "").trim().toLowerCase() === "logout";
 
 const resolveLogoSource = (logoUrl) => {
   if (!logoUrl) return null;
@@ -65,6 +70,8 @@ const extractPresentation = (section = {}) => {
 };
 
 export default function SideNavigation({ section }) {
+  const navigation = useNavigation();
+  const { logout } = useAuth();
   const rawProps =
     section?.props || section?.properties?.props?.properties || section?.properties?.props || {};
 
@@ -114,6 +121,25 @@ export default function SideNavigation({ section }) {
   if (!showHeader && !showItems) return null;
 
   const DrawerWrapper = backgroundImage ? ImageBackground : View;
+  const items = useMemo(
+    () =>
+      [
+        ...itemsArray,
+        !itemsArray.some((item) => isLogoutItem(item))
+          ? { id: "logout", label: "Logout", icon: "right-from-bracket" }
+          : null,
+      ].filter(Boolean),
+    [itemsArray]
+  );
+
+  const handleItemPress = useCallback(
+    async (item) => {
+      if (!isLogoutItem(item)) return;
+      await logout();
+      navigation.reset({ index: 0, routes: [{ name: "Auth" }] });
+    },
+    [logout, navigation]
+  );
 
   return (
     <DrawerWrapper
@@ -138,18 +164,15 @@ export default function SideNavigation({ section }) {
         )}
 
         {showItems &&
-          [
-            ...itemsArray,
-            !itemsArray.some(
-              (item) =>
-                String(item?.label || item?.title || "").trim().toLowerCase() === "logout",
-            )
-              ? { id: "logout", label: "Logout", icon: "right-from-bracket" }
-              : null,
-          ]
-            .filter(Boolean)
-            .map((item) => (
-            <View key={item.id || item.label} style={[styles.itemRow, presentation.itemRow]}>
+          items.map((item) => (
+            <TouchableOpacity
+              key={item.id || item.label}
+              style={[styles.itemRow, presentation.itemRow]}
+              onPress={() => handleItemPress(item)}
+              accessibilityRole="button"
+              accessibilityLabel={item.label || item.title}
+              activeOpacity={0.7}
+            >
               {showItemIcons && (
                 <Icon
                   name={normalizeIconName(item.icon)}
@@ -166,7 +189,7 @@ export default function SideNavigation({ section }) {
                   {item.label || item.title}
                 </Text>
               )}
-            </View>
+            </TouchableOpacity>
           ))}
       </View>
     </DrawerWrapper>
