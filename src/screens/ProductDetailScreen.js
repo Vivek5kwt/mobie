@@ -181,11 +181,8 @@ export default function ProductDetailScreen() {
   }, [detailSections]);
 
   const sectionsToRender = useMemo(
-    () =>
-      resolveSections(dslSections).map((section) =>
-        mergeSectionWithProduct(section, detailProduct)
-      ),
-    [detailProduct, dslSections]
+    () => resolveSections(dslSections),
+    [dslSections]
   );
 
   const fallbackSections = useMemo(() => {
