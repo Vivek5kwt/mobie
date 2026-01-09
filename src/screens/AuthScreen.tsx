@@ -13,6 +13,37 @@ import {
 import { useNavigation } from '@react-navigation/native';
 import { useAuth } from '../services/AuthContext';
 
+const signInTokens = {
+  bgColor: '#FFFFFF',
+  titleColor: '#027579',
+  cardBgColor: '#FFFFFF',
+  cardBorderColor: '#0c9297',
+  inputBorderColor: '#027579',
+  footerTextColor: '#0a0a0a',
+  footerLinkColor: '#027579',
+  buttonTextColor: 'rgba(5, 106, 109, 1)',
+  buttonBorderColor: '#0c9297',
+  buttonFillColor: 'rgba(9, 170, 185, 0.36)',
+  authTitle: 'Authentication',
+  buttonText: 'Continue',
+  footerText: "Don't have an account?",
+  footerLinkText: 'Create an Account',
+  emailPlaceholder: 'Enter email',
+  passwordPlaceholder: 'Enter password',
+};
+
+const forgotPasswordTokens = {
+  titleColor: '#027579',
+  cardBgColor: '#FFFFFF',
+  cardBorderColor: '#0c9297',
+  buttonTextColor: 'rgba(5, 106, 109, 1)',
+  buttonBorderColor: '#0c9297',
+  buttonFillColor: 'rgba(9, 170, 185, 0.36)',
+  headlineText: 'Forgot Password?',
+  resetPasswordTitle: 'Reset Password Link',
+  resetPasswordButtonText: 'Forgot Password?',
+};
+
 const AuthScreen = () => {
   const navigation = useNavigation();
   const { login, signup, session, initializing } = useAuth();
@@ -31,10 +62,7 @@ const AuthScreen = () => {
   }, [session, navigation]);
 
   const subtitle = useMemo(
-    () =>
-      mode === 'login'
-        ? 'Access your projects by signing in'
-        : 'Create an account to start building',
+    () => (mode === 'login' ? signInTokens.authTitle : 'Create Account'),
     [mode]
   );
 
@@ -111,8 +139,7 @@ const AuthScreen = () => {
         keyboardVerticalOffset={Platform.OS === 'ios' ? 64 : 0}
       >
         <View style={styles.header}>
-          <Text style={styles.title}>{mode === 'login' ? 'Welcome back' : 'Get started'}</Text>
-          <Text style={styles.subtitle}>{subtitle}</Text>
+          <Text style={styles.title}>{subtitle}</Text>
         </View>
 
         <View style={styles.card}>
@@ -133,7 +160,7 @@ const AuthScreen = () => {
           <View style={styles.fieldGroup}>
             <Text style={styles.label}>Email</Text>
             <TextInput
-              placeholder="you@example.com"
+              placeholder={signInTokens.emailPlaceholder}
               placeholderTextColor="#A0AEC0"
               value={email}
               onChangeText={setEmail}
@@ -148,7 +175,7 @@ const AuthScreen = () => {
             <Text style={styles.label}>Password</Text>
             <View style={styles.passwordRow}>
               <TextInput
-                placeholder="••••••••"
+                placeholder={signInTokens.passwordPlaceholder}
                 placeholderTextColor="#A0AEC0"
                 value={password}
                 onChangeText={setPassword}
@@ -169,15 +196,32 @@ const AuthScreen = () => {
           {error ? <Text style={styles.error}>{error}</Text> : null}
 
           <TouchableOpacity style={styles.submitButton} onPress={handleSubmit} disabled={loading || initializing}>
-            {loading ? <ActivityIndicator color="#fff" /> : <Text style={styles.submitText}>{mode === 'login' ? 'Login' : 'Create account'}</Text>}
+            {loading ? (
+              <ActivityIndicator color={signInTokens.buttonTextColor} />
+            ) : (
+              <Text style={styles.submitText}>{mode === 'login' ? signInTokens.buttonText : 'Create account'}</Text>
+            )}
           </TouchableOpacity>
 
           <TouchableOpacity style={styles.switcher} onPress={toggleMode}>
             <Text style={styles.switcherText}>
-              {mode === 'login' ? "Don't have an account? Sign up" : 'Already have an account? Login'}
+              {mode === 'login' ? signInTokens.footerText : 'Already have an account?'}
+            </Text>
+            <Text style={styles.switcherLinkText}>
+              {mode === 'login' ? signInTokens.footerLinkText : 'Login'}
             </Text>
           </TouchableOpacity>
         </View>
+
+        {mode === 'login' ? (
+          <View style={styles.forgotCard}>
+            <Text style={styles.forgotHeadline}>{forgotPasswordTokens.headlineText}</Text>
+            <Text style={styles.forgotSubtitle}>{forgotPasswordTokens.resetPasswordTitle}</Text>
+            <TouchableOpacity style={styles.forgotButton} accessibilityRole="button">
+              <Text style={styles.forgotButtonText}>{forgotPasswordTokens.resetPasswordButtonText}</Text>
+            </TouchableOpacity>
+          </View>
+        ) : null}
       </KeyboardAvoidingView>
     </SafeAreaView>
   );
@@ -186,53 +230,44 @@ const AuthScreen = () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#0E1023',
+    backgroundColor: signInTokens.bgColor,
   },
   header: {
     paddingHorizontal: 24,
     paddingTop: 30,
-    paddingBottom: 8,
+    paddingBottom: 12,
   },
   title: {
-    color: '#F8FAFC',
-    fontSize: 28,
+    color: signInTokens.titleColor,
+    fontSize: 24,
     fontWeight: '700',
   },
-  subtitle: {
-    color: '#CBD5E1',
-    marginTop: 6,
-    fontSize: 15,
-  },
   card: {
-    backgroundColor: '#11152B',
-    margin: 20,
+    backgroundColor: signInTokens.cardBgColor,
+    marginHorizontal: 20,
+    marginBottom: 16,
     padding: 20,
-    borderRadius: 18,
+    borderRadius: 16,
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.07)',
-    shadowColor: '#000',
-    shadowOpacity: 0.25,
-    shadowOffset: { width: 0, height: 14 },
-    shadowRadius: 24,
-    elevation: 6,
+    borderColor: signInTokens.cardBorderColor,
   },
   fieldGroup: {
     marginBottom: 16,
   },
   label: {
-    color: '#E2E8F0',
+    color: signInTokens.titleColor,
     marginBottom: 8,
     fontSize: 14,
     fontWeight: '600',
   },
   input: {
-    backgroundColor: '#0B0F24',
+    backgroundColor: '#FFFFFF',
     borderRadius: 12,
     paddingHorizontal: 14,
     paddingVertical: Platform.OS === 'ios' ? 14 : 12,
-    color: '#F8FAFC',
+    color: '#0a0a0a',
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.08)',
+    borderColor: signInTokens.inputBorderColor,
   },
   passwordRow: {
     flexDirection: 'row',
@@ -247,11 +282,11 @@ const styles = StyleSheet.create({
     paddingVertical: Platform.OS === 'ios' ? 10 : 8,
     borderRadius: 10,
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.12)',
-    backgroundColor: '#0B0F24',
+    borderColor: signInTokens.inputBorderColor,
+    backgroundColor: '#FFFFFF',
   },
   visibilityText: {
-    color: '#A5B4FC',
+    color: signInTokens.titleColor,
     fontWeight: '700',
   },
   error: {
@@ -259,14 +294,16 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   submitButton: {
-    backgroundColor: '#4F46E5',
+    backgroundColor: signInTokens.buttonFillColor,
     paddingVertical: 14,
     borderRadius: 12,
     alignItems: 'center',
     marginTop: 4,
+    borderWidth: 1,
+    borderColor: signInTokens.buttonBorderColor,
   },
   submitText: {
-    color: '#FFFFFF',
+    color: signInTokens.buttonTextColor,
     fontWeight: '700',
     fontSize: 16,
   },
@@ -275,8 +312,45 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   switcherText: {
-    color: '#A5B4FC',
+    color: signInTokens.footerTextColor,
     fontWeight: '600',
+  },
+  switcherLinkText: {
+    color: signInTokens.footerLinkColor,
+    fontWeight: '700',
+    marginTop: 4,
+  },
+  forgotCard: {
+    backgroundColor: forgotPasswordTokens.cardBgColor,
+    marginHorizontal: 20,
+    padding: 20,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: forgotPasswordTokens.cardBorderColor,
+  },
+  forgotHeadline: {
+    color: forgotPasswordTokens.titleColor,
+    fontSize: 20,
+    fontWeight: '700',
+  },
+  forgotSubtitle: {
+    color: forgotPasswordTokens.titleColor,
+    marginTop: 6,
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  forgotButton: {
+    marginTop: 16,
+    paddingVertical: 12,
+    borderRadius: 12,
+    alignItems: 'center',
+    backgroundColor: forgotPasswordTokens.buttonFillColor,
+    borderWidth: 1,
+    borderColor: forgotPasswordTokens.buttonBorderColor,
+  },
+  forgotButtonText: {
+    color: forgotPasswordTokens.buttonTextColor,
+    fontWeight: '700',
   },
 });
 
