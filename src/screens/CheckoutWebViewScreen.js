@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useCallback, useRef, useState } from "react";
 import { ActivityIndicator, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { useNavigation, useRoute } from "@react-navigation/native";
 import FontAwesome from "react-native-vector-icons/FontAwesome";
@@ -11,6 +11,37 @@ export default function CheckoutWebViewScreen() {
   const checkoutUrl = route?.params?.url;
   const headerTitle = route?.params?.title || "Web View";
   const [isLoading, setIsLoading] = useState(true);
+  const hasReturnedHomeRef = useRef(false);
+
+  const isOrderCompleteUrl = useCallback((url) => {
+    if (!url) return false;
+    const normalized = url.toLowerCase();
+    return (
+      normalized.includes("thank_you") ||
+      normalized.includes("thankyou") ||
+      normalized.includes("order_status") ||
+      normalized.includes("/orders/")
+    );
+  }, []);
+
+  const handleNavigationStateChange = useCallback(
+    (navState) => {
+      if (!navState?.url || hasReturnedHomeRef.current) return;
+      if (!isOrderCompleteUrl(navState.url)) return;
+      hasReturnedHomeRef.current = true;
+      if (navigation?.reset) {
+        navigation.reset({
+          index: 0,
+          routes: [{ name: "LayoutScreen", params: { pageName: "home" } }],
+        });
+        return;
+      }
+      if (navigation?.navigate) {
+        navigation.navigate("LayoutScreen", { pageName: "home" });
+      }
+    },
+    [isOrderCompleteUrl, navigation],
+  );
 
   return (
     <SafeArea>
@@ -36,6 +67,7 @@ export default function CheckoutWebViewScreen() {
             <WebView
               source={{ uri: checkoutUrl }}
               onLoadEnd={() => setIsLoading(false)}
+              onNavigationStateChange={handleNavigationStateChange}
               startInLoadingState
             />
           </View>
