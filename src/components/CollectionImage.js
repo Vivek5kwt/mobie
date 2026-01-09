@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import { Animated, Image, StyleSheet, Text, View } from "react-native";
+import { Animated, Image, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { useNavigation } from "@react-navigation/native";
 import { fetchShopifyCollections, SHOPIFY_SHOP } from "../services/shopify";
 import { convertStyles } from "../utils/convertStyles";
 
@@ -44,9 +45,10 @@ const buildCollections = (collectionsBlock = {}) => {
       const title = unwrapValue(props?.title, "");
       const image = unwrapValue(props?.image, "");
       const link = unwrapValue(props?.link, "");
+      const handle = unwrapValue(props?.handle, "");
 
       if (!title && !image) return null;
-      return { title, image, link };
+      return { title, image, link, handle };
     })
     .filter(Boolean);
 };
@@ -64,6 +66,7 @@ const deriveFontWeight = (input, fallback = "700") => {
 };
 
 export default function CollectionImage({ section }) {
+  const navigation = useNavigation();
   const rawProps =
     section?.props ||
     section?.properties?.props?.properties ||
@@ -137,6 +140,26 @@ export default function CollectionImage({ section }) {
   const scrollX = useRef(new Animated.Value(0)).current;
   const collectionsLimit = asNumber(rawProps?.collectionsLimit, 12);
   const resolvedCollections = collections.length ? collections : shopifyCollections;
+  const resolveCollectionHandle = (item) => {
+    if (item?.handle) return item.handle;
+    const link = item?.link || "";
+    if (!link) return "";
+    const marker = "/collections/";
+    if (link.includes(marker)) {
+      const handle = link.split(marker)[1] || "";
+      return handle.split(/[?#/]/)[0];
+    }
+    return link;
+  };
+
+  const handleCollectionPress = (item) => {
+    const handle = resolveCollectionHandle(item);
+    if (!handle) return;
+    navigation.navigate("CollectionProducts", {
+      collectionHandle: handle,
+      collectionTitle: item?.title || "Collection",
+    });
+  };
 
   useEffect(() => {
     indexRef.current = 0;
@@ -155,6 +178,7 @@ export default function CollectionImage({ section }) {
       const nextCollections = response.map((collection) => ({
         title: collection?.title || "",
         image: collection?.imageUrl || "",
+        handle: collection?.handle || "",
         link: collection?.handle
           ? `https://${SHOPIFY_SHOP}/collections/${collection.handle}`
           : "",
@@ -224,7 +248,7 @@ export default function CollectionImage({ section }) {
         decelerationRate="fast"
       >
         {resolvedCollections.map((item, idx) => (
-          <View
+          <TouchableOpacity
             key={`${item.title}-${idx}`}
             style={[
               styles.card,
@@ -234,6 +258,9 @@ export default function CollectionImage({ section }) {
               },
               cardContainerStyle,
             ]}
+            activeOpacity={0.85}
+            onPress={() => handleCollectionPress(item)}
+            disabled={!resolveCollectionHandle(item)}
           >
             {showCardImage && (
               <View
@@ -294,7 +321,7 @@ export default function CollectionImage({ section }) {
                 {item.title}
               </Text>
             )}
-          </View>
+          </TouchableOpacity>
         ))}
       </Animated.ScrollView>
 
