@@ -12,18 +12,109 @@ import {
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { useAuth } from '../services/AuthContext';
+import { fetchDSL } from '../engine/dslHandler';
 
-const signInTokens = {
+type SignInTokens = {
+  bgColor: string;
+  titleColor: string;
+  cardBgColor: string;
+  cardBorderColor: string;
+  cardBorderRadius: number;
+  cardPaddingTop: number;
+  cardPaddingBottom: number;
+  cardPaddingLeft: number;
+  cardPaddingRight: number;
+  inputBorderColor: string;
+  footerTextColor: string;
+  footerLinkColor: string;
+  buttonTextColor: string;
+  buttonBorderColor: string;
+  buttonFillColor: string;
+  buttonPaddingTop: number;
+  buttonPaddingBottom: number;
+  buttonAutoUppercase: boolean;
+  authTitle: string;
+  buttonText: string;
+  footerText: string;
+  footerLinkText: string;
+  emailPlaceholder: string;
+  passwordPlaceholder: string;
+};
+
+type ForgotPasswordTokens = {
+  titleColor: string;
+  cardBgColor: string;
+  cardBorderColor: string;
+  cardBorderRadius: number;
+  cardPaddingTop: number;
+  cardPaddingBottom: number;
+  cardPaddingLeft: number;
+  cardPaddingRight: number;
+  buttonTextColor: string;
+  buttonBorderColor: string;
+  buttonFillColor: string;
+  headlineText: string;
+  resetPasswordTitle: string;
+  resetPasswordButtonText: string;
+};
+
+const unwrapValue = <T,>(value: T, fallback: T): T => {
+  if (value === undefined || value === null) return fallback;
+  if (typeof value === 'object') {
+    if ((value as { value?: T }).value !== undefined) return (value as { value?: T }).value as T;
+    if ((value as { const?: T }).const !== undefined) return (value as { const?: T }).const as T;
+    if ((value as { properties?: T }).properties !== undefined) {
+      return unwrapValue((value as { properties?: T }).properties as T, fallback);
+    }
+  }
+  return value;
+};
+
+const toNumber = (value: unknown, fallback: number): number => {
+  const resolved = unwrapValue(value as number | null | undefined, fallback);
+  const parsed = Number(resolved);
+  return Number.isFinite(parsed) ? parsed : fallback;
+};
+
+const resolveButtonColor = (value: unknown, fallback: string): string => {
+  const resolved = unwrapValue(value as string | null | undefined, fallback);
+  if (typeof resolved === 'string' && resolved.trim().startsWith('linear-gradient')) {
+    return fallback;
+  }
+  return resolved ?? fallback;
+};
+
+const getSectionComponent = (section: Record<string, unknown> | null | undefined): string =>
+  unwrapValue((section?.component ?? section?.properties?.component) as string, '');
+
+const getSectionRawProps = (section: Record<string, unknown> | null | undefined) => {
+  const propsNode =
+    (section?.properties as Record<string, unknown>)?.props?.properties ||
+    (section?.properties as Record<string, unknown>)?.props ||
+    section?.props ||
+    {};
+  return unwrapValue((propsNode as Record<string, unknown>)?.raw, {}) as Record<string, unknown>;
+};
+
+const defaultSignInTokens: SignInTokens = {
   bgColor: '#F3F7F7',
   titleColor: '#065F63',
   cardBgColor: '#FFFFFF',
   cardBorderColor: '#D1E7E7',
+  cardBorderRadius: 16,
+  cardPaddingTop: 20,
+  cardPaddingBottom: 20,
+  cardPaddingLeft: 20,
+  cardPaddingRight: 20,
   inputBorderColor: '#C7DADA',
   footerTextColor: '#0a0a0a',
   footerLinkColor: '#027579',
   buttonTextColor: '#FFFFFF',
   buttonBorderColor: '#0c9297',
   buttonFillColor: '#0C9297',
+  buttonPaddingTop: 14,
+  buttonPaddingBottom: 14,
+  buttonAutoUppercase: false,
   authTitle: 'Authentication',
   buttonText: 'Continue',
   footerText: "Don't have an account?",
@@ -32,10 +123,15 @@ const signInTokens = {
   passwordPlaceholder: 'Enter password',
 };
 
-const forgotPasswordTokens = {
+const defaultForgotPasswordTokens: ForgotPasswordTokens = {
   titleColor: '#0C9297',
   cardBgColor: '#FFFFFF',
   cardBorderColor: '#D1E7E7',
+  cardBorderRadius: 16,
+  cardPaddingTop: 20,
+  cardPaddingBottom: 20,
+  cardPaddingLeft: 20,
+  cardPaddingRight: 20,
   buttonTextColor: '#0C9297',
   buttonBorderColor: '#0c9297',
   buttonFillColor: '#E6F6F6',
@@ -43,6 +139,75 @@ const forgotPasswordTokens = {
   resetPasswordTitle: 'Reset Password Link',
   resetPasswordButtonText: 'Forgot Password?',
 };
+
+const buildSignInTokens = (rawProps: Record<string, unknown>): SignInTokens => ({
+  ...defaultSignInTokens,
+  bgColor: (rawProps?.bgColor as string) ?? defaultSignInTokens.bgColor,
+  titleColor: (rawProps?.titleColor as string) ?? defaultSignInTokens.titleColor,
+  cardBgColor: (rawProps?.cardBgColor as string) ?? defaultSignInTokens.cardBgColor,
+  cardBorderColor: (rawProps?.cardBorderColor as string) ?? defaultSignInTokens.cardBorderColor,
+  cardBorderRadius: toNumber(rawProps?.borderRadius, defaultSignInTokens.cardBorderRadius),
+  cardPaddingTop: toNumber(rawProps?.pt ?? rawProps?.paddingTop, defaultSignInTokens.cardPaddingTop),
+  cardPaddingBottom: toNumber(
+    rawProps?.pb ?? rawProps?.paddingBottom,
+    defaultSignInTokens.cardPaddingBottom
+  ),
+  cardPaddingLeft: toNumber(rawProps?.pl ?? rawProps?.paddingLeft, defaultSignInTokens.cardPaddingLeft),
+  cardPaddingRight: toNumber(
+    rawProps?.pr ?? rawProps?.paddingRight,
+    defaultSignInTokens.cardPaddingRight
+  ),
+  inputBorderColor: (rawProps?.inputBorderColor as string) ?? defaultSignInTokens.inputBorderColor,
+  footerTextColor: (rawProps?.footerTextColor as string) ?? defaultSignInTokens.footerTextColor,
+  footerLinkColor: (rawProps?.footerLinkColor as string) ?? defaultSignInTokens.footerLinkColor,
+  buttonTextColor: (rawProps?.buttonTextColor as string) ?? defaultSignInTokens.buttonTextColor,
+  buttonBorderColor: (rawProps?.buttonBorderColor as string) ?? defaultSignInTokens.buttonBorderColor,
+  buttonFillColor: resolveButtonColor(rawProps?.buttonBgColor, defaultSignInTokens.buttonFillColor),
+  buttonPaddingTop: toNumber(rawProps?.buttonPaddingTop, defaultSignInTokens.buttonPaddingTop),
+  buttonPaddingBottom: toNumber(rawProps?.buttonPaddingBottom, defaultSignInTokens.buttonPaddingBottom),
+  buttonAutoUppercase:
+    (rawProps?.buttonAutoUppercase as boolean) ?? defaultSignInTokens.buttonAutoUppercase,
+  authTitle: (rawProps?.authTitle as string) ?? defaultSignInTokens.authTitle,
+  buttonText: (rawProps?.buttonText as string) ?? defaultSignInTokens.buttonText,
+  footerText: (rawProps?.footerText as string) ?? defaultSignInTokens.footerText,
+  footerLinkText: (rawProps?.footerLinkText as string) ?? defaultSignInTokens.footerLinkText,
+  emailPlaceholder: (rawProps?.emailPlaceholder as string) ?? defaultSignInTokens.emailPlaceholder,
+  passwordPlaceholder:
+    (rawProps?.passwordPlaceholder as string) ?? defaultSignInTokens.passwordPlaceholder,
+});
+
+const buildForgotPasswordTokens = (rawProps: Record<string, unknown>): ForgotPasswordTokens => ({
+  ...defaultForgotPasswordTokens,
+  titleColor: (rawProps?.headlineColor as string) ?? (rawProps?.titleColor as string) ?? defaultForgotPasswordTokens.titleColor,
+  cardBgColor: (rawProps?.cardBgColor as string) ?? defaultForgotPasswordTokens.cardBgColor,
+  cardBorderColor:
+    (rawProps?.cardBorderColor as string) ?? defaultForgotPasswordTokens.cardBorderColor,
+  cardBorderRadius: toNumber(rawProps?.borderRadius, defaultForgotPasswordTokens.cardBorderRadius),
+  cardPaddingTop: toNumber(rawProps?.pt ?? rawProps?.paddingTop, defaultForgotPasswordTokens.cardPaddingTop),
+  cardPaddingBottom: toNumber(
+    rawProps?.pb ?? rawProps?.paddingBottom,
+    defaultForgotPasswordTokens.cardPaddingBottom
+  ),
+  cardPaddingLeft: toNumber(
+    rawProps?.pl ?? rawProps?.paddingLeft,
+    defaultForgotPasswordTokens.cardPaddingLeft
+  ),
+  cardPaddingRight: toNumber(
+    rawProps?.pr ?? rawProps?.paddingRight,
+    defaultForgotPasswordTokens.cardPaddingRight
+  ),
+  buttonTextColor:
+    (rawProps?.buttonTextColor as string) ?? defaultForgotPasswordTokens.buttonTextColor,
+  buttonBorderColor:
+    (rawProps?.buttonBorderColor as string) ?? defaultForgotPasswordTokens.buttonBorderColor,
+  buttonFillColor: resolveButtonColor(rawProps?.buttonBgColor, defaultForgotPasswordTokens.buttonFillColor),
+  headlineText: (rawProps?.headlineText as string) ?? defaultForgotPasswordTokens.headlineText,
+  resetPasswordTitle:
+    (rawProps?.resetPasswordTitle as string) ?? defaultForgotPasswordTokens.resetPasswordTitle,
+  resetPasswordButtonText:
+    (rawProps?.resetPasswordButtonText as string) ??
+    defaultForgotPasswordTokens.resetPasswordButtonText,
+});
 
 const AuthScreen = () => {
   const navigation = useNavigation();
@@ -54,6 +219,10 @@ const AuthScreen = () => {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [passwordVisible, setPasswordVisible] = useState(false);
+  const [signInTokens, setSignInTokens] = useState<SignInTokens>(defaultSignInTokens);
+  const [forgotPasswordTokens, setForgotPasswordTokens] = useState<ForgotPasswordTokens>(
+    defaultForgotPasswordTokens
+  );
 
   useEffect(() => {
     if (session) {
@@ -61,9 +230,36 @@ const AuthScreen = () => {
     }
   }, [session, navigation]);
 
+  useEffect(() => {
+    let isMounted = true;
+    const loadAuthLayout = async () => {
+      const liveDsl = await fetchDSL(undefined, 'Signin/Create Account');
+      if (!isMounted) return;
+      const sections = Array.isArray(liveDsl?.dsl?.sections) ? liveDsl?.dsl?.sections : [];
+      const signInSection = sections.find((section) => getSectionComponent(section) === 'signin');
+      const forgotSection = sections.find(
+        (section) => getSectionComponent(section) === 'forgot_password'
+      );
+
+      if (signInSection) {
+        setSignInTokens(buildSignInTokens(getSectionRawProps(signInSection)));
+      }
+
+      if (forgotSection) {
+        setForgotPasswordTokens(buildForgotPasswordTokens(getSectionRawProps(forgotSection)));
+      }
+    };
+
+    loadAuthLayout();
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
   const subtitle = useMemo(
     () => (mode === 'login' ? signInTokens.authTitle : 'Create Account'),
-    [mode]
+    [mode, signInTokens.authTitle]
   );
   const headline = useMemo(
     () => (mode === 'login' ? 'Welcome back' : 'Create your account'),
@@ -116,6 +312,173 @@ const AuthScreen = () => {
 
     return '';
   };
+
+  const buttonLabel = useMemo(() => {
+    const label = mode === 'login' ? signInTokens.buttonText : 'Create account';
+    return signInTokens.buttonAutoUppercase ? label.toUpperCase() : label;
+  }, [mode, signInTokens.buttonAutoUppercase, signInTokens.buttonText]);
+
+  const styles = useMemo(
+    () =>
+      StyleSheet.create({
+        container: {
+          flex: 1,
+          backgroundColor: signInTokens.bgColor,
+        },
+        header: {
+          paddingHorizontal: 24,
+          paddingTop: 34,
+          paddingBottom: 20,
+        },
+        title: {
+          color: signInTokens.titleColor,
+          fontSize: 16,
+          fontWeight: '700',
+          textTransform: 'uppercase',
+          letterSpacing: 1.2,
+        },
+        headline: {
+          color: '#0F172A',
+          fontSize: 26,
+          fontWeight: '700',
+          marginTop: 8,
+        },
+        description: {
+          color: '#475569',
+          fontSize: 14,
+          lineHeight: 20,
+          marginTop: 8,
+        },
+        card: {
+          backgroundColor: signInTokens.cardBgColor,
+          marginHorizontal: 20,
+          marginBottom: 16,
+          paddingTop: signInTokens.cardPaddingTop,
+          paddingBottom: signInTokens.cardPaddingBottom,
+          paddingLeft: signInTokens.cardPaddingLeft,
+          paddingRight: signInTokens.cardPaddingRight,
+          borderRadius: signInTokens.cardBorderRadius,
+          borderWidth: 1,
+          borderColor: signInTokens.cardBorderColor,
+          shadowColor: '#0F172A',
+          shadowOpacity: 0.08,
+          shadowRadius: 10,
+          shadowOffset: { width: 0, height: 6 },
+          elevation: 3,
+        },
+        fieldGroup: {
+          marginBottom: 16,
+        },
+        label: {
+          color: signInTokens.titleColor,
+          marginBottom: 8,
+          fontSize: 14,
+          fontWeight: '600',
+        },
+        input: {
+          backgroundColor: '#FFFFFF',
+          borderRadius: 12,
+          paddingHorizontal: 14,
+          paddingVertical: Platform.OS === 'ios' ? 14 : 12,
+          color: '#0a0a0a',
+          borderWidth: 1,
+          borderColor: signInTokens.inputBorderColor,
+        },
+        helperText: {
+          marginTop: 8,
+          color: '#64748B',
+          fontSize: 12,
+        },
+        passwordRow: {
+          flexDirection: 'row',
+          alignItems: 'center',
+        },
+        passwordInput: {
+          flex: 1,
+          marginRight: 10,
+        },
+        visibilityToggle: {
+          paddingHorizontal: 12,
+          paddingVertical: Platform.OS === 'ios' ? 10 : 8,
+          borderRadius: 10,
+          borderWidth: 1,
+          borderColor: signInTokens.inputBorderColor,
+          backgroundColor: '#F8FAFC',
+        },
+        visibilityText: {
+          color: signInTokens.titleColor,
+          fontWeight: '700',
+        },
+        error: {
+          color: '#F87171',
+          marginBottom: 12,
+        },
+        submitButton: {
+          backgroundColor: signInTokens.buttonFillColor,
+          paddingTop: signInTokens.buttonPaddingTop,
+          paddingBottom: signInTokens.buttonPaddingBottom,
+          borderRadius: 14,
+          alignItems: 'center',
+          marginTop: 6,
+          borderWidth: 1,
+          borderColor: signInTokens.buttonBorderColor,
+        },
+        submitText: {
+          color: signInTokens.buttonTextColor,
+          fontWeight: '700',
+          fontSize: 16,
+        },
+        switcher: {
+          marginTop: 16,
+          alignItems: 'center',
+        },
+        switcherText: {
+          color: signInTokens.footerTextColor,
+          fontWeight: '600',
+        },
+        switcherLinkText: {
+          color: signInTokens.footerLinkColor,
+          fontWeight: '700',
+          marginTop: 6,
+        },
+        forgotCard: {
+          backgroundColor: forgotPasswordTokens.cardBgColor,
+          marginHorizontal: 20,
+          paddingTop: forgotPasswordTokens.cardPaddingTop,
+          paddingBottom: forgotPasswordTokens.cardPaddingBottom,
+          paddingLeft: forgotPasswordTokens.cardPaddingLeft,
+          paddingRight: forgotPasswordTokens.cardPaddingRight,
+          borderRadius: forgotPasswordTokens.cardBorderRadius,
+          borderWidth: 1,
+          borderColor: forgotPasswordTokens.cardBorderColor,
+        },
+        forgotHeadline: {
+          color: forgotPasswordTokens.titleColor,
+          fontSize: 20,
+          fontWeight: '700',
+        },
+        forgotSubtitle: {
+          color: forgotPasswordTokens.titleColor,
+          marginTop: 6,
+          fontSize: 14,
+          fontWeight: '600',
+        },
+        forgotButton: {
+          marginTop: 16,
+          paddingVertical: 12,
+          borderRadius: 12,
+          alignItems: 'center',
+          backgroundColor: forgotPasswordTokens.buttonFillColor,
+          borderWidth: 1,
+          borderColor: forgotPasswordTokens.buttonBorderColor,
+        },
+        forgotButtonText: {
+          color: forgotPasswordTokens.buttonTextColor,
+          fontWeight: '700',
+        },
+      }),
+    [forgotPasswordTokens, signInTokens]
+  );
 
   const handleSubmit = async () => {
     setError('');
@@ -221,7 +584,7 @@ const AuthScreen = () => {
             {loading ? (
               <ActivityIndicator color={signInTokens.buttonTextColor} />
             ) : (
-              <Text style={styles.submitText}>{mode === 'login' ? signInTokens.buttonText : 'Create account'}</Text>
+              <Text style={styles.submitText}>{buttonLabel}</Text>
             )}
           </TouchableOpacity>
 
@@ -250,156 +613,5 @@ const AuthScreen = () => {
     </SafeAreaView>
   );
 };
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: signInTokens.bgColor,
-  },
-  header: {
-    paddingHorizontal: 24,
-    paddingTop: 34,
-    paddingBottom: 20,
-  },
-  title: {
-    color: signInTokens.titleColor,
-    fontSize: 16,
-    fontWeight: '700',
-    textTransform: 'uppercase',
-    letterSpacing: 1.2,
-  },
-  headline: {
-    color: '#0F172A',
-    fontSize: 26,
-    fontWeight: '700',
-    marginTop: 8,
-  },
-  description: {
-    color: '#475569',
-    fontSize: 14,
-    lineHeight: 20,
-    marginTop: 8,
-  },
-  card: {
-    backgroundColor: signInTokens.cardBgColor,
-    marginHorizontal: 20,
-    marginBottom: 16,
-    padding: 20,
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: signInTokens.cardBorderColor,
-    shadowColor: '#0F172A',
-    shadowOpacity: 0.08,
-    shadowRadius: 10,
-    shadowOffset: { width: 0, height: 6 },
-    elevation: 3,
-  },
-  fieldGroup: {
-    marginBottom: 16,
-  },
-  label: {
-    color: signInTokens.titleColor,
-    marginBottom: 8,
-    fontSize: 14,
-    fontWeight: '600',
-  },
-  input: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 12,
-    paddingHorizontal: 14,
-    paddingVertical: Platform.OS === 'ios' ? 14 : 12,
-    color: '#0a0a0a',
-    borderWidth: 1,
-    borderColor: signInTokens.inputBorderColor,
-  },
-  helperText: {
-    marginTop: 8,
-    color: '#64748B',
-    fontSize: 12,
-  },
-  passwordRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  passwordInput: {
-    flex: 1,
-    marginRight: 10,
-  },
-  visibilityToggle: {
-    paddingHorizontal: 12,
-    paddingVertical: Platform.OS === 'ios' ? 10 : 8,
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: signInTokens.inputBorderColor,
-    backgroundColor: '#F8FAFC',
-  },
-  visibilityText: {
-    color: signInTokens.titleColor,
-    fontWeight: '700',
-  },
-  error: {
-    color: '#F87171',
-    marginBottom: 12,
-  },
-  submitButton: {
-    backgroundColor: signInTokens.buttonFillColor,
-    paddingVertical: 14,
-    borderRadius: 14,
-    alignItems: 'center',
-    marginTop: 6,
-    borderWidth: 1,
-    borderColor: signInTokens.buttonBorderColor,
-  },
-  submitText: {
-    color: signInTokens.buttonTextColor,
-    fontWeight: '700',
-    fontSize: 16,
-  },
-  switcher: {
-    marginTop: 16,
-    alignItems: 'center',
-  },
-  switcherText: {
-    color: signInTokens.footerTextColor,
-    fontWeight: '600',
-  },
-  switcherLinkText: {
-    color: signInTokens.footerLinkColor,
-    fontWeight: '700',
-    marginTop: 6,
-  },
-  forgotCard: {
-    backgroundColor: forgotPasswordTokens.cardBgColor,
-    marginHorizontal: 20,
-    padding: 20,
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: forgotPasswordTokens.cardBorderColor,
-  },
-  forgotHeadline: {
-    color: forgotPasswordTokens.titleColor,
-    fontSize: 20,
-    fontWeight: '700',
-  },
-  forgotSubtitle: {
-    color: forgotPasswordTokens.titleColor,
-    marginTop: 6,
-    fontSize: 14,
-    fontWeight: '600',
-  },
-  forgotButton: {
-    marginTop: 16,
-    paddingVertical: 12,
-    borderRadius: 12,
-    alignItems: 'center',
-    backgroundColor: forgotPasswordTokens.buttonFillColor,
-    borderWidth: 1,
-    borderColor: forgotPasswordTokens.buttonBorderColor,
-  },
-  forgotButtonText: {
-    color: forgotPasswordTokens.buttonTextColor,
-    fontWeight: '700',
-  },
-});
 
 export default AuthScreen;
