@@ -1,38 +1,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { Dimensions, Image, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { useNavigation } from "@react-navigation/native";
-import { getShopifyDomain, getShopifyToken } from "../services/shopify";
-
-const PRODUCT_QUERY = `
-  query GetProducts($first: Int!, $after: String) {
-    products(first: $first, after: $after) {
-      pageInfo {
-        hasNextPage
-        endCursor
-      }
-      edges {
-        node {
-          id
-          title
-          handle
-          featuredImage {
-            url
-          }
-          variants(first: 1) {
-            edges {
-              node {
-                price {
-                  amount
-                  currencyCode
-                }
-              }
-            }
-          }
-        }
-      }
-    }
-  }
-`;
+import { fetchShopifyProductsPage } from "../services/shopify";
 
 const unwrapValue = (value, fallback = undefined) => {
   if (value === undefined || value === null) return fallback;
@@ -63,7 +32,6 @@ export default function ProductGrid({ section, limit = 8, title = "Products" }) 
   const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
-  const [showAll, setShowAll] = useState(false);
   const [hasMore, setHasMore] = useState(false);
 
   const rawProps =
@@ -96,88 +64,26 @@ export default function ProductGrid({ section, limit = 8, title = "Products" }) 
   );
 
   useEffect(() => {
-    setShowAll(false);
-  }, [resolvedLimit, resolvedTitle]);
-
-  useEffect(() => {
     let isMounted = true;
-    const controller = new AbortController();
-
-    const fetchProductsPage = async ({ first, after }) => {
-      const shopifyDomain = getShopifyDomain();
-      const shopifyToken = getShopifyToken();
-      const endpoint = `https://${shopifyDomain}/api/2024-10/graphql.json`;
-      const response = await fetch(endpoint, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "X-Shopify-Storefront-Access-Token": shopifyToken,
-        },
-        body: JSON.stringify({
-          query: PRODUCT_QUERY,
-          variables: { first, after },
-        }),
-        signal: controller.signal,
-      });
-
-      if (!response.ok) {
-        throw new Error(`Request failed: ${response.status}`);
-      }
-
-      return response.json();
-    };
-
-    const mapProducts = (edges) =>
-      edges.map(({ node }) => {
-        const priceNode = node?.variants?.edges?.[0]?.node?.price;
-        return {
-          id: node?.id,
-          title: node?.title,
-          handle: node?.handle,
-          imageUrl: node?.featuredImage?.url,
-          priceAmount: priceNode?.amount,
-          priceCurrency: priceNode?.currencyCode,
-        };
-      });
 
     const loadProducts = async () => {
       setLoading(true);
       setError("");
 
       try {
-        if (!showAll) {
-          const payload = await fetchProductsPage({ first: resolvedLimit, after: null });
-          const edges = payload?.data?.products?.edges || [];
-          const nextProducts = mapProducts(edges);
-          const pageInfo = payload?.data?.products?.pageInfo || {};
-
-          if (isMounted) {
-            setProducts(nextProducts);
-            setHasMore(Boolean(pageInfo?.hasNextPage));
-          }
-          return;
-        }
-
-        let cursor = null;
-        let hasNextPage = true;
-        const allProducts = [];
-        const pageSize = 50;
-
-        while (hasNextPage) {
-          const payload = await fetchProductsPage({ first: pageSize, after: cursor });
-          const edges = payload?.data?.products?.edges || [];
-          const pageInfo = payload?.data?.products?.pageInfo || {};
-          allProducts.push(...mapProducts(edges));
-          hasNextPage = Boolean(pageInfo?.hasNextPage);
-          cursor = pageInfo?.endCursor || null;
-        }
+        const payload = await fetchShopifyProductsPage({
+          first: resolvedLimit,
+          after: null,
+        });
+        const nextProducts = payload?.products || [];
+        const pageInfo = payload?.pageInfo || {};
 
         if (isMounted) {
-          setProducts(allProducts);
-          setHasMore(false);
+          setProducts(nextProducts);
+          setHasMore(Boolean(pageInfo?.hasNextPage));
         }
       } catch (err) {
-        if (isMounted && err?.name !== "AbortError") {
+        if (isMounted) {
           setError("Unable to load products right now. Please try again later.");
         }
       } finally {
@@ -191,9 +97,8 @@ export default function ProductGrid({ section, limit = 8, title = "Products" }) 
 
     return () => {
       isMounted = false;
-      controller.abort();
     };
-  }, [resolvedLimit, showAll]);
+  }, [resolvedLimit]);
 
   return (
     <View style={styles.wrapper}>
@@ -236,11 +141,16 @@ export default function ProductGrid({ section, limit = 8, title = "Products" }) 
               </TouchableOpacity>
             ))}
           </View>
-          {hasMore && !showAll && (
+          {hasMore && (
             <TouchableOpacity
               style={styles.viewAllButton}
               activeOpacity={0.8}
-              onPress={() => setShowAll(true)}
+              onPress={() =>
+                navigation.navigate("AllProducts", {
+                  title: resolvedTitle,
+                  detailSections,
+                })
+              }
             >
               <Text style={styles.viewAllText}>View all ›</Text>
             </TouchableOpacity>

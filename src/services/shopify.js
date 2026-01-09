@@ -140,6 +140,88 @@ export async function fetchShopifyProducts(limit = 10, options = {}) {
 }
 
 // ----------------------
+// FETCH PRODUCTS (PAGINATED)
+// ----------------------
+export async function fetchShopifyProductsPage({
+  first = 20,
+  after = null,
+  options = {},
+} = {}) {
+  const shop = options.shop || getShopifyDomain();
+  const token = options.token || getShopifyToken();
+
+  const query = `
+    query Products($first: Int!, $after: String) {
+      products(first: $first, after: $after) {
+        pageInfo {
+          hasNextPage
+          endCursor
+        }
+        edges {
+          node {
+            id
+            title
+            handle
+            featuredImage {
+              url
+            }
+            variants(first: 1) {
+              edges {
+                node {
+                  price {
+                    amount
+                    currencyCode
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  `;
+
+  try {
+    const json = await directStorefrontGraphQL({
+      shop,
+      token,
+      query,
+      variables: { first, after },
+    });
+
+    if (json.errors) {
+      console.error("❌ Shopify GraphQL Errors →", json.errors);
+      return { products: [], pageInfo: { hasNextPage: false, endCursor: null } };
+    }
+
+    const edges = json?.data?.products?.edges || [];
+    const pageInfo = json?.data?.products?.pageInfo || {
+      hasNextPage: false,
+      endCursor: null,
+    };
+
+    const products = edges.map((edge) => {
+      const variants = edge?.node?.variants?.edges || [];
+      const price = variants[0]?.node?.price;
+
+      return {
+        id: edge?.node?.id,
+        title: edge?.node?.title,
+        handle: edge?.node?.handle,
+        imageUrl: edge?.node?.featuredImage?.url || null,
+        priceAmount: price?.amount || null,
+        priceCurrency: price?.currencyCode || null,
+      };
+    });
+
+    return { products, pageInfo };
+  } catch (error) {
+    console.error("❌ Shopify Product Page Fetch Error:", error);
+    return { products: [], pageInfo: { hasNextPage: false, endCursor: null } };
+  }
+}
+
+// ----------------------
 // FETCH PRODUCT DETAILS
 // ----------------------
 export async function fetchShopifyProductDetails({ handle, id, options = {} }) {
