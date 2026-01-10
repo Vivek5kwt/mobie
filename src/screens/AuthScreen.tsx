@@ -54,6 +54,12 @@ type ForgotPasswordTokens = {
   buttonBorderColor: string;
   buttonFillColor: string;
   headlineText: string;
+  headlineFontSize: number;
+  headlineFontFamily: string;
+  headlineFontWeight: string;
+  headlineFontStyle: 'normal' | 'italic';
+  headlineTextDecoration: 'none' | 'underline' | 'line-through' | 'underline line-through';
+  headlineTextTransform: 'none' | 'uppercase';
   resetPasswordTitle: string;
   resetPasswordButtonText: string;
 };
@@ -136,8 +142,43 @@ const defaultForgotPasswordTokens: ForgotPasswordTokens = {
   buttonBorderColor: '#0c9297',
   buttonFillColor: '#E6F6F6',
   headlineText: 'Forgot Password?',
+  headlineFontSize: 20,
+  headlineFontFamily: 'System',
+  headlineFontWeight: '700',
+  headlineFontStyle: 'normal',
+  headlineTextDecoration: 'none',
+  headlineTextTransform: 'none',
   resetPasswordTitle: 'Reset Password Link',
   resetPasswordButtonText: 'Forgot Password?',
+};
+
+const toFontWeight = (
+  value: unknown,
+  fallback: string,
+  isBold?: boolean
+): string => {
+  if (typeof value === 'string' && value.trim()) {
+    const normalized = value.trim().toLowerCase();
+    if (normalized === 'bold') return '700';
+    if (normalized === 'normal') return '400';
+    if (normalized === 'light') return '300';
+    if (normalized === 'medium') return '500';
+    return value;
+  }
+  if (isBold !== undefined) {
+    return isBold ? '700' : '400';
+  }
+  return fallback;
+};
+
+const toTextDecoration = (
+  underline?: boolean,
+  strikethrough?: boolean
+): ForgotPasswordTokens['headlineTextDecoration'] => {
+  if (underline && strikethrough) return 'underline line-through';
+  if (underline) return 'underline';
+  if (strikethrough) return 'line-through';
+  return 'none';
 };
 
 const buildSignInTokens = (rawProps: Record<string, unknown>): SignInTokens => ({
@@ -178,12 +219,18 @@ const buildSignInTokens = (rawProps: Record<string, unknown>): SignInTokens => (
 
 const buildForgotPasswordTokens = (rawProps: Record<string, unknown>): ForgotPasswordTokens => ({
   ...defaultForgotPasswordTokens,
-  titleColor: (rawProps?.headlineColor as string) ?? (rawProps?.titleColor as string) ?? defaultForgotPasswordTokens.titleColor,
+  titleColor:
+    (rawProps?.headlineColor as string) ??
+    (rawProps?.titleColor as string) ??
+    defaultForgotPasswordTokens.titleColor,
   cardBgColor: (rawProps?.cardBgColor as string) ?? defaultForgotPasswordTokens.cardBgColor,
   cardBorderColor:
     (rawProps?.cardBorderColor as string) ?? defaultForgotPasswordTokens.cardBorderColor,
   cardBorderRadius: toNumber(rawProps?.borderRadius, defaultForgotPasswordTokens.cardBorderRadius),
-  cardPaddingTop: toNumber(rawProps?.pt ?? rawProps?.paddingTop, defaultForgotPasswordTokens.cardPaddingTop),
+  cardPaddingTop: toNumber(
+    rawProps?.pt ?? rawProps?.paddingTop,
+    defaultForgotPasswordTokens.cardPaddingTop
+  ),
   cardPaddingBottom: toNumber(
     rawProps?.pb ?? rawProps?.paddingBottom,
     defaultForgotPasswordTokens.cardPaddingBottom
@@ -200,8 +247,31 @@ const buildForgotPasswordTokens = (rawProps: Record<string, unknown>): ForgotPas
     (rawProps?.buttonTextColor as string) ?? defaultForgotPasswordTokens.buttonTextColor,
   buttonBorderColor:
     (rawProps?.buttonBorderColor as string) ?? defaultForgotPasswordTokens.buttonBorderColor,
-  buttonFillColor: resolveButtonColor(rawProps?.buttonBgColor, defaultForgotPasswordTokens.buttonFillColor),
+  buttonFillColor: resolveButtonColor(
+    rawProps?.buttonBgColor,
+    defaultForgotPasswordTokens.buttonFillColor
+  ),
   headlineText: (rawProps?.headlineText as string) ?? defaultForgotPasswordTokens.headlineText,
+  headlineFontSize: toNumber(
+    rawProps?.headlineFontSize,
+    defaultForgotPasswordTokens.headlineFontSize
+  ),
+  headlineFontFamily:
+    (rawProps?.headlineFontFamily as string) ??
+    defaultForgotPasswordTokens.headlineFontFamily,
+  headlineFontWeight: toFontWeight(
+    rawProps?.headlineFontWeight,
+    defaultForgotPasswordTokens.headlineFontWeight,
+    rawProps?.headlineBold as boolean | undefined
+  ),
+  headlineFontStyle:
+    (rawProps?.headlineItalic as boolean | undefined) ? 'italic' : 'normal',
+  headlineTextDecoration: toTextDecoration(
+    rawProps?.headlineUnderline as boolean | undefined,
+    rawProps?.headlineStrikethrough as boolean | undefined
+  ),
+  headlineTextTransform:
+    (rawProps?.headlineAutoUppercase as boolean | undefined) ? 'uppercase' : 'none',
   resetPasswordTitle:
     (rawProps?.resetPasswordTitle as string) ?? defaultForgotPasswordTokens.resetPasswordTitle,
   resetPasswordButtonText:
@@ -454,8 +524,12 @@ const AuthScreen = () => {
         },
         forgotHeadline: {
           color: forgotPasswordTokens.titleColor,
-          fontSize: 20,
-          fontWeight: '700',
+          fontSize: forgotPasswordTokens.headlineFontSize,
+          fontWeight: forgotPasswordTokens.headlineFontWeight,
+          fontFamily: forgotPasswordTokens.headlineFontFamily,
+          fontStyle: forgotPasswordTokens.headlineFontStyle,
+          textDecorationLine: forgotPasswordTokens.headlineTextDecoration,
+          textTransform: forgotPasswordTokens.headlineTextTransform,
         },
         forgotSubtitle: {
           color: forgotPasswordTokens.titleColor,
