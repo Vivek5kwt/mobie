@@ -4,6 +4,7 @@
   "private": true,
   "scripts": {
     "android": "react-native run-android",
+    "build": "echo \"React Native project: no web build step; Android builds run via Gradle.\"",
     "start": "react-native start"
   },
   "dependencies": {
