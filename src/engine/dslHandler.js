@@ -88,10 +88,22 @@ export async function fetchLiveDSL(appId, pageName) {
       fetchPolicy: "no-cache",
     });
 
-    // Get the layout object
-    const layout = res?.data?.layout;
-    if (!layout) {
+    // Get the layout objects
+    const layouts = res?.data?.layouts;
+    if (!Array.isArray(layouts) || layouts.length === 0) {
       console.log("❌ No layout data found");
+      return null;
+    }
+
+    const targetName = normalizeName(pageName);
+    const layout =
+      (targetName &&
+        layouts.find(
+          (entry) => normalizeName(entry?.page_name) === targetName
+        )) ||
+      layouts[0];
+    if (!layout) {
+      console.log("❌ No matching layout found");
       return null;
     }
 

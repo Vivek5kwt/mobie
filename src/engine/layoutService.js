@@ -1,5 +1,5 @@
 import { client } from "../apollo/client";
-import { LAYOUT_VERSION_QUERY } from "../apollo/queries";
+import LAYOUT_VERSION_QUERY from "../graphql/queries/layoutVersionQuery";
 
 export async function fetchLayoutDSL(appId) {
   try {
@@ -9,7 +9,10 @@ export async function fetchLayoutDSL(appId) {
       fetchPolicy: "no-cache",
     });
 
-    const arr = response?.data?.layout?.layout_versions;
+    const layouts = response?.data?.layouts;
+    const arr = Array.isArray(layouts) && layouts.length > 0
+      ? layouts[0]?.layout_versions
+      : null;
 
     if (Array.isArray(arr) && arr.length > 0) {
       return arr[0]?.dsl || null;  // latest version DSL
