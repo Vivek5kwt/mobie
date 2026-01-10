@@ -1,27 +1,135 @@
 // components/Header.js
 import React from "react";
-import { View, Image, StyleSheet } from "react-native";
+import { Image, StyleSheet, TouchableOpacity, View } from "react-native";
+import { StackActions, useNavigation } from "@react-navigation/native";
 import Icon from "react-native-vector-icons/FontAwesome6";
+import { useSideMenu } from "../services/SideMenuContext";
+import bottomNavigationStyle1Section from "../data/bottomNavigationStyle1";
 
-const isEnabled = (value) => value === true || value === "true";
+const LOCAL_LOGO_IMAGE = require("../assets/logo/mobidraglogo.png");
+
+const unwrapValue = (value, fallback = undefined) => {
+  if (value === undefined || value === null) return fallback;
+  if (typeof value === "object") {
+    if (value.value !== undefined) return value.value;
+    if (value.const !== undefined) return value.const;
+    if (value.properties !== undefined) return value.properties;
+  }
+  return value;
+};
+
+const resolveBoolean = (value, fallback = false) => {
+  const resolved = unwrapValue(value, fallback);
+  if (typeof resolved === "boolean") return resolved;
+  if (typeof resolved === "string") {
+    const lowered = resolved.trim().toLowerCase();
+    if (["true", "1", "yes", "y"].includes(lowered)) return true;
+    if (["false", "0", "no", "n"].includes(lowered)) return false;
+  }
+  if (typeof resolved === "number") return resolved !== 0;
+  return fallback;
+};
+
+const normalizeIconName = (name, fallback = "bars") => {
+  if (!name) return fallback;
+  const cleaned = String(name).replace(/^fa[srldb]?[-_]?/, "");
+  return cleaned || fallback;
+};
+
+const resolveLogoSource = (logoImage) => {
+  if (!logoImage) return LOCAL_LOGO_IMAGE;
+  if (logoImage === "/images/mobidrag.png") return LOCAL_LOGO_IMAGE;
+  return { uri: logoImage };
+};
 
 export default function Header({ section }) {
+  const { toggleSideMenu, hasSideNav } = useSideMenu();
+  const navigation = useNavigation();
 
-  const props = section?.properties?.props?.properties || {};
-  const layout = props?.layout?.properties?.css || {};
-
-  // -----------------------------------------
-  // 1️⃣ Extract Logo URL properly (IMPORTANT)
-  // -----------------------------------------
-
-  let logoUrl = props?.logoImage?.value || "";
-
-  // If backend gives relative path → convert to absolute
-  if (logoUrl?.startsWith("/")) {
-    logoUrl = "https://your-live-domain.com" + logoUrl;
-  }
+  const props = section?.props || section?.properties?.props?.properties || {};
+  const layout = props?.layout?.properties?.css || props?.layout?.css || {};
+  const bottomNavSection = section?.bottomNavSection || bottomNavigationStyle1Section;
 
   // -----------------------------------------
+
+  const sideMenuProps = props?.sideMenu?.properties || props?.sideMenu || {};
+  const sideMenuVisible = resolveBoolean(sideMenuProps?.visible, true);
+  const sideMenuIconName = normalizeIconName(
+    unwrapValue(sideMenuProps?.iconId ?? sideMenuProps?.iconName ?? sideMenuProps?.icon, "")
+  );
+  const sideMenuIconSize = unwrapValue(sideMenuProps?.width, 24);
+  const sideMenuIconColor = unwrapValue(sideMenuProps?.color, "#111827");
+
+  const logoEnabled = resolveBoolean(props?.enableLogo, true);
+  const logoImage = unwrapValue(props?.logoImage, "");
+  const logoSource = resolveLogoSource(logoImage);
+
+  const cartProps = props?.cart?.properties || props?.cart || {};
+  const cartVisible = resolveBoolean(cartProps?.visible, true);
+  const cartIconName = normalizeIconName(unwrapValue(cartProps?.iconId, "cart-shopping"));
+  const cartIconSize = unwrapValue(cartProps?.width, 18);
+  const cartIconColor = unwrapValue(cartProps?.color, "#016D77");
+  const cartShowBadge = resolveBoolean(cartProps?.showBadge, false);
+
+  const notificationProps = props?.notification?.properties || props?.notification || {};
+  const notificationVisible = resolveBoolean(notificationProps?.visible, true);
+  const notificationIconName = normalizeIconName(
+    unwrapValue(notificationProps?.iconId, "bell"),
+  );
+  const notificationIconSize = unwrapValue(notificationProps?.width, 18);
+  const notificationIconColor = unwrapValue(notificationProps?.color, "#016D77");
+  const notificationShowBadge = resolveBoolean(notificationProps?.showBadge, false);
+
+  const badgeStyle = layout.badge || {};
+
+  const resolveBottomNavItems = (rawSection) => {
+    if (!rawSection) return [];
+    const rawProps =
+      rawSection?.props || rawSection?.properties?.props?.properties || rawSection?.properties?.props || {};
+    const raw = unwrapValue(rawProps?.raw, {});
+    let items = unwrapValue(raw?.items, undefined);
+    if (!items) {
+      items = unwrapValue(rawProps?.items, []);
+    }
+    if (items?.value && Array.isArray(items.value)) return items.value;
+    return Array.isArray(items) ? items : [];
+  };
+
+  const normalizeBottomNavTarget = (value) => String(value || "").trim().toLowerCase();
+
+  const resolveBottomNavIndex = (items, target) => {
+    const normalizedTarget = normalizeBottomNavTarget(target);
+    if (!normalizedTarget) return -1;
+    return items.findIndex((item) => {
+      const id = normalizeBottomNavTarget(item?.id);
+      const label = normalizeBottomNavTarget(
+        item?.label ?? item?.title ?? item?.name ?? item?.text ?? item?.value,
+      );
+      return id.includes(normalizedTarget) || label.includes(normalizedTarget);
+    });
+  };
+
+  const openBottomNavTarget = (target) => {
+    const items = resolveBottomNavItems(bottomNavSection);
+    const fallbackIndex = target === "cart" ? 1 : 2;
+    const resolvedIndex = resolveBottomNavIndex(items, target);
+    const activeIndex = resolvedIndex >= 0 ? resolvedIndex : fallbackIndex;
+    const item = items[activeIndex];
+    const title =
+      item?.label ||
+      item?.title ||
+      item?.name ||
+      (target === "cart" ? "Cart" : "Notifications");
+    const rawLink = item?.link ?? item?.href ?? item?.url ?? "";
+    const link = typeof rawLink === "string" ? rawLink.replace(/^\//, "") : "";
+    const params = {
+      title,
+      link,
+      activeIndex,
+      bottomNavSection,
+    };
+    navigation.dispatch(StackActions.replace("BottomNavScreen", params));
+  };
 
   return (
     <View
@@ -39,89 +147,57 @@ export default function Header({ section }) {
         }
       ]}
     >
-
       {/* LEFT ICON */}
       <View style={[styles.leftSlot, layout.leftSlot]}>
-        {isEnabled(props.sideMenu?.properties?.visible?.value) && (
-          <Icon
-            name={props.sideMenu.properties.iconId.value}
-            size={props.sideMenu.properties.width.value}
-            color={props.sideMenu.properties.color.value}
-          />
+        {sideMenuVisible && hasSideNav && (
+          <TouchableOpacity onPress={toggleSideMenu} activeOpacity={0.7}>
+            <Icon
+              name={sideMenuIconName}
+              size={sideMenuIconSize}
+              color={sideMenuIconColor}
+            />
+          </TouchableOpacity>
         )}
       </View>
 
       {/* LOGO */}
-      {isEnabled(props.enableLogo?.value) && (
-        <View style={[styles.logoSlot, layout.logoSlot]}>
+      <View style={[styles.logoSlot, layout.logoSlot]}>
+        {logoEnabled && logoSource ? (
           <Image
-            source={{ uri: logoUrl }}   // <--- FIX APPLIED HERE
-            style={{
-              width: layout.logoImage?.width === "auto" ? 80 : layout.logoImage?.width,
-              height: layout.logoImage?.height || 26,
-              resizeMode: "contain",
-            }}
+            source={logoSource}
+            style={[styles.logoImage, layout.logoImage]}
+            resizeMode="contain"
           />
-        </View>
-      )}
+        ) : null}
+      </View>
 
       {/* RIGHT ICONS */}
       <View style={[styles.rightSlot, layout.rightSlot]}>
-
-        {/* Cart */}
-        {isEnabled(props.cart?.properties?.visible?.value) && (
-          <View style={{ position: "relative" }}>
+        {cartVisible && (
+          <TouchableOpacity
+            style={styles.iconWrapper}
+            activeOpacity={0.7}
+            onPress={() => openBottomNavTarget("cart")}
+          >
+            <Icon name={cartIconName} size={cartIconSize} color={cartIconColor} />
+            {cartShowBadge && <View style={[styles.badge, badgeStyle]} />}
+          </TouchableOpacity>
+        )}
+        {notificationVisible && (
+          <TouchableOpacity
+            style={styles.iconWrapper}
+            activeOpacity={0.7}
+            onPress={() => openBottomNavTarget("notification")}
+          >
             <Icon
-              name={props.cart.properties.iconId.value}
-              size={props.cart.properties.width.value}
-              color={props.cart.properties.color.value}
+              name={notificationIconName}
+              size={notificationIconSize}
+              color={notificationIconColor}
             />
-
-            {isEnabled(props.cart.properties.showBadge?.value) && (
-              <View
-                style={[
-                  styles.badge,
-                  {
-                    backgroundColor: layout.badge.backgroundColor,
-                    width: layout.badge.width,
-                    height: layout.badge.height,
-                    top: layout.badge.top,
-                    right: layout.badge.right,
-                  }
-                ]}
-              />
-            )}
-          </View>
+            {notificationShowBadge && <View style={[styles.badge, badgeStyle]} />}
+          </TouchableOpacity>
         )}
-
-        {/* Notification */}
-        {isEnabled(props.notification?.properties?.visible?.value) && (
-           <View style={{ position: "relative" }}>
-           <Icon
-             name={props.notification.properties.iconId.value}
-             size={props.notification.properties.width.value}
-             color={props.notification.properties.color.value}
-           />
-
-           {isEnabled(props.notification.properties.showBadge?.value) && (
-             <View
-               style={[
-                 styles.badge,
-                 {
-                   backgroundColor: layout.badge.backgroundColor,
-                   width: layout.badge.width,
-                   height: layout.badge.height,
-                   top: layout.badge.top,
-                   right: layout.badge.right,
-                 }
-               ]}
-             />
-           )}
-         </View>
-        )}
-
       </View>
-
     </View>
   );
 }
@@ -136,7 +212,17 @@ function convertPadding(str) {
 const styles = StyleSheet.create({
   container: {},
   leftSlot: { flexDirection: "row", alignItems: "center" },
-  logoSlot: { flex: 1, alignItems: "center" },
+  logoSlot: { flex: 1, alignItems: "center", justifyContent: "center" },
+  logoImage: { height: 26, width: 120 },
   rightSlot: { flexDirection: "row", alignItems: "center", gap: 14 },
-  badge: { position: "absolute", borderRadius: 20 },
+  iconWrapper: { position: "relative" },
+  badge: {
+    position: "absolute",
+    top: -4,
+    right: -4,
+    width: 8,
+    height: 8,
+    borderRadius: 999,
+    backgroundColor: "#22C55E",
+  },
 });

@@ -1,5 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import { Animated, Image, StyleSheet, Text, View } from "react-native";
+import { Animated, Image, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { useNavigation } from "@react-navigation/native";
+import { fetchShopifyCollections, SHOPIFY_SHOP } from "../services/shopify";
 import { convertStyles } from "../utils/convertStyles";
 
 const unwrapValue = (value, fallback) => {
@@ -43,9 +45,10 @@ const buildCollections = (collectionsBlock = {}) => {
       const title = unwrapValue(props?.title, "");
       const image = unwrapValue(props?.image, "");
       const link = unwrapValue(props?.link, "");
+      const handle = unwrapValue(props?.handle, "");
 
       if (!title && !image) return null;
-      return { title, image, link };
+      return { title, image, link, handle };
     })
     .filter(Boolean);
 };
@@ -63,6 +66,7 @@ const deriveFontWeight = (input, fallback = "700") => {
 };
 
 export default function CollectionImage({ section }) {
+  const navigation = useNavigation();
   const rawProps =
     section?.props ||
     section?.properties?.props?.properties ||
@@ -78,6 +82,7 @@ export default function CollectionImage({ section }) {
     () => buildCollections(rawProps?.collections || {}),
     [rawProps?.collections]
   );
+  const [shopifyCollections, setShopifyCollections] = useState([]);
 
   const showHeader = asBoolean(rawProps?.showHeader, true);
   const showCardImage = asBoolean(rawProps?.showCardImage, true);
@@ -133,17 +138,67 @@ export default function CollectionImage({ section }) {
   const indexRef = useRef(0);
   const [currentIndex, setCurrentIndex] = useState(0);
   const scrollX = useRef(new Animated.Value(0)).current;
+  const collectionsLimit = asNumber(rawProps?.collectionsLimit, 12);
+  const resolvedCollections = collections.length ? collections : shopifyCollections;
+  const resolveCollectionHandle = (item) => {
+    if (item?.handle) return item.handle;
+    const link = item?.link || "";
+    if (!link) return "";
+    const marker = "/collections/";
+    if (link.includes(marker)) {
+      const handle = link.split(marker)[1] || "";
+      return handle.split(/[?#/]/)[0];
+    }
+    return link;
+  };
+
+  const handleCollectionPress = (item) => {
+    const handle = resolveCollectionHandle(item);
+    if (!handle) return;
+    navigation.navigate("CollectionProducts", {
+      collectionHandle: handle,
+      collectionTitle: item?.title || "Collection",
+    });
+  };
 
   useEffect(() => {
     indexRef.current = 0;
     setCurrentIndex(0);
-  }, [collections.length]);
+  }, [resolvedCollections.length]);
 
   useEffect(() => {
-    if (!autoScrollEnabled || collections.length <= 1) return undefined;
+    if (collections.length) return;
+
+    let isMounted = true;
+
+    const loadCollections = async () => {
+      const response = await fetchShopifyCollections(collectionsLimit);
+      if (!isMounted) return;
+
+      const nextCollections = response.map((collection) => ({
+        title: collection?.title || "",
+        image: collection?.imageUrl || "",
+        handle: collection?.handle || "",
+        link: collection?.handle
+          ? `https://${SHOPIFY_SHOP}/collections/${collection.handle}`
+          : "",
+      }));
+
+      setShopifyCollections(nextCollections.filter((item) => item.title || item.image));
+    };
+
+    loadCollections();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [collections.length, collectionsLimit]);
+
+  useEffect(() => {
+    if (!autoScrollEnabled || resolvedCollections.length <= 1) return undefined;
 
     const interval = setInterval(() => {
-      const nextIndex = (indexRef.current + 1) % collections.length;
+      const nextIndex = (indexRef.current + 1) % resolvedCollections.length;
       const xOffset = nextIndex * (cardWidth + gapPx);
       scrollRef.current?.scrollTo({ x: xOffset, animated: true });
       indexRef.current = nextIndex;
@@ -151,7 +206,7 @@ export default function CollectionImage({ section }) {
     }, Math.max(scrollSpeedSec, 1) * 1000);
 
     return () => clearInterval(interval);
-  }, [autoScrollEnabled, collections.length, cardWidth, gapPx, scrollSpeedSec]);
+  }, [autoScrollEnabled, resolvedCollections.length, cardWidth, gapPx, scrollSpeedSec]);
 
   const handleScroll = (event) => {
     const xOffset = event?.nativeEvent?.contentOffset?.x || 0;
@@ -162,7 +217,7 @@ export default function CollectionImage({ section }) {
     }
   };
 
-  if (!collections.length) return null;
+  if (!resolvedCollections.length) return null;
 
   return (
     <View style={[styles.container, containerStyle]}>
@@ -192,14 +247,20 @@ export default function CollectionImage({ section }) {
         snapToInterval={cardWidth + gapPx}
         decelerationRate="fast"
       >
-        {collections.map((item, idx) => (
-          <View
+        {resolvedCollections.map((item, idx) => (
+          <TouchableOpacity
             key={`${item.title}-${idx}`}
             style={[
               styles.card,
-              { width: cardWidth, marginRight: idx === collections.length - 1 ? 0 : gapPx },
+              {
+                width: cardWidth,
+                marginRight: idx === resolvedCollections.length - 1 ? 0 : gapPx,
+              },
               cardContainerStyle,
             ]}
+            activeOpacity={0.85}
+            onPress={() => handleCollectionPress(item)}
+            disabled={!resolveCollectionHandle(item)}
           >
             {showCardImage && (
               <View
@@ -260,13 +321,13 @@ export default function CollectionImage({ section }) {
                 {item.title}
               </Text>
             )}
-          </View>
+          </TouchableOpacity>
         ))}
       </Animated.ScrollView>
 
-      {showIndicators && collections.length > 1 && (
+      {showIndicators && resolvedCollections.length > 1 && (
         <View style={styles.dotsRow}>
-          {collections.map((_, idx) => {
+          {resolvedCollections.map((_, idx) => {
             const isActive = idx === currentIndex;
             return (
               <View
@@ -317,4 +378,3 @@ const styles = StyleSheet.create({
     marginHorizontal: 4,
   },
 });
-

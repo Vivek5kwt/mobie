@@ -1,33 +1,164 @@
-import React, { useEffect, useRef, useState } from "react";
-import { RefreshControl, ScrollView, Text, View, StyleSheet, Button } from "react-native";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  ActivityIndicator,
+  RefreshControl,
+  ScrollView,
+  Text,
+  View,
+  StyleSheet,
+  Button,
+  TouchableOpacity,
+  Animated,
+} from "react-native";
+import { useFocusEffect, useRoute } from "@react-navigation/native";
 import DynamicRenderer from "../engine/DynamicRenderer";
 import { fetchDSL } from "../engine/dslHandler";
 import { shouldRenderSectionOnMobile } from "../engine/visibility";
 import { SafeArea } from "../utils/SafeAreaHandler";
+import SideNavigation from "../components/SideNavigation";
+import { SideMenuProvider } from "../services/SideMenuContext";
+import bottomNavigationStyle1Section from "../data/bottomNavigationStyle1";
 
 export default function LayoutScreen() {
+  const route = useRoute();
+  const pageName = route?.params?.pageName || "home";
   const [dsl, setDsl] = useState(null);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState(null);
   const [refreshing, setRefreshing] = useState(false);
+  const [snackbar, setSnackbar] = useState({ visible: false, message: "", type: "info" });
+  const [isSideMenuOpen, setIsSideMenuOpen] = useState(false);
   const versionRef = useRef(null);
+  const snackbarTimer = useRef(null);
+  const SIDE_MENU_WIDTH = 280;
+  const sideMenuTranslateX = useRef(new Animated.Value(-SIDE_MENU_WIDTH)).current;
+
+  const getComponentName = (section) =>
+    section?.component?.const ||
+    section?.component ||
+    section?.properties?.component?.const ||
+    section?.properties?.component ||
+    "";
+
+  const mobileSections = useMemo(
+    () => (dsl?.sections || []).filter(shouldRenderSectionOnMobile),
+    [dsl]
+  );
+
+  const sortedSections = useMemo(() => {
+    const sectionsCopy = [...mobileSections];
+
+    return sectionsCopy.sort((a, b) => {
+      const A = getComponentName(a);
+      const B = getComponentName(b);
+
+      // 1️⃣ Top Header
+      if (A === "header") return -1;
+      if (B === "header") return 1;
+
+      // 2️⃣ Header 2
+      if (A === "header_2") return -1;
+      if (B === "header_2") return 1;
+
+      return 0;
+    });
+  }, [mobileSections]);
+
+  const sideNavSection = useMemo(
+    () =>
+      (dsl?.sections || []).find(
+        (section) => getComponentName(section).toLowerCase() === "side_navigation"
+      ) || null,
+    [dsl]
+  );
+
+  const bottomNavSection = useMemo(
+    () =>
+      sortedSections.find(
+        (section) => {
+          const component = getComponentName(section).toLowerCase();
+          return [
+            "bottom_navigation",
+            "bottom_navigation_style_1",
+            "bottom_navigation_style_2",
+          ].includes(component);
+        }
+      ) || null,
+    [sortedSections]
+  );
+
+  const visibleSections = useMemo(
+    () =>
+      sortedSections.filter(
+        (section) => {
+          const component = getComponentName(section).toLowerCase();
+          return ![
+            "side_navigation",
+            "bottom_navigation",
+            "bottom_navigation_style_1",
+            "bottom_navigation_style_2",
+          ].includes(component);
+        }
+      ),
+    [sortedSections]
+  );
+
+  const showSnackbar = (message, type = "info") => {
+    setSnackbar({ visible: true, message, type });
+
+    if (snackbarTimer.current) clearTimeout(snackbarTimer.current);
+
+    snackbarTimer.current = setTimeout(() => {
+      setSnackbar((prev) => ({ ...prev, visible: false }));
+    }, 3200);
+  };
+
+  const ensureBottomNavigationSection = (incomingDsl) => {
+    if (!incomingDsl || !Array.isArray(incomingDsl.sections)) return incomingDsl;
+
+    const hasBottomNavigation = incomingDsl.sections.some(
+      (section) => {
+        const component = section?.properties?.component?.const?.toLowerCase();
+        return [
+          "bottom_navigation",
+          "bottom_navigation_style_1",
+          "bottom_navigation_style_2",
+        ].includes(component);
+      }
+    );
+
+    if (hasBottomNavigation) return incomingDsl;
+
+    return {
+      ...incomingDsl,
+      sections: [...incomingDsl.sections, bottomNavigationStyle1Section],
+    };
+  };
+
+  useEffect(() => {
+    return () => {
+      if (snackbarTimer.current) clearTimeout(snackbarTimer.current);
+    };
+  }, []);
 
   // Reload DSL
-  const refreshDSL = async () => {
+  const refreshDSL = async (withFeedback = false) => {
     try {
-      const dslData = await fetchDSL();
+      const dslData = await fetchDSL(1, pageName);
       if (dslData?.dsl) {
-        setDsl(dslData.dsl);
+        setDsl(ensureBottomNavigationSection(dslData.dsl));
         versionRef.current = dslData.versionNumber ?? null;
+        if (withFeedback) showSnackbar("Live layout refreshed", "success");
       }
     } catch (e) {
       console.log("❌ Refresh error:", e);
+      if (withFeedback) showSnackbar("Couldn't refresh right now", "error");
     }
   };
 
   const onRefresh = async () => {
     setRefreshing(true);
-    await refreshDSL();
+    await refreshDSL(true);
     setRefreshing(false);
   };
 
@@ -37,13 +168,13 @@ export default function LayoutScreen() {
       setLoading(true);
       setErr(null);
 
-      const dslData = await fetchDSL();
+      const dslData = await fetchDSL(1, pageName);
       if (!dslData?.dsl) {
         setErr("No live DSL returned from server");
         return;
       }
 
-      setDsl(dslData.dsl);
+      setDsl(ensureBottomNavigationSection(dslData.dsl));
       versionRef.current = dslData.versionNumber ?? null;
 
       console.log(
@@ -55,6 +186,7 @@ export default function LayoutScreen() {
     } catch (e) {
       setErr(e.message);
       console.log("❌ DSL LOAD ERROR >>>", e);
+      showSnackbar("We hit a snag loading your workspace", "error");
     } finally {
       setLoading(false);
     }
@@ -62,19 +194,63 @@ export default function LayoutScreen() {
 
   useEffect(() => {
     loadDSL();
-  }, []);
+  }, [pageName]);
+
+  useEffect(() => {
+    setIsSideMenuOpen(false);
+    sideMenuTranslateX.setValue(-SIDE_MENU_WIDTH);
+  }, [SIDE_MENU_WIDTH, pageName, sideMenuTranslateX]);
+
+  useFocusEffect(
+    useCallback(() => {
+      return () => {
+        setIsSideMenuOpen(false);
+        sideMenuTranslateX.setValue(-SIDE_MENU_WIDTH);
+      };
+    }, [SIDE_MENU_WIDTH, sideMenuTranslateX])
+  );
+
+  const closeSideMenu = () => setIsSideMenuOpen(false);
+
+  const openSideMenu = () => {
+    if (sideNavSection) {
+      setIsSideMenuOpen(true);
+    }
+  };
+
+  const toggleSideMenu = () => {
+    if (!sideNavSection) return;
+    setIsSideMenuOpen((prev) => !prev);
+  };
+
+  useEffect(() => {
+    Animated.spring(sideMenuTranslateX, {
+      toValue: isSideMenuOpen ? 0 : -SIDE_MENU_WIDTH,
+      useNativeDriver: true,
+      speed: 16,
+      bounciness: 6,
+    }).start();
+  }, [SIDE_MENU_WIDTH, isSideMenuOpen, sideMenuTranslateX]);
+
+  const overlayOpacity = sideMenuTranslateX.interpolate({
+    inputRange: [-SIDE_MENU_WIDTH, 0],
+    outputRange: [0, 0.35],
+    extrapolate: "clamp",
+  });
+
+  const showOverlay = isSideMenuOpen;
 
   // Auto-refresh DSL periodically to pick up newly published versions
   useEffect(() => {
     const intervalId = setInterval(async () => {
       try {
-        const latest = await fetchDSL();
+        const latest = await fetchDSL(1, pageName);
         if (!latest?.dsl) return;
 
         const incomingVersion = latest.versionNumber ?? null;
 
         if (incomingVersion !== versionRef.current) {
-          setDsl(latest.dsl);
+          setDsl(ensureBottomNavigationSection(latest.dsl));
           versionRef.current = incomingVersion;
         }
       } catch (e) {
@@ -83,14 +259,26 @@ export default function LayoutScreen() {
     }, 5000);
 
     return () => clearInterval(intervalId);
-  }, []);
+  }, [pageName]);
+
+  const fallbackBottomNavSection = bottomNavSection || bottomNavigationStyle1Section;
 
   // LOADING SCREEN
   if (loading)
     return (
       <SafeArea>
-        <View style={styles.centerContainer}>
-          <Text style={styles.loading}>Loading Live Data...</Text>
+        <View style={styles.screen}>
+          <View style={[styles.loaderBackdrop, styles.loaderOverlay]}>
+            <View style={styles.loaderCard}>
+              <ActivityIndicator size="large" color="#4F46E5" />
+              <Text style={styles.loaderText}>Preparing your experience…</Text>
+            </View>
+          </View>
+          {fallbackBottomNavSection && (
+            <View style={styles.bottomNav}>
+              <DynamicRenderer section={fallbackBottomNavSection} />
+            </View>
+          )}
         </View>
       </SafeArea>
     );
@@ -106,55 +294,108 @@ export default function LayoutScreen() {
       </SafeArea>
     );
 
-  // ---------------------------------------------------------
-  // ⭐ IMPORTANT FIX: SORT HEADERS IN CORRECT ORDER
-  // ---------------------------------------------------------
-  const mobileSections = (dsl?.sections || []).filter(shouldRenderSectionOnMobile);
-
-  const sortedSections = [...mobileSections].sort((a, b) => {
-    const A = a?.properties?.component?.const || "";
-    const B = b?.properties?.component?.const || "";
-
-    // 1️⃣ Top Header
-    if (A === "header") return -1;
-    if (B === "header") return 1;
-
-    // 2️⃣ Header 2 (mobile variant)
-    if (A === "header_2" || A === "header_2_mobile") return -1;
-    if (B === "header_2" || B === "header_2_mobile") return 1;
-
-    return 0;
-  });
-
-  // --------------------------------------------------------------------
-
   return (
     <SafeArea>
-      <View style={styles.screen}>
-        {/* RENDER SORTED DSL COMPONENTS */}
-        <ScrollView
-          contentInsetAdjustmentBehavior="automatic"
-          style={{ flex: 1 }}
-          showsVerticalScrollIndicator
-          contentContainerStyle={[styles.scrollContent, { flexGrow: 1 }]}
-          keyboardShouldPersistTaps="handled"
-          refreshControl={
-            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
-          }
-        >
-          {sortedSections.length ? (
-            sortedSections.map((s, i) => (
-              <View key={i} style={styles.sectionWrapper}>
-                <DynamicRenderer section={s} />
+      <SideMenuProvider
+        value={{
+          isOpen: isSideMenuOpen,
+          hasSideNav: !!sideNavSection,
+          toggleSideMenu,
+          openSideMenu,
+          closeSideMenu,
+        }}
+      >
+        <View style={styles.screen}>
+          {/* RENDER SORTED DSL COMPONENTS */}
+          <ScrollView
+            contentInsetAdjustmentBehavior="automatic"
+            style={{ flex: 1 }}
+            showsVerticalScrollIndicator
+            contentContainerStyle={[
+              styles.scrollContent,
+              { flexGrow: 1, paddingBottom: bottomNavSection ? 88 : 24 },
+            ]}
+            keyboardShouldPersistTaps="handled"
+            refreshControl={
+              <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+            }
+          >
+            {visibleSections.length ? (
+              visibleSections.map((s, i) => {
+                const componentName = getComponentName(s).toLowerCase();
+                const nextComponentName =
+                  getComponentName(visibleSections[i + 1]).toLowerCase();
+                const tightenHeaderSpacing =
+                  componentName === "header" && nextComponentName === "header_2";
+                const tightenHeader2Spacing = componentName === "header_2";
+                const shouldAttachBottomNav =
+                  componentName === "header" ||
+                  componentName === "header_2" ||
+                  componentName === "header_mobile";
+                const sectionWithNav = shouldAttachBottomNav
+                  ? { ...s, bottomNavSection }
+                  : s;
+
+                return (
+                  <View
+                    key={i}
+                    style={[
+                      styles.sectionWrapper,
+                      (tightenHeaderSpacing || tightenHeader2Spacing) && styles.sectionWrapperTight,
+                    ]}
+                  >
+                    <DynamicRenderer section={sectionWithNav} />
+                  </View>
+                );
+              })
+            ) : (
+              <View style={styles.centerContainer}>
+                <Text style={styles.subtle}>No content available right now.</Text>
               </View>
-            ))
-          ) : (
-            <View style={styles.centerContainer}>
-              <Text style={styles.subtle}>No content available right now.</Text>
+            )}
+          </ScrollView>
+
+          {sideNavSection && showOverlay && (
+            <View style={StyleSheet.absoluteFill} pointerEvents={showOverlay ? "auto" : "none"}>
+              <Animated.View
+                style={[StyleSheet.absoluteFill, styles.sideMenuOverlay, { opacity: overlayOpacity }]}
+                pointerEvents="none"
+              />
+              <View style={{ flex: 1, flexDirection: "row" }}>
+                <Animated.View
+                  style={[
+                    styles.sideMenuContainer,
+                    { transform: [{ translateX: sideMenuTranslateX }] },
+                  ]}
+                >
+                  <SideNavigation section={sideNavSection} />
+                </Animated.View>
+                <TouchableOpacity style={{ flex: 1 }} activeOpacity={1} onPress={closeSideMenu} />
+              </View>
             </View>
           )}
-        </ScrollView>
-      </View>
+
+          {bottomNavSection && (
+            <View style={styles.bottomNav}>
+              <DynamicRenderer section={bottomNavSection} />
+            </View>
+          )}
+
+          {snackbar.visible && (
+            <View
+              style={[
+                styles.snackbar,
+                snackbar.type === "success" ? styles.snackbarSuccess : styles.snackbarError,
+              ]}
+            >
+              <Text style={styles.snackbarText}>{snackbar.message}</Text>
+              <TouchableOpacity onPress={() => setSnackbar((prev) => ({ ...prev, visible: false }))}>
+                <Text style={styles.snackbarAction}>Dismiss</Text>
+              </TouchableOpacity>
+            </View>
+          )}
+        </View>
+      </SideMenuProvider>
     </SafeArea>
   );
 }
@@ -170,8 +411,30 @@ const styles = StyleSheet.create({
     paddingHorizontal: 0,
     paddingBottom: 24,
   },
+  bottomNav: {
+    position: "absolute",
+    left: 0,
+    right: 0,
+    bottom: 0,
+  },
   sectionWrapper: {
     marginBottom: 10,
+  },
+  sectionWrapperTight: {
+    marginBottom: 0,
+  },
+  sideMenuOverlay: {
+    backgroundColor: "rgba(0,0,0,0.3)",
+  },
+  sideMenuContainer: {
+    width: 280,
+    maxWidth: "80%",
+    backgroundColor: "#fff",
+    shadowColor: "#000",
+    shadowOpacity: 0.25,
+    shadowOffset: { width: 0, height: 2 },
+    shadowRadius: 8,
+    elevation: 8,
   },
   centerContainer: {
     flex: 1,
@@ -179,10 +442,34 @@ const styles = StyleSheet.create({
     alignItems: "center",
     padding: 20,
   },
-  loading: {
-    textAlign: "center",
-    marginBottom: 20,
-    fontSize: 16,
+  loaderBackdrop: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    backgroundColor: "#0E1023",
+  },
+  loaderOverlay: {
+    ...StyleSheet.absoluteFillObject,
+  },
+  loaderCard: {
+    paddingHorizontal: 28,
+    paddingVertical: 24,
+    borderRadius: 16,
+    backgroundColor: "rgba(255,255,255,0.08)",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.12)",
+    shadowColor: "#000",
+    shadowOpacity: 0.15,
+    shadowOffset: { width: 0, height: 10 },
+    shadowRadius: 20,
+    alignItems: "center",
+    gap: 12,
+  },
+  loaderText: {
+    color: "#E5E7EB",
+    fontSize: 15,
+    fontWeight: "600",
+    letterSpacing: 0.2,
   },
   error: {
     textAlign: "center",
@@ -194,5 +481,41 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: "#666",
   },
+  snackbar: {
+    position: "absolute",
+    bottom: 20,
+    left: 16,
+    right: 16,
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+    borderRadius: 14,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    shadowColor: "#000",
+    shadowOpacity: 0.18,
+    shadowOffset: { width: 0, height: 12 },
+    shadowRadius: 18,
+    elevation: 8,
+  },
+  snackbarSuccess: {
+    backgroundColor: "#0F172A",
+    borderColor: "#22C55E",
+    borderWidth: 1,
+  },
+  snackbarError: {
+    backgroundColor: "#0F172A",
+    borderColor: "#F87171",
+    borderWidth: 1,
+  },
+  snackbarText: {
+    color: "#E5E7EB",
+    fontWeight: "600",
+    flex: 1,
+    marginRight: 16,
+  },
+  snackbarAction: {
+    color: "#A5B4FC",
+    fontWeight: "700",
+  },
 });
-

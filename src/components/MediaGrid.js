@@ -78,9 +78,22 @@ const normalizeItems = (rawItems) => {
       const badge = unwrapValue(props.badge, "");
       const src = unwrapValue(props.src, "");
       const mediaType = unwrapValue(props.mediaType, "image");
+      const titleBold = unwrapValue(props.titleBold, false);
+      const titleItalic = unwrapValue(props.titleItalic, false);
+      const titleUnderline = unwrapValue(props.titleUnderline, false);
 
       if (!title && !src && !subtitle) return null;
-      return { id, title, subtitle, badge, src, mediaType };
+      return {
+        id,
+        title,
+        subtitle,
+        badge,
+        src,
+        mediaType,
+        titleBold,
+        titleItalic,
+        titleUnderline,
+      };
     })
     .filter(Boolean);
 };
@@ -100,7 +113,10 @@ export default function MediaGrid({ section }) {
   const cardAspectRatio = parseAspectRatio(rawProps?.cardAspectRatio, 4 / 5);
 
   const showHeader = toBoolean(rawProps?.showHeader, true);
-  const headerText = unwrapValue(rawProps?.headerText, "Media Gallery");
+  const headerText = unwrapValue(
+    rawProps?.headerText,
+    unwrapValue(rawProps?.title, "Media Gallery")
+  );
   const headerSize = toNumber(rawProps?.headerSize, 16);
   const headerColor = unwrapValue(rawProps?.headerColor, "#111827");
   const headerBold = toBoolean(rawProps?.headerBold, false);
@@ -118,6 +134,8 @@ export default function MediaGrid({ section }) {
   const buttonTextUnderline = toBoolean(rawProps?.buttonTextUnderline, false);
 
   const showCardTitle = toBoolean(rawProps?.showCardTitle, true);
+  const showGrid = toBoolean(rawProps?.showGrid, true);
+  const showMediaCard = toBoolean(rawProps?.showMediaCard, true);
   const cardTitleColor = unwrapValue(rawProps?.cardTitleColor, "#000000");
   const cardTitleSize = toNumber(rawProps?.cardTitleSize, 12);
   const cardTitleWeight = deriveWeight(rawProps?.cardTitleWeight, "500");
@@ -132,6 +150,7 @@ export default function MediaGrid({ section }) {
   const mediaStyle = convertStyles(layoutCss?.media || {});
   const buttonStyle = convertStyles(layoutCss?.button || {});
   const cardTitleStyle = convertStyles(layoutCss?.cardTitle || {});
+  const buttonRowStyle = convertStyles(layoutCss?.buttonRow || {});
 
   const contentPadding = {
     paddingTop: toNumber(rawProps?.pt, 16),
@@ -170,13 +189,16 @@ export default function MediaGrid({ section }) {
               aspectRatio: cardAspectRatio,
               borderRadius: cardRadius,
             },
-            mediaStyle,
           ]}
         >
           {item.src ? (
-            <Image source={{ uri: item.src }} style={styles.media} resizeMode="cover" />
+            <Image
+              source={{ uri: item.src }}
+              style={[styles.media, mediaStyle]}
+              resizeMode="cover"
+            />
           ) : (
-            <View style={styles.placeholder}>
+            <View style={[styles.placeholder, mediaStyle]}>
               <Text style={styles.placeholderText}>Image</Text>
             </View>
           )}
@@ -197,7 +219,9 @@ export default function MediaGrid({ section }) {
             {
               color: cardTitleColor,
               fontSize: cardTitleSize,
-              fontWeight: cardTitleWeight,
+              fontWeight: toBoolean(item.titleBold, false) ? "700" : cardTitleWeight,
+              fontStyle: toBoolean(item.titleItalic, false) ? "italic" : "normal",
+              textDecorationLine: toBoolean(item.titleUnderline, false) ? "underline" : "none",
               textAlign: cardTitleAlign,
               padding: 8,
             },
@@ -235,18 +259,20 @@ export default function MediaGrid({ section }) {
         </Text>
       )}
 
-      <FlatList
-        data={items}
-        renderItem={renderItem}
-        keyExtractor={(item) => item.id}
-        numColumns={columns}
-        columnWrapperStyle={{ columnGap: gap }}
-        contentContainerStyle={[{ rowGap: gap }, gridStyle]}
-        scrollEnabled={false}
-      />
+      {showGrid && showMediaCard && (
+        <FlatList
+          data={items}
+          renderItem={renderItem}
+          keyExtractor={(item) => item.id}
+          numColumns={columns}
+          columnWrapperStyle={{ columnGap: gap }}
+          contentContainerStyle={[{ rowGap: gap }, gridStyle]}
+          scrollEnabled={false}
+        />
+      )}
 
       {showButton && (
-        <View style={[styles.buttonRow, { marginTop: 12 }]}> 
+        <View style={[styles.buttonRow, { marginTop: 12 }, buttonRowStyle]}>
           <Text
             style={[
               styles.button,
@@ -332,4 +358,3 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
   },
 });
-

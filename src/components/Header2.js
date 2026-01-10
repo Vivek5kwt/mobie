@@ -1,8 +1,12 @@
-import React from "react";
-import { View, Text, TextInput, Image, TouchableOpacity } from "react-native";
+import React, { useEffect, useMemo, useState } from "react";
+import { Image, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
+import { StackActions, useNavigation } from "@react-navigation/native";
 import LinearGradient from "react-native-linear-gradient";
 import FontAwesome from "react-native-vector-icons/FontAwesome";
 import { convertStyles, extractGradientInfo } from "../utils/convertStyles";
+import { useSideMenu } from "../services/SideMenuContext";
+import bottomNavigationStyle1Section from "../data/bottomNavigationStyle1";
+import { searchShopifyProducts } from "../services/shopify";
 
 const resolveBooleanSetting = (input, defaultValue = true) => {
   const normalize = (value) => {
@@ -26,8 +30,50 @@ const resolveBooleanSetting = (input, defaultValue = true) => {
   return normalize(input);
 };
 
+const resolveValue = (input, defaultValue = undefined) => {
+  if (input === undefined || input === null) return defaultValue;
+
+  if (typeof input === "object") {
+    if (input.value !== undefined) return input.value;
+    if (input.properties?.value !== undefined) return input.properties.value;
+    if (input.const !== undefined) return input.const;
+  }
+
+  return input;
+};
+
+const extractDetailSections = (rawProps) => {
+  const candidates = [
+    rawProps?.productDetailSections,
+    rawProps?.detailSections,
+    rawProps?.productDetails,
+    rawProps?.detail,
+    rawProps?.details,
+  ];
+
+  for (const candidate of candidates) {
+    const resolved = resolveValue(candidate, undefined);
+    if (Array.isArray(resolved)) return resolved;
+    if (Array.isArray(resolved?.sections)) return resolved.sections;
+  }
+
+  return [];
+};
+
+const resolveSideMenuIcon = (variant) => {
+  if (!variant) return "bars";
+  const normalized = String(variant).trim().toLowerCase();
+  if (["hamburger", "menu", "bars"].includes(normalized)) return "bars";
+  if (["dots", "ellipsis"].includes(normalized)) return "ellipsis-h";
+  return normalized;
+};
+
 export default function Header2({ section }) {
   console.log("🔍 Header2 section:", JSON.stringify(section, null, 2));
+
+  const { toggleSideMenu, hasSideNav } = useSideMenu();
+  const navigation = useNavigation();
+  const bottomNavSection = section?.bottomNavSection || bottomNavigationStyle1Section;
 
   let props, styleBlock, greeting, profile, searchAndIcons, appBar;
   
@@ -97,6 +143,10 @@ export default function Header2({ section }) {
   if (greeting.textDecoration) greetingTextStyle.textDecorationLine = greeting.textDecoration;
   
   const placeholderColor = searchAndIcons?.placeholderColor || "#4B4B4B";
+  const searchPlaceholder = resolveValue(
+    searchAndIcons?.searchPlaceholder,
+    resolveValue(searchAndIcons?.placeholder, "Search products"),
+  );
 
   const profileBorderWidth = profile?.borderWidth ||
                             (profileStyle.borderWidth ? parseFloat(profileStyle.borderWidth) : 4);
@@ -109,10 +159,23 @@ export default function Header2({ section }) {
   const searchEnabled = resolveBooleanSetting(props?.searchSettingsEnabled);
   const notificationEnabled = resolveBooleanSetting(props?.notificationSettingsEnabled);
   const profileEnabled = resolveBooleanSetting(props?.profileSettingsEnabled);
-
   const hasGreeting = greetingEnabled && !!(greeting?.title || greeting?.name);
 
   const hasLeftIcon = !!appBar?.leftIcon;
+
+  const shouldShowSearchRow =
+    (searchEnabled && searchAndIcons?.showSearch) ||
+    (notificationEnabled && searchAndIcons?.showNotification);
+  const shouldShowSideMenu = false;
+  const shouldShowSearchRowOrMenu = shouldShowSearchRow || shouldShowSideMenu;
+  const shouldShowTopRow = hasGreeting || (profileEnabled && profile?.show);
+  const searchLimit = resolveValue(searchAndIcons?.searchLimit, 10);
+  const detailSections = useMemo(() => extractDetailSections(props), [props]);
+
+  const [searchValue, setSearchValue] = useState("");
+  const [searchResults, setSearchResults] = useState([]);
+  const [searchLoading, setSearchLoading] = useState(false);
+  const [searchError, setSearchError] = useState("");
 
   const shouldShowAppBar = !!(appBar?.show ?? (
     appBar && (
@@ -123,35 +186,166 @@ export default function Header2({ section }) {
     )
   ));
 
+  const resolveBottomNavItems = (rawSection) => {
+    if (!rawSection) return [];
+    const rawProps =
+      rawSection?.props || rawSection?.properties?.props?.properties || rawSection?.properties?.props || {};
+    const raw = resolveValue(rawProps?.raw, {});
+    let items = resolveValue(raw?.items, undefined);
+    if (!items) {
+      items = resolveValue(rawProps?.items, []);
+    }
+    if (items?.value && Array.isArray(items.value)) return items.value;
+    return Array.isArray(items) ? items : [];
+  };
+
+  const normalizeBottomNavTarget = (value) => String(value || "").trim().toLowerCase();
+
+  const resolveBottomNavIndex = (items, target) => {
+    const normalizedTarget = normalizeBottomNavTarget(target);
+    if (!normalizedTarget) return -1;
+    return items.findIndex((item) => {
+      const id = normalizeBottomNavTarget(item?.id);
+      const label = normalizeBottomNavTarget(
+        item?.label ?? item?.title ?? item?.name ?? item?.text ?? item?.value,
+      );
+      return id.includes(normalizedTarget) || label.includes(normalizedTarget);
+    });
+  };
+
+  const openBottomNavTarget = (target) => {
+    const items = resolveBottomNavItems(bottomNavSection);
+    const fallbackIndex = target === "cart" ? 1 : 2;
+    const resolvedIndex = resolveBottomNavIndex(items, target);
+    const activeIndex = resolvedIndex >= 0 ? resolvedIndex : fallbackIndex;
+    const item = items[activeIndex];
+    const title =
+      item?.label ||
+      item?.title ||
+      item?.name ||
+      (target === "cart" ? "Cart" : "Notifications");
+    const rawLink = item?.link ?? item?.href ?? item?.url ?? "";
+    const link = typeof rawLink === "string" ? rawLink.replace(/^\//, "") : "";
+    const params = {
+      title,
+      link,
+      activeIndex,
+      bottomNavSection,
+    };
+    navigation.dispatch(StackActions.replace("BottomNavScreen", params));
+  };
+
+  const resolveDefaultIconTarget = (iconName) => {
+    const normalized = normalizeBottomNavTarget(iconName);
+    if (!normalized) return null;
+    if (normalized.includes("cart")) return "cart";
+    if (normalized.includes("bell") || normalized.includes("notif")) return "notification";
+    return null;
+  };
+
   const renderIconButton = (icon, index, extraStyle) => {
     if (!icon) return null;
 
+    const iconName = icon.name || icon.icon;
+    if (!iconName) return null;
+
     const iconContainer = icon.containerStyle || {};
     const fallbackSize = icon.size || 20;
+
+    const defaultTarget = resolveDefaultIconTarget(iconName);
+    const onPress =
+      icon?.onPress ||
+      (defaultTarget ? () => openBottomNavTarget(defaultTarget) : undefined);
+    const isPressable = !!onPress;
 
     return (
       <TouchableOpacity
         key={index}
         style={[convertStyles(iconContainer), extraStyle]}
-        activeOpacity={icon?.onPress ? 0.7 : 1}
-        onPress={icon?.onPress}
-        disabled={!icon?.onPress}
+        activeOpacity={isPressable ? 0.7 : 1}
+        onPress={onPress}
+        disabled={!isPressable}
       >
         <FontAwesome
-          name={icon.name || icon.icon || "circle"}
+          name={iconName}
           size={fallbackSize}
           color={icon.color || "#131A1D"}
         />
       </TouchableOpacity>
     );
   };
-  
+
   // Avoid full-height blocks that swallow scroll gestures when a DSL
-  // provides `height: "100%"` for the header container. Let the content
-  // size itself naturally so subsequent sections remain reachable.
+  // provides `height: "100%"` or flex styles for the header container.
+  // Let the content size itself naturally so subsequent sections remain reachable.
   if (typeof containerStyle.height === "string" && containerStyle.height.includes("%")) {
     delete containerStyle.height;
   }
+
+  if (typeof containerStyle.minHeight === "string" && containerStyle.minHeight.includes("%")) {
+    delete containerStyle.minHeight;
+  }
+
+  if (containerStyle.flex != null) {
+    delete containerStyle.flex;
+  }
+
+  if (containerStyle.flexGrow != null) {
+    delete containerStyle.flexGrow;
+  }
+
+  if (containerStyle.borderRadius != null) {
+    delete containerStyle.borderRadius;
+  }
+  if (containerStyle.borderTopLeftRadius != null) {
+    delete containerStyle.borderTopLeftRadius;
+  }
+  if (containerStyle.borderTopRightRadius != null) {
+    delete containerStyle.borderTopRightRadius;
+  }
+  if (containerStyle.borderBottomLeftRadius != null) {
+    delete containerStyle.borderBottomLeftRadius;
+  }
+  if (containerStyle.borderBottomRightRadius != null) {
+    delete containerStyle.borderBottomRightRadius;
+  }
+
+  useEffect(() => {
+    const term = searchValue.trim();
+    if (!term || !searchEnabled || !searchAndIcons?.showSearch) {
+      setSearchResults([]);
+      setSearchError("");
+      setSearchLoading(false);
+      return;
+    }
+
+    let isMounted = true;
+    setSearchLoading(true);
+    setSearchError("");
+
+    const timeout = setTimeout(async () => {
+      try {
+        const matches = await searchShopifyProducts(term, searchLimit);
+        if (isMounted) {
+          setSearchResults(matches);
+        }
+      } catch (err) {
+        if (isMounted) {
+          setSearchError("Unable to search products right now.");
+          setSearchResults([]);
+        }
+      } finally {
+        if (isMounted) {
+          setSearchLoading(false);
+        }
+      }
+    }, 350);
+
+    return () => {
+      isMounted = false;
+      clearTimeout(timeout);
+    };
+  }, [searchEnabled, searchAndIcons?.showSearch, searchLimit, searchValue]);
 
   return (
     <LinearGradient
@@ -198,82 +392,209 @@ export default function Header2({ section }) {
       )}
 
       {/* Top Row */}
-      <View style={convertStyles(topRowStyle)}>
-        {hasGreeting && (
-          <View>
-            {greeting?.title && (
-              <Text style={[convertStyles(greetingTitleStyle), greetingTextStyle]}>
-                {greeting.title}
-              </Text>
-            )}
-            {greeting?.name && (
-              <Text style={[convertStyles(greetingNameStyle), greetingTextStyle]}>
-                {greeting.name}
-              </Text>
-            )}
-          </View>
-        )}
+      {shouldShowTopRow && (
+        <View style={convertStyles(topRowStyle)}>
+          {hasGreeting && (
+            <View>
+              {greeting?.title && (
+                <Text style={[convertStyles(greetingTitleStyle), greetingTextStyle]}>
+                  {greeting.title}
+                </Text>
+              )}
+              {greeting?.name && (
+                <Text style={[convertStyles(greetingNameStyle), greetingTextStyle]}>
+                  {greeting.name}
+                </Text>
+              )}
+            </View>
+          )}
 
-        {profileEnabled && profile?.show && (
-          <View
-            style={[
-              convertStyles(profileStyle),
-              profile.borderColor && { borderColor: profile.borderColor },
-              profileBorderWidth && { borderWidth: profileBorderWidth },
-              profile.backgroundColor && { backgroundColor: profile.backgroundColor },
-              { overflow: "hidden" },
-            ]}
-          >
-            {profile?.image ? (
-              <Image
-                source={{ uri: profile.image }}
-                style={{
-                  width: profile?.size || 30,
-                  height: profile?.size || 30,
-                  borderRadius: (profile?.size || 30) / 2,
-                }}
-                resizeMode="cover"
-              />
-            ) : (
+          {profileEnabled && profile?.show && (
+            <View
+              style={[
+                convertStyles(profileStyle),
+                profile.borderColor && { borderColor: profile.borderColor },
+                profileBorderWidth && { borderWidth: profileBorderWidth },
+                profile.backgroundColor && { backgroundColor: profile.backgroundColor },
+                { overflow: "hidden" },
+              ]}
+            >
+              {profile?.image ? (
+                <Image
+                  source={{ uri: profile.image }}
+                  style={{
+                    width: profile?.size || 30,
+                    height: profile?.size || 30,
+                    borderRadius: (profile?.size || 30) / 2,
+                  }}
+                  resizeMode="cover"
+                />
+              ) : (
+                <FontAwesome
+                  name="user"
+                  size={profile?.size || 30}
+                  color={profile?.borderColor || "#0E6A70"}
+                />
+              )}
+            </View>
+          )}
+        </View>
+      )}
+
+      {shouldShowSearchRowOrMenu ? (
+        <View style={convertStyles(searchContainerStyle)}>
+          {shouldShowSideMenu && (
+            <TouchableOpacity
+              onPress={toggleSideMenu}
+              activeOpacity={0.7}
+              style={{ alignItems: "center", justifyContent: "center" }}
+            >
               <FontAwesome
-                name="user"
-                size={profile?.size || 30}
-                color={profile?.borderColor || "#0E6A70"}
+                name={resolveSideMenuIcon(searchAndIcons?.sideMenuIconVariant)}
+                size={
+                  searchAndIcons?.sideMenuIconWidth ||
+                  searchAndIcons?.sideMenuIconHeight ||
+                  20
+                }
+                color={searchAndIcons?.sideMenuIconColor || "#FFFFFF"}
               />
-            )}
-          </View>
-        )}
-      </View>
+            </TouchableOpacity>
+          )}
+          {searchEnabled && searchAndIcons?.showSearch && (
+            <View style={convertStyles(searchBarStyle)}>
+              <FontAwesome
+                name="search"
+                size={18}
+                color={searchAndIcons?.searchIconColor || "#39444D"}
+              />
+              <TextInput
+                value={searchValue}
+                onChangeText={setSearchValue}
+                placeholder={searchPlaceholder}
+                placeholderTextColor={placeholderColor}
+                style={convertStyles(searchBarInputStyle)}
+                underlineColorAndroid="transparent"
+                selectionColor="#131A1D"
+              />
+            </View>
+          )}
 
-      <View style={convertStyles(searchContainerStyle)}>
-        {searchEnabled && searchAndIcons?.showSearch && (
-          <View style={convertStyles(searchBarStyle)}>
-            <FontAwesome
-              name="search"
-              size={18} 
-              color={searchAndIcons?.searchIconColor || "#39444D"} 
-            />
-            <TextInput
-              placeholder={searchAndIcons?.placeholder || "Search products"}
-              placeholderTextColor={placeholderColor}
-              style={convertStyles(searchBarInputStyle)}
-              underlineColorAndroid="transparent"
-              selectionColor="#131A1D"
-            />
-          </View>
-        )}
-
-        {notificationEnabled && searchAndIcons?.showNotification && (
-          <View style={convertStyles(notificationContainerStyle)}>
-            <FontAwesome
-              name="bell"
-              size={searchAndIcons?.notificationIconSize || 36}
-              color={searchAndIcons?.notificationIconColor || "#FFFFFF"}
-            />
-            {searchAndIcons?.showBadge && <View style={convertStyles(badgeStyle)} />}
-          </View>
-        )}
-      </View>
+          {notificationEnabled && searchAndIcons?.showNotification && (
+            <TouchableOpacity
+              style={convertStyles(notificationContainerStyle)}
+              activeOpacity={0.7}
+              onPress={() => openBottomNavTarget("notification")}
+            >
+              <View>
+                <FontAwesome
+                  name="bell"
+                  size={searchAndIcons?.notificationIconSize || 36}
+                  color={searchAndIcons?.notificationIconColor || "#FFFFFF"}
+                />
+                {searchAndIcons?.showBadge && <View style={convertStyles(badgeStyle)} />}
+              </View>
+            </TouchableOpacity>
+          )}
+        </View>
+      ) : null}
+      {searchEnabled && searchAndIcons?.showSearch && searchValue.trim().length > 0 && (
+        <View style={styles.resultsWrapper}>
+          {searchLoading && <Text style={styles.statusText}>Searching products...</Text>}
+          {!searchLoading && searchError.length > 0 && (
+            <Text style={styles.errorText}>{searchError}</Text>
+          )}
+          {!searchLoading && !searchError && searchResults.length === 0 && (
+            <Text style={styles.statusText}>No products found.</Text>
+          )}
+          {!searchLoading &&
+            !searchError &&
+            searchResults.map((product) => (
+              <TouchableOpacity
+                key={product.id}
+                style={styles.resultRow}
+                onPress={() =>
+                  navigation.navigate("ProductDetail", {
+                    product,
+                    detailSections,
+                  })
+                }
+              >
+                {product.imageUrl ? (
+                  <Image source={{ uri: product.imageUrl }} style={styles.resultImage} />
+                ) : (
+                  <View style={styles.resultImagePlaceholder}>
+                    <Text style={styles.resultPlaceholderText}>Image</Text>
+                  </View>
+                )}
+                <View style={styles.resultInfo}>
+                  <Text numberOfLines={2} style={styles.resultTitle}>
+                    {product.title}
+                  </Text>
+                  <Text style={styles.resultPrice}>
+                    {product.priceCurrency} {product.priceAmount}
+                  </Text>
+                </View>
+              </TouchableOpacity>
+            ))}
+        </View>
+      )}
     </LinearGradient>
   );
 }
+
+const styles = StyleSheet.create({
+  resultsWrapper: {
+    marginTop: 12,
+    gap: 10,
+  },
+  statusText: {
+    textAlign: "center",
+    color: "#6B7280",
+  },
+  errorText: {
+    textAlign: "center",
+    color: "#B91C1C",
+  },
+  resultRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    padding: 10,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "#E5E7EB",
+    backgroundColor: "#FFFFFF",
+  },
+  resultImage: {
+    width: 56,
+    height: 56,
+    borderRadius: 10,
+    backgroundColor: "#F3F4F6",
+  },
+  resultImagePlaceholder: {
+    width: 56,
+    height: 56,
+    borderRadius: 10,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#F3F4F6",
+  },
+  resultPlaceholderText: {
+    fontSize: 10,
+    color: "#9CA3AF",
+  },
+  resultInfo: {
+    flex: 1,
+    gap: 4,
+  },
+  resultTitle: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: "#111827",
+  },
+  resultPrice: {
+    fontSize: 12,
+    fontWeight: "600",
+    color: "#111827",
+  },
+});

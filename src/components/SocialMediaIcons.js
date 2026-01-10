@@ -1,5 +1,6 @@
 import React, { useMemo } from "react";
 import { Linking, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { useNavigation } from "@react-navigation/native";
 import Icon from "react-native-vector-icons/FontAwesome6";
 import { convertStyles } from "../utils/convertStyles";
 
@@ -46,7 +47,14 @@ const deriveWeight = (value, fallback = "700") => {
 };
 
 const normalizePlatforms = (rawPlatforms) => {
-  const source = Array.isArray(rawPlatforms) ? rawPlatforms : Object.values(rawPlatforms || {});
+  const resolvedPlatforms = unwrapValue(rawPlatforms, rawPlatforms);
+  const source = Array.isArray(resolvedPlatforms)
+    ? resolvedPlatforms
+    : Array.isArray(resolvedPlatforms?.items)
+      ? resolvedPlatforms.items
+      : Array.isArray(resolvedPlatforms?.properties?.items)
+        ? resolvedPlatforms.properties.items
+        : Object.values(resolvedPlatforms || {});
   return source
     .map((item, idx) => {
       const props = item?.properties || item || {};
@@ -66,6 +74,7 @@ const brandColors = {
   twitter: "#1DA1F2",
   instagram: "#C13584",
   youtube: "#FF0000",
+  whatsapp: "#25D366",
   linkedin: "#0A66C2",
   pinterest: "#E60023",
   tiktok: "#000000",
@@ -76,18 +85,26 @@ const iconNameMap = {
   twitter: "twitter",
   instagram: "instagram",
   youtube: "youtube",
+  whatsapp: "whatsapp",
   linkedin: "linkedin",
   pinterest: "pinterest",
   tiktok: "tiktok",
 };
 
+const brandIconNames = new Set(Object.values(iconNameMap));
+const isHttpUrl = (url = "") => /^https?:\/\//i.test(String(url));
+
 export default function SocialMediaIcons({ section }) {
+  const navigation = useNavigation();
   const rawProps =
     section?.properties?.props?.properties || section?.properties?.props || section?.props || {};
 
   const layoutCss = rawProps?.layout?.properties?.css || rawProps?.layout?.css || {};
 
-  const platforms = useMemo(() => normalizePlatforms(rawProps?.platforms || []), [rawProps?.platforms]);
+  const platforms = useMemo(
+    () => normalizePlatforms(rawProps?.platforms || []),
+    [rawProps?.platforms],
+  );
 
   if (!platforms.length) return null;
 
@@ -125,6 +142,10 @@ export default function SocialMediaIcons({ section }) {
   const openLink = async (url) => {
     if (!url) return;
     try {
+      if (navigation?.navigate && isHttpUrl(url)) {
+        navigation.navigate("CheckoutWebView", { url, title: "Social" });
+        return;
+      }
       await Linking.openURL(url);
     } catch (err) {
       console.log("❌ Failed to open URL", url, err);
@@ -196,6 +217,7 @@ export default function SocialMediaIcons({ section }) {
                   name={resolvedIconName || "link"}
                   size={iconSize}
                   color={useBrand ? "#FFFFFF" : iconStyle.color || iconColor}
+                  brands={brandIconNames.has(resolvedIconName)}
                   style={[iconStyle, { color: useBrand ? "#FFFFFF" : iconStyle.color || iconColor }]}
                 />
               </View>

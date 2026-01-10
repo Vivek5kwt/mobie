@@ -150,6 +150,7 @@ export default function HeroBanner({ section }) {
 const styles = StyleSheet.create({
   container: {
     position: "relative",
+    width: "100%",
     overflow: "hidden",
   },
   image: {

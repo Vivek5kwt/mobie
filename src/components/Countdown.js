@@ -66,15 +66,23 @@ const parseDateValue = (value) => {
 
 const buildCountdown = (endTime, startTime) => {
   if (!endTime) return null;
+
   const now = Date.now();
-  const baseline = startTime ? Math.max(now, startTime.getTime()) : now;
-  const diff = Math.max(0, endTime.getTime() - baseline);
+  const baseline = startTime?.getTime?.() || now;
+  const diff = Math.max(0, endTime.getTime() - now);
+
+  // If a future start time is configured, keep showing the time until start
+  // instead of freezing the countdown. This prevents the timer from looking
+  // stuck when the start time is later than "now".
+  const effectiveDiff = Math.max(diff, baseline - now);
+
   const totalSeconds = Math.floor(diff / 1000);
   const days = Math.floor(totalSeconds / 86400);
   const hours = Math.floor((totalSeconds % 86400) / 3600);
   const minutes = Math.floor((totalSeconds % 3600) / 60);
   const seconds = totalSeconds % 60;
-  return { days, hours, minutes, seconds, remainingMs: diff };
+
+  return { days, hours, minutes, seconds, remainingMs: effectiveDiff };
 };
 
 const getRawProps = (section) =>
@@ -89,8 +97,35 @@ const deriveContainerStyles = (layoutCss, styleBlock) => {
 };
 
 const parseTiming = (rawProps, fallbackStartTime = null) => {
-  const parsedEndTime = parseDateValue(rawProps?.endTime);
-  const parsedStartTime = parseDateValue(rawProps?.startTime) || fallbackStartTime;
+  const timerAttributes = rawProps?.timerAttributes?.properties || rawProps?.timerAttributes || {};
+  const timingBlock = rawProps?.timing?.properties || rawProps?.timing || {};
+
+  const parsedEndTime = parseDateValue(
+    rawProps?.endTime ??
+      rawProps?.end_date ??
+      timerAttributes?.endTime ??
+      timerAttributes?.end_time ??
+      timerAttributes?.end_date ??
+      timingBlock?.endTime ??
+      timingBlock?.end_time ??
+      timingBlock?.end_date
+  );
+
+  const parsedStartTime =
+    parseDateValue(
+      rawProps?.startTime ??
+        rawProps?.start_time ??
+        rawProps?.startDate ??
+        rawProps?.start_date ??
+        timerAttributes?.startTime ??
+        timerAttributes?.start_time ??
+        timerAttributes?.startDate ??
+        timerAttributes?.start_date ??
+        timingBlock?.startTime ??
+        timingBlock?.start_time ??
+        timingBlock?.startDate ??
+        timingBlock?.start_date
+    ) || fallbackStartTime;
 
   return {
     endTime: parsedEndTime,
@@ -206,6 +241,17 @@ class Countdown extends PureComponent {
       timerAttributes?.bgColor,
       timerStyle.backgroundColor || "#FFFFFF"
     );
+    const timerGap = asNumber(
+      timerAttributes?.gap ?? timerStyle.gap,
+      8
+    );
+
+    const {
+      backgroundColor: _timerContainerBg,
+      borderRadius: timerBoxRadius,
+      height: timerStyleHeight,
+      ...timerContainerStyle
+    } = timerStyle;
 
     const iconAttributes = rawProps?.iconAttributes?.properties || rawProps?.iconAttributes || {};
     const iconName = unwrapValue(iconAttributes?.iconName, "clock-o");
@@ -261,9 +307,6 @@ class Countdown extends PureComponent {
             {showTitle && (
               <Text style={[styles.title, titleStyle]}>{titleText}</Text>
             )}
-            {showSubtext && (
-              <Text style={[styles.subtext, subtextStyle]}>{subtextText}</Text>
-            )}
           </View>
         </View>
 
@@ -271,8 +314,7 @@ class Countdown extends PureComponent {
           <View
             style={[
               styles.timer,
-              timerStyle,
-              timerHeight ? { height: timerHeight } : null,
+              timerContainerStyle,
             ]}
           >
             {timerUnits.map(({ key, label }) => (
@@ -280,16 +322,29 @@ class Countdown extends PureComponent {
                 key={key}
                 style={[
                   styles.timerSegment,
-                  timerBackgroundColor ? { backgroundColor: timerBackgroundColor } : null,
+                  timerGap ? { marginHorizontal: timerGap / 2 } : null,
                 ]}
               >
-                <Text style={[styles.timerValue, { color: timerValueColor }]}>
-                  {renderTimerValue(resolvedCountdown[key])}
-                </Text>
+                <View
+                  style={[
+                    styles.timerValueBox,
+                    timerBackgroundColor ? { backgroundColor: timerBackgroundColor } : null,
+                    timerBoxRadius ? { borderRadius: timerBoxRadius } : null,
+                    timerHeight ? { height: timerHeight } : timerStyleHeight ? { height: timerStyleHeight } : null,
+                  ]}
+                >
+                  <Text style={[styles.timerValue, { color: timerValueColor }]}>
+                    {renderTimerValue(resolvedCountdown[key])}
+                  </Text>
+                </View>
                 <Text style={[styles.timerLabel, { color: timerLabelColor }]}>{label}</Text>
               </View>
             ))}
           </View>
+        )}
+
+        {showSubtext && (
+          <Text style={[styles.subtext, subtextStyle]}>{subtextText}</Text>
         )}
 
         {showButton && (
@@ -341,27 +396,28 @@ const styles = StyleSheet.create({
   },
   timer: {
     marginTop: 4,
-    paddingVertical: 10,
-    paddingHorizontal: 14,
-    borderRadius: 16,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    flexWrap: "wrap",
   },
   timerSegment: {
     flexGrow: 1,
     flexBasis: "22%",
     minWidth: 66,
     maxWidth: 100,
+    alignItems: "center",
+    justifyContent: "center",
+    marginHorizontal: 4,
+  },
+  timerValueBox: {
+    width: "100%",
+    minHeight: 44,
     paddingVertical: 8,
     paddingHorizontal: 10,
     backgroundColor: "#FFFFFF",
     borderRadius: 12,
     alignItems: "center",
     justifyContent: "center",
-    marginHorizontal: 4,
-    marginVertical: 4,
   },
   timerLabel: {
     fontSize: 12,

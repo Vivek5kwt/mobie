@@ -1,88 +1,95 @@
-import React, { useEffect, useState } from "react";
-import {
-  View,
-  Text,
-  Image,
-  TouchableOpacity,
-  StyleSheet,
-} from "react-native";
-import Icon from "react-native-vector-icons/FontAwesome6";
-import { fetchShopifyProducts } from "../services/shopify";
+import React, { useEffect, useMemo, useState } from "react";
+import { Dimensions, Image, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { useNavigation } from "@react-navigation/native";
+import { fetchShopifyProductsPage } from "../services/shopify";
 
-export default function ProductGrid({ section }) {
-  const props = section?.properties?.props?.properties || {};
+const unwrapValue = (value, fallback = undefined) => {
+  if (value === undefined || value === null) return fallback;
+  if (typeof value === "object") {
+    if (value.value !== undefined) return value.value;
+    if (value.const !== undefined) return value.const;
+    if (value.properties) return unwrapValue(value.properties, fallback);
+  }
+  return value;
+};
 
-  const title = props?.title?.value || "";
-  const titleSize = props?.titleSize?.value || 18;
-  const alignText = (props?.alignText?.value || "Left").toLowerCase();
+const toNumber = (value, fallback) => {
+  const resolved = unwrapValue(value, undefined);
+  if (resolved === undefined || resolved === "") return fallback;
+  if (typeof resolved === "number") return resolved;
+  const parsed = parseFloat(resolved);
+  return Number.isNaN(parsed) ? fallback : parsed;
+};
 
-  const limit =
-    props?.limit?.value ||
-    props?.productCount?.value ||
-    props?.productsToShow?.value ||
-    4;
+const toString = (value, fallback = "") => {
+  const resolved = unwrapValue(value, fallback);
+  if (resolved === undefined || resolved === null) return fallback;
+  return String(resolved);
+};
 
-  const favEnabled =
-    props?.favEnabled?.value ||
-    props?.showFavorite?.value ||
-    props?.showFavoriteIcon?.value ||
-    false;
-
+export default function ProductGrid({ section, limit = 8, title = "Products" }) {
+  const navigation = useNavigation();
   const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+  const [hasMore, setHasMore] = useState(false);
 
-  const FALLBACK_PRODUCTS = [
-    {
-      id: "demo-1",
-      name: "Demo Hat",
-      image:
-        "https://images.unsplash.com/photo-1504595403659-9088ce801e29?auto=format&fit=crop&w=400&q=80",
-      price: "14.99",
-      currency: "USD",
-    },
-    {
-      id: "demo-2",
-      name: "Demo Sunglasses",
-      image:
-        "https://images.unsplash.com/photo-1465805139202-a644e217f00e?auto=format&fit=crop&w=400&q=80",
-      price: "29.00",
-      currency: "USD",
-    },
-    {
-      id: "demo-3",
-      name: "Demo Backpack",
-      image:
-        "https://images.unsplash.com/photo-1505693416388-ac5ce068fe85?auto=format&fit=crop&w=400&q=80",
-      price: "54.00",
-      currency: "USD",
-    },
-    {
-      id: "demo-4",
-      name: "Demo Sneakers",
-      image:
-        "https://images.unsplash.com/photo-1521093470119-a3acdc43374b?auto=format&fit=crop&w=400&q=80",
-      price: "79.00",
-      currency: "USD",
-    },
-  ];
+  const rawProps =
+    section?.properties?.props?.properties || section?.properties?.props || section?.props || {};
+  const resolvedLimit = toNumber(rawProps?.limit, limit);
+  const resolvedTitle = toString(rawProps?.title, title);
+  const detailSections = useMemo(() => {
+    const candidates = [
+      rawProps?.productDetailSections,
+      rawProps?.detailSections,
+      rawProps?.productDetails,
+      rawProps?.detail,
+      rawProps?.details,
+    ];
+
+    for (const candidate of candidates) {
+      const resolved = unwrapValue(candidate, undefined);
+      if (Array.isArray(resolved)) return resolved;
+      if (Array.isArray(resolved?.sections)) return resolved.sections;
+    }
+
+    return [];
+  }, [rawProps]);
+  const gridGap = 16;
+  const horizontalPadding = 24;
+  const screenWidth = Dimensions.get("window").width;
+  const cardWidth = Math.max(
+    0,
+    (screenWidth - horizontalPadding * 2 - gridGap) / 2
+  );
 
   useEffect(() => {
     let isMounted = true;
 
     const loadProducts = async () => {
+      setLoading(true);
+      setError("");
+
       try {
-        setLoading(true);
-        const response = await fetchShopifyProducts(limit);
+        const payload = await fetchShopifyProductsPage({
+          first: resolvedLimit,
+          after: null,
+        });
+        const nextProducts = payload?.products || [];
+        const pageInfo = payload?.pageInfo || {};
 
         if (isMounted) {
-          // Use fallback demo products when API returns nothing or fails
-          const nextProducts = response?.length ? response : FALLBACK_PRODUCTS;
           setProducts(nextProducts);
+          setHasMore(Boolean(pageInfo?.hasNextPage));
         }
-      } catch (error) {
-        if (isMounted) setProducts(FALLBACK_PRODUCTS);
+      } catch (err) {
+        if (isMounted) {
+          setError("Unable to load products right now. Please try again later.");
+        }
       } finally {
-        if (isMounted) setLoading(false);
+        if (isMounted) {
+          setLoading(false);
+        }
       }
     };
 
@@ -91,76 +98,133 @@ export default function ProductGrid({ section }) {
     return () => {
       isMounted = false;
     };
-  }, [limit]);
+  }, [resolvedLimit]);
 
   return (
     <View style={styles.wrapper}>
-      {!!title && (
-        <Text
-          style={{
-            fontSize: titleSize,
-            fontWeight: "700",
-            marginBottom: 12,
-            textAlign: alignText,
-          }}
-        >
-          {title}
-        </Text>
-      )}
+      <Text style={styles.heading}>{resolvedTitle}</Text>
 
-      {loading && !products.length ? (
-        <Text style={styles.statusText}>Loading products...</Text>
-      ) : (
-        <View style={styles.grid}>
-          {products.map((item) => (
-            <View key={item.id} style={styles.card}>
-              <Image source={{ uri: item.image }} style={styles.image} />
+      {loading && <Text style={styles.status}>Loading products...</Text>}
+      {error && <Text style={styles.error}>{error}</Text>}
 
-              <Text numberOfLines={1} style={styles.name}>
-                {item.name}
-              </Text>
+      {!loading && !error && (
+        <>
+          <View style={styles.grid}>
+            {products.map((product) => (
+              <TouchableOpacity
+                key={product.id}
+                style={[styles.card, { width: cardWidth }]}
+                activeOpacity={0.85}
+                onPress={() =>
+                  navigation.navigate("ProductDetail", {
+                    product,
+                    detailSections,
+                  })
+                }
+              >
+                {product.imageUrl && (
+                  <Image
+                    source={{ uri: product.imageUrl }}
+                    style={styles.image}
+                    resizeMode="cover"
+                  />
+                )}
 
-              <Text style={styles.price}>
-                {item.currency} {item.price}
-              </Text>
-
-              {favEnabled && (
-                <TouchableOpacity style={styles.favIcon}>
-                  <Icon name="heart" size={18} color="red" />
-                </TouchableOpacity>
-              )}
-            </View>
-          ))}
-        </View>
+                <View style={styles.content}>
+                  <Text numberOfLines={2} style={styles.name}>
+                    {product.title}
+                  </Text>
+                  <Text style={styles.price}>
+                    {product.priceCurrency} {product.priceAmount}
+                  </Text>
+                </View>
+              </TouchableOpacity>
+            ))}
+          </View>
+          {hasMore && (
+            <TouchableOpacity
+              style={styles.viewAllButton}
+              activeOpacity={0.8}
+              onPress={() =>
+                navigation.navigate("AllProducts", {
+                  title: resolvedTitle,
+                  detailSections,
+                })
+              }
+            >
+              <Text style={styles.viewAllText}>View all ›</Text>
+            </TouchableOpacity>
+          )}
+        </>
       )}
     </View>
   );
 }
 
+export function ProductGridExample() {
+  return <ProductGrid limit={8} title="Featured Products" />;
+}
+
 const styles = StyleSheet.create({
-  wrapper: { padding: 12 },
-  statusText: { textAlign: "center", color: "#666" },
+  wrapper: {
+    width: "100%",
+    paddingHorizontal: 24,
+    paddingVertical: 20,
+  },
+  heading: {
+    fontSize: 22,
+    fontWeight: "700",
+    marginBottom: 16,
+    color: "#111827",
+  },
   grid: {
     flexDirection: "row",
     flexWrap: "wrap",
     justifyContent: "space-between",
   },
   card: {
-    width: "48%",
+    borderWidth: 1,
+    borderColor: "#e5e7eb",
+    borderRadius: 12,
+    overflow: "hidden",
     backgroundColor: "#fff",
-    padding: 10,
-    borderRadius: 10,
-    elevation: 2,
-    marginBottom: 12,
-    position: "relative",
+    marginBottom: 16,
   },
   image: {
     width: "100%",
-    height: 130,
-    backgroundColor: "#eee",
-    borderRadius: 8,
+    height: 200,
+    backgroundColor: "#f3f4f6",
   },
-  name: { marginTop: 5 },
-  price: { marginTop: 4, fontWeight: "bold" },
-  favIcon: { position: "absolute", top: 10, right: 10 },
+  content: {
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+  },
+  name: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: "#111827",
+  },
+  price: {
+    marginTop: 6,
+    color: "#111827",
+    fontWeight: "600",
+  },
+  status: {
+    paddingVertical: 12,
+    textAlign: "center",
+    color: "#6b7280",
+  },
+  error: {
+    paddingVertical: 12,
+    textAlign: "center",
+    color: "#b91c1c",
+  },
+  viewAllButton: {
+    alignSelf: "flex-start",
+    paddingVertical: 8,
+  },
+  viewAllText: {
+    color: "#111827",
+    fontWeight: "600",
+  },
 });
