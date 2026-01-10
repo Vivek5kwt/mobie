@@ -1,5 +1,6 @@
 import client from "../apollo/client";
 import LAYOUT_VERSION_QUERY from "../graphql/queries/layoutVersionQuery";
+import authLayoutFallback from "../data/authLayoutFallback";
 
 const DEFAULT_APP_ID = 1;
 
@@ -138,11 +139,16 @@ export async function fetchLiveDSL(appId, pageName) {
 
 /**
  * fetchDSL
- * - Now ALWAYS attempts to fetch live DSL and returns it (or null on failure).
- * - No dummy/local fallback exists anymore.
+ * - Uses a local auth layout fallback for the signin page.
+ * - Otherwise attempts to fetch live DSL and returns it (or null on failure).
  */
 export async function fetchDSL(appId, pageName) {
-  console.log("📊 fetchDSL called - fetching LIVE data only");
+  console.log("📊 fetchDSL called");
+  const normalizedPageName = normalizeName(pageName);
+  if (normalizedPageName === "signin-create-account") {
+    console.log("📄 Using local auth layout fallback");
+    return { dsl: authLayoutFallback, versionNumber: null };
+  }
   const live = await fetchLiveDSL(appId, pageName);
   if (!live) {
     console.log("❌ Live data fetch failed. No dummy fallback available.");
