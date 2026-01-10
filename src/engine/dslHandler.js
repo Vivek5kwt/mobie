@@ -1,17 +1,7 @@
 import client from "../apollo/client";
 import LAYOUT_VERSION_QUERY from "../graphql/queries/layoutVersionQuery";
 import authLayoutFallback from "../data/authLayoutFallback";
-
-const DEFAULT_APP_ID = 1;
-
-const resolveAppId = (appId) => {
-  if (appId !== undefined && appId !== null) {
-    return appId;
-  }
-
-  const envAppId = Number(process.env.REACT_APP_APP_ID);
-  return Number.isFinite(envAppId) ? envAppId : DEFAULT_APP_ID;
-};
+import { resolveAppId } from "../utils/appId";
 
 const normalizeName = (value) =>
   value

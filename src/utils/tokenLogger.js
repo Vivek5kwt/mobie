@@ -6,8 +6,8 @@
  */
 
 import { createFcmToken } from '../services/fcmTokenService';
+import { resolveAppId } from './appId';
 
-const DEFAULT_APP_ID = 1;
 const USER_PROFILE_KEY = '@auth_user_profile';
 
 class TokenLogger {
@@ -171,11 +171,8 @@ class TokenLogger {
     try {
       const profile = await this.getStoredUserProfile();
       const userid = profile?.id ? Number(profile.id) : null;
-      const appid = profile?.appId
-        ? Number(profile.appId)
-        : profile?.app_id
-        ? Number(profile.app_id)
-        : DEFAULT_APP_ID;
+      const profileAppId = profile?.appId ?? profile?.app_id;
+      const appid = resolveAppId(profileAppId);
 
       console.log('📡 Sending device token to backend...');
       const result = await createFcmToken({
