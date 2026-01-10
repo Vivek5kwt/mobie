@@ -1,8 +1,9 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { Button, Linking, StyleSheet, Text, View } from "react-native";
 import { getBuildStatus } from "../services/buildService";
+import { resolveAppId } from "../utils/appId";
 
-const APP_ID = "mobidrag_001";
+const APP_ID = resolveAppId();
 
 export default function BuildStatusScreen() {
   const [status, setStatus] = useState("LOADING");
