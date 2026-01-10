@@ -1,10 +1,18 @@
-import React, { useCallback, useEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Button, Linking, StyleSheet, Text, View } from "react-native";
+import { useRoute } from "@react-navigation/native";
 import { getBuildStatus } from "../services/buildService";
-
-const APP_ID = "mobidrag_001";
+import { resolveAppId } from "../utils/appId";
+import { useAuth } from "../services/AuthContext";
 
 export default function BuildStatusScreen() {
+  const route = useRoute();
+  const { session } = useAuth();
+  const appId = useMemo(
+    () =>
+      resolveAppId(route?.params?.appId ?? session?.user?.appId ?? session?.user?.app_id),
+    [route?.params?.appId, session?.user?.appId, session?.user?.app_id]
+  );
   const [status, setStatus] = useState("LOADING");
   const [apkUrl, setApkUrl] = useState(null);
   const [error, setError] = useState(null);
@@ -12,7 +20,13 @@ export default function BuildStatusScreen() {
 
   const fetchStatus = useCallback(async () => {
     try {
-      const result = await getBuildStatus(APP_ID);
+      if (!appId) {
+        setError("App ID is required to check build status");
+        setStatus("ERROR");
+        return;
+      }
+
+      const result = await getBuildStatus(appId);
       const nextStatus = result?.status || "UNKNOWN";
 
       setStatus(nextStatus);
@@ -27,7 +41,7 @@ export default function BuildStatusScreen() {
       setError("Unable to fetch build status");
       setStatus("ERROR");
     }
-  }, []);
+  }, [appId]);
 
   useEffect(() => {
     fetchStatus();

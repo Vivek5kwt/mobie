@@ -18,10 +18,18 @@ import { SafeArea } from "../utils/SafeAreaHandler";
 import SideNavigation from "../components/SideNavigation";
 import { SideMenuProvider } from "../services/SideMenuContext";
 import bottomNavigationStyle1Section from "../data/bottomNavigationStyle1";
+import { resolveAppId } from "../utils/appId";
+import { useAuth } from "../services/AuthContext";
 
 export default function LayoutScreen() {
   const route = useRoute();
+  const { session } = useAuth();
   const pageName = route?.params?.pageName || "home";
+  const appId = useMemo(
+    () =>
+      resolveAppId(route?.params?.appId ?? session?.user?.appId ?? session?.user?.app_id),
+    [route?.params?.appId, session?.user?.appId, session?.user?.app_id]
+  );
   const [dsl, setDsl] = useState(null);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState(null);
@@ -144,7 +152,7 @@ export default function LayoutScreen() {
   // Reload DSL
   const refreshDSL = async (withFeedback = false) => {
     try {
-      const dslData = await fetchDSL(1, pageName);
+      const dslData = await fetchDSL(appId, pageName);
       if (dslData?.dsl) {
         setDsl(ensureBottomNavigationSection(dslData.dsl));
         versionRef.current = dslData.versionNumber ?? null;
@@ -168,7 +176,7 @@ export default function LayoutScreen() {
       setLoading(true);
       setErr(null);
 
-      const dslData = await fetchDSL(1, pageName);
+      const dslData = await fetchDSL(appId, pageName);
       if (!dslData?.dsl) {
         setErr("No live DSL returned from server");
         return;
@@ -194,7 +202,7 @@ export default function LayoutScreen() {
 
   useEffect(() => {
     loadDSL();
-  }, [pageName]);
+  }, [appId, pageName]);
 
   useEffect(() => {
     setIsSideMenuOpen(false);
@@ -244,7 +252,7 @@ export default function LayoutScreen() {
   useEffect(() => {
     const intervalId = setInterval(async () => {
       try {
-        const latest = await fetchDSL(1, pageName);
+        const latest = await fetchDSL(appId, pageName);
         if (!latest?.dsl) return;
 
         const incomingVersion = latest.versionNumber ?? null;
@@ -259,7 +267,7 @@ export default function LayoutScreen() {
     }, 5000);
 
     return () => clearInterval(intervalId);
-  }, [pageName]);
+  }, [appId, pageName]);
 
   const fallbackBottomNavSection = bottomNavSection || bottomNavigationStyle1Section;
 
