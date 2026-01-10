@@ -13,6 +13,7 @@ import {
 import { useNavigation } from '@react-navigation/native';
 import { useAuth } from '../services/AuthContext';
 import { fetchDSL } from '../engine/dslHandler';
+import { getShopifyDomain } from '../services/shopify';
 
 type SignInTokens = {
   bgColor: string;
@@ -388,6 +389,19 @@ const AuthScreen = () => {
     return signInTokens.buttonAutoUppercase ? label.toUpperCase() : label;
   }, [mode, signInTokens.buttonAutoUppercase, signInTokens.buttonText]);
 
+  const handleForgotPassword = () => {
+    const rawDomain = session?.user?.shopifyDomain || getShopifyDomain();
+    const normalizedDomain = rawDomain.replace(/^https?:\/\//, '').replace(/\/.*$/, '');
+    const forgotPasswordUrl = `https://${normalizedDomain}/account/login#recover`;
+
+    if (navigation?.navigate) {
+      navigation.navigate(
+        'CheckoutWebView' as never,
+        { url: forgotPasswordUrl, title: 'Forgot Password' } as never
+      );
+    }
+  };
+
   const styles = useMemo(
     () =>
       StyleSheet.create({
@@ -678,7 +692,11 @@ const AuthScreen = () => {
           <View style={styles.forgotCard}>
             <Text style={styles.forgotHeadline}>{forgotPasswordTokens.headlineText}</Text>
             <Text style={styles.forgotSubtitle}>{forgotPasswordTokens.resetPasswordTitle}</Text>
-            <TouchableOpacity style={styles.forgotButton} accessibilityRole="button">
+            <TouchableOpacity
+              style={styles.forgotButton}
+              accessibilityRole="button"
+              onPress={handleForgotPassword}
+            >
               <Text style={styles.forgotButtonText}>{forgotPasswordTokens.resetPasswordButtonText}</Text>
             </TouchableOpacity>
           </View>
