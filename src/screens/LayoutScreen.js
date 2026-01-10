@@ -149,6 +149,12 @@ export default function LayoutScreen() {
     };
   }, []);
 
+  useEffect(() => {
+    if (appId !== undefined && appId !== null) {
+      showSnackbar(`Fetching app id ${appId} data`, "info");
+    }
+  }, [appId]);
+
   // Reload DSL
   const refreshDSL = async (withFeedback = false) => {
     try {
@@ -393,7 +399,11 @@ export default function LayoutScreen() {
             <View
               style={[
                 styles.snackbar,
-                snackbar.type === "success" ? styles.snackbarSuccess : styles.snackbarError,
+                snackbar.type === "success"
+                  ? styles.snackbarSuccess
+                  : snackbar.type === "info"
+                    ? styles.snackbarInfo
+                    : styles.snackbarError,
               ]}
             >
               <Text style={styles.snackbarText}>{snackbar.message}</Text>
@@ -509,6 +519,11 @@ const styles = StyleSheet.create({
   snackbarSuccess: {
     backgroundColor: "#0F172A",
     borderColor: "#22C55E",
+    borderWidth: 1,
+  },
+  snackbarInfo: {
+    backgroundColor: "#0F172A",
+    borderColor: "#60A5FA",
     borderWidth: 1,
   },
   snackbarError: {
