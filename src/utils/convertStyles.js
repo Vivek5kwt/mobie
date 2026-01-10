@@ -283,7 +283,7 @@ export function convertStyles(styleObj = {}) {
         out.marginTop = parts[0];
         out.marginRight = parts[1];
         out.marginBottom = parts[2];
-        out.marginLeft = parts[3];
+        out.marginLeft = parts[3];  
       }
       continue;
     }
