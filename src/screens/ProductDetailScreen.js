@@ -5,6 +5,8 @@ import DynamicRenderer from "../engine/DynamicRenderer";
 import { SafeArea } from "../utils/SafeAreaHandler";
 import { fetchShopifyProductDetails } from "../services/shopify";
 import { fetchDSL } from "../engine/dslHandler";
+import { resolveAppId } from "../utils/appId";
+import { useAuth } from "../services/AuthContext";
 
 const unwrapValue = (value, fallback = undefined) => {
   if (value === undefined || value === null) return fallback;
@@ -110,8 +112,14 @@ const mergeSectionWithProduct = (section, product) => {
 
 export default function ProductDetailScreen() {
   const route = useRoute();
+  const { session } = useAuth();
   const product = route?.params?.product || {};
   const detailSections = route?.params?.detailSections;
+  const appId = useMemo(
+    () =>
+      resolveAppId(route?.params?.appId ?? session?.user?.appId ?? session?.user?.app_id),
+    [route?.params?.appId, session?.user?.appId, session?.user?.app_id]
+  );
   const [detailProduct, setDetailProduct] = useState(product);
   const [dslSections, setDslSections] = useState([]);
   const [dslLoading, setDslLoading] = useState(false);
@@ -166,7 +174,7 @@ export default function ProductDetailScreen() {
       }
 
       setDslLoading(true);
-      const liveDsl = await fetchDSL(1, "product-detail");
+      const liveDsl = await fetchDSL(appId, "product-detail");
       if (!isMounted) return;
       const nextSections = resolveSections(liveDsl?.dsl);
       setDslSections(nextSections);
@@ -178,7 +186,7 @@ export default function ProductDetailScreen() {
     return () => {
       isMounted = false;
     };
-  }, [detailSections]);
+  }, [appId, detailSections]);
 
   const sectionsToRender = useMemo(
     () => resolveSections(dslSections),
