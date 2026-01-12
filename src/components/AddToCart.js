@@ -278,6 +278,7 @@ export default function AddToCart({ section }) {
       addItem({
         item: {
           id: productVariantGid || productVariantNumericId || productHandle || productTitle,
+          variantId: productVariantGid || "",
           title: productTitle,
           image: productImage,
           price: productPrice,
