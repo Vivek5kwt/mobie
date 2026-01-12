@@ -122,6 +122,16 @@ export default function Header2({ section }) {
   const searchBarInputStyle = styleBlock?.searchBarInput || {};
   const notificationContainerStyle = styleBlock?.notificationContainer || {};
   const badgeStyle = styleBlock?.badge || {};
+  const normalizedBadgeStyle = convertStyles(badgeStyle);
+  const badgeStyleHasSize = [
+    "width",
+    "height",
+    "minWidth",
+    "minHeight",
+    "padding",
+    "paddingHorizontal",
+    "paddingVertical",
+  ].some((key) => normalizedBadgeStyle?.[key] !== undefined);
   
   let gradientColors = ["#5EB7C6", "#8DD1D5"];
   let gradientAngle = 90;
@@ -508,7 +518,15 @@ export default function Header2({ section }) {
                   size={searchAndIcons?.notificationIconSize || 36}
                   color={searchAndIcons?.notificationIconColor || "#FFFFFF"}
                 />
-                {searchAndIcons?.showBadge && <View style={convertStyles(badgeStyle)} />}
+                {searchAndIcons?.showBadge && (
+                  <View
+                    style={[
+                      styles.notificationBadge,
+                      normalizedBadgeStyle,
+                      !badgeStyleHasSize && styles.notificationBadgeCompact,
+                    ]}
+                  />
+                )}
               </View>
             </TouchableOpacity>
           )}
@@ -635,5 +653,23 @@ const styles = StyleSheet.create({
     color: "#FFFFFF",
     fontSize: 10,
     fontWeight: "700",
+  },
+  notificationBadge: {
+    position: "absolute",
+    top: -4,
+    right: -4,
+    borderRadius: 999,
+    backgroundColor: "#22C55E",
+    alignItems: "center",
+    justifyContent: "center",
+    zIndex: 1,
+  },
+  notificationBadgeCompact: {
+    width: 10,
+    height: 10,
+    minWidth: 10,
+    minHeight: 10,
+    paddingHorizontal: 0,
+    paddingVertical: 0,
   },
 });
