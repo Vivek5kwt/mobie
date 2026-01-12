@@ -224,11 +224,23 @@ function convertPadding(str) {
 }
 
 const styles = StyleSheet.create({
-  container: {},
-  leftSlot: { flexDirection: "row", alignItems: "center" },
-  logoSlot: { flex: 1, alignItems: "center", justifyContent: "center" },
+  container: { position: "relative" },
+  leftSlot: { flex: 1, flexDirection: "row", alignItems: "center" },
+  logoSlot: {
+    position: "absolute",
+    left: 0,
+    right: 0,
+    alignItems: "center",
+    justifyContent: "center",
+  },
   logoImage: { height: 26, width: 120 },
-  rightSlot: { flexDirection: "row", alignItems: "center", gap: 14 },
+  rightSlot: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "flex-end",
+    gap: 14,
+  },
   iconWrapper: { position: "relative" },
   badge: {
     position: "absolute",
