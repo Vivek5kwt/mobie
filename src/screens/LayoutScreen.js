@@ -10,7 +10,7 @@ import {
   TouchableOpacity,
   Animated,
 } from "react-native";
-import { useFocusEffect, useRoute } from "@react-navigation/native";
+import { useFocusEffect } from "@react-navigation/native";
 import DynamicRenderer from "../engine/DynamicRenderer";
 import { fetchDSL } from "../engine/dslHandler";
 import { shouldRenderSectionOnMobile } from "../engine/visibility";
@@ -21,8 +21,7 @@ import bottomNavigationStyle1Section from "../data/bottomNavigationStyle1";
 import { resolveAppId } from "../utils/appId";
 import { useAuth } from "../services/AuthContext";
 
-export default function LayoutScreen() {
-  const route = useRoute();
+export default function LayoutScreen({ route }) {
   const { session } = useAuth();
   const pageName = route?.params?.pageName || "home";
   const appId = useMemo(
