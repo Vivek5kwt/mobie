@@ -53,7 +53,8 @@ export default function Header({ section }) {
       return sum + (Number.isFinite(quantity) ? quantity : 1);
     }, 0)
   );
-  const formattedCartCount = cartCount > 99 ? "99+" : String(cartCount);
+  const safeCartCount = Number.isFinite(cartCount) ? Math.max(0, cartCount) : 0;
+  const formattedCartCount = safeCartCount > 99 ? "99+" : String(safeCartCount);
 
   const props = section?.props || section?.properties?.props?.properties || {};
   const layout = props?.layout?.properties?.css || props?.layout?.css || {};
@@ -94,7 +95,7 @@ export default function Header({ section }) {
   const cartIconSize = unwrapValue(cartProps?.width, 18);
   const cartIconColor = unwrapValue(cartProps?.color, "#016D77");
   const cartShowBadge = resolveBoolean(cartProps?.showBadge, false);
-  const shouldShowCartBadge = cartCount > 0 || cartShowBadge;
+  const shouldShowCartBadge = safeCartCount > 0 || cartShowBadge;
 
   const notificationProps = props?.notification?.properties || props?.notification || {};
   const notificationVisible = resolveBoolean(notificationProps?.visible, true);
@@ -206,7 +207,7 @@ export default function Header({ section }) {
             onPress={() => openBottomNavTarget("cart")}
           >
             <Icon name={cartIconName} size={cartIconSize} color={cartIconColor} />
-            {cartCount > 0 && shouldShowCartBadge && (
+            {shouldShowCartBadge && (
               <View style={[styles.badge, badgeStyle]}>
                 <Text style={styles.badgeText}>{formattedCartCount}</Text>
               </View>
