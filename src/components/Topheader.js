@@ -107,6 +107,15 @@ export default function Header({ section }) {
   const notificationShowBadge = resolveBoolean(notificationProps?.showBadge, false);
 
   const badgeStyle = normalizedLayout.badge || {};
+  const badgeStyleHasSize = [
+    "width",
+    "height",
+    "minWidth",
+    "minHeight",
+    "padding",
+    "paddingHorizontal",
+    "paddingVertical",
+  ].some((key) => badgeStyle?.[key] !== undefined);
   const badgeTextOverrides = {
     color: badgeStyle?.color,
     fontSize: badgeStyle?.fontSize,
@@ -237,7 +246,15 @@ export default function Header({ section }) {
               size={notificationIconSize}
               color={notificationIconColor}
             />
-            {notificationShowBadge && <View style={[styles.badge, badgeStyle]} />}
+            {notificationShowBadge && (
+              <View
+                style={[
+                  styles.notificationBadge,
+                  badgeStyle,
+                  !badgeStyleHasSize && styles.notificationBadgeCompact,
+                ]}
+              />
+            )}
           </TouchableOpacity>
         )}
       </View>
@@ -293,5 +310,23 @@ const styles = StyleSheet.create({
     textAlign: "center",
     textAlignVertical: "center",
     includeFontPadding: false,
+  },
+  notificationBadge: {
+    position: "absolute",
+    top: -4,
+    right: -4,
+    borderRadius: 999,
+    backgroundColor: "#22C55E",
+    alignItems: "center",
+    justifyContent: "center",
+    zIndex: 1,
+  },
+  notificationBadgeCompact: {
+    width: 10,
+    height: 10,
+    minWidth: 10,
+    minHeight: 10,
+    paddingHorizontal: 0,
+    paddingVertical: 0,
   },
 });
