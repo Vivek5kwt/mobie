@@ -352,7 +352,9 @@ export default function BottomNavigation({ section, activeIndexOverride }) {
                   />
                   {isCartItem(item) && safeCartCount > 0 && (
                     <View style={styles.cartBadge}>
-                      <Text style={styles.cartBadgeText}>{formattedCartCount}</Text>
+                      <Text style={[styles.cartBadgeText, { color: itemIconColor }]}>
+                        {formattedCartCount}
+                      </Text>
                     </View>
                   )}
                 </View>
@@ -425,16 +427,16 @@ const styles = StyleSheet.create({
     position: "absolute",
     top: -6,
     right: -12,
-    minWidth: 18,
+    minWidth: 0,
     height: 18,
-    borderRadius: 999,
-    backgroundColor: "#22C55E",
+    borderRadius: 0,
+    backgroundColor: "transparent",
     alignItems: "center",
     justifyContent: "center",
-    paddingHorizontal: 4,
+    paddingHorizontal: 0,
   },
   cartBadgeText: {
-    color: "#FFFFFF",
+    color: "#111827",
     fontSize: 10,
     fontWeight: "700",
   },

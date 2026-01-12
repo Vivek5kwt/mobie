@@ -228,7 +228,13 @@ export default function Header({ section }) {
             <Icon name={cartIconName} size={cartIconSize} color={cartIconColor} />
             {shouldShowCartBadge && (
               <View style={[styles.badge, badgeStyle]}>
-                <Text style={[styles.badgeText, badgeTextOverrides]}>
+                <Text
+                  style={[
+                    styles.badgeText,
+                    { color: cartIconColor },
+                    badgeTextOverrides,
+                  ]}
+                >
                   {formattedCartCount}
                 </Text>
               </View>
@@ -292,18 +298,18 @@ const styles = StyleSheet.create({
     position: "absolute",
     top: -6,
     right: -8,
-    borderRadius: 10,
-    backgroundColor: "#22C55E",
-    minWidth: 20,
-    minHeight: 20,
-    paddingHorizontal: 6,
-    paddingVertical: 2,
+    borderRadius: 0,
+    backgroundColor: "transparent",
+    minWidth: 0,
+    minHeight: 0,
+    paddingHorizontal: 0,
+    paddingVertical: 0,
     alignItems: "center",
     justifyContent: "center",
     zIndex: 1,
   },
   badgeText: {
-    color: "#FFFFFF",
+    color: "#111827",
     fontSize: 10,
     fontWeight: "700",
     lineHeight: 12,
@@ -315,8 +321,8 @@ const styles = StyleSheet.create({
     position: "absolute",
     top: -4,
     right: -4,
-    borderRadius: 999,
-    backgroundColor: "#22C55E",
+    borderRadius: 0,
+    backgroundColor: "transparent",
     alignItems: "center",
     justifyContent: "center",
     zIndex: 1,
