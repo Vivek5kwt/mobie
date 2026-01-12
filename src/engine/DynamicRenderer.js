@@ -3,7 +3,6 @@ import React from "react";
 
 // LIVE COMPONENTS
 import Header from "../components/Topheader";       // Live Header (v1)
-import Header2 from "../components/Header2";     // Live Header (v2)
 import CollectionImage from "../components/CollectionImage";
 import Countdown from "../components/Countdown";
 import MediaGrid from "../components/MediaGrid";
@@ -31,7 +30,7 @@ import CheckoutButton from "../components/CheckoutButton";
 const componentMap = {
   header: Header,               // LIVE HEADER 1
   header_mobile: Header,
-  header_2: Header2,
+  header_2: Header,
   collection_image: CollectionImage,
   countdown: Countdown,
   media_grid: MediaGrid,
