@@ -107,6 +107,16 @@ export default function Header({ section }) {
   const notificationShowBadge = resolveBoolean(notificationProps?.showBadge, false);
 
   const badgeStyle = normalizedLayout.badge || {};
+  const badgeTextOverrides = {
+    color: badgeStyle?.color,
+    fontSize: badgeStyle?.fontSize,
+    fontWeight: badgeStyle?.fontWeight,
+    fontStyle: badgeStyle?.fontStyle,
+    lineHeight: badgeStyle?.lineHeight,
+    letterSpacing: badgeStyle?.letterSpacing,
+    textAlign: badgeStyle?.textAlign,
+    textAlignVertical: badgeStyle?.textAlignVertical,
+  };
 
   const resolveBottomNavItems = (rawSection) => {
     if (!rawSection) return [];
@@ -209,7 +219,9 @@ export default function Header({ section }) {
             <Icon name={cartIconName} size={cartIconSize} color={cartIconColor} />
             {shouldShowCartBadge && (
               <View style={[styles.badge, badgeStyle]}>
-                <Text style={styles.badgeText}>{formattedCartCount}</Text>
+                <Text style={[styles.badgeText, badgeTextOverrides]}>
+                  {formattedCartCount}
+                </Text>
               </View>
             )}
           </TouchableOpacity>
@@ -275,5 +287,9 @@ const styles = StyleSheet.create({
     color: "#FFFFFF",
     fontSize: 10,
     fontWeight: "700",
+    lineHeight: 18,
+    textAlign: "center",
+    textAlignVertical: "center",
+    includeFontPadding: false,
   },
 });
