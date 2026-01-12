@@ -76,7 +76,10 @@ export default function Header2({ section }) {
   const navigation = useNavigation();
   const bottomNavSection = section?.bottomNavSection || bottomNavigationStyle1Section;
   const cartCount = useSelector((state) =>
-    (state?.cart?.items || []).reduce((sum, item) => sum + (item?.quantity || 0), 0)
+    (state?.cart?.items || []).reduce((sum, item) => {
+      const quantity = Number(item?.quantity);
+      return sum + (Number.isFinite(quantity) ? quantity : 0);
+    }, 0)
   );
 
   let props, styleBlock, greeting, profile, searchAndIcons, appBar;

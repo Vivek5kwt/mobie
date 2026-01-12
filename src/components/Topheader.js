@@ -48,7 +48,10 @@ export default function Header({ section }) {
   const { toggleSideMenu, hasSideNav } = useSideMenu();
   const navigation = useNavigation();
   const cartCount = useSelector((state) =>
-    (state?.cart?.items || []).reduce((sum, item) => sum + (item?.quantity || 0), 0)
+    (state?.cart?.items || []).reduce((sum, item) => {
+      const quantity = Number(item?.quantity);
+      return sum + (Number.isFinite(quantity) ? quantity : 0);
+    }, 0)
   );
 
   const props = section?.props || section?.properties?.props?.properties || {};

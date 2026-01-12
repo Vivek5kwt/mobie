@@ -4,6 +4,8 @@ import { useRoute } from "@react-navigation/native";
 import { getBuildStatus } from "../services/buildService";
 import { resolveAppId } from "../utils/appId";
 import { useAuth } from "../services/AuthContext";
+import { SafeArea } from "../utils/SafeAreaHandler";
+import Header from "../components/Topheader";
 
 export default function BuildStatusScreen() {
   const route = useRoute();
@@ -95,16 +97,26 @@ export default function BuildStatusScreen() {
     );
   }
 
-  return <View style={styles.container}>{content}</View>;
+  return (
+    <SafeArea>
+      <View style={styles.container}>
+        <Header />
+        <View style={styles.contentWrapper}>{content}</View>
+      </View>
+    </SafeArea>
+  );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+    backgroundColor: "#fff",
+  },
+  contentWrapper: {
+    flex: 1,
     justifyContent: "center",
     alignItems: "center",
     padding: 20,
-    backgroundColor: "#fff",
   },
   content: {
     alignItems: "center",
