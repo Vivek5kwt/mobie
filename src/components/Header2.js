@@ -3,6 +3,7 @@ import { Image, StyleSheet, Text, TextInput, TouchableOpacity, View } from "reac
 import { StackActions, useNavigation } from "@react-navigation/native";
 import LinearGradient from "react-native-linear-gradient";
 import FontAwesome from "react-native-vector-icons/FontAwesome";
+import { useSelector } from "react-redux";
 import { convertStyles, extractGradientInfo } from "../utils/convertStyles";
 import { useSideMenu } from "../services/SideMenuContext";
 import bottomNavigationStyle1Section from "../data/bottomNavigationStyle1";
@@ -74,6 +75,9 @@ export default function Header2({ section }) {
   const { toggleSideMenu, hasSideNav } = useSideMenu();
   const navigation = useNavigation();
   const bottomNavSection = section?.bottomNavSection || bottomNavigationStyle1Section;
+  const cartCount = useSelector((state) =>
+    (state?.cart?.items || []).reduce((sum, item) => sum + (item?.quantity || 0), 0)
+  );
 
   let props, styleBlock, greeting, profile, searchAndIcons, appBar;
   
@@ -258,6 +262,8 @@ export default function Header2({ section }) {
       (defaultTarget ? () => openBottomNavTarget(defaultTarget) : undefined);
     const isPressable = !!onPress;
 
+    const showCartBadge = cartCount > 0 && resolveDefaultIconTarget(iconName) === "cart";
+
     return (
       <TouchableOpacity
         key={index}
@@ -266,11 +272,18 @@ export default function Header2({ section }) {
         onPress={onPress}
         disabled={!isPressable}
       >
-        <FontAwesome
-          name={iconName}
-          size={fallbackSize}
-          color={icon.color || "#131A1D"}
-        />
+        <View style={styles.iconBadgeWrapper}>
+          <FontAwesome
+            name={iconName}
+            size={fallbackSize}
+            color={icon.color || "#131A1D"}
+          />
+          {showCartBadge && (
+            <View style={styles.cartBadge}>
+              <Text style={styles.cartBadgeText}>{cartCount}</Text>
+            </View>
+          )}
+        </View>
       </TouchableOpacity>
     );
   };
@@ -596,5 +609,27 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: "600",
     color: "#111827",
+  },
+  iconBadgeWrapper: {
+    position: "relative",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  cartBadge: {
+    position: "absolute",
+    top: -6,
+    right: -10,
+    minWidth: 18,
+    height: 18,
+    borderRadius: 999,
+    backgroundColor: "#22C55E",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 4,
+  },
+  cartBadgeText: {
+    color: "#FFFFFF",
+    fontSize: 10,
+    fontWeight: "700",
   },
 });

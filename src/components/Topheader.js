@@ -1,8 +1,9 @@
 // components/Header.js
 import React from "react";
-import { Image, StyleSheet, TouchableOpacity, View } from "react-native";
+import { Image, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { StackActions, useNavigation } from "@react-navigation/native";
 import Icon from "react-native-vector-icons/FontAwesome6";
+import { useSelector } from "react-redux";
 import { useSideMenu } from "../services/SideMenuContext";
 import bottomNavigationStyle1Section from "../data/bottomNavigationStyle1";
 import { convertStyles } from "../utils/convertStyles";
@@ -46,6 +47,9 @@ const resolveLogoSource = (logoImage) => {
 export default function Header({ section }) {
   const { toggleSideMenu, hasSideNav } = useSideMenu();
   const navigation = useNavigation();
+  const cartCount = useSelector((state) =>
+    (state?.cart?.items || []).reduce((sum, item) => sum + (item?.quantity || 0), 0)
+  );
 
   const props = section?.props || section?.properties?.props?.properties || {};
   const layout = props?.layout?.properties?.css || props?.layout?.css || {};
@@ -86,6 +90,7 @@ export default function Header({ section }) {
   const cartIconSize = unwrapValue(cartProps?.width, 18);
   const cartIconColor = unwrapValue(cartProps?.color, "#016D77");
   const cartShowBadge = resolveBoolean(cartProps?.showBadge, false);
+  const shouldShowCartBadge = cartCount > 0 || cartShowBadge;
 
   const notificationProps = props?.notification?.properties || props?.notification || {};
   const notificationVisible = resolveBoolean(notificationProps?.visible, true);
@@ -197,7 +202,11 @@ export default function Header({ section }) {
             onPress={() => openBottomNavTarget("cart")}
           >
             <Icon name={cartIconName} size={cartIconSize} color={cartIconColor} />
-            {cartShowBadge && <View style={[styles.badge, badgeStyle]} />}
+            {cartCount > 0 && shouldShowCartBadge && (
+              <View style={[styles.badge, badgeStyle]}>
+                <Text style={styles.badgeText}>{cartCount}</Text>
+              </View>
+            )}
           </TouchableOpacity>
         )}
         {notificationVisible && (
@@ -249,9 +258,17 @@ const styles = StyleSheet.create({
     position: "absolute",
     top: -4,
     right: -4,
-    width: 8,
-    height: 8,
     borderRadius: 999,
     backgroundColor: "#22C55E",
+    minWidth: 18,
+    height: 18,
+    paddingHorizontal: 4,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  badgeText: {
+    color: "#FFFFFF",
+    fontSize: 10,
+    fontWeight: "700",
   },
 });
