@@ -294,7 +294,9 @@ export default function Header2({ section }) {
           />
           {showCartBadge && (
             <View style={styles.cartBadge}>
-              <Text style={styles.cartBadgeText}>{formattedCartCount}</Text>
+              <Text style={[styles.cartBadgeText, { color: icon.color || "#131A1D" }]}>
+                {formattedCartCount}
+              </Text>
             </View>
           )}
         </View>
@@ -641,16 +643,16 @@ const styles = StyleSheet.create({
     position: "absolute",
     top: -6,
     right: -10,
-    minWidth: 18,
+    minWidth: 0,
     height: 18,
-    borderRadius: 999,
-    backgroundColor: "#22C55E",
+    borderRadius: 0,
+    backgroundColor: "transparent",
     alignItems: "center",
     justifyContent: "center",
-    paddingHorizontal: 4,
+    paddingHorizontal: 0,
   },
   cartBadgeText: {
-    color: "#FFFFFF",
+    color: "#131A1D",
     fontSize: 10,
     fontWeight: "700",
   },
@@ -658,8 +660,8 @@ const styles = StyleSheet.create({
     position: "absolute",
     top: -4,
     right: -4,
-    borderRadius: 999,
-    backgroundColor: "#22C55E",
+    borderRadius: 0,
+    backgroundColor: "transparent",
     alignItems: "center",
     justifyContent: "center",
     zIndex: 1,
