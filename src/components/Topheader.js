@@ -5,6 +5,7 @@ import { StackActions, useNavigation } from "@react-navigation/native";
 import Icon from "react-native-vector-icons/FontAwesome6";
 import { useSideMenu } from "../services/SideMenuContext";
 import bottomNavigationStyle1Section from "../data/bottomNavigationStyle1";
+import { convertStyles } from "../utils/convertStyles";
 
 const LOCAL_LOGO_IMAGE = require("../assets/logo/mobidraglogo.png");
 
@@ -48,6 +49,14 @@ export default function Header({ section }) {
 
   const props = section?.props || section?.properties?.props?.properties || {};
   const layout = props?.layout?.properties?.css || props?.layout?.css || {};
+  const normalizedLayout = {
+    container: convertStyles(layout.container || {}),
+    leftSlot: convertStyles(layout.leftSlot || {}),
+    logoSlot: convertStyles(layout.logoSlot || {}),
+    logoImage: convertStyles(layout.logoImage || {}),
+    rightSlot: convertStyles(layout.rightSlot || {}),
+    badge: convertStyles(layout.badge || {}),
+  };
   const bottomNavSection = section?.bottomNavSection || bottomNavigationStyle1Section;
 
   // -----------------------------------------
@@ -84,7 +93,7 @@ export default function Header({ section }) {
   const notificationIconColor = unwrapValue(notificationProps?.color, "#016D77");
   const notificationShowBadge = resolveBoolean(notificationProps?.showBadge, false);
 
-  const badgeStyle = layout.badge || {};
+  const badgeStyle = normalizedLayout.badge || {};
 
   const resolveBottomNavItems = (rawSection) => {
     if (!rawSection) return [];
@@ -146,13 +155,13 @@ export default function Header({ section }) {
           borderColor: props.style?.properties?.borderColor?.value,
           borderWidth: 1,
           flexDirection: "row",
-          justifyContent: layout.container?.justifyContent || "space-between",
-          alignItems: layout.container?.alignItems || "center",
+          justifyContent: normalizedLayout.container?.justifyContent || "space-between",
+          alignItems: normalizedLayout.container?.alignItems || "center",
         }
       ]}
     >
       {/* LEFT ICON */}
-      <View style={[styles.leftSlot, layout.leftSlot]}>
+      <View style={[styles.leftSlot, normalizedLayout.leftSlot]}>
         {sideMenuVisible && hasSideNav && (
           <TouchableOpacity onPress={toggleSideMenu} activeOpacity={0.7}>
             <Icon
@@ -165,11 +174,11 @@ export default function Header({ section }) {
       </View>
 
       {/* LOGO */}
-      <View style={[styles.logoSlot, layout.logoSlot]}>
+      <View style={[styles.logoSlot, normalizedLayout.logoSlot]}>
         {logoEnabled && logoSource ? (
           <Image
             source={logoSource}
-            style={[styles.logoImage, layout.logoImage]}
+            style={[styles.logoImage, normalizedLayout.logoImage]}
             resizeMode="contain"
             onError={() => setLogoSource(LOCAL_LOGO_IMAGE)}
           />
@@ -177,7 +186,7 @@ export default function Header({ section }) {
       </View>
 
       {/* RIGHT ICONS */}
-      <View style={[styles.rightSlot, layout.rightSlot]}>
+      <View style={[styles.rightSlot, normalizedLayout.rightSlot]}>
         {cartVisible && (
           <TouchableOpacity
             style={styles.iconWrapper}
