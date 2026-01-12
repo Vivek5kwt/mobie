@@ -47,6 +47,7 @@ export default function LayoutScreen({ route }) {
     section?.properties?.component?.const ||
     section?.properties?.component ||
     "";
+  const isHeader2Section = (section) => getComponentName(section).toLowerCase() === "header_2";
   const normalizedPageName =
     typeof pageName === "string"
       ? pageName.trim().toLowerCase()
@@ -97,6 +98,7 @@ export default function LayoutScreen({ route }) {
   const sortedSections = useMemo(() => {
     const sectionsCopy = mobileSections.filter((section) => {
       const component = getComponentName(section).toLowerCase();
+      if (!isHomePage && component === "header_2") return false;
       if (component !== "header_2") return true;
       return !hasPrimaryHeader;
     });
@@ -196,7 +198,9 @@ export default function LayoutScreen({ route }) {
 
     try {
       const homeDslData = await fetchDSL(appId, "home");
-      const headers = extractHeaderSections(homeDslData?.dsl || {});
+      const headers = extractHeaderSections(homeDslData?.dsl || {}).filter(
+        (section) => !isHeader2Section(section)
+      );
       setHomeHeaderSections(headers);
     } catch (e) {
       console.log("❌ Failed to fetch home header sections:", e);
