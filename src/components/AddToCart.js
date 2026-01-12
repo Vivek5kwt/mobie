@@ -222,9 +222,10 @@ export default function AddToCart({ section }) {
     return false;
   };
 
+  const canAddLocally =
+    productTitle || productHandle || productVariantGid || productVariantNumericId;
+
   const handleAddToCart = async () => {
-    const canAddLocally =
-      productTitle || productHandle || productVariantGid || productVariantNumericId;
     if (!addToCartUrl && !productVariantGid && !canAddLocally) return;
 
     dispatch(
@@ -288,7 +289,7 @@ export default function AddToCart({ section }) {
         <TouchableOpacity
           style={[styles.button, addToCartButtonStyle]}
           onPress={handleAddToCart}
-          disabled={!addToCartUrl && !productVariantGid}
+          disabled={!addToCartUrl && !productVariantGid && !canAddLocally}
         >
           {showAddToCartIcon && !!addToCartIconName && (
             <FontAwesome
