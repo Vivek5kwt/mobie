@@ -38,6 +38,30 @@ const normalizeIconName = (name, fallback = "bars") => {
   return cleaned || fallback;
 };
 
+const resolveFontWeight = (value, fallback = "400") => {
+  const resolved = unwrapValue(value, fallback);
+  if (typeof resolved === "number") return String(resolved);
+  const normalized = String(resolved || "").trim().toLowerCase();
+  if (!normalized) return fallback;
+  if (/^\d+$/.test(normalized)) return normalized;
+  const map = {
+    thin: "100",
+    extralight: "200",
+    "extra light": "200",
+    light: "300",
+    regular: "400",
+    normal: "400",
+    medium: "500",
+    semibold: "600",
+    "semi bold": "600",
+    bold: "700",
+    extrabold: "800",
+    "extra bold": "800",
+    black: "900",
+  };
+  return map[normalized] || fallback;
+};
+
 const resolveLogoSource = (logoImage) => {
   if (!logoImage) return LOCAL_LOGO_IMAGE;
   if (logoImage === "/images/mobidrag.png") return LOCAL_LOGO_IMAGE;
@@ -88,6 +112,33 @@ export default function Header({ section }) {
   React.useEffect(() => {
     setLogoSource(resolveLogoSource(logoImage));
   }, [logoImage]);
+
+  const headerTextEnabled = resolveBoolean(
+    props?.enableheaderText ?? props?.enableHeaderText,
+    false,
+  );
+  const headerTextValue = unwrapValue(props?.headerText, "");
+  const headerTextSize = unwrapValue(props?.headerTextSize, 14);
+  const headerTextColor = unwrapValue(props?.headerTextColor, "#0C1C2C");
+  const headerTextBold = resolveBoolean(props?.headerTextBold, false);
+  const headerTextItalic = resolveBoolean(props?.headerTextItalic, false);
+  const headerTextUnderline = resolveBoolean(props?.headerTextUnderline, false);
+  const headerTextAlign = String(unwrapValue(props?.headerTextAlign, "center")).toLowerCase();
+  const headerFontFamily = unwrapValue(props?.headerFontFamily, undefined);
+  const headerFontWeight = resolveFontWeight(
+    props?.headerFontWeight,
+    headerTextBold ? "700" : "400",
+  );
+
+  const headerTextStyle = {
+    fontSize: headerTextSize,
+    color: headerTextColor,
+    fontWeight: headerTextBold ? "700" : headerFontWeight,
+    fontStyle: headerTextItalic ? "italic" : "normal",
+    textDecorationLine: headerTextUnderline ? "underline" : "none",
+    textAlign: headerTextAlign,
+    fontFamily: headerFontFamily,
+  };
 
   const cartProps = props?.cart?.properties || props?.cart || {};
   const cartVisible = resolveBoolean(cartProps?.visible, true);
@@ -207,7 +258,11 @@ export default function Header({ section }) {
 
       {/* LOGO */}
       <View style={[styles.logoSlot, normalizedLayout.logoSlot]}>
-        {logoEnabled && logoSource ? (
+        {headerTextEnabled && headerTextValue ? (
+          <Text style={[styles.logoText, headerTextStyle]} numberOfLines={1}>
+            {headerTextValue}
+          </Text>
+        ) : logoEnabled && logoSource ? (
           <Image
             source={logoSource}
             style={[styles.logoImage, logoImageStyle]}
@@ -284,6 +339,9 @@ const styles = StyleSheet.create({
     right: 0,
     alignItems: "center",
     justifyContent: "center",
+  },
+  logoText: {
+    textAlign: "center",
   },
   logoImage: { height: 26, width: 120 },
   rightSlot: {
