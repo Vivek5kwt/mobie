@@ -194,6 +194,8 @@ export default function SocialMediaIcons({ section }) {
           const normalizedId = String(platform.platform || platform.id || "").toLowerCase();
           const brandColor = useBrand ? brandColors[normalizedId] : null;
           const resolvedIconName = iconNameMap[normalizedId] || normalizedId || "link";
+          const isBrandIcon = brandIconNames.has(resolvedIconName);
+          const accessibilityLabel = `Open ${normalizedId || "social"} link`;
 
           return (
             <TouchableOpacity
@@ -202,6 +204,8 @@ export default function SocialMediaIcons({ section }) {
               onPress={() => openLink(platform.url)}
               disabled={!platform.url}
               style={{ marginRight: idx === platforms.length - 1 ? 0 : iconSpacing }}
+              accessibilityRole={platform.url ? "link" : "button"}
+              accessibilityLabel={accessibilityLabel}
             >
               <View
                 style={[
@@ -217,7 +221,7 @@ export default function SocialMediaIcons({ section }) {
                   name={resolvedIconName || "link"}
                   size={iconSize}
                   color={useBrand ? "#FFFFFF" : iconStyle.color || iconColor}
-                  brands={brandIconNames.has(resolvedIconName)}
+                  brand={isBrandIcon}
                   style={[iconStyle, { color: useBrand ? "#FFFFFF" : iconStyle.color || iconColor }]}
                 />
               </View>

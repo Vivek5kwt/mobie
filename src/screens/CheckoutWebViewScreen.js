@@ -4,6 +4,7 @@ import { useNavigation, useRoute } from "@react-navigation/native";
 import FontAwesome from "react-native-vector-icons/FontAwesome";
 import { WebView } from "react-native-webview";
 import { SafeArea } from "../utils/SafeAreaHandler";
+import Header from "../components/Topheader";
 
 export default function CheckoutWebViewScreen() {
   const navigation = useNavigation();
@@ -46,6 +47,7 @@ export default function CheckoutWebViewScreen() {
   return (
     <SafeArea>
       <View style={styles.container}>
+        <Header />
         <View style={styles.header}>
           <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
             <FontAwesome name="angle-left" size={24} color="#111827" />

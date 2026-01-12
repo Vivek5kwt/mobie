@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from "react";
 import { Linking, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { StackActions, useNavigation } from "@react-navigation/native";
 import Icon from "react-native-vector-icons/FontAwesome6";
+import { useSelector } from "react-redux";
 import { convertStyles } from "../utils/convertStyles";
 import { useSideMenu } from "../services/SideMenuContext";
 
@@ -51,6 +52,15 @@ const resolveItemLink = (item = {}) => {
   if (typeof item.href === "string") return item.href.trim();
   if (typeof item.url === "string") return item.url.trim();
   return "";
+};
+
+const normalizeNavString = (value) => String(value || "").trim().toLowerCase();
+
+const isCartItem = (item = {}) => {
+  const id = normalizeNavString(item?.id);
+  const label = normalizeNavString(resolveItemLabel(item));
+  const icon = normalizeNavString(resolveItemIcon(item));
+  return id.includes("cart") || label.includes("cart") || icon.includes("cart");
 };
 
 const buildRawProps = (rawProps = {}) => {
@@ -159,6 +169,14 @@ const resolveNavigationTarget = (item = {}) => {
 export default function BottomNavigation({ section, activeIndexOverride }) {
   const navigation = useNavigation();
   const { closeSideMenu, isOpen: isSideMenuOpen } = useSideMenu();
+  const cartCount = useSelector((state) =>
+    (state?.cart?.items || []).reduce((sum, item) => {
+      const quantity = Number(item?.quantity);
+      return sum + (Number.isFinite(quantity) ? quantity : 1);
+    }, 0)
+  );
+  const safeCartCount = Number.isFinite(cartCount) ? Math.max(0, cartCount) : 0;
+  const formattedCartCount = safeCartCount > 99 ? "99+" : String(safeCartCount);
   const componentName =
     section?.component || section?.properties?.component?.const || section?.properties?.component;
   const isStyle2 = String(componentName || "").toLowerCase() === "bottom_navigation_style_2";
@@ -332,6 +350,13 @@ export default function BottomNavigation({ section, activeIndexOverride }) {
                     color={itemIconColor}
                     style={[styles.icon, presentation.icon]}
                   />
+                  {isCartItem(item) && safeCartCount > 0 && (
+                    <View style={styles.cartBadge}>
+                      <Text style={[styles.cartBadgeText, { color: itemIconColor }]}>
+                        {formattedCartCount}
+                      </Text>
+                    </View>
+                  )}
                 </View>
               )}
               {showActiveIndicator && isActive && indicatorIsLine && (
@@ -394,8 +419,26 @@ const styles = StyleSheet.create({
     lineHeight: 1,
   },
   iconWrapper: {
+    position: "relative",
     alignItems: "center",
     justifyContent: "center",
+  },
+  cartBadge: {
+    position: "absolute",
+    top: -6,
+    right: -12,
+    minWidth: 0,
+    height: 18,
+    borderRadius: 0,
+    backgroundColor: "transparent",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 0,
+  },
+  cartBadgeText: {
+    color: "#111827",
+    fontSize: 10,
+    fontWeight: "700",
   },
   label: {
     marginTop: 6,

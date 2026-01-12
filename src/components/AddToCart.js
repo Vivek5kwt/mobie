@@ -1,7 +1,10 @@
 import React, { useMemo, useState } from "react";
 import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import FontAwesome from "react-native-vector-icons/FontAwesome";
-import { useNavigation } from "@react-navigation/native";
+import { StackActions, useNavigation } from "@react-navigation/native";
+import { useDispatch } from "react-redux";
+import { addItem } from "../store/slices/cartSlice";
+import bottomNavigationStyle1Section from "../data/bottomNavigationStyle1";
 import {
   createShopifyCheckout,
   getShopifyDomain,
@@ -113,6 +116,7 @@ const buildCheckoutUrl = ({ shopifyDomain, variantNumericId, quantity, handle })
 
 export default function AddToCart({ section }) {
   const navigation = useNavigation();
+  const dispatch = useDispatch();
   const propsNode =
     section?.properties?.props?.properties || section?.properties?.props || section?.props || {};
   const raw = unwrapValue(propsNode?.raw, {});
@@ -139,6 +143,11 @@ export default function AddToCart({ section }) {
   const shopifyDomain = toString(raw?.shopifyDomain, getShopifyDomain());
   const shopifyToken = toString(raw?.storefrontToken, getShopifyToken());
   const productHandle = toString(raw?.handle, "");
+  const productTitle = toString(raw?.title, "Product Name");
+  const productImage = toString(raw?.imageUrl, "");
+  const productPrice = toNumber(raw?.salePrice ?? raw?.standardPrice, 0);
+  const productVariantText = toString(raw?.variantText, "");
+  const productCurrency = toString(raw?.currencySymbol, "");
   const { gid: productVariantGid, numeric: productVariantNumericId } = extractVariantIdentifiers(
     toString(raw?.variantId || raw?.defaultVariantId, "")
   );
@@ -204,6 +213,51 @@ export default function AddToCart({ section }) {
   const addToCartIconName = resolveIconName(addToCartConfig?.icon);
   const buyNowIconName = resolveIconName(buyNowConfig?.icon);
 
+  const resolveBottomNavItems = (rawSection) => {
+    if (!rawSection) return [];
+    const rawProps =
+      rawSection?.props || rawSection?.properties?.props?.properties || rawSection?.properties?.props || {};
+    const rawValue = unwrapValue(rawProps?.raw, {});
+    let items = unwrapValue(rawValue?.items, undefined);
+    if (!items) {
+      items = unwrapValue(rawProps?.items, []);
+    }
+    if (items?.value && Array.isArray(items.value)) return items.value;
+    return Array.isArray(items) ? items : [];
+  };
+
+  const normalizeBottomNavTarget = (value) => String(value || "").trim().toLowerCase();
+
+  const resolveBottomNavIndex = (items, target) => {
+    const normalizedTarget = normalizeBottomNavTarget(target);
+    if (!normalizedTarget) return -1;
+    return items.findIndex((item) => {
+      const id = normalizeBottomNavTarget(item?.id);
+      const label = normalizeBottomNavTarget(
+        item?.label ?? item?.title ?? item?.name ?? item?.text ?? item?.value,
+      );
+      return id.includes(normalizedTarget) || label.includes(normalizedTarget);
+    });
+  };
+
+  const openCartScreen = () => {
+    const bottomNavSection = section?.bottomNavSection || bottomNavigationStyle1Section;
+    const items = resolveBottomNavItems(bottomNavSection);
+    const resolvedIndex = resolveBottomNavIndex(items, "cart");
+    const activeIndex = resolvedIndex >= 0 ? resolvedIndex : 1;
+    const item = items[activeIndex];
+    const title = item?.label || item?.title || item?.name || "Cart";
+    const rawLink = item?.link ?? item?.href ?? item?.url ?? "";
+    const link = typeof rawLink === "string" ? rawLink.replace(/^\//, "") : "";
+    const params = {
+      title,
+      link,
+      activeIndex,
+      bottomNavSection,
+    };
+    navigation.dispatch(StackActions.replace("BottomNavScreen", params));
+  };
+
   const openCheckoutUrl = async (url, title = "Checkout") => {
     if (!url) return false;
     if (navigation?.navigate) {
@@ -214,26 +268,28 @@ export default function AddToCart({ section }) {
     return false;
   };
 
+  const canAddLocally =
+    productTitle || productHandle || productVariantGid || productVariantNumericId;
+
   const handleAddToCart = async () => {
-    if (!addToCartUrl && !productVariantGid) return;
+    if (!addToCartUrl && !productVariantGid && !canAddLocally) return;
 
-    if (addToCartUrl) {
-      const opened = await openCheckoutUrl(addToCartUrl, "Cart");
-      if (opened) return;
-    }
+    dispatch(
+      addItem({
+        item: {
+          id: productVariantGid || productVariantNumericId || productHandle || productTitle,
+          variantId: productVariantGid || "",
+          title: productTitle,
+          image: productImage,
+          price: productPrice,
+          variant: productVariantText,
+          currency: productCurrency,
+          quantity,
+        },
+      })
+    );
 
-    if (!productVariantGid) return;
-
-    try {
-      const checkoutUrl = await createShopifyCheckout({
-        variantId: productVariantGid,
-        quantity,
-        options: { shop: shopifyDomain, token: shopifyToken },
-      });
-      await openCheckoutUrl(checkoutUrl, "Cart");
-    } catch (error) {
-      console.log("Unable to add Shopify item to cart:", error);
-    }
+    openCartScreen();
   };
 
   const handleBuyNow = async () => {
@@ -264,7 +320,7 @@ export default function AddToCart({ section }) {
         <TouchableOpacity
           style={[styles.button, addToCartButtonStyle]}
           onPress={handleAddToCart}
-          disabled={!addToCartUrl && !productVariantGid}
+          disabled={!addToCartUrl && !productVariantGid && !canAddLocally}
         >
           {showAddToCartIcon && !!addToCartIconName && (
             <FontAwesome

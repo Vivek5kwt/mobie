@@ -7,6 +7,7 @@ import { fetchShopifyProductDetails } from "../services/shopify";
 import { fetchDSL } from "../engine/dslHandler";
 import { resolveAppId } from "../utils/appId";
 import { useAuth } from "../services/AuthContext";
+import Header from "../components/Topheader";
 
 const unwrapValue = (value, fallback = undefined) => {
   if (value === undefined || value === null) return fallback;
@@ -230,21 +231,27 @@ export default function ProductDetailScreen() {
 
   return (
     <SafeArea>
-      <ScrollView contentContainerStyle={styles.scrollContent}>
-        {dslLoading && <Text style={styles.status}>Loading product layout...</Text>}
-        {loading && <Text style={styles.status}>Loading product details...</Text>}
-        {!!error && <Text style={styles.error}>{error}</Text>}
-        {renderSections.map((section, index) => (
-          <View key={section?.id || section?.component || index} style={styles.section}>
-            <DynamicRenderer section={section} />
-          </View>
-        ))}
-      </ScrollView>
+      <View style={styles.container}>
+        <Header />
+        <ScrollView contentContainerStyle={styles.scrollContent}>
+          {dslLoading && <Text style={styles.status}>Loading product layout...</Text>}
+          {loading && <Text style={styles.status}>Loading product details...</Text>}
+          {!!error && <Text style={styles.error}>{error}</Text>}
+          {renderSections.map((section, index) => (
+            <View key={section?.id || section?.component || index} style={styles.section}>
+              <DynamicRenderer section={section} />
+            </View>
+          ))}
+        </ScrollView>
+      </View>
     </SafeArea>
   );
 }
 
 const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+  },
   scrollContent: {
     paddingBottom: 24,
     backgroundColor: "#F7F7F7",

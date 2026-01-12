@@ -120,6 +120,7 @@ export async function fetchShopifyProducts(limit = 10, options = {}) {
     const products = edges.map((edge) => {
       const variants = edge?.node?.variants?.edges || [];
       const price = variants[0]?.node?.price;
+      const variantId = variants[0]?.node?.id || null;
 
       return {
         id: edge?.node?.id,
@@ -127,6 +128,7 @@ export async function fetchShopifyProducts(limit = 10, options = {}) {
         image: edge?.node?.featuredImage?.url || null,
         price: price?.amount || null,
         currency: price?.currencyCode || null,
+        variantId,
       };
     });
 
@@ -340,25 +342,31 @@ export async function fetchShopifyProductDetails({ handle, id, options = {} }) {
   }
 }
 
+const ensureVariantGid = (value) => {
+  if (!value) return "";
+  const raw = String(value);
+  if (raw.startsWith("gid://")) {
+    return raw.includes("ProductVariant") ? raw : "";
+  }
+  const match = raw.match(/(\d+)/);
+  if (match) {
+    return `gid://shopify/ProductVariant/${match[1]}`;
+  }
+  return "";
+};
+
 export async function createShopifyCheckout({ variantId, quantity = 1, options = {} }) {
   if (!variantId) {
     throw new Error("Missing variant ID for checkout.");
   }
 
-  const ensureVariantGid = (value) => {
-    if (!value) return "";
-    const raw = String(value);
-    if (raw.startsWith("gid://")) return raw;
-    const match = raw.match(/(\d+)/);
-    if (match) {
-      return `gid://shopify/ProductVariant/${match[1]}`;
-    }
-    return raw;
-  };
-
   const shop = options.shop || getShopifyDomain();
   const token = options.token || getShopifyToken();
   const merchandiseId = ensureVariantGid(variantId);
+
+  if (!merchandiseId) {
+    throw new Error("Invalid variant ID for checkout.");
+  }
 
   const mutation = `
     mutation CreateCart($input: CartInput!) {
@@ -386,6 +394,65 @@ export async function createShopifyCheckout({ variantId, quantity = 1, options =
             quantity: Math.max(1, quantity),
           },
         ],
+      },
+    },
+  });
+
+  if (json?.errors?.length) {
+    throw new Error(json.errors.map((error) => error.message).join(" "));
+  }
+
+  const payload = json?.data?.cartCreate;
+  const errors = payload?.userErrors || [];
+
+  if (errors.length) {
+    throw new Error(errors.map((error) => error.message).join(" "));
+  }
+
+  const checkoutUrl = payload?.cart?.checkoutUrl ?? payload?.cart?.checckoutUrl;
+  if (!checkoutUrl) {
+    throw new Error("Checkout URL not returned.");
+  }
+
+  return checkoutUrl;
+}
+
+export async function createShopifyCartCheckout({ items = [], options = {} }) {
+  const shop = options.shop || getShopifyDomain();
+  const token = options.token || getShopifyToken();
+
+  const lines = (items || [])
+    .map((item) => ({
+      merchandiseId: ensureVariantGid(item?.variantId || item?.id),
+      quantity: Math.max(1, Number(item?.quantity) || 1),
+    }))
+    .filter((line) => line.merchandiseId);
+
+  if (!lines.length) {
+    throw new Error("No valid cart items for checkout.");
+  }
+
+  const mutation = `
+    mutation CreateCart($input: CartInput!) {
+      cartCreate(input: $input) {
+        cart {
+          checkoutUrl
+        }
+        userErrors {
+          field
+          message
+        }
+      }
+    }
+  `;
+
+  const json = await directStorefrontGraphQL({
+    shop,
+    token,
+    query: mutation,
+    variables: {
+      input: {
+        lines,
       },
     },
   });

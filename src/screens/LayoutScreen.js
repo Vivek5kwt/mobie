@@ -10,7 +10,7 @@ import {
   TouchableOpacity,
   Animated,
 } from "react-native";
-import { useFocusEffect, useRoute } from "@react-navigation/native";
+import { useFocusEffect } from "@react-navigation/native";
 import DynamicRenderer from "../engine/DynamicRenderer";
 import { fetchDSL } from "../engine/dslHandler";
 import { shouldRenderSectionOnMobile } from "../engine/visibility";
@@ -21,8 +21,7 @@ import bottomNavigationStyle1Section from "../data/bottomNavigationStyle1";
 import { resolveAppId } from "../utils/appId";
 import { useAuth } from "../services/AuthContext";
 
-export default function LayoutScreen() {
-  const route = useRoute();
+export default function LayoutScreen({ route }) {
   const { session } = useAuth();
   const pageName = route?.params?.pageName || "home";
   const appId = useMemo(
@@ -34,6 +33,7 @@ export default function LayoutScreen() {
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState(null);
   const [refreshing, setRefreshing] = useState(false);
+  const [homeHeaderSections, setHomeHeaderSections] = useState([]);
   const [snackbar, setSnackbar] = useState({ visible: false, message: "", type: "info" });
   const [isSideMenuOpen, setIsSideMenuOpen] = useState(false);
   const versionRef = useRef(null);
@@ -47,10 +47,42 @@ export default function LayoutScreen() {
     section?.properties?.component?.const ||
     section?.properties?.component ||
     "";
+  const normalizedPageName =
+    typeof pageName === "string"
+      ? pageName.trim().toLowerCase()
+      : String(pageName ?? "").trim().toLowerCase();
+  const isHomePage = normalizedPageName === "home";
 
   const mobileSections = useMemo(
     () => (dsl?.sections || []).filter(shouldRenderSectionOnMobile),
     [dsl]
+  );
+
+  const headerComponentNames = useMemo(
+    () => new Set(["header", "header_2", "header_mobile"]),
+    []
+  );
+
+  const extractHeaderSections = useCallback(
+    (incomingDsl) =>
+      (incomingDsl?.sections || []).filter((section) =>
+        headerComponentNames.has(getComponentName(section).toLowerCase())
+      ),
+    [headerComponentNames]
+  );
+
+  const ensureHeaderSections = useCallback(
+    (incomingDsl, fallbackHeaders) => {
+      if (!incomingDsl || !Array.isArray(incomingDsl.sections)) return incomingDsl;
+      const existingHeaders = extractHeaderSections(incomingDsl);
+      if (existingHeaders.length) return incomingDsl;
+      if (!fallbackHeaders || !fallbackHeaders.length) return incomingDsl;
+      return {
+        ...incomingDsl,
+        sections: [...fallbackHeaders, ...incomingDsl.sections],
+      };
+    },
+    [extractHeaderSections]
   );
 
   const sortedSections = useMemo(() => {
@@ -143,18 +175,48 @@ export default function LayoutScreen() {
     };
   };
 
+  const loadHomeHeaderSections = useCallback(async () => {
+    if (isHomePage) {
+      setHomeHeaderSections([]);
+      return;
+    }
+
+    try {
+      const homeDslData = await fetchDSL(appId, "home");
+      const headers = extractHeaderSections(homeDslData?.dsl || {});
+      setHomeHeaderSections(headers);
+    } catch (e) {
+      console.log("❌ Failed to fetch home header sections:", e);
+      setHomeHeaderSections([]);
+    }
+  }, [appId, extractHeaderSections, isHomePage]);
+
+  useEffect(() => {
+    loadHomeHeaderSections();
+  }, [loadHomeHeaderSections]);
+
   useEffect(() => {
     return () => {
       if (snackbarTimer.current) clearTimeout(snackbarTimer.current);
     };
   }, []);
 
+  useEffect(() => {
+    if (appId !== undefined && appId !== null) {
+      showSnackbar(`Fetching app id ${appId} data`, "info");
+    }
+  }, [appId]);
+
   // Reload DSL
   const refreshDSL = async (withFeedback = false) => {
     try {
       const dslData = await fetchDSL(appId, pageName);
       if (dslData?.dsl) {
-        setDsl(ensureBottomNavigationSection(dslData.dsl));
+        const baseDsl = ensureBottomNavigationSection(dslData.dsl);
+        const nextDsl = isHomePage
+          ? baseDsl
+          : ensureHeaderSections(baseDsl, homeHeaderSections);
+        setDsl(nextDsl);
         versionRef.current = dslData.versionNumber ?? null;
         if (withFeedback) showSnackbar("Live layout refreshed", "success");
       }
@@ -182,7 +244,11 @@ export default function LayoutScreen() {
         return;
       }
 
-      setDsl(ensureBottomNavigationSection(dslData.dsl));
+      const baseDsl = ensureBottomNavigationSection(dslData.dsl);
+      const nextDsl = isHomePage
+        ? baseDsl
+        : ensureHeaderSections(baseDsl, homeHeaderSections);
+      setDsl(nextDsl);
       versionRef.current = dslData.versionNumber ?? null;
 
       console.log(
@@ -258,7 +324,11 @@ export default function LayoutScreen() {
         const incomingVersion = latest.versionNumber ?? null;
 
         if (incomingVersion !== versionRef.current) {
-          setDsl(ensureBottomNavigationSection(latest.dsl));
+          const baseDsl = ensureBottomNavigationSection(latest.dsl);
+          const nextDsl = isHomePage
+            ? baseDsl
+            : ensureHeaderSections(baseDsl, homeHeaderSections);
+          setDsl(nextDsl);
           versionRef.current = incomingVersion;
         }
       } catch (e) {
@@ -267,7 +337,7 @@ export default function LayoutScreen() {
     }, 5000);
 
     return () => clearInterval(intervalId);
-  }, [appId, pageName]);
+  }, [appId, ensureHeaderSections, homeHeaderSections, isHomePage, pageName]);
 
   const fallbackBottomNavSection = bottomNavSection || bottomNavigationStyle1Section;
 
@@ -393,7 +463,11 @@ export default function LayoutScreen() {
             <View
               style={[
                 styles.snackbar,
-                snackbar.type === "success" ? styles.snackbarSuccess : styles.snackbarError,
+                snackbar.type === "success"
+                  ? styles.snackbarSuccess
+                  : snackbar.type === "info"
+                    ? styles.snackbarInfo
+                    : styles.snackbarError,
               ]}
             >
               <Text style={styles.snackbarText}>{snackbar.message}</Text>
@@ -509,6 +583,11 @@ const styles = StyleSheet.create({
   snackbarSuccess: {
     backgroundColor: "#0F172A",
     borderColor: "#22C55E",
+    borderWidth: 1,
+  },
+  snackbarInfo: {
+    backgroundColor: "#0F172A",
+    borderColor: "#60A5FA",
     borderWidth: 1,
   },
   snackbarError: {

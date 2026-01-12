@@ -8,8 +8,10 @@ import {
   View,
   Image,
 } from "react-native";
+import { useDispatch } from "react-redux";
 import { fetchShopifyProducts } from "../services/shopify";
 import { convertStyles } from "../utils/convertStyles";
+import { addItem } from "../store/slices/cartSlice";
 
 const unwrapValue = (value, fallback = undefined) => {
   if (value === undefined || value === null) return fallback;
@@ -100,6 +102,7 @@ const extractLayoutCss = (rawProps) => {
 };
 
 export default function TabProductGrid({ section }) {
+  const dispatch = useDispatch();
   const rawProps =
     section?.properties?.props?.properties || section?.properties?.props || section?.props || {};
 
@@ -275,7 +278,25 @@ export default function TabProductGrid({ section }) {
                   </Text>
                 </View>
 
-                <TouchableOpacity style={[styles.addToCartButton, addToCartButtonStyle]}>
+                <TouchableOpacity
+                  style={[styles.addToCartButton, addToCartButtonStyle]}
+                  onPress={() =>
+                    dispatch(
+                      addItem({
+                        item: {
+                          id: product.variantId || product.id,
+                          variantId: product.variantId || "",
+                          title: product.name || "Product Name",
+                          image: product.image || "",
+                          price: toNumber(product.price, 0),
+                          variant: "",
+                          currency: product.currency || "",
+                          quantity: 1,
+                        },
+                      })
+                    )
+                  }
+                >
                   <Text style={styles.addToCartLabel}>Add to cart</Text>
                 </TouchableOpacity>
               </View>

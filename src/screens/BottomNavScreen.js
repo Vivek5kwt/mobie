@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
   RefreshControl,
@@ -30,10 +30,16 @@ export default function BottomNavScreen() {
       resolveAppId(route?.params?.appId ?? session?.user?.appId ?? session?.user?.app_id),
     [route?.params?.appId, session?.user?.appId, session?.user?.app_id]
   );
+  const normalizedPageName =
+    typeof pageName === "string"
+      ? pageName.trim().toLowerCase()
+      : String(pageName ?? "").trim().toLowerCase();
+  const isHomePage = normalizedPageName === "home";
   const [dsl, setDsl] = useState(null);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState(null);
   const [refreshing, setRefreshing] = useState(false);
+  const [homeHeaderSections, setHomeHeaderSections] = useState([]);
   const versionRef = useRef(null);
 
   const getComponentName = (section) =>
@@ -42,6 +48,32 @@ export default function BottomNavScreen() {
     section?.properties?.component?.const ||
     section?.properties?.component ||
     "";
+  const headerComponentNames = useMemo(
+    () => new Set(["header", "header_2", "header_mobile"]),
+    []
+  );
+
+  const extractHeaderSections = useCallback(
+    (incomingDsl) =>
+      (incomingDsl?.sections || []).filter((section) =>
+        headerComponentNames.has(getComponentName(section).toLowerCase())
+      ),
+    [headerComponentNames]
+  );
+
+  const ensureHeaderSections = useCallback(
+    (incomingDsl, fallbackHeaders) => {
+      if (!incomingDsl || !Array.isArray(incomingDsl.sections)) return incomingDsl;
+      const existingHeaders = extractHeaderSections(incomingDsl);
+      if (existingHeaders.length) return incomingDsl;
+      if (!fallbackHeaders || !fallbackHeaders.length) return incomingDsl;
+      return {
+        ...incomingDsl,
+        sections: [...fallbackHeaders, ...incomingDsl.sections],
+      };
+    },
+    [extractHeaderSections]
+  );
 
   const mobileSections = useMemo(
     () => (dsl?.sections || []).filter(shouldRenderSectionOnMobile),
@@ -104,7 +136,10 @@ export default function BottomNavScreen() {
           return;
         }
         if (isMounted) {
-          setDsl(dslData.dsl);
+          const nextDsl = isHomePage
+            ? dslData.dsl
+            : ensureHeaderSections(dslData.dsl, homeHeaderSections);
+          setDsl(nextDsl);
           versionRef.current = dslData.versionNumber ?? null;
         }
       } catch (error) {
@@ -119,13 +154,42 @@ export default function BottomNavScreen() {
     return () => {
       isMounted = false;
     };
-  }, [appId, pageName]);
+  }, [appId, ensureHeaderSections, homeHeaderSections, isHomePage, pageName]);
+
+  const loadHomeHeaderSections = useCallback(async () => {
+    if (isHomePage) {
+      setHomeHeaderSections([]);
+      return;
+    }
+
+    try {
+      const homeDslData = await fetchDSL(appId, "home");
+      const headers = extractHeaderSections(homeDslData?.dsl || {});
+      setHomeHeaderSections(headers);
+    } catch (error) {
+      console.log("❌ Failed to fetch home header sections:", error);
+      setHomeHeaderSections([]);
+    }
+  }, [appId, extractHeaderSections, isHomePage]);
+
+  useEffect(() => {
+    loadHomeHeaderSections();
+  }, [loadHomeHeaderSections]);
+
+  useEffect(() => {
+    if (!isHomePage && dsl) {
+      setDsl(ensureHeaderSections(dsl, homeHeaderSections));
+    }
+  }, [dsl, ensureHeaderSections, homeHeaderSections, isHomePage]);
 
   const refreshDSL = async () => {
     try {
       const dslData = await fetchDSL(appId, pageName);
       if (dslData?.dsl) {
-        setDsl(dslData.dsl);
+        const nextDsl = isHomePage
+          ? dslData.dsl
+          : ensureHeaderSections(dslData.dsl, homeHeaderSections);
+        setDsl(nextDsl);
         versionRef.current = dslData.versionNumber ?? null;
       }
     } catch (error) {
@@ -147,7 +211,10 @@ export default function BottomNavScreen() {
 
         const incomingVersion = latest.versionNumber ?? null;
         if (incomingVersion !== versionRef.current) {
-          setDsl(latest.dsl);
+          const nextDsl = isHomePage
+            ? latest.dsl
+            : ensureHeaderSections(latest.dsl, homeHeaderSections);
+          setDsl(nextDsl);
           versionRef.current = incomingVersion;
         }
       } catch (error) {
@@ -156,7 +223,7 @@ export default function BottomNavScreen() {
     }, 5000);
 
     return () => clearInterval(intervalId);
-  }, [appId, pageName]);
+  }, [appId, ensureHeaderSections, homeHeaderSections, isHomePage, pageName]);
 
   return (
     <SafeArea>

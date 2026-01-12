@@ -1,10 +1,12 @@
 // components/Header.js
 import React from "react";
-import { Image, StyleSheet, TouchableOpacity, View } from "react-native";
+import { Image, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { StackActions, useNavigation } from "@react-navigation/native";
 import Icon from "react-native-vector-icons/FontAwesome6";
+import { useSelector } from "react-redux";
 import { useSideMenu } from "../services/SideMenuContext";
 import bottomNavigationStyle1Section from "../data/bottomNavigationStyle1";
+import { convertStyles } from "../utils/convertStyles";
 
 const LOCAL_LOGO_IMAGE = require("../assets/logo/mobidraglogo.png");
 
@@ -36,6 +38,30 @@ const normalizeIconName = (name, fallback = "bars") => {
   return cleaned || fallback;
 };
 
+const resolveFontWeight = (value, fallback = "400") => {
+  const resolved = unwrapValue(value, fallback);
+  if (typeof resolved === "number") return String(resolved);
+  const normalized = String(resolved || "").trim().toLowerCase();
+  if (!normalized) return fallback;
+  if (/^\d+$/.test(normalized)) return normalized;
+  const map = {
+    thin: "100",
+    extralight: "200",
+    "extra light": "200",
+    light: "300",
+    regular: "400",
+    normal: "400",
+    medium: "500",
+    semibold: "600",
+    "semi bold": "600",
+    bold: "700",
+    extrabold: "800",
+    "extra bold": "800",
+    black: "900",
+  };
+  return map[normalized] || fallback;
+};
+
 const resolveLogoSource = (logoImage) => {
   if (!logoImage) return LOCAL_LOGO_IMAGE;
   if (logoImage === "/images/mobidrag.png") return LOCAL_LOGO_IMAGE;
@@ -45,9 +71,28 @@ const resolveLogoSource = (logoImage) => {
 export default function Header({ section }) {
   const { toggleSideMenu, hasSideNav } = useSideMenu();
   const navigation = useNavigation();
+  const cartCount = useSelector((state) =>
+    (state?.cart?.items || []).reduce((sum, item) => {
+      const quantity = Number(item?.quantity);
+      return sum + (Number.isFinite(quantity) ? quantity : 1);
+    }, 0)
+  );
+  const safeCartCount = Number.isFinite(cartCount) ? Math.max(0, cartCount) : 0;
+  const formattedCartCount = safeCartCount > 99 ? "99+" : String(safeCartCount);
 
   const props = section?.props || section?.properties?.props?.properties || {};
   const layout = props?.layout?.properties?.css || props?.layout?.css || {};
+  const normalizedLayout = {
+    container: convertStyles(layout.container || {}),
+    leftSlot: convertStyles(layout.leftSlot || {}),
+    logoSlot: convertStyles(layout.logoSlot || {}),
+    logoImage: convertStyles(layout.logoImage || {}),
+    rightSlot: convertStyles(layout.rightSlot || {}),
+    badge: convertStyles(layout.badge || {}),
+  };
+  const logoImageStyle = { ...normalizedLayout.logoImage };
+  if (logoImageStyle.width === "auto") delete logoImageStyle.width;
+  if (logoImageStyle.height === "auto") delete logoImageStyle.height;
   const bottomNavSection = section?.bottomNavSection || bottomNavigationStyle1Section;
 
   // -----------------------------------------
@@ -62,7 +107,38 @@ export default function Header({ section }) {
 
   const logoEnabled = resolveBoolean(props?.enableLogo, true);
   const logoImage = unwrapValue(props?.logoImage, "");
-  const logoSource = resolveLogoSource(logoImage);
+  const [logoSource, setLogoSource] = React.useState(() => resolveLogoSource(logoImage));
+
+  React.useEffect(() => {
+    setLogoSource(resolveLogoSource(logoImage));
+  }, [logoImage]);
+
+  const headerTextEnabled = resolveBoolean(
+    props?.enableheaderText ?? props?.enableHeaderText,
+    false,
+  );
+  const headerTextValue = unwrapValue(props?.headerText, "");
+  const headerTextSize = unwrapValue(props?.headerTextSize, 14);
+  const headerTextColor = unwrapValue(props?.headerTextColor, "#0C1C2C");
+  const headerTextBold = resolveBoolean(props?.headerTextBold, false);
+  const headerTextItalic = resolveBoolean(props?.headerTextItalic, false);
+  const headerTextUnderline = resolveBoolean(props?.headerTextUnderline, false);
+  const headerTextAlign = String(unwrapValue(props?.headerTextAlign, "center")).toLowerCase();
+  const headerFontFamily = unwrapValue(props?.headerFontFamily, undefined);
+  const headerFontWeight = resolveFontWeight(
+    props?.headerFontWeight,
+    headerTextBold ? "700" : "400",
+  );
+
+  const headerTextStyle = {
+    fontSize: headerTextSize,
+    color: headerTextColor,
+    fontWeight: headerTextBold ? "700" : headerFontWeight,
+    fontStyle: headerTextItalic ? "italic" : "normal",
+    textDecorationLine: headerTextUnderline ? "underline" : "none",
+    textAlign: headerTextAlign,
+    fontFamily: headerFontFamily,
+  };
 
   const cartProps = props?.cart?.properties || props?.cart || {};
   const cartVisible = resolveBoolean(cartProps?.visible, true);
@@ -70,6 +146,7 @@ export default function Header({ section }) {
   const cartIconSize = unwrapValue(cartProps?.width, 18);
   const cartIconColor = unwrapValue(cartProps?.color, "#016D77");
   const cartShowBadge = resolveBoolean(cartProps?.showBadge, false);
+  const shouldShowCartBadge = safeCartCount > 0 || cartShowBadge;
 
   const notificationProps = props?.notification?.properties || props?.notification || {};
   const notificationVisible = resolveBoolean(notificationProps?.visible, true);
@@ -80,7 +157,26 @@ export default function Header({ section }) {
   const notificationIconColor = unwrapValue(notificationProps?.color, "#016D77");
   const notificationShowBadge = resolveBoolean(notificationProps?.showBadge, false);
 
-  const badgeStyle = layout.badge || {};
+  const badgeStyle = normalizedLayout.badge || {};
+  const badgeStyleHasSize = [
+    "width",
+    "height",
+    "minWidth",
+    "minHeight",
+    "padding",
+    "paddingHorizontal",
+    "paddingVertical",
+  ].some((key) => badgeStyle?.[key] !== undefined);
+  const badgeTextOverrides = {
+    color: badgeStyle?.color,
+    fontSize: badgeStyle?.fontSize,
+    fontWeight: badgeStyle?.fontWeight,
+    fontStyle: badgeStyle?.fontStyle,
+    lineHeight: badgeStyle?.lineHeight,
+    letterSpacing: badgeStyle?.letterSpacing,
+    textAlign: badgeStyle?.textAlign,
+    textAlignVertical: badgeStyle?.textAlignVertical,
+  };
 
   const resolveBottomNavItems = (rawSection) => {
     if (!rawSection) return [];
@@ -142,13 +238,13 @@ export default function Header({ section }) {
           borderColor: props.style?.properties?.borderColor?.value,
           borderWidth: 1,
           flexDirection: "row",
-          justifyContent: layout.container?.justifyContent || "space-between",
-          alignItems: layout.container?.alignItems || "center",
+          justifyContent: normalizedLayout.container?.justifyContent || "space-between",
+          alignItems: normalizedLayout.container?.alignItems || "center",
         }
       ]}
     >
       {/* LEFT ICON */}
-      <View style={[styles.leftSlot, layout.leftSlot]}>
+      <View style={[styles.leftSlot, normalizedLayout.leftSlot]}>
         {sideMenuVisible && hasSideNav && (
           <TouchableOpacity onPress={toggleSideMenu} activeOpacity={0.7}>
             <Icon
@@ -161,18 +257,23 @@ export default function Header({ section }) {
       </View>
 
       {/* LOGO */}
-      <View style={[styles.logoSlot, layout.logoSlot]}>
-        {logoEnabled && logoSource ? (
+      <View style={[styles.logoSlot, normalizedLayout.logoSlot]}>
+        {!logoEnabled && headerTextValue ? (
+          <Text style={[styles.logoText, headerTextStyle]} numberOfLines={1}>
+            {headerTextValue}
+          </Text>
+        ) : logoEnabled && logoSource ? (
           <Image
             source={logoSource}
-            style={[styles.logoImage, layout.logoImage]}
+            style={[styles.logoImage, logoImageStyle]}
             resizeMode="contain"
+            onError={() => setLogoSource(LOCAL_LOGO_IMAGE)}
           />
         ) : null}
       </View>
 
       {/* RIGHT ICONS */}
-      <View style={[styles.rightSlot, layout.rightSlot]}>
+      <View style={[styles.rightSlot, normalizedLayout.rightSlot]}>
         {cartVisible && (
           <TouchableOpacity
             style={styles.iconWrapper}
@@ -180,7 +281,19 @@ export default function Header({ section }) {
             onPress={() => openBottomNavTarget("cart")}
           >
             <Icon name={cartIconName} size={cartIconSize} color={cartIconColor} />
-            {cartShowBadge && <View style={[styles.badge, badgeStyle]} />}
+            {shouldShowCartBadge && (
+              <View style={[styles.badge, badgeStyle]}>
+                <Text
+                  style={[
+                    styles.badgeText,
+                    { color: cartIconColor },
+                    badgeTextOverrides,
+                  ]}
+                >
+                  {formattedCartCount}
+                </Text>
+              </View>
+            )}
           </TouchableOpacity>
         )}
         {notificationVisible && (
@@ -194,7 +307,15 @@ export default function Header({ section }) {
               size={notificationIconSize}
               color={notificationIconColor}
             />
-            {notificationShowBadge && <View style={[styles.badge, badgeStyle]} />}
+            {notificationShowBadge && (
+              <View
+                style={[
+                  styles.notificationBadge,
+                  badgeStyle,
+                  !badgeStyleHasSize && styles.notificationBadgeCompact,
+                ]}
+              />
+            )}
           </TouchableOpacity>
         )}
       </View>
@@ -210,19 +331,66 @@ function convertPadding(str) {
 }
 
 const styles = StyleSheet.create({
-  container: {},
-  leftSlot: { flexDirection: "row", alignItems: "center" },
-  logoSlot: { flex: 1, alignItems: "center", justifyContent: "center" },
+  container: { position: "relative" },
+  leftSlot: { flex: 1, flexDirection: "row", alignItems: "center" },
+  logoSlot: {
+    position: "absolute",
+    left: 0,
+    right: 0,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  logoText: {
+    textAlign: "center",
+  },
   logoImage: { height: 26, width: 120 },
-  rightSlot: { flexDirection: "row", alignItems: "center", gap: 14 },
+  rightSlot: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "flex-end",
+    gap: 14,
+  },
   iconWrapper: { position: "relative" },
   badge: {
     position: "absolute",
+    top: -6,
+    right: -8,
+    borderRadius: 0,
+    backgroundColor: "transparent",
+    minWidth: 0,
+    minHeight: 0,
+    paddingHorizontal: 0,
+    paddingVertical: 0,
+    alignItems: "center",
+    justifyContent: "center",
+    zIndex: 1,
+  },
+  badgeText: {
+    color: "#111827",
+    fontSize: 10,
+    fontWeight: "700",
+    lineHeight: 12,
+    textAlign: "center",
+    textAlignVertical: "center",
+    includeFontPadding: false,
+  },
+  notificationBadge: {
+    position: "absolute",
     top: -4,
     right: -4,
-    width: 8,
-    height: 8,
-    borderRadius: 999,
-    backgroundColor: "#22C55E",
+    borderRadius: 0,
+    backgroundColor: "transparent",
+    alignItems: "center",
+    justifyContent: "center",
+    zIndex: 1,
+  },
+  notificationBadgeCompact: {
+    width: 10,
+    height: 10,
+    minWidth: 10,
+    minHeight: 10,
+    paddingHorizontal: 0,
+    paddingVertical: 0,
   },
 });

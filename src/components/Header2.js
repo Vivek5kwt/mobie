@@ -3,6 +3,7 @@ import { Image, StyleSheet, Text, TextInput, TouchableOpacity, View } from "reac
 import { StackActions, useNavigation } from "@react-navigation/native";
 import LinearGradient from "react-native-linear-gradient";
 import FontAwesome from "react-native-vector-icons/FontAwesome";
+import { useSelector } from "react-redux";
 import { convertStyles, extractGradientInfo } from "../utils/convertStyles";
 import { useSideMenu } from "../services/SideMenuContext";
 import bottomNavigationStyle1Section from "../data/bottomNavigationStyle1";
@@ -74,6 +75,13 @@ export default function Header2({ section }) {
   const { toggleSideMenu, hasSideNav } = useSideMenu();
   const navigation = useNavigation();
   const bottomNavSection = section?.bottomNavSection || bottomNavigationStyle1Section;
+  const cartCount = useSelector((state) =>
+    (state?.cart?.items || []).reduce((sum, item) => {
+      const quantity = Number(item?.quantity);
+      return sum + (Number.isFinite(quantity) ? quantity : 1);
+    }, 0)
+  );
+  const formattedCartCount = cartCount > 99 ? "99+" : String(cartCount);
 
   let props, styleBlock, greeting, profile, searchAndIcons, appBar;
   
@@ -114,6 +122,16 @@ export default function Header2({ section }) {
   const searchBarInputStyle = styleBlock?.searchBarInput || {};
   const notificationContainerStyle = styleBlock?.notificationContainer || {};
   const badgeStyle = styleBlock?.badge || {};
+  const normalizedBadgeStyle = convertStyles(badgeStyle);
+  const badgeStyleHasSize = [
+    "width",
+    "height",
+    "minWidth",
+    "minHeight",
+    "padding",
+    "paddingHorizontal",
+    "paddingVertical",
+  ].some((key) => normalizedBadgeStyle?.[key] !== undefined);
   
   let gradientColors = ["#5EB7C6", "#8DD1D5"];
   let gradientAngle = 90;
@@ -258,6 +276,8 @@ export default function Header2({ section }) {
       (defaultTarget ? () => openBottomNavTarget(defaultTarget) : undefined);
     const isPressable = !!onPress;
 
+    const showCartBadge = cartCount > 0 && resolveDefaultIconTarget(iconName) === "cart";
+
     return (
       <TouchableOpacity
         key={index}
@@ -266,11 +286,20 @@ export default function Header2({ section }) {
         onPress={onPress}
         disabled={!isPressable}
       >
-        <FontAwesome
-          name={iconName}
-          size={fallbackSize}
-          color={icon.color || "#131A1D"}
-        />
+        <View style={styles.iconBadgeWrapper}>
+          <FontAwesome
+            name={iconName}
+            size={fallbackSize}
+            color={icon.color || "#131A1D"}
+          />
+          {showCartBadge && (
+            <View style={styles.cartBadge}>
+              <Text style={[styles.cartBadgeText, { color: icon.color || "#131A1D" }]}>
+                {formattedCartCount}
+              </Text>
+            </View>
+          )}
+        </View>
       </TouchableOpacity>
     );
   };
@@ -491,7 +520,15 @@ export default function Header2({ section }) {
                   size={searchAndIcons?.notificationIconSize || 36}
                   color={searchAndIcons?.notificationIconColor || "#FFFFFF"}
                 />
-                {searchAndIcons?.showBadge && <View style={convertStyles(badgeStyle)} />}
+                {searchAndIcons?.showBadge && (
+                  <View
+                    style={[
+                      styles.notificationBadge,
+                      normalizedBadgeStyle,
+                      !badgeStyleHasSize && styles.notificationBadgeCompact,
+                    ]}
+                  />
+                )}
               </View>
             </TouchableOpacity>
           )}
@@ -596,5 +633,45 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: "600",
     color: "#111827",
+  },
+  iconBadgeWrapper: {
+    position: "relative",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  cartBadge: {
+    position: "absolute",
+    top: -6,
+    right: -10,
+    minWidth: 0,
+    height: 18,
+    borderRadius: 0,
+    backgroundColor: "transparent",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 0,
+  },
+  cartBadgeText: {
+    color: "#131A1D",
+    fontSize: 10,
+    fontWeight: "700",
+  },
+  notificationBadge: {
+    position: "absolute",
+    top: -4,
+    right: -4,
+    borderRadius: 0,
+    backgroundColor: "transparent",
+    alignItems: "center",
+    justifyContent: "center",
+    zIndex: 1,
+  },
+  notificationBadgeCompact: {
+    width: 10,
+    height: 10,
+    minWidth: 10,
+    minHeight: 10,
+    paddingHorizontal: 0,
+    paddingVertical: 0,
   },
 });

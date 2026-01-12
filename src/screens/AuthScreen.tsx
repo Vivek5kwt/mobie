@@ -14,6 +14,7 @@ import { useNavigation } from '@react-navigation/native';
 import { useAuth } from '../services/AuthContext';
 import { fetchDSL } from '../engine/dslHandler';
 import { getShopifyDomain } from '../services/shopify';
+import Header from '../components/Topheader';
 
 type SignInTokens = {
   bgColor: string;
@@ -595,6 +596,7 @@ const AuthScreen = () => {
 
   return (
     <SafeAreaView style={styles.container}>
+      <Header />
       <KeyboardAvoidingView
         style={{ flex: 1 }}
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}

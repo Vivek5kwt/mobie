@@ -10,6 +10,8 @@ import {
 } from "react-native";
 import { useNavigation, useRoute } from "@react-navigation/native";
 import { fetchShopifyCollectionProducts } from "../services/shopify";
+import { SafeArea } from "../utils/SafeAreaHandler";
+import Header from "../components/Topheader";
 
 const PAGE_SIZE = 20;
 
@@ -98,50 +100,55 @@ export default function CollectionProductsScreen() {
   );
 
   return (
-    <View style={styles.container}>
-      <View style={styles.headerRow}>
-        <TouchableOpacity
-          style={styles.backButton}
-          onPress={() => navigation.goBack()}
-          accessibilityRole="button"
-          accessibilityLabel="Go back"
-        >
-          <Text style={styles.backIcon}>←</Text>
-        </TouchableOpacity>
-        <Text style={styles.heading}>{collectionTitle || "Collection"}</Text>
+    <SafeArea>
+      <View style={styles.container}>
+        <Header />
+        <View style={styles.content}>
+          <View style={styles.headerRow}>
+            <TouchableOpacity
+              style={styles.backButton}
+              onPress={() => navigation.goBack()}
+              accessibilityRole="button"
+              accessibilityLabel="Go back"
+            >
+              <Text style={styles.backIcon}>←</Text>
+            </TouchableOpacity>
+            <Text style={styles.heading}>{collectionTitle || "Collection"}</Text>
+          </View>
+
+          {loading && <ActivityIndicator size="small" color="#111827" />}
+          {error ? <Text style={styles.error}>{error}</Text> : null}
+
+          {!loading && !error && (
+            <FlatList
+              data={products}
+              keyExtractor={(item) => item.id}
+              numColumns={2}
+              columnWrapperStyle={styles.row}
+              renderItem={renderItem}
+              contentContainerStyle={styles.listContent}
+              ListEmptyComponent={
+                <Text style={styles.status}>No products available yet.</Text>
+              }
+              ListFooterComponent={
+                pageInfo?.hasNextPage ? (
+                  <TouchableOpacity
+                    style={styles.loadMoreButton}
+                    onPress={handleLoadMore}
+                    activeOpacity={0.85}
+                    disabled={loadingMore}
+                  >
+                    <Text style={styles.loadMoreText}>
+                      {loadingMore ? "Loading..." : "Load more"}
+                    </Text>
+                  </TouchableOpacity>
+                ) : null
+              }
+            />
+          )}
+        </View>
       </View>
-
-      {loading && <ActivityIndicator size="small" color="#111827" />}
-      {error ? <Text style={styles.error}>{error}</Text> : null}
-
-      {!loading && !error && (
-        <FlatList
-          data={products}
-          keyExtractor={(item) => item.id}
-          numColumns={2}
-          columnWrapperStyle={styles.row}
-          renderItem={renderItem}
-          contentContainerStyle={styles.listContent}
-          ListEmptyComponent={
-            <Text style={styles.status}>No products available yet.</Text>
-          }
-          ListFooterComponent={
-            pageInfo?.hasNextPage ? (
-              <TouchableOpacity
-                style={styles.loadMoreButton}
-                onPress={handleLoadMore}
-                activeOpacity={0.85}
-                disabled={loadingMore}
-              >
-                <Text style={styles.loadMoreText}>
-                  {loadingMore ? "Loading..." : "Load more"}
-                </Text>
-              </TouchableOpacity>
-            ) : null
-          }
-        />
-      )}
-    </View>
+    </SafeArea>
   );
 }
 
@@ -149,6 +156,9 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: "#ffffff",
+  },
+  content: {
+    flex: 1,
     paddingHorizontal: 16,
     paddingTop: 16,
   },
