@@ -57,6 +57,9 @@ export default function Header({ section }) {
     rightSlot: convertStyles(layout.rightSlot || {}),
     badge: convertStyles(layout.badge || {}),
   };
+  const logoImageStyle = { ...normalizedLayout.logoImage };
+  if (logoImageStyle.width === "auto") delete logoImageStyle.width;
+  if (logoImageStyle.height === "auto") delete logoImageStyle.height;
   const bottomNavSection = section?.bottomNavSection || bottomNavigationStyle1Section;
 
   // -----------------------------------------
@@ -178,7 +181,7 @@ export default function Header({ section }) {
         {logoEnabled && logoSource ? (
           <Image
             source={logoSource}
-            style={[styles.logoImage, normalizedLayout.logoImage]}
+            style={[styles.logoImage, logoImageStyle]}
             resizeMode="contain"
             onError={() => setLogoSource(LOCAL_LOGO_IMAGE)}
           />
