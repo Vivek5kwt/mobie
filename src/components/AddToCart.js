@@ -2,6 +2,8 @@ import React, { useMemo, useState } from "react";
 import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import FontAwesome from "react-native-vector-icons/FontAwesome";
 import { useNavigation } from "@react-navigation/native";
+import { useDispatch } from "react-redux";
+import { addItem } from "../store/slices/cartSlice";
 import {
   createShopifyCheckout,
   getShopifyDomain,
@@ -113,6 +115,7 @@ const buildCheckoutUrl = ({ shopifyDomain, variantNumericId, quantity, handle })
 
 export default function AddToCart({ section }) {
   const navigation = useNavigation();
+  const dispatch = useDispatch();
   const propsNode =
     section?.properties?.props?.properties || section?.properties?.props || section?.props || {};
   const raw = unwrapValue(propsNode?.raw, {});
@@ -139,6 +142,11 @@ export default function AddToCart({ section }) {
   const shopifyDomain = toString(raw?.shopifyDomain, getShopifyDomain());
   const shopifyToken = toString(raw?.storefrontToken, getShopifyToken());
   const productHandle = toString(raw?.handle, "");
+  const productTitle = toString(raw?.title, "Product Name");
+  const productImage = toString(raw?.imageUrl, "");
+  const productPrice = toNumber(raw?.salePrice ?? raw?.standardPrice, 0);
+  const productVariantText = toString(raw?.variantText, "");
+  const productCurrency = toString(raw?.currencySymbol, "");
   const { gid: productVariantGid, numeric: productVariantNumericId } = extractVariantIdentifiers(
     toString(raw?.variantId || raw?.defaultVariantId, "")
   );
@@ -215,7 +223,23 @@ export default function AddToCart({ section }) {
   };
 
   const handleAddToCart = async () => {
-    if (!addToCartUrl && !productVariantGid) return;
+    const canAddLocally =
+      productTitle || productHandle || productVariantGid || productVariantNumericId;
+    if (!addToCartUrl && !productVariantGid && !canAddLocally) return;
+
+    dispatch(
+      addItem({
+        item: {
+          id: productVariantGid || productVariantNumericId || productHandle || productTitle,
+          title: productTitle,
+          image: productImage,
+          price: productPrice,
+          variant: productVariantText,
+          currency: productCurrency,
+          quantity,
+        },
+      })
+    );
 
     if (addToCartUrl) {
       const opened = await openCheckoutUrl(addToCartUrl, "Cart");
