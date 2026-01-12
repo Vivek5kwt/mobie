@@ -7,7 +7,6 @@ import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { Provider } from "react-redux";
-import { PersistGate } from "redux-persist/integration/react";
 
 import SplashScreen from "./src/screens/saplash";
 import LayoutScreen from './src/screens/LayoutScreen';
@@ -18,7 +17,7 @@ import CheckoutWebViewScreen from "./src/screens/CheckoutWebViewScreen";
 import CollectionProductsScreen from "./src/screens/CollectionProductsScreen";
 import AllProductsScreen from "./src/screens/AllProductsScreen";
 import { AuthProvider } from "./src/services/AuthContext";
-import { persistor, store } from "./src/store";
+import { store } from "./src/store";
 
 import tokenLogger from './src/utils/tokenLogger';
 import messaging from '@react-native-firebase/messaging';
@@ -153,15 +152,14 @@ export default function App() {
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
       <Provider store={store}>
-        <PersistGate loading={null} persistor={persistor}>
-          <SafeAreaProvider>
-            <AuthProvider>
-              <ApolloProvider client={client}>
-                <NavigationContainer>
-                  <Stack.Navigator
-                    screenOptions={{ headerShown: false }}
-                    initialRouteName="Splash"
-                  >
+        <SafeAreaProvider>
+          <AuthProvider>
+            <ApolloProvider client={client}>
+              <NavigationContainer>
+                <Stack.Navigator
+                  screenOptions={{ headerShown: false }}
+                  initialRouteName="Splash"
+                >
 
               {/* 🔥 First Screen: Splash */}
               <Stack.Screen name="Splash" component={SplashScreen} />
@@ -211,12 +209,11 @@ export default function App() {
                 options={{ animation: "slide_from_right" }}
               />
 
-                  </Stack.Navigator>
-                </NavigationContainer>
-              </ApolloProvider>
-            </AuthProvider>
-          </SafeAreaProvider>
-        </PersistGate>
+                </Stack.Navigator>
+              </NavigationContainer>
+            </ApolloProvider>
+          </AuthProvider>
+        </SafeAreaProvider>
       </Provider>
     </GestureHandlerRootView>
   );
