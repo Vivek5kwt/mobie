@@ -258,7 +258,7 @@ export default function Header({ section }) {
 
       {/* LOGO */}
       <View style={[styles.logoSlot, normalizedLayout.logoSlot]}>
-        {headerTextEnabled && headerTextValue ? (
+        {!logoEnabled && headerTextValue ? (
           <Text style={[styles.logoText, headerTextStyle]} numberOfLines={1}>
             {headerTextValue}
           </Text>
