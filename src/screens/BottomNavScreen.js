@@ -80,8 +80,21 @@ export default function BottomNavScreen() {
     [dsl]
   );
 
+  const hasPrimaryHeader = useMemo(
+    () =>
+      mobileSections.some((section) => {
+        const component = getComponentName(section).toLowerCase();
+        return component === "header" || component === "header_mobile";
+      }),
+    [mobileSections]
+  );
+
   const sortedSections = useMemo(() => {
-    const sectionsCopy = [...mobileSections];
+    const sectionsCopy = mobileSections.filter((section) => {
+      const component = getComponentName(section).toLowerCase();
+      if (component !== "header_2") return true;
+      return !hasPrimaryHeader;
+    });
 
     return sectionsCopy.sort((a, b) => {
       const A = getComponentName(a);
@@ -95,7 +108,7 @@ export default function BottomNavScreen() {
 
       return 0;
     });
-  }, [mobileSections]);
+  }, [hasPrimaryHeader, mobileSections]);
 
   const bottomNavSection = useMemo(
     () =>

@@ -85,8 +85,21 @@ export default function LayoutScreen({ route }) {
     [extractHeaderSections]
   );
 
+  const hasPrimaryHeader = useMemo(
+    () =>
+      mobileSections.some((section) => {
+        const component = getComponentName(section).toLowerCase();
+        return component === "header" || component === "header_mobile";
+      }),
+    [mobileSections]
+  );
+
   const sortedSections = useMemo(() => {
-    const sectionsCopy = [...mobileSections];
+    const sectionsCopy = mobileSections.filter((section) => {
+      const component = getComponentName(section).toLowerCase();
+      if (component !== "header_2") return true;
+      return !hasPrimaryHeader;
+    });
 
     return sectionsCopy.sort((a, b) => {
       const A = getComponentName(a);
@@ -102,7 +115,7 @@ export default function LayoutScreen({ route }) {
 
       return 0;
     });
-  }, [mobileSections]);
+  }, [hasPrimaryHeader, mobileSections]);
 
   const sideNavSection = useMemo(
     () =>
@@ -401,11 +414,6 @@ export default function LayoutScreen({ route }) {
             {visibleSections.length ? (
               visibleSections.map((s, i) => {
                 const componentName = getComponentName(s).toLowerCase();
-                const nextComponentName =
-                  getComponentName(visibleSections[i + 1]).toLowerCase();
-                const tightenHeaderSpacing =
-                  componentName === "header" && nextComponentName === "header_2";
-                const tightenHeader2Spacing = componentName === "header_2";
                 const shouldAttachBottomNav =
                   componentName === "header" ||
                   componentName === "header_2" ||
@@ -419,7 +427,7 @@ export default function LayoutScreen({ route }) {
                     key={i}
                     style={[
                       styles.sectionWrapper,
-                      (tightenHeaderSpacing || tightenHeader2Spacing) && styles.sectionWrapperTight,
+                      componentName === "header_2" && styles.sectionWrapperTight,
                     ]}
                   >
                     <DynamicRenderer section={sectionWithNav} />
