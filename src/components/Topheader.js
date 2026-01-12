@@ -50,9 +50,10 @@ export default function Header({ section }) {
   const cartCount = useSelector((state) =>
     (state?.cart?.items || []).reduce((sum, item) => {
       const quantity = Number(item?.quantity);
-      return sum + (Number.isFinite(quantity) ? quantity : 0);
+      return sum + (Number.isFinite(quantity) ? quantity : 1);
     }, 0)
   );
+  const formattedCartCount = cartCount > 99 ? "99+" : String(cartCount);
 
   const props = section?.props || section?.properties?.props?.properties || {};
   const layout = props?.layout?.properties?.css || props?.layout?.css || {};
@@ -207,7 +208,7 @@ export default function Header({ section }) {
             <Icon name={cartIconName} size={cartIconSize} color={cartIconColor} />
             {cartCount > 0 && shouldShowCartBadge && (
               <View style={[styles.badge, badgeStyle]}>
-                <Text style={styles.badgeText}>{cartCount}</Text>
+                <Text style={styles.badgeText}>{formattedCartCount}</Text>
               </View>
             )}
           </TouchableOpacity>

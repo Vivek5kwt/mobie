@@ -78,9 +78,10 @@ export default function Header2({ section }) {
   const cartCount = useSelector((state) =>
     (state?.cart?.items || []).reduce((sum, item) => {
       const quantity = Number(item?.quantity);
-      return sum + (Number.isFinite(quantity) ? quantity : 0);
+      return sum + (Number.isFinite(quantity) ? quantity : 1);
     }, 0)
   );
+  const formattedCartCount = cartCount > 99 ? "99+" : String(cartCount);
 
   let props, styleBlock, greeting, profile, searchAndIcons, appBar;
   
@@ -283,7 +284,7 @@ export default function Header2({ section }) {
           />
           {showCartBadge && (
             <View style={styles.cartBadge}>
-              <Text style={styles.cartBadgeText}>{cartCount}</Text>
+              <Text style={styles.cartBadgeText}>{formattedCartCount}</Text>
             </View>
           )}
         </View>
