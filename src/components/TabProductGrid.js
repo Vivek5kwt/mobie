@@ -284,7 +284,8 @@ export default function TabProductGrid({ section }) {
                     dispatch(
                       addItem({
                         item: {
-                          id: product.id,
+                          id: product.variantId || product.id,
+                          variantId: product.variantId || "",
                           title: product.name || "Product Name",
                           image: product.image || "",
                           price: toNumber(product.price, 0),

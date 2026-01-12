@@ -24,6 +24,7 @@ const cartSlice = createSlice({
       } else {
         state.items.push({
           id,
+          variantId: item.variantId || "",
           title: item.title || "Product",
           image: item.image || "",
           price: item.price ?? 0,
