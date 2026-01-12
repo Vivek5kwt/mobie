@@ -62,7 +62,11 @@ export default function Header({ section }) {
 
   const logoEnabled = resolveBoolean(props?.enableLogo, true);
   const logoImage = unwrapValue(props?.logoImage, "");
-  const logoSource = resolveLogoSource(logoImage);
+  const [logoSource, setLogoSource] = React.useState(() => resolveLogoSource(logoImage));
+
+  React.useEffect(() => {
+    setLogoSource(resolveLogoSource(logoImage));
+  }, [logoImage]);
 
   const cartProps = props?.cart?.properties || props?.cart || {};
   const cartVisible = resolveBoolean(cartProps?.visible, true);
@@ -167,6 +171,7 @@ export default function Header({ section }) {
             source={logoSource}
             style={[styles.logoImage, layout.logoImage]}
             resizeMode="contain"
+            onError={() => setLogoSource(LOCAL_LOGO_IMAGE)}
           />
         ) : null}
       </View>
