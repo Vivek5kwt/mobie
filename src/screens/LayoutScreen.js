@@ -106,9 +106,6 @@ export default function LayoutScreen({ route }) {
     const sectionsCopy = mobileSections.filter((section) => {
       const component = getComponentName(section).toLowerCase();
       if (!isHomePage && component === "header_2") return false;
-      if (isHomePage && hasHeader2 && (component === "header" || component === "header_mobile")) {
-        return false;
-      }
       if (component !== "header_2") return true;
       return isHomePage || !hasPrimaryHeader;
     });
