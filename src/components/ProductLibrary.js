@@ -35,6 +35,17 @@ const toBoolean = (value, fallback = false) => {
   return Boolean(resolved);
 };
 
+const normalizePosition = (position, fallback = {}) => {
+  if (!position || typeof position !== "string") return fallback;
+  const normalized = position.toLowerCase();
+  const styles = {};
+  if (normalized.includes("top")) styles.top = 16;
+  if (normalized.includes("bottom")) styles.bottom = 16;
+  if (normalized.includes("left")) styles.left = 16;
+  if (normalized.includes("right")) styles.right = 16;
+  return Object.keys(styles).length ? styles : fallback;
+};
+
 const buildInsets = (layout = {}) => ({
   paddingTop: toNumber(layout?.paddingTop, 0),
   paddingRight: toNumber(layout?.paddingRight, 0),
@@ -57,6 +68,10 @@ export default function ProductLibrary({ section }) {
 
   const css = layout?.css || {};
   const outer = css?.outer || {};
+  const imageStyles = css?.image || {};
+  const shareStyles = css?.share || {};
+  const reviewStyles = css?.reviews || {};
+  const favouriteStyles = css?.favourite || {};
   const classNames = css?.classNames || {};
   const visibility = css?.visibility || {};
 
@@ -85,10 +100,78 @@ export default function ProductLibrary({ section }) {
   const imageHeight = imageMetrics?.height
     ? Number(imageMetrics.height)
     : Math.round(imageWidth * 1.05);
+  const imageCorner = toNumber(imageStyles?.corner, 18);
+  const imageScale = toString(imageStyles?.scale, "Fit").toLowerCase();
 
   const ratingVisible = toBoolean(visibility?.reviews, showRating);
   const shareVisible = toBoolean(visibility?.share, true);
   const favouriteVisible = toBoolean(visibility?.favourite, true);
+  const ratingIconVisible = toBoolean(visibility?.reviewsIcon, true);
+  const ratingTextVisible = toBoolean(visibility?.reviewsRating, true);
+  const ratingCountVisible = toBoolean(visibility?.reviewsRatingCounter, true);
+
+  const sharePadding = shareStyles?.padding || {};
+  const favouritePadding = favouriteStyles?.padding || {};
+  const reviewPadding = reviewStyles?.padding || {};
+
+  const shareIconSize = toNumber(shareStyles?.icon?.size, 14);
+  const favouriteIconSize = toNumber(favouriteStyles?.icon?.size, 14);
+  const ratingIconSize = toNumber(reviewStyles?.icon?.size, 12);
+
+  const shareBubbleStyle = [
+    styles.iconBubble,
+    {
+      backgroundColor: toString(shareStyles?.bg, "#e5f3f4"),
+      borderRadius: toNumber(shareStyles?.corner, 17),
+      borderWidth: shareStyles?.borderLine ? 1 : 0,
+      borderColor: toString(shareStyles?.borderColor, "#e5e7eb"),
+      paddingTop: toNumber(sharePadding?.top, 8),
+      paddingRight: toNumber(sharePadding?.right, 8),
+      paddingBottom: toNumber(sharePadding?.bottom, 8),
+      paddingLeft: toNumber(sharePadding?.left, 8),
+      minWidth: shareIconSize + toNumber(sharePadding?.left, 8) + toNumber(sharePadding?.right, 8),
+      minHeight: shareIconSize + toNumber(sharePadding?.top, 8) + toNumber(sharePadding?.bottom, 8),
+    },
+    normalizePosition(shareStyles?.position, styles.shareBubble),
+  ];
+
+  const favouriteBubbleStyle = [
+    styles.iconBubble,
+    {
+      backgroundColor: toString(favouriteStyles?.bg, "#e5f3f4"),
+      borderRadius: toNumber(favouriteStyles?.corner, 17),
+      borderWidth: favouriteStyles?.borderLine ? 1 : 0,
+      borderColor: toString(favouriteStyles?.borderColor, "#e5e7eb"),
+      paddingTop: toNumber(favouritePadding?.top, 8),
+      paddingRight: toNumber(favouritePadding?.right, 8),
+      paddingBottom: toNumber(favouritePadding?.bottom, 8),
+      paddingLeft: toNumber(favouritePadding?.left, 8),
+      minWidth:
+        favouriteIconSize +
+        toNumber(favouritePadding?.left, 8) +
+        toNumber(favouritePadding?.right, 8),
+      minHeight:
+        favouriteIconSize +
+        toNumber(favouritePadding?.top, 8) +
+        toNumber(favouritePadding?.bottom, 8),
+    },
+    normalizePosition(favouriteStyles?.position, styles.favoriteBubble),
+  ];
+
+  const ratingBubbleStyle = [
+    styles.ratingBubble,
+    {
+      backgroundColor: toString(reviewStyles?.bg, "#ffffff"),
+      borderRadius: toNumber(reviewStyles?.corner, 12),
+      borderWidth: reviewStyles?.borderLine ? 1 : 0,
+      borderColor: toString(reviewStyles?.borderColor, "#e5e7eb"),
+      paddingTop: toNumber(reviewPadding?.top, 6),
+      paddingRight: toNumber(reviewPadding?.right, 6),
+      paddingBottom: toNumber(reviewPadding?.bottom, 6),
+      paddingLeft: toNumber(reviewPadding?.left, 6),
+    },
+    normalizePosition(reviewStyles?.position, styles.ratingBubble),
+  ];
 
   useEffect(() => {
     setIsFavourite(initialFavourite);
@@ -125,17 +208,32 @@ export default function ProductLibrary({ section }) {
             accessibilityRole="button"
             accessibilityLabel="Open product image fullscreen"
           >
-            <View style={[styles.imageCard, { width: imageWidth, height: imageHeight }]}>
+            <View
+              style={[
+                styles.imageCard,
+                {
+                  width: imageWidth,
+                  height: imageHeight,
+                  borderRadius: imageCorner,
+                },
+              ]}
+            >
               <Image
                 source={{ uri: resolvedImageUrl }}
                 style={styles.image}
-                resizeMode="contain"
+                resizeMode={imageScale === "fill" ? "cover" : "contain"}
                 accessibilityLabel="Product"
               />
             </View>
           </Pressable>
         ) : (
-          <View style={[styles.imageCard, styles.imagePlaceholder, { width: imageWidth, height: imageHeight }]}>
+          <View
+            style={[
+              styles.imageCard,
+              styles.imagePlaceholder,
+              { width: imageWidth, height: imageHeight, borderRadius: imageCorner },
+            ]}
+          >
             <Text style={styles.placeholderText}>Product image</Text>
           </View>
         )}
@@ -155,31 +253,89 @@ export default function ProductLibrary({ section }) {
           <Pressable
             onPress={() => setIsFavourite((prev) => !prev)}
             style={[
-              styles.iconBubble,
-              styles.favoriteBubble,
+              favouriteBubbleStyle,
               isFavourite ? styles.favoriteActiveBubble : null,
             ]}
             accessibilityRole="button"
             accessibilityLabel={isFavourite ? "Remove from favorites" : "Add to favorites"}
           >
-            <Text style={[styles.iconText, isFavourite ? styles.favoriteActiveText : null]}>
+            <Text
+              style={[
+                styles.iconText,
+                {
+                  fontSize: favouriteIconSize,
+                  color: toString(favouriteStyles?.icon?.color, "#111827"),
+                },
+                isFavourite ? styles.favoriteActiveText : null,
+              ]}
+            >
               {isFavourite ? "❤" : "♡"}
             </Text>
           </Pressable>
         )}
 
         {shareVisible && (
-          <View style={[styles.iconBubble, styles.shareBubble]}>
-            <Text style={styles.iconText}>⇪</Text>
+          <View style={shareBubbleStyle}>
+            <Text
+              style={[
+                styles.iconText,
+                {
+                  fontSize: shareIconSize,
+                  color: toString(shareStyles?.icon?.color, "#111827"),
+                },
+              ]}
+            >
+              ⇪
+            </Text>
           </View>
         )}
 
         {ratingVisible && (
-          <View style={styles.ratingBubble}>
-            <Text style={styles.ratingStar}>★</Text>
-            <Text style={styles.ratingText}>
-              {ratingText} {ratingCountText}
-            </Text>
+          <View style={ratingBubbleStyle}>
+            {ratingIconVisible && (
+              <Text
+                style={[
+                  styles.ratingStar,
+                  {
+                    fontSize: ratingIconSize,
+                    color: toString(reviewStyles?.icon?.color, "#111827"),
+                  },
+                ]}
+              >
+                ★
+              </Text>
+            )}
+            {ratingTextVisible && (
+              <Text
+                style={[
+                  styles.ratingText,
+                  {
+                    fontSize: toNumber(reviewStyles?.rating?.fontSize, 12),
+                    color: toString(reviewStyles?.rating?.color, "#111827"),
+                    fontWeight: toString(reviewStyles?.rating?.fontWeight, "600"),
+                    fontFamily: toString(reviewStyles?.rating?.fontFamily, "System"),
+                  },
+                ]}
+              >
+                {ratingText}
+              </Text>
+            )}
+            {ratingCountVisible && (
+              <Text
+                style={[
+                  styles.ratingText,
+                  {
+                    fontSize: toNumber(reviewStyles?.count?.fontSize, 12),
+                    color: toString(reviewStyles?.count?.color, "#6b7280"),
+                    fontWeight: toString(reviewStyles?.count?.fontWeight, "400"),
+                    fontFamily: toString(reviewStyles?.count?.fontFamily, "System"),
+                    marginLeft: ratingTextVisible ? 4 : 0,
+                  },
+                ]}
+              >
+                {ratingCountText}
+              </Text>
+            )}
           </View>
         )}
       </View>
