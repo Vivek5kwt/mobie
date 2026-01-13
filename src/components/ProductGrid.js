@@ -57,7 +57,7 @@ export default function ProductGrid({ section, limit = 8, title = "Products" }) 
   );
   const resolvedColumns = Math.max(1, Math.round(toNumber(rawProps?.columns, 2)));
   const resolvedAlignText = toTextAlign(rawProps?.alignText, "left");
-  const resolvedTitle = toString(rawProps?.title, title);
+  const resolvedTitle = toString(rawProps?.header ?? rawProps?.title, title);
   const detailSections = useMemo(() => {
     const candidates = [
       rawProps?.productDetailSections,
