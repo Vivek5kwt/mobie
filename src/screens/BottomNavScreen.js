@@ -88,12 +88,22 @@ export default function BottomNavScreen() {
       }),
     [mobileSections]
   );
+  const hasHeader2 = useMemo(
+    () =>
+      mobileSections.some(
+        (section) => getComponentName(section).toLowerCase() === "header_2"
+      ),
+    [mobileSections]
+  );
 
   const sortedSections = useMemo(() => {
     const sectionsCopy = mobileSections.filter((section) => {
       const component = getComponentName(section).toLowerCase();
+      if (isHomePage && hasHeader2 && (component === "header" || component === "header_mobile")) {
+        return false;
+      }
       if (component !== "header_2") return true;
-      return !hasPrimaryHeader;
+      return isHomePage || !hasPrimaryHeader;
     });
 
     return sectionsCopy.sort((a, b) => {
@@ -108,7 +118,7 @@ export default function BottomNavScreen() {
 
       return 0;
     });
-  }, [hasPrimaryHeader, mobileSections]);
+  }, [hasHeader2, hasPrimaryHeader, isHomePage, mobileSections]);
 
   const bottomNavSection = useMemo(
     () =>
