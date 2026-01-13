@@ -301,6 +301,9 @@ const styles = StyleSheet.create({
   },
   headerWrapper: {
     backgroundColor: "#ffffff",
+    minHeight: 64,
+    paddingBottom: 8,
+    justifyContent: "center",
     zIndex: 2,
     elevation: 3,
     shadowColor: "#000000",
