@@ -331,7 +331,13 @@ function convertPadding(str) {
 }
 
 const styles = StyleSheet.create({
-  container: { position: "relative" },
+  container: {
+    position: "relative",
+    minHeight: 56,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    backgroundColor: "#ffffff",
+  },
   leftSlot: { flex: 1, flexDirection: "row", alignItems: "center" },
   logoSlot: {
     position: "absolute",
