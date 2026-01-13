@@ -21,10 +21,25 @@ const toNumber = (value, fallback) => {
   return Number.isNaN(parsed) ? fallback : parsed;
 };
 
+const resolveFirstNumber = (values, fallback) => {
+  for (const entry of values) {
+    const resolved = toNumber(entry, undefined);
+    if (resolved !== undefined) return resolved;
+  }
+  return fallback;
+};
+
 const toString = (value, fallback = "") => {
   const resolved = unwrapValue(value, fallback);
   if (resolved === undefined || resolved === null) return fallback;
   return String(resolved);
+};
+
+const toTextAlign = (value, fallback = "left") => {
+  const resolved = toString(value, fallback).toLowerCase();
+  if (resolved === "center") return "center";
+  if (resolved === "right") return "right";
+  return "left";
 };
 
 export default function ProductGrid({ section, limit = 8, title = "Products" }) {
@@ -36,7 +51,12 @@ export default function ProductGrid({ section, limit = 8, title = "Products" }) 
 
   const rawProps =
     section?.properties?.props?.properties || section?.properties?.props || section?.props || {};
-  const resolvedLimit = toNumber(rawProps?.limit, limit);
+  const resolvedLimit = resolveFirstNumber(
+    [rawProps?.productsToShow, rawProps?.productCount, rawProps?.limit],
+    limit
+  );
+  const resolvedColumns = Math.max(1, Math.round(toNumber(rawProps?.columns, 2)));
+  const resolvedAlignText = toTextAlign(rawProps?.alignText, "left");
   const resolvedTitle = toString(rawProps?.title, title);
   const detailSections = useMemo(() => {
     const candidates = [
@@ -58,9 +78,10 @@ export default function ProductGrid({ section, limit = 8, title = "Products" }) 
   const gridGap = 16;
   const horizontalPadding = 24;
   const screenWidth = Dimensions.get("window").width;
+  const totalGap = gridGap * (resolvedColumns - 1);
   const cardWidth = Math.max(
     0,
-    (screenWidth - horizontalPadding * 2 - gridGap) / 2
+    (screenWidth - horizontalPadding * 2 - totalGap) / resolvedColumns
   );
 
   useEffect(() => {
@@ -102,7 +123,9 @@ export default function ProductGrid({ section, limit = 8, title = "Products" }) 
 
   return (
     <View style={styles.wrapper}>
-      <Text style={styles.heading}>{resolvedTitle}</Text>
+      <Text style={[styles.heading, { textAlign: resolvedAlignText }]}>
+        {resolvedTitle}
+      </Text>
 
       {loading && <Text style={styles.status}>Loading products...</Text>}
       {error && <Text style={styles.error}>{error}</Text>}
@@ -110,10 +133,16 @@ export default function ProductGrid({ section, limit = 8, title = "Products" }) 
       {!loading && !error && (
         <>
           <View style={styles.grid}>
-            {products.map((product) => (
+            {products.map((product, index) => (
               <TouchableOpacity
                 key={product.id}
-                style={[styles.card, { width: cardWidth }]}
+                style={[
+                  styles.card,
+                  {
+                    width: cardWidth,
+                    marginRight: (index + 1) % resolvedColumns === 0 ? 0 : gridGap,
+                  },
+                ]}
                 activeOpacity={0.85}
                 onPress={() =>
                   navigation.navigate("ProductDetail", {
@@ -131,10 +160,13 @@ export default function ProductGrid({ section, limit = 8, title = "Products" }) 
                 )}
 
                 <View style={styles.content}>
-                  <Text numberOfLines={2} style={styles.name}>
+                  <Text
+                    numberOfLines={2}
+                    style={[styles.name, { textAlign: resolvedAlignText }]}
+                  >
                     {product.title}
                   </Text>
-                  <Text style={styles.price}>
+                  <Text style={[styles.price, { textAlign: resolvedAlignText }]}>
                     {product.priceCurrency} {product.priceAmount}
                   </Text>
                 </View>
