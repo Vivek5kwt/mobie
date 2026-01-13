@@ -273,11 +273,26 @@ export default function BottomNavScreen() {
             }
           >
             {visibleSections.length ? (
-              visibleSections.map((section, index) => (
-                <View key={index} style={styles.sectionWrapper}>
-                  <DynamicRenderer section={section} />
-                </View>
-              ))
+              visibleSections.map((section, index) => {
+                const componentName = getComponentName(section).toLowerCase();
+                const nextComponentName = visibleSections[index + 1]
+                  ? getComponentName(visibleSections[index + 1]).toLowerCase()
+                  : null;
+                const collapseHeaderGap =
+                  componentName === "header" && nextComponentName === "header_2";
+
+                return (
+                  <View
+                    key={index}
+                    style={[
+                      styles.sectionWrapper,
+                      collapseHeaderGap && styles.sectionWrapperTight,
+                    ]}
+                  >
+                    <DynamicRenderer section={section} />
+                  </View>
+                );
+              })
             ) : (
               <View style={styles.content}>
                 <Text style={styles.subtitleText}>No content available yet.</Text>
@@ -348,5 +363,8 @@ const styles = StyleSheet.create({
   },
   sectionWrapper: {
     marginBottom: 10,
+  },
+  sectionWrapperTight: {
+    marginBottom: 0,
   },
 });
