@@ -1,6 +1,15 @@
-import React, { useMemo } from "react";
-import { Dimensions, FlatList, Image, StyleSheet, Text, View } from "react-native";
+import React, { useEffect, useMemo, useState } from "react";
+import {
+  ActivityIndicator,
+  Dimensions,
+  FlatList,
+  Image,
+  StyleSheet,
+  Text,
+  View,
+} from "react-native";
 import { convertStyles } from "../utils/convertStyles";
+import { fetchShopifyProducts } from "../services/shopify";
 
 const unwrapValue = (value, fallback = undefined) => {
   if (value === undefined || value === null) return fallback;
@@ -104,8 +113,11 @@ export default function MediaGrid({ section }) {
 
   const layoutCss = rawProps?.layout?.properties?.css || rawProps?.layout?.css || {};
 
+  const [shopifyItems, setShopifyItems] = useState([]);
+  const [isLoading, setIsLoading] = useState(false);
+  const [loadError, setLoadError] = useState("");
+
   const items = useMemo(() => normalizeItems(rawProps?.items || []), [rawProps?.items]);
-  if (!items.length) return null;
 
   const columns = Math.max(1, toNumber(rawProps?.columns, 2));
   const gap = toNumber(rawProps?.cardGap, 8);
@@ -142,6 +154,61 @@ export default function MediaGrid({ section }) {
   const cardTitleAlign = (unwrapValue(rawProps?.cardTitleAlign, "left") || "left").toLowerCase();
 
   const bgColor = unwrapValue(rawProps?.bgColor, "#FFFFFF");
+  const shopifyLimit = Math.max(
+    1,
+    toNumber(rawProps?.productsToShow, toNumber(rawProps?.productCount, items.length || 4))
+  );
+
+  const resolvedItems = items.length ? items : shopifyItems;
+
+  useEffect(() => {
+    if (items.length) return;
+    let isMounted = true;
+
+    const loadProducts = async () => {
+      setIsLoading(true);
+      setLoadError("");
+      try {
+        const response = await fetchShopifyProducts(shopifyLimit);
+        const mapped = response.map((product, index) => ({
+          id: product.id || `shopify-${index}`,
+          title: product.name || "Product",
+          subtitle:
+            product.price && product.currency
+              ? `${product.currency} ${product.price}`
+              : product.price
+              ? String(product.price)
+              : "",
+          badge: "",
+          src: product.image || "",
+          mediaType: "image",
+          titleBold: false,
+          titleItalic: false,
+          titleUnderline: false,
+        }));
+
+        if (isMounted) {
+          setShopifyItems(mapped);
+          if (!mapped.length) {
+            setLoadError("No products available right now.");
+          }
+        }
+      } catch (error) {
+        if (isMounted) {
+          setLoadError("Unable to load products right now.");
+          setShopifyItems([]);
+        }
+      } finally {
+        if (isMounted) setIsLoading(false);
+      }
+    };
+
+    loadProducts();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [items.length, shopifyLimit]);
 
   const containerStyle = convertStyles(layoutCss?.container || {});
   const headerStyle = convertStyles(layoutCss?.header || {});
@@ -239,6 +306,8 @@ export default function MediaGrid({ section }) {
     </View>
   );
 
+  if (!resolvedItems.length && !isLoading && !loadError) return null;
+
   return (
     <View style={[styles.container, { backgroundColor: bgColor }, containerStyle, contentPadding]}>
       {showHeader && (
@@ -259,9 +328,20 @@ export default function MediaGrid({ section }) {
         </Text>
       )}
 
+      {isLoading && (
+        <View style={styles.loadingRow}>
+          <ActivityIndicator size="small" color={headerColor} />
+          <Text style={[styles.statusText, { color: headerColor }]}>Loading products...</Text>
+        </View>
+      )}
+
+      {!isLoading && loadError ? (
+        <Text style={[styles.statusText, styles.errorText]}>{loadError}</Text>
+      ) : null}
+
       {showGrid && showMediaCard && (
         <FlatList
-          data={items}
+          data={resolvedItems}
           renderItem={renderItem}
           keyExtractor={(item) => item.id}
           numColumns={columns}
@@ -356,5 +436,18 @@ const styles = StyleSheet.create({
   button: {
     paddingHorizontal: 16,
     paddingVertical: 8,
+  },
+  loadingRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: 12,
+  },
+  statusText: {
+    marginLeft: 8,
+    fontSize: 12,
+    color: "#6B7280",
+  },
+  errorText: {
+    color: "#DC2626",
   },
 });
