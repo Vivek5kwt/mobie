@@ -425,6 +425,11 @@ export default function LayoutScreen({ route }) {
             {visibleSections.length ? (
               visibleSections.map((s, i) => {
                 const componentName = getComponentName(s).toLowerCase();
+                const nextComponentName = visibleSections[i + 1]
+                  ? getComponentName(visibleSections[i + 1]).toLowerCase()
+                  : null;
+                const collapseHeaderGap =
+                  componentName === "header" && nextComponentName === "header_2";
                 const shouldAttachBottomNav =
                   componentName === "header" ||
                   componentName === "header_2" ||
@@ -438,7 +443,8 @@ export default function LayoutScreen({ route }) {
                     key={i}
                     style={[
                       styles.sectionWrapper,
-                      componentName === "header_2" && styles.sectionWrapperTight,
+                      (componentName === "header_2" || collapseHeaderGap) &&
+                        styles.sectionWrapperTight,
                     ]}
                   >
                     <DynamicRenderer section={sectionWithNav} />
