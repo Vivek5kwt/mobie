@@ -186,15 +186,16 @@ export default function ProductDetailScreen() {
       if (resolvedSections.length) {
         setDslSections(resolvedSections);
         dslVersionRef.current = null;
-        return;
       }
 
-      setDslLoading(true);
+      setDslLoading(!resolvedSections.length);
       const liveDsl = await fetchDSL(appId, "product-detail");
       if (!isMounted) return;
       const nextSections = resolveSections(liveDsl?.dsl);
-      setDslSections(nextSections);
-      dslVersionRef.current = liveDsl?.versionNumber ?? null;
+      if (nextSections.length) {
+        setDslSections(nextSections);
+        dslVersionRef.current = liveDsl?.versionNumber ?? null;
+      }
       setDslLoading(false);
     };
 
@@ -207,9 +208,6 @@ export default function ProductDetailScreen() {
 
   // Auto-refresh DSL periodically to pick up newly published versions
   useEffect(() => {
-    const resolvedSections = resolveSections(detailSections);
-    if (resolvedSections.length) return undefined;
-
     const intervalId = setInterval(async () => {
       try {
         const latest = await fetchDSL(appId, "product-detail");
@@ -274,7 +272,9 @@ export default function ProductDetailScreen() {
   return (
     <SafeArea>
       <View style={styles.container}>
-        <Header />
+        <View style={styles.headerWrapper}>
+          <Header />
+        </View>
         <ScrollView contentContainerStyle={styles.scrollContent}>
           {dslLoading && <Text style={styles.status}>Loading product layout...</Text>}
           {loading && <Text style={styles.status}>Loading product details...</Text>}
@@ -293,6 +293,15 @@ export default function ProductDetailScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+  },
+  headerWrapper: {
+    backgroundColor: "#ffffff",
+    zIndex: 2,
+    elevation: 3,
+    shadowColor: "#000000",
+    shadowOpacity: 0.08,
+    shadowRadius: 6,
+    shadowOffset: { width: 0, height: 2 },
   },
   scrollContent: {
     paddingBottom: 24,
