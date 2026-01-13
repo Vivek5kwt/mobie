@@ -128,42 +128,55 @@ export default function ProductDetailScreen() {
   const [error, setError] = useState("");
   const isMountedRef = useRef(true);
   const dslVersionRef = useRef(null);
+  const productRef = useRef(product);
 
-  const loadProductDetails = useCallback(async () => {
-    if (!product?.handle && !product?.id) return;
+  const loadProductDetails = useCallback(async (overrideProduct) => {
+    const baseProduct = overrideProduct || productRef.current || {};
+    if (!baseProduct?.handle && !baseProduct?.id) return;
     setLoading(true);
     setError("");
 
-    const details = await fetchShopifyProductDetails({
-      handle: product?.handle,
-      id: product?.id,
-    });
+    let details = null;
+    try {
+      details = await fetchShopifyProductDetails({
+        handle: baseProduct?.handle,
+        id: baseProduct?.id,
+      });
+    } catch (err) {
+      console.error("❌ Product detail refresh failed:", err);
+    }
 
     if (!isMountedRef.current) return;
     if (details) {
-      setDetailProduct({ ...product, ...details });
+      setDetailProduct((prev) => ({ ...prev, ...baseProduct, ...details }));
     } else {
-      setDetailProduct(product);
+      setDetailProduct(baseProduct);
       setError("Unable to load product details right now.");
     }
     setLoading(false);
-  }, [product]);
+  }, []);
 
   useEffect(() => () => {
     isMountedRef.current = false;
   }, []);
 
+  useEffect(() => {
+    productRef.current = product;
+    setDetailProduct(product);
+    loadProductDetails(product);
+  }, [loadProductDetails, product]);
+
   useFocusEffect(
     useCallback(() => {
-      loadProductDetails();
-      if (!product?.handle && !product?.id) return undefined;
+      loadProductDetails(productRef.current);
+      if (!productRef.current?.handle && !productRef.current?.id) return undefined;
 
       const refreshInterval = setInterval(() => {
-        loadProductDetails();
+        loadProductDetails(productRef.current);
       }, 30000);
 
       return () => clearInterval(refreshInterval);
-    }, [loadProductDetails, product?.handle, product?.id])
+    }, [loadProductDetails])
   );
 
   useEffect(() => {
