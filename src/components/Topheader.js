@@ -230,6 +230,10 @@ export default function Header({ section }) {
   const headerBorderColor = props.style?.properties?.borderColor?.value;
   const headerBorderWidth =
     props.style?.properties?.borderWidth?.value ?? (headerBorderColor ? 1 : 0);
+  const headerMinHeight = resolveMinHeight(
+    props.style?.properties?.minHeight?.value,
+    styles.container.minHeight,
+  );
 
   return (
     <View
@@ -237,7 +241,7 @@ export default function Header({ section }) {
         styles.container,
         {
           backgroundColor: props.style?.properties?.backgroundColor?.value,
-          minHeight: props.style?.properties?.minHeight?.value,
+          minHeight: headerMinHeight,
           padding: convertPadding(props.style?.properties?.padding?.value),
           borderColor: headerBorderColor,
           borderWidth: headerBorderWidth,
@@ -332,6 +336,22 @@ function convertPadding(str) {
   if (!str) return 0;
   const parts = str.replace("px", "").split(" ");
   return parseInt(parts[0]);
+}
+
+function resolveMinHeight(rawValue, fallback) {
+  if (rawValue === undefined || rawValue === null || rawValue === "") {
+    return fallback;
+  }
+  if (typeof rawValue === "number" && Number.isFinite(rawValue)) {
+    return Math.max(rawValue, fallback);
+  }
+  if (typeof rawValue === "string") {
+    const parsed = Number.parseFloat(rawValue.replace("px", "").trim());
+    if (Number.isFinite(parsed)) {
+      return Math.max(parsed, fallback);
+    }
+  }
+  return fallback;
 }
 
 const styles = StyleSheet.create({
