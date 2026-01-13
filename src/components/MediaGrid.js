@@ -42,6 +42,12 @@ const toNumber = (value, fallback) => {
   return Number.isNaN(parsed) ? fallback : parsed;
 };
 
+const toString = (value, fallback = "") => {
+  const resolved = unwrapValue(value, fallback);
+  if (resolved === undefined || resolved === null) return fallback;
+  return String(resolved);
+};
+
 const deriveWeight = (value, fallback = "700") => {
   const resolved = unwrapValue(value, fallback);
   if (typeof resolved === "string") {
@@ -154,33 +160,44 @@ export default function MediaGrid({ section }) {
   const cardTitleAlign = (unwrapValue(rawProps?.cardTitleAlign, "left") || "left").toLowerCase();
 
   const bgColor = unwrapValue(rawProps?.bgColor, "#FFFFFF");
+  const shopifyDomain = toString(rawProps?.shopifyDomain, "");
+  const shopifyToken = toString(rawProps?.storefrontToken, "");
+  const preferShopifyProducts = toBoolean(rawProps?.useShopifyProducts, false);
   const shopifyLimit = Math.max(
     1,
     toNumber(rawProps?.productsToShow, toNumber(rawProps?.productCount, items.length || 4))
   );
 
-  const resolvedItems = items.length ? items : shopifyItems;
+  const resolvedItems =
+    preferShopifyProducts || !items.length ? shopifyItems : items;
 
   useEffect(() => {
-    if (items.length) return;
+    if (items.length && !preferShopifyProducts) return;
     let isMounted = true;
 
     const loadProducts = async () => {
       setIsLoading(true);
       setLoadError("");
       try {
-        const response = await fetchShopifyProducts(shopifyLimit);
+        const response = await fetchShopifyProducts(shopifyLimit, {
+          shop: shopifyDomain || undefined,
+          token: shopifyToken || undefined,
+        });
         const mapped = response.map((product, index) => ({
           id: product.id || `shopify-${index}`,
-          title: product.name || "Product",
+          title: product.name || product.title || "Product",
           subtitle:
             product.price && product.currency
               ? `${product.currency} ${product.price}`
               : product.price
               ? String(product.price)
+              : product.priceAmount && product.priceCurrency
+              ? `${product.priceCurrency} ${product.priceAmount}`
+              : product.priceAmount
+              ? String(product.priceAmount)
               : "",
           badge: "",
-          src: product.image || "",
+          src: product.image || product.imageUrl || "",
           mediaType: "image",
           titleBold: false,
           titleItalic: false,
@@ -208,7 +225,7 @@ export default function MediaGrid({ section }) {
     return () => {
       isMounted = false;
     };
-  }, [items.length, shopifyLimit]);
+  }, [items.length, preferShopifyProducts, shopifyLimit, shopifyDomain, shopifyToken]);
 
   const containerStyle = convertStyles(layoutCss?.container || {});
   const headerStyle = convertStyles(layoutCss?.header || {});
