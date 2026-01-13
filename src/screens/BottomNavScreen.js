@@ -7,7 +7,7 @@ import {
   Text,
   View,
 } from "react-native";
-import { useRoute } from "@react-navigation/native";
+import { useFocusEffect, useRoute } from "@react-navigation/native";
 import { SafeArea } from "../utils/SafeAreaHandler";
 import BottomNavigation from "../components/BottomNavigation";
 import bottomNavigationStyle1Section from "../data/bottomNavigationStyle1";
@@ -38,8 +38,10 @@ export default function BottomNavScreen() {
     typeof title === "string"
       ? title.trim().toLowerCase()
       : String(title ?? "").trim().toLowerCase();
+  const isCartPage = normalizedPageName.includes("cart") || normalizedTitle.includes("cart");
   const isNotificationPage =
     normalizedPageName.includes("notification") || normalizedTitle.includes("notification");
+  const isAutoRefreshPage = isCartPage || isNotificationPage;
   const isHomePage = normalizedPageName === "home";
   const [dsl, setDsl] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -208,7 +210,7 @@ export default function BottomNavScreen() {
     }
   }, [dsl, ensureHeaderSections, homeHeaderSections, isHomePage]);
 
-  const refreshDSL = async () => {
+  const refreshDSL = useCallback(async () => {
     try {
       const dslData = await fetchDSL(appId, pageName);
       if (dslData?.dsl) {
@@ -221,13 +223,21 @@ export default function BottomNavScreen() {
     } catch (error) {
       console.log("❌ Bottom nav refresh error:", error);
     }
-  };
+  }, [appId, ensureHeaderSections, homeHeaderSections, isHomePage, pageName]);
 
   const onRefresh = async () => {
     setRefreshing(true);
     await refreshDSL();
     setRefreshing(false);
   };
+
+  useFocusEffect(
+    useCallback(() => {
+      if (!isAutoRefreshPage) return undefined;
+      refreshDSL();
+      return undefined;
+    }, [isAutoRefreshPage, refreshDSL])
+  );
 
   useEffect(() => {
     const intervalId = setInterval(async () => {
