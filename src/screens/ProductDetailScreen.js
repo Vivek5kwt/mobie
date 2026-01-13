@@ -1,8 +1,8 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ScrollView, StyleSheet, Text, View } from "react-native";
 import { useFocusEffect, useRoute } from "@react-navigation/native";
+import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import DynamicRenderer from "../engine/DynamicRenderer";
-import { SafeArea } from "../utils/SafeAreaHandler";
 import { fetchShopifyProductDetails } from "../services/shopify";
 import { fetchDSL } from "../engine/dslHandler";
 import { resolveAppId } from "../utils/appId";
@@ -114,6 +114,7 @@ const mergeSectionWithProduct = (section, product) => {
 export default function ProductDetailScreen() {
   const route = useRoute();
   const { session } = useAuth();
+  const insets = useSafeAreaInsets();
   const product = route?.params?.product || {};
   const detailSections = route?.params?.detailSections;
   const appId = useMemo(
@@ -270,9 +271,9 @@ export default function ProductDetailScreen() {
   }, [detailProduct, fallbackSections, sectionsToRender]);
 
   return (
-    <SafeArea>
+    <SafeAreaView style={styles.safeArea} edges={["left", "right", "bottom"]}>
       <View style={styles.container}>
-        <View style={styles.headerWrapper}>
+        <View style={[styles.headerWrapper, { paddingTop: insets.top }]}>
           <Header />
         </View>
         <ScrollView contentContainerStyle={styles.scrollContent}>
@@ -286,11 +287,15 @@ export default function ProductDetailScreen() {
           ))}
         </ScrollView>
       </View>
-    </SafeArea>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
+  safeArea: {
+    flex: 1,
+    backgroundColor: "#ffffff",
+  },
   container: {
     flex: 1,
   },
