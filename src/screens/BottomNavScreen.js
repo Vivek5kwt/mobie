@@ -34,6 +34,12 @@ export default function BottomNavScreen() {
     typeof pageName === "string"
       ? pageName.trim().toLowerCase()
       : String(pageName ?? "").trim().toLowerCase();
+  const normalizedTitle =
+    typeof title === "string"
+      ? title.trim().toLowerCase()
+      : String(title ?? "").trim().toLowerCase();
+  const isNotificationPage =
+    normalizedPageName.includes("notification") || normalizedTitle.includes("notification");
   const isHomePage = normalizedPageName === "home";
   const [dsl, setDsl] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -295,7 +301,14 @@ export default function BottomNavScreen() {
               })
             ) : (
               <View style={styles.content}>
-                <Text style={styles.subtitleText}>No content available yet.</Text>
+                <Text style={styles.subtitleText}>
+                  {isNotificationPage ? "You're all caught up!" : "No content available yet."}
+                </Text>
+                <Text style={styles.linkText}>
+                  {isNotificationPage
+                    ? "No new notifications right now. We'll let you know when something arrives."
+                    : "Please check back soon."}
+                </Text>
               </View>
             )}
           </ScrollView>
