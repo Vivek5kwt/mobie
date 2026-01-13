@@ -99,9 +99,6 @@ export default function BottomNavScreen() {
   const sortedSections = useMemo(() => {
     const sectionsCopy = mobileSections.filter((section) => {
       const component = getComponentName(section).toLowerCase();
-      if (isHomePage && hasHeader2 && (component === "header" || component === "header_mobile")) {
-        return false;
-      }
       if (component !== "header_2") return true;
       return isHomePage || !hasPrimaryHeader;
     });
