@@ -38,6 +38,7 @@ export default function CheckoutButton({ section }) {
     section?.properties?.props?.properties || section?.properties?.props || section?.props || {};
   const raw = unwrapValue(propsNode?.raw, {});
   const cartItems = useSelector((state) => state?.cart?.items || []);
+  const hasCartItems = cartItems.length > 0;
 
   const label = toString(raw?.label, "Checkout");
   const height = toNumber(raw?.height, 56);
@@ -52,11 +53,13 @@ export default function CheckoutButton({ section }) {
 
   const checkoutLines = useMemo(
     () =>
-      cartItems.map((item) => ({
-        id: item?.id,
-        variantId: item?.variantId,
-        quantity: item?.quantity,
-      })),
+      cartItems
+        .filter((item) => item?.variantId)
+        .map((item) => ({
+          id: item?.id,
+          variantId: item?.variantId,
+          quantity: item?.quantity,
+        })),
     [cartItems]
   );
 
@@ -93,11 +96,12 @@ export default function CheckoutButton({ section }) {
             borderColor,
             borderRadius,
             backgroundColor,
+            opacity: hasCartItems ? 1 : 0.5,
           },
         ]}
         activeOpacity={0.8}
         onPress={handleCheckout}
-        disabled={!checkoutLines.length}
+        disabled={!hasCartItems}
       >
         <Text style={[styles.label, { fontSize, color: textColor, fontWeight }]}>
           {label}
