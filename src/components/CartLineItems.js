@@ -45,8 +45,7 @@ export default function CartLineItems({ section }) {
   const showQuantityControls = Boolean(unwrapValue(raw?.showQuantityControls, true));
 
   const cartItems = useSelector((state) => state?.cart?.items || []);
-  const fallbackItems = Array.isArray(raw?.items) ? raw.items : [];
-  const items = cartItems.length ? cartItems : fallbackItems;
+  const items = cartItems;
 
   const total = useMemo(
     () =>
@@ -71,7 +70,7 @@ export default function CartLineItems({ section }) {
       ]}
     >
       {items.length === 0 ? (
-        <Text style={styles.emptyText}>Your cart is empty.</Text>
+        <Text style={styles.emptyText}>No products added.</Text>
       ) : (
         items.map((item) => {
           const quantity = toNumber(item?.quantity, 1);

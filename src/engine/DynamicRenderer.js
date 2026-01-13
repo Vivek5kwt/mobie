@@ -3,7 +3,7 @@ import React from "react";
 
 // LIVE COMPONENTS
 import Header from "../components/Topheader";       // Live Header (v1)
-import Header2 from "../components/Header2";     // Live Header (v2)
+import Header2 from "../components/Header2";
 import CollectionImage from "../components/CollectionImage";
 import Countdown from "../components/Countdown";
 import MediaGrid from "../components/MediaGrid";

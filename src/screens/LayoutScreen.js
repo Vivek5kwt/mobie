@@ -47,6 +47,7 @@ export default function LayoutScreen({ route }) {
     section?.properties?.component?.const ||
     section?.properties?.component ||
     "";
+  const isHeader2Section = (section) => getComponentName(section).toLowerCase() === "header_2";
   const normalizedPageName =
     typeof pageName === "string"
       ? pageName.trim().toLowerCase()
@@ -85,8 +86,29 @@ export default function LayoutScreen({ route }) {
     [extractHeaderSections]
   );
 
+  const hasPrimaryHeader = useMemo(
+    () =>
+      mobileSections.some((section) => {
+        const component = getComponentName(section).toLowerCase();
+        return component === "header" || component === "header_mobile";
+      }),
+    [mobileSections]
+  );
+  const hasHeader2 = useMemo(
+    () =>
+      mobileSections.some(
+        (section) => getComponentName(section).toLowerCase() === "header_2"
+      ),
+    [mobileSections]
+  );
+
   const sortedSections = useMemo(() => {
-    const sectionsCopy = [...mobileSections];
+    const sectionsCopy = mobileSections.filter((section) => {
+      const component = getComponentName(section).toLowerCase();
+      if (!isHomePage && component === "header_2") return false;
+      if (component !== "header_2") return true;
+      return isHomePage || !hasPrimaryHeader;
+    });
 
     return sectionsCopy.sort((a, b) => {
       const A = getComponentName(a);
@@ -102,7 +124,7 @@ export default function LayoutScreen({ route }) {
 
       return 0;
     });
-  }, [mobileSections]);
+  }, [hasHeader2, hasPrimaryHeader, isHomePage, mobileSections]);
 
   const sideNavSection = useMemo(
     () =>
@@ -183,7 +205,9 @@ export default function LayoutScreen({ route }) {
 
     try {
       const homeDslData = await fetchDSL(appId, "home");
-      const headers = extractHeaderSections(homeDslData?.dsl || {});
+      const headers = extractHeaderSections(homeDslData?.dsl || {}).filter(
+        (section) => !isHeader2Section(section)
+      );
       setHomeHeaderSections(headers);
     } catch (e) {
       console.log("❌ Failed to fetch home header sections:", e);
@@ -401,11 +425,11 @@ export default function LayoutScreen({ route }) {
             {visibleSections.length ? (
               visibleSections.map((s, i) => {
                 const componentName = getComponentName(s).toLowerCase();
-                const nextComponentName =
-                  getComponentName(visibleSections[i + 1]).toLowerCase();
-                const tightenHeaderSpacing =
+                const nextComponentName = visibleSections[i + 1]
+                  ? getComponentName(visibleSections[i + 1]).toLowerCase()
+                  : null;
+                const collapseHeaderGap =
                   componentName === "header" && nextComponentName === "header_2";
-                const tightenHeader2Spacing = componentName === "header_2";
                 const shouldAttachBottomNav =
                   componentName === "header" ||
                   componentName === "header_2" ||
@@ -419,7 +443,8 @@ export default function LayoutScreen({ route }) {
                     key={i}
                     style={[
                       styles.sectionWrapper,
-                      (tightenHeaderSpacing || tightenHeader2Spacing) && styles.sectionWrapperTight,
+                      (componentName === "header_2" || collapseHeaderGap) &&
+                        styles.sectionWrapperTight,
                     ]}
                   >
                     <DynamicRenderer section={sectionWithNav} />
