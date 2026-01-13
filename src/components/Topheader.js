@@ -227,6 +227,10 @@ export default function Header({ section }) {
     navigation.dispatch(StackActions.replace("BottomNavScreen", params));
   };
 
+  const headerBorderColor = props.style?.properties?.borderColor?.value;
+  const headerBorderWidth =
+    props.style?.properties?.borderWidth?.value ?? (headerBorderColor ? 1 : 0);
+
   return (
     <View
       style={[
@@ -235,8 +239,8 @@ export default function Header({ section }) {
           backgroundColor: props.style?.properties?.backgroundColor?.value,
           minHeight: props.style?.properties?.minHeight?.value,
           padding: convertPadding(props.style?.properties?.padding?.value),
-          borderColor: props.style?.properties?.borderColor?.value,
-          borderWidth: 1,
+          borderColor: headerBorderColor,
+          borderWidth: headerBorderWidth,
           flexDirection: "row",
           justifyContent: normalizedLayout.container?.justifyContent || "space-between",
           alignItems: normalizedLayout.container?.alignItems || "center",
