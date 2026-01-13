@@ -9,7 +9,7 @@ import {
   View,
 } from "react-native";
 import { convertStyles } from "../utils/convertStyles";
-import { fetchShopifyProducts } from "../services/shopify";
+import { fetchShopifyProductsPage } from "../services/shopify";
 
 const unwrapValue = (value, fallback = undefined) => {
   if (value === undefined || value === null) return fallback;
@@ -169,18 +169,22 @@ export default function MediaGrid({ section }) {
       setIsLoading(true);
       setLoadError("");
       try {
-        const response = await fetchShopifyProducts(shopifyLimit);
+        const payload = await fetchShopifyProductsPage({
+          first: shopifyLimit,
+          after: null,
+        });
+        const response = payload?.products || [];
         const mapped = response.map((product, index) => ({
           id: product.id || `shopify-${index}`,
-          title: product.name || "Product",
+          title: product.title || "Product",
           subtitle:
-            product.price && product.currency
-              ? `${product.currency} ${product.price}`
-              : product.price
-              ? String(product.price)
+            product.priceAmount && product.priceCurrency
+              ? `${product.priceCurrency} ${product.priceAmount}`
+              : product.priceAmount
+              ? String(product.priceAmount)
               : "",
           badge: "",
-          src: product.image || "",
+          src: product.imageUrl || "",
           mediaType: "image",
           titleBold: false,
           titleItalic: false,
