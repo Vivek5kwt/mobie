@@ -127,6 +127,7 @@ export default function ProductDetailScreen() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const isMountedRef = useRef(true);
+  const dslVersionRef = useRef(null);
 
   const loadProductDetails = useCallback(async () => {
     if (!product?.handle && !product?.id) return;
@@ -171,6 +172,7 @@ export default function ProductDetailScreen() {
       const resolvedSections = resolveSections(detailSections);
       if (resolvedSections.length) {
         setDslSections(resolvedSections);
+        dslVersionRef.current = null;
         return;
       }
 
@@ -179,6 +181,7 @@ export default function ProductDetailScreen() {
       if (!isMounted) return;
       const nextSections = resolveSections(liveDsl?.dsl);
       setDslSections(nextSections);
+      dslVersionRef.current = liveDsl?.versionNumber ?? null;
       setDslLoading(false);
     };
 
@@ -187,6 +190,32 @@ export default function ProductDetailScreen() {
     return () => {
       isMounted = false;
     };
+  }, [appId, detailSections]);
+
+  // Auto-refresh DSL periodically to pick up newly published versions
+  useEffect(() => {
+    const resolvedSections = resolveSections(detailSections);
+    if (resolvedSections.length) return undefined;
+
+    const intervalId = setInterval(async () => {
+      try {
+        const latest = await fetchDSL(appId, "product-detail");
+        if (!latest?.dsl) return;
+
+        const incomingVersion = latest.versionNumber ?? null;
+        if (incomingVersion === dslVersionRef.current) return;
+
+        const nextSections = resolveSections(latest.dsl);
+        if (!nextSections.length) return;
+
+        setDslSections(nextSections);
+        dslVersionRef.current = incomingVersion;
+      } catch (e) {
+        console.log("❌ Auto-refresh error:", e);
+      }
+    }, 5000);
+
+    return () => clearInterval(intervalId);
   }, [appId, detailSections]);
 
   const sectionsToRender = useMemo(
