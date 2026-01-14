@@ -359,6 +359,7 @@ export default function MediaGrid({ section }) {
 
       {showGrid && showMediaCard && (
         <FlatList
+          key={`media-grid-${columns}`}
           data={resolvedItems}
           renderItem={renderItem}
           keyExtractor={(item) => item.id}
