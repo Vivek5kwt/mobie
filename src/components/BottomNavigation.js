@@ -248,8 +248,9 @@ export default function BottomNavigation({ section, activeIndexOverride }) {
   const normalizedIndicatorMode = String(indicatorMode || "").toLowerCase();
   const indicatorIsBubble = normalizedIndicatorMode === "bubble" || isStyle2;
   const indicatorIsLine = normalizedIndicatorMode === "line";
-  const resolvedIconActiveColor =
-    baseIconActiveColor || (indicatorIsBubble ? "#FFFFFF" : textActiveColor);
+  const resolvedIconActiveColor = isStyle2
+    ? "#FFFFFF"
+    : baseIconActiveColor || (indicatorIsBubble ? "#FFFFFF" : textActiveColor);
   const safeItemHeight = Number.isNaN(Number(itemHeight)) ? 0 : Number(itemHeight);
   const bubbleSize = Math.max(
     iconSize + 8,
@@ -309,6 +310,7 @@ export default function BottomNavigation({ section, activeIndexOverride }) {
         styles.container,
         presentation.container,
         paddingStyles,
+        isStyle2 ? styles.squareContainer : null,
         showBg ? { backgroundColor } : { backgroundColor: "transparent" },
       ]}
     >
@@ -403,6 +405,9 @@ const styles = StyleSheet.create({
     width: "100%",
     borderTopWidth: StyleSheet.hairlineWidth,
     borderTopColor: "rgba(0,0,0,0.04)",
+  },
+  squareContainer: {
+    borderRadius: 0,
   },
   row: {
     flexDirection: "row",
