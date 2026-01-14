@@ -169,7 +169,7 @@ export default function MediaGrid({ section }) {
     toNumber(rawProps?.productsToShow, toNumber(rawProps?.productCount, items.length || 4))
   );
 
-  const shouldUseShopify = preferShopifyProducts || hasShopifyConfig || !items.length;
+  const shouldUseShopify = preferShopifyProducts || hasShopifyConfig;
   const resolvedItems = shouldUseShopify ? shopifyItems : items;
 
   useEffect(() => {
