@@ -9,7 +9,7 @@ import {
   View,
 } from "react-native";
 import { convertStyles } from "../utils/convertStyles";
-import { fetchShopifyProducts } from "../services/shopify";
+import { fetchShopifyProductsPage } from "../services/shopify";
 
 const unwrapValue = (value, fallback = undefined) => {
   if (value === undefined || value === null) return fallback;
@@ -162,7 +162,7 @@ export default function MediaGrid({ section }) {
   const bgColor = unwrapValue(rawProps?.bgColor, "#FFFFFF");
   const shopifyDomain = toString(rawProps?.shopifyDomain, "");
   const shopifyToken = toString(rawProps?.storefrontToken, "");
-  const preferShopifyProducts = toBoolean(rawProps?.useShopifyProducts, false);
+  const preferShopifyProducts = toBoolean(rawProps?.useShopifyProducts, true);
   const hasShopifyConfig = Boolean(shopifyDomain || shopifyToken);
   const shopifyLimit = Math.max(
     1,
@@ -180,25 +180,25 @@ export default function MediaGrid({ section }) {
       setIsLoading(true);
       setLoadError("");
       try {
-        const response = await fetchShopifyProducts(shopifyLimit, {
-          shop: shopifyDomain || undefined,
-          token: shopifyToken || undefined,
+        const payload = await fetchShopifyProductsPage({
+          first: shopifyLimit,
+          after: null,
+          options: {
+            shop: shopifyDomain || undefined,
+            token: shopifyToken || undefined,
+          },
         });
-        const mapped = response.map((product, index) => ({
+        const mapped = (payload?.products || []).map((product, index) => ({
           id: product.id || `shopify-${index}`,
-          title: product.name || product.title || "Product",
+          title: product.title || "Product",
           subtitle:
-            product.price && product.currency
-              ? `${product.currency} ${product.price}`
-              : product.price
-              ? String(product.price)
-              : product.priceAmount && product.priceCurrency
+            product.priceCurrency && product.priceAmount
               ? `${product.priceCurrency} ${product.priceAmount}`
               : product.priceAmount
               ? String(product.priceAmount)
               : "",
           badge: "",
-          src: product.image || product.imageUrl || "",
+          src: product.imageUrl || "",
           mediaType: "image",
           titleBold: false,
           titleItalic: false,
