@@ -163,16 +163,17 @@ export default function MediaGrid({ section }) {
   const shopifyDomain = toString(rawProps?.shopifyDomain, "");
   const shopifyToken = toString(rawProps?.storefrontToken, "");
   const preferShopifyProducts = toBoolean(rawProps?.useShopifyProducts, false);
+  const hasShopifyConfig = Boolean(shopifyDomain || shopifyToken);
   const shopifyLimit = Math.max(
     1,
     toNumber(rawProps?.productsToShow, toNumber(rawProps?.productCount, items.length || 4))
   );
 
-  const resolvedItems =
-    preferShopifyProducts || !items.length ? shopifyItems : items;
+  const shouldUseShopify = preferShopifyProducts || hasShopifyConfig || !items.length;
+  const resolvedItems = shouldUseShopify ? shopifyItems : items;
 
   useEffect(() => {
-    if (items.length && !preferShopifyProducts) return;
+    if (!shouldUseShopify) return;
     let isMounted = true;
 
     const loadProducts = async () => {
@@ -225,7 +226,7 @@ export default function MediaGrid({ section }) {
     return () => {
       isMounted = false;
     };
-  }, [items.length, preferShopifyProducts, shopifyLimit, shopifyDomain, shopifyToken]);
+  }, [shouldUseShopify, shopifyLimit, shopifyDomain, shopifyToken]);
 
   const containerStyle = convertStyles(layoutCss?.container || {});
   const headerStyle = convertStyles(layoutCss?.header || {});
