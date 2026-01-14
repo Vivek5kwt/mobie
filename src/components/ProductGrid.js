@@ -53,6 +53,19 @@ const toTextAlign = (value, fallback = "left") => {
   return "left";
 };
 
+const toFontWeight = (value, fallback) => {
+  const resolved = unwrapValue(value, undefined);
+  if (resolved === undefined || resolved === null) return fallback;
+  if (typeof resolved === "number") return String(resolved);
+  const normalized = String(resolved).trim().toLowerCase();
+  if (normalized === "bold") return "700";
+  if (normalized === "semibold" || normalized === "semi bold") return "600";
+  if (normalized === "medium") return "500";
+  if (normalized === "regular" || normalized === "normal") return "400";
+  if (/^\d+$/.test(normalized)) return normalized;
+  return fallback;
+};
+
 export default function ProductGrid({ section, limit = 8, title = "Products" }) {
   const navigation = useNavigation();
   const [products, setProducts] = useState([]);
@@ -73,6 +86,34 @@ export default function ProductGrid({ section, limit = 8, title = "Products" }) 
   const resolvedShowTitle = toBoolean(rawProps?.showTitle, true);
   const resolvedShowPrice = toBoolean(rawProps?.showPrice, true);
   const resolvedFavMode = toString(rawProps?.favMode, "").toLowerCase();
+  const viewAllTypography = unwrapValue(
+    rawProps?.viewAllTypography ??
+      rawProps?.viewAllStyle ??
+      rawProps?.viewAllTextStyle,
+    {}
+  );
+  const resolvedViewAllText = toString(rawProps?.viewAllText, "View all");
+  const resolvedViewAllFontSize = resolveFirstNumber(
+    [
+      viewAllTypography?.size,
+      rawProps?.viewAllTextSize,
+      rawProps?.viewAllFontSize,
+      rawProps?.viewAllSize,
+    ],
+    14
+  );
+  const resolvedViewAllColor = toString(
+    viewAllTypography?.color ?? rawProps?.viewAllTextColor ?? rawProps?.viewAllColor,
+    "#111827"
+  );
+  const resolvedViewAllWeight = toFontWeight(
+    viewAllTypography?.weightNum ??
+      viewAllTypography?.weight ??
+      rawProps?.viewAllFontWeightNum ??
+      rawProps?.viewAllFontWeight ??
+      rawProps?.viewAllWeight,
+    "600"
+  );
   const resolvedShowFavorite =
     resolvedFavMode === "always show" ||
     toBoolean(
@@ -218,7 +259,18 @@ export default function ProductGrid({ section, limit = 8, title = "Products" }) 
                 })
               }
             >
-              <Text style={styles.viewAllText}>View all ›</Text>
+              <Text
+                style={[
+                  styles.viewAllText,
+                  {
+                    color: resolvedViewAllColor,
+                    fontSize: resolvedViewAllFontSize,
+                    fontWeight: resolvedViewAllWeight,
+                  },
+                ]}
+              >
+                {resolvedViewAllText} ›
+              </Text>
             </TouchableOpacity>
           )}
         </>
@@ -307,5 +359,6 @@ const styles = StyleSheet.create({
   viewAllText: {
     color: "#111827",
     fontWeight: "600",
+    fontSize: 14,
   },
 });
