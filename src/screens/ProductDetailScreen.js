@@ -1,8 +1,8 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ScrollView, StyleSheet, Text, View } from "react-native";
 import { useFocusEffect, useRoute } from "@react-navigation/native";
+import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import DynamicRenderer from "../engine/DynamicRenderer";
-import { SafeArea } from "../utils/SafeAreaHandler";
 import { fetchShopifyProductDetails } from "../services/shopify";
 import { fetchDSL } from "../engine/dslHandler";
 import { resolveAppId } from "../utils/appId";
@@ -114,6 +114,7 @@ const mergeSectionWithProduct = (section, product) => {
 export default function ProductDetailScreen() {
   const route = useRoute();
   const { session } = useAuth();
+  const insets = useSafeAreaInsets();
   const product = route?.params?.product || {};
   const detailSections = route?.params?.detailSections;
   const appId = useMemo(
@@ -128,42 +129,55 @@ export default function ProductDetailScreen() {
   const [error, setError] = useState("");
   const isMountedRef = useRef(true);
   const dslVersionRef = useRef(null);
+  const productRef = useRef(product);
 
-  const loadProductDetails = useCallback(async () => {
-    if (!product?.handle && !product?.id) return;
+  const loadProductDetails = useCallback(async (overrideProduct) => {
+    const baseProduct = overrideProduct || productRef.current || {};
+    if (!baseProduct?.handle && !baseProduct?.id) return;
     setLoading(true);
     setError("");
 
-    const details = await fetchShopifyProductDetails({
-      handle: product?.handle,
-      id: product?.id,
-    });
+    let details = null;
+    try {
+      details = await fetchShopifyProductDetails({
+        handle: baseProduct?.handle,
+        id: baseProduct?.id,
+      });
+    } catch (err) {
+      console.error("❌ Product detail refresh failed:", err);
+    }
 
     if (!isMountedRef.current) return;
     if (details) {
-      setDetailProduct({ ...product, ...details });
+      setDetailProduct((prev) => ({ ...prev, ...baseProduct, ...details }));
     } else {
-      setDetailProduct(product);
+      setDetailProduct(baseProduct);
       setError("Unable to load product details right now.");
     }
     setLoading(false);
-  }, [product]);
+  }, []);
 
   useEffect(() => () => {
     isMountedRef.current = false;
   }, []);
 
+  useEffect(() => {
+    productRef.current = product;
+    setDetailProduct(product);
+    loadProductDetails(product);
+  }, [loadProductDetails, product]);
+
   useFocusEffect(
     useCallback(() => {
-      loadProductDetails();
-      if (!product?.handle && !product?.id) return undefined;
+      loadProductDetails(productRef.current);
+      if (!productRef.current?.handle && !productRef.current?.id) return undefined;
 
       const refreshInterval = setInterval(() => {
-        loadProductDetails();
+        loadProductDetails(productRef.current);
       }, 30000);
 
       return () => clearInterval(refreshInterval);
-    }, [loadProductDetails, product?.handle, product?.id])
+    }, [loadProductDetails])
   );
 
   useEffect(() => {
@@ -173,15 +187,16 @@ export default function ProductDetailScreen() {
       if (resolvedSections.length) {
         setDslSections(resolvedSections);
         dslVersionRef.current = null;
-        return;
       }
 
-      setDslLoading(true);
+      setDslLoading(!resolvedSections.length);
       const liveDsl = await fetchDSL(appId, "product-detail");
       if (!isMounted) return;
       const nextSections = resolveSections(liveDsl?.dsl);
-      setDslSections(nextSections);
-      dslVersionRef.current = liveDsl?.versionNumber ?? null;
+      if (nextSections.length) {
+        setDslSections(nextSections);
+        dslVersionRef.current = liveDsl?.versionNumber ?? null;
+      }
       setDslLoading(false);
     };
 
@@ -194,9 +209,6 @@ export default function ProductDetailScreen() {
 
   // Auto-refresh DSL periodically to pick up newly published versions
   useEffect(() => {
-    const resolvedSections = resolveSections(detailSections);
-    if (resolvedSections.length) return undefined;
-
     const intervalId = setInterval(async () => {
       try {
         const latest = await fetchDSL(appId, "product-detail");
@@ -259,9 +271,11 @@ export default function ProductDetailScreen() {
   }, [detailProduct, fallbackSections, sectionsToRender]);
 
   return (
-    <SafeArea>
+    <SafeAreaView style={styles.safeArea} edges={["left", "right", "bottom"]}>
       <View style={styles.container}>
-        <Header />
+        <View style={[styles.headerWrapper, { paddingTop: insets.top }]}>
+          <Header />
+        </View>
         <ScrollView contentContainerStyle={styles.scrollContent}>
           {dslLoading && <Text style={styles.status}>Loading product layout...</Text>}
           {loading && <Text style={styles.status}>Loading product details...</Text>}
@@ -273,13 +287,29 @@ export default function ProductDetailScreen() {
           ))}
         </ScrollView>
       </View>
-    </SafeArea>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
+  safeArea: {
+    flex: 1,
+    backgroundColor: "#ffffff",
+  },
   container: {
     flex: 1,
+  },
+  headerWrapper: {
+    backgroundColor: "#ffffff",
+    minHeight: 64,
+    paddingBottom: 8,
+    justifyContent: "center",
+    zIndex: 2,
+    elevation: 3,
+    shadowColor: "#000000",
+    shadowOpacity: 0.08,
+    shadowRadius: 6,
+    shadowOffset: { width: 0, height: 2 },
   },
   scrollContent: {
     paddingBottom: 24,

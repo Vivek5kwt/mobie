@@ -35,11 +35,35 @@ const toString = (value, fallback = "") => {
   return String(resolved);
 };
 
+const toBoolean = (value, fallback = false) => {
+  const resolved = unwrapValue(value, fallback);
+  if (resolved === undefined || resolved === null) return fallback;
+  if (typeof resolved === "boolean") return resolved;
+  if (typeof resolved === "number") return resolved !== 0;
+  const normalized = String(resolved).trim().toLowerCase();
+  if (["true", "yes", "1"].includes(normalized)) return true;
+  if (["false", "no", "0"].includes(normalized)) return false;
+  return fallback;
+};
+
 const toTextAlign = (value, fallback = "left") => {
   const resolved = toString(value, fallback).toLowerCase();
   if (resolved === "center") return "center";
   if (resolved === "right") return "right";
   return "left";
+};
+
+const toFontWeight = (value, fallback) => {
+  const resolved = unwrapValue(value, undefined);
+  if (resolved === undefined || resolved === null) return fallback;
+  if (typeof resolved === "number") return String(resolved);
+  const normalized = String(resolved).trim().toLowerCase();
+  if (normalized === "bold") return "700";
+  if (normalized === "semibold" || normalized === "semi bold") return "600";
+  if (normalized === "medium") return "500";
+  if (normalized === "regular" || normalized === "normal") return "400";
+  if (/^\d+$/.test(normalized)) return normalized;
+  return fallback;
 };
 
 export default function ProductGrid({ section, limit = 8, title = "Products" }) {
@@ -58,6 +82,46 @@ export default function ProductGrid({ section, limit = 8, title = "Products" }) 
   const resolvedColumns = Math.max(1, Math.round(toNumber(rawProps?.columns, 2)));
   const resolvedAlignText = toTextAlign(rawProps?.alignText, "left");
   const resolvedTitle = toString(rawProps?.header ?? rawProps?.title, title);
+  const resolvedBgColor = toString(rawProps?.bgColor, "");
+  const resolvedShowTitle = toBoolean(rawProps?.showTitle, true);
+  const resolvedShowPrice = toBoolean(rawProps?.showPrice, true);
+  const resolvedFavMode = toString(rawProps?.favMode, "").toLowerCase();
+  const viewAllTypography = unwrapValue(
+    rawProps?.viewAllTypography ??
+      rawProps?.viewAllStyle ??
+      rawProps?.viewAllTextStyle,
+    {}
+  );
+  const resolvedViewAllText = toString(rawProps?.viewAllText, "View all");
+  const resolvedViewAllFontSize = resolveFirstNumber(
+    [
+      viewAllTypography?.size,
+      rawProps?.viewAllTextSize,
+      rawProps?.viewAllFontSize,
+      rawProps?.viewAllSize,
+    ],
+    14
+  );
+  const resolvedViewAllColor = toString(
+    viewAllTypography?.color ?? rawProps?.viewAllTextColor ?? rawProps?.viewAllColor,
+    "#111827"
+  );
+  const resolvedViewAllWeight = toFontWeight(
+    viewAllTypography?.weightNum ??
+      viewAllTypography?.weight ??
+      rawProps?.viewAllFontWeightNum ??
+      rawProps?.viewAllFontWeight ??
+      rawProps?.viewAllWeight,
+    "600"
+  );
+  const resolvedShowFavorite =
+    resolvedFavMode === "always show" ||
+    toBoolean(
+      rawProps?.showFavorite ??
+        rawProps?.showFavoriteIcon ??
+        rawProps?.favEnabled,
+      false
+    );
   const detailSections = useMemo(() => {
     const candidates = [
       rawProps?.productDetailSections,
@@ -122,10 +186,12 @@ export default function ProductGrid({ section, limit = 8, title = "Products" }) 
   }, [resolvedLimit]);
 
   return (
-    <View style={styles.wrapper}>
-      <Text style={[styles.heading, { textAlign: resolvedAlignText }]}>
-        {resolvedTitle}
-      </Text>
+    <View style={[styles.wrapper, resolvedBgColor ? { backgroundColor: resolvedBgColor } : null]}>
+      {resolvedShowTitle && (
+        <Text style={[styles.heading, { textAlign: resolvedAlignText }]}>
+          {resolvedTitle}
+        </Text>
+      )}
 
       {loading && <Text style={styles.status}>Loading products...</Text>}
       {error && <Text style={styles.error}>{error}</Text>}
@@ -151,6 +217,11 @@ export default function ProductGrid({ section, limit = 8, title = "Products" }) 
                   })
                 }
               >
+                {resolvedShowFavorite && (
+                  <View style={styles.favoriteBadge}>
+                    <Text style={styles.favoriteIcon}>♥</Text>
+                  </View>
+                )}
                 {product.imageUrl && (
                   <Image
                     source={{ uri: product.imageUrl }}
@@ -160,15 +231,19 @@ export default function ProductGrid({ section, limit = 8, title = "Products" }) 
                 )}
 
                 <View style={styles.content}>
-                  <Text
-                    numberOfLines={2}
-                    style={[styles.name, { textAlign: resolvedAlignText }]}
-                  >
-                    {product.title}
-                  </Text>
-                  <Text style={[styles.price, { textAlign: resolvedAlignText }]}>
-                    {product.priceCurrency} {product.priceAmount}
-                  </Text>
+                  {resolvedShowTitle && (
+                    <Text
+                      numberOfLines={2}
+                      style={[styles.name, { textAlign: resolvedAlignText }]}
+                    >
+                      {product.title}
+                    </Text>
+                  )}
+                  {resolvedShowPrice && (
+                    <Text style={[styles.price, { textAlign: resolvedAlignText }]}>
+                      {product.priceCurrency} {product.priceAmount}
+                    </Text>
+                  )}
                 </View>
               </TouchableOpacity>
             ))}
@@ -184,7 +259,18 @@ export default function ProductGrid({ section, limit = 8, title = "Products" }) 
                 })
               }
             >
-              <Text style={styles.viewAllText}>View all ›</Text>
+              <Text
+                style={[
+                  styles.viewAllText,
+                  {
+                    color: resolvedViewAllColor,
+                    fontSize: resolvedViewAllFontSize,
+                    fontWeight: resolvedViewAllWeight,
+                  },
+                ]}
+              >
+                {resolvedViewAllText} ›
+              </Text>
             </TouchableOpacity>
           )}
         </>
@@ -222,6 +308,21 @@ const styles = StyleSheet.create({
     backgroundColor: "#fff",
     marginBottom: 16,
   },
+  favoriteBadge: {
+    position: "absolute",
+    top: 10,
+    right: 10,
+    zIndex: 2,
+    backgroundColor: "rgba(255, 255, 255, 0.9)",
+    borderRadius: 16,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+  },
+  favoriteIcon: {
+    color: "#e11d48",
+    fontSize: 14,
+    fontWeight: "700",
+  },
   image: {
     width: "100%",
     height: 200,
@@ -258,5 +359,6 @@ const styles = StyleSheet.create({
   viewAllText: {
     color: "#111827",
     fontWeight: "600",
+    fontSize: 14,
   },
 });

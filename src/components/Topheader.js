@@ -227,16 +227,24 @@ export default function Header({ section }) {
     navigation.dispatch(StackActions.replace("BottomNavScreen", params));
   };
 
+  const headerBorderColor = props.style?.properties?.borderColor?.value;
+  const headerBorderWidth =
+    props.style?.properties?.borderWidth?.value ?? (headerBorderColor ? 1 : 0);
+  const headerMinHeight = resolveMinHeight(
+    props.style?.properties?.minHeight?.value,
+    styles.container.minHeight,
+  );
+
   return (
     <View
       style={[
         styles.container,
         {
           backgroundColor: props.style?.properties?.backgroundColor?.value,
-          minHeight: props.style?.properties?.minHeight?.value,
+          minHeight: headerMinHeight,
           padding: convertPadding(props.style?.properties?.padding?.value),
-          borderColor: props.style?.properties?.borderColor?.value,
-          borderWidth: 1,
+          borderColor: headerBorderColor,
+          borderWidth: headerBorderWidth,
           flexDirection: "row",
           justifyContent: normalizedLayout.container?.justifyContent || "space-between",
           alignItems: normalizedLayout.container?.alignItems || "center",
@@ -330,8 +338,30 @@ function convertPadding(str) {
   return parseInt(parts[0]);
 }
 
+function resolveMinHeight(rawValue, fallback) {
+  if (rawValue === undefined || rawValue === null || rawValue === "") {
+    return fallback;
+  }
+  if (typeof rawValue === "number" && Number.isFinite(rawValue)) {
+    return Math.max(rawValue, fallback);
+  }
+  if (typeof rawValue === "string") {
+    const parsed = Number.parseFloat(rawValue.replace("px", "").trim());
+    if (Number.isFinite(parsed)) {
+      return Math.max(parsed, fallback);
+    }
+  }
+  return fallback;
+}
+
 const styles = StyleSheet.create({
-  container: { position: "relative" },
+  container: {
+    position: "relative",
+    minHeight: 56,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    backgroundColor: "#ffffff",
+  },
   leftSlot: { flex: 1, flexDirection: "row", alignItems: "center" },
   logoSlot: {
     position: "absolute",
