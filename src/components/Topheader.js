@@ -376,9 +376,7 @@ const styles = StyleSheet.create({
   },
   leftSlot: { flex: 1, flexDirection: "row", alignItems: "center" },
   logoSlot: {
-    position: "absolute",
-    left: 0,
-    right: 0,
+    flex: 1,
     alignItems: "center",
     justifyContent: "center",
   },
