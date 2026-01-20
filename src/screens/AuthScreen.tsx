@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
+  Image,
   KeyboardAvoidingView,
   Platform,
   SafeAreaView,
@@ -41,6 +42,91 @@ type SignInTokens = {
   footerLinkText: string;
   emailPlaceholder: string;
   passwordPlaceholder: string;
+};
+
+type SignUpTokens = SignInTokens & {
+  headerTitle: string;
+  headerTitleColor: string;
+  headerTitleFontSize: number;
+  headerTitleFontFamily: string;
+  headerTitleFontWeight: string;
+  emailAlignment: string;
+  firstNameAlignment: string;
+  lastNameAlignment: string;
+  passwordAlignment: string;
+  emailInputTextAlignment: string;
+  firstNameInputTextAlignment: string;
+  lastNameInputTextAlignment: string;
+  passwordInputTextAlignment: string;
+  emailLabelVisible: boolean;
+  firstNameLabelVisible: boolean;
+  lastNameLabelVisible: boolean;
+  passwordLabelVisible: boolean;
+  emailInputVisible: boolean;
+  firstNameVisible: boolean;
+  lastNameVisible: boolean;
+  passwordInputVisible: boolean;
+  emailLabelText: string;
+  firstNameLabelText: string;
+  lastNameLabelText: string;
+  passwordLabelText: string;
+  emailLabelColor: string;
+  firstNameLabelColor: string;
+  lastNameLabelColor: string;
+  passwordLabelColor: string;
+  emailLabelFontSize: number;
+  firstNameLabelFontSize: number;
+  lastNameLabelFontSize: number;
+  passwordLabelFontSize: number;
+  emailLabelFontFamily: string;
+  firstNameLabelFontFamily: string;
+  lastNameLabelFontFamily: string;
+  passwordLabelFontFamily: string;
+  emailLabelFontWeight: string;
+  firstNameLabelFontWeight: string;
+  lastNameLabelFontWeight: string;
+  passwordLabelFontWeight: string;
+  emailInputTextColor: string;
+  firstNameInputTextColor: string;
+  lastNameInputTextColor: string;
+  passwordInputTextColor: string;
+  emailInputTextFontSize: number;
+  firstNameInputTextFontSize: number;
+  lastNameInputTextFontSize: number;
+  passwordInputTextFontSize: number;
+  emailInputTextFontFamily: string;
+  firstNameInputTextFontFamily: string;
+  lastNameInputTextFontFamily: string;
+  passwordInputTextFontFamily: string;
+  emailInputTextFontWeight: string;
+  firstNameInputTextFontWeight: string;
+  lastNameInputTextFontWeight: string;
+  passwordInputTextFontWeight: string;
+  emailPlaceholderColor: string;
+  firstNamePlaceholderColor: string;
+  lastNamePlaceholderColor: string;
+  passwordPlaceholderColor: string;
+  firstNamePlaceholder: string;
+  lastNamePlaceholder: string;
+  buttonHeight: number;
+  buttonWidth: number;
+  buttonFontSize: number;
+  buttonFontFamily: string;
+  buttonFontWeight: string;
+  footerTextFontSize: number;
+  footerLinkFontSize: number;
+  footerLinkFontFamily: string;
+  footerLinkFontWeight: string;
+  footerLinkAlignment: string;
+  footerLinkAutoUppercase: boolean;
+  footerVisible: boolean;
+  signInLinkVisible: boolean;
+  buttonVisible: boolean;
+  showProfilePicture: boolean;
+  profilePictureUrl: string;
+  profilePictureSize: number;
+  profilePictureBgColor: string;
+  profilePictureBorderColor: string;
 };
 
 type ForgotPasswordTokens = {
@@ -154,6 +240,104 @@ const defaultForgotPasswordTokens: ForgotPasswordTokens = {
   resetPasswordButtonText: 'Forgot Password?',
 };
 
+const defaultSignUpTokens: SignUpTokens = {
+  ...defaultSignInTokens,
+  bgColor: '#FFFFFF',
+  titleColor: '#027579',
+  cardBgColor: '#FFFFFF',
+  cardBorderColor: '#0c9297',
+  cardBorderRadius: 0,
+  cardPaddingTop: 60,
+  cardPaddingBottom: 60,
+  cardPaddingLeft: 20,
+  cardPaddingRight: 20,
+  inputBorderColor: '#027579',
+  authTitle: 'Create an Account',
+  buttonText: 'Continue',
+  footerText: 'Already have an account?',
+  footerLinkText: 'Sign in',
+  headerTitle: 'Create an Account',
+  headerTitleColor: '#000000',
+  headerTitleFontSize: 18,
+  headerTitleFontFamily: 'Inter, sans-serif',
+  headerTitleFontWeight: '700',
+  emailAlignment: 'Center',
+  firstNameAlignment: 'Center',
+  lastNameAlignment: 'Center',
+  passwordAlignment: 'Center',
+  emailInputTextAlignment: 'Center',
+  firstNameInputTextAlignment: 'Center',
+  lastNameInputTextAlignment: 'Center',
+  passwordInputTextAlignment: 'Center',
+  emailLabelVisible: true,
+  firstNameLabelVisible: true,
+  lastNameLabelVisible: true,
+  passwordLabelVisible: true,
+  emailInputVisible: true,
+  firstNameVisible: true,
+  lastNameVisible: true,
+  passwordInputVisible: true,
+  emailLabelText: 'Email',
+  firstNameLabelText: 'First Name',
+  lastNameLabelText: 'Last Name',
+  passwordLabelText: 'Password',
+  emailLabelColor: '#000000',
+  firstNameLabelColor: '#000000',
+  lastNameLabelColor: '#000000',
+  passwordLabelColor: '#000000',
+  emailLabelFontSize: 24,
+  firstNameLabelFontSize: 24,
+  lastNameLabelFontSize: 24,
+  passwordLabelFontSize: 24,
+  emailLabelFontFamily: 'Inter, sans-serif',
+  firstNameLabelFontFamily: 'Inter, sans-serif',
+  lastNameLabelFontFamily: 'Inter, sans-serif',
+  passwordLabelFontFamily: 'Inter, sans-serif',
+  emailLabelFontWeight: '700',
+  firstNameLabelFontWeight: '700',
+  lastNameLabelFontWeight: '700',
+  passwordLabelFontWeight: '700',
+  emailInputTextColor: '#000000',
+  firstNameInputTextColor: '#000000',
+  lastNameInputTextColor: '#000000',
+  passwordInputTextColor: '#000000',
+  emailInputTextFontSize: 24,
+  firstNameInputTextFontSize: 24,
+  lastNameInputTextFontSize: 24,
+  passwordInputTextFontSize: 24,
+  emailInputTextFontFamily: 'Inter, sans-serif',
+  firstNameInputTextFontFamily: 'Inter, sans-serif',
+  lastNameInputTextFontFamily: 'Inter, sans-serif',
+  passwordInputTextFontFamily: 'Inter, sans-serif',
+  emailInputTextFontWeight: '700',
+  firstNameInputTextFontWeight: '700',
+  lastNameInputTextFontWeight: '700',
+  passwordInputTextFontWeight: '700',
+  emailPlaceholderColor: '#000000',
+  firstNamePlaceholderColor: '#000000',
+  lastNamePlaceholderColor: '#000000',
+  passwordPlaceholderColor: '#000000',
+  buttonHeight: 50,
+  buttonWidth: 100,
+  buttonFontSize: 24,
+  buttonFontFamily: 'Inter, sans-serif',
+  buttonFontWeight: '700',
+  footerTextFontSize: 13,
+  footerLinkFontSize: 24,
+  footerLinkFontFamily: 'Inter, sans-serif',
+  footerLinkFontWeight: '700',
+  footerLinkAlignment: 'Center',
+  footerLinkAutoUppercase: false,
+  footerVisible: true,
+  signInLinkVisible: true,
+  buttonVisible: true,
+  showProfilePicture: true,
+  profilePictureUrl: '',
+  profilePictureSize: 198,
+  profilePictureBgColor: '#E5F3F4',
+  profilePictureBorderColor: '#33B8C4',
+};
+
 const toFontWeight = (
   value: unknown,
   fallback: string,
@@ -169,6 +353,19 @@ const toFontWeight = (
   }
   if (isBold !== undefined) {
     return isBold ? '700' : '400';
+  }
+  return fallback;
+};
+
+const toTextAlign = (
+  value: unknown,
+  fallback: 'left' | 'center' | 'right' = 'left'
+): 'left' | 'center' | 'right' => {
+  if (typeof value === 'string') {
+    const normalized = value.trim().toLowerCase();
+    if (normalized === 'center') return 'center';
+    if (normalized === 'right') return 'right';
+    if (normalized === 'left') return 'left';
   }
   return fallback;
 };
@@ -281,17 +478,276 @@ const buildForgotPasswordTokens = (rawProps: Record<string, unknown>): ForgotPas
     defaultForgotPasswordTokens.resetPasswordButtonText,
 });
 
+const buildSignUpTokens = (rawProps: Record<string, unknown>): SignUpTokens => ({
+  ...defaultSignUpTokens,
+  bgColor: (rawProps?.bgColor as string) ?? defaultSignUpTokens.bgColor,
+  titleColor: (rawProps?.titleColor as string) ?? defaultSignUpTokens.titleColor,
+  cardBgColor: (rawProps?.cardBgColor as string) ?? defaultSignUpTokens.cardBgColor,
+  cardBorderColor:
+    (rawProps?.cardBorderColor as string) ?? defaultSignUpTokens.cardBorderColor,
+  cardBorderRadius: toNumber(rawProps?.borderRadius, defaultSignUpTokens.cardBorderRadius),
+  cardPaddingTop: toNumber(rawProps?.pt ?? rawProps?.paddingTop, defaultSignUpTokens.cardPaddingTop),
+  cardPaddingBottom: toNumber(
+    rawProps?.pb ?? rawProps?.paddingBottom,
+    defaultSignUpTokens.cardPaddingBottom
+  ),
+  cardPaddingLeft: toNumber(rawProps?.pl ?? rawProps?.paddingLeft, defaultSignUpTokens.cardPaddingLeft),
+  cardPaddingRight: toNumber(
+    rawProps?.pr ?? rawProps?.paddingRight,
+    defaultSignUpTokens.cardPaddingRight
+  ),
+  inputBorderColor: (rawProps?.inputBorderColor as string) ?? defaultSignUpTokens.inputBorderColor,
+  authTitle: (rawProps?.authTitle as string) ?? defaultSignUpTokens.authTitle,
+  buttonText: (rawProps?.buttonText as string) ?? defaultSignUpTokens.buttonText,
+  footerText: (rawProps?.footerText as string) ?? defaultSignUpTokens.footerText,
+  footerLinkText: (rawProps?.footerLinkText as string) ?? defaultSignUpTokens.footerLinkText,
+  emailPlaceholder: (rawProps?.emailPlaceholder as string) ?? defaultSignUpTokens.emailPlaceholder,
+  passwordPlaceholder:
+    (rawProps?.passwordPlaceholder as string) ?? defaultSignUpTokens.passwordPlaceholder,
+  firstNamePlaceholder:
+    (rawProps?.firstNamePlaceholder as string) ?? defaultSignUpTokens.firstNamePlaceholder,
+  lastNamePlaceholder:
+    (rawProps?.lastNamePlaceholder as string) ?? defaultSignUpTokens.lastNamePlaceholder,
+  headerTitle: (rawProps?.headerTitle as string) ?? defaultSignUpTokens.headerTitle,
+  headerTitleColor:
+    (rawProps?.headerTitleColor as string) ?? defaultSignUpTokens.headerTitleColor,
+  headerTitleFontSize: toNumber(
+    rawProps?.headerTitleFontSize,
+    defaultSignUpTokens.headerTitleFontSize
+  ),
+  headerTitleFontFamily:
+    (rawProps?.headerTitleFontFamily as string) ?? defaultSignUpTokens.headerTitleFontFamily,
+  headerTitleFontWeight: toFontWeight(
+    rawProps?.headerTitleFontWeight,
+    defaultSignUpTokens.headerTitleFontWeight
+  ),
+  emailAlignment: (rawProps?.emailAlignment as string) ?? defaultSignUpTokens.emailAlignment,
+  firstNameAlignment:
+    (rawProps?.firstNameAlignment as string) ?? defaultSignUpTokens.firstNameAlignment,
+  lastNameAlignment:
+    (rawProps?.lastNameAlignment as string) ?? defaultSignUpTokens.lastNameAlignment,
+  passwordAlignment:
+    (rawProps?.passwordAlignment as string) ?? defaultSignUpTokens.passwordAlignment,
+  emailInputTextAlignment:
+    (rawProps?.emailInputTextAlignment as string) ??
+    defaultSignUpTokens.emailInputTextAlignment,
+  firstNameInputTextAlignment:
+    (rawProps?.firstNameInputTextAlignment as string) ??
+    defaultSignUpTokens.firstNameInputTextAlignment,
+  lastNameInputTextAlignment:
+    (rawProps?.lastNameInputTextAlignment as string) ??
+    defaultSignUpTokens.lastNameInputTextAlignment,
+  passwordInputTextAlignment:
+    (rawProps?.passwordInputTextAlignment as string) ??
+    defaultSignUpTokens.passwordInputTextAlignment,
+  emailLabelVisible:
+    (rawProps?.emailLabelVisible as boolean) ?? defaultSignUpTokens.emailLabelVisible,
+  firstNameLabelVisible:
+    (rawProps?.firstNameLabelVisible as boolean) ?? defaultSignUpTokens.firstNameLabelVisible,
+  lastNameLabelVisible:
+    (rawProps?.lastNameLabelVisible as boolean) ?? defaultSignUpTokens.lastNameLabelVisible,
+  passwordLabelVisible:
+    (rawProps?.passwordLabelVisible as boolean) ?? defaultSignUpTokens.passwordLabelVisible,
+  emailInputVisible:
+    (rawProps?.emailInputVisible as boolean) ?? defaultSignUpTokens.emailInputVisible,
+  firstNameVisible:
+    (rawProps?.firstNameVisible as boolean) ?? defaultSignUpTokens.firstNameVisible,
+  lastNameVisible:
+    (rawProps?.lastNameVisible as boolean) ?? defaultSignUpTokens.lastNameVisible,
+  passwordInputVisible:
+    (rawProps?.passwordInputVisible as boolean) ?? defaultSignUpTokens.passwordInputVisible,
+  emailLabelText: (rawProps?.emailLabelText as string) ?? defaultSignUpTokens.emailLabelText,
+  firstNameLabelText:
+    (rawProps?.firstNameLabelText as string) ?? defaultSignUpTokens.firstNameLabelText,
+  lastNameLabelText:
+    (rawProps?.lastNameLabelText as string) ?? defaultSignUpTokens.lastNameLabelText,
+  passwordLabelText:
+    (rawProps?.passwordLabelText as string) ?? defaultSignUpTokens.passwordLabelText,
+  emailLabelColor: (rawProps?.emailLabelColor as string) ?? defaultSignUpTokens.emailLabelColor,
+  firstNameLabelColor:
+    (rawProps?.firstNameLabelColor as string) ?? defaultSignUpTokens.firstNameLabelColor,
+  lastNameLabelColor:
+    (rawProps?.lastNameLabelColor as string) ?? defaultSignUpTokens.lastNameLabelColor,
+  passwordLabelColor:
+    (rawProps?.passwordLabelColor as string) ?? defaultSignUpTokens.passwordLabelColor,
+  emailLabelFontSize: toNumber(
+    rawProps?.emailLabelFontSize,
+    defaultSignUpTokens.emailLabelFontSize
+  ),
+  firstNameLabelFontSize: toNumber(
+    rawProps?.firstNameLabelFontSize,
+    defaultSignUpTokens.firstNameLabelFontSize
+  ),
+  lastNameLabelFontSize: toNumber(
+    rawProps?.lastNameLabelFontSize,
+    defaultSignUpTokens.lastNameLabelFontSize
+  ),
+  passwordLabelFontSize: toNumber(
+    rawProps?.passwordLabelFontSize,
+    defaultSignUpTokens.passwordLabelFontSize
+  ),
+  emailLabelFontFamily:
+    (rawProps?.emailLabelFontFamily as string) ?? defaultSignUpTokens.emailLabelFontFamily,
+  firstNameLabelFontFamily:
+    (rawProps?.firstNameLabelFontFamily as string) ??
+    defaultSignUpTokens.firstNameLabelFontFamily,
+  lastNameLabelFontFamily:
+    (rawProps?.lastNameLabelFontFamily as string) ??
+    defaultSignUpTokens.lastNameLabelFontFamily,
+  passwordLabelFontFamily:
+    (rawProps?.passwordLabelFontFamily as string) ??
+    defaultSignUpTokens.passwordLabelFontFamily,
+  emailLabelFontWeight: toFontWeight(
+    rawProps?.emailLabelFontWeight,
+    defaultSignUpTokens.emailLabelFontWeight
+  ),
+  firstNameLabelFontWeight: toFontWeight(
+    rawProps?.firstNameLabelFontWeight,
+    defaultSignUpTokens.firstNameLabelFontWeight
+  ),
+  lastNameLabelFontWeight: toFontWeight(
+    rawProps?.lastNameLabelFontWeight,
+    defaultSignUpTokens.lastNameLabelFontWeight
+  ),
+  passwordLabelFontWeight: toFontWeight(
+    rawProps?.passwordLabelFontWeight,
+    defaultSignUpTokens.passwordLabelFontWeight
+  ),
+  emailInputTextColor:
+    (rawProps?.emailInputTextColor as string) ?? defaultSignUpTokens.emailInputTextColor,
+  firstNameInputTextColor:
+    (rawProps?.firstNameInputTextColor as string) ?? defaultSignUpTokens.firstNameInputTextColor,
+  lastNameInputTextColor:
+    (rawProps?.lastNameInputTextColor as string) ?? defaultSignUpTokens.lastNameInputTextColor,
+  passwordInputTextColor:
+    (rawProps?.passwordInputTextColor as string) ?? defaultSignUpTokens.passwordInputTextColor,
+  emailInputTextFontSize: toNumber(
+    rawProps?.emailInputTextFontSize,
+    defaultSignUpTokens.emailInputTextFontSize
+  ),
+  firstNameInputTextFontSize: toNumber(
+    rawProps?.firstNameInputTextFontSize,
+    defaultSignUpTokens.firstNameInputTextFontSize
+  ),
+  lastNameInputTextFontSize: toNumber(
+    rawProps?.lastNameInputTextFontSize,
+    defaultSignUpTokens.lastNameInputTextFontSize
+  ),
+  passwordInputTextFontSize: toNumber(
+    rawProps?.passwordInputTextFontSize,
+    defaultSignUpTokens.passwordInputTextFontSize
+  ),
+  emailInputTextFontFamily:
+    (rawProps?.emailInputTextFontFamily as string) ??
+    defaultSignUpTokens.emailInputTextFontFamily,
+  firstNameInputTextFontFamily:
+    (rawProps?.firstNameInputTextFontFamily as string) ??
+    defaultSignUpTokens.firstNameInputTextFontFamily,
+  lastNameInputTextFontFamily:
+    (rawProps?.lastNameInputTextFontFamily as string) ??
+    defaultSignUpTokens.lastNameInputTextFontFamily,
+  passwordInputTextFontFamily:
+    (rawProps?.passwordInputTextFontFamily as string) ??
+    defaultSignUpTokens.passwordInputTextFontFamily,
+  emailInputTextFontWeight: toFontWeight(
+    rawProps?.emailInputTextFontWeight,
+    defaultSignUpTokens.emailInputTextFontWeight
+  ),
+  firstNameInputTextFontWeight: toFontWeight(
+    rawProps?.firstNameInputTextFontWeight,
+    defaultSignUpTokens.firstNameInputTextFontWeight
+  ),
+  lastNameInputTextFontWeight: toFontWeight(
+    rawProps?.lastNameInputTextFontWeight,
+    defaultSignUpTokens.lastNameInputTextFontWeight
+  ),
+  passwordInputTextFontWeight: toFontWeight(
+    rawProps?.passwordInputTextFontWeight,
+    defaultSignUpTokens.passwordInputTextFontWeight
+  ),
+  emailPlaceholderColor:
+    (rawProps?.emailPlaceholderColor as string) ?? defaultSignUpTokens.emailPlaceholderColor,
+  firstNamePlaceholderColor:
+    (rawProps?.firstNamePlaceholderColor as string) ??
+    defaultSignUpTokens.firstNamePlaceholderColor,
+  lastNamePlaceholderColor:
+    (rawProps?.lastNamePlaceholderColor as string) ?? defaultSignUpTokens.lastNamePlaceholderColor,
+  passwordPlaceholderColor:
+    (rawProps?.passwordPlaceholderColor as string) ??
+    defaultSignUpTokens.passwordPlaceholderColor,
+  buttonTextColor: (rawProps?.buttonTextColor as string) ?? defaultSignUpTokens.buttonTextColor,
+  buttonBorderColor:
+    (rawProps?.buttonBorderColor as string) ?? defaultSignUpTokens.buttonBorderColor,
+  buttonFillColor: resolveButtonColor(rawProps?.buttonBgColor, defaultSignUpTokens.buttonFillColor),
+  buttonPaddingTop: toNumber(rawProps?.buttonPaddingTop, defaultSignUpTokens.buttonPaddingTop),
+  buttonPaddingBottom: toNumber(
+    rawProps?.buttonPaddingBottom,
+    defaultSignUpTokens.buttonPaddingBottom
+  ),
+  buttonAutoUppercase:
+    (rawProps?.buttonAutoUppercase as boolean) ?? defaultSignUpTokens.buttonAutoUppercase,
+  buttonHeight: toNumber(rawProps?.buttonHeight, defaultSignUpTokens.buttonHeight),
+  buttonWidth: toNumber(rawProps?.buttonWidth, defaultSignUpTokens.buttonWidth),
+  buttonFontSize: toNumber(rawProps?.buttonFontSize, defaultSignUpTokens.buttonFontSize),
+  buttonFontFamily:
+    (rawProps?.buttonFontFamily as string) ?? defaultSignUpTokens.buttonFontFamily,
+  buttonFontWeight: toFontWeight(
+    rawProps?.buttonFontWeight,
+    defaultSignUpTokens.buttonFontWeight
+  ),
+  footerTextColor: (rawProps?.footerTextColor as string) ?? defaultSignUpTokens.footerTextColor,
+  footerLinkColor: (rawProps?.footerLinkColor as string) ?? defaultSignUpTokens.footerLinkColor,
+  footerTextFontSize: toNumber(
+    rawProps?.footerTextFontSize,
+    defaultSignUpTokens.footerTextFontSize
+  ),
+  footerLinkFontSize: toNumber(
+    rawProps?.footerLinkFontSize,
+    defaultSignUpTokens.footerLinkFontSize
+  ),
+  footerLinkFontFamily:
+    (rawProps?.footerLinkFontFamily as string) ?? defaultSignUpTokens.footerLinkFontFamily,
+  footerLinkFontWeight: toFontWeight(
+    rawProps?.footerLinkFontWeight,
+    defaultSignUpTokens.footerLinkFontWeight
+  ),
+  footerLinkAlignment:
+    (rawProps?.footerLinkAlignment as string) ?? defaultSignUpTokens.footerLinkAlignment,
+  footerLinkAutoUppercase:
+    (rawProps?.footerLinkAutoUppercase as boolean) ?? defaultSignUpTokens.footerLinkAutoUppercase,
+  footerVisible: (rawProps?.footerVisible as boolean) ?? defaultSignUpTokens.footerVisible,
+  signInLinkVisible:
+    (rawProps?.signInLinkVisible as boolean) ?? defaultSignUpTokens.signInLinkVisible,
+  buttonVisible: (rawProps?.buttonVisible as boolean) ?? defaultSignUpTokens.buttonVisible,
+  showProfilePicture:
+    (rawProps?.showProfilePicture as boolean) ?? defaultSignUpTokens.showProfilePicture,
+  profilePictureUrl:
+    (rawProps?.profilePictureUrl as string) ?? defaultSignUpTokens.profilePictureUrl,
+  profilePictureSize: toNumber(
+    rawProps?.profilePictureSize,
+    defaultSignUpTokens.profilePictureSize
+  ),
+  profilePictureBgColor:
+    (rawProps?.profilePictureBgColor as string) ??
+    defaultSignUpTokens.profilePictureBgColor,
+  profilePictureBorderColor:
+    (rawProps?.profilePictureBorderColor as string) ??
+    defaultSignUpTokens.profilePictureBorderColor,
+});
+
 const AuthScreen = () => {
   const navigation = useNavigation();
   const { login, signup, session, initializing } = useAuth();
   const [mode, setMode] = useState<'login' | 'signup'>('login');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [fullName, setFullName] = useState('');
+  const [firstName, setFirstName] = useState('');
+  const [lastName, setLastName] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [passwordVisible, setPasswordVisible] = useState(false);
   const [signInTokens, setSignInTokens] = useState<SignInTokens>(defaultSignInTokens);
+  const [signUpTokens, setSignUpTokens] = useState<SignUpTokens>(defaultSignUpTokens);
   const [forgotPasswordTokens, setForgotPasswordTokens] = useState<ForgotPasswordTokens>(
     defaultForgotPasswordTokens
   );
@@ -305,12 +761,21 @@ const AuthScreen = () => {
   useEffect(() => {
     let isMounted = true;
     const loadAuthLayout = async () => {
-      const liveDsl = await fetchDSL(undefined, 'Signin/Create Account');
+      const [signInDsl, signUpDsl] = await Promise.all([
+        fetchDSL(undefined, 'Signin/Create Account'),
+        fetchDSL(undefined, 'Create User'),
+      ]);
       if (!isMounted) return;
-      const sections = Array.isArray(liveDsl?.dsl?.sections) ? liveDsl?.dsl?.sections : [];
-      const signInSection = sections.find((section) => getSectionComponent(section) === 'signin');
-      const forgotSection = sections.find(
+      const signInSections = Array.isArray(signInDsl?.dsl?.sections) ? signInDsl?.dsl?.sections : [];
+      const signUpSections = Array.isArray(signUpDsl?.dsl?.sections) ? signUpDsl?.dsl?.sections : [];
+      const signInSection = signInSections.find(
+        (section) => getSectionComponent(section) === 'signin'
+      );
+      const forgotSection = signInSections.find(
         (section) => getSectionComponent(section) === 'forgot_password'
+      );
+      const signUpSection = signUpSections.find(
+        (section) => getSectionComponent(section) === 'signup'
       );
 
       if (signInSection) {
@@ -319,6 +784,10 @@ const AuthScreen = () => {
 
       if (forgotSection) {
         setForgotPasswordTokens(buildForgotPasswordTokens(getSectionRawProps(forgotSection)));
+      }
+
+      if (signUpSection) {
+        setSignUpTokens(buildSignUpTokens(getSectionRawProps(signUpSection)));
       }
     };
 
@@ -330,12 +799,12 @@ const AuthScreen = () => {
   }, []);
 
   const subtitle = useMemo(
-    () => (mode === 'login' ? signInTokens.authTitle : 'Create Account'),
-    [mode, signInTokens.authTitle]
+    () => (mode === 'login' ? signInTokens.authTitle : signUpTokens.authTitle),
+    [mode, signInTokens.authTitle, signUpTokens.authTitle]
   );
   const headline = useMemo(
-    () => (mode === 'login' ? 'Welcome back' : 'Create your account'),
-    [mode]
+    () => (mode === 'login' ? 'Welcome back' : signUpTokens.headerTitle),
+    [mode, signUpTokens.headerTitle]
   );
   const description = useMemo(
     () =>
@@ -353,7 +822,8 @@ const AuthScreen = () => {
   const validateForm = () => {
     const trimmedEmail = email.trim();
     const trimmedPassword = password.trim();
-    const trimmedFullName = fullName.trim();
+    const trimmedFirstName = firstName.trim();
+    const trimmedLastName = lastName.trim();
 
     if (!trimmedEmail || !trimmedPassword) {
       return 'Email and password are required.';
@@ -369,8 +839,12 @@ const AuthScreen = () => {
     }
 
     if (mode === 'signup') {
-      if (!trimmedFullName) {
-        return 'Please enter your full name.';
+      if (signUpTokens.firstNameVisible && !trimmedFirstName) {
+        return 'Please enter your first name.';
+      }
+
+      if (signUpTokens.lastNameVisible && !trimmedLastName) {
+        return 'Please enter your last name.';
       }
 
       if (trimmedPassword.length < 8) {
@@ -386,9 +860,10 @@ const AuthScreen = () => {
   };
 
   const buttonLabel = useMemo(() => {
-    const label = mode === 'login' ? signInTokens.buttonText : 'Create account';
-    return signInTokens.buttonAutoUppercase ? label.toUpperCase() : label;
-  }, [mode, signInTokens.buttonAutoUppercase, signInTokens.buttonText]);
+    const activeTokens = mode === 'signup' ? signUpTokens : signInTokens;
+    const label = activeTokens.buttonText;
+    return activeTokens.buttonAutoUppercase ? label.toUpperCase() : label;
+  }, [mode, signInTokens, signUpTokens]);
 
   const handleForgotPassword = () => {
     const rawDomain = session?.user?.shopifyDomain || getShopifyDomain();
@@ -403,12 +878,12 @@ const AuthScreen = () => {
     }
   };
 
-  const styles = useMemo(
-    () =>
-      StyleSheet.create({
+  const styles = useMemo(() => {
+    const activeTokens = mode === 'signup' ? signUpTokens : signInTokens;
+    return StyleSheet.create({
         container: {
           flex: 1,
-          backgroundColor: signInTokens.bgColor,
+          backgroundColor: activeTokens.bgColor,
         },
         header: {
           paddingHorizontal: 24,
@@ -416,16 +891,17 @@ const AuthScreen = () => {
           paddingBottom: 20,
         },
         title: {
-          color: signInTokens.titleColor,
+          color: activeTokens.titleColor,
           fontSize: 16,
           fontWeight: '700',
           textTransform: 'uppercase',
           letterSpacing: 1.2,
         },
         headline: {
-          color: '#0F172A',
-          fontSize: 26,
-          fontWeight: '700',
+          color: mode === 'signup' ? signUpTokens.headerTitleColor : '#0F172A',
+          fontSize: mode === 'signup' ? signUpTokens.headerTitleFontSize : 26,
+          fontWeight: mode === 'signup' ? signUpTokens.headerTitleFontWeight : '700',
+          fontFamily: mode === 'signup' ? signUpTokens.headerTitleFontFamily : undefined,
           marginTop: 8,
         },
         description: {
@@ -435,16 +911,16 @@ const AuthScreen = () => {
           marginTop: 8,
         },
         card: {
-          backgroundColor: signInTokens.cardBgColor,
+          backgroundColor: activeTokens.cardBgColor,
           marginHorizontal: 20,
           marginBottom: 16,
-          paddingTop: signInTokens.cardPaddingTop,
-          paddingBottom: signInTokens.cardPaddingBottom,
-          paddingLeft: signInTokens.cardPaddingLeft,
-          paddingRight: signInTokens.cardPaddingRight,
-          borderRadius: signInTokens.cardBorderRadius,
+          paddingTop: activeTokens.cardPaddingTop,
+          paddingBottom: activeTokens.cardPaddingBottom,
+          paddingLeft: activeTokens.cardPaddingLeft,
+          paddingRight: activeTokens.cardPaddingRight,
+          borderRadius: activeTokens.cardBorderRadius,
           borderWidth: 1,
-          borderColor: signInTokens.cardBorderColor,
+          borderColor: activeTokens.cardBorderColor,
           shadowColor: '#0F172A',
           shadowOpacity: 0.08,
           shadowRadius: 10,
@@ -455,7 +931,7 @@ const AuthScreen = () => {
           marginBottom: 16,
         },
         label: {
-          color: signInTokens.titleColor,
+          color: activeTokens.titleColor,
           marginBottom: 8,
           fontSize: 14,
           fontWeight: '600',
@@ -467,7 +943,7 @@ const AuthScreen = () => {
           paddingVertical: Platform.OS === 'ios' ? 14 : 12,
           color: '#0a0a0a',
           borderWidth: 1,
-          borderColor: signInTokens.inputBorderColor,
+          borderColor: activeTokens.inputBorderColor,
         },
         helperText: {
           marginTop: 8,
@@ -487,11 +963,11 @@ const AuthScreen = () => {
           paddingVertical: Platform.OS === 'ios' ? 10 : 8,
           borderRadius: 10,
           borderWidth: 1,
-          borderColor: signInTokens.inputBorderColor,
+          borderColor: activeTokens.inputBorderColor,
           backgroundColor: '#F8FAFC',
         },
         visibilityText: {
-          color: signInTokens.titleColor,
+          color: activeTokens.titleColor,
           fontWeight: '700',
         },
         error: {
@@ -499,32 +975,63 @@ const AuthScreen = () => {
           marginBottom: 12,
         },
         submitButton: {
-          backgroundColor: signInTokens.buttonFillColor,
-          paddingTop: signInTokens.buttonPaddingTop,
-          paddingBottom: signInTokens.buttonPaddingBottom,
+          backgroundColor: activeTokens.buttonFillColor,
+          paddingTop: activeTokens.buttonPaddingTop,
+          paddingBottom: activeTokens.buttonPaddingBottom,
           borderRadius: 14,
           alignItems: 'center',
           marginTop: 6,
           borderWidth: 1,
-          borderColor: signInTokens.buttonBorderColor,
+          borderColor: activeTokens.buttonBorderColor,
+          height: mode === 'signup' ? signUpTokens.buttonHeight : undefined,
+          width:
+            mode === 'signup' && signUpTokens.buttonWidth <= 100
+              ? `${signUpTokens.buttonWidth}%`
+              : undefined,
+          alignSelf: mode === 'signup' && signUpTokens.buttonWidth <= 100 ? 'center' : undefined,
         },
         submitText: {
-          color: signInTokens.buttonTextColor,
-          fontWeight: '700',
-          fontSize: 16,
+          color: activeTokens.buttonTextColor,
+          fontWeight: mode === 'signup' ? signUpTokens.buttonFontWeight : '700',
+          fontSize: mode === 'signup' ? signUpTokens.buttonFontSize : 16,
+          fontFamily: mode === 'signup' ? signUpTokens.buttonFontFamily : undefined,
         },
         switcher: {
           marginTop: 16,
           alignItems: 'center',
         },
         switcherText: {
-          color: signInTokens.footerTextColor,
+          color: activeTokens.footerTextColor,
           fontWeight: '600',
+          fontSize: mode === 'signup' ? signUpTokens.footerTextFontSize : 14,
         },
         switcherLinkText: {
-          color: signInTokens.footerLinkColor,
-          fontWeight: '700',
+          color: activeTokens.footerLinkColor,
+          fontWeight: mode === 'signup' ? signUpTokens.footerLinkFontWeight : '700',
           marginTop: 6,
+          fontSize: mode === 'signup' ? signUpTokens.footerLinkFontSize : 14,
+          fontFamily: mode === 'signup' ? signUpTokens.footerLinkFontFamily : undefined,
+          textAlign:
+            mode === 'signup'
+              ? toTextAlign(signUpTokens.footerLinkAlignment, 'center')
+              : 'center',
+        },
+        profilePicture: {
+          width: signUpTokens.profilePictureSize,
+          height: signUpTokens.profilePictureSize,
+          borderRadius: signUpTokens.profilePictureSize / 2,
+          backgroundColor: signUpTokens.profilePictureBgColor,
+          borderWidth: 1,
+          borderColor: signUpTokens.profilePictureBorderColor,
+          alignSelf: 'center',
+          marginBottom: 24,
+          justifyContent: 'center',
+          alignItems: 'center',
+          overflow: 'hidden',
+        },
+        profileImage: {
+          width: signUpTokens.profilePictureSize,
+          height: signUpTokens.profilePictureSize,
         },
         forgotCard: {
           backgroundColor: forgotPasswordTokens.cardBgColor,
@@ -565,9 +1072,8 @@ const AuthScreen = () => {
           color: forgotPasswordTokens.buttonTextColor,
           fontWeight: '700',
         },
-      }),
-    [forgotPasswordTokens, signInTokens]
-  );
+      });
+  }, [forgotPasswordTokens, mode, signInTokens, signUpTokens]);
 
   const handleSubmit = async () => {
     setError('');
@@ -584,7 +1090,8 @@ const AuthScreen = () => {
       if (mode === 'login') {
         await login(email.trim(), password.trim());
       } else {
-        await signup(email.trim(), password.trim(), fullName.trim());
+        const fullName = [firstName.trim(), lastName.trim()].filter(Boolean).join(' ').trim();
+        await signup(email.trim(), password.trim(), fullName);
       }
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : 'Something went wrong';
@@ -609,85 +1116,236 @@ const AuthScreen = () => {
         </View>
 
         <View style={styles.card}>
-          {mode === 'signup' && (
+          {mode === 'signup' && signUpTokens.showProfilePicture ? (
+            <View style={styles.profilePicture}>
+              {signUpTokens.profilePictureUrl ? (
+                <Image source={{ uri: signUpTokens.profilePictureUrl }} style={styles.profileImage} />
+              ) : null}
+            </View>
+          ) : null}
+
+          {mode === 'signup' && signUpTokens.firstNameVisible ? (
             <View style={styles.fieldGroup}>
-              <Text style={styles.label}>Full name</Text>
+              {signUpTokens.firstNameLabelVisible ? (
+                <Text
+                  style={[
+                    styles.label,
+                    {
+                      color: signUpTokens.firstNameLabelColor,
+                      fontSize: signUpTokens.firstNameLabelFontSize,
+                      fontFamily: signUpTokens.firstNameLabelFontFamily,
+                      fontWeight: signUpTokens.firstNameLabelFontWeight,
+                      textAlign: toTextAlign(signUpTokens.firstNameAlignment),
+                    },
+                  ]}
+                >
+                  {signUpTokens.firstNameLabelText}
+                </Text>
+              ) : null}
               <TextInput
-                placeholder="Jane Doe"
-                placeholderTextColor="#A0AEC0"
-                value={fullName}
-                onChangeText={setFullName}
-                style={styles.input}
+                placeholder={signUpTokens.firstNamePlaceholder}
+                placeholderTextColor={signUpTokens.firstNamePlaceholderColor}
+                value={firstName}
+                onChangeText={setFirstName}
+                style={[
+                  styles.input,
+                  {
+                    color: signUpTokens.firstNameInputTextColor,
+                    fontSize: signUpTokens.firstNameInputTextFontSize,
+                    fontFamily: signUpTokens.firstNameInputTextFontFamily,
+                    fontWeight: signUpTokens.firstNameInputTextFontWeight,
+                    textAlign: toTextAlign(signUpTokens.firstNameInputTextAlignment),
+                  },
+                ]}
                 autoCapitalize="words"
               />
             </View>
-          )}
+          ) : null}
 
-          <View style={styles.fieldGroup}>
-            <Text style={styles.label}>Email</Text>
-            <TextInput
-              placeholder={signInTokens.emailPlaceholder}
-              placeholderTextColor="#A0AEC0"
-              value={email}
-              onChangeText={setEmail}
-              style={styles.input}
-              keyboardType="email-address"
-              autoCapitalize="none"
-              autoCorrect={false}
-            />
-          </View>
-
-          <View style={styles.fieldGroup}>
-            <Text style={styles.label}>Password</Text>
-            <View style={styles.passwordRow}>
+          {mode === 'signup' && signUpTokens.lastNameVisible ? (
+            <View style={styles.fieldGroup}>
+              {signUpTokens.lastNameLabelVisible ? (
+                <Text
+                  style={[
+                    styles.label,
+                    {
+                      color: signUpTokens.lastNameLabelColor,
+                      fontSize: signUpTokens.lastNameLabelFontSize,
+                      fontFamily: signUpTokens.lastNameLabelFontFamily,
+                      fontWeight: signUpTokens.lastNameLabelFontWeight,
+                      textAlign: toTextAlign(signUpTokens.lastNameAlignment),
+                    },
+                  ]}
+                >
+                  {signUpTokens.lastNameLabelText}
+                </Text>
+              ) : null}
               <TextInput
-                placeholder={signInTokens.passwordPlaceholder}
-                placeholderTextColor="#A0AEC0"
-                value={password}
-                onChangeText={setPassword}
-                secureTextEntry={!passwordVisible}
-                style={[styles.input, styles.passwordInput]}
+                placeholder={signUpTokens.lastNamePlaceholder}
+                placeholderTextColor={signUpTokens.lastNamePlaceholderColor}
+                value={lastName}
+                onChangeText={setLastName}
+                style={[
+                  styles.input,
+                  {
+                    color: signUpTokens.lastNameInputTextColor,
+                    fontSize: signUpTokens.lastNameInputTextFontSize,
+                    fontFamily: signUpTokens.lastNameInputTextFontFamily,
+                    fontWeight: signUpTokens.lastNameInputTextFontWeight,
+                    textAlign: toTextAlign(signUpTokens.lastNameInputTextAlignment),
+                  },
+                ]}
+                autoCapitalize="words"
               />
-              <TouchableOpacity
-                onPress={() => setPasswordVisible((prev) => !prev)}
-                style={styles.visibilityToggle}
-                accessibilityRole="button"
-                accessibilityLabel={passwordVisible ? 'Hide password' : 'Show password'}
-              >
-                <Text style={styles.visibilityText}>{passwordVisible ? 'Hide' : 'Show'}</Text>
-              </TouchableOpacity>
             </View>
-            {mode === 'signup' ? (
-              <Text style={styles.helperText}>
-                Use at least 8 characters with a number and uppercase letter.
-              </Text>
-            ) : null}
-          </View>
+          ) : null}
+
+          {mode === 'login' || signUpTokens.emailInputVisible ? (
+            <View style={styles.fieldGroup}>
+              {mode === 'login' ? (
+                <Text style={styles.label}>Email</Text>
+              ) : signUpTokens.emailLabelVisible ? (
+                <Text
+                  style={[
+                    styles.label,
+                    {
+                      color: signUpTokens.emailLabelColor,
+                      fontSize: signUpTokens.emailLabelFontSize,
+                      fontFamily: signUpTokens.emailLabelFontFamily,
+                      fontWeight: signUpTokens.emailLabelFontWeight,
+                      textAlign: toTextAlign(signUpTokens.emailAlignment),
+                    },
+                  ]}
+                >
+                  {signUpTokens.emailLabelText}
+                </Text>
+              ) : null}
+              <TextInput
+                placeholder={mode === 'login' ? signInTokens.emailPlaceholder : signUpTokens.emailPlaceholder}
+                placeholderTextColor={
+                  mode === 'login' ? '#A0AEC0' : signUpTokens.emailPlaceholderColor
+                }
+                value={email}
+                onChangeText={setEmail}
+                style={[
+                  styles.input,
+                  mode === 'signup'
+                    ? {
+                        color: signUpTokens.emailInputTextColor,
+                        fontSize: signUpTokens.emailInputTextFontSize,
+                        fontFamily: signUpTokens.emailInputTextFontFamily,
+                        fontWeight: signUpTokens.emailInputTextFontWeight,
+                        textAlign: toTextAlign(signUpTokens.emailInputTextAlignment),
+                      }
+                    : null,
+                ]}
+                keyboardType="email-address"
+                autoCapitalize="none"
+                autoCorrect={false}
+              />
+            </View>
+          ) : null}
+
+          {mode === 'login' || signUpTokens.passwordInputVisible ? (
+            <View style={styles.fieldGroup}>
+              {mode === 'login' ? (
+                <Text style={styles.label}>Password</Text>
+              ) : signUpTokens.passwordLabelVisible ? (
+                <Text
+                  style={[
+                    styles.label,
+                    {
+                      color: signUpTokens.passwordLabelColor,
+                      fontSize: signUpTokens.passwordLabelFontSize,
+                      fontFamily: signUpTokens.passwordLabelFontFamily,
+                      fontWeight: signUpTokens.passwordLabelFontWeight,
+                      textAlign: toTextAlign(signUpTokens.passwordAlignment),
+                    },
+                  ]}
+                >
+                  {signUpTokens.passwordLabelText}
+                </Text>
+              ) : null}
+              <View style={styles.passwordRow}>
+                <TextInput
+                  placeholder={
+                    mode === 'login'
+                      ? signInTokens.passwordPlaceholder
+                      : signUpTokens.passwordPlaceholder
+                  }
+                  placeholderTextColor={
+                    mode === 'login' ? '#A0AEC0' : signUpTokens.passwordPlaceholderColor
+                  }
+                  value={password}
+                  onChangeText={setPassword}
+                  secureTextEntry={!passwordVisible}
+                  style={[
+                    styles.input,
+                    styles.passwordInput,
+                    mode === 'signup'
+                      ? {
+                          color: signUpTokens.passwordInputTextColor,
+                          fontSize: signUpTokens.passwordInputTextFontSize,
+                          fontFamily: signUpTokens.passwordInputTextFontFamily,
+                          fontWeight: signUpTokens.passwordInputTextFontWeight,
+                          textAlign: toTextAlign(signUpTokens.passwordInputTextAlignment),
+                        }
+                      : null,
+                  ]}
+                />
+                <TouchableOpacity
+                  onPress={() => setPasswordVisible((prev) => !prev)}
+                  style={styles.visibilityToggle}
+                  accessibilityRole="button"
+                  accessibilityLabel={passwordVisible ? 'Hide password' : 'Show password'}
+                >
+                  <Text style={styles.visibilityText}>{passwordVisible ? 'Hide' : 'Show'}</Text>
+                </TouchableOpacity>
+              </View>
+              {mode === 'signup' ? (
+                <Text style={styles.helperText}>
+                  Use at least 8 characters with a number and uppercase letter.
+                </Text>
+              ) : null}
+            </View>
+          ) : null}
 
           {error ? <Text style={styles.error}>{error}</Text> : null}
 
-          <TouchableOpacity
-            style={styles.submitButton}
-            onPress={handleSubmit}
-            disabled={loading || initializing}
-          >
-            {loading ? (
-              <ActivityIndicator color={signInTokens.buttonTextColor} />
-            ) : (
-              <Text style={styles.submitText}>{buttonLabel}</Text>
-            )}
-          </TouchableOpacity>
-
-          <View style={styles.switcher}>
-            <Text style={styles.switcherText}>
-              {mode === 'login' ? signInTokens.footerText : 'Already have an account?'}
-            </Text>
-            <TouchableOpacity onPress={toggleMode} accessibilityRole="button">
-              <Text style={styles.switcherLinkText}>
-                {mode === 'login' ? signInTokens.footerLinkText : 'Login'}
-              </Text>
+          {mode === 'login' || signUpTokens.buttonVisible ? (
+            <TouchableOpacity
+              style={styles.submitButton}
+              onPress={handleSubmit}
+              disabled={loading || initializing}
+            >
+              {loading ? (
+                <ActivityIndicator
+                  color={mode === 'login' ? signInTokens.buttonTextColor : signUpTokens.buttonTextColor}
+                />
+              ) : (
+                <Text style={styles.submitText}>{buttonLabel}</Text>
+              )}
             </TouchableOpacity>
-          </View>
+          ) : null}
+
+          {mode === 'login' || signUpTokens.footerVisible ? (
+            <View style={styles.switcher}>
+              <Text style={styles.switcherText}>
+                {mode === 'login' ? signInTokens.footerText : signUpTokens.footerText}
+              </Text>
+              {(mode === 'login' || signUpTokens.signInLinkVisible) && (
+                <TouchableOpacity onPress={toggleMode} accessibilityRole="button">
+                  <Text style={styles.switcherLinkText}>
+                    {mode === 'login'
+                      ? signInTokens.footerLinkText
+                      : signUpTokens.footerLinkAutoUppercase
+                        ? signUpTokens.footerLinkText.toUpperCase()
+                        : signUpTokens.footerLinkText}
+                  </Text>
+                </TouchableOpacity>
+              )}
+            </View>
+          ) : null}
         </View>
 
         {mode === 'login' ? (
