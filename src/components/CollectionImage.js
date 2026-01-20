@@ -252,7 +252,10 @@ export default function CollectionImage({ section }) {
         pagingEnabled={isSliderEnabled}
         scrollEnabled={isSliderEnabled}
         showsHorizontalScrollIndicator={false}
-        contentContainerStyle={{ paddingHorizontal: 4 }}
+        contentContainerStyle={[
+          styles.scrollContent,
+          { paddingHorizontal: gapPx / 2 },
+        ]}
         onScroll={Animated.event(
           [{ nativeEvent: { contentOffset: { x: scrollX } } }],
           { useNativeDriver: false, listener: handleScroll }
@@ -266,11 +269,8 @@ export default function CollectionImage({ section }) {
             key={`${item.title}-${idx}`}
             style={[
               styles.card,
-              {
-                width: cardWidth,
-                marginRight: idx === resolvedCollections.length - 1 ? 0 : gapPx,
-              },
               cardContainerStyle,
+              { width: cardWidth, marginHorizontal: gapPx / 2 },
             ]}
             activeOpacity={0.85}
             onPress={() => handleCollectionPress(item)}
@@ -368,6 +368,9 @@ const styles = StyleSheet.create({
     marginBottom: 8,
     fontSize: 16,
     fontWeight: "700",
+  },
+  scrollContent: {
+    alignItems: "flex-start",
   },
   card: {
     alignItems: "center",
