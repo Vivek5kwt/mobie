@@ -203,9 +203,8 @@ export default function BottomNavigation({ section, activeIndexOverride }) {
   );
   const textActiveColor =
     raw?.textActiveColor || unwrapValue(rawProps?.text?.properties?.activeColor, "#0F766E");
-  const iconActiveColor =
-    raw?.iconActiveColor ||
-    unwrapValue(rawProps?.icons?.properties?.activeColor, textActiveColor);
+  const baseIconActiveColor =
+    raw?.iconActiveColor || unwrapValue(rawProps?.icons?.properties?.activeColor);
   const iconPrimaryColor =
     raw?.iconPrimaryColor || unwrapValue(rawProps?.icons?.properties?.primaryColor, "#6B7280");
   const textPrimaryColor =
@@ -249,6 +248,9 @@ export default function BottomNavigation({ section, activeIndexOverride }) {
   const normalizedIndicatorMode = String(indicatorMode || "").toLowerCase();
   const indicatorIsBubble = normalizedIndicatorMode === "bubble" || isStyle2;
   const indicatorIsLine = normalizedIndicatorMode === "line";
+  const resolvedIconActiveColor = isStyle2
+    ? "#FFFFFF"
+    : baseIconActiveColor || (indicatorIsBubble ? "#FFFFFF" : textActiveColor);
   const safeItemHeight = Number.isNaN(Number(itemHeight)) ? 0 : Number(itemHeight);
   const bubbleSize = Math.max(
     iconSize + 8,
@@ -308,13 +310,14 @@ export default function BottomNavigation({ section, activeIndexOverride }) {
         styles.container,
         presentation.container,
         paddingStyles,
+        isStyle2 ? styles.squareContainer : null,
         showBg ? { backgroundColor } : { backgroundColor: "transparent" },
       ]}
     >
       <View style={[styles.row, presentation.row]}>
         {items.map((item, index) => {
           const isActive = index === activeIndex;
-          const activeIconColor = indicatorIsBubble ? iconActiveColor : textActiveColor;
+          const activeIconColor = indicatorIsBubble ? resolvedIconActiveColor : textActiveColor;
           const itemIconColor = isActive ? activeIconColor : iconPrimaryColor;
           const itemTextColor = isActive ? textActiveColor : textPrimaryColor;
 
@@ -402,6 +405,9 @@ const styles = StyleSheet.create({
     width: "100%",
     borderTopWidth: StyleSheet.hairlineWidth,
     borderTopColor: "rgba(0,0,0,0.04)",
+  },
+  squareContainer: {
+    borderRadius: 0,
   },
   row: {
     flexDirection: "row",

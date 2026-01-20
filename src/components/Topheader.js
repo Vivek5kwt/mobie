@@ -68,6 +68,25 @@ const resolveLogoSource = (logoImage) => {
   return { uri: logoImage };
 };
 
+const resolveLogoAlignment = (value) => {
+  const normalized = String(unwrapValue(value, "center")).trim().toLowerCase();
+  if (["left", "start", "flex-start"].includes(normalized)) return "left";
+  if (["right", "end", "flex-end"].includes(normalized)) return "right";
+  return "center";
+};
+
+const resolveLogoSlotAlignmentStyle = (alignment, flexDirection = "column") => {
+  const isRow = ["row", "row-reverse"].includes(flexDirection);
+  const isRowReverse = flexDirection === "row-reverse";
+  let flexAlignment = "center";
+  if (alignment === "left") flexAlignment = "flex-start";
+  if (alignment === "right") flexAlignment = "flex-end";
+  if (isRowReverse && (alignment === "left" || alignment === "right")) {
+    flexAlignment = alignment === "left" ? "flex-end" : "flex-start";
+  }
+  return isRow ? { justifyContent: flexAlignment } : { alignItems: flexAlignment };
+};
+
 export default function Header({ section }) {
   const { toggleSideMenu, hasSideNav } = useSideMenu();
   const navigation = useNavigation();
@@ -80,7 +99,8 @@ export default function Header({ section }) {
   const safeCartCount = Number.isFinite(cartCount) ? Math.max(0, cartCount) : 0;
   const formattedCartCount = safeCartCount > 99 ? "99+" : String(safeCartCount);
 
-  const props = section?.props || section?.properties?.props?.properties || {};
+  const props =
+    section?.props || section?.properties?.props?.properties || section?.properties?.props || {};
   const layout = props?.layout?.properties?.css || props?.layout?.css || {};
   const normalizedLayout = {
     container: convertStyles(layout.container || {}),
@@ -128,6 +148,12 @@ export default function Header({ section }) {
   const headerFontWeight = resolveFontWeight(
     props?.headerFontWeight,
     headerTextBold ? "700" : "400",
+  );
+  const logoAlignment = resolveLogoAlignment(props?.logoAlign);
+  const logoSlotFlexDirection = normalizedLayout.logoSlot?.flexDirection || "column";
+  const logoSlotAlignmentStyle = resolveLogoSlotAlignmentStyle(
+    logoAlignment,
+    logoSlotFlexDirection,
   );
 
   const headerTextStyle = {
@@ -265,7 +291,7 @@ export default function Header({ section }) {
       </View>
 
       {/* LOGO */}
-      <View style={[styles.logoSlot, normalizedLayout.logoSlot]}>
+      <View style={[styles.logoSlot, normalizedLayout.logoSlot, logoSlotAlignmentStyle]}>
         {!logoEnabled && headerTextValue ? (
           <Text style={[styles.logoText, headerTextStyle]} numberOfLines={1}>
             {headerTextValue}
@@ -362,11 +388,9 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     backgroundColor: "#ffffff",
   },
-  leftSlot: { flex: 1, flexDirection: "row", alignItems: "center" },
+  leftSlot: { flexDirection: "row", alignItems: "center" },
   logoSlot: {
-    position: "absolute",
-    left: 0,
-    right: 0,
+    flex: 1,
     alignItems: "center",
     justifyContent: "center",
   },
@@ -375,7 +399,6 @@ const styles = StyleSheet.create({
   },
   logoImage: { height: 26, width: 120 },
   rightSlot: {
-    flex: 1,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "flex-end",

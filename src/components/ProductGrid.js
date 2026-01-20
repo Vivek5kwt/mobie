@@ -86,6 +86,8 @@ export default function ProductGrid({ section, limit = 8, title = "Products" }) 
   const resolvedShowTitle = toBoolean(rawProps?.showTitle, true);
   const resolvedShowPrice = toBoolean(rawProps?.showPrice, true);
   const resolvedFavMode = toString(rawProps?.favMode, "").toLowerCase();
+  const shopifyDomain = toString(rawProps?.shopifyDomain, "");
+  const shopifyToken = toString(rawProps?.storefrontToken, "");
   const viewAllTypography = unwrapValue(
     rawProps?.viewAllTypography ??
       rawProps?.viewAllStyle ??
@@ -159,6 +161,10 @@ export default function ProductGrid({ section, limit = 8, title = "Products" }) 
         const payload = await fetchShopifyProductsPage({
           first: resolvedLimit,
           after: null,
+          options: {
+            shop: shopifyDomain || undefined,
+            token: shopifyToken || undefined,
+          },
         });
         const nextProducts = payload?.products || [];
         const pageInfo = payload?.pageInfo || {};
@@ -183,7 +189,7 @@ export default function ProductGrid({ section, limit = 8, title = "Products" }) 
     return () => {
       isMounted = false;
     };
-  }, [resolvedLimit]);
+  }, [resolvedLimit, shopifyDomain, shopifyToken]);
 
   return (
     <View style={[styles.wrapper, resolvedBgColor ? { backgroundColor: resolvedBgColor } : null]}>
