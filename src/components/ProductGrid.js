@@ -120,10 +120,19 @@ export default function ProductGrid({ section, limit = 8, title = "Products" }) 
     resolvedFavMode === "always show" ||
     toBoolean(
       rawProps?.showFavorite ??
-        rawProps?.showFavoriteIcon ??
-        rawProps?.favEnabled,
-      false
-    );
+      rawProps?.showFavoriteIcon ??
+      rawProps?.favEnabled,
+    false
+  );
+  const resolvedImageCorner = resolveFirstNumber(
+    [rawProps?.imageCorner, rawProps?.imageCornerRadius, rawProps?.imageRadius],
+    undefined
+  );
+  const resolvedCardCorner = resolveFirstNumber(
+    [rawProps?.cardCorner, rawProps?.cardRadius, rawProps?.cardBorderRadius],
+    12
+  );
+  const cardCorner = resolvedImageCorner ?? resolvedCardCorner;
   const detailSections = useMemo(() => {
     const candidates = [
       rawProps?.productDetailSections,
@@ -213,6 +222,7 @@ export default function ProductGrid({ section, limit = 8, title = "Products" }) 
                   {
                     width: cardWidth,
                     marginRight: (index + 1) % resolvedColumns === 0 ? 0 : gridGap,
+                    borderRadius: cardCorner,
                   },
                 ]}
                 activeOpacity={0.85}
@@ -231,7 +241,10 @@ export default function ProductGrid({ section, limit = 8, title = "Products" }) 
                 {product.imageUrl && (
                   <Image
                     source={{ uri: product.imageUrl }}
-                    style={styles.image}
+                    style={[
+                      styles.image,
+                      resolvedImageCorner !== undefined ? { borderRadius: resolvedImageCorner } : null,
+                    ]}
                     resizeMode="cover"
                   />
                 )}
