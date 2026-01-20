@@ -6,6 +6,53 @@ const authLayoutFallback = {
   sections: [
     {
       type: "object",
+      title: "Sign In Component Schema",
+      $schema: "http://json-schema.org/draft-07/schema#",
+      children: {
+        type: "array",
+        maxItems: 0,
+      },
+      required: ["component", "props"],
+      properties: {
+        props: {
+          type: "object",
+          properties: {
+            raw: {
+              type: "object",
+              value: {
+                pb: 30,
+                pl: 16,
+                pr: 16,
+                pt: 30,
+                bgColor: "#FFFFFF",
+                authTitle: "Authentication",
+                buttonText: "Continue",
+                footerText: "Don't have an account?",
+                titleColor: "#027579",
+                cardBgColor: "#FFFFFF",
+                borderRadius: 0,
+                buttonBgColor:
+                  "linear-gradient(180deg, rgba(51, 184, 196, 0.2628) 0%, rgba(9, 170, 185, 0.36) 98.73%)",
+                footerLinkText: "Create an Account",
+                buttonTextColor: "rgba(5, 106, 109, 1)",
+                cardBorderColor: "#0c9297",
+                footerLinkColor: "#027579",
+                footerTextColor: "#0a0a0a",
+                emailPlaceholder: "Enter email",
+                inputBorderColor: "#027579",
+                buttonBorderColor: "#0c9297",
+                passwordPlaceholder: "Enter password",
+              },
+            },
+          },
+        },
+        component: {
+          const: "signin",
+        },
+      },
+    },
+    {
+      type: "object",
       title: "Forgot Password Component Schema",
       $schema: "http://json-schema.org/draft-07/schema#",
       children: {
@@ -33,7 +80,7 @@ const authLayoutFallback = {
                 paddingLeft: 20,
                 borderRadius: 0,
                 headlineBold: true,
-                headlineText: "Forgot Passwordjjj?",
+                headlineText: "Forgot Password?",
                 paddingRight: 30,
                 borderCorners: 0,
                 buttonBgColor:
