@@ -261,6 +261,9 @@ export default function Header({ section }) {
     styles.container.minHeight,
   );
 
+  const shouldShowHeaderText = headerTextEnabled && headerTextValue;
+  const shouldShowLogo = logoEnabled && logoSource && !shouldShowHeaderText;
+
   return (
     <View
       style={[
@@ -292,11 +295,11 @@ export default function Header({ section }) {
 
       {/* LOGO */}
       <View style={[styles.logoSlot, normalizedLayout.logoSlot, logoSlotAlignmentStyle]}>
-        {!logoEnabled && headerTextValue ? (
+        {shouldShowHeaderText ? (
           <Text style={[styles.logoText, headerTextStyle]} numberOfLines={1}>
             {headerTextValue}
           </Text>
-        ) : logoEnabled && logoSource ? (
+        ) : shouldShowLogo ? (
           <Image
             source={logoSource}
             style={[styles.logoImage, logoImageStyle]}
