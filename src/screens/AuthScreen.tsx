@@ -5,6 +5,7 @@ import {
   KeyboardAvoidingView,
   Platform,
   SafeAreaView,
+  ScrollView,
   StyleSheet,
   Text,
   TextInput,
@@ -885,6 +886,10 @@ const AuthScreen = () => {
           flex: 1,
           backgroundColor: activeTokens.bgColor,
         },
+        scrollContent: {
+          flexGrow: 1,
+          paddingBottom: 24,
+        },
         header: {
           paddingHorizontal: 24,
           paddingTop: 34,
@@ -1109,258 +1114,273 @@ const AuthScreen = () => {
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
         keyboardVerticalOffset={Platform.OS === 'ios' ? 64 : 0}
       >
-        <View style={styles.header}>
-          <Text style={styles.title}>{subtitle}</Text>
-          <Text style={styles.headline}>{headline}</Text>
-          <Text style={styles.description}>{description}</Text>
-        </View>
+        <ScrollView
+          contentContainerStyle={styles.scrollContent}
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
+        >
+          <View style={styles.header}>
+            <Text style={styles.title}>{subtitle}</Text>
+            <Text style={styles.headline}>{headline}</Text>
+            <Text style={styles.description}>{description}</Text>
+          </View>
 
-        <View style={styles.card}>
-          {mode === 'signup' && signUpTokens.showProfilePicture ? (
-            <View style={styles.profilePicture}>
-              {signUpTokens.profilePictureUrl ? (
-                <Image source={{ uri: signUpTokens.profilePictureUrl }} style={styles.profileImage} />
-              ) : null}
-            </View>
-          ) : null}
+          <View style={styles.card}>
+            {mode === 'signup' && signUpTokens.showProfilePicture ? (
+              <View style={styles.profilePicture}>
+                {signUpTokens.profilePictureUrl ? (
+                  <Image
+                    source={{ uri: signUpTokens.profilePictureUrl }}
+                    style={styles.profileImage}
+                  />
+                ) : null}
+              </View>
+            ) : null}
 
-          {mode === 'signup' && signUpTokens.firstNameVisible ? (
-            <View style={styles.fieldGroup}>
-              {signUpTokens.firstNameLabelVisible ? (
-                <Text
-                  style={[
-                    styles.label,
-                    {
-                      color: signUpTokens.firstNameLabelColor,
-                      fontSize: signUpTokens.firstNameLabelFontSize,
-                      fontFamily: signUpTokens.firstNameLabelFontFamily,
-                      fontWeight: signUpTokens.firstNameLabelFontWeight,
-                      textAlign: toTextAlign(signUpTokens.firstNameAlignment),
-                    },
-                  ]}
-                >
-                  {signUpTokens.firstNameLabelText}
-                </Text>
-              ) : null}
-              <TextInput
-                placeholder={signUpTokens.firstNamePlaceholder}
-                placeholderTextColor={signUpTokens.firstNamePlaceholderColor}
-                value={firstName}
-                onChangeText={setFirstName}
-                style={[
-                  styles.input,
-                  {
-                    color: signUpTokens.firstNameInputTextColor,
-                    fontSize: signUpTokens.firstNameInputTextFontSize,
-                    fontFamily: signUpTokens.firstNameInputTextFontFamily,
-                    fontWeight: signUpTokens.firstNameInputTextFontWeight,
-                    textAlign: toTextAlign(signUpTokens.firstNameInputTextAlignment),
-                  },
-                ]}
-                autoCapitalize="words"
-              />
-            </View>
-          ) : null}
-
-          {mode === 'signup' && signUpTokens.lastNameVisible ? (
-            <View style={styles.fieldGroup}>
-              {signUpTokens.lastNameLabelVisible ? (
-                <Text
-                  style={[
-                    styles.label,
-                    {
-                      color: signUpTokens.lastNameLabelColor,
-                      fontSize: signUpTokens.lastNameLabelFontSize,
-                      fontFamily: signUpTokens.lastNameLabelFontFamily,
-                      fontWeight: signUpTokens.lastNameLabelFontWeight,
-                      textAlign: toTextAlign(signUpTokens.lastNameAlignment),
-                    },
-                  ]}
-                >
-                  {signUpTokens.lastNameLabelText}
-                </Text>
-              ) : null}
-              <TextInput
-                placeholder={signUpTokens.lastNamePlaceholder}
-                placeholderTextColor={signUpTokens.lastNamePlaceholderColor}
-                value={lastName}
-                onChangeText={setLastName}
-                style={[
-                  styles.input,
-                  {
-                    color: signUpTokens.lastNameInputTextColor,
-                    fontSize: signUpTokens.lastNameInputTextFontSize,
-                    fontFamily: signUpTokens.lastNameInputTextFontFamily,
-                    fontWeight: signUpTokens.lastNameInputTextFontWeight,
-                    textAlign: toTextAlign(signUpTokens.lastNameInputTextAlignment),
-                  },
-                ]}
-                autoCapitalize="words"
-              />
-            </View>
-          ) : null}
-
-          {mode === 'login' || signUpTokens.emailInputVisible ? (
-            <View style={styles.fieldGroup}>
-              {mode === 'login' ? (
-                <Text style={styles.label}>Email</Text>
-              ) : signUpTokens.emailLabelVisible ? (
-                <Text
-                  style={[
-                    styles.label,
-                    {
-                      color: signUpTokens.emailLabelColor,
-                      fontSize: signUpTokens.emailLabelFontSize,
-                      fontFamily: signUpTokens.emailLabelFontFamily,
-                      fontWeight: signUpTokens.emailLabelFontWeight,
-                      textAlign: toTextAlign(signUpTokens.emailAlignment),
-                    },
-                  ]}
-                >
-                  {signUpTokens.emailLabelText}
-                </Text>
-              ) : null}
-              <TextInput
-                placeholder={mode === 'login' ? signInTokens.emailPlaceholder : signUpTokens.emailPlaceholder}
-                placeholderTextColor={
-                  mode === 'login' ? '#A0AEC0' : signUpTokens.emailPlaceholderColor
-                }
-                value={email}
-                onChangeText={setEmail}
-                style={[
-                  styles.input,
-                  mode === 'signup'
-                    ? {
-                        color: signUpTokens.emailInputTextColor,
-                        fontSize: signUpTokens.emailInputTextFontSize,
-                        fontFamily: signUpTokens.emailInputTextFontFamily,
-                        fontWeight: signUpTokens.emailInputTextFontWeight,
-                        textAlign: toTextAlign(signUpTokens.emailInputTextAlignment),
-                      }
-                    : null,
-                ]}
-                keyboardType="email-address"
-                autoCapitalize="none"
-                autoCorrect={false}
-              />
-            </View>
-          ) : null}
-
-          {mode === 'login' || signUpTokens.passwordInputVisible ? (
-            <View style={styles.fieldGroup}>
-              {mode === 'login' ? (
-                <Text style={styles.label}>Password</Text>
-              ) : signUpTokens.passwordLabelVisible ? (
-                <Text
-                  style={[
-                    styles.label,
-                    {
-                      color: signUpTokens.passwordLabelColor,
-                      fontSize: signUpTokens.passwordLabelFontSize,
-                      fontFamily: signUpTokens.passwordLabelFontFamily,
-                      fontWeight: signUpTokens.passwordLabelFontWeight,
-                      textAlign: toTextAlign(signUpTokens.passwordAlignment),
-                    },
-                  ]}
-                >
-                  {signUpTokens.passwordLabelText}
-                </Text>
-              ) : null}
-              <View style={styles.passwordRow}>
+            {mode === 'signup' && signUpTokens.firstNameVisible ? (
+              <View style={styles.fieldGroup}>
+                {signUpTokens.firstNameLabelVisible ? (
+                  <Text
+                    style={[
+                      styles.label,
+                      {
+                        color: signUpTokens.firstNameLabelColor,
+                        fontSize: signUpTokens.firstNameLabelFontSize,
+                        fontFamily: signUpTokens.firstNameLabelFontFamily,
+                        fontWeight: signUpTokens.firstNameLabelFontWeight,
+                        textAlign: toTextAlign(signUpTokens.firstNameAlignment),
+                      },
+                    ]}
+                  >
+                    {signUpTokens.firstNameLabelText}
+                  </Text>
+                ) : null}
                 <TextInput
-                  placeholder={
-                    mode === 'login'
-                      ? signInTokens.passwordPlaceholder
-                      : signUpTokens.passwordPlaceholder
-                  }
-                  placeholderTextColor={
-                    mode === 'login' ? '#A0AEC0' : signUpTokens.passwordPlaceholderColor
-                  }
-                  value={password}
-                  onChangeText={setPassword}
-                  secureTextEntry={!passwordVisible}
+                  placeholder={signUpTokens.firstNamePlaceholder}
+                  placeholderTextColor={signUpTokens.firstNamePlaceholderColor}
+                  value={firstName}
+                  onChangeText={setFirstName}
                   style={[
                     styles.input,
-                    styles.passwordInput,
+                    {
+                      color: signUpTokens.firstNameInputTextColor,
+                      fontSize: signUpTokens.firstNameInputTextFontSize,
+                      fontFamily: signUpTokens.firstNameInputTextFontFamily,
+                      fontWeight: signUpTokens.firstNameInputTextFontWeight,
+                      textAlign: toTextAlign(signUpTokens.firstNameInputTextAlignment),
+                    },
+                  ]}
+                  autoCapitalize="words"
+                />
+              </View>
+            ) : null}
+
+            {mode === 'signup' && signUpTokens.lastNameVisible ? (
+              <View style={styles.fieldGroup}>
+                {signUpTokens.lastNameLabelVisible ? (
+                  <Text
+                    style={[
+                      styles.label,
+                      {
+                        color: signUpTokens.lastNameLabelColor,
+                        fontSize: signUpTokens.lastNameLabelFontSize,
+                        fontFamily: signUpTokens.lastNameLabelFontFamily,
+                        fontWeight: signUpTokens.lastNameLabelFontWeight,
+                        textAlign: toTextAlign(signUpTokens.lastNameAlignment),
+                      },
+                    ]}
+                  >
+                    {signUpTokens.lastNameLabelText}
+                  </Text>
+                ) : null}
+                <TextInput
+                  placeholder={signUpTokens.lastNamePlaceholder}
+                  placeholderTextColor={signUpTokens.lastNamePlaceholderColor}
+                  value={lastName}
+                  onChangeText={setLastName}
+                  style={[
+                    styles.input,
+                    {
+                      color: signUpTokens.lastNameInputTextColor,
+                      fontSize: signUpTokens.lastNameInputTextFontSize,
+                      fontFamily: signUpTokens.lastNameInputTextFontFamily,
+                      fontWeight: signUpTokens.lastNameInputTextFontWeight,
+                      textAlign: toTextAlign(signUpTokens.lastNameInputTextAlignment),
+                    },
+                  ]}
+                  autoCapitalize="words"
+                />
+              </View>
+            ) : null}
+
+            {mode === 'login' || signUpTokens.emailInputVisible ? (
+              <View style={styles.fieldGroup}>
+                {mode === 'login' ? (
+                  <Text style={styles.label}>Email</Text>
+                ) : signUpTokens.emailLabelVisible ? (
+                  <Text
+                    style={[
+                      styles.label,
+                      {
+                        color: signUpTokens.emailLabelColor,
+                        fontSize: signUpTokens.emailLabelFontSize,
+                        fontFamily: signUpTokens.emailLabelFontFamily,
+                        fontWeight: signUpTokens.emailLabelFontWeight,
+                        textAlign: toTextAlign(signUpTokens.emailAlignment),
+                      },
+                    ]}
+                  >
+                    {signUpTokens.emailLabelText}
+                  </Text>
+                ) : null}
+                <TextInput
+                  placeholder={
+                    mode === 'login' ? signInTokens.emailPlaceholder : signUpTokens.emailPlaceholder
+                  }
+                  placeholderTextColor={
+                    mode === 'login' ? '#A0AEC0' : signUpTokens.emailPlaceholderColor
+                  }
+                  value={email}
+                  onChangeText={setEmail}
+                  style={[
+                    styles.input,
                     mode === 'signup'
                       ? {
-                          color: signUpTokens.passwordInputTextColor,
-                          fontSize: signUpTokens.passwordInputTextFontSize,
-                          fontFamily: signUpTokens.passwordInputTextFontFamily,
-                          fontWeight: signUpTokens.passwordInputTextFontWeight,
-                          textAlign: toTextAlign(signUpTokens.passwordInputTextAlignment),
+                          color: signUpTokens.emailInputTextColor,
+                          fontSize: signUpTokens.emailInputTextFontSize,
+                          fontFamily: signUpTokens.emailInputTextFontFamily,
+                          fontWeight: signUpTokens.emailInputTextFontWeight,
+                          textAlign: toTextAlign(signUpTokens.emailInputTextAlignment),
                         }
                       : null,
                   ]}
+                  keyboardType="email-address"
+                  autoCapitalize="none"
+                  autoCorrect={false}
                 />
-                <TouchableOpacity
-                  onPress={() => setPasswordVisible((prev) => !prev)}
-                  style={styles.visibilityToggle}
-                  accessibilityRole="button"
-                  accessibilityLabel={passwordVisible ? 'Hide password' : 'Show password'}
-                >
-                  <Text style={styles.visibilityText}>{passwordVisible ? 'Hide' : 'Show'}</Text>
-                </TouchableOpacity>
               </View>
-              {mode === 'signup' ? (
-                <Text style={styles.helperText}>
-                  Use at least 8 characters with a number and uppercase letter.
-                </Text>
-              ) : null}
-            </View>
-          ) : null}
+            ) : null}
 
-          {error ? <Text style={styles.error}>{error}</Text> : null}
-
-          {mode === 'login' || signUpTokens.buttonVisible ? (
-            <TouchableOpacity
-              style={styles.submitButton}
-              onPress={handleSubmit}
-              disabled={loading || initializing}
-            >
-              {loading ? (
-                <ActivityIndicator
-                  color={mode === 'login' ? signInTokens.buttonTextColor : signUpTokens.buttonTextColor}
-                />
-              ) : (
-                <Text style={styles.submitText}>{buttonLabel}</Text>
-              )}
-            </TouchableOpacity>
-          ) : null}
-
-          {mode === 'login' || signUpTokens.footerVisible ? (
-            <View style={styles.switcher}>
-              <Text style={styles.switcherText}>
-                {mode === 'login' ? signInTokens.footerText : signUpTokens.footerText}
-              </Text>
-              {(mode === 'login' || signUpTokens.signInLinkVisible) && (
-                <TouchableOpacity onPress={toggleMode} accessibilityRole="button">
-                  <Text style={styles.switcherLinkText}>
-                    {mode === 'login'
-                      ? signInTokens.footerLinkText
-                      : signUpTokens.footerLinkAutoUppercase
-                        ? signUpTokens.footerLinkText.toUpperCase()
-                        : signUpTokens.footerLinkText}
+            {mode === 'login' || signUpTokens.passwordInputVisible ? (
+              <View style={styles.fieldGroup}>
+                {mode === 'login' ? (
+                  <Text style={styles.label}>Password</Text>
+                ) : signUpTokens.passwordLabelVisible ? (
+                  <Text
+                    style={[
+                      styles.label,
+                      {
+                        color: signUpTokens.passwordLabelColor,
+                        fontSize: signUpTokens.passwordLabelFontSize,
+                        fontFamily: signUpTokens.passwordLabelFontFamily,
+                        fontWeight: signUpTokens.passwordLabelFontWeight,
+                        textAlign: toTextAlign(signUpTokens.passwordAlignment),
+                      },
+                    ]}
+                  >
+                    {signUpTokens.passwordLabelText}
                   </Text>
-                </TouchableOpacity>
-              )}
+                ) : null}
+                <View style={styles.passwordRow}>
+                  <TextInput
+                    placeholder={
+                      mode === 'login'
+                        ? signInTokens.passwordPlaceholder
+                        : signUpTokens.passwordPlaceholder
+                    }
+                    placeholderTextColor={
+                      mode === 'login' ? '#A0AEC0' : signUpTokens.passwordPlaceholderColor
+                    }
+                    value={password}
+                    onChangeText={setPassword}
+                    secureTextEntry={!passwordVisible}
+                    style={[
+                      styles.input,
+                      styles.passwordInput,
+                      mode === 'signup'
+                        ? {
+                            color: signUpTokens.passwordInputTextColor,
+                            fontSize: signUpTokens.passwordInputTextFontSize,
+                            fontFamily: signUpTokens.passwordInputTextFontFamily,
+                            fontWeight: signUpTokens.passwordInputTextFontWeight,
+                            textAlign: toTextAlign(signUpTokens.passwordInputTextAlignment),
+                          }
+                        : null,
+                    ]}
+                  />
+                  <TouchableOpacity
+                    onPress={() => setPasswordVisible((prev) => !prev)}
+                    style={styles.visibilityToggle}
+                    accessibilityRole="button"
+                    accessibilityLabel={passwordVisible ? 'Hide password' : 'Show password'}
+                  >
+                    <Text style={styles.visibilityText}>{passwordVisible ? 'Hide' : 'Show'}</Text>
+                  </TouchableOpacity>
+                </View>
+                {mode === 'signup' ? (
+                  <Text style={styles.helperText}>
+                    Use at least 8 characters with a number and uppercase letter.
+                  </Text>
+                ) : null}
+              </View>
+            ) : null}
+
+            {error ? <Text style={styles.error}>{error}</Text> : null}
+
+            {mode === 'login' || signUpTokens.buttonVisible ? (
+              <TouchableOpacity
+                style={styles.submitButton}
+                onPress={handleSubmit}
+                disabled={loading || initializing}
+              >
+                {loading ? (
+                  <ActivityIndicator
+                    color={
+                      mode === 'login' ? signInTokens.buttonTextColor : signUpTokens.buttonTextColor
+                    }
+                  />
+                ) : (
+                  <Text style={styles.submitText}>{buttonLabel}</Text>
+                )}
+              </TouchableOpacity>
+            ) : null}
+
+            {mode === 'login' || signUpTokens.footerVisible ? (
+              <View style={styles.switcher}>
+                <Text style={styles.switcherText}>
+                  {mode === 'login' ? signInTokens.footerText : signUpTokens.footerText}
+                </Text>
+                {(mode === 'login' || signUpTokens.signInLinkVisible) && (
+                  <TouchableOpacity onPress={toggleMode} accessibilityRole="button">
+                    <Text style={styles.switcherLinkText}>
+                      {mode === 'login'
+                        ? signInTokens.footerLinkText
+                        : signUpTokens.footerLinkAutoUppercase
+                          ? signUpTokens.footerLinkText.toUpperCase()
+                          : signUpTokens.footerLinkText}
+                    </Text>
+                  </TouchableOpacity>
+                )}
+              </View>
+            ) : null}
+          </View>
+
+          {mode === 'login' ? (
+            <View style={styles.forgotCard}>
+              <Text style={styles.forgotHeadline}>{forgotPasswordTokens.headlineText}</Text>
+              <Text style={styles.forgotSubtitle}>{forgotPasswordTokens.resetPasswordTitle}</Text>
+              <TouchableOpacity
+                style={styles.forgotButton}
+                accessibilityRole="button"
+                onPress={handleForgotPassword}
+              >
+                <Text style={styles.forgotButtonText}>
+                  {forgotPasswordTokens.resetPasswordButtonText}
+                </Text>
+              </TouchableOpacity>
             </View>
           ) : null}
-        </View>
-
-        {mode === 'login' ? (
-          <View style={styles.forgotCard}>
-            <Text style={styles.forgotHeadline}>{forgotPasswordTokens.headlineText}</Text>
-            <Text style={styles.forgotSubtitle}>{forgotPasswordTokens.resetPasswordTitle}</Text>
-            <TouchableOpacity
-              style={styles.forgotButton}
-              accessibilityRole="button"
-              onPress={handleForgotPassword}
-            >
-              <Text style={styles.forgotButtonText}>{forgotPasswordTokens.resetPasswordButtonText}</Text>
-            </TouchableOpacity>
-          </View>
-        ) : null}
+        </ScrollView>
       </KeyboardAvoidingView>
     </SafeAreaView>
   );
