@@ -70,9 +70,21 @@ const resolveLogoSource = (logoImage) => {
 
 const resolveLogoAlignment = (value) => {
   const normalized = String(unwrapValue(value, "center")).trim().toLowerCase();
-  if (["left", "start", "flex-start"].includes(normalized)) return "flex-start";
-  if (["right", "end", "flex-end"].includes(normalized)) return "flex-end";
+  if (["left", "start", "flex-start"].includes(normalized)) return "left";
+  if (["right", "end", "flex-end"].includes(normalized)) return "right";
   return "center";
+};
+
+const resolveLogoSlotAlignmentStyle = (alignment, flexDirection = "column") => {
+  const isRow = ["row", "row-reverse"].includes(flexDirection);
+  const isRowReverse = flexDirection === "row-reverse";
+  let flexAlignment = "center";
+  if (alignment === "left") flexAlignment = "flex-start";
+  if (alignment === "right") flexAlignment = "flex-end";
+  if (isRowReverse && (alignment === "left" || alignment === "right")) {
+    flexAlignment = alignment === "left" ? "flex-end" : "flex-start";
+  }
+  return isRow ? { justifyContent: flexAlignment } : { alignItems: flexAlignment };
 };
 
 export default function Header({ section }) {
@@ -139,9 +151,10 @@ export default function Header({ section }) {
   );
   const logoAlignment = resolveLogoAlignment(props?.logoAlign);
   const logoSlotFlexDirection = normalizedLayout.logoSlot?.flexDirection || "column";
-  const logoSlotAlignmentStyle = ["row", "row-reverse"].includes(logoSlotFlexDirection)
-    ? { justifyContent: logoAlignment }
-    : { alignItems: logoAlignment };
+  const logoSlotAlignmentStyle = resolveLogoSlotAlignmentStyle(
+    logoAlignment,
+    logoSlotFlexDirection,
+  );
 
   const headerTextStyle = {
     fontSize: headerTextSize,
@@ -375,7 +388,7 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     backgroundColor: "#ffffff",
   },
-  leftSlot: { flex: 1, flexDirection: "row", alignItems: "center" },
+  leftSlot: { flexDirection: "row", alignItems: "center" },
   logoSlot: {
     flex: 1,
     alignItems: "center",
@@ -386,7 +399,6 @@ const styles = StyleSheet.create({
   },
   logoImage: { height: 26, width: 120 },
   rightSlot: {
-    flex: 1,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "flex-end",
