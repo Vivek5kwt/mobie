@@ -1,9 +1,10 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Image,
   KeyboardAvoidingView,
   Platform,
+  RefreshControl,
   SafeAreaView,
   ScrollView,
   StyleSheet,
@@ -12,7 +13,7 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
-import { useNavigation } from '@react-navigation/native';
+import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import { useAuth } from '../services/AuthContext';
 import { fetchDSL } from '../engine/dslHandler';
 import { getShopifyDomain } from '../services/shopify';
@@ -747,29 +748,40 @@ const AuthScreen = () => {
   const [lastName, setLastName] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
   const [passwordVisible, setPasswordVisible] = useState(false);
   const [signInTokens, setSignInTokens] = useState<SignInTokens>(defaultSignInTokens);
   const [signUpTokens, setSignUpTokens] = useState<SignUpTokens>(defaultSignUpTokens);
   const [forgotPasswordTokens, setForgotPasswordTokens] = useState<ForgotPasswordTokens>(
     defaultForgotPasswordTokens
   );
+  const isMountedRef = useRef(true);
 
   useEffect(() => {
-    if (session) {
-      navigation.reset({ index: 0, routes: [{ name: 'LayoutScreen' as never }] });
+    return () => {
+      isMountedRef.current = false;
+    };
+  }, []);
+
+  const loadAuthLayout = useCallback(async (showRefreshIndicator = false) => {
+    if (showRefreshIndicator) {
+      setRefreshing(true);
     }
-  }, [session, navigation]);
 
-  useEffect(() => {
-    let isMounted = true;
-    const loadAuthLayout = async () => {
+    try {
       const [signInDsl, signUpDsl] = await Promise.all([
         fetchDSL(undefined, 'Signin/Create Account'),
         fetchDSL(undefined, 'Create User'),
       ]);
-      if (!isMounted) return;
-      const signInSections = Array.isArray(signInDsl?.dsl?.sections) ? signInDsl?.dsl?.sections : [];
-      const signUpSections = Array.isArray(signUpDsl?.dsl?.sections) ? signUpDsl?.dsl?.sections : [];
+
+      if (!isMountedRef.current) return;
+
+      const signInSections = Array.isArray(signInDsl?.dsl?.sections)
+        ? signInDsl?.dsl?.sections
+        : [];
+      const signUpSections = Array.isArray(signUpDsl?.dsl?.sections)
+        ? signUpDsl?.dsl?.sections
+        : [];
       const signInSection = signInSections.find(
         (section) => getSectionComponent(section) === 'signin'
       );
@@ -791,14 +803,28 @@ const AuthScreen = () => {
       if (signUpSection) {
         setSignUpTokens(buildSignUpTokens(getSectionRawProps(signUpSection)));
       }
-    };
-
-    loadAuthLayout();
-
-    return () => {
-      isMounted = false;
-    };
+    } finally {
+      if (isMountedRef.current) {
+        setRefreshing(false);
+      }
+    }
   }, []);
+
+  useEffect(() => {
+    if (session) {
+      navigation.reset({ index: 0, routes: [{ name: 'LayoutScreen' as never }] });
+    }
+  }, [session, navigation]);
+
+  useEffect(() => {
+    loadAuthLayout();
+  }, [loadAuthLayout]);
+
+  useFocusEffect(
+    useCallback(() => {
+      loadAuthLayout();
+    }, [loadAuthLayout])
+  );
 
   const subtitle = useMemo(
     () => (mode === 'login' ? signInTokens.authTitle : signUpTokens.authTitle),
@@ -1119,6 +1145,9 @@ const AuthScreen = () => {
           contentContainerStyle={styles.scrollContent}
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
+          refreshControl={
+            <RefreshControl refreshing={refreshing} onRefresh={() => loadAuthLayout(true)} />
+          }
         >
           <View style={styles.header}>
             <Text style={styles.title}>{subtitle}</Text>
