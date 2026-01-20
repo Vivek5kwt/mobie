@@ -128,7 +128,6 @@ export default function CollectionImage({ section }) {
     true
   );
   const scrollSpeedSec = asNumber(behavior?.scrollSpeed, 3);
-  const isSliderEnabled = resolvedCollections.length > 1;
 
   const cardWidth = asNumber(layoutCss?.card?.width, 96);
   const containerStyle = convertStyles(layoutCss?.container || {});
@@ -153,6 +152,7 @@ export default function CollectionImage({ section }) {
   const scrollX = useRef(new Animated.Value(0)).current;
   const collectionsLimit = asNumber(rawProps?.collectionsLimit, 12);
   const resolvedCollections = collections.length ? collections : shopifyCollections;
+  const isSliderEnabled = resolvedCollections.length > 1;
   const resolveCollectionHandle = (item) => {
     if (item?.handle) return item.handle;
     const link = item?.link || "";
