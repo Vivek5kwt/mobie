@@ -87,7 +87,8 @@ export default function Header({ section }) {
   const safeCartCount = Number.isFinite(cartCount) ? Math.max(0, cartCount) : 0;
   const formattedCartCount = safeCartCount > 99 ? "99+" : String(safeCartCount);
 
-  const props = section?.props || section?.properties?.props?.properties || {};
+  const props =
+    section?.props || section?.properties?.props?.properties || section?.properties?.props || {};
   const layout = props?.layout?.properties?.css || props?.layout?.css || {};
   const normalizedLayout = {
     container: convertStyles(layout.container || {}),
