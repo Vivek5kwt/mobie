@@ -128,6 +128,10 @@ export default function ProductGrid({ section, limit = 8, title = "Products" }) 
     [rawProps?.imageCorner, rawProps?.imageCornerRadius, rawProps?.imageRadius],
     undefined
   );
+  const resolvedImageHeight = resolveFirstNumber(
+    [rawProps?.imageHeight, rawProps?.productImageHeight],
+    180
+  );
   const resolvedCardCorner = resolveFirstNumber(
     [rawProps?.cardCorner, rawProps?.cardRadius, rawProps?.cardBorderRadius],
     12
@@ -158,6 +162,7 @@ export default function ProductGrid({ section, limit = 8, title = "Products" }) 
     0,
     (screenWidth - horizontalPadding * 2 - totalGap) / resolvedColumns
   );
+  const imageCorner = resolvedImageCorner ?? Math.min(cardWidth, resolvedImageHeight) / 2;
 
   useEffect(() => {
     let isMounted = true;
@@ -239,14 +244,13 @@ export default function ProductGrid({ section, limit = 8, title = "Products" }) 
                   </View>
                 )}
                 {product.imageUrl && (
-                  <Image
-                    source={{ uri: product.imageUrl }}
-                    style={[
-                      styles.image,
-                      resolvedImageCorner !== undefined ? { borderRadius: resolvedImageCorner } : null,
-                    ]}
-                    resizeMode="cover"
-                  />
+                  <View style={styles.imageWrapper}>
+                    <Image
+                      source={{ uri: product.imageUrl }}
+                      style={[styles.image, { height: resolvedImageHeight, borderRadius: imageCorner }]}
+                      resizeMode="cover"
+                    />
+                  </View>
                 )}
 
                 <View style={styles.content}>
@@ -344,8 +348,12 @@ const styles = StyleSheet.create({
   },
   image: {
     width: "100%",
-    height: 200,
     backgroundColor: "#f3f4f6",
+    overflow: "hidden",
+  },
+  imageWrapper: {
+    width: "100%",
+    padding: 10,
   },
   content: {
     paddingHorizontal: 14,
