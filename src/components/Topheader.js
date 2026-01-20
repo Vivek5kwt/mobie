@@ -70,8 +70,8 @@ const resolveLogoSource = (logoImage) => {
 
 const resolveLogoAlignment = (value) => {
   const normalized = String(unwrapValue(value, "center")).trim().toLowerCase();
-  if (normalized === "left") return "flex-start";
-  if (normalized === "right") return "flex-end";
+  if (["left", "start", "flex-start"].includes(normalized)) return "flex-start";
+  if (["right", "end", "flex-end"].includes(normalized)) return "flex-end";
   return "center";
 };
 
@@ -137,10 +137,10 @@ export default function Header({ section }) {
     headerTextBold ? "700" : "400",
   );
   const logoAlignment = resolveLogoAlignment(props?.logoAlign);
-  const logoSlotAlignmentStyle = {
-    alignItems: logoAlignment,
-    justifyContent: normalizedLayout.logoSlot?.justifyContent || "center",
-  };
+  const logoSlotFlexDirection = normalizedLayout.logoSlot?.flexDirection || "column";
+  const logoSlotAlignmentStyle = ["row", "row-reverse"].includes(logoSlotFlexDirection)
+    ? { justifyContent: logoAlignment }
+    : { alignItems: logoAlignment };
 
   const headerTextStyle = {
     fontSize: headerTextSize,
