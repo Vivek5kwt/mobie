@@ -1,5 +1,13 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { Image, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
+import {
+  Image,
+  Modal,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
+} from "react-native";
 import { StackActions, useNavigation } from "@react-navigation/native";
 import LinearGradient from "react-native-linear-gradient";
 import FontAwesome from "react-native-vector-icons/FontAwesome";
@@ -194,6 +202,10 @@ export default function Header2({ section }) {
   const [searchResults, setSearchResults] = useState([]);
   const [searchLoading, setSearchLoading] = useState(false);
   const [searchError, setSearchError] = useState("");
+  const [isProfilePreviewVisible, setIsProfilePreviewVisible] = useState(false);
+
+  const openProfilePreview = () => setIsProfilePreviewVisible(true);
+  const closeProfilePreview = () => setIsProfilePreviewVisible(false);
 
   const shouldShowAppBar = !!(appBar?.show ?? (
     appBar && (
@@ -439,7 +451,7 @@ export default function Header2({ section }) {
           )}
 
           {profileEnabled && profile?.show && (
-            <View
+            <TouchableOpacity
               style={[
                 convertStyles(profileStyle),
                 profile.borderColor && { borderColor: profile.borderColor },
@@ -447,6 +459,9 @@ export default function Header2({ section }) {
                 profile.backgroundColor && { backgroundColor: profile.backgroundColor },
                 { overflow: "hidden" },
               ]}
+              activeOpacity={profile?.image ? 0.7 : 1}
+              onPress={profile?.image ? openProfilePreview : undefined}
+              disabled={!profile?.image}
             >
               {profile?.image ? (
                 <Image
@@ -465,7 +480,7 @@ export default function Header2({ section }) {
                   color={profile?.borderColor || "#0E6A70"}
                 />
               )}
-            </View>
+            </TouchableOpacity>
           )}
         </View>
       )}
@@ -575,6 +590,30 @@ export default function Header2({ section }) {
             ))}
         </View>
       )}
+      {profile?.image && (
+        <Modal
+          visible={isProfilePreviewVisible}
+          transparent={true}
+          animationType="fade"
+          onRequestClose={closeProfilePreview}
+        >
+          <View style={styles.profilePreviewBackdrop}>
+            <TouchableOpacity
+              style={styles.profilePreviewClose}
+              onPress={closeProfilePreview}
+              accessibilityRole="button"
+              accessibilityLabel="Close profile image preview"
+            >
+              <FontAwesome name="times" size={24} color="#FFFFFF" />
+            </TouchableOpacity>
+            <Image
+              source={{ uri: profile.image }}
+              style={styles.profilePreviewImage}
+              resizeMode="contain"
+            />
+          </View>
+        </Modal>
+      )}
     </LinearGradient>
   );
 }
@@ -673,5 +712,23 @@ const styles = StyleSheet.create({
     minHeight: 10,
     paddingHorizontal: 0,
     paddingVertical: 0,
+  },
+  profilePreviewBackdrop: {
+    flex: 1,
+    backgroundColor: "rgba(0, 0, 0, 0.92)",
+    alignItems: "center",
+    justifyContent: "center",
+    padding: 24,
+  },
+  profilePreviewImage: {
+    width: "100%",
+    height: "80%",
+  },
+  profilePreviewClose: {
+    position: "absolute",
+    top: 48,
+    right: 24,
+    zIndex: 2,
+    padding: 8,
   },
 });
