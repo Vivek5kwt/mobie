@@ -108,11 +108,17 @@ export default function CollectionImage({ section }) {
   const textAlign = (unwrapValue(cardCfg?.textAlign, "left") || "left").toLowerCase();
   const imageShape = (unwrapValue(cardCfg?.imageShape, "circle") || "circle").toLowerCase();
   const imageRadius =
-    imageShape === "circle" ? cardImageSize / 2 : Math.max(8, Math.round(cardImageSize * 0.2));
+    imageShape === "square"
+      ? 0
+      : imageShape === "circle"
+        ? cardImageSize / 2
+        : Math.max(8, Math.round(cardImageSize * 0.2));
   const imageWrapRadius =
-    imageShape === "circle"
-      ? (cardImageSize + cardImageBorder * 2) / 2
-      : imageRadius + cardImageBorder;
+    imageShape === "square"
+      ? 0
+      : imageShape === "circle"
+        ? (cardImageSize + cardImageBorder * 2) / 2
+        : imageRadius + cardImageBorder;
 
   const sliderCfg = layoutCss?.slider || {};
   const gapPx = asNumber(sliderCfg?.gapPx ?? sliderCfg?.gap, 12);
@@ -122,6 +128,7 @@ export default function CollectionImage({ section }) {
     true
   );
   const scrollSpeedSec = asNumber(behavior?.scrollSpeed, 3);
+  const isSliderEnabled = resolvedCollections.length > 1;
 
   const cardWidth = asNumber(layoutCss?.card?.width, 96);
   const containerStyle = convertStyles(layoutCss?.container || {});
@@ -201,7 +208,7 @@ export default function CollectionImage({ section }) {
   }, [collections.length, collectionsLimit]);
 
   useEffect(() => {
-    if (!autoScrollEnabled || resolvedCollections.length <= 1) return undefined;
+    if (!autoScrollEnabled || !isSliderEnabled) return undefined;
 
     const interval = setInterval(() => {
       const nextIndex = (indexRef.current + 1) % resolvedCollections.length;
@@ -212,7 +219,7 @@ export default function CollectionImage({ section }) {
     }, Math.max(scrollSpeedSec, 1) * 1000);
 
     return () => clearInterval(interval);
-  }, [autoScrollEnabled, resolvedCollections.length, cardWidth, gapPx, scrollSpeedSec]);
+  }, [autoScrollEnabled, isSliderEnabled, cardWidth, gapPx, scrollSpeedSec]);
 
   const handleScroll = (event) => {
     const xOffset = event?.nativeEvent?.contentOffset?.x || 0;
@@ -242,7 +249,8 @@ export default function CollectionImage({ section }) {
       <Animated.ScrollView
         ref={scrollRef}
         horizontal
-        pagingEnabled
+        pagingEnabled={isSliderEnabled}
+        scrollEnabled={isSliderEnabled}
         showsHorizontalScrollIndicator={false}
         contentContainerStyle={{ paddingHorizontal: 4 }}
         onScroll={Animated.event(
@@ -250,8 +258,8 @@ export default function CollectionImage({ section }) {
           { useNativeDriver: false, listener: handleScroll }
         )}
         scrollEventThrottle={16}
-        snapToInterval={cardWidth + gapPx}
-        decelerationRate="fast"
+        snapToInterval={isSliderEnabled ? cardWidth + gapPx : undefined}
+        decelerationRate={isSliderEnabled ? "fast" : "normal"}
       >
         {resolvedCollections.map((item, idx) => (
           <TouchableOpacity
