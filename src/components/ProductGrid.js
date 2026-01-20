@@ -88,6 +88,7 @@ export default function ProductGrid({ section, limit = 8, title = "Products" }) 
   const cardCss = presentationCss?.card ?? {};
   const cardTitleCss = cardCss?.title ?? {};
   const cardPriceCss = cardCss?.price ?? {};
+  const cardImageCss = cardCss?.image ?? {};
   const viewAllCss = presentationCss?.viewAll ?? {};
   const resolvedBgColor = toString(
     rawProps?.bgColor ?? presentationCss?.container?.backgroundColor,
@@ -168,6 +169,22 @@ export default function ProductGrid({ section, limit = 8, title = "Products" }) 
     [rawProps?.cardCorner, rawProps?.cardRadius, rawProps?.cardBorderRadius],
     12
   );
+  const resolvedCardBackgroundColor = toString(
+    rawProps?.cardBackgroundColor ?? rawProps?.cardBgColor ?? cardCss?.backgroundColor,
+    "#ffffff"
+  );
+  const resolvedCardBorderColor = toString(
+    rawProps?.cardBorderColor ?? cardCss?.borderColor,
+    "#e5e7eb"
+  );
+  const resolvedCardBorderWidth = resolveFirstNumber(
+    [rawProps?.cardBorderWidth, cardCss?.borderWidth],
+    1
+  );
+  const resolvedImageBackgroundColor = toString(
+    rawProps?.imageBackgroundColor ?? rawProps?.imageBgColor ?? cardImageCss?.backgroundColor,
+    "#f3f4f6"
+  );
   const cardCorner = resolvedImageCorner ?? resolvedCardCorner;
   const resolvedProductTitleSize = resolveFirstNumber(
     [
@@ -210,6 +227,22 @@ export default function ProductGrid({ section, limit = 8, title = "Products" }) 
   const resolvedPriceFontFamily = toString(
     rawProps?.priceFontFamily ?? rawProps?.productPriceFontFamily ?? cardPriceCss?.fontFamily,
     ""
+  );
+  const resolvedStatusColor = toString(
+    rawProps?.statusColor ?? presentationCss?.status?.color,
+    "#6b7280"
+  );
+  const resolvedErrorColor = toString(
+    rawProps?.errorColor ?? presentationCss?.error?.color,
+    "#b91c1c"
+  );
+  const resolvedFavoriteBackgroundColor = toString(
+    rawProps?.favoriteBackgroundColor ?? rawProps?.favoriteBgColor ?? presentationCss?.favorite?.backgroundColor,
+    "rgba(255, 255, 255, 0.9)"
+  );
+  const resolvedFavoriteIconColor = toString(
+    rawProps?.favoriteColor ?? rawProps?.favoriteIconColor ?? presentationCss?.favorite?.color,
+    "#e11d48"
   );
   const detailSections = useMemo(() => {
     const candidates = [
@@ -298,8 +331,8 @@ export default function ProductGrid({ section, limit = 8, title = "Products" }) 
         </Text>
       )}
 
-      {loading && <Text style={styles.status}>Loading products...</Text>}
-      {error && <Text style={styles.error}>{error}</Text>}
+      {loading && <Text style={[styles.status, { color: resolvedStatusColor }]}>Loading products...</Text>}
+      {error && <Text style={[styles.error, { color: resolvedErrorColor }]}>{error}</Text>}
 
       {!loading && !error && (
         <>
@@ -313,6 +346,9 @@ export default function ProductGrid({ section, limit = 8, title = "Products" }) 
                     width: cardWidth,
                     marginRight: (index + 1) % resolvedColumns === 0 ? 0 : gridGap,
                     borderRadius: cardCorner,
+                    backgroundColor: resolvedCardBackgroundColor,
+                    borderColor: resolvedCardBorderColor,
+                    borderWidth: resolvedCardBorderWidth,
                   },
                 ]}
                 activeOpacity={0.85}
@@ -324,15 +360,22 @@ export default function ProductGrid({ section, limit = 8, title = "Products" }) 
                 }
               >
                 {resolvedShowFavorite && (
-                  <View style={styles.favoriteBadge}>
-                    <Text style={styles.favoriteIcon}>♥</Text>
+                  <View style={[styles.favoriteBadge, { backgroundColor: resolvedFavoriteBackgroundColor }]}>
+                    <Text style={[styles.favoriteIcon, { color: resolvedFavoriteIconColor }]}>♥</Text>
                   </View>
                 )}
                 {product.imageUrl && (
                   <View style={styles.imageWrapper}>
                     <Image
                       source={{ uri: product.imageUrl }}
-                      style={[styles.image, { height: resolvedImageHeight, borderRadius: imageCorner }]}
+                      style={[
+                        styles.image,
+                        {
+                          height: resolvedImageHeight,
+                          borderRadius: imageCorner,
+                          backgroundColor: resolvedImageBackgroundColor,
+                        },
+                      ]}
                       resizeMode="cover"
                     />
                   </View>
