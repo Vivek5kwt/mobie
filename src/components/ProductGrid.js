@@ -82,12 +82,36 @@ export default function ProductGrid({ section, limit = 8, title = "Products" }) 
   const resolvedColumns = Math.max(1, Math.round(toNumber(rawProps?.columns, 2)));
   const resolvedAlignText = toTextAlign(rawProps?.alignText, "left");
   const resolvedTitle = toString(rawProps?.header ?? rawProps?.title, title);
-  const resolvedBgColor = toString(rawProps?.bgColor, "");
+  const presentation = unwrapValue(rawProps?.presentation, {});
+  const presentationCss = unwrapValue(presentation?.css, {});
+  const headerCss = presentationCss?.header ?? {};
+  const cardCss = presentationCss?.card ?? {};
+  const cardTitleCss = cardCss?.title ?? {};
+  const cardPriceCss = cardCss?.price ?? {};
+  const viewAllCss = presentationCss?.viewAll ?? {};
+  const resolvedBgColor = toString(
+    rawProps?.bgColor ?? presentationCss?.container?.backgroundColor,
+    ""
+  );
   const resolvedShowTitle = toBoolean(rawProps?.showTitle, true);
   const resolvedShowPrice = toBoolean(rawProps?.showPrice, true);
   const resolvedFavMode = toString(rawProps?.favMode, "").toLowerCase();
   const shopifyDomain = toString(rawProps?.shopifyDomain, "");
   const shopifyToken = toString(rawProps?.storefrontToken, "");
+  const resolvedTitleAlign = toTextAlign(rawProps?.alignText ?? headerCss?.textAlign, "left");
+  const resolvedTitleFontSize = resolveFirstNumber(
+    [rawProps?.titleSize, rawProps?.headerSize, rawProps?.headerFontSize, headerCss?.fontSize],
+    22
+  );
+  const resolvedTitleColor = toString(rawProps?.titleColor ?? headerCss?.color, "#111827");
+  const resolvedTitleWeight = toFontWeight(
+    rawProps?.titleWeight ?? headerCss?.fontWeight,
+    "700"
+  );
+  const resolvedTitleFontFamily = toString(
+    rawProps?.titleFontFamily ?? rawProps?.headerFontFamily ?? headerCss?.fontFamily,
+    ""
+  );
   const viewAllTypography = unwrapValue(
     rawProps?.viewAllTypography ??
       rawProps?.viewAllStyle ??
@@ -105,7 +129,10 @@ export default function ProductGrid({ section, limit = 8, title = "Products" }) 
     14
   );
   const resolvedViewAllColor = toString(
-    viewAllTypography?.color ?? rawProps?.viewAllTextColor ?? rawProps?.viewAllColor,
+    viewAllTypography?.color ??
+      rawProps?.viewAllTextColor ??
+      rawProps?.viewAllColor ??
+      viewAllCss?.color,
     "#111827"
   );
   const resolvedViewAllWeight = toFontWeight(
@@ -113,8 +140,13 @@ export default function ProductGrid({ section, limit = 8, title = "Products" }) 
       viewAllTypography?.weight ??
       rawProps?.viewAllFontWeightNum ??
       rawProps?.viewAllFontWeight ??
-      rawProps?.viewAllWeight,
+      rawProps?.viewAllWeight ??
+      viewAllCss?.fontWeight,
     "600"
+  );
+  const resolvedViewAllFontFamily = toString(
+    viewAllTypography?.fontFamily ?? rawProps?.viewAllFontFamily ?? viewAllCss?.fontFamily,
+    ""
   );
   const resolvedShowFavorite =
     resolvedFavMode === "always show" ||
@@ -137,6 +169,48 @@ export default function ProductGrid({ section, limit = 8, title = "Products" }) 
     12
   );
   const cardCorner = resolvedImageCorner ?? resolvedCardCorner;
+  const resolvedProductTitleSize = resolveFirstNumber(
+    [
+      rawProps?.productTitleSize,
+      rawProps?.itemTitleSize,
+      rawProps?.cardTitleSize,
+      cardTitleCss?.fontSize,
+    ],
+    16
+  );
+  const resolvedProductTitleColor = toString(
+    rawProps?.productTitleColor ?? rawProps?.itemTitleColor ?? cardTitleCss?.color,
+    "#111827"
+  );
+  const resolvedProductTitleWeight = toFontWeight(
+    rawProps?.productTitleWeight ?? rawProps?.itemTitleWeight ?? cardTitleCss?.fontWeight,
+    "600"
+  );
+  const resolvedProductTitleFontFamily = toString(
+    rawProps?.productTitleFontFamily ?? cardTitleCss?.fontFamily,
+    ""
+  );
+  const resolvedPriceSize = resolveFirstNumber(
+    [
+      rawProps?.priceSize,
+      rawProps?.productPriceSize,
+      rawProps?.cardPriceSize,
+      cardPriceCss?.fontSize,
+    ],
+    14
+  );
+  const resolvedPriceColor = toString(
+    rawProps?.priceColor ?? rawProps?.productPriceColor ?? cardPriceCss?.color,
+    "#111827"
+  );
+  const resolvedPriceWeight = toFontWeight(
+    rawProps?.priceWeight ?? rawProps?.productPriceWeight ?? cardPriceCss?.fontWeight,
+    "600"
+  );
+  const resolvedPriceFontFamily = toString(
+    rawProps?.priceFontFamily ?? rawProps?.productPriceFontFamily ?? cardPriceCss?.fontFamily,
+    ""
+  );
   const detailSections = useMemo(() => {
     const candidates = [
       rawProps?.productDetailSections,
@@ -208,7 +282,18 @@ export default function ProductGrid({ section, limit = 8, title = "Products" }) 
   return (
     <View style={[styles.wrapper, resolvedBgColor ? { backgroundColor: resolvedBgColor } : null]}>
       {resolvedShowTitle && (
-        <Text style={[styles.heading, { textAlign: resolvedAlignText }]}>
+        <Text
+          style={[
+            styles.heading,
+            {
+              textAlign: resolvedTitleAlign,
+              fontSize: resolvedTitleFontSize,
+              color: resolvedTitleColor,
+              fontWeight: resolvedTitleWeight,
+              ...(resolvedTitleFontFamily ? { fontFamily: resolvedTitleFontFamily } : null),
+            },
+          ]}
+        >
           {resolvedTitle}
         </Text>
       )}
@@ -257,13 +342,35 @@ export default function ProductGrid({ section, limit = 8, title = "Products" }) 
                   {resolvedShowTitle && (
                     <Text
                       numberOfLines={2}
-                      style={[styles.name, { textAlign: resolvedAlignText }]}
+                      style={[
+                        styles.name,
+                        {
+                          textAlign: resolvedAlignText,
+                          fontSize: resolvedProductTitleSize,
+                          color: resolvedProductTitleColor,
+                          fontWeight: resolvedProductTitleWeight,
+                          ...(resolvedProductTitleFontFamily
+                            ? { fontFamily: resolvedProductTitleFontFamily }
+                            : null),
+                        },
+                      ]}
                     >
                       {product.title}
                     </Text>
                   )}
                   {resolvedShowPrice && (
-                    <Text style={[styles.price, { textAlign: resolvedAlignText }]}>
+                    <Text
+                      style={[
+                        styles.price,
+                        {
+                          textAlign: resolvedAlignText,
+                          fontSize: resolvedPriceSize,
+                          color: resolvedPriceColor,
+                          fontWeight: resolvedPriceWeight,
+                          ...(resolvedPriceFontFamily ? { fontFamily: resolvedPriceFontFamily } : null),
+                        },
+                      ]}
+                    >
                       {product.priceCurrency} {product.priceAmount}
                     </Text>
                   )}
@@ -289,6 +396,7 @@ export default function ProductGrid({ section, limit = 8, title = "Products" }) 
                     color: resolvedViewAllColor,
                     fontSize: resolvedViewAllFontSize,
                     fontWeight: resolvedViewAllWeight,
+                    ...(resolvedViewAllFontFamily ? { fontFamily: resolvedViewAllFontFamily } : null),
                   },
                 ]}
               >
