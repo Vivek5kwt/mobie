@@ -232,9 +232,33 @@ export default function ProductGrid({ section, limit = 8, title = "Products" }) 
     rawProps?.statusColor ?? presentationCss?.status?.color,
     "#6b7280"
   );
+  const resolvedStatusFontSize = resolveFirstNumber(
+    [rawProps?.statusFontSize, rawProps?.statusSize, presentationCss?.status?.fontSize],
+    14
+  );
+  const resolvedStatusWeight = toFontWeight(
+    rawProps?.statusFontWeight ?? rawProps?.statusWeight ?? presentationCss?.status?.fontWeight,
+    "500"
+  );
+  const resolvedStatusFontFamily = toString(
+    rawProps?.statusFontFamily ?? presentationCss?.status?.fontFamily,
+    ""
+  );
   const resolvedErrorColor = toString(
     rawProps?.errorColor ?? presentationCss?.error?.color,
     "#b91c1c"
+  );
+  const resolvedErrorFontSize = resolveFirstNumber(
+    [rawProps?.errorFontSize, rawProps?.errorSize, presentationCss?.error?.fontSize],
+    14
+  );
+  const resolvedErrorWeight = toFontWeight(
+    rawProps?.errorFontWeight ?? rawProps?.errorWeight ?? presentationCss?.error?.fontWeight,
+    "500"
+  );
+  const resolvedErrorFontFamily = toString(
+    rawProps?.errorFontFamily ?? presentationCss?.error?.fontFamily,
+    ""
   );
   const resolvedFavoriteBackgroundColor = toString(
     rawProps?.favoriteBackgroundColor ?? rawProps?.favoriteBgColor ?? presentationCss?.favorite?.backgroundColor,
@@ -243,6 +267,22 @@ export default function ProductGrid({ section, limit = 8, title = "Products" }) 
   const resolvedFavoriteIconColor = toString(
     rawProps?.favoriteColor ?? rawProps?.favoriteIconColor ?? presentationCss?.favorite?.color,
     "#e11d48"
+  );
+  const resolvedFavoriteIconSize = resolveFirstNumber(
+    [
+      rawProps?.favoriteIconSize,
+      rawProps?.favoriteSize,
+      presentationCss?.favorite?.fontSize,
+    ],
+    14
+  );
+  const resolvedFavoriteIconWeight = toFontWeight(
+    rawProps?.favoriteIconWeight ?? rawProps?.favoriteWeight ?? presentationCss?.favorite?.fontWeight,
+    "700"
+  );
+  const resolvedFavoriteIconFontFamily = toString(
+    rawProps?.favoriteIconFontFamily ?? presentationCss?.favorite?.fontFamily,
+    ""
   );
   const detailSections = useMemo(() => {
     const candidates = [
@@ -331,8 +371,36 @@ export default function ProductGrid({ section, limit = 8, title = "Products" }) 
         </Text>
       )}
 
-      {loading && <Text style={[styles.status, { color: resolvedStatusColor }]}>Loading products...</Text>}
-      {error && <Text style={[styles.error, { color: resolvedErrorColor }]}>{error}</Text>}
+      {loading && (
+        <Text
+          style={[
+            styles.status,
+            {
+              color: resolvedStatusColor,
+              fontSize: resolvedStatusFontSize,
+              fontWeight: resolvedStatusWeight,
+              ...(resolvedStatusFontFamily ? { fontFamily: resolvedStatusFontFamily } : null),
+            },
+          ]}
+        >
+          Loading products...
+        </Text>
+      )}
+      {error && (
+        <Text
+          style={[
+            styles.error,
+            {
+              color: resolvedErrorColor,
+              fontSize: resolvedErrorFontSize,
+              fontWeight: resolvedErrorWeight,
+              ...(resolvedErrorFontFamily ? { fontFamily: resolvedErrorFontFamily } : null),
+            },
+          ]}
+        >
+          {error}
+        </Text>
+      )}
 
       {!loading && !error && (
         <>
@@ -361,7 +429,21 @@ export default function ProductGrid({ section, limit = 8, title = "Products" }) 
               >
                 {resolvedShowFavorite && (
                   <View style={[styles.favoriteBadge, { backgroundColor: resolvedFavoriteBackgroundColor }]}>
-                    <Text style={[styles.favoriteIcon, { color: resolvedFavoriteIconColor }]}>♥</Text>
+                    <Text
+                      style={[
+                        styles.favoriteIcon,
+                        {
+                          color: resolvedFavoriteIconColor,
+                          fontSize: resolvedFavoriteIconSize,
+                          fontWeight: resolvedFavoriteIconWeight,
+                          ...(resolvedFavoriteIconFontFamily
+                            ? { fontFamily: resolvedFavoriteIconFontFamily }
+                            : null),
+                        },
+                      ]}
+                    >
+                      ♥
+                    </Text>
                   </View>
                 )}
                 {product.imageUrl && (
