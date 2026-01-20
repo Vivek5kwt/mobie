@@ -68,6 +68,13 @@ const resolveLogoSource = (logoImage) => {
   return { uri: logoImage };
 };
 
+const resolveLogoAlignment = (value) => {
+  const normalized = String(unwrapValue(value, "center")).trim().toLowerCase();
+  if (normalized === "left") return "flex-start";
+  if (normalized === "right") return "flex-end";
+  return "center";
+};
+
 export default function Header({ section }) {
   const { toggleSideMenu, hasSideNav } = useSideMenu();
   const navigation = useNavigation();
@@ -129,6 +136,11 @@ export default function Header({ section }) {
     props?.headerFontWeight,
     headerTextBold ? "700" : "400",
   );
+  const logoAlignment = resolveLogoAlignment(props?.logoAlign);
+  const logoSlotAlignmentStyle = {
+    alignItems: logoAlignment,
+    justifyContent: normalizedLayout.logoSlot?.justifyContent || "center",
+  };
 
   const headerTextStyle = {
     fontSize: headerTextSize,
@@ -265,7 +277,7 @@ export default function Header({ section }) {
       </View>
 
       {/* LOGO */}
-      <View style={[styles.logoSlot, normalizedLayout.logoSlot]}>
+      <View style={[styles.logoSlot, normalizedLayout.logoSlot, logoSlotAlignmentStyle]}>
         {!logoEnabled && headerTextValue ? (
           <Text style={[styles.logoText, headerTextStyle]} numberOfLines={1}>
             {headerTextValue}
