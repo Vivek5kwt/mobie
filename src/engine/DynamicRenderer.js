@@ -26,6 +26,7 @@ import ProductDescription from "../components/ProductDescription";
 import AddToCart from "../components/AddToCart";
 import CartLineItems from "../components/CartLineItems";
 import CheckoutButton from "../components/CheckoutButton";
+import FaqNew from "../components/FaqNew";
 
 // COMPONENT MAP — ALL LIVE ONLY
 const componentMap = {
@@ -56,6 +57,7 @@ const componentMap = {
   add_to_cart: AddToCart,
   cart_line_items: CartLineItems,
   checkout_button: CheckoutButton,
+  faq_new: FaqNew,
 };
 
 export default function DynamicRenderer({ section }) {
