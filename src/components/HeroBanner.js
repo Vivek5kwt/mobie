@@ -146,8 +146,8 @@ export default function HeroBanner({ section }) {
           ? "center"
           : "cover";
 
-  const headline = unwrapValue(rawProps?.headline, "");
-  const subtext = unwrapValue(rawProps?.subtext, "");
+  const headline = unwrapValue(rawProps?.headline, "") || unwrapValue(rawProps?.title, "");
+  const subtext = unwrapValue(rawProps?.subtext, "") || unwrapValue(rawProps?.subtitle, "");
   const button = rawProps?.button || {};
   const buttonLabel = unwrapValue(button?.properties?.label || button?.label, "");
   const showButton = toBoolean(button?.properties?.enabled || button?.enabled, false);
@@ -168,7 +168,12 @@ export default function HeroBanner({ section }) {
     }),
   };
 
-  const imageSrc = unwrapValue(rawProps?.uploadImage, "") || unwrapValue(rawProps?.imageLink, "");
+  const imageSrc =
+    unwrapValue(rawProps?.uploadImage, "") ||
+    unwrapValue(rawProps?.imageLink, "") ||
+    unwrapValue(rawProps?.image, "") ||
+    unwrapValue(rawProps?.imageUrl, "") ||
+    unwrapValue(rawProps?.imageURL, "");
   const overlayOpacity =
     toNumber(rawProps?.content?.properties?.overlayOpacity || rawProps?.content?.overlayOpacity, undefined) ??
     toNumber(layoutCss?.image?.overlayOpacityPct, 0);

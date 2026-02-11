@@ -28,6 +28,12 @@ import CartLineItems from "../components/CartLineItems";
 import CheckoutButton from "../components/CheckoutButton";
 import FaqNew from "../components/FaqNew";
 
+const normalizeComponentName = (value) =>
+  String(value || "")
+    .trim()
+    .toLowerCase()
+    .replace(/[\s-]+/g, "_");
+
 // COMPONENT MAP — ALL LIVE ONLY
 const componentMap = {
   header: Header,               // LIVE HEADER 1
@@ -60,6 +66,12 @@ const componentMap = {
   faq_new: FaqNew,
 };
 
+const componentAliases = {
+  herobanner: "hero_banner",
+  "hero-banner": "hero_banner",
+  "hero banner": "hero_banner",
+};
+
 export default function DynamicRenderer({ section }) {
   try {
     // extract DSL component name
@@ -70,7 +82,8 @@ export default function DynamicRenderer({ section }) {
       section?.properties?.component ||
       "";
 
-    compName = compName.toLowerCase();
+    compName = normalizeComponentName(compName);
+    compName = componentAliases[compName] || compName;
 
     const Component = componentMap[compName];
 
