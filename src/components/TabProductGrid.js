@@ -9,7 +9,10 @@ import {
   Image,
 } from "react-native";
 import { useDispatch } from "react-redux";
-import { fetchShopifyProducts } from "../services/shopify";
+import {
+  fetchShopifyCollectionProducts,
+  fetchShopifyProducts,
+} from "../services/shopify";
 import { convertStyles } from "../utils/convertStyles";
 import { addItem } from "../store/slices/cartSlice";
 
@@ -119,6 +122,11 @@ export default function TabProductGrid({ section }) {
   const [productsByTab, setProductsByTab] = useState({});
   const [loadingTab, setLoadingTab] = useState(null);
 
+  const activeTab = useMemo(
+    () => tabs.find((tab) => tab.id === activeTabId),
+    [tabs, activeTabId]
+  );
+
   useEffect(() => {
     if (!activeTabId) return;
     if (productsByTab[activeTabId]) return;
@@ -129,8 +137,30 @@ export default function TabProductGrid({ section }) {
       setLoadingTab(activeTabId);
       try {
         const limit = toNumber(rawConfig?.productsPerTab, 4);
-        const response = await fetchShopifyProducts(limit);
-        const nextProducts = response?.length ? response : FALLBACK_PRODUCTS;
+        const collectionHandle = activeTab?.collectionHandle || "";
+
+        let nextProducts = [];
+
+        if (collectionHandle) {
+          const response = await fetchShopifyCollectionProducts({
+            handle: collectionHandle,
+            first: limit,
+          });
+
+          nextProducts = (response?.products || []).map((product) => ({
+            id: product.id,
+            name: product.title,
+            image: product.imageUrl,
+            price: product.priceAmount,
+            currency: product.priceCurrency,
+          }));
+        } else {
+          nextProducts = await fetchShopifyProducts(limit);
+        }
+
+        if (!nextProducts?.length) {
+          nextProducts = FALLBACK_PRODUCTS;
+        }
 
         if (isMounted) {
           setProductsByTab((prev) => ({ ...prev, [activeTabId]: nextProducts }));
@@ -149,7 +179,12 @@ export default function TabProductGrid({ section }) {
     return () => {
       isMounted = false;
     };
-  }, [activeTabId, productsByTab, rawConfig?.productsPerTab]);
+  }, [
+    activeTab?.collectionHandle,
+    activeTabId,
+    productsByTab,
+    rawConfig?.productsPerTab,
+  ]);
 
   useEffect(() => {
     if (initialTabId && initialTabId !== activeTabId) {
@@ -163,7 +198,8 @@ export default function TabProductGrid({ section }) {
 
   const containerStyle = convertStyles(layoutCss?.container || {});
   const tabsRowStyle = convertStyles(layoutCss?.tabsRow || {});
-  const gridStyle = convertStyles(layoutCss?.grid || {});
+  const carouselStyle = convertStyles(layoutCss?.carousel || layoutCss?.grid || {});
+  const tabBarStyle = convertStyles(layoutCss?.tabBar || {});
   const cardStyle = convertStyles(layoutCss?.card || {});
   const cardContentStyle = convertStyles(layoutCss?.cardContent || {});
   const cardTitleStyle = convertStyles(layoutCss?.cardTitle || {});
@@ -174,6 +210,7 @@ export default function TabProductGrid({ section }) {
   const addToCartButtonStyle = convertStyles(layoutCss?.addToCartButton || {});
 
   const gap = toNumber(layoutCss?.grid?.gap, 12);
+  const carouselGap = toNumber(layoutCss?.carousel?.gap, gap);
   const columns = Math.max(1, toNumber(rawConfig?.columns, 2));
   const paddingTop = toNumber(rawConfig?.paddingTop, 16);
   const paddingBottom = toNumber(rawConfig?.paddingBottom, 16);
@@ -184,8 +221,11 @@ export default function TabProductGrid({ section }) {
 
   const screenWidth = Dimensions.get("window").width;
   const horizontalPadding = paddingLeft + paddingRight;
-  const totalGap = gap * (columns - 1);
-  const cardWidth = Math.max(0, (screenWidth - horizontalPadding - totalGap) / columns);
+  const totalGap = carouselGap * (columns - 1);
+  const cardWidth = Math.max(
+    120,
+    (screenWidth - horizontalPadding - totalGap) / columns
+  );
 
   const activeProducts = productsByTab[activeTabId] || [];
 
@@ -203,42 +243,48 @@ export default function TabProductGrid({ section }) {
         },
       ]}
     >
-      <ScrollView
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        contentContainerStyle={[styles.tabsRow, tabsRowStyle]}
-      >
-        {tabs.map((tab) => {
-          const isActive = tab.id === activeTabId;
-          return (
-            <TouchableOpacity
-              key={tab.id}
-              onPress={() => setActiveTabId(tab.id)}
-              style={[
-                styles.tabButton,
-                tabButtonStyle,
-                isActive && styles.activeTab,
-                isActive && activeTabButtonStyle,
-              ]}
-            >
-              <Text
+      <View style={[styles.tabBar, tabBarStyle]}>
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={[styles.tabsRow, tabsRowStyle]}
+        >
+          {tabs.map((tab) => {
+            const isActive = tab.id === activeTabId;
+            return (
+              <TouchableOpacity
+                key={tab.id}
+                onPress={() => setActiveTabId(tab.id)}
                 style={[
-                  styles.tabLabel,
-                  isActive && styles.activeTabLabel,
-                  isActive && { color: activeTabButtonStyle?.color },
+                  styles.tabButton,
+                  tabButtonStyle,
+                  isActive && styles.activeTab,
+                  isActive && activeTabButtonStyle,
                 ]}
               >
-                {tab.label}
-              </Text>
-            </TouchableOpacity>
-          );
-        })}
-      </ScrollView>
+                <Text
+                  style={[
+                    styles.tabLabel,
+                    isActive && styles.activeTabLabel,
+                    isActive && { color: activeTabButtonStyle?.color },
+                  ]}
+                >
+                  {tab.label}
+                </Text>
+              </TouchableOpacity>
+            );
+          })}
+        </ScrollView>
+      </View>
 
       {loadingTab === activeTabId && !activeProducts.length ? (
         <Text style={styles.statusText}>Loading products…</Text>
       ) : (
-        <View style={[styles.grid, gridStyle, { gap }]}>
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={[styles.carousel, carouselStyle, { gap: carouselGap }]}
+        >
           {activeProducts.map((product) => (
             <View
               key={product.id}
@@ -302,7 +348,7 @@ export default function TabProductGrid({ section }) {
               </View>
             </View>
           ))}
-        </View>
+        </ScrollView>
       )}
     </View>
   );
@@ -313,8 +359,10 @@ const styles = StyleSheet.create({
     width: "100%",
   },
   tabsRow: {
-    gap: 8,
-    paddingBottom: 12,
+    gap: 16,
+  },
+  tabBar: {
+    marginBottom: 40,
   },
   tabButton: {
     paddingVertical: 6,
@@ -341,9 +389,9 @@ const styles = StyleSheet.create({
     color: "#6B7280",
     paddingVertical: 12,
   },
-  grid: {
+  carousel: {
     flexDirection: "row",
-    flexWrap: "wrap",
+    alignItems: "flex-start",
   },
   card: {
     borderWidth: 1,

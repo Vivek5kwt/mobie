@@ -55,6 +55,7 @@ const componentMap = {
   trending_collections: TrendingCollections,
   trending_searches: TrendingSearches,
   tab_product_grid: TabProductGrid,
+  tab_product_carousel: TabProductGrid,
   account_profile: AccountProfile,
   account_menu: AccountMenu,
   product_library: ProductLibrary,
