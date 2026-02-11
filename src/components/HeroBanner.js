@@ -1,6 +1,6 @@
 import React from "react";
 import { Image, StyleSheet, Text, View } from "react-native";
-import { convertStyles } from "../utils/convertStyles";
+import { applyMetricsPositioning, convertStyles } from "../utils/convertStyles";
 
 const unwrapValue = (value, fallback = undefined) => {
   if (value === undefined || value === null) return fallback;
@@ -33,16 +33,86 @@ const toNumber = (value, fallback) => {
   return Number.isNaN(parsed) ? fallback : parsed;
 };
 
+const normalizeWeight = (weight, bold = false) => {
+  if (bold) return "700";
+  if (!weight) return undefined;
+  const raw = String(weight).trim().toLowerCase();
+  if (raw === "bold") return "700";
+  if (raw === "regular") return "400";
+  return String(weight);
+};
+
+const buildTextAttributesStyle = (attributes) => {
+  if (!attributes || typeof attributes !== "object") return null;
+
+  const color = unwrapValue(attributes?.color, undefined);
+  const fontFamily = unwrapValue(attributes?.fontFamily, undefined);
+  const fontSize = toNumber(attributes?.size, undefined);
+  const isBold = toBoolean(attributes?.bold, false);
+  const isItalic = toBoolean(attributes?.italic, false);
+  const isUnderline = toBoolean(attributes?.underline, false);
+  const fontWeight = normalizeWeight(unwrapValue(attributes?.weight, undefined), isBold);
+
+  return {
+    color,
+    fontFamily,
+    fontSize,
+    fontWeight,
+    fontStyle: isItalic ? "italic" : "normal",
+    textDecorationLine: isUnderline ? "underline" : "none",
+  };
+};
+
+const withColorOpacity = (color, opacityPct = 100) => {
+  if (!color) return color;
+  const alpha = Math.max(0, Math.min(1, opacityPct / 100));
+
+  if (typeof color === "string" && color.startsWith("#")) {
+    const hex = color.slice(1);
+    if (hex.length === 3) {
+      const r = parseInt(hex[0] + hex[0], 16);
+      const g = parseInt(hex[1] + hex[1], 16);
+      const b = parseInt(hex[2] + hex[2], 16);
+      return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+    }
+    if (hex.length === 6) {
+      const r = parseInt(hex.slice(0, 2), 16);
+      const g = parseInt(hex.slice(2, 4), 16);
+      const b = parseInt(hex.slice(4, 6), 16);
+      return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+    }
+  }
+
+  return color;
+};
+
 export default function HeroBanner({ section }) {
   const rawProps =
     section?.properties?.props?.properties || section?.properties?.props || section?.props || {};
 
   const layoutCss = rawProps?.layout?.properties?.css || rawProps?.layout?.css || {};
+  const layoutMetrics = rawProps?.layout?.properties?.metrics || rawProps?.layout?.metrics || {};
+  const metricElements = layoutMetrics?.elements || {};
+
   const containerStyle = convertStyles(layoutCss?.container || {});
-  const headlineStyle = convertStyles(layoutCss?.headline || {});
-  const subtextStyle = convertStyles(layoutCss?.subtext || {});
+  const headlineCssStyle = convertStyles(layoutCss?.headline || {});
+  const subtextCssStyle = convertStyles(layoutCss?.subtext || {});
   const buttonStyle = convertStyles(layoutCss?.button || {});
   const imageStyle = convertStyles(layoutCss?.image || {});
+
+  const headlineAttributes =
+    rawProps?.headlineAttributes?.properties || rawProps?.headlineAttributes || {};
+  const subtextAttributes =
+    rawProps?.subtextAttributes?.properties || rawProps?.subtextAttributes || {};
+
+  const headlineStyle = {
+    ...headlineCssStyle,
+    ...buildTextAttributesStyle(headlineAttributes),
+  };
+  const subtextStyle = {
+    ...subtextCssStyle,
+    ...buildTextAttributesStyle(subtextAttributes),
+  };
 
   const imageAttributes = rawProps?.imageAttributes?.properties || rawProps?.imageAttributes || {};
   const imageScale = unwrapValue(imageAttributes?.scale, "Cover")?.toString().toLowerCase();
@@ -81,9 +151,27 @@ export default function HeroBanner({ section }) {
   const button = rawProps?.button || {};
   const buttonLabel = unwrapValue(button?.properties?.label || button?.label, "");
   const showButton = toBoolean(button?.properties?.enabled || button?.enabled, false);
+  const buttonTokens = button?.properties?.style?.properties || button?.style?.properties || {};
+  const dynamicButtonStyle = {
+    ...buttonStyle,
+    ...convertStyles({
+      color: unwrapValue(buttonTokens?.color, undefined),
+      border: unwrapValue(buttonTokens?.border, undefined),
+      padding: unwrapValue(buttonTokens?.padding, undefined),
+      borderRadius: unwrapValue(buttonTokens?.borderRadius, undefined),
+      backgroundColor: unwrapValue(buttonTokens?.backgroundColor, undefined),
+      fontWeight: toBoolean(button?.properties?.bold || button?.bold, false) ? "700" : undefined,
+      fontStyle: toBoolean(button?.properties?.italic || button?.italic, false) ? "italic" : "normal",
+      textDecoration: toBoolean(button?.properties?.underline || button?.underline, false)
+        ? "underline"
+        : "none",
+    }),
+  };
 
   const imageSrc = unwrapValue(rawProps?.uploadImage, "") || unwrapValue(rawProps?.imageLink, "");
-  const overlayOpacity = toNumber(rawProps?.content?.properties?.overlayOpacity || rawProps?.content?.overlayOpacity, 0);
+  const overlayOpacity =
+    toNumber(rawProps?.content?.properties?.overlayOpacity || rawProps?.content?.overlayOpacity, undefined) ??
+    toNumber(layoutCss?.image?.overlayOpacityPct, 0);
 
   const align = (unwrapValue(rawProps?.alignmentAndPadding?.properties?.textAlign, "center") || "center")
     .toString()
@@ -95,6 +183,21 @@ export default function HeroBanner({ section }) {
     "#ebeef4"
   );
 
+  const backgroundOpacity =
+    toNumber(rawProps?.style?.properties?.backgroundOpacity || rawProps?.style?.backgroundOpacity, undefined) ??
+    toNumber(layoutCss?.container?.backgroundOpacityPct, 100);
+
+  const contentPositionStyle = applyMetricsPositioning({}, metricElements?.container);
+  const headlinePositionStyle = applyMetricsPositioning({}, metricElements?.headline);
+  const subtextPositionStyle = applyMetricsPositioning({}, metricElements?.subtext);
+  const buttonPositionStyle = applyMetricsPositioning({}, metricElements?.button);
+
+  const hasAbsoluteMetrics =
+    contentPositionStyle?.position === "absolute" ||
+    headlinePositionStyle?.position === "absolute" ||
+    subtextPositionStyle?.position === "absolute" ||
+    buttonPositionStyle?.position === "absolute";
+
   if (!headline && !subtext && !imageSrc) return null;
 
   return (
@@ -102,7 +205,7 @@ export default function HeroBanner({ section }) {
       style={[
         styles.container,
         containerStyle,
-        { backgroundColor },
+        { backgroundColor: withColorOpacity(backgroundColor, backgroundOpacity) },
         imageAspectRatio ? { aspectRatio: imageAspectRatio } : null,
         imageCornerRadius ? { borderRadius: imageCornerRadius } : null,
       ]}
@@ -128,18 +231,25 @@ export default function HeroBanner({ section }) {
         />
       ) : null}
 
-      <View style={[styles.content, { alignItems }]}>
+      <View
+        style={[
+          styles.content,
+          hasAbsoluteMetrics ? styles.absoluteContentLayer : null,
+          { alignItems },
+          contentPositionStyle,
+        ]}
+      >
         {headline ? (
-          <Text style={[styles.headline, headlineStyle]}>{headline}</Text>
+          <Text style={[styles.headline, headlineStyle, headlinePositionStyle]}>{headline}</Text>
         ) : null}
 
         {subtext ? (
-          <Text style={[styles.subtext, subtextStyle]}>{subtext}</Text>
+          <Text style={[styles.subtext, subtextStyle, subtextPositionStyle]}>{subtext}</Text>
         ) : null}
 
         {showButton && buttonLabel ? (
-          <View style={styles.buttonWrapper}>
-            <Text style={[styles.button, buttonStyle]}>{buttonLabel}</Text>
+          <View style={[styles.buttonWrapper, buttonPositionStyle]}>
+            <Text style={[styles.button, dynamicButtonStyle]}>{buttonLabel}</Text>
           </View>
         ) : null}
       </View>
@@ -161,6 +271,11 @@ const styles = StyleSheet.create({
   },
   content: {
     width: "100%",
+  },
+  absoluteContentLayer: {
+    position: "absolute",
+    left: 0,
+    top: 0,
   },
   headline: {
     color: "#0f0f0f",
