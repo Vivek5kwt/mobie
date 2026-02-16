@@ -82,12 +82,37 @@ export default function ProductGrid({ section, limit = 8, title = "Products" }) 
   const resolvedColumns = Math.max(1, Math.round(toNumber(rawProps?.columns, 2)));
   const resolvedAlignText = toTextAlign(rawProps?.alignText, "left");
   const resolvedTitle = toString(rawProps?.header ?? rawProps?.title, title);
-  const resolvedBgColor = toString(rawProps?.bgColor, "");
+  const presentation = unwrapValue(rawProps?.presentation, {});
+  const presentationCss = unwrapValue(presentation?.css, {});
+  const headerCss = presentationCss?.header ?? {};
+  const cardCss = presentationCss?.card ?? {};
+  const cardTitleCss = cardCss?.title ?? {};
+  const cardPriceCss = cardCss?.price ?? {};
+  const cardImageCss = cardCss?.image ?? {};
+  const viewAllCss = presentationCss?.viewAll ?? {};
+  const resolvedBgColor = toString(
+    rawProps?.bgColor ?? presentationCss?.container?.backgroundColor,
+    ""
+  );
   const resolvedShowTitle = toBoolean(rawProps?.showTitle, true);
   const resolvedShowPrice = toBoolean(rawProps?.showPrice, true);
   const resolvedFavMode = toString(rawProps?.favMode, "").toLowerCase();
   const shopifyDomain = toString(rawProps?.shopifyDomain, "");
   const shopifyToken = toString(rawProps?.storefrontToken, "");
+  const resolvedTitleAlign = toTextAlign(rawProps?.alignText ?? headerCss?.textAlign, "left");
+  const resolvedTitleFontSize = resolveFirstNumber(
+    [rawProps?.titleSize, rawProps?.headerSize, rawProps?.headerFontSize, headerCss?.fontSize],
+    22
+  );
+  const resolvedTitleColor = toString(rawProps?.titleColor ?? headerCss?.color, "#111827");
+  const resolvedTitleWeight = toFontWeight(
+    rawProps?.titleWeight ?? headerCss?.fontWeight,
+    "700"
+  );
+  const resolvedTitleFontFamily = toString(
+    rawProps?.titleFontFamily ?? rawProps?.headerFontFamily ?? headerCss?.fontFamily,
+    ""
+  );
   const viewAllTypography = unwrapValue(
     rawProps?.viewAllTypography ??
       rawProps?.viewAllStyle ??
@@ -105,7 +130,10 @@ export default function ProductGrid({ section, limit = 8, title = "Products" }) 
     14
   );
   const resolvedViewAllColor = toString(
-    viewAllTypography?.color ?? rawProps?.viewAllTextColor ?? rawProps?.viewAllColor,
+    viewAllTypography?.color ??
+      rawProps?.viewAllTextColor ??
+      rawProps?.viewAllColor ??
+      viewAllCss?.color,
     "#111827"
   );
   const resolvedViewAllWeight = toFontWeight(
@@ -113,17 +141,149 @@ export default function ProductGrid({ section, limit = 8, title = "Products" }) 
       viewAllTypography?.weight ??
       rawProps?.viewAllFontWeightNum ??
       rawProps?.viewAllFontWeight ??
-      rawProps?.viewAllWeight,
+      rawProps?.viewAllWeight ??
+      viewAllCss?.fontWeight,
     "600"
+  );
+  const resolvedViewAllFontFamily = toString(
+    viewAllTypography?.fontFamily ?? rawProps?.viewAllFontFamily ?? viewAllCss?.fontFamily,
+    ""
   );
   const resolvedShowFavorite =
     resolvedFavMode === "always show" ||
     toBoolean(
       rawProps?.showFavorite ??
-        rawProps?.showFavoriteIcon ??
-        rawProps?.favEnabled,
-      false
-    );
+      rawProps?.showFavoriteIcon ??
+      rawProps?.favEnabled,
+    false
+  );
+  const resolvedImageCorner = resolveFirstNumber(
+    [rawProps?.imageCorner, rawProps?.imageCornerRadius, rawProps?.imageRadius],
+    undefined
+  );
+  const resolvedImageHeight = resolveFirstNumber(
+    [rawProps?.imageHeight, rawProps?.productImageHeight],
+    180
+  );
+  const resolvedCardCorner = resolveFirstNumber(
+    [rawProps?.cardCorner, rawProps?.cardRadius, rawProps?.cardBorderRadius],
+    12
+  );
+  const resolvedCardBackgroundColor = toString(
+    rawProps?.cardBackgroundColor ?? rawProps?.cardBgColor ?? cardCss?.backgroundColor,
+    "#ffffff"
+  );
+  const resolvedCardBorderColor = toString(
+    rawProps?.cardBorderColor ?? cardCss?.borderColor,
+    "#e5e7eb"
+  );
+  const resolvedCardBorderWidth = resolveFirstNumber(
+    [rawProps?.cardBorderWidth, cardCss?.borderWidth],
+    1
+  );
+  const resolvedImageBackgroundColor = toString(
+    rawProps?.imageBackgroundColor ?? rawProps?.imageBgColor ?? cardImageCss?.backgroundColor,
+    "#f3f4f6"
+  );
+  const cardCorner = resolvedImageCorner ?? resolvedCardCorner;
+  const resolvedProductTitleSize = resolveFirstNumber(
+    [
+      rawProps?.productTitleSize,
+      rawProps?.itemTitleSize,
+      rawProps?.cardTitleSize,
+      cardTitleCss?.fontSize,
+    ],
+    16
+  );
+  const resolvedProductTitleColor = toString(
+    rawProps?.productTitleColor ?? rawProps?.itemTitleColor ?? cardTitleCss?.color,
+    "#111827"
+  );
+  const resolvedProductTitleWeight = toFontWeight(
+    rawProps?.productTitleWeight ?? rawProps?.itemTitleWeight ?? cardTitleCss?.fontWeight,
+    "600"
+  );
+  const resolvedProductTitleFontFamily = toString(
+    rawProps?.productTitleFontFamily ?? cardTitleCss?.fontFamily,
+    ""
+  );
+  const resolvedPriceSize = resolveFirstNumber(
+    [
+      rawProps?.priceSize,
+      rawProps?.productPriceSize,
+      rawProps?.cardPriceSize,
+      cardPriceCss?.fontSize,
+    ],
+    14
+  );
+  const resolvedPriceColor = toString(
+    rawProps?.priceColor ?? rawProps?.productPriceColor ?? cardPriceCss?.color,
+    "#111827"
+  );
+  const resolvedPriceWeight = toFontWeight(
+    rawProps?.priceWeight ?? rawProps?.productPriceWeight ?? cardPriceCss?.fontWeight,
+    "600"
+  );
+  const resolvedPriceFontFamily = toString(
+    rawProps?.priceFontFamily ?? rawProps?.productPriceFontFamily ?? cardPriceCss?.fontFamily,
+    ""
+  );
+  const resolvedStatusColor = toString(
+    rawProps?.statusColor ?? presentationCss?.status?.color,
+    "#6b7280"
+  );
+  const resolvedStatusFontSize = resolveFirstNumber(
+    [rawProps?.statusFontSize, rawProps?.statusSize, presentationCss?.status?.fontSize],
+    14
+  );
+  const resolvedStatusWeight = toFontWeight(
+    rawProps?.statusFontWeight ?? rawProps?.statusWeight ?? presentationCss?.status?.fontWeight,
+    "500"
+  );
+  const resolvedStatusFontFamily = toString(
+    rawProps?.statusFontFamily ?? presentationCss?.status?.fontFamily,
+    ""
+  );
+  const resolvedErrorColor = toString(
+    rawProps?.errorColor ?? presentationCss?.error?.color,
+    "#b91c1c"
+  );
+  const resolvedErrorFontSize = resolveFirstNumber(
+    [rawProps?.errorFontSize, rawProps?.errorSize, presentationCss?.error?.fontSize],
+    14
+  );
+  const resolvedErrorWeight = toFontWeight(
+    rawProps?.errorFontWeight ?? rawProps?.errorWeight ?? presentationCss?.error?.fontWeight,
+    "500"
+  );
+  const resolvedErrorFontFamily = toString(
+    rawProps?.errorFontFamily ?? presentationCss?.error?.fontFamily,
+    ""
+  );
+  const resolvedFavoriteBackgroundColor = toString(
+    rawProps?.favoriteBackgroundColor ?? rawProps?.favoriteBgColor ?? presentationCss?.favorite?.backgroundColor,
+    "rgba(255, 255, 255, 0.9)"
+  );
+  const resolvedFavoriteIconColor = toString(
+    rawProps?.favoriteColor ?? rawProps?.favoriteIconColor ?? presentationCss?.favorite?.color,
+    "#e11d48"
+  );
+  const resolvedFavoriteIconSize = resolveFirstNumber(
+    [
+      rawProps?.favoriteIconSize,
+      rawProps?.favoriteSize,
+      presentationCss?.favorite?.fontSize,
+    ],
+    14
+  );
+  const resolvedFavoriteIconWeight = toFontWeight(
+    rawProps?.favoriteIconWeight ?? rawProps?.favoriteWeight ?? presentationCss?.favorite?.fontWeight,
+    "700"
+  );
+  const resolvedFavoriteIconFontFamily = toString(
+    rawProps?.favoriteIconFontFamily ?? presentationCss?.favorite?.fontFamily,
+    ""
+  );
   const detailSections = useMemo(() => {
     const candidates = [
       rawProps?.productDetailSections,
@@ -149,6 +309,7 @@ export default function ProductGrid({ section, limit = 8, title = "Products" }) 
     0,
     (screenWidth - horizontalPadding * 2 - totalGap) / resolvedColumns
   );
+  const imageCorner = resolvedImageCorner ?? Math.min(cardWidth, resolvedImageHeight) / 2;
 
   useEffect(() => {
     let isMounted = true;
@@ -194,13 +355,52 @@ export default function ProductGrid({ section, limit = 8, title = "Products" }) 
   return (
     <View style={[styles.wrapper, resolvedBgColor ? { backgroundColor: resolvedBgColor } : null]}>
       {resolvedShowTitle && (
-        <Text style={[styles.heading, { textAlign: resolvedAlignText }]}>
+        <Text
+          style={[
+            styles.heading,
+            {
+              textAlign: resolvedTitleAlign,
+              fontSize: resolvedTitleFontSize,
+              color: resolvedTitleColor,
+              fontWeight: resolvedTitleWeight,
+              ...(resolvedTitleFontFamily ? { fontFamily: resolvedTitleFontFamily } : null),
+            },
+          ]}
+        >
           {resolvedTitle}
         </Text>
       )}
 
-      {loading && <Text style={styles.status}>Loading products...</Text>}
-      {error && <Text style={styles.error}>{error}</Text>}
+      {loading && (
+        <Text
+          style={[
+            styles.status,
+            {
+              color: resolvedStatusColor,
+              fontSize: resolvedStatusFontSize,
+              fontWeight: resolvedStatusWeight,
+              ...(resolvedStatusFontFamily ? { fontFamily: resolvedStatusFontFamily } : null),
+            },
+          ]}
+        >
+          Loading products...
+        </Text>
+      )}
+      {error && (
+        <Text
+          style={[
+            styles.error,
+            {
+              color: resolvedErrorColor,
+              fontSize: resolvedErrorFontSize,
+              fontWeight: resolvedErrorWeight,
+              ...(resolvedErrorFontFamily ? { fontFamily: resolvedErrorFontFamily } : null),
+            },
+          ]}
+        >
+          {error}
+        </Text>
+      )}
 
       {!loading && !error && (
         <>
@@ -213,6 +413,10 @@ export default function ProductGrid({ section, limit = 8, title = "Products" }) 
                   {
                     width: cardWidth,
                     marginRight: (index + 1) % resolvedColumns === 0 ? 0 : gridGap,
+                    borderRadius: cardCorner,
+                    backgroundColor: resolvedCardBackgroundColor,
+                    borderColor: resolvedCardBorderColor,
+                    borderWidth: resolvedCardBorderWidth,
                   },
                 ]}
                 activeOpacity={0.85}
@@ -224,29 +428,74 @@ export default function ProductGrid({ section, limit = 8, title = "Products" }) 
                 }
               >
                 {resolvedShowFavorite && (
-                  <View style={styles.favoriteBadge}>
-                    <Text style={styles.favoriteIcon}>♥</Text>
+                  <View style={[styles.favoriteBadge, { backgroundColor: resolvedFavoriteBackgroundColor }]}>
+                    <Text
+                      style={[
+                        styles.favoriteIcon,
+                        {
+                          color: resolvedFavoriteIconColor,
+                          fontSize: resolvedFavoriteIconSize,
+                          fontWeight: resolvedFavoriteIconWeight,
+                          ...(resolvedFavoriteIconFontFamily
+                            ? { fontFamily: resolvedFavoriteIconFontFamily }
+                            : null),
+                        },
+                      ]}
+                    >
+                      ♥
+                    </Text>
                   </View>
                 )}
                 {product.imageUrl && (
-                  <Image
-                    source={{ uri: product.imageUrl }}
-                    style={styles.image}
-                    resizeMode="cover"
-                  />
+                  <View style={styles.imageWrapper}>
+                    <Image
+                      source={{ uri: product.imageUrl }}
+                      style={[
+                        styles.image,
+                        {
+                          height: resolvedImageHeight,
+                          borderRadius: imageCorner,
+                          backgroundColor: resolvedImageBackgroundColor,
+                        },
+                      ]}
+                      resizeMode="cover"
+                    />
+                  </View>
                 )}
 
                 <View style={styles.content}>
                   {resolvedShowTitle && (
                     <Text
                       numberOfLines={2}
-                      style={[styles.name, { textAlign: resolvedAlignText }]}
+                      style={[
+                        styles.name,
+                        {
+                          textAlign: resolvedAlignText,
+                          fontSize: resolvedProductTitleSize,
+                          color: resolvedProductTitleColor,
+                          fontWeight: resolvedProductTitleWeight,
+                          ...(resolvedProductTitleFontFamily
+                            ? { fontFamily: resolvedProductTitleFontFamily }
+                            : null),
+                        },
+                      ]}
                     >
                       {product.title}
                     </Text>
                   )}
                   {resolvedShowPrice && (
-                    <Text style={[styles.price, { textAlign: resolvedAlignText }]}>
+                    <Text
+                      style={[
+                        styles.price,
+                        {
+                          textAlign: resolvedAlignText,
+                          fontSize: resolvedPriceSize,
+                          color: resolvedPriceColor,
+                          fontWeight: resolvedPriceWeight,
+                          ...(resolvedPriceFontFamily ? { fontFamily: resolvedPriceFontFamily } : null),
+                        },
+                      ]}
+                    >
                       {product.priceCurrency} {product.priceAmount}
                     </Text>
                   )}
@@ -272,6 +521,7 @@ export default function ProductGrid({ section, limit = 8, title = "Products" }) 
                     color: resolvedViewAllColor,
                     fontSize: resolvedViewAllFontSize,
                     fontWeight: resolvedViewAllWeight,
+                    ...(resolvedViewAllFontFamily ? { fontFamily: resolvedViewAllFontFamily } : null),
                   },
                 ]}
               >
@@ -331,8 +581,12 @@ const styles = StyleSheet.create({
   },
   image: {
     width: "100%",
-    height: 200,
     backgroundColor: "#f3f4f6",
+    overflow: "hidden",
+  },
+  imageWrapper: {
+    width: "100%",
+    padding: 10,
   },
   content: {
     paddingHorizontal: 14,

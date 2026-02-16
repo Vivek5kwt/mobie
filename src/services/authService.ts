@@ -2,7 +2,6 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import client from '../apollo/client';
 import CREATE_USER_MUTATION from '../graphql/mutations/createUserMutation';
 import LOGIN_USER_MUTATION from '../graphql/mutations/loginUserMutation';
-import { resolveAppId } from '../utils/appId';
 
 type UserProfile = {
   id?: number;
@@ -25,6 +24,7 @@ export type AuthSession = {
 
 const TOKEN_KEY = '@auth_jwt_token';
 const USER_KEY = '@auth_user_profile';
+const DEFAULT_APP_ID = 41;
 const DEFAULT_USER_TYPE = 'mobile';
 const DEFAULT_STATUS = 'active';
 const DEFAULT_SHOPIFY_DOMAIN = '5kwebtech-test.myshopify.com';
@@ -84,7 +84,7 @@ export const restoreSession = async (): Promise<AuthSession | null> => {
 export const clearSession = async () => {
   await AsyncStorage.removeItem(TOKEN_KEY);
   await AsyncStorage.removeItem(USER_KEY);
-};
+};  
 
 const buildSession = (email: string, name?: string): AuthSession => ({
   token: generateToken(),
@@ -152,7 +152,6 @@ export const signup = async (
   }
 
   const name = fullName?.trim() || email.split('@')[0];
-  const appId = resolveAppId();
 
   try {
     const { data } = await client.mutate<CreateUserResponse>({
@@ -162,7 +161,7 @@ export const signup = async (
         email,
         password,
         status: DEFAULT_STATUS,
-        appId,
+        appId: DEFAULT_APP_ID,
         userType: DEFAULT_USER_TYPE,
         shopifyDomain: DEFAULT_SHOPIFY_DOMAIN,
       },

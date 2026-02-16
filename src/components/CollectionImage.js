@@ -107,6 +107,18 @@ export default function CollectionImage({ section }) {
   const cardImageBorderColor = unwrapValue(cardCfg?.imageBorderColor, "#A8A7AE");
   const textAlign = (unwrapValue(cardCfg?.textAlign, "left") || "left").toLowerCase();
   const imageShape = (unwrapValue(cardCfg?.imageShape, "circle") || "circle").toLowerCase();
+  const imageRadius =
+    imageShape === "square"
+      ? 0
+      : imageShape === "circle"
+        ? cardImageSize / 2
+        : Math.max(8, Math.round(cardImageSize * 0.2));
+  const imageWrapRadius =
+    imageShape === "square"
+      ? 0
+      : imageShape === "circle"
+        ? (cardImageSize + cardImageBorder * 2) / 2
+        : imageRadius + cardImageBorder;
 
   const sliderCfg = layoutCss?.slider || {};
   const gapPx = asNumber(sliderCfg?.gapPx ?? sliderCfg?.gap, 12);
@@ -140,6 +152,7 @@ export default function CollectionImage({ section }) {
   const scrollX = useRef(new Animated.Value(0)).current;
   const collectionsLimit = asNumber(rawProps?.collectionsLimit, 12);
   const resolvedCollections = collections.length ? collections : shopifyCollections;
+  const isSliderEnabled = resolvedCollections.length > 1;
   const resolveCollectionHandle = (item) => {
     if (item?.handle) return item.handle;
     const link = item?.link || "";
@@ -195,7 +208,7 @@ export default function CollectionImage({ section }) {
   }, [collections.length, collectionsLimit]);
 
   useEffect(() => {
-    if (!autoScrollEnabled || resolvedCollections.length <= 1) return undefined;
+    if (!autoScrollEnabled || !isSliderEnabled) return undefined;
 
     const interval = setInterval(() => {
       const nextIndex = (indexRef.current + 1) % resolvedCollections.length;
@@ -206,7 +219,7 @@ export default function CollectionImage({ section }) {
     }, Math.max(scrollSpeedSec, 1) * 1000);
 
     return () => clearInterval(interval);
-  }, [autoScrollEnabled, resolvedCollections.length, cardWidth, gapPx, scrollSpeedSec]);
+  }, [autoScrollEnabled, isSliderEnabled, cardWidth, gapPx, scrollSpeedSec]);
 
   const handleScroll = (event) => {
     const xOffset = event?.nativeEvent?.contentOffset?.x || 0;
@@ -236,27 +249,28 @@ export default function CollectionImage({ section }) {
       <Animated.ScrollView
         ref={scrollRef}
         horizontal
-        pagingEnabled
+        pagingEnabled={isSliderEnabled}
+        scrollEnabled={isSliderEnabled}
         showsHorizontalScrollIndicator={false}
-        contentContainerStyle={{ paddingHorizontal: 4 }}
+        contentContainerStyle={[
+          styles.scrollContent,
+          { paddingHorizontal: gapPx / 2 },
+        ]}
         onScroll={Animated.event(
           [{ nativeEvent: { contentOffset: { x: scrollX } } }],
           { useNativeDriver: false, listener: handleScroll }
         )}
         scrollEventThrottle={16}
-        snapToInterval={cardWidth + gapPx}
-        decelerationRate="fast"
+        snapToInterval={isSliderEnabled ? cardWidth + gapPx : undefined}
+        decelerationRate={isSliderEnabled ? "fast" : "normal"}
       >
         {resolvedCollections.map((item, idx) => (
           <TouchableOpacity
             key={`${item.title}-${idx}`}
             style={[
               styles.card,
-              {
-                width: cardWidth,
-                marginRight: idx === resolvedCollections.length - 1 ? 0 : gapPx,
-              },
               cardContainerStyle,
+              { width: cardWidth, marginHorizontal: gapPx / 2 },
             ]}
             activeOpacity={0.85}
             onPress={() => handleCollectionPress(item)}
@@ -269,7 +283,7 @@ export default function CollectionImage({ section }) {
                   {
                     width: cardImageSize + cardImageBorder * 2,
                     height: cardImageSize + cardImageBorder * 2,
-                    borderRadius: (cardImageSize + cardImageBorder * 2) / 2,
+                    borderRadius: imageWrapRadius,
                     borderWidth: cardImageBorder,
                     borderColor: cardImageBorderColor,
                   },
@@ -282,7 +296,7 @@ export default function CollectionImage({ section }) {
                     style={{
                       width: cardImageSize,
                       height: cardImageSize,
-                      borderRadius: imageShape === "circle" ? cardImageSize / 2 : 8,
+                      borderRadius: imageRadius,
                       backgroundColor: cardImageStyle?.backgroundColor || "#f5f5f5",
                     }}
                     resizeMode="cover"
@@ -292,7 +306,7 @@ export default function CollectionImage({ section }) {
                     style={{
                       width: cardImageSize,
                       height: cardImageSize,
-                      borderRadius: cardImageSize / 2,
+                      borderRadius: imageRadius,
                       alignItems: "center",
                       justifyContent: "center",
                       backgroundColor: "#e9ecef",
@@ -354,6 +368,9 @@ const styles = StyleSheet.create({
     marginBottom: 8,
     fontSize: 16,
     fontWeight: "700",
+  },
+  scrollContent: {
+    alignItems: "flex-start",
   },
   card: {
     alignItems: "center",

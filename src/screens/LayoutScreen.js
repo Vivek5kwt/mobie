@@ -225,12 +225,6 @@ export default function LayoutScreen({ route }) {
     };
   }, []);
 
-  useEffect(() => {
-    if (appId !== undefined && appId !== null) {
-      showSnackbar(`Fetching app id ${appId} data`, "info");
-    }
-  }, [appId]);
-
   // Reload DSL
   const refreshDSL = async (withFeedback = false) => {
     try {
