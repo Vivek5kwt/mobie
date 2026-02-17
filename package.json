@@ -6,7 +6,8 @@
     "android": "react-native run-android",
     "android:analytics-debug": "adb shell setprop debug.firebase.analytics.app com.mobidrag",
     "build": "echo \"React Native project: no web build step; Android builds run via Gradle.\"",
-    "start": "react-native start"
+    "start": "react-native start",
+    "check:no-patch-artifacts": "node scripts/check-no-patch-artifacts.mjs"
   },
   "dependencies": {
     "@apollo/client": "^4.0.9",
