@@ -3,7 +3,6 @@ import { Alert } from 'react-native';
 import { ApolloProvider } from '@apollo/client/react';
 import { NavigationContainer, useNavigationContainerRef } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
-import analytics from '@react-native-firebase/analytics';
 import messaging from '@react-native-firebase/messaging';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { Provider } from 'react-redux';
@@ -24,6 +23,26 @@ import tokenLogger from './src/utils/tokenLogger';
 
 const Stack = createNativeStackNavigator();
 
+type AnalyticsModule = {
+  setAnalyticsCollectionEnabled: (enabled: boolean) => Promise<void>;
+  logEvent: (eventName: string, params?: Record<string, any>) => Promise<void>;
+  logScreenView: (params: { screen_name: string; screen_class: string }) => Promise<void>;
+};
+
+const loadAnalytics = (): (() => AnalyticsModule) | null => {
+  try {
+    const moduleName = '@react-native-firebase/' + 'analytics';
+    const analyticsModule = require(moduleName);
+    return analyticsModule.default ?? analyticsModule;
+  } catch (error: any) {
+    console.log(
+      '⚠️ Firebase analytics module is not installed. Analytics events will be skipped.',
+      error?.message || error,
+    );
+    return null;
+  }
+};
+
 type ToastGlobal = {
   showToast?: (message: string, duration?: string) => void;
 };
@@ -31,6 +50,7 @@ type ToastGlobal = {
 export default function App() {
   const navigationRef = useNavigationContainerRef();
   const routeNameRef = useRef<string | undefined>(undefined);
+  const analyticsRef = useRef<(() => AnalyticsModule) | null>(loadAnalytics());
 
   const showInAppMessage = (title: string, body: string) => {
     const messageText = body ? `${title}\n${body}` : title;
@@ -97,10 +117,14 @@ export default function App() {
   }, []);
 
   useEffect(() => {
+    if (!analyticsRef.current) {
+      return;
+    }
+
     const logAppOpenTest = async () => {
       try {
-        await analytics().setAnalyticsCollectionEnabled(true);
-        await analytics().logEvent('app_open_test', {
+        await analyticsRef.current?.().setAnalyticsCollectionEnabled(true);
+        await analyticsRef.current?.().logEvent('app_open_test', {
           source: 'app_launch',
         });
         console.log('📊 Analytics event sent: app_open_test');
@@ -160,8 +184,13 @@ export default function App() {
                   const currentRouteName = navigationRef.getCurrentRoute()?.name;
 
                   if (currentRouteName && previousRouteName !== currentRouteName) {
+                    if (!analyticsRef.current) {
+                      routeNameRef.current = currentRouteName;
+                      return;
+                    }
+
                     try {
-                      await analytics().logScreenView({
+                      await analyticsRef.current?.().logScreenView({
                         screen_name: currentRouteName,
                         screen_class: currentRouteName,
                       });
