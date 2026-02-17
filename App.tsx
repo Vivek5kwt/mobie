@@ -1,8 +1,8 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useRef } from 'react';
 import { Alert } from 'react-native';
 import { ApolloProvider } from "@apollo/client/react";
 import client from "./src/apollo/client";
-import { NavigationContainer } from "@react-navigation/native";
+import { NavigationContainer, useNavigationContainerRef } from "@react-navigation/native";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
@@ -21,10 +21,13 @@ import { store } from "./src/store";
 
 import tokenLogger from './src/utils/tokenLogger';
 import messaging from '@react-native-firebase/messaging';
+import analytics from '@react-native-firebase/analytics';
 
 const Stack = createNativeStackNavigator();
 
 export default function App() {
+  const navigationRef = useNavigationContainerRef();
+  const routeNameRef = useRef<string | undefined>(undefined);
 
   /**
    * Request permission + get FCM token
@@ -50,25 +53,7 @@ export default function App() {
         if (fcmToken) {
           console.log("🔥 FCM TOKEN RECEIVED");
           await tokenLogger.setToken(fcmToken, true);
-        } else {
-          console.log("⚠️ FCM Token NOT received");
-        }
-      } else {
-        console.log("❌ Notification permission NOT granted");
-      }
-
-    } catch (error: any) {
-      console.log("🔥 FCM error:", error?.message || error);
-    }
-  };
-
-
-  /**
-   * Setup Device Token
-   */
-  const setupDeviceToken = async () => {
-    try {
-      console.log("📱 Setting up device token...");
+@@ -72,50 +75,69 @@ export default function App() {
 
       // 1️⃣ Check stored token first
       const storedToken = await tokenLogger.getStoredToken();
@@ -92,6 +77,25 @@ export default function App() {
    */
   useEffect(() => {
     setupDeviceToken();
+  }, []);
+
+  /**
+   * Force-send a one-time Analytics event on app launch.
+   */
+  useEffect(() => {
+    const logAppOpenTest = async () => {
+      try {
+        await analytics().setAnalyticsCollectionEnabled(true);
+        await analytics().logEvent('app_open_test', {
+          source: 'app_launch',
+        });
+        console.log('📊 Analytics event sent: app_open_test');
+      } catch (error: any) {
+        console.log('🔥 Analytics app_open_test error:', error?.message || error);
+      }
+    };
+
+    logAppOpenTest();
   }, []);
 
   /**
@@ -119,17 +123,7 @@ export default function App() {
   useEffect(() => {
     const unsubscribe = messaging().onNotificationOpenedApp(remoteMessage => {
       const title = remoteMessage?.notification?.title || 'Notification Opened';
-      const body = remoteMessage?.notification?.body || '';
-      const messageText = body ? `${title}\n${body}` : title;
-
-      if (typeof global?.showToast === 'function') {
-        global.showToast(messageText, 'LONG');
-      } else {
-        Alert.alert(title, body);
-      }
-    });
-
-    messaging()
+@@ -133,51 +155,74 @@ export default function App() {
       .getInitialNotification()
       .then(remoteMessage => {
         if (remoteMessage) {
@@ -155,7 +149,30 @@ export default function App() {
         <SafeAreaProvider>
           <AuthProvider>
             <ApolloProvider client={client}>
-              <NavigationContainer>
+              <NavigationContainer
+                ref={navigationRef}
+                onReady={() => {
+                  routeNameRef.current = navigationRef.getCurrentRoute()?.name;
+                }}
+                onStateChange={async () => {
+                  const previousRouteName = routeNameRef.current;
+                  const currentRouteName = navigationRef.getCurrentRoute()?.name;
+
+                  if (currentRouteName && previousRouteName !== currentRouteName) {
+                    try {
+                      await analytics().logScreenView({
+                        screen_name: currentRouteName,
+                        screen_class: currentRouteName,
+                      });
+                      console.log(`📊 Analytics screen_view sent: ${currentRouteName}`);
+                    } catch (error: any) {
+                      console.log('🔥 Analytics screen_view error:', error?.message || error);
+                    }
+                  }
+
+                  routeNameRef.current = currentRouteName;
+                }}
+              >
                 <Stack.Navigator
                   screenOptions={{ headerShown: false }}
                   initialRouteName="Splash"
