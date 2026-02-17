@@ -17,7 +17,7 @@ import LayoutScreen from './src/screens/LayoutScreen';
 import ProductDetailScreen from './src/screens/ProductDetailScreen';
 import SplashScreen from './src/screens/saplash';
 import AuthScreen from './src/screens/AuthScreen';
-import { AuthProvider } from './src/services/AuthContext';
+import AuthProvider from './src/services/AuthContext';
 import { store } from './src/store';
 import tokenLogger from './src/utils/tokenLogger';
 
