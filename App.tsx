@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from 'react';
+import React, { PropsWithChildren, useEffect, useRef } from 'react';
 import { Alert } from 'react-native';
 import { ApolloProvider } from '@apollo/client/react';
 import { NavigationContainer, useNavigationContainerRef } from '@react-navigation/native';
@@ -46,6 +46,12 @@ const loadAnalytics = (): (() => AnalyticsModule) | null => {
 type ToastGlobal = {
   showToast?: (message: string, duration?: string) => void;
 };
+
+type GestureHandlerRootViewComponent = React.ComponentType<
+  PropsWithChildren<React.ComponentProps<typeof GestureHandlerRootView>>
+>;
+
+const GestureRootView = GestureHandlerRootView as GestureHandlerRootViewComponent;
 
 export default function App() {
   const navigationRef = useNavigationContainerRef();
@@ -169,7 +175,7 @@ export default function App() {
   }, []);
 
   return (
-    <GestureHandlerRootView style={{ flex: 1 }}>
+    <GestureRootView style={{ flex: 1 }}>
       <Provider store={store}>
         <SafeAreaProvider>
           <AuthProvider>
@@ -251,6 +257,6 @@ export default function App() {
           </AuthProvider>
         </SafeAreaProvider>
       </Provider>
-    </GestureHandlerRootView>
+    </GestureRootView>
   );
 }
