@@ -18,12 +18,15 @@ import { SafeArea } from "../utils/SafeAreaHandler";
 import SideNavigation from "../components/SideNavigation";
 import { SideMenuProvider } from "../services/SideMenuContext";
 import bottomNavigationStyle1Section from "../data/bottomNavigationStyle1";
+import BottomNavigation from "../components/BottomNavigation";
 import { resolveAppId } from "../utils/appId";
 import { useAuth } from "../services/AuthContext";
 
 export default function LayoutScreen({ route }) {
   const { session } = useAuth();
   const pageName = route?.params?.pageName || "home";
+  // Extract activeIndex from route params to maintain bottom nav state when navigating to home
+  const activeIndex = route?.params?.activeIndex;
   const appId = useMemo(
     () =>
       resolveAppId(route?.params?.appId ?? session?.user?.appId ?? session?.user?.app_id),
@@ -372,7 +375,7 @@ export default function LayoutScreen({ route }) {
           </View>
           {fallbackBottomNavSection && (
             <View style={styles.bottomNav}>
-              <DynamicRenderer section={fallbackBottomNavSection} />
+              <BottomNavigation section={fallbackBottomNavSection} activeIndexOverride={activeIndex} />
             </View>
           )}
         </View>
@@ -474,7 +477,7 @@ export default function LayoutScreen({ route }) {
 
           {bottomNavSection && (
             <View style={styles.bottomNav}>
-              <DynamicRenderer section={bottomNavSection} />
+              <BottomNavigation section={bottomNavSection} activeIndexOverride={activeIndex} />
             </View>
           )}
 
@@ -547,7 +550,8 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: "center",
     alignItems: "center",
-    backgroundColor: "#0E1023",
+    // Match the main screen background so Home doesn't flash a dark/black screen
+    backgroundColor: "#F7F7F7",
   },
   loaderOverlay: {
     ...StyleSheet.absoluteFillObject,

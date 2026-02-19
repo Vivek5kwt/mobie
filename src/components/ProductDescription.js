@@ -41,11 +41,14 @@ export default function ProductDescription({ section }) {
   const info = unwrapValue(propsNode?.info, {});
   const visibility = unwrapValue(propsNode?.visibility, {});
 
-  const titleText = toString(title?.text, raw?.title || "Description");
+  const titleText = toString(title?.text, raw?.title || "");
   const descriptionText = toString(
     raw?.description || raw?.descriptionText,
     info?.descriptionText || ""
   );
+  
+  // Only render if we have actual description data
+  if (!descriptionText && !titleText) return null;
 
   const resolvedPaddingTop = (() => {
     const value = toNumber(info?.paddingTop, 16);

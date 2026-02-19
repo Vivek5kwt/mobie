@@ -81,6 +81,9 @@ export default function ProductLibrary({ section }) {
   const ratingCountText = toString(raw?.ratingCountText, "(0)");
   const showBackButton = toBoolean(raw?.showBackButton, true);
   const initialFavourite = toBoolean(raw?.isFavourite, false);
+  
+  // Don't render if no image URL exists
+  if (!resolvedImageUrl) return null;
 
   const containerStyle = [
     styles.container,

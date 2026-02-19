@@ -152,14 +152,41 @@ export default function HeroBanner({ section }) {
   const buttonLabel = unwrapValue(button?.properties?.label || button?.label, "");
   const showButton = toBoolean(button?.properties?.enabled || button?.enabled, false);
   const buttonTokens = button?.properties?.style?.properties || button?.style?.properties || {};
+  
+  // Get button background color from config, default to white
+  const buttonBgColor = unwrapValue(buttonTokens?.backgroundColor, undefined) || "#FFFFFF";
+  
+  // Helper to determine if a color is dark (for automatic text color contrast)
+  const isDarkColor = (color) => {
+    if (!color || typeof color !== "string") return false;
+    // Handle hex colors
+    if (color.startsWith("#")) {
+      const hex = color.slice(1);
+      const r = parseInt(hex.length === 3 ? hex[0] + hex[0] : hex.slice(0, 2), 16);
+      const g = parseInt(hex.length === 3 ? hex[1] + hex[1] : hex.slice(2, 4), 16);
+      const b = parseInt(hex.length === 3 ? hex[2] + hex[2] : hex.slice(4, 6), 16);
+      // Calculate luminance
+      const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+      return luminance < 0.5;
+    }
+    // Handle named colors (basic check)
+    const darkColors = ["black", "#000", "#000000", "dark"];
+    return darkColors.some(dark => color.toLowerCase().includes(dark));
+  };
+  
+  // Auto-adjust text color for contrast if not explicitly set
+  const explicitTextColor = unwrapValue(buttonTokens?.color, undefined);
+  const autoTextColor = isDarkColor(buttonBgColor) ? "#FFFFFF" : "#111111";
+  const buttonTextColor = explicitTextColor || autoTextColor;
+  
   const dynamicButtonStyle = {
     ...buttonStyle,
     ...convertStyles({
-      color: unwrapValue(buttonTokens?.color, undefined),
+      color: buttonTextColor, // Use auto-contrast or explicit color
       border: unwrapValue(buttonTokens?.border, undefined),
       padding: unwrapValue(buttonTokens?.padding, undefined),
       borderRadius: unwrapValue(buttonTokens?.borderRadius, undefined),
-      backgroundColor: unwrapValue(buttonTokens?.backgroundColor, undefined),
+      backgroundColor: buttonBgColor, // Fully dynamic from config
       fontWeight: toBoolean(button?.properties?.bold || button?.bold, false) ? "700" : undefined,
       fontStyle: toBoolean(button?.properties?.italic || button?.italic, false) ? "italic" : "normal",
       textDecoration: toBoolean(button?.properties?.underline || button?.underline, false)
@@ -245,15 +272,15 @@ export default function HeroBanner({ section }) {
         ]}
       >
         {headline ? (
-          <Text style={[styles.headline, headlineStyle, headlinePositionStyle]}>{headline}</Text>
+          <Text style={[styles.headline, headlineStyle, headlinePositionStyle, { textAlign: "center" }]}>{headline}</Text>
         ) : null}
 
         {subtext ? (
-          <Text style={[styles.subtext, subtextStyle, subtextPositionStyle]}>{subtext}</Text>
+          <Text style={[styles.subtext, subtextStyle, subtextPositionStyle, { textAlign: "center" }]}>{subtext}</Text>
         ) : null}
 
         {showButton && buttonLabel ? (
-          <View style={[styles.buttonWrapper, buttonPositionStyle]}>
+          <View style={[styles.buttonWrapper, buttonPositionStyle, { alignSelf: "center" }]}>
             <Text style={[styles.button, dynamicButtonStyle]}>{buttonLabel}</Text>
           </View>
         ) : null}
@@ -266,6 +293,7 @@ const styles = StyleSheet.create({
   container: {
     position: "relative",
     width: "100%",
+    minHeight: 250, // Default minimum height for hero banner to ensure proper visibility
     overflow: "hidden",
   },
   image: {
@@ -276,6 +304,11 @@ const styles = StyleSheet.create({
   },
   content: {
     width: "100%",
+    paddingVertical: 32, // Add vertical padding for better spacing
+    paddingHorizontal: 20, // Add horizontal padding for better spacing
+    minHeight: 200, // Ensure content area has minimum height
+    justifyContent: "center", // Center content vertically
+    alignItems: "center", // Center content horizontally (will be overridden by dynamic alignItems)
   },
   absoluteContentLayer: {
     position: "absolute",
@@ -286,21 +319,29 @@ const styles = StyleSheet.create({
     color: "#0f0f0f",
     fontSize: 24,
     fontWeight: "700",
+    textAlign: "center", // Center headline text
+    width: "100%", // Full width for proper centering
   },
   subtext: {
     marginTop: 8,
     color: "#3b3c40",
     fontSize: 16,
+    textAlign: "center", // Center subtext
+    width: "100%", // Full width for proper centering
   },
   buttonWrapper: {
     marginTop: 12,
+    width: "100%", // Full width to allow centering
+    alignItems: "center", // Center the button horizontally
+    justifyContent: "center", // Center the button horizontally
   },
   button: {
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    color: "#ffffff",
-    backgroundColor: "#111111",
+    paddingHorizontal: 20, // Better padding for button
+    paddingVertical: 12, // Better padding for button
     borderRadius: 8,
     fontWeight: "700",
+    textAlign: "center", // Center text within button
+    alignSelf: "center", // Ensure button itself is centered
+    // backgroundColor and color are set dynamically from config
   },
 });

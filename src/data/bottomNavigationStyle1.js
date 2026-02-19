@@ -54,7 +54,8 @@ const bottomNavigationStyle1Section = {
             gradientTo: "",
             iconHeight: 20,
             itemHeight: 56,
-            borderRadius: 28,
+            // Use square corners on mobile for a cleaner, platform‑native feel
+            borderRadius: 0,
             gradientFrom: "",
             textFontSize: 12,
             indicatorMode: "Line",
@@ -181,7 +182,8 @@ const bottomNavigationStyle1Section = {
                 padding: "12px",
                 alignItems: "center",
                 background: "#FFFFFF",
-                borderRadius: "28px",
+                // Square bottom bar instead of pill‑shaped
+                borderRadius: "0px",
                 justifyContent: "space-around",
               },
               indicator: {
@@ -386,7 +388,8 @@ const bottomNavigationStyle1Section = {
             },
             borderRadius: {
               type: "number",
-              value: 28,
+              // Match mobile design: square corners for the bar container
+              value: 0,
             },
             gradientFrom: {
               type: "string",
