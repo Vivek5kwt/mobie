@@ -14,15 +14,47 @@ class MainActivity : ReactActivity() {
    */
   override fun getMainComponentName(): String {
     return try {
-      // Use BuildConfig.APP_NAME which is set from app.json during Gradle build
-      // This ensures it matches the app name used when React Native bundle was created
-      // BuildConfig is in the same package, so we can reference it directly
-      BuildConfig.APP_NAME
+      // Try to read app name from app.json in assets first (most reliable)
+      val inputStream = assets.open("app.json")
+      val json = inputStream.bufferedReader().use { it.readText() }
+      val appJson = org.json.JSONObject(json)
+      val appName = appJson.optString("name", null)
+      inputStream.close()
+      
+      if (appName != null && appName.isNotEmpty()) {
+        android.util.Log.d("MainActivity", "Using app name from app.json: $appName")
+        return appName
+      }
     } catch (e: Exception) {
-      // Fallback to default if BuildConfig is not available
-      android.util.Log.e("MainActivity", "Error reading BuildConfig.APP_NAME: ${e.message}")
-      "MobiDrag"
+      android.util.Log.w("MainActivity", "Could not read app.json from assets: ${e.message}")
     }
+    
+    // Fallback 1: Try BuildConfig (only works if in same package)
+    try {
+      BuildConfig.APP_NAME.let { appName ->
+        if (appName.isNotEmpty()) {
+          android.util.Log.d("MainActivity", "✅ Using app name from BuildConfig: $appName")
+          return appName
+        }
+      }
+    } catch (e: Exception) {
+      android.util.Log.w("MainActivity", "⚠️ Could not read BuildConfig.APP_NAME: ${e.message}")
+    }
+    
+    // Fallback 2: Read from strings.xml
+    try {
+      val appName = resources.getString(R.string.app_name)
+      if (appName.isNotEmpty()) {
+        android.util.Log.d("MainActivity", "✅ Using app name from strings.xml: $appName")
+        return appName
+      }
+    } catch (e: Exception) {
+      android.util.Log.w("MainActivity", "⚠️ Could not read app name from strings.xml: ${e.message}")
+    }
+    
+    // Final fallback
+    android.util.Log.e("MainActivity", "❌ All methods failed, using default: MobiDrag")
+    return "MobiDrag"
   }
 
   /**
