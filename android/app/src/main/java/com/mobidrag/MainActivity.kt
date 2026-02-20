@@ -16,7 +16,8 @@ class MainActivity : ReactActivity() {
     return try {
       // Use BuildConfig.APP_NAME which is set from app.json during Gradle build
       // This ensures it matches the app name used when React Native bundle was created
-      com.mobidrag.BuildConfig.APP_NAME
+      // BuildConfig is in the same package, so we can reference it directly
+      BuildConfig.APP_NAME
     } catch (e: Exception) {
       // Fallback to default if BuildConfig is not available
       android.util.Log.e("MainActivity", "Error reading BuildConfig.APP_NAME: ${e.message}")
