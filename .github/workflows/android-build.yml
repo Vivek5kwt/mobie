@@ -221,6 +221,15 @@ jobs:
           cp app.json android/app/src/main/assets/app.json
           echo "✅ Copied app.json to Android assets"
           echo "📄 App name in app.json: $(node -p "require('./app.json').name")"
+          
+          # Verify the file was copied correctly
+          if [ -f android/app/src/main/assets/app.json ]; then
+            echo "✅ Verified: app.json exists in assets folder"
+            echo "📄 Content: $(cat android/app/src/main/assets/app.json)"
+          else
+            echo "❌ ERROR: app.json was NOT copied to assets folder!"
+            exit 1
+          fi
 
       - name: Build React with App ID
         env:
