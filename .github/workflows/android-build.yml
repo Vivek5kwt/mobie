@@ -18,6 +18,8 @@ jobs:
  
     env:
       APP_ID: ${{ github.event.client_payload.app_id || github.event.inputs.app_id }}
+      APP_NAME: ${{ github.event.client_payload.app_name || '' }}
+      APP_LOGO: ${{ github.event.client_payload.app_logo || '' }}
  
     steps:
       - name: Checkout repo
@@ -31,8 +33,74 @@ jobs:
       - name: Install dependencies
         run: npm install
  
-      - name: Show App ID
-        run: echo "Building for APP_ID=${APP_ID}"
+      - name: Set App Name and Logo from Mutation
+        id: set_app_info
+        run: |
+          echo "Building for APP_ID=${APP_ID}"
+          # Use app_name from mutation response (triggerAndroidBuild)
+          if [ -n "${{ env.APP_NAME }}" ]; then
+            echo "✅ App Name from mutation: ${{ env.APP_NAME }}"
+            echo "APP_NAME=${{ env.APP_NAME }}" >> $GITHUB_ENV
+          else
+            echo "⚠️ No app name from mutation, will fetch or use default"
+          fi
+          if [ -n "${{ env.APP_LOGO }}" ]; then
+            echo "✅ App Logo from mutation: ${{ env.APP_LOGO }}"
+            echo "APP_LOGO=${{ env.APP_LOGO }}" >> $GITHUB_ENV
+          fi
+
+      - name: Fetch App Name and Icon (Fallback if not provided)
+        env:
+          APP_ID: ${{ env.APP_ID }}
+          GRAPHQL_ENDPOINT: ${{ secrets.GRAPHQL_ENDPOINT || 'https://api.mobidrag.com/graphql' }}
+          GRAPHQL_TOKEN: ${{ secrets.GRAPHQL_TOKEN }}
+        run: |
+          # Only fetch if app name was not provided from mutation
+          if [ -z "${{ env.APP_NAME }}" ]; then
+            echo "📡 Fetching app info from GraphQL as fallback..."
+            node scripts/fetch-app-info.js || echo "⚠️ Failed to fetch app info"
+            if [ -f app-info.json ]; then
+              FALLBACK_NAME=$(node -p "require('./app-info.json').appName || ''")
+              FALLBACK_ICON=$(node -p "require('./app-info.json').appIcon || ''")
+              if [ -n "${FALLBACK_NAME}" ] && [ "${FALLBACK_NAME}" != "App-${APP_ID}" ]; then
+                echo "APP_NAME=${FALLBACK_NAME}" >> $GITHUB_ENV
+                echo "✅ Using fetched app name: ${FALLBACK_NAME}"
+              else
+                echo "APP_NAME=App-${APP_ID}" >> $GITHUB_ENV
+                echo "⚠️ Using default app name: App-${APP_ID}"
+              fi
+              if [ -n "${FALLBACK_ICON}" ] && [ -z "${{ env.APP_LOGO }}" ]; then
+                echo "APP_LOGO=${FALLBACK_ICON}" >> $GITHUB_ENV
+                echo "✅ Using fetched app logo"
+              fi
+            else
+              echo "APP_NAME=App-${APP_ID}" >> $GITHUB_ENV
+              echo "⚠️ Using default app name: App-${APP_ID}"
+            fi
+          else
+            echo "✅ Using app name from mutation: ${{ env.APP_NAME }}"
+          fi
+
+      - name: Update Android App Name
+        run: |
+          if [ -n "${{ env.APP_NAME }}" ]; then
+            # Update strings.xml
+            sed -i "s/<string name=\"app_name\">.*<\/string>/<string name=\"app_name\">${{ env.APP_NAME }}<\/string>/" android/app/src/main/res/values/strings.xml
+            echo "✅ Updated Android app name to: ${{ env.APP_NAME }}"
+          fi
+
+      - name: Update app.json
+        run: |
+          if [ -n "${{ env.APP_NAME }}" ]; then
+            node -e "
+              const fs = require('fs');
+              const appJson = JSON.parse(fs.readFileSync('app.json', 'utf8'));
+              appJson.name = '${{ env.APP_NAME }}';
+              appJson.displayName = '${{ env.APP_NAME }}';
+              fs.writeFileSync('app.json', JSON.stringify(appJson, null, 2));
+            "
+            echo "✅ Updated app.json with app name: ${{ env.APP_NAME }}"
+          fi
 
       - name: Build React with App ID
         env:
@@ -56,27 +124,56 @@ jobs:
 
       - name: Prepare APK for release
         id: prepare_apk
+        env:
+          APP_NAME: ${{ env.APP_NAME }}
         run: |
           APK_PATH="android/app/build/outputs/apk/release/app-release.apk"
-          APK_NAME="${APP_ID:-app}-${GITHUB_RUN_NUMBER}.apk"
+          if [ -n "${APP_NAME}" ]; then
+            # Use app name for APK filename (sanitize for filesystem)
+            SANITIZED_NAME=$(echo "${APP_NAME}" | tr '[:upper:]' '[:lower:]' | tr ' ' '-' | sed 's/[^a-z0-9-]//g')
+            APK_NAME="${SANITIZED_NAME}-${GITHUB_RUN_NUMBER}.apk"
+          else
+            APK_NAME="${APP_ID:-app}-${GITHUB_RUN_NUMBER}.apk"
+          fi
           cp "$APK_PATH" "$APK_NAME"
           echo "apk_name=$APK_NAME" >> "$GITHUB_OUTPUT"
+          echo "✅ APK prepared: $APK_NAME"
 
       - name: Create GitHub release with APK
         env:
           GH_TOKEN: ${{ github.token }}
+          APP_NAME: ${{ env.APP_NAME }}
         run: |
-          TAG_NAME="android-build-${GITHUB_RUN_ID}"
-          RELEASE_NAME="Android build ${GITHUB_RUN_NUMBER}"
+          # Use app name from mutation response, fallback to "android-build" if not available
+          if [ -n "${APP_NAME}" ] && [ "${APP_NAME}" != "App-${APP_ID}" ]; then
+            # Use app name for release (sanitize for filesystem)
+            SANITIZED_NAME=$(echo "${APP_NAME}" | tr '[:upper:]' '[:lower:]' | tr ' ' '-' | sed 's/[^a-z0-9-]//g')
+            TAG_NAME="${SANITIZED_NAME}-${GITHUB_RUN_ID}"
+            RELEASE_NAME="${APP_NAME} - Build ${GITHUB_RUN_NUMBER}"
+            RELEASE_NOTES="Automated Android build for ${APP_NAME} (APP_ID=${APP_ID})"
+          else
+            # Fallback to default naming
+            TAG_NAME="android-build-${GITHUB_RUN_ID}"
+            RELEASE_NAME="Android build ${GITHUB_RUN_NUMBER}"
+            RELEASE_NOTES="Automated Android build for APP_ID=${APP_ID}"
+          fi
+
+          echo "📦 Creating release: ${RELEASE_NAME}"
+          echo "🏷️  Tag: ${TAG_NAME}"
 
           gh release create "$TAG_NAME" \
             "${{ steps.prepare_apk.outputs.apk_name }}" \
             --title "$RELEASE_NAME" \
-            --notes "Automated Android build for APP_ID=${APP_ID}" \
+            --notes "$RELEASE_NOTES" \
             --latest=false
 
           ASSET_URL=$(gh release view "$TAG_NAME" --json assets -q '.assets[0].url')
           {
             echo "### Android build generated"
+            if [ -n "${APP_NAME}" ] && [ "${APP_NAME}" != "App-${APP_ID}" ]; then
+              echo "**App:** ${APP_NAME}"
+            fi
             echo "- APK: [${{ steps.prepare_apk.outputs.apk_name }}]($ASSET_URL)"
+            echo "- APP_ID: ${APP_ID}"
+            echo "- Release: [${RELEASE_NAME}](https://github.com/${{ github.repository }}/releases/tag/${TAG_NAME})"
           } >> "$GITHUB_STEP_SUMMARY"
