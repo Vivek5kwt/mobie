@@ -1,5 +1,9 @@
 name: Build Android APK
 
+# Dynamic run name based on app name from mutation response
+# Shows app name instead of "android_build" in GitHub Actions UI
+run-name: ${{ github.event.client_payload.app_name || 'Android Build' }}
+
 permissions:
   contents: write
  
@@ -41,6 +45,8 @@ jobs:
           if [ -n "${{ env.APP_NAME }}" ]; then
             echo "✅ App Name from mutation: ${{ env.APP_NAME }}"
             echo "APP_NAME=${{ env.APP_NAME }}" >> $GITHUB_ENV
+            # Update workflow run name to show app name (if supported by GitHub API)
+            echo "::notice title=App Name::Building for app: ${{ env.APP_NAME }}"
           else
             echo "⚠️ No app name from mutation, will fetch or use default"
           fi
@@ -146,6 +152,16 @@ jobs:
           distribution: "temurin"
           java-version: "17"
  
+      - name: Verify app.json before Android build
+        run: |
+          if [ ! -f app.json ]; then
+            echo "❌ app.json not found!"
+            exit 1
+          fi
+          APP_NAME_FROM_JSON=$(node -p "require('./app.json').name || 'MobiDrag'")
+          echo "✅ App name in app.json: ${APP_NAME_FROM_JSON}"
+          echo "📱 This will be used for BuildConfig.APP_NAME in Android build"
+
       - name: Build Android APK
         run: |
           cd android
