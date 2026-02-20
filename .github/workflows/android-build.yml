@@ -87,12 +87,45 @@ jobs:
             echo "✅ Using app name from mutation: ${{ env.APP_NAME }}"
           fi
 
-      - name: Update Android App Name
+      - name: Generate Package Name
+        id: package_name
+        env:
+          APP_ID: ${{ env.APP_ID }}
         run: |
-          if [ -n "${{ env.APP_NAME }}" ]; then
-            # Update strings.xml
-            sed -i "s/<string name=\"app_name\">.*<\/string>/<string name=\"app_name\">${{ env.APP_NAME }}<\/string>/" android/app/src/main/res/values/strings.xml
-            echo "✅ Updated Android app name to: ${{ env.APP_NAME }}"
+          CUSTOM_PACKAGE="${{ github.event.client_payload.package_name }}"
+          if [ -n "${CUSTOM_PACKAGE}" ]; then
+            PACKAGE_NAME="${CUSTOM_PACKAGE}"
+          else
+            PACKAGE_NAME="com.mobidrag.builder.${APP_ID}"
+          fi
+          echo "PACKAGE_NAME=${PACKAGE_NAME}" >> $GITHUB_ENV
+          echo "📦 Generated package name: ${PACKAGE_NAME}"
+
+      - name: Validate Package Name
+        env:
+          PACKAGE_NAME: ${{ env.PACKAGE_NAME }}
+        run: |
+          if [ -n "${PACKAGE_NAME}" ]; then
+            echo "🔍 Validating package name..."
+            node scripts/validate-package-name.js "${PACKAGE_NAME}" || exit 1
+            echo "✅ Package name is valid: ${PACKAGE_NAME}"
+          fi
+
+      - name: Update Package Name and App Name
+        env:
+          APP_ID: ${{ env.APP_ID }}
+          APP_NAME: ${{ env.APP_NAME }}
+          PACKAGE_NAME: ${{ env.PACKAGE_NAME }}
+        run: |
+          echo "📦 Updating package name and app name..."
+          if [ -n "${APP_ID}" ]; then
+            # Update Android package name and app name
+            node scripts/update-android-package.js
+            echo "✅ Package name and app name updated"
+            echo "📱 Package: ${PACKAGE_NAME}"
+            echo "📱 App Name: ${APP_NAME}"
+          else
+            echo "⚠️ APP_ID not set, skipping package name update"
           fi
 
       - name: Update app.json
