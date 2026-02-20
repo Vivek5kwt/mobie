@@ -1,5 +1,9 @@
 name: Build Android APK
 
+# Dynamic run name based on app name from mutation response
+# Shows app name instead of "android_build" in GitHub Actions UI
+run-name: ${{ github.event.client_payload.app_name || 'Android Build' }}
+
 permissions:
   contents: write
  
@@ -41,6 +45,8 @@ jobs:
           if [ -n "${{ env.APP_NAME }}" ]; then
             echo "✅ App Name from mutation: ${{ env.APP_NAME }}"
             echo "APP_NAME=${{ env.APP_NAME }}" >> $GITHUB_ENV
+            # Update workflow run name to show app name (if supported by GitHub API)
+            echo "::notice title=App Name::Building for app: ${{ env.APP_NAME }}"
           else
             echo "⚠️ No app name from mutation, will fetch or use default"
           fi
