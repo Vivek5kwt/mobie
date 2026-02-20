@@ -102,6 +102,36 @@ jobs:
             echo "✅ Updated app.json with app name: ${{ env.APP_NAME }}"
           fi
 
+      - name: Install ImageMagick for icon resizing
+        if: env.APP_LOGO != ''
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y imagemagick || echo "⚠️ ImageMagick installation failed, will use fallback"
+
+      - name: Download and Update App Icon
+        env:
+          APP_LOGO: ${{ env.APP_LOGO }}
+        run: |
+          if [ -n "${APP_LOGO}" ]; then
+            echo "📥 Downloading app icon from: ${APP_LOGO}"
+            node scripts/update-app-icon.js
+            echo "✅ App icon update completed"
+          else
+            echo "⚠️ No app logo provided, skipping icon update"
+          fi
+
+      - name: Copy app.json to Android assets
+        run: |
+          # Ensure app.json exists (create default if not)
+          if [ ! -f app.json ]; then
+            echo '{"name":"MobiDrag","displayName":"MobiDrag"}' > app.json
+            echo "⚠️ Created default app.json"
+          fi
+          mkdir -p android/app/src/main/assets
+          cp app.json android/app/src/main/assets/app.json
+          echo "✅ Copied app.json to Android assets"
+          echo "📄 App name in app.json: $(node -p "require('./app.json').name")"
+
       - name: Build React with App ID
         env:
           REACT_APP_APP_ID: ${{ env.APP_ID }}
