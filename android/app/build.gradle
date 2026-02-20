@@ -41,6 +41,24 @@ android {
         targetSdkVersion rootProject.ext.targetSdkVersion
         versionCode 1
         versionName "1.0"
+        
+        // Read app name from app.json to ensure consistency with React Native bundle
+        def appJsonFile = file("../../app.json")
+        def appName = "MobiDrag"
+        if (appJsonFile.exists()) {
+            try {
+                def appJsonText = appJsonFile.text
+                // Simple JSON parsing to extract "name" field
+                def nameMatch = appJsonText =~ /"name"\s*:\s*"([^"]+)"/ 
+                if (nameMatch) {
+                    appName = nameMatch[0][1]
+                }
+            } catch (Exception e) {
+                println "Warning: Could not parse app.json, using default app name: ${e.message}"
+            }
+        }
+        buildConfigField "String", "APP_NAME", "\"${appName}\""
+        println "BuildConfig.APP_NAME will be set to: ${appName}"
     }
 
     signingConfigs {

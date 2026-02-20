@@ -10,20 +10,16 @@ class MainActivity : ReactActivity() {
   /**
    * Returns the name of the main component registered from JavaScript. This is used to schedule
    * rendering of the component.
-   * Reads from app.json in assets folder (copied during build)
+   * Uses BuildConfig.APP_NAME which is set from app.json during build to ensure consistency
    */
   override fun getMainComponentName(): String {
     return try {
-      // Read app name from app.json in assets (copied during build)
-      val inputStream = assets.open("app.json")
-      val json = inputStream.bufferedReader().use { it.readText() }
-      val appJson = org.json.JSONObject(json)
-      val appName = appJson.optString("name", "MobiDrag")
-      inputStream.close()
-      appName
+      // Use BuildConfig.APP_NAME which is set from app.json during Gradle build
+      // This ensures it matches the app name used when React Native bundle was created
+      com.mobidrag.BuildConfig.APP_NAME
     } catch (e: Exception) {
-      // Fallback to default if app.json can't be read
-      android.util.Log.e("MainActivity", "Error reading app.json: ${e.message}")
+      // Fallback to default if BuildConfig is not available
+      android.util.Log.e("MainActivity", "Error reading BuildConfig.APP_NAME: ${e.message}")
       "MobiDrag"
     }
   }
