@@ -13,46 +13,67 @@ class MainActivity : ReactActivity() {
    * Uses BuildConfig.APP_NAME which is set from app.json during build to ensure consistency
    */
   override fun getMainComponentName(): String {
-    return try {
-      // Try to read app name from app.json in assets first (most reliable)
+    var appName: String? = null
+    
+    // Method 1: Read from app.json in assets (most reliable)
+    try {
+      // List available assets for debugging
+      val assetFiles = assets.list("")
+      android.util.Log.d("MainActivity", "📁 Available assets: ${assetFiles?.joinToString(", ") ?: "none"}")
+      
       val inputStream = assets.open("app.json")
       val json = inputStream.bufferedReader().use { it.readText() }
+      android.util.Log.d("MainActivity", "📄 app.json content: $json")
+      
       val appJson = org.json.JSONObject(json)
-      val appName = appJson.optString("name", null)
+      appName = appJson.optString("name", null)
       inputStream.close()
       
-      if (appName != null && appName.isNotEmpty()) {
-        android.util.Log.d("MainActivity", "Using app name from app.json: $appName")
+      if (!appName.isNullOrEmpty()) {
+        android.util.Log.i("MainActivity", "✅ Using app name from app.json: $appName")
+        return appName
+      } else {
+        android.util.Log.w("MainActivity", "⚠️ app.json 'name' field is empty or null")
+      }
+    } catch (e: java.io.FileNotFoundException) {
+      android.util.Log.e("MainActivity", "❌ app.json not found in assets: ${e.message}")
+    } catch (e: org.json.JSONException) {
+      android.util.Log.e("MainActivity", "❌ Invalid JSON in app.json: ${e.message}")
+    } catch (e: Exception) {
+      android.util.Log.e("MainActivity", "❌ Error reading app.json: ${e.message}", e)
+    }
+    
+    // Method 2: Try BuildConfig from application package (not MainActivity package)
+    try {
+      // Get the actual application package name (where BuildConfig is generated)
+      val applicationPackageName = applicationContext.packageName
+      @Suppress("UNCHECKED_CAST")
+      val buildConfigClass = Class.forName("$applicationPackageName.BuildConfig")
+      val appNameField = buildConfigClass.getField("APP_NAME")
+      appName = appNameField.get(null) as? String
+      
+      if (!appName.isNullOrEmpty()) {
+        android.util.Log.i("MainActivity", "✅ Using app name from BuildConfig ($applicationPackageName): $appName")
+        return appName
+      }
+    } catch (e: ClassNotFoundException) {
+      android.util.Log.w("MainActivity", "⚠️ BuildConfig not found in application package")
+    } catch (e: Exception) {
+      android.util.Log.w("MainActivity", "⚠️ Error reading BuildConfig: ${e.message}")
+    }
+    
+    // Method 3: Read from strings.xml
+    try {
+      appName = resources.getString(R.string.app_name)
+      if (!appName.isNullOrEmpty()) {
+        android.util.Log.i("MainActivity", "✅ Using app name from strings.xml: $appName")
         return appName
       }
     } catch (e: Exception) {
-      android.util.Log.w("MainActivity", "Could not read app.json from assets: ${e.message}")
+      android.util.Log.w("MainActivity", "⚠️ Error reading strings.xml: ${e.message}")
     }
     
-    // Fallback 1: Try BuildConfig (only works if in same package)
-    try {
-      BuildConfig.APP_NAME.let { appName ->
-        if (appName.isNotEmpty()) {
-          android.util.Log.d("MainActivity", "✅ Using app name from BuildConfig: $appName")
-          return appName
-        }
-      }
-    } catch (e: Exception) {
-      android.util.Log.w("MainActivity", "⚠️ Could not read BuildConfig.APP_NAME: ${e.message}")
-    }
-    
-    // Fallback 2: Read from strings.xml
-    try {
-      val appName = resources.getString(R.string.app_name)
-      if (appName.isNotEmpty()) {
-        android.util.Log.d("MainActivity", "✅ Using app name from strings.xml: $appName")
-        return appName
-      }
-    } catch (e: Exception) {
-      android.util.Log.w("MainActivity", "⚠️ Could not read app name from strings.xml: ${e.message}")
-    }
-    
-    // Final fallback
+    // Final fallback - use default
     android.util.Log.e("MainActivity", "❌ All methods failed, using default: MobiDrag")
     return "MobiDrag"
   }
