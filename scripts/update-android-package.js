@@ -107,20 +107,56 @@ const oldPackagePath = path.join(__dirname, '..', 'android', 'app', 'src', 'main
 const newPackageSegments = PACKAGE_NAME.split('.');
 const newPackagePath = path.join(__dirname, '..', 'android', 'app', 'src', 'main', 'java', ...newPackageSegments);
 
+// Find existing package location (could be old location or previous package location)
+let sourcePackagePath = oldPackagePath;
+if (!fs.existsSync(oldPackagePath)) {
+  // Check if files are in a previous package location (e.g., com/mobidrag/builder/app160/)
+  const javaBasePath = path.join(__dirname, '..', 'android', 'app', 'src', 'main', 'java');
+  if (fs.existsSync(javaBasePath)) {
+    const comPath = path.join(javaBasePath, 'com');
+    if (fs.existsSync(comPath)) {
+      const mobidragPath = path.join(comPath, 'mobidrag');
+      if (fs.existsSync(mobidragPath)) {
+        // Look for MainActivity.kt or MainApplication.kt in any subdirectory
+        const findKotlinFiles = (dir) => {
+          const entries = fs.readdirSync(dir, { withFileTypes: true });
+          for (const entry of entries) {
+            const fullPath = path.join(dir, entry.name);
+            if (entry.isFile() && (entry.name === 'MainActivity.kt' || entry.name === 'MainApplication.kt')) {
+              return path.dirname(fullPath);
+            }
+            if (entry.isDirectory()) {
+              const found = findKotlinFiles(fullPath);
+              if (found) return found;
+            }
+          }
+          return null;
+        };
+        const foundPath = findKotlinFiles(mobidragPath);
+        if (foundPath && foundPath !== newPackagePath) {
+          sourcePackagePath = foundPath;
+          console.log(`📁 Found existing files in: ${sourcePackagePath}`);
+        }
+      }
+    }
+  }
+}
+
 // Always check both old and new locations
 const oldPathExists = fs.existsSync(oldPackagePath);
+const sourcePathExists = fs.existsSync(sourcePackagePath);
 const newPathExists = fs.existsSync(newPackagePath);
 
 console.log(`📁 Package structure update:`);
-console.log(`   Old path: ${oldPackagePath}`);
-console.log(`   Old path exists: ${oldPathExists}`);
+console.log(`   Source path: ${sourcePackagePath}`);
+console.log(`   Source path exists: ${sourcePathExists}`);
 console.log(`   New path: ${newPackagePath}`);
 console.log(`   New path exists: ${newPathExists}`);
 console.log(`   Target package: ${PACKAGE_NAME}`);
 
-// If package name changed and old path exists, move files
-if (PACKAGE_NAME !== 'com.mobidrag' && oldPathExists) {
-  console.log(`📦 Moving files from old package to new package...`);
+// If package name changed and source path exists (and is different from new path), move files
+if (PACKAGE_NAME !== 'com.mobidrag' && sourcePathExists && sourcePackagePath !== newPackagePath) {
+  console.log(`📦 Moving files from ${sourcePackagePath} to new package...`);
   
   // Create new directory structure
   if (!newPathExists) {
@@ -129,26 +165,36 @@ if (PACKAGE_NAME !== 'com.mobidrag' && oldPathExists) {
   }
   
   // Move and update files
-  const files = fs.readdirSync(oldPackagePath);
+  const files = fs.readdirSync(sourcePackagePath);
   let movedCount = 0;
   
   files.forEach(file => {
-    const oldFile = path.join(oldPackagePath, file);
+    const oldFile = path.join(sourcePackagePath, file);
     const newFile = path.join(newPackagePath, file);
     
     if (fs.statSync(oldFile).isFile() && (file.endsWith('.kt') || file.endsWith('.java'))) {
       let content = fs.readFileSync(oldFile, 'utf8');
       
-      // Update package declaration - match any whitespace or semicolon after package name
-      content = content.replace(/package\s+com\.mobidrag(\s|;|$)/g, `package ${PACKAGE_NAME}$1`);
+      // Update package declaration - match any package name and replace with new one
+      // Handle both old package (com.mobidrag) and any previous package (com.mobidrag.builder.appXXX)
+      const packageRegex = /package\s+[^\s;]+(\s|;|$)/g;
+      content = content.replace(packageRegex, `package ${PACKAGE_NAME}$1`);
       
       // Update BuildConfig reference - use relative reference since it's in the same package
-      content = content.replace(/com\.mobidrag\.BuildConfig/g, 'BuildConfig');
+      content = content.replace(/com\.mobidrag(?:\.builder\.app\d+)?\.BuildConfig/g, 'BuildConfig');
+      
+      // Ensure new directory exists
+      const newDir = path.dirname(newFile);
+      if (!fs.existsSync(newDir)) {
+        fs.mkdirSync(newDir, { recursive: true });
+        console.log(`✅ Created directory: ${newDir}`);
+      }
       
       // Write to new location
       fs.writeFileSync(newFile, content, 'utf8');
       movedCount++;
-      console.log(`✅ Copied and updated: ${file}`);
+      console.log(`✅ Copied and updated: ${file} -> ${newFile}`);
+      console.log(`   Package updated to: ${PACKAGE_NAME}`);
       
       // Delete old file after successful copy
       try {
@@ -158,6 +204,7 @@ if (PACKAGE_NAME !== 'com.mobidrag' && oldPathExists) {
         }
       } catch (e) {
         console.log(`⚠️ Could not delete old file: ${e.message}`);
+        // Don't fail the build, but log the error
       }
     }
   });
