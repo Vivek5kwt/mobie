@@ -102,4 +102,109 @@ if (fs.existsSync(googleServicesPath)) {
   console.log('⚠️ google-services.json not found, skipping update');
 }
 
+// Update Kotlin/Java package structure
+const oldPackagePath = path.join(__dirname, '..', 'android', 'app', 'src', 'main', 'java', 'com', 'mobidrag');
+const newPackageSegments = PACKAGE_NAME.split('.');
+const newPackagePath = path.join(__dirname, '..', 'android', 'app', 'src', 'main', 'java', ...newPackageSegments);
+
+// Check if we need to move files (only if package name changed)
+const needsMove = PACKAGE_NAME !== 'com.mobidrag' && fs.existsSync(oldPackagePath);
+
+if (needsMove) {
+  console.log(`📁 Moving Kotlin files from ${oldPackagePath} to ${newPackagePath}`);
+  
+  // Create new directory structure
+  fs.mkdirSync(newPackagePath, { recursive: true });
+  
+  // Move and update files
+  const files = fs.readdirSync(oldPackagePath);
+  let movedCount = 0;
+  
+  files.forEach(file => {
+    const oldFile = path.join(oldPackagePath, file);
+    const newFile = path.join(newPackagePath, file);
+    
+    if (fs.statSync(oldFile).isFile() && (file.endsWith('.kt') || file.endsWith('.java'))) {
+      let content = fs.readFileSync(oldFile, 'utf8');
+      
+      // Update package declaration
+      const packageRegex = /package\s+com\.mobidrag(\s|;|$)/g;
+      if (packageRegex.test(content)) {
+        content = content.replace(packageRegex, `package ${PACKAGE_NAME}$1`);
+      }
+      
+      // Update BuildConfig reference - use relative reference since it's in the same package
+      // Replace any explicit package references like com.mobidrag.BuildConfig with just BuildConfig
+      content = content.replace(/com\.mobidrag\.BuildConfig/g, 'BuildConfig');
+      
+      fs.writeFileSync(newFile, content, 'utf8');
+      movedCount++;
+      console.log(`✅ Moved and updated: ${file}`);
+    }
+  });
+  
+  if (movedCount > 0) {
+    // Remove old directory if empty
+    try {
+      const remainingFiles = fs.readdirSync(oldPackagePath);
+      if (remainingFiles.length === 0) {
+        fs.rmdirSync(oldPackagePath);
+        console.log(`✅ Removed old package directory`);
+      } else {
+        console.log(`⚠️ Old package directory not empty, keeping it`);
+      }
+    } catch (e) {
+      console.log(`⚠️ Could not remove old package directory: ${e.message}`);
+    }
+    
+    console.log(`✅ Updated Kotlin package structure (moved ${movedCount} files)`);
+  } else {
+    console.log('⚠️ No Kotlin/Java files found to move');
+  }
+} else if (PACKAGE_NAME === 'com.mobidrag') {
+  // Package name hasn't changed, just update package declarations in place
+  if (fs.existsSync(oldPackagePath)) {
+    const files = fs.readdirSync(oldPackagePath);
+    files.forEach(file => {
+      const filePath = path.join(oldPackagePath, file);
+      if (fs.statSync(filePath).isFile() && (file.endsWith('.kt') || file.endsWith('.java'))) {
+        let content = fs.readFileSync(filePath, 'utf8');
+        const originalContent = content;
+        
+        // Update BuildConfig reference if needed
+        content = content.replace(/com\.mobidrag\.BuildConfig/g, 'BuildConfig');
+        
+        if (content !== originalContent) {
+          fs.writeFileSync(filePath, content, 'utf8');
+          console.log(`✅ Updated: ${file}`);
+        }
+      }
+    });
+  }
+} else {
+  // Files might already be in the new location, just update package declarations
+  if (fs.existsSync(newPackagePath)) {
+    const files = fs.readdirSync(newPackagePath);
+    files.forEach(file => {
+      const filePath = path.join(newPackagePath, file);
+      if (fs.statSync(filePath).isFile() && (file.endsWith('.kt') || file.endsWith('.java'))) {
+        let content = fs.readFileSync(filePath, 'utf8');
+        const originalContent = content;
+        
+        // Update package declaration if it's still old
+        content = content.replace(/package\s+com\.mobidrag(\s|;|$)/g, `package ${PACKAGE_NAME}$1`);
+        // Update BuildConfig reference
+        content = content.replace(/com\.mobidrag\.BuildConfig/g, 'BuildConfig');
+        
+        if (content !== originalContent) {
+          fs.writeFileSync(filePath, content, 'utf8');
+          console.log(`✅ Updated: ${file}`);
+        }
+      }
+    });
+  } else {
+    console.log('⚠️ Package directory not found, files may need to be created manually');
+  }
+}
+
 console.log('✅ Android package update completed');
