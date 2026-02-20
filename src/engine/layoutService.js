@@ -1,11 +1,17 @@
 import { client } from "../apollo/client";
 import LAYOUT_VERSION_QUERY from "../graphql/queries/layoutVersionQuery";
+import { resolveAppId } from "../utils/appId";
 
 export async function fetchLayoutDSL(appId) {
   try {
+    // Resolve appId dynamically (from GitHub Actions or provided value)
+    const resolvedAppId = resolveAppId(appId);
+    const appIdInt = Number.isInteger(resolvedAppId) ? resolvedAppId : Math.floor(Number(resolvedAppId));
+    console.log(`🔍 fetchLayoutDSL: Using appId ${appIdInt}`);
+    
     const response = await client.query({
       query: LAYOUT_VERSION_QUERY,
-      variables: { appId },
+      variables: { appId: appIdInt },
       fetchPolicy: "no-cache",
     });
 
