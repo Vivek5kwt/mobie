@@ -196,11 +196,27 @@ jobs:
 
       - name: Copy app.json to Android assets
         run: |
-          # Ensure app.json exists (create default if not)
+          # Ensure app.json exists and is up-to-date (create default if not)
           if [ ! -f app.json ]; then
             echo '{"name":"MobiDrag","displayName":"MobiDrag"}' > app.json
             echo "⚠️ Created default app.json"
           fi
+          
+          # Verify app.json has the correct app name
+          CURRENT_NAME=$(node -p "require('./app.json').name || 'MobiDrag'")
+          EXPECTED_NAME="${{ env.APP_NAME }}"
+          if [ -n "${EXPECTED_NAME}" ] && [ "${CURRENT_NAME}" != "${EXPECTED_NAME}" ]; then
+            echo "⚠️ app.json name (${CURRENT_NAME}) doesn't match expected (${EXPECTED_NAME}), updating..."
+            node -e "
+              const fs = require('fs');
+              const appJson = JSON.parse(fs.readFileSync('app.json', 'utf8'));
+              appJson.name = '${EXPECTED_NAME}';
+              appJson.displayName = '${EXPECTED_NAME}';
+              fs.writeFileSync('app.json', JSON.stringify(appJson, null, 2));
+            "
+            echo "✅ Updated app.json with app name: ${EXPECTED_NAME}"
+          fi
+          
           mkdir -p android/app/src/main/assets
           cp app.json android/app/src/main/assets/app.json
           echo "✅ Copied app.json to Android assets"
