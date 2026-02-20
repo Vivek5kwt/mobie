@@ -18,12 +18,47 @@ const APP_ID = process.env.APP_ID;
 const APP_NAME = process.env.APP_NAME || 'MobiDrag';
 const CUSTOM_PACKAGE_NAME = process.env.PACKAGE_NAME;
 
-// Generate package name: com.mobidrag.builder.{APP_ID}
-const PACKAGE_NAME = CUSTOM_PACKAGE_NAME || `com.mobidrag.builder.${APP_ID}`;
+/**
+ * Fixes package name by prefixing numeric-only segments with "app"
+ * @param {string} packageName - The package name to fix
+ * @returns {string} - Fixed package name
+ */
+function fixPackageName(packageName) {
+  if (!packageName || packageName.length === 0) {
+    return packageName;
+  }
+
+  // Split into segments
+  const segments = packageName.split('.');
+  
+  // Fix each segment that starts with a number
+  const fixedSegments = segments.map(segment => {
+    // If segment starts with a number, prefix with "app"
+    if (/^[0-9]/.test(segment)) {
+      return `app${segment}`;
+    }
+    return segment;
+  });
+  
+  return fixedSegments.join('.');
+}
+
+// Generate package name: com.mobidrag.builder.app{APP_ID} (prefix numeric IDs with "app")
+let PACKAGE_NAME = CUSTOM_PACKAGE_NAME || `com.mobidrag.builder.app${APP_ID}`;
 
 if (!APP_ID) {
   console.error('❌ APP_ID environment variable is required');
   process.exit(1);
+}
+
+// Fix package name if it has numeric-only segments
+const originalPackageName = PACKAGE_NAME;
+PACKAGE_NAME = fixPackageName(PACKAGE_NAME);
+
+if (originalPackageName !== PACKAGE_NAME) {
+  console.log(`🔧 Auto-fixed package name:`);
+  console.log(`   Original: ${originalPackageName}`);
+  console.log(`   Fixed:    ${PACKAGE_NAME}`);
 }
 
 /**
@@ -55,10 +90,10 @@ function validatePackageName(packageName) {
   return { valid: true };
 }
 
-// Validate package name
+// Validate package name (after fixing)
 const validation = validatePackageName(PACKAGE_NAME);
 if (!validation.valid) {
-  console.error(`❌ Invalid package name: ${validation.error}`);
+  console.error(`❌ Invalid package name after auto-fix: ${validation.error}`);
   console.error(`   Package name: ${PACKAGE_NAME}`);
   process.exit(1);
 }

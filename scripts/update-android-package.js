@@ -8,13 +8,40 @@
 const fs = require('fs');
 const path = require('path');
 
+/**
+ * Fixes package name by prefixing numeric-only segments with "app"
+ */
+function fixPackageName(packageName) {
+  if (!packageName || packageName.length === 0) {
+    return packageName;
+  }
+  const segments = packageName.split('.');
+  const fixedSegments = segments.map(segment => {
+    if (/^[0-9]/.test(segment)) {
+      return `app${segment}`;
+    }
+    return segment;
+  });
+  return fixedSegments.join('.');
+}
+
 const APP_ID = process.env.APP_ID;
 const APP_NAME = process.env.APP_NAME || 'MobiDrag';
-const PACKAGE_NAME = process.env.PACKAGE_NAME || `com.mobidrag.builder.${APP_ID}`;
+let PACKAGE_NAME = process.env.PACKAGE_NAME || `com.mobidrag.builder.app${APP_ID}`;
 
 if (!APP_ID) {
   console.error('❌ APP_ID is required');
   process.exit(1);
+}
+
+// Fix package name if it has numeric-only segments
+const originalPackageName = PACKAGE_NAME;
+PACKAGE_NAME = fixPackageName(PACKAGE_NAME);
+
+if (originalPackageName !== PACKAGE_NAME) {
+  console.log(`🔧 Auto-fixed package name:`);
+  console.log(`   Original: ${originalPackageName}`);
+  console.log(`   Fixed:    ${PACKAGE_NAME}`);
 }
 
 console.log(`📦 Updating Android package: ${PACKAGE_NAME}`);
