@@ -143,6 +143,22 @@ jobs:
             echo "✅ Package name and app name updated"
             echo "📱 Package: ${PACKAGE_NAME}"
             echo "📱 App Name: ${APP_NAME}"
+            
+            # Verify files were moved correctly
+            OLD_PATH="android/app/src/main/java/com/mobidrag"
+            NEW_PATH="android/app/src/main/java/$(echo ${PACKAGE_NAME} | tr '.' '/')"
+            if [ -d "${OLD_PATH}" ]; then
+              echo "⚠️ WARNING: Old package directory still exists: ${OLD_PATH}"
+              echo "📋 Contents:"
+              ls -la "${OLD_PATH}" || echo "Could not list contents"
+            fi
+            if [ -d "${NEW_PATH}" ]; then
+              echo "✅ New package directory exists: ${NEW_PATH}"
+              echo "📋 Contents:"
+              ls -la "${NEW_PATH}" || echo "Could not list contents"
+            else
+              echo "⚠️ WARNING: New package directory not found: ${NEW_PATH}"
+            fi
           else
             echo "⚠️ APP_ID not set, skipping package name update"
           fi
