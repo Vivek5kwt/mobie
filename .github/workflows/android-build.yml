@@ -96,10 +96,29 @@ jobs:
           if [ -n "${CUSTOM_PACKAGE}" ]; then
             PACKAGE_NAME="${CUSTOM_PACKAGE}"
           else
-            PACKAGE_NAME="com.mobidrag.builder.${APP_ID}"
+            # Generate with app prefix: com.mobidrag.builder.app{APP_ID}
+            PACKAGE_NAME="com.mobidrag.builder.app${APP_ID}"
           fi
           echo "PACKAGE_NAME=${PACKAGE_NAME}" >> $GITHUB_ENV
           echo "📦 Generated package name: ${PACKAGE_NAME}"
+
+      - name: Fix Package Name (Auto-fix numeric segments)
+        env:
+          PACKAGE_NAME: ${{ env.PACKAGE_NAME }}
+        run: |
+          if [ -n "${PACKAGE_NAME}" ]; then
+            echo "🔧 Checking and fixing package name..."
+            # Capture only the last line (package name) from script output
+            FIXED_PACKAGE=$(node scripts/fix-package-name.js "${PACKAGE_NAME}" 2>&1 | tail -n 1)
+            if [ "${FIXED_PACKAGE}" != "${PACKAGE_NAME}" ]; then
+              echo "✅ Auto-fixed package name:"
+              echo "   Original: ${PACKAGE_NAME}"
+              echo "   Fixed:    ${FIXED_PACKAGE}"
+              echo "PACKAGE_NAME=${FIXED_PACKAGE}" >> $GITHUB_ENV
+            else
+              echo "✅ Package name is already valid: ${PACKAGE_NAME}"
+            fi
+          fi
 
       - name: Validate Package Name
         env:
@@ -209,13 +228,15 @@ jobs:
           APK_PATH="android/app/build/outputs/apk/release/app-release.apk"
           if [ -n "${APP_NAME}" ]; then
             # Use app name for APK filename (sanitize for filesystem)
+            # Format: appname.apk (no build number, no app ID)
             SANITIZED_NAME=$(echo "${APP_NAME}" | tr '[:upper:]' '[:lower:]' | tr ' ' '-' | sed 's/[^a-z0-9-]//g')
-            APK_NAME="${SANITIZED_NAME}-${GITHUB_RUN_NUMBER}.apk"
+            APK_NAME="${SANITIZED_NAME}.apk"
           else
-            APK_NAME="${APP_ID:-app}-${GITHUB_RUN_NUMBER}.apk"
+            APK_NAME="app.apk"
           fi
           cp "$APK_PATH" "$APK_NAME"
           echo "apk_name=$APK_NAME" >> "$GITHUB_OUTPUT"
+          echo "apk_path=$APK_NAME" >> "$GITHUB_OUTPUT"
           echo "✅ APK prepared: $APK_NAME"
 
       - name: Create GitHub release with APK
@@ -240,13 +261,20 @@ jobs:
           echo "📦 Creating release: ${RELEASE_NAME}"
           echo "🏷️  Tag: ${TAG_NAME}"
 
+          # Create release with APK as downloadable asset
           gh release create "$TAG_NAME" \
             "${{ steps.prepare_apk.outputs.apk_name }}" \
             --title "$RELEASE_NAME" \
             --notes "$RELEASE_NOTES" \
-            --latest=false
-
-          ASSET_URL=$(gh release view "$TAG_NAME" --json assets -q '.assets[0].url')
+            --latest=false || echo "⚠️ Release may already exist, continuing..."
+          
+          # Get the asset download URL for users
+          ASSET_URL=$(gh release view "$TAG_NAME" --json assets -q '.assets[0].browser_download_url' 2>/dev/null || echo "")
+          if [ -z "$ASSET_URL" ]; then
+            # If release exists, upload the APK as an asset
+            gh release upload "$TAG_NAME" "${{ steps.prepare_apk.outputs.apk_name }}" --clobber 2>/dev/null || echo "⚠️ Could not upload APK"
+            ASSET_URL=$(gh release view "$TAG_NAME" --json assets -q '.assets[0].browser_download_url' 2>/dev/null || echo "")
+          fi
           {
             echo "### Android build generated"
             if [ -n "${APP_NAME}" ] && [ "${APP_NAME}" != "App-${APP_ID}" ]; then

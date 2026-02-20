@@ -5,12 +5,39 @@
  * Package names must follow Java package naming conventions
  */
 
-const PACKAGE_NAME = process.env.PACKAGE_NAME || process.argv[2];
+/**
+ * Fixes package name by prefixing numeric-only segments with "app"
+ */
+function fixPackageName(packageName) {
+  if (!packageName || packageName.length === 0) {
+    return packageName;
+  }
+  const segments = packageName.split('.');
+  const fixedSegments = segments.map(segment => {
+    if (/^[0-9]/.test(segment)) {
+      return `app${segment}`;
+    }
+    return segment;
+  });
+  return fixedSegments.join('.');
+}
+
+let PACKAGE_NAME = process.env.PACKAGE_NAME || process.argv[2];
 
 if (!PACKAGE_NAME) {
   console.error('❌ Package name is required');
   console.log('Usage: node scripts/validate-package-name.js <package_name>');
   process.exit(1);
+}
+
+// Auto-fix package name before validation
+const originalPackageName = PACKAGE_NAME;
+PACKAGE_NAME = fixPackageName(PACKAGE_NAME);
+
+if (originalPackageName !== PACKAGE_NAME) {
+  console.log(`🔧 Auto-fixed package name:`);
+  console.log(`   Original: ${originalPackageName}`);
+  console.log(`   Fixed:    ${PACKAGE_NAME}\n`);
 }
 
 // Validation rules
@@ -73,13 +100,17 @@ console.log('');
 
 if (isValid) {
   console.log('✅ Package name is valid!');
+  // Output the fixed/validated package name for use in scripts
+  console.log(`\n📦 Validated package name: ${PACKAGE_NAME}`);
   process.exit(0);
 } else {
   console.error('❌ Package name validation failed:\n');
   errors.forEach(error => console.error(error));
   console.error('\nExample valid package names:');
-  console.error('  - com.mobidrag.builder.123');
+  console.error('  - com.mobidrag.builder.app123');
   console.error('  - com.mycompany.myapp');
   console.error('  - io.example.app123');
+  console.error('\n💡 Tip: Numeric-only segments are auto-prefixed with "app"');
+  console.error('   Example: com.example.123 -> com.example.app123');
   process.exit(1);
 }
