@@ -107,14 +107,26 @@ const oldPackagePath = path.join(__dirname, '..', 'android', 'app', 'src', 'main
 const newPackageSegments = PACKAGE_NAME.split('.');
 const newPackagePath = path.join(__dirname, '..', 'android', 'app', 'src', 'main', 'java', ...newPackageSegments);
 
-// Check if we need to move files (only if package name changed)
-const needsMove = PACKAGE_NAME !== 'com.mobidrag' && fs.existsSync(oldPackagePath);
+// Always check both old and new locations
+const oldPathExists = fs.existsSync(oldPackagePath);
+const newPathExists = fs.existsSync(newPackagePath);
 
-if (needsMove) {
-  console.log(`📁 Moving Kotlin files from ${oldPackagePath} to ${newPackagePath}`);
+console.log(`📁 Package structure update:`);
+console.log(`   Old path: ${oldPackagePath}`);
+console.log(`   Old path exists: ${oldPathExists}`);
+console.log(`   New path: ${newPackagePath}`);
+console.log(`   New path exists: ${newPathExists}`);
+console.log(`   Target package: ${PACKAGE_NAME}`);
+
+// If package name changed and old path exists, move files
+if (PACKAGE_NAME !== 'com.mobidrag' && oldPathExists) {
+  console.log(`📦 Moving files from old package to new package...`);
   
   // Create new directory structure
-  fs.mkdirSync(newPackagePath, { recursive: true });
+  if (!newPathExists) {
+    fs.mkdirSync(newPackagePath, { recursive: true });
+    console.log(`✅ Created new package directory: ${newPackagePath}`);
+  }
   
   // Move and update files
   const files = fs.readdirSync(oldPackagePath);
@@ -127,31 +139,63 @@ if (needsMove) {
     if (fs.statSync(oldFile).isFile() && (file.endsWith('.kt') || file.endsWith('.java'))) {
       let content = fs.readFileSync(oldFile, 'utf8');
       
-      // Update package declaration
-      const packageRegex = /package\s+com\.mobidrag(\s|;|$)/g;
-      if (packageRegex.test(content)) {
-        content = content.replace(packageRegex, `package ${PACKAGE_NAME}$1`);
-      }
+      // Update package declaration - match any whitespace or semicolon after package name
+      content = content.replace(/package\s+com\.mobidrag(\s|;|$)/g, `package ${PACKAGE_NAME}$1`);
       
       // Update BuildConfig reference - use relative reference since it's in the same package
-      // Replace any explicit package references like com.mobidrag.BuildConfig with just BuildConfig
       content = content.replace(/com\.mobidrag\.BuildConfig/g, 'BuildConfig');
       
+      // Write to new location
       fs.writeFileSync(newFile, content, 'utf8');
       movedCount++;
-      console.log(`✅ Moved and updated: ${file}`);
+      console.log(`✅ Copied and updated: ${file}`);
+      
+      // Delete old file after successful copy
+      try {
+        if (fs.existsSync(oldFile)) {
+          fs.unlinkSync(oldFile);
+          console.log(`✅ Deleted old file: ${oldFile}`);
+        }
+      } catch (e) {
+        console.log(`⚠️ Could not delete old file: ${e.message}`);
+      }
     }
   });
   
   if (movedCount > 0) {
-    // Remove old directory if empty
+    // Force cleanup: Remove all remaining files in old directory
     try {
       const remainingFiles = fs.readdirSync(oldPackagePath);
-      if (remainingFiles.length === 0) {
+      if (remainingFiles.length > 0) {
+        console.log(`🧹 Cleaning up ${remainingFiles.length} remaining files in old directory...`);
+        remainingFiles.forEach(file => {
+          const filePath = path.join(oldPackagePath, file);
+          try {
+            if (fs.statSync(filePath).isFile()) {
+              fs.unlinkSync(filePath);
+              console.log(`✅ Removed: ${file}`);
+            }
+          } catch (e) {
+            console.log(`⚠️ Could not remove ${file}: ${e.message}`);
+          }
+        });
+      }
+      
+      // Now remove the directory if empty
+      const finalCheck = fs.readdirSync(oldPackagePath);
+      if (finalCheck.length === 0) {
         fs.rmdirSync(oldPackagePath);
         console.log(`✅ Removed old package directory`);
       } else {
-        console.log(`⚠️ Old package directory not empty, keeping it`);
+        // Last resort: try recursive removal
+        console.log(`⚠️ Directory still has files, attempting recursive removal...`);
+        try {
+          const { execSync } = require('child_process');
+          execSync(`rm -rf "${oldPackagePath}"`, { stdio: 'inherit' });
+          console.log(`✅ Recursively removed old package directory`);
+        } catch (e) {
+          console.log(`⚠️ Recursive removal failed: ${e.message}`);
+        }
       }
     } catch (e) {
       console.log(`⚠️ Could not remove old package directory: ${e.message}`);
@@ -161,49 +205,47 @@ if (needsMove) {
   } else {
     console.log('⚠️ No Kotlin/Java files found to move');
   }
-} else if (PACKAGE_NAME === 'com.mobidrag') {
-  // Package name hasn't changed, just update package declarations in place
-  if (fs.existsSync(oldPackagePath)) {
-    const files = fs.readdirSync(oldPackagePath);
-    files.forEach(file => {
-      const filePath = path.join(oldPackagePath, file);
-      if (fs.statSync(filePath).isFile() && (file.endsWith('.kt') || file.endsWith('.java'))) {
-        let content = fs.readFileSync(filePath, 'utf8');
-        const originalContent = content;
-        
-        // Update BuildConfig reference if needed
-        content = content.replace(/com\.mobidrag\.BuildConfig/g, 'BuildConfig');
-        
-        if (content !== originalContent) {
-          fs.writeFileSync(filePath, content, 'utf8');
-          console.log(`✅ Updated: ${file}`);
-        }
+}
+
+// Also update files in new location if they exist (in case they were already moved)
+if (newPathExists) {
+  const files = fs.readdirSync(newPackagePath);
+  let updatedCount = 0;
+  
+  files.forEach(file => {
+    const filePath = path.join(newPackagePath, file);
+    if (fs.statSync(filePath).isFile() && (file.endsWith('.kt') || file.endsWith('.java'))) {
+      let content = fs.readFileSync(filePath, 'utf8');
+      const originalContent = content;
+      
+      // Update package declaration if it's still old
+      content = content.replace(/package\s+com\.mobidrag(\s|;|$)/g, `package ${PACKAGE_NAME}$1`);
+      // Update BuildConfig reference
+      content = content.replace(/com\.mobidrag\.BuildConfig/g, 'BuildConfig');
+      
+      if (content !== originalContent) {
+        fs.writeFileSync(filePath, content, 'utf8');
+        updatedCount++;
+        console.log(`✅ Updated package in: ${file}`);
       }
-    });
+    }
+  });
+  
+  if (updatedCount > 0) {
+    console.log(`✅ Updated ${updatedCount} files in new package location`);
   }
-} else {
-  // Files might already be in the new location, just update package declarations
-  if (fs.existsSync(newPackagePath)) {
-    const files = fs.readdirSync(newPackagePath);
-    files.forEach(file => {
-      const filePath = path.join(newPackagePath, file);
-      if (fs.statSync(filePath).isFile() && (file.endsWith('.kt') || file.endsWith('.java'))) {
-        let content = fs.readFileSync(filePath, 'utf8');
-        const originalContent = content;
-        
-        // Update package declaration if it's still old
-        content = content.replace(/package\s+com\.mobidrag(\s|;|$)/g, `package ${PACKAGE_NAME}$1`);
-        // Update BuildConfig reference
-        content = content.replace(/com\.mobidrag\.BuildConfig/g, 'BuildConfig');
-        
-        if (content !== originalContent) {
-          fs.writeFileSync(filePath, content, 'utf8');
-          console.log(`✅ Updated: ${file}`);
-        }
-      }
-    });
-  } else {
-    console.log('⚠️ Package directory not found, files may need to be created manually');
+}
+
+// Final cleanup: Ensure old package directory is removed if package name changed
+if (PACKAGE_NAME !== 'com.mobidrag' && fs.existsSync(oldPackagePath)) {
+  console.log(`🧹 Final cleanup: Removing old package directory...`);
+  try {
+    const { execSync } = require('child_process');
+    execSync(`rm -rf "${oldPackagePath}"`, { stdio: 'inherit' });
+    console.log(`✅ Final cleanup: Removed old package directory`);
+  } catch (e) {
+    console.log(`⚠️ Final cleanup failed: ${e.message}`);
+    console.log(`⚠️ Old files may still exist at: ${oldPackagePath}`);
   }
 }
 
