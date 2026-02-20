@@ -33,10 +33,13 @@ jobs:
  
       - name: Show App ID
         run: echo "Building for APP_ID=${APP_ID}"
- 
+
       - name: Build React with App ID
+        env:
+          REACT_APP_APP_ID: ${{ env.APP_ID }}
         run: |
-          export REACT_APP_APP_ID=${APP_ID}
+          echo "🔨 Building React app with REACT_APP_APP_ID=${REACT_APP_APP_ID}"
+          echo "📱 This appId (${REACT_APP_APP_ID}) will be dynamically passed to GraphQL Layouts query"
           npm run build
  
       - name: Setup Java
