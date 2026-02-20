@@ -76,4 +76,30 @@ if (fs.existsSync(stringsPath)) {
   console.log('✅ Updated strings.xml');
 }
 
+// Update google-services.json (critical for Firebase/Google Services)
+const googleServicesPath = path.join(__dirname, '..', 'android', 'app', 'google-services.json');
+if (fs.existsSync(googleServicesPath)) {
+  try {
+    const googleServicesContent = fs.readFileSync(googleServicesPath, 'utf8');
+    const googleServices = JSON.parse(googleServicesContent);
+    
+    // Update package_name in all client entries
+    if (googleServices.client && Array.isArray(googleServices.client)) {
+      googleServices.client.forEach(client => {
+        if (client.client_info && client.client_info.android_client_info) {
+          client.client_info.android_client_info.package_name = PACKAGE_NAME;
+        }
+      });
+    }
+    
+    fs.writeFileSync(googleServicesPath, JSON.stringify(googleServices, null, 2), 'utf8');
+    console.log('✅ Updated google-services.json');
+  } catch (error) {
+    console.error('⚠️ Warning: Could not update google-services.json:', error.message);
+    console.error('   Build may fail if package name does not match');
+  }
+} else {
+  console.log('⚠️ google-services.json not found, skipping update');
+}
+
 console.log('✅ Android package update completed');
