@@ -51,11 +51,15 @@ export default function ProductInfo({ section }) {
   const visibility = unwrapValue(propsNode?.visibility, {});
   const background = unwrapValue(propsNode?.backgroundAndPadding, {});
 
-  const titleText = toString(raw?.titleText || raw?.title, title?.text || "Product title");
+  // Only use actual data, don't show fallback "Product title" if no data exists
+  const titleText = toString(raw?.titleText || raw?.title, title?.text || "");
   const vendorText = toString(raw?.vendorText || raw?.shop, vendor?.text || "");
   const currencySymbol = toString(raw?.currencySymbol, price?.currencySymbol || "$");
   const salePrice = raw?.salePrice ?? price?.salePrice;
   const standardPrice = raw?.standardPrice ?? price?.standardPrice;
+  
+  // Check if we have any actual data to display
+  const hasData = !!(titleText || vendorText || salePrice !== undefined || standardPrice !== undefined);
 
   const showTitle = toBoolean(visibility?.productTitle, true);
   const showVendor = toBoolean(visibility?.vendor, true);
@@ -85,9 +89,12 @@ export default function ProductInfo({ section }) {
     borderColor: toString(background?.borderColor, "#e5e7eb"),
   };
 
+  // Don't render if no data exists
+  if (!hasData) return null;
+
   return (
     <View style={[styles.container, paddingStyle]}>
-      {showTitle && (
+      {showTitle && !!titleText && (
         <Text
           style={[
             styles.title,
@@ -117,9 +124,9 @@ export default function ProductInfo({ section }) {
         </Text>
       )}
 
-      {showPrice && (
+      {showPrice && (salePrice !== undefined || standardPrice !== undefined) && (
         <View style={styles.priceRow}>
-          {showSale && (
+          {showSale && salePrice !== undefined && (
             <Text
               style={[
                 styles.priceSale,
@@ -133,7 +140,7 @@ export default function ProductInfo({ section }) {
               {formatCurrency(salePrice, currencySymbol)}
             </Text>
           )}
-          {showStandard && (
+          {showStandard && standardPrice !== undefined && (
             <Text
               style={[
                 styles.priceStandard,

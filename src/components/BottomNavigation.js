@@ -172,12 +172,24 @@ export default function BottomNavigation({ section, activeIndexOverride }) {
 
   const visibility = unwrapValue(rawProps.visibility, raw?.visibility || {});
   const showIcons = asBoolean(visibility?.icons ?? raw?.showIcons, true);
-  const showLabels = asBoolean(visibility?.labels ?? raw?.showText, true);
+  // Global label visibility setting - can be overridden per item
+  const globalShowLabels = asBoolean(visibility?.labels ?? raw?.showText, true);
   const showBg = asBoolean(visibility?.bgPadding ?? raw?.showBg, true);
   const showActiveIndicator = asBoolean(
     visibility?.activeIndicator ?? raw?.showActiveIndicator,
     isStyle2
   );
+  
+  // Helper to determine if a specific item should show its label
+  const shouldShowItemLabel = (item) => {
+    // Check if item has its own showText or showLabel property
+    const itemShowText = item?.showText ?? item?.showLabel;
+    if (itemShowText !== undefined && itemShowText !== null) {
+      return asBoolean(itemShowText, true);
+    }
+    // Fall back to global setting
+    return globalShowLabels;
+  };
 
   const indicatorMode = unwrapValue(
     raw?.indicatorMode,
@@ -221,7 +233,8 @@ export default function BottomNavigation({ section, activeIndexOverride }) {
     hasActiveIndexOverride ? parsedActiveIndexOverride : resolveActiveIndex(items, rawProps, raw),
     items.length
   );
-  const [activeIndex, setActiveIndex] = useState(resolvedActiveIndex);
+  // Initialize with resolvedActiveIndex to prevent layout shifts
+  const [activeIndex, setActiveIndex] = useState(() => resolvedActiveIndex);
 
   const indicatorColor = unwrapValue(raw?.indicatorColor, `${textActiveColor}22`);
   const indicatorSizeRaw = unwrapValue(raw?.indicatorSize, 24);
@@ -240,9 +253,14 @@ export default function BottomNavigation({ section, activeIndexOverride }) {
     )
   );
 
+  // Sync activeIndex with props to prevent "pop up" effect when navigating
   useEffect(() => {
-    setActiveIndex(resolvedActiveIndex);
-  }, [resolvedActiveIndex, items.length]);
+    if (hasActiveIndexOverride) {
+      setActiveIndex(parsedActiveIndexOverride);
+    } else {
+      setActiveIndex(resolvedActiveIndex);
+    }
+  }, [hasActiveIndexOverride, parsedActiveIndexOverride, resolvedActiveIndex, items.length]);
 
   if (!items.length) return null;
 
@@ -300,6 +318,8 @@ export default function BottomNavigation({ section, activeIndexOverride }) {
           const activeIconColor = indicatorIsBubble ? iconActiveColor : textActiveColor;
           const itemIconColor = isActive ? activeIconColor : iconPrimaryColor;
           const itemTextColor = isActive ? textActiveColor : textPrimaryColor;
+          // Check per-item label visibility - dynamic based on JSON config
+          const itemShowLabel = shouldShowItemLabel(item);
 
           return (
             <TouchableOpacity
@@ -348,7 +368,7 @@ export default function BottomNavigation({ section, activeIndexOverride }) {
                   ]}
                 />
               )}
-              {showLabels && (
+              {itemShowLabel && (
                 <Text
                   numberOfLines={1}
                   style={[
@@ -378,6 +398,8 @@ const styles = StyleSheet.create({
     width: "100%",
     borderTopWidth: StyleSheet.hairlineWidth,
     borderTopColor: "rgba(0,0,0,0.04)",
+    // Prevent layout shifts and "pop up" effects
+    minHeight: 64,
   },
   row: {
     flexDirection: "row",
