@@ -81,10 +81,14 @@ export async function fetchLiveDSL(appId, pageName) {
   try {
     console.log("🔄 Fetching LIVE data from API...");
     const resolvedAppId = resolveAppId(appId);
+    
+    // Ensure appId is an integer for GraphQL query
+    const appIdInt = Number.isInteger(resolvedAppId) ? resolvedAppId : Math.floor(Number(resolvedAppId));
+    console.log(`🔍 Querying layouts with appId: ${appIdInt} (type: ${typeof appIdInt})`);
 
     const res = await client.query({
       query: LAYOUT_VERSION_QUERY,
-      variables: { appId: resolvedAppId },
+      variables: { appId: appIdInt },
       fetchPolicy: "no-cache",
     });
 
