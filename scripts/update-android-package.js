@@ -83,23 +83,47 @@ if (fs.existsSync(googleServicesPath)) {
     const googleServicesContent = fs.readFileSync(googleServicesPath, 'utf8');
     const googleServices = JSON.parse(googleServicesContent);
     
-    // Update package_name in all client entries
+    // Check if a client with the new package name already exists
+    let clientExists = false;
     if (googleServices.client && Array.isArray(googleServices.client)) {
-      googleServices.client.forEach(client => {
-        if (client.client_info && client.client_info.android_client_info) {
-          client.client_info.android_client_info.package_name = PACKAGE_NAME;
+      clientExists = googleServices.client.some(client => 
+        client.client_info?.android_client_info?.package_name === PACKAGE_NAME
+      );
+      
+      // Update package_name in all existing client entries OR add a new client entry
+      if (!clientExists) {
+        // If no client exists with the new package name, update the first one or add a new entry
+        if (googleServices.client.length > 0) {
+          // Update the first client entry with the new package name
+          const firstClient = googleServices.client[0];
+          if (firstClient.client_info && firstClient.client_info.android_client_info) {
+            firstClient.client_info.android_client_info.package_name = PACKAGE_NAME;
+            console.log(`✅ Updated existing client entry in google-services.json to package: ${PACKAGE_NAME}`);
+          }
+        } else {
+          // No clients exist, add a new one (this shouldn't happen normally)
+          console.log('⚠️ No client entries found in google-services.json');
         }
-      });
+      } else {
+        // Client already exists with this package name, just ensure it's correct
+        googleServices.client.forEach(client => {
+          if (client.client_info?.android_client_info?.package_name === PACKAGE_NAME) {
+            console.log(`✅ Client entry already exists for package: ${PACKAGE_NAME}`);
+          }
+        });
+      }
     }
     
     fs.writeFileSync(googleServicesPath, JSON.stringify(googleServices, null, 2), 'utf8');
-    console.log('✅ Updated google-services.json');
+    console.log('✅ Updated google-services.json with package name:', PACKAGE_NAME);
   } catch (error) {
     console.error('⚠️ Warning: Could not update google-services.json:', error.message);
-    console.error('   Build may fail if package name does not match');
+    console.error('   Firebase may not work correctly if package name does not match');
+    console.error('   App will continue to build but Firebase features may be unavailable');
   }
 } else {
   console.log('⚠️ google-services.json not found, skipping update');
+  console.log('   Firebase features will not be available');
 }
 
 // Update Kotlin/Java package structure

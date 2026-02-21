@@ -76,7 +76,15 @@ export default function App() {
     try {
       console.log('🔔 Requesting notification permission...');
 
-      await messaging().registerDeviceForRemoteMessages();
+      // Check if Firebase is initialized before using it
+      try {
+        await messaging().registerDeviceForRemoteMessages();
+      } catch (firebaseError: any) {
+        console.log('⚠️ Firebase not initialized or package name mismatch:', firebaseError?.message);
+        console.log('⚠️ Skipping Firebase messaging initialization');
+        return;
+      }
+
       const authStatus = await messaging().requestPermission();
 
       const enabled =
