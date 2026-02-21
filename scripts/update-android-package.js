@@ -265,10 +265,11 @@ if (newPathExists) {
       let content = fs.readFileSync(filePath, 'utf8');
       const originalContent = content;
       
-      // Update package declaration if it's still old
-      content = content.replace(/package\s+com\.mobidrag(\s|;|$)/g, `package ${PACKAGE_NAME}$1`);
-      // Update BuildConfig reference
-      content = content.replace(/com\.mobidrag\.BuildConfig/g, 'BuildConfig');
+      // Update package declaration - replace any existing package with new one
+      const packageRegex = /package\s+[^\s;]+(\s|;|$)/g;
+      content = content.replace(packageRegex, `package ${PACKAGE_NAME}$1`);
+      // Update BuildConfig reference - replace any package reference with relative
+      content = content.replace(/[a-z][a-z0-9.]*\.BuildConfig/g, 'BuildConfig');
       
       if (content !== originalContent) {
         fs.writeFileSync(filePath, content, 'utf8');
