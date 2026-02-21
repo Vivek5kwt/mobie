@@ -97,4 +97,8 @@ dependencies {
     }
 }
 
+// Apply Google Services plugin for Firebase
+// Note: If google-services.json package_name doesn't match applicationId, 
+// the build may fail. The update-package-config.js script updates google-services.json
+// to match the dynamic package name.
 apply plugin: 'com.google.gms.google-services'

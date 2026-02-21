@@ -32,8 +32,13 @@ global.showToast = (message, duration = 'SHORT') => {
 };
 
 // ✅ Handle background messages (data-only or notification + data)
-messaging().setBackgroundMessageHandler(async remoteMessage => {
-  console.log('🔕 Background message received:', remoteMessage?.messageId);
-});
+// Wrap in try-catch to prevent crashes if Firebase is not initialized
+try {
+  messaging().setBackgroundMessageHandler(async remoteMessage => {
+    console.log('🔕 Background message received:', remoteMessage?.messageId);
+  });
+} catch (error) {
+  console.log('⚠️ Firebase messaging not initialized, background handler not set:', error?.message);
+}
 
 AppRegistry.registerComponent(appName, () => App);
