@@ -3,10 +3,17 @@ import { Alert } from 'react-native';
 import { ApolloProvider } from '@apollo/client/react';
 import { NavigationContainer, useNavigationContainerRef } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
-import messaging from '@react-native-firebase/messaging';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { Provider } from 'react-redux';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
+
+// Import Firebase messaging safely - don't crash if Firebase is not initialized
+let messaging: any = null;
+try {
+  messaging = require('@react-native-firebase/messaging').default;
+} catch (error) {
+  console.log('⚠️ Firebase messaging not available in App.tsx:', (error as any)?.message);
+}
 
 import client from './src/apollo/client';
 import AllProductsScreen from './src/screens/AllProductsScreen';
@@ -74,6 +81,12 @@ export default function App() {
    */
   const getFCMToken = async () => {
     try {
+      // Check if Firebase messaging is available
+      if (!messaging) {
+        console.log('⚠️ Firebase messaging not available, skipping FCM token request');
+        return;
+      }
+
       console.log('🔔 Requesting notification permission...');
 
       // Check if Firebase is initialized before using it
@@ -151,6 +164,12 @@ export default function App() {
   }, []);
 
   useEffect(() => {
+    // Only set up message handler if Firebase messaging is available
+    if (!messaging) {
+      console.log('⚠️ Firebase messaging not available, skipping onMessage handler');
+      return;
+    }
+
     const unsubscribe = messaging().onMessage(async remoteMessage => {
       const title = remoteMessage?.notification?.title || 'New Notification';
       const body = remoteMessage?.notification?.body || 'You have a new message.';
@@ -161,6 +180,12 @@ export default function App() {
   }, []);
 
   useEffect(() => {
+    // Only set up notification handlers if Firebase messaging is available
+    if (!messaging) {
+      console.log('⚠️ Firebase messaging not available, skipping notification handlers');
+      return;
+    }
+
     const unsubscribe = messaging().onNotificationOpenedApp(remoteMessage => {
       const title = remoteMessage?.notification?.title || 'Notification Opened';
       const body = remoteMessage?.notification?.body || '';
@@ -177,6 +202,9 @@ export default function App() {
         const title = remoteMessage?.notification?.title || 'Notification Opened';
         const body = remoteMessage?.notification?.body || '';
         showInAppMessage(title, body);
+      })
+      .catch((error: any) => {
+        console.log('⚠️ Error getting initial notification:', error?.message);
       });
 
     return unsubscribe;

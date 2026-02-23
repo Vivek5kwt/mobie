@@ -35,12 +35,12 @@ android {
 
     // Namespace will be dynamically updated by update-package-config.js script
     // Default: com.mobidrag (will be replaced with com.mobidrag.builder.{APP_ID} during build)
-    namespace "com.mobidrag.builder.app160"
+    namespace "com.mobidrag.builder.app169"
 
     defaultConfig {
         // ApplicationId will be dynamically updated by update-package-config.js script
         // Default: com.mobidrag (will be replaced with com.mobidrag.builder.{APP_ID} during build)
-        applicationId "com.mobidrag.builder.app160"
+        applicationId "com.mobidrag.builder.app169"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
         versionCode 1
