@@ -15,16 +15,10 @@ class MainActivity : ReactActivity() {
   override fun getMainComponentName(): String {
     var appName: String? = null
     
-    // Method 1: Read from app.json in assets (most reliable)
+    // Method 1: Read from app.json in assets (most reliable - matches index.js)
     try {
-      // List available assets for debugging
-      val assetFiles = assets.list("")
-      android.util.Log.d("MainActivity", "📁 Available assets: ${assetFiles?.joinToString(", ") ?: "none"}")
-      
       val inputStream = assets.open("app.json")
       val json = inputStream.bufferedReader().use { it.readText() }
-      android.util.Log.d("MainActivity", "📄 app.json content: $json")
-      
       val appJson = org.json.JSONObject(json)
       appName = appJson.optString("name", null)
       inputStream.close()
@@ -32,20 +26,15 @@ class MainActivity : ReactActivity() {
       if (!appName.isNullOrEmpty()) {
         android.util.Log.i("MainActivity", "✅ Using app name from app.json: $appName")
         return appName
-      } else {
-        android.util.Log.w("MainActivity", "⚠️ app.json 'name' field is empty or null")
       }
     } catch (e: java.io.FileNotFoundException) {
-      android.util.Log.e("MainActivity", "❌ app.json not found in assets: ${e.message}")
-    } catch (e: org.json.JSONException) {
-      android.util.Log.e("MainActivity", "❌ Invalid JSON in app.json: ${e.message}")
+      android.util.Log.w("MainActivity", "⚠️ app.json not found in assets, trying fallbacks...")
     } catch (e: Exception) {
-      android.util.Log.e("MainActivity", "❌ Error reading app.json: ${e.message}", e)
+      android.util.Log.w("MainActivity", "⚠️ Error reading app.json: ${e.message}, trying fallbacks...")
     }
     
     // Method 2: Try BuildConfig from application package (not MainActivity package)
     try {
-      // Get the actual application package name (where BuildConfig is generated)
       val applicationPackageName = applicationContext.packageName
       @Suppress("UNCHECKED_CAST")
       val buildConfigClass = Class.forName("$applicationPackageName.BuildConfig")
@@ -53,13 +42,11 @@ class MainActivity : ReactActivity() {
       appName = appNameField.get(null) as? String
       
       if (!appName.isNullOrEmpty()) {
-        android.util.Log.i("MainActivity", "✅ Using app name from BuildConfig ($applicationPackageName): $appName")
+        android.util.Log.i("MainActivity", "✅ Using app name from BuildConfig: $appName")
         return appName
       }
-    } catch (e: ClassNotFoundException) {
-      android.util.Log.w("MainActivity", "⚠️ BuildConfig not found in application package")
     } catch (e: Exception) {
-      android.util.Log.w("MainActivity", "⚠️ Error reading BuildConfig: ${e.message}")
+      android.util.Log.w("MainActivity", "⚠️ BuildConfig not available: ${e.message}")
     }
     
     // Method 3: Read from strings.xml
@@ -70,11 +57,13 @@ class MainActivity : ReactActivity() {
         return appName
       }
     } catch (e: Exception) {
-      android.util.Log.w("MainActivity", "⚠️ Error reading strings.xml: ${e.message}")
+      android.util.Log.w("MainActivity", "⚠️ strings.xml not available: ${e.message}")
     }
     
-    // Final fallback - use default
-    android.util.Log.e("MainActivity", "❌ All methods failed, using default: MobiDrag")
+    // Final fallback - must match index.js default
+    // index.js uses: import { name as appName } from './app.json';
+    // So default should be "MobiDrag" to match app.json
+    android.util.Log.w("MainActivity", "⚠️ All methods failed, using default: MobiDrag")
     return "MobiDrag"
   }
 
