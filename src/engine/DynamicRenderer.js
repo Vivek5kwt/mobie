@@ -27,6 +27,8 @@ import AddToCart from "../components/AddToCart";
 import CartLineItems from "../components/CartLineItems";
 import CheckoutButton from "../components/CheckoutButton";
 import FaqNew from "../components/FaqNew";
+import ProductCarousel from "../components/ProductCarousel";
+import SignUp from "../components/SignUp";
 
 const normalizeComponentName = (value) =>
   String(value || "")
@@ -65,6 +67,10 @@ const componentMap = {
   cart_line_items: CartLineItems,
   checkout_button: CheckoutButton,
   faq_new: FaqNew,
+  product_carousel: ProductCarousel,
+  signup: SignUp,
+  sign_up: SignUp,
+  "sign-up": SignUp,
 };
 
 const componentAliases = {

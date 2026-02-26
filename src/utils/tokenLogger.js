@@ -174,6 +174,13 @@ class TokenLogger {
       const profileAppId = profile?.appId ?? profile?.app_id;
       const appid = resolveAppId(profileAppId);
 
+      // Skip token sync if userid is null (user not logged in)
+      // Backend requires userid, so we can't create token without it
+      if (!userid) {
+        console.log('⚠️ Skipping FCM token sync - user not logged in (userid is null)');
+        return;
+      }
+
       console.log('📡 Sending device token to backend...');
       const result = await createFcmToken({
         token: this.token,
@@ -187,7 +194,9 @@ class TokenLogger {
         console.log('⚠️ createFcmToken returned no data');
       }
     } catch (error) {
+      // Log error but don't crash the app - FCM token is not critical for app functionality
       console.log('❌ createFcmToken failed:', error.message);
+      console.log('⚠️ App will continue to work without FCM token sync');
     }
   }
 

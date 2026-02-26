@@ -379,11 +379,27 @@ function BottomNavigation({ section, activeIndexOverride }) {
 
   if (!items.length) return null;
 
+  const isHomeItem = (item = {}) => {
+    const id = (item?.id || "").toString().trim().toLowerCase();
+    const label = (resolveItemLabel(item) || "").toString().trim().toLowerCase();
+    const link = (resolveItemLink(item) || "").replace(/^\//, "").toString().trim().toLowerCase();
+    return id === "home" || label === "home" || link === "home";
+  };
+
   const handlePress = async (item, index) => {
     if (isSideMenuOpen) {
       closeSideMenu();
     }
-    
+
+    // 👉 If user taps the already‑active Home tab, do NOTHING (no navigation, no refresh)
+    if (isHomeItem(item) && index === resolvedActiveIndex) {
+      // Still ensure local state is correct, but skip navigation entirely
+      if (activeIndex !== index) {
+        setActiveIndex(index);
+      }
+      return;
+    }
+
     // Update activeIndex immediately to prevent flash
     setActiveIndex(index);
     

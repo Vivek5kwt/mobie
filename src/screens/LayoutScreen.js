@@ -18,6 +18,7 @@ import { SafeArea } from "../utils/SafeAreaHandler";
 import SideNavigation from "../components/SideNavigation";
 import { SideMenuProvider } from "../services/SideMenuContext";
 import bottomNavigationStyle1Section from "../data/bottomNavigationStyle1";
+import header2Section from "../data/header2Section";
 import BottomNavigation from "../components/BottomNavigation";
 import { resolveAppId } from "../utils/appId";
 import { useAuth } from "../services/AuthContext";
@@ -52,6 +53,10 @@ export default function LayoutScreen({ route }) {
   const snackbarTimer = useRef(null);
   const SIDE_MENU_WIDTH = 280;
   const sideMenuTranslateX = useRef(new Animated.Value(-SIDE_MENU_WIDTH)).current;
+  // Store bottom navigation section separately to prevent it from refreshing
+  const bottomNavSectionRef = useRef(null);
+  // State to hold bottom nav section - only updates when JSON actually changes
+  const [stableBottomNavSection, setStableBottomNavSection] = useState(null);
 
   const getComponentName = (section) =>
     section?.component?.const ||
@@ -141,9 +146,19 @@ export default function LayoutScreen({ route }) {
     [dsl]
   );
 
-  const bottomNavSection = useMemo(
-    () =>
-      sortedSections.find(
+  // Helper function to deep compare two objects (simple JSON stringify comparison)
+  const deepEqual = (obj1, obj2) => {
+    try {
+      return JSON.stringify(obj1) === JSON.stringify(obj2);
+    } catch {
+      return false;
+    }
+  };
+
+  // Initialize bottom nav section on first load only - never recalculate
+  useEffect(() => {
+    if (!bottomNavSectionRef.current && sortedSections.length > 0) {
+      const found = sortedSections.find(
         (section) => {
           const component = getComponentName(section).toLowerCase();
           return [
@@ -152,9 +167,12 @@ export default function LayoutScreen({ route }) {
             "bottom_navigation_style_2",
           ].includes(component);
         }
-      ) || null,
-    [sortedSections]
-  );
+      );
+      if (found) {
+        bottomNavSectionRef.current = found;
+      }
+    }
+  }, []); // Only run once on mount - never recalculate
 
   const visibleSections = useMemo(
     () =>
@@ -215,10 +233,11 @@ export default function LayoutScreen({ route }) {
       const headers = extractHeaderSections(homeDslData?.dsl || {}).filter(
         (section) => !isHeader2Section(section)
       );
-      setHomeHeaderSections(headers);
+      // When home has no headers, use Header 2 (logo bar) so mobile still shows a header
+      setHomeHeaderSections(headers.length ? headers : [header2Section]);
     } catch (e) {
       console.log("❌ Failed to fetch home header sections:", e);
-      setHomeHeaderSections([]);
+      setHomeHeaderSections([header2Section]);
     }
   }, [appId, extractHeaderSections, isHomePage]);
 
@@ -232,16 +251,63 @@ export default function LayoutScreen({ route }) {
     };
   }, []);
 
-  // Reload DSL
+  // Reload DSL - bottom navigation will update dynamically if JSON changes
   const refreshDSL = async (withFeedback = false) => {
     try {
       const dslData = await fetchDSL(appId, pageName);
       if (dslData?.dsl) {
-        const baseDsl = ensureBottomNavigationSection(dslData.dsl);
-        const nextDsl = isHomePage
-          ? baseDsl
-          : ensureHeaderSections(baseDsl, homeHeaderSections);
-        setDsl(nextDsl);
+        // Check if bottom navigation section has changed
+        const incomingBottomNav = (dslData.dsl.sections || []).find(
+          (section) => {
+            const component = getComponentName(section).toLowerCase();
+            return [
+              "bottom_navigation",
+              "bottom_navigation_style_1",
+              "bottom_navigation_style_2",
+            ].includes(component);
+          }
+        );
+        
+        // If bottom nav section exists and is different, update the cache and state
+        // But DON'T update DSL to prevent home screen refresh
+        let bottomNavUpdated = false;
+        if (incomingBottomNav) {
+          if (!bottomNavSectionRef.current || !deepEqual(incomingBottomNav, bottomNavSectionRef.current)) {
+            bottomNavSectionRef.current = incomingBottomNav;
+            setStableBottomNavSection(incomingBottomNav); // Update state to trigger re-render of bottom nav only
+            bottomNavUpdated = true;
+            console.log("🔄 Bottom navigation updated from JSON");
+            // Don't update DSL here - only update the cache and state
+            // The bottom nav will update via state, but home screen won't refresh
+          }
+        }
+        
+        // Only update DSL if bottom nav didn't change
+        // This prevents home screen from refreshing when only bottom nav updates
+        if (!bottomNavUpdated) {
+          // Remove bottom nav from sections to prevent it from affecting the refresh
+          const sectionsWithoutBottomNav = (dslData.dsl.sections || []).filter(
+            (section) => {
+              const component = getComponentName(section).toLowerCase();
+              return ![
+                "bottom_navigation",
+                "bottom_navigation_style_1",
+                "bottom_navigation_style_2",
+              ].includes(component);
+            }
+          );
+          
+          const dslWithoutBottomNav = {
+            ...dslData.dsl,
+            sections: sectionsWithoutBottomNav,
+          };
+          
+          const baseDsl = ensureBottomNavigationSection(dslWithoutBottomNav);
+          const nextDsl = isHomePage
+            ? baseDsl
+            : ensureHeaderSections(baseDsl, homeHeaderSections);
+          setDsl(nextDsl);
+        }
         versionRef.current = dslData.versionNumber ?? null;
         if (withFeedback) showSnackbar("Live layout refreshed", "success");
       }
@@ -276,6 +342,22 @@ export default function LayoutScreen({ route }) {
         : ensureHeaderSections(baseDsl, homeHeaderSections);
       setDsl(nextDsl);
       versionRef.current = dslData.versionNumber ?? null;
+      
+      // Cache the bottom navigation section on initial load
+      const bottomNav = (nextDsl.sections || []).find(
+        (section) => {
+          const component = getComponentName(section).toLowerCase();
+          return [
+            "bottom_navigation",
+            "bottom_navigation_style_1",
+            "bottom_navigation_style_2",
+          ].includes(component);
+        }
+      );
+      if (bottomNav) {
+        bottomNavSectionRef.current = bottomNav;
+        setStableBottomNavSection(bottomNav); // Set state on initial load
+      }
 
       console.log(
         `================ LIVE DSL OUTPUT ================\n`,
@@ -296,30 +378,100 @@ export default function LayoutScreen({ route }) {
     loadDSL();
   }, [appId, pageName]);
 
+  // Auto-refresh DSL periodically to pick up bottom navigation updates
   useEffect(() => {
-    setIsSideMenuOpen(false);
-    sideMenuTranslateX.setValue(-SIDE_MENU_WIDTH);
-  }, [SIDE_MENU_WIDTH, pageName, sideMenuTranslateX]);
+    const intervalId = setInterval(async () => {
+      try {
+        const latest = await fetchDSL(appId, pageName);
+        if (!latest?.dsl) return;
+
+        const incomingVersion = latest.versionNumber ?? null;
+        if (incomingVersion === versionRef.current) return;
+
+        // Check if bottom navigation section has changed
+        const incomingBottomNav = (latest.dsl.sections || []).find(
+          (section) => {
+            const component = getComponentName(section).toLowerCase();
+            return [
+              "bottom_navigation",
+              "bottom_navigation_style_1",
+              "bottom_navigation_style_2",
+            ].includes(component);
+          }
+        );
+        
+        // If bottom nav section exists and is different, update the cache and state
+        // But DON'T update DSL to prevent home screen refresh
+        let bottomNavUpdated = false;
+        if (incomingBottomNav) {
+          if (!bottomNavSectionRef.current || !deepEqual(incomingBottomNav, bottomNavSectionRef.current)) {
+            bottomNavSectionRef.current = incomingBottomNav;
+            setStableBottomNavSection(incomingBottomNav); // Update state to trigger re-render of bottom nav only
+            bottomNavUpdated = true;
+            console.log("🔄 Bottom navigation updated dynamically from JSON");
+            // Don't update DSL here - only update the cache and state
+            // The bottom nav will update via state, but home screen won't refresh
+          }
+        }
+        
+        // Only update DSL if version changed AND bottom nav didn't change
+        // This prevents home screen from refreshing when only bottom nav updates
+        if (incomingVersion !== versionRef.current && !bottomNavUpdated) {
+          // Remove bottom nav from sections to prevent it from affecting the refresh
+          const sectionsWithoutBottomNav = (latest.dsl.sections || []).filter(
+            (section) => {
+              const component = getComponentName(section).toLowerCase();
+              return ![
+                "bottom_navigation",
+                "bottom_navigation_style_1",
+                "bottom_navigation_style_2",
+              ].includes(component);
+            }
+          );
+          
+          const dslWithoutBottomNav = {
+            ...latest.dsl,
+            sections: sectionsWithoutBottomNav,
+          };
+          
+          const baseDsl = ensureBottomNavigationSection(dslWithoutBottomNav);
+          const nextDsl = isHomePage
+            ? baseDsl
+            : ensureHeaderSections(baseDsl, homeHeaderSections);
+          setDsl(nextDsl);
+          versionRef.current = incomingVersion;
+        } else if (incomingVersion !== versionRef.current) {
+          // Version changed but only bottom nav updated - just update version ref
+          versionRef.current = incomingVersion;
+        }
+      } catch (e) {
+        console.log("❌ Auto-refresh error:", e);
+      }
+    }, 5000);
+
+    return () => clearInterval(intervalId);
+  }, [appId, pageName, isHomePage, ensureHeaderSections, homeHeaderSections]);
 
   useFocusEffect(
     useCallback(() => {
+      // Auto-refresh layout when screen gains focus (e.g. after saving on web)
+      refreshDSL(false);
       return () => {
         setIsSideMenuOpen(false);
         sideMenuTranslateX.setValue(-SIDE_MENU_WIDTH);
       };
-    }, [SIDE_MENU_WIDTH, sideMenuTranslateX])
+    }, [SIDE_MENU_WIDTH, sideMenuTranslateX, refreshDSL])
   );
 
   const closeSideMenu = () => setIsSideMenuOpen(false);
 
   const openSideMenu = () => {
-    if (sideNavSection) {
-      setIsSideMenuOpen(true);
-    }
+    // Always allow opening the side menu from the app bar
+    setIsSideMenuOpen(true);
   };
 
   const toggleSideMenu = () => {
-    if (!sideNavSection) return;
+    // Always toggle, even if DSL has no explicit side_navigation section
     setIsSideMenuOpen((prev) => !prev);
   };
 
@@ -365,7 +517,9 @@ export default function LayoutScreen({ route }) {
     return () => clearInterval(intervalId);
   }, [appId, ensureHeaderSections, homeHeaderSections, isHomePage, pageName]);
 
-  const fallbackBottomNavSection = bottomNavSection || bottomNavigationStyle1Section;
+  // Always use stable state-based bottom nav section - never changes when home screen refreshes
+  // This ensures bottom nav never refreshes when home screen refreshes
+  const fallbackBottomNavSection = stableBottomNavSection || bottomNavigationStyle1Section;
 
   // LOADING SCREEN
   if (loading)
@@ -405,7 +559,7 @@ export default function LayoutScreen({ route }) {
       <SideMenuProvider
         value={{
           isOpen: isSideMenuOpen,
-          hasSideNav: !!sideNavSection,
+          hasSideNav: true, // always allow side menu icon in header
           toggleSideMenu,
           openSideMenu,
           closeSideMenu,
@@ -419,7 +573,7 @@ export default function LayoutScreen({ route }) {
             showsVerticalScrollIndicator
             contentContainerStyle={[
               styles.scrollContent,
-              { flexGrow: 1, paddingBottom: bottomNavSection ? 88 : 24 },
+              { flexGrow: 1, paddingBottom: stableBottomNavSection ? 88 : 24 },
             ]}
             keyboardShouldPersistTaps="handled"
             refreshControl={
@@ -434,12 +588,15 @@ export default function LayoutScreen({ route }) {
                   : null;
                 const collapseHeaderGap =
                   componentName === "header" && nextComponentName === "header_2";
+                const isBannerSlider = componentName === "banner_slider";
+                const nextIsBannerSlider = nextComponentName === "banner_slider";
+                const collapseBannerGap = isBannerSlider || nextIsBannerSlider;
                 const shouldAttachBottomNav =
                   componentName === "header" ||
                   componentName === "header_2" ||
                   componentName === "header_mobile";
                 const sectionWithNav = shouldAttachBottomNav
-                  ? { ...s, bottomNavSection }
+                  ? { ...s, bottomNavSection: stableBottomNavSection }
                   : s;
 
                 return (
@@ -447,8 +604,9 @@ export default function LayoutScreen({ route }) {
                     key={i}
                     style={[
                       styles.sectionWrapper,
-                      (componentName === "header_2" || collapseHeaderGap) &&
+                      (componentName === "header_2" || collapseHeaderGap || collapseBannerGap) &&
                         styles.sectionWrapperTight,
+                      isBannerSlider && styles.sectionWrapperBanner,
                     ]}
                   >
                     <DynamicRenderer section={sectionWithNav} />
@@ -462,7 +620,7 @@ export default function LayoutScreen({ route }) {
             )}
           </ScrollView>
 
-          {sideNavSection && showOverlay && (
+          {showOverlay && (
             <View style={StyleSheet.absoluteFill} pointerEvents={showOverlay ? "auto" : "none"}>
               <Animated.View
                 style={[StyleSheet.absoluteFill, styles.sideMenuOverlay, { opacity: overlayOpacity }]}
@@ -475,16 +633,19 @@ export default function LayoutScreen({ route }) {
                     { transform: [{ translateX: sideMenuTranslateX }] },
                   ]}
                 >
-                  <SideNavigation section={sideNavSection} />
+                  <SideNavigation section={sideNavSection || {}} />
                 </Animated.View>
                 <TouchableOpacity style={{ flex: 1 }} activeOpacity={1} onPress={closeSideMenu} />
               </View>
             </View>
           )}
 
-          {bottomNavSection && (
+          {fallbackBottomNavSection && (
             <View style={styles.bottomNav}>
-              <BottomNavigation section={bottomNavSection} activeIndexOverride={activeIndex} />
+              <BottomNavigation 
+                section={fallbackBottomNavSection} 
+                activeIndexOverride={activeIndex} 
+              />
             </View>
           )}
 
@@ -533,6 +694,12 @@ const styles = StyleSheet.create({
   },
   sectionWrapperTight: {
     marginBottom: 0,
+  },
+  sectionWrapperBanner: {
+    marginTop: 0,
+    marginBottom: 0,
+    paddingTop: 0,
+    paddingBottom: 0,
   },
   sideMenuOverlay: {
     backgroundColor: "rgba(0,0,0,0.3)",

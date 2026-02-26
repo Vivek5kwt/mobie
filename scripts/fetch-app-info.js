@@ -10,7 +10,7 @@ const fs = require('fs');
 const path = require('path');
 
 const APP_ID = process.env.APP_ID || process.env.REACT_APP_APP_ID;
-const GRAPHQL_ENDPOINT = process.env.GRAPHQL_ENDPOINT || 'https://api.mobidrag.com/graphql';
+const GRAPHQL_ENDPOINT = process.env.GRAPHQL_ENDPOINT || 'https://mobidrag.ampleteck.com/graphql';
 
 if (!APP_ID) {
   console.error('❌ APP_ID environment variable is required');

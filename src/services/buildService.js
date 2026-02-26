@@ -1,4 +1,4 @@
-const BASE_URL = "https://api.domain.com"; // backend base url
+const BASE_URL = "https://mobidrag.ampleteck.com"; // backend base url
 
 export async function getBuildStatus(appId) {
   if (!appId) {

@@ -1,17 +1,45 @@
-import React, { useEffect, useRef } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { View, StyleSheet, Animated, Text, Image } from "react-native";
 import LinearGradient from "react-native-linear-gradient";
 import { useNavigation } from "@react-navigation/native";
 import { useAuth } from "../services/AuthContext";
-const LOGO = require("../assets/logo/mobidraglogo.png");
+import { getAppNameSync, getAppLogoSync } from "../utils/appInfo";
+
+const DEFAULT_LOGO = require("../assets/logo/mobidraglogo.png");
 
 export default function SplashScreen() {
   const navigation = useNavigation();
   const { initializing } = useAuth();
+  const [appName, setAppName] = useState("MobiDrag");
+  const [logoSource, setLogoSource] = useState(DEFAULT_LOGO);
 
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const scaleAnim = useRef(new Animated.Value(0.4)).current;
   const circleScale = useRef(new Animated.Value(0)).current;
+
+  // Load app info on mount
+  useEffect(() => {
+    const loadAppInfo = async () => {
+      try {
+        const name = getAppNameSync();
+        const logoUrl = getAppLogoSync();
+        
+        setAppName(name);
+        
+        if (logoUrl && logoUrl.trim() !== "") {
+          setLogoSource({ uri: logoUrl });
+        } else {
+          setLogoSource(DEFAULT_LOGO);
+        }
+      } catch (error) {
+        console.log("Error loading app info:", error);
+        setAppName("MobiDrag");
+        setLogoSource(DEFAULT_LOGO);
+      }
+    };
+    
+    loadAppInfo();
+  }, []);
 
   useEffect(() => {
     Animated.parallel([
@@ -73,8 +101,13 @@ export default function SplashScreen() {
           },
         ]}
       >
-        <Image source={LOGO} style={styles.logo} />
+        <Image 
+          source={logoSource} 
+          style={styles.logo}
+          onError={() => setLogoSource(DEFAULT_LOGO)}
+        />
 
+        <Text style={styles.appName}>{appName}</Text>
         <Text style={styles.tagline}>Create. Drag. Build.</Text>
       </Animated.View>
 
@@ -119,16 +152,18 @@ const styles = StyleSheet.create({
     elevation: 8,
   },
 
-  title: {
+  appName: {
     fontSize: 34,
     color: "#1F2A4B",
     fontWeight: "700",
     letterSpacing: 1.2,
+    marginTop: 16,
+    textAlign: "center",
   },
 
   tagline: {
     fontSize: 16,
-    marginTop: -64,
+    marginTop: 8,
     color: "#5A6BA8",
     letterSpacing: 0.5,
   },
