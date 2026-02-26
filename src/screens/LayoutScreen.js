@@ -25,8 +25,17 @@ import { useAuth } from "../services/AuthContext";
 export default function LayoutScreen({ route }) {
   const { session } = useAuth();
   const pageName = route?.params?.pageName || "home";
+  const normalizedPageName =
+    typeof pageName === "string"
+      ? pageName.trim().toLowerCase()
+      : String(pageName ?? "").trim().toLowerCase();
+  const isHomePage = normalizedPageName === "home";
+  
   // Extract activeIndex from route params to maintain bottom nav state when navigating to home
-  const activeIndex = route?.params?.activeIndex;
+  // If on home page, always use index 0 for home icon
+  const activeIndexFromRoute = route?.params?.activeIndex;
+  const activeIndex = isHomePage ? 0 : (activeIndexFromRoute !== undefined ? activeIndexFromRoute : undefined);
+  
   const appId = useMemo(
     () =>
       resolveAppId(route?.params?.appId ?? session?.user?.appId ?? session?.user?.app_id),
@@ -51,11 +60,6 @@ export default function LayoutScreen({ route }) {
     section?.properties?.component ||
     "";
   const isHeader2Section = (section) => getComponentName(section).toLowerCase() === "header_2";
-  const normalizedPageName =
-    typeof pageName === "string"
-      ? pageName.trim().toLowerCase()
-      : String(pageName ?? "").trim().toLowerCase();
-  const isHomePage = normalizedPageName === "home";
 
   const mobileSections = useMemo(
     () => (dsl?.sections || []).filter(shouldRenderSectionOnMobile),
@@ -261,7 +265,8 @@ export default function LayoutScreen({ route }) {
 
       const dslData = await fetchDSL(appId, pageName);
       if (!dslData?.dsl) {
-        setErr("No live DSL returned from server");
+        const graphqlUrl = "https://mobidrag.ampleteck.com/graphql";
+        setErr(`No live DSL returned from server\nApp ID: ${appId}\nURL: ${graphqlUrl}`);
         return;
       }
 
@@ -387,7 +392,9 @@ export default function LayoutScreen({ route }) {
     return (
       <SafeArea>
         <View style={styles.centerContainer}>
-          <Text style={styles.error}>Error loading: {err || "No DSL found"}</Text>
+          <Text style={styles.error}>
+            Error loading: {err || "No DSL found"}
+          </Text>
           <Button title="Retry" onPress={loadDSL} />
         </View>
       </SafeArea>
