@@ -192,7 +192,12 @@ export default function Header2({ section }) {
   const shouldShowSearchRow =
     (searchEnabled && searchAndIcons?.showSearch) ||
     (notificationEnabled && searchAndIcons?.showNotification);
-  const shouldShowSideMenu = false;
+  const shouldShowSideMenu =
+    hasSideNav &&
+    resolveBooleanSetting(
+      searchAndIcons?.showSideMenu ?? searchAndIcons?.sideMenuVisible,
+      true,
+    );
   const shouldShowSearchRowOrMenu = shouldShowSearchRow || shouldShowSideMenu;
   const shouldShowTopRow = hasGreeting || (profileEnabled && profile?.show);
   const searchLimit = resolveValue(searchAndIcons?.searchLimit, 10);
