@@ -106,10 +106,7 @@ export default function SignUp({ section }) {
     return rawProps?.presentation?.properties?.css || rawProps?.presentation?.css || {};
   }, [rawProps]);
 
-  // If no raw data, don't render anything
-  if (!raw || Object.keys(raw).length === 0) {
-    return null;
-  }
+  const hasRawData = Boolean(raw && Object.keys(raw).length > 0);
 
   // Extract all properties from raw using useMemo to update when raw changes
   const extractedProps = useMemo(() => {
@@ -399,6 +396,12 @@ export default function SignUp({ section }) {
       setError("");
     }
   }, [section]);
+
+  // Keep hook ordering stable across renders to avoid React hook mismatch crashes
+  // when DSL data arrives after the first render.
+  if (!hasRawData) {
+    return null;
+  }
 
   // If auth is not visible, don't render
   if (!authVisible) {
