@@ -4,6 +4,7 @@
   "private": true,
   "scripts": {
     "android": "react-native run-android",
+    "android:clean": "adb uninstall com.mobidrag.builder.app169 & adb uninstall com.mobidrag.builder.app240 & cd android & call gradlew.bat clean & cd .. & react-native run-android",
     "android:analytics-debug": "adb shell setprop debug.firebase.analytics.app com.mobidrag",
     "build": "echo \"React Native project: no web build step; Android builds run via Gradle.\"",
     "start": "react-native start",

@@ -12,8 +12,8 @@ task fixReactNativeEntryPoint {
             def content = entryPointFile.text
             def originalContent = content
             
-            // Replace old package name references with current namespace
-            content = content.replaceAll(/com\.mobidrag(?:\.builder\.app\\d+)?\.BuildConfig/, "${packageName}.BuildConfig")
+            // Replace old package name references (including dynamic builder IDs) with current namespace
+            content = content.replaceAll(/com\.mobidrag(?:\.builder\.app\d+)?\.BuildConfig/, "${packageName}.BuildConfig")
             
             if (content != originalContent) {
                 entryPointFile.text = content
@@ -60,14 +60,13 @@ android {
     buildToolsVersion rootProject.ext.buildToolsVersion
     compileSdk rootProject.ext.compileSdkVersion
 
-    // Namespace will be dynamically updated by update-package-config.js script
-    // Default: com.mobidrag (will be replaced with com.mobidrag.builder.{APP_ID} during build)
-    namespace "com.mobidrag.builder.app171"
+    // Namespace / applicationId aligned with current app instance (com.mobidrag)
+    // This must match MainActivity/MainApplication packages and (optionally) google-services.json
+    namespace "com.mobidrag"
 
     defaultConfig {
-        // ApplicationId will be dynamically updated by update-package-config.js script
-        // Default: com.mobidrag (will be replaced with com.mobidrag.builder.{APP_ID} during build)
-        applicationId "com.mobidrag.builder.app171"
+        // ApplicationId aligned with namespace for this build
+        applicationId "com.mobidrag"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
         versionCode 1
@@ -124,8 +123,8 @@ dependencies {
     }
 }
 
-// Apply Google Services plugin for Firebase
-// Note: If google-services.json package_name doesn't match applicationId, 
-// the build may fail. The update-package-config.js script updates google-services.json
-// to match the dynamic package name.
-apply plugin: 'com.google.gms.google-services'
+// Apply Google Services plugin for Firebase.
+// For local development we temporarily disable it to avoid build failures
+// when packageName and google-services.json fall out of sync.
+// Re-enable this line for production/CI builds if Firebase is required.
+// apply plugin: 'com.google.gms.google-services'
