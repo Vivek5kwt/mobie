@@ -35,6 +35,40 @@ const asNumber = (value, fallback = undefined) => {
   return Number.isNaN(parsed) ? fallback : parsed;
 };
 
+const applyTextAttributes = (baseStyle, attributes) => {
+  const attrs = attributes || {};
+  const next = { ...(baseStyle || {}) };
+
+  const size = asNumber(attrs.size, undefined);
+  if (size != null) next.fontSize = size;
+
+  const color = unwrapValue(attrs.color, undefined);
+  if (color) next.color = color;
+
+  const bold = asBoolean(attrs.bold, undefined);
+  if (bold === true) next.fontWeight = "700";
+
+  const italic = asBoolean(attrs.italic, undefined);
+  if (italic === true) next.fontStyle = "italic";
+
+  const underline = asBoolean(attrs.underline, undefined);
+  const strikethrough = asBoolean(attrs.strikethrough, undefined);
+  if (underline || strikethrough) {
+    if (underline && strikethrough) {
+      next.textDecorationLine = "underline line-through";
+    } else if (underline) {
+      next.textDecorationLine = "underline";
+    } else {
+      next.textDecorationLine = "line-through";
+    }
+  }
+
+  const fontFamily = unwrapValue(attrs.fontFamily, undefined);
+  if (fontFamily) next.fontFamily = fontFamily;
+
+  return next;
+};
+
 const parseDateValue = (value) => {
   const raw = unwrapValue(value, null);
 
@@ -216,11 +250,47 @@ class Countdown extends PureComponent {
     const styleBlock = rawProps?.style?.properties || rawProps?.style || {};
 
     const { containerStyle, gradientInfo } = deriveContainerStyles(layoutCss, styleBlock);
-    const titleStyle = convertStyles(layoutCss.title || {});
-    const subtextStyle = convertStyles(layoutCss.subtext || {});
+
+    const alignmentAndPadding =
+      rawProps?.alignmentAndPadding?.properties || rawProps?.alignmentAndPadding || {};
+    const paddingRaw =
+      alignmentAndPadding?.paddingRaw?.properties || alignmentAndPadding?.paddingRaw || {};
+
+    let enhancedContainerStyle = { ...containerStyle };
+
+    const pt = asNumber(paddingRaw?.pt, undefined);
+    const pr = asNumber(paddingRaw?.pr, undefined);
+    const pb = asNumber(paddingRaw?.pb, undefined);
+    const pl = asNumber(paddingRaw?.pl, undefined);
+
+    if (pt != null) enhancedContainerStyle.paddingTop = pt;
+    if (pr != null) enhancedContainerStyle.paddingRight = pr;
+    if (pb != null) enhancedContainerStyle.paddingBottom = pb;
+    if (pl != null) enhancedContainerStyle.paddingLeft = pl;
+
+    const align = unwrapValue(alignmentAndPadding?.align, null);
+    if (typeof align === "string") {
+      const lowered = align.trim().toLowerCase();
+      if (lowered === "center") enhancedContainerStyle.alignItems = "center";
+      else if (lowered === "left") enhancedContainerStyle.alignItems = "flex-start";
+      else if (lowered === "right") enhancedContainerStyle.alignItems = "flex-end";
+    }
+
+    const resolvedTextAlign = unwrapValue(alignmentAndPadding?.textAlign, undefined);
+
+    const baseTitleStyle = convertStyles(layoutCss.title || {});
+    const baseSubtextStyle = convertStyles(layoutCss.subtext || {});
     const timerStyle = convertStyles(layoutCss.timer || {});
     const buttonStyle = convertStyles(layoutCss.button || {});
     const iconStyle = convertStyles(layoutCss.icon || {});
+
+    const titleAttributes =
+      rawProps?.titleAttributes?.properties || rawProps?.titleAttributes || {};
+    const subtextAttributes =
+      rawProps?.subtextAttributes?.properties || rawProps?.subtextAttributes || {};
+
+    const titleStyle = applyTextAttributes(baseTitleStyle, titleAttributes);
+    const subtextStyle = applyTextAttributes(baseSubtextStyle, subtextAttributes);
 
     const titleText = unwrapValue(rawProps?.title, "Sale Ends In");
     const subtextText = unwrapValue(
@@ -232,6 +302,15 @@ class Countdown extends PureComponent {
     const buttonLabel = unwrapValue(buttonAttributes?.label, "");
     const buttonBgColor = unwrapValue(buttonAttributes?.bgColor, buttonStyle.backgroundColor);
     const buttonTextColor = unwrapValue(buttonAttributes?.textColor, "#FFFFFF");
+
+    const buttonFontSize = asNumber(buttonAttributes?.fontSize, undefined);
+    const buttonBold = asBoolean(buttonAttributes?.bold, undefined);
+    const buttonItalic = asBoolean(buttonAttributes?.italic, undefined);
+    const buttonUnderline = asBoolean(buttonAttributes?.underline, undefined);
+    const buttonStrikethrough = asBoolean(buttonAttributes?.strikethrough, undefined);
+    const buttonBorderRadius = asNumber(buttonAttributes?.borderRadius, undefined);
+    const buttonPaddingX = asNumber(buttonAttributes?.paddingX, undefined);
+    const buttonPaddingY = asNumber(buttonAttributes?.paddingY, undefined);
 
     const timerAttributes = rawProps?.timerAttributes?.properties || rawProps?.timerAttributes || {};
     const timerLabelColor = unwrapValue(timerAttributes?.labelColor, "#6B7280");
@@ -253,8 +332,15 @@ class Countdown extends PureComponent {
       ...timerContainerStyle
     } = timerStyle;
 
+    const timerFontSize = asNumber(timerAttributes?.fontSize, undefined);
+    const timerFontWeightRaw = unwrapValue(timerAttributes?.fontWeight, undefined);
+    const timerFontWeight =
+      typeof timerFontWeightRaw === "number"
+        ? String(timerFontWeightRaw)
+        : timerFontWeightRaw;
+
     const iconAttributes = rawProps?.iconAttributes?.properties || rawProps?.iconAttributes || {};
-    const iconName = unwrapValue(iconAttributes?.iconName, "clock-o");
+    const iconName = unwrapValue(iconAttributes?.iconName, "star");
     const iconColor = unwrapValue(iconAttributes?.iconColor, iconStyle.color || "#111827");
     const iconBgColor = unwrapValue(iconAttributes?.iconBgColor, iconStyle.backgroundColor);
 
@@ -286,7 +372,7 @@ class Countdown extends PureComponent {
 
     return (
       <ContainerComponent
-        style={[styles.container, containerStyle]}
+        style={[styles.container, enhancedContainerStyle]}
         {...containerProps}
       >
         {showImage && rawProps?.image ? (
@@ -305,7 +391,15 @@ class Countdown extends PureComponent {
           )}
           <View style={{ flex: 1 }}>
             {showTitle && (
-              <Text style={[styles.title, titleStyle]}>{titleText}</Text>
+              <Text
+                style={[
+                  styles.title,
+                  titleStyle,
+                  resolvedTextAlign ? { textAlign: resolvedTextAlign.toLowerCase() } : null,
+                ]}
+              >
+                {titleText}
+              </Text>
             )}
           </View>
         </View>
@@ -333,7 +427,14 @@ class Countdown extends PureComponent {
                     timerHeight ? { height: timerHeight } : timerStyleHeight ? { height: timerStyleHeight } : null,
                   ]}
                 >
-                  <Text style={[styles.timerValue, { color: timerValueColor }]}>
+                  <Text
+                    style={[
+                      styles.timerValue,
+                      { color: timerValueColor },
+                      timerFontSize != null ? { fontSize: timerFontSize } : null,
+                      timerFontWeight ? { fontWeight: timerFontWeight } : null,
+                    ]}
+                  >
                     {renderTimerValue(resolvedCountdown[key])}
                   </Text>
                 </View>
@@ -344,15 +445,50 @@ class Countdown extends PureComponent {
         )}
 
         {showSubtext && (
-          <Text style={[styles.subtext, subtextStyle]}>{subtextText}</Text>
+          <Text
+            style={[
+              styles.subtext,
+              subtextStyle,
+              resolvedTextAlign ? { textAlign: resolvedTextAlign.toLowerCase() } : null,
+            ]}
+          >
+            {subtextText}
+          </Text>
         )}
 
         {showButton && (
           <TouchableOpacity
             activeOpacity={0.9}
-            style={[styles.button, buttonStyle, buttonBgColor ? { backgroundColor: buttonBgColor } : null]}
+            style={[
+              styles.button,
+              buttonStyle,
+              buttonBgColor ? { backgroundColor: buttonBgColor } : null,
+              buttonBorderRadius != null ? { borderRadius: buttonBorderRadius } : null,
+              buttonPaddingX != null ? { paddingHorizontal: buttonPaddingX } : null,
+              buttonPaddingY != null ? { paddingVertical: buttonPaddingY } : null,
+            ]}
           >
-            <Text style={[styles.buttonText, { color: buttonTextColor }]}>{buttonLabel}</Text>
+            <Text
+              style={[
+                styles.buttonText,
+                { color: buttonTextColor },
+                buttonFontSize != null ? { fontSize: buttonFontSize } : null,
+                buttonBold === true ? { fontWeight: "700" } : null,
+                buttonItalic === true ? { fontStyle: "italic" } : null,
+                buttonUnderline || buttonStrikethrough
+                  ? {
+                      textDecorationLine:
+                        buttonUnderline && buttonStrikethrough
+                          ? "underline line-through"
+                          : buttonUnderline
+                            ? "underline"
+                            : "line-through",
+                    }
+                  : null,
+              ]}
+            >
+              {buttonLabel}
+            </Text>
           </TouchableOpacity>
         )}
       </ContainerComponent>

@@ -1169,18 +1169,18 @@ const styles = StyleSheet.create({
     alignItems: "center",
     backgroundColor: "#FFFFFF",
     borderRadius: 10,
-    paddingVertical: 10,
-    paddingRight: 12,
+    paddingVertical: 12,
+    paddingRight: 16,
     minHeight: 44,
   },
   searchIconContainer: {
-    paddingLeft: 14,
-    paddingRight: 10,
+    paddingLeft: 16,
+    paddingRight: 12,
     justifyContent: "center",
     alignItems: "center",
   },
   searchInput: {
-    paddingVertical: 0,
+    paddingVertical: 4,
   },
   notificationWrapper: {
     flexShrink: 0,
