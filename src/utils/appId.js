@@ -1,4 +1,4 @@
-const DEFAULT_APP_ID = 197;
+const DEFAULT_APP_ID = 248;
 
 export const resolveAppId = (appId) => {
   // First check if appId is provided directly

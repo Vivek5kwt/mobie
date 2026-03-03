@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState, useCallback } from "react";
 import {
   Dimensions,
   ScrollView,
@@ -8,6 +8,7 @@ import {
   View,
   Image,
 } from "react-native";
+import { useNavigation } from "@react-navigation/native";
 import { useDispatch } from "react-redux";
 import {
   fetchShopifyCollectionProducts,
@@ -119,6 +120,7 @@ const toFontWeight = (value, fallback) => {
 
 export default function TabProductGrid({ section }) {
   const dispatch = useDispatch();
+  const navigation = useNavigation();
   const rawProps =
     section?.properties?.props?.properties || section?.properties?.props || section?.props || {};
 
@@ -226,7 +228,12 @@ export default function TabProductGrid({ section }) {
   const addToCartButtonStyle = convertStyles(layoutCss?.addToCartButton || {});
 
   // Extract raw config values with schema defaults
-  const title = toString(rawConfig?.title, "");
+  // Prefer "header" from JSON schema (which may be { type, value }) then fall back to "title"
+  const headerText = toString(rawConfig?.header, "");
+  const title = headerText || toString(rawConfig?.title, "");
+  const viewAllEnabled = unwrapValue(rawConfig?.viewAllEnabled, true);
+  const viewAllLabel = toString(rawConfig?.viewAllLabel, "View all");
+  const viewAllLink = toString(rawConfig?.viewAllLink, "");
   const columns = Math.max(1, toNumber(rawConfig?.columns, 1));
   const gridColGap = toNumber(rawConfig?.gridColGap, 28);
   const paddingTop = toNumber(rawConfig?.paddingTop, 12);
@@ -297,6 +304,17 @@ export default function TabProductGrid({ section }) {
     }
   }
 
+  const handleViewAllPress = useCallback(() => {
+    if (!viewAllEnabled) return;
+    if (viewAllLink) {
+      navigation.navigate("BottomNavScreen", {
+        title: viewAllLabel || title || "All products",
+        link: viewAllLink.replace(/^\//, ""),
+        pageName: viewAllLink.replace(/^\//, ""),
+      });
+    }
+  }, [navigation, viewAllEnabled, viewAllLink, viewAllLabel, title]);
+
   return (
     <View
       style={[
@@ -312,7 +330,25 @@ export default function TabProductGrid({ section }) {
       ]}
     >
       {title ? (
-        <Text style={[styles.title, { marginBottom: 16 }]}>{title}</Text>
+        <>
+          <Text style={styles.title}>{title}</Text>
+          {viewAllEnabled && (
+            <TouchableOpacity
+              onPress={handleViewAllPress}
+              disabled={!viewAllLink}
+              style={styles.viewAllButton}
+            >
+              <Text
+                style={[
+                  styles.viewAllText,
+                  !viewAllLink && styles.viewAllTextDisabled,
+                ]}
+              >
+                {viewAllLabel}
+              </Text>
+            </TouchableOpacity>
+          )}
+        </>
       ) : null}
       
       <View
@@ -505,6 +541,7 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: "700",
     color: "#111827",
+    marginBottom: 4,
   },
   tabsRow: {
     flexDirection: "row",
@@ -571,5 +608,19 @@ const styles = StyleSheet.create({
   },
   addToCartLabel: {
     // Styles will be applied from CSS
+  },
+  viewAllButton: {
+    paddingHorizontal: 0,
+    paddingVertical: 4,
+    alignSelf: "flex-start",
+    marginBottom: 12,
+  },
+  viewAllText: {
+    fontSize: 13,
+    color: "#2563EB",
+    fontWeight: "600",
+  },
+  viewAllTextDisabled: {
+    opacity: 0.5,
   },
 });

@@ -354,21 +354,52 @@ export default function ProductGrid({ section, limit = 8, title = "Products" }) 
 
   return (
     <View style={[styles.wrapper, resolvedBgColor ? { backgroundColor: resolvedBgColor } : null]}>
-      {resolvedShowTitle && (
-        <Text
-          style={[
-            styles.heading,
-            {
-              textAlign: resolvedTitleAlign,
-              fontSize: resolvedTitleFontSize,
-              color: resolvedTitleColor,
-              fontWeight: resolvedTitleWeight,
-              ...(resolvedTitleFontFamily ? { fontFamily: resolvedTitleFontFamily } : null),
-            },
-          ]}
-        >
-          {resolvedTitle}
-        </Text>
+      {(resolvedShowTitle || hasMore) && (
+        <View style={styles.headerRow}>
+          {resolvedShowTitle && (
+            <Text
+              style={[
+                styles.heading,
+                {
+                  textAlign: resolvedTitleAlign,
+                  fontSize: resolvedTitleFontSize,
+                  color: resolvedTitleColor,
+                  fontWeight: resolvedTitleWeight,
+                  ...(resolvedTitleFontFamily ? { fontFamily: resolvedTitleFontFamily } : null),
+                },
+              ]}
+            >
+              {resolvedTitle}
+            </Text>
+          )}
+
+          {hasMore && (
+            <TouchableOpacity
+              style={styles.viewAllInline}
+              activeOpacity={0.8}
+              onPress={() =>
+                navigation.navigate("AllProducts", {
+                  title: resolvedTitle,
+                  detailSections,
+                })
+              }
+            >
+              <Text
+                style={[
+                  styles.viewAllText,
+                  {
+                    color: resolvedViewAllColor,
+                    fontSize: resolvedViewAllFontSize,
+                    fontWeight: resolvedViewAllWeight,
+                    ...(resolvedViewAllFontFamily ? { fontFamily: resolvedViewAllFontFamily } : null),
+                  },
+                ]}
+              >
+                {resolvedViewAllText} ›
+              </Text>
+            </TouchableOpacity>
+          )}
+        </View>
       )}
 
       {loading && (
@@ -503,32 +534,7 @@ export default function ProductGrid({ section, limit = 8, title = "Products" }) 
               </TouchableOpacity>
             ))}
           </View>
-          {hasMore && (
-            <TouchableOpacity
-              style={styles.viewAllButton}
-              activeOpacity={0.8}
-              onPress={() =>
-                navigation.navigate("AllProducts", {
-                  title: resolvedTitle,
-                  detailSections,
-                })
-              }
-            >
-              <Text
-                style={[
-                  styles.viewAllText,
-                  {
-                    color: resolvedViewAllColor,
-                    fontSize: resolvedViewAllFontSize,
-                    fontWeight: resolvedViewAllWeight,
-                    ...(resolvedViewAllFontFamily ? { fontFamily: resolvedViewAllFontFamily } : null),
-                  },
-                ]}
-              >
-                {resolvedViewAllText} ›
-              </Text>
-            </TouchableOpacity>
-          )}
+          {/* "View all" is now shown inline with the header row above */}
         </>
       )}
     </View>
@@ -545,10 +551,15 @@ const styles = StyleSheet.create({
     paddingHorizontal: 24,
     paddingVertical: 20,
   },
+  headerRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 16,
+  },
   heading: {
     fontSize: 22,
     fontWeight: "700",
-    marginBottom: 16,
     color: "#111827",
   },
   grid: {
@@ -612,9 +623,9 @@ const styles = StyleSheet.create({
     textAlign: "center",
     color: "#b91c1c",
   },
-  viewAllButton: {
-    alignSelf: "flex-start",
-    paddingVertical: 8,
+  viewAllInline: {
+    paddingVertical: 4,
+    paddingLeft: 12,
   },
   viewAllText: {
     color: "#111827",

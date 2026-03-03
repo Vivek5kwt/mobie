@@ -335,13 +335,17 @@ export default function HeroBanner({ section }) {
 
   if (!headline && !subtext && !imageSrc) return null;
 
-  // Calculate container height - prioritize explicit height, then aspect ratio
-  // If height is "auto" or not specified, let content determine the height (dynamic)
-  const containerHeightStyle = containerHeight !== "auto" 
-    ? { height: toNumber(containerHeight, undefined) }
-    : imageAspectRatio 
-      ? { aspectRatio: imageAspectRatio }
-      : {}; // No fixed height - let content determine it dynamically
+  // Calculate container height:
+  // - If an explicit numeric height is provided, use it.
+  // - Otherwise, let content determine the height dynamically so the image
+  //   always expands behind all text (no clipping when text is taller).
+  const numericContainerHeight = containerHeight !== "auto"
+    ? toNumber(containerHeight, undefined)
+    : undefined;
+
+  const containerHeightStyle = numericContainerHeight
+    ? { height: numericContainerHeight }
+    : {}; // No fixed height; container grows with content, and image fills it
 
   return (
     <View

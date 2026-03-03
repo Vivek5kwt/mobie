@@ -107,7 +107,7 @@ export default function ProductCarousel({ section }) {
 
   const rawProps =
     section?.properties?.props?.properties || section?.properties?.props || section?.props || {};
-  const raw = rawProps?.raw || {};
+  const raw = rawProps?.raw || rawProps || {};
 
   // Data source configuration
   const dataSource = section?.dataSource || rawProps?.dataSource || {};

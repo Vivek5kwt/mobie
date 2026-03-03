@@ -23,6 +23,48 @@ const asBoolean = (value, fallback = true) => {
   return fallback;
 };
 
+const asNumber = (value, fallback = undefined) => {
+  const resolved = unwrapValue(value, undefined);
+  if (resolved === undefined || resolved === null || resolved === "") return fallback;
+  if (typeof resolved === "number") return resolved;
+  const parsed = parseFloat(resolved);
+  return Number.isNaN(parsed) ? fallback : parsed;
+};
+
+const applyTextAttributes = (baseStyle, attributes) => {
+  const attrs = attributes || {};
+  const next = { ...(baseStyle || {}) };
+
+  const size = asNumber(attrs.size, undefined);
+  if (size != null) next.fontSize = size;
+
+  const color = unwrapValue(attrs.color, undefined);
+  if (color) next.color = color;
+
+  const bold = asBoolean(attrs.bold, undefined);
+  if (bold === true) next.fontWeight = "700";
+
+  const italic = asBoolean(attrs.italic, undefined);
+  if (italic === true) next.fontStyle = "italic";
+
+  const underline = asBoolean(attrs.underline, undefined);
+  const strikethrough = asBoolean(attrs.strikethrough, undefined);
+  if (underline || strikethrough) {
+    if (underline && strikethrough) {
+      next.textDecorationLine = "underline line-through";
+    } else if (underline) {
+      next.textDecorationLine = "underline";
+    } else {
+      next.textDecorationLine = "line-through";
+    }
+  }
+
+  const fontFamily = unwrapValue(attrs.fontFamily, undefined);
+  if (fontFamily) next.fontFamily = fontFamily;
+
+  return next;
+};
+
 export default function TextBlock({ section }) {
   const rawProps =
     section?.props ||
@@ -43,12 +85,19 @@ export default function TextBlock({ section }) {
   const headline = unwrapValue(rawProps?.headline, "");
   const subtext = unwrapValue(rawProps?.subtext, "");
 
-  const headlineStyle = convertStyles(layoutCss.headline || {});
-  const subtextStyle = convertStyles(layoutCss.subtext || {});
-  const containerStyle = convertStyles({
-    ...layoutCss.container,
-    padding: alignmentCfg?.padding?.value ?? layoutCss.container?.padding,
-  });
+  const paddingRaw = alignmentCfg?.paddingRaw?.properties || alignmentCfg?.paddingRaw || {};
+
+  const baseContainerStyle = convertStyles(layoutCss.container || {});
+  const containerStyle = {
+    ...baseContainerStyle,
+    paddingTop: asNumber(paddingRaw?.pt, baseContainerStyle.paddingTop),
+    paddingRight: asNumber(paddingRaw?.pr, baseContainerStyle.paddingRight),
+    paddingBottom: asNumber(paddingRaw?.pb, baseContainerStyle.paddingBottom),
+    paddingLeft: asNumber(paddingRaw?.pl, baseContainerStyle.paddingLeft),
+  };
+
+  const baseHeadlineStyle = convertStyles(layoutCss.headline || {});
+  const baseSubtextStyle = convertStyles(layoutCss.subtext || {});
   const iconStyle = convertStyles(layoutCss.icon || {});
   const overrideStyle = convertStyles({
     backgroundColor: unwrapValue(styleCfg?.bgColor),
@@ -57,13 +106,30 @@ export default function TextBlock({ section }) {
     backgroundOpacity: unwrapValue(styleCfg?.backgroundOpacity),
   });
 
+  const headlineAttributes =
+    rawProps?.headlineAttributes?.properties || rawProps?.headlineAttributes || {};
+  const subtextAttributes =
+    rawProps?.subtextAttributes?.properties || rawProps?.subtextAttributes || {};
+
+  const headlineStyle = applyTextAttributes(baseHeadlineStyle, headlineAttributes);
+  const subtextStyle = applyTextAttributes(baseSubtextStyle, subtextAttributes);
+
   const iconEmoji = unwrapValue(iconCfg?.emoji, "");
   const iconColor = unwrapValue(iconCfg?.color, iconStyle?.color || "#FFFFFF");
   const iconSize = unwrapValue(iconCfg?.width, iconStyle?.width || 20);
 
+  const headtextAlign = unwrapValue(rawProps?.headtextAlign, null);
+  const subtextAlign = unwrapValue(rawProps?.subtextAlign, null);
+
   const textContainerStyle = [styles.textContainer, { flex: 1 }];
-  const resolvedHeadlineLines = headlineStyle?.numberOfLines || undefined;
-  const resolvedSubtextLines = subtextStyle?.numberOfLines || undefined;
+
+  const rawHeadlineLines = asNumber(rawProps?.headlineHeight, undefined);
+  const rawSubtextLines = asNumber(rawProps?.subtextHeight, undefined);
+
+  const resolvedHeadlineLines =
+    rawHeadlineLines && rawHeadlineLines > 0 ? rawHeadlineLines : undefined;
+  const resolvedSubtextLines =
+    rawSubtextLines && rawSubtextLines > 0 ? rawSubtextLines : undefined;
 
   const hasIcon = showIcon && !!iconEmoji;
   const hasHeadline = showHeadline && !!headline;
@@ -99,7 +165,13 @@ export default function TextBlock({ section }) {
         {showHeadline && !!headline && (
           <Text
             numberOfLines={resolvedHeadlineLines}
-            style={[styles.headline, headlineStyle]}
+            style={[
+              styles.headline,
+              headlineStyle,
+              headtextAlign
+                ? { textAlign: String(headtextAlign).toLowerCase() }
+                : null,
+            ]}
             ellipsizeMode="tail"
           >
             {headline}
@@ -109,7 +181,13 @@ export default function TextBlock({ section }) {
         {showSubtext && !!subtext && (
           <Text
             numberOfLines={resolvedSubtextLines}
-            style={[styles.subtext, subtextStyle]}
+            style={[
+              styles.subtext,
+              subtextStyle,
+              subtextAlign
+                ? { textAlign: String(subtextAlign).toLowerCase() }
+                : null,
+            ]}
             ellipsizeMode="tail"
           >
             {subtext}
