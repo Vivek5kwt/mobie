@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
   Image,
   Modal,
@@ -11,6 +11,7 @@ import {
 import { StackActions, useNavigation } from "@react-navigation/native";
 import LinearGradient from "react-native-linear-gradient";
 import FontAwesome from "react-native-vector-icons/FontAwesome";
+import FontAwesome5 from "react-native-vector-icons/FontAwesome5";
 import Icon from "react-native-vector-icons/FontAwesome6";
 import { useSelector } from "react-redux";
 import { convertStyles, extractGradientInfo } from "../utils/convertStyles";
@@ -151,7 +152,7 @@ const resolveSideMenuIcon = (variant) => {
 };
 
 export default function Header2({ section }) {
-  const { openSideMenu, hasSideNav } = useSideMenu();
+  const { openSideMenu, toggleSideMenu, hasSideNav } = useSideMenu();
   const navigation = useNavigation();
   const bottomNavSection = section?.bottomNavSection || bottomNavigationStyle1Section;
   const cartCount = useSelector((state) =>
@@ -283,14 +284,17 @@ export default function Header2({ section }) {
   };
 
   // Profile configuration (all from JSON)
+  // Placeholder design: light circle fill, dark border, dark user icon outline (when no image)
   const profileNode = rawPropsNode.profile?.properties || rawPropsNode.profile || {};
   const profile = {
     show: resolveBooleanSetting(profileNode.show, true),
     size: resolveValue(profileNode.size, 40),
     image: resolveValue(profileNode.image, ""),
-    borderColor: resolveValue(profileNode.borderColor, "#016D77"),
+    borderColor: resolveValue(profileNode.borderColor, "#374151"),
     backgroundColor: resolveValue(profileNode.backgroundColor, undefined),
     borderWidth: resolveValue(profileNode.borderWidth, undefined),
+    borderRadius: resolveValue(profileNode.borderRadius, undefined),
+    iconColor: resolveValue(profileNode.iconColor, undefined),
   };
 
   // Search & icons configuration
@@ -324,6 +328,10 @@ export default function Header2({ section }) {
       true
     ),
   };
+
+  // Background gradient from JSON (bgStart, bgEnd) — takes precedence when present
+  const bgStart = resolveValue(rawPropsNode.bgStart, undefined);
+  const bgEnd = resolveValue(rawPropsNode.bgEnd, undefined);
 
   // Background & alignment settings
   const bgSettingsEnabled = resolveBooleanSetting(rawPropsNode.bgSettingsEnabled, true);
@@ -371,6 +379,21 @@ export default function Header2({ section }) {
     parseSize(normalizedProfileStyle.height) ||
     40;
 
+  // Profile borderRadius: from props.profile.borderRadius (number) or style.profile, or circle default
+  const resolveProfileBorderRadius = () => {
+    const raw = profile.borderRadius ?? normalizedProfileStyle.borderRadius;
+    if (raw != null && raw !== "") {
+      const n = typeof raw === "number" ? raw : parseFloat(String(raw).replace(/px|%/g, "").trim());
+      if (Number.isFinite(n)) {
+        if (n >= 99 || n === 50) return profileSize / 2;
+        return n;
+      }
+      if (String(raw).trim() === "50%" || String(raw).includes("999")) return profileSize / 2;
+    }
+    return profileSize / 2;
+  };
+  const profileBorderRadius = resolveProfileBorderRadius();
+
   const searchBarStyle = styleBlock.searchBar || styleBlock.searchInput || styleBlock.search || {};
   const searchBarInputStyle = styleBlock.searchBarInput || {};
   const notificationContainerStyle = styleBlock.notificationContainer || {};
@@ -411,8 +434,16 @@ export default function Header2({ section }) {
   
   let gradientColors = ["#5EB7C6", "#8DD1D5"];
   let gradientAngle = 90;
-  
-  if (typeof containerStyle?.background === "string" &&
+
+  // Use explicit bgStart / bgEnd from Header 2 JSON when provided (dynamic background)
+  const hasBgStart = typeof bgStart === "string" && bgStart.trim().length > 0;
+  const hasBgEnd = typeof bgEnd === "string" && bgEnd.trim().length > 0;
+  if (hasBgStart || hasBgEnd) {
+    const start = (hasBgStart ? bgStart.trim() : null) || (hasBgEnd ? bgEnd.trim() : null);
+    const end = (hasBgEnd ? bgEnd.trim() : null) || (hasBgStart ? bgStart.trim() : null);
+    if (start && end) gradientColors = [start, end];
+    else if (start) gradientColors = [start, start];
+  } else if (typeof containerStyle?.background === "string" &&
     containerStyle.background.includes("linear-gradient")) {
 
     const info = extractGradientInfo({ background: containerStyle.background });
@@ -470,11 +501,20 @@ export default function Header2({ section }) {
   const shouldShowSearchRow =
     (searchEnabled && searchAndIcons?.showSearch) ||
     (notificationEnabled && searchAndIcons?.showNotification);
-  const shouldShowSideMenu = false;
+  const shouldShowSideMenu = hasSideNav && searchAndIcons?.showSideMenu !== false;
   const shouldShowSearchRowOrMenu = shouldShowSearchRow || shouldShowSideMenu;
   const shouldShowTopRow = hasGreeting || (profileEnabled && profile?.show);
   const searchLimit = resolveValue(searchAndIcons?.searchLimit, 10);
   const detailSections = useMemo(() => extractDetailSections(rawPropsNode), [rawPropsNode]);
+
+  const handleOpenSideMenu = useCallback(() => {
+    if (!hasSideNav) return;
+    if (typeof openSideMenu === "function") {
+      openSideMenu();
+    } else if (typeof toggleSideMenu === "function") {
+      toggleSideMenu();
+    }
+  }, [hasSideNav, openSideMenu, toggleSideMenu]);
 
   const [searchValue, setSearchValue] = useState("");
   const [searchResults, setSearchResults] = useState([]);
@@ -638,8 +678,16 @@ export default function Header2({ section }) {
       resolveValue(styleProps.minHeight, 60),
       60
     );
-    const backgroundColor = resolveValue(styleProps.backgroundColor, "#E0F7F8");
-    const borderColor = resolveValue(styleProps.borderColor, "#016D77");
+    // Use bgStart/bgEnd from JSON when provided, else style backgroundColor/borderColor
+    const simpleBgStart = resolveValue(rawPropsNode.bgStart, undefined);
+    const simpleBgEnd = resolveValue(rawPropsNode.bgEnd, undefined);
+    const backgroundColor =
+      (typeof simpleBgStart === "string" && simpleBgStart.trim()) ||
+      (typeof simpleBgEnd === "string" && simpleBgEnd.trim()) ||
+      resolveValue(styleProps.backgroundColor, "#E0F7F8");
+    const borderColor =
+      resolveValue(rawPropsNode.borderColor, undefined) ||
+      resolveValue(styleProps.borderColor, "#016D77");
     const paddingStyle = convertPadding(paddingVal);
 
     const normalizedLayout = {
@@ -903,10 +951,12 @@ export default function Header2({ section }) {
                 {
                   width: profileSize,
                   height: profileSize,
-                  borderRadius: profileSize / 2,
+                  borderRadius: profileBorderRadius,
                   borderColor: profile.borderColor || "transparent",
-                  borderWidth: profileBorderWidth,
-                  backgroundColor: profile.backgroundColor || "transparent",
+                  borderWidth: profile?.image
+                    ? profileBorderWidth
+                    : (profile.borderWidth != null ? Number(profile.borderWidth) : 2),
+                  backgroundColor: profile.backgroundColor ?? (profile?.image ? "transparent" : "#FFFFFF"),
                 },
               ]}
               activeOpacity={profile?.image ? 0.7 : 1}
@@ -921,16 +971,17 @@ export default function Header2({ section }) {
                     {
                       width: "100%",
                       height: "100%",
-                      borderRadius: 9999,
+                      borderRadius: profileBorderRadius,
                     },
                   ]}
                   resizeMode="cover"
                 />
               ) : (
-                <FontAwesome
+                <FontAwesome5
                   name="user"
-                  size={Math.max(16, profileSize * 0.5)}
-                  color={profile?.borderColor || "#0E6A70"}
+                  solid={false}
+                  size={Math.max(16, profileSize * 0.45)}
+                  color={profile.iconColor ?? profile.borderColor ?? "#374151"}
                 />
               )}
             </TouchableOpacity>
@@ -951,7 +1002,7 @@ export default function Header2({ section }) {
         >
           {shouldShowSideMenu && (
             <TouchableOpacity
-              onPress={openSideMenu}
+              onPress={handleOpenSideMenu}
               activeOpacity={0.7}
               style={{ alignItems: "center", justifyContent: "center", flexShrink: 0 }}
             >

@@ -27,7 +27,7 @@ function fixPackageName(packageName) {
 
 const APP_ID = process.env.APP_ID;
 const APP_NAME = process.env.APP_NAME || 'MobiDrag';
-let PACKAGE_NAME = process.env.PACKAGE_NAME || `com.mobidrag.builder.app${APP_ID}`;
+let PACKAGE_NAME = process.env.PACKAGE_NAME || `com.mobidrag`;
 
 if (!APP_ID) {
   console.error('❌ APP_ID is required');

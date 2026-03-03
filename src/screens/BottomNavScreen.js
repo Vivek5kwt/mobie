@@ -27,7 +27,7 @@ export default function BottomNavScreen() {
   const link = route?.params?.link || "";
   const pageName = route?.params?.pageName || link || title;
   const bottomNavSectionProp = route?.params?.bottomNavSection || bottomNavigationStyle1Section;
-  const activeIndex = route?.params?.activeIndex;
+  const activeIndexFromParams = route?.params?.activeIndex;
   const appId = useMemo(
     () =>
       resolveAppId(route?.params?.appId ?? session?.user?.appId ?? session?.user?.app_id),
@@ -224,6 +224,28 @@ export default function BottomNavScreen() {
     return fromSections || bottomNavSectionProp;
   }, [bottomNavSection, sortedSections, bottomNavSectionProp]);
 
+  const activeIndex = useMemo(() => {
+    if (activeIndexFromParams !== undefined && activeIndexFromParams !== null) {
+      const n = Number(activeIndexFromParams);
+      if (Number.isFinite(n) && n >= 0) return n;
+    }
+    const section = resolvedBottomNavSection;
+    const rawProps = section?.props || section?.properties?.props?.properties || section?.properties?.props || {};
+    const raw = rawProps?.raw?.value ?? rawProps?.raw ?? {};
+    const items = raw?.items ?? raw?.navItems ?? rawProps?.items?.value ?? rawProps?.items ?? [];
+    const list = Array.isArray(items) ? items : [];
+    if (!list.length) return 0;
+    const slug = (v) => String(v ?? "").trim().toLowerCase().replace(/[^a-z0-9]+/g, "-");
+    const page = slug(normalizedPageName || route?.params?.pageName);
+    const idx = list.findIndex(
+      (item) =>
+        slug(item?.id) === page ||
+        slug(item?.label) === page ||
+        slug(item?.link) === page
+    );
+    return idx >= 0 ? idx : 0;
+  }, [activeIndexFromParams, normalizedPageName, route?.params?.pageName, resolvedBottomNavSection]);
+
   const visibleSections = useMemo(
     () =>
       sortedSections.filter((section) => {
@@ -392,7 +414,7 @@ export default function BottomNavScreen() {
       <SideMenuProvider
         value={{
           isOpen: isSideMenuOpen,
-          hasSideNav: true, // always allow side menu icon in header
+          hasSideNav: !!sideNavSection,
           toggleSideMenu,
           openSideMenu,
           closeSideMenu,

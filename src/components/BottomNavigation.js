@@ -1,7 +1,9 @@
 import React, { useEffect, useMemo, useState, useRef, useCallback } from "react";
 import { Linking, StyleSheet, Text, TouchableOpacity, View } from "react-native";
-import { StackActions, useNavigation } from "@react-navigation/native";
+import { StackActions, useNavigation, useRoute } from "@react-navigation/native";
 import Icon from "react-native-vector-icons/FontAwesome6";
+
+const BOTTOM_NAV_DEBUG = __DEV__;
 import { convertStyles } from "../utils/convertStyles";
 import { useSideMenu } from "../services/SideMenuContext";
 
@@ -61,6 +63,13 @@ const buildRawProps = (rawProps = {}) => {
   return rawBlock || {};
 };
 
+/** Unwrap schema prop that may be { type, value } or a primitive */
+const getSchemaValue = (node, fallback = undefined) => {
+  if (node === undefined || node === null) return fallback;
+  if (typeof node === "object" && node !== null && "value" in node) return node.value;
+  return node;
+};
+
 const extractPresentation = (section = {}) => {
   const fromProps =
     section?.properties?.props?.properties?.presentation?.properties ||
@@ -87,23 +96,25 @@ const extractPresentation = (section = {}) => {
 
 const resolveItems = (rawProps = {}, raw = {}) => {
   const itemsFromRaw = unwrapValue(raw?.items, []);
-  if (Array.isArray(itemsFromRaw)) return itemsFromRaw;
+  if (Array.isArray(itemsFromRaw) && itemsFromRaw.length > 0) return itemsFromRaw;
+
+  const navItemsFromRaw = unwrapValue(raw?.navItems, []);
+  if (Array.isArray(navItemsFromRaw) && navItemsFromRaw.length > 0) return navItemsFromRaw;
 
   const itemsFromProps = unwrapValue(rawProps.items, []);
-  if (Array.isArray(itemsFromProps)) return itemsFromProps;
+  if (Array.isArray(itemsFromProps) && itemsFromProps.length > 0) return itemsFromProps;
 
-  if (Array.isArray(itemsFromProps?.value)) return itemsFromProps.value;
+  const itemsValue = rawProps.items?.value ?? rawProps.items?.properties?.value;
+  if (Array.isArray(itemsValue) && itemsValue.length > 0) return itemsValue;
 
   return [];
 };
 
 const resolveActiveIndex = (items = [], rawProps = {}, raw = {}, currentActiveIndex = null) => {
-  // If we have a current activeIndex and it's still valid, preserve it during refresh
   if (currentActiveIndex !== null && currentActiveIndex >= 0 && currentActiveIndex < items.length) {
     return currentActiveIndex;
   }
-  
-  const fromProps = unwrapValue(rawProps?.activeIndex, raw?.activeIndex);
+  const fromProps = getSchemaValue(rawProps?.activeIndex) ?? unwrapValue(rawProps?.activeIndex, raw?.activeIndex);
   const parsed = Number(fromProps);
   if (!Number.isNaN(parsed) && parsed >= 0 && parsed < items.length) return parsed;
 
@@ -178,6 +189,7 @@ const resolveNavigationTarget = (item = {}) => {
 
 function BottomNavigation({ section, activeIndexOverride }) {
   const navigation = useNavigation();
+  const route = useRoute();
   const { closeSideMenu, isOpen: isSideMenuOpen } = useSideMenu();
   const componentName =
     section?.component || section?.properties?.component?.const || section?.properties?.component;
@@ -192,19 +204,51 @@ function BottomNavigation({ section, activeIndexOverride }) {
   const rawLayoutCss = raw?.layout?.css || {};
 
   const items = useMemo(() => resolveItems(rawProps, raw), [rawProps, raw]);
-  
+
+  /** Derive active index from navigator state (route name + params) so highlight matches current screen */
+  const activeIndexFromState = useMemo(() => {
+    const routeName = route?.name ?? "";
+    const pageName = String(route?.params?.pageName ?? route?.params?.pageName ?? "home").trim().toLowerCase();
+    const paramIndex = route?.params?.activeIndex;
+    if (routeName === "LayoutScreen" && (pageName === "home" || !pageName)) return 0;
+    if (routeName === "BottomNavScreen" && paramIndex !== undefined && paramIndex !== null) {
+      const n = Number(paramIndex);
+      if (Number.isFinite(n) && n >= 0) return n;
+    }
+    if (!items.length) return 0;
+    const slug = (id) => String(id ?? "").trim().toLowerCase().replace(/[^a-z0-9]+/g, "-");
+    const idx = items.findIndex(
+      (item) =>
+        slug(item?.id) === pageName ||
+        slug(item?.label) === pageName ||
+        slug(item?.link) === pageName
+    );
+    return idx >= 0 ? idx : 0;
+  }, [route?.name, route?.params?.pageName, route?.params?.activeIndex, items]);
+
   // Memoize icon names to prevent unnecessary re-renders when clicking home
   const iconNames = useMemo(() => {
     return items.map((item) => normalizeIconName(resolveItemIcon(item)));
   }, [items]);
 
-  const visibility = unwrapValue(rawProps.visibility, raw?.visibility || {});
-  const showIcons = asBoolean(visibility?.icons ?? raw?.showIcons, true);
-  // Global label visibility setting - can be overridden per item
-  const globalShowLabels = asBoolean(visibility?.labels ?? raw?.showText, true);
-  const showBg = asBoolean(visibility?.bgPadding ?? raw?.showBg, true);
+  const visibilityNode = rawProps.visibility ?? raw?.visibility ?? {};
+  const visibility = typeof visibilityNode === "object" && visibilityNode.properties
+    ? visibilityNode.properties
+    : visibilityNode;
+  const showIcons = asBoolean(
+    getSchemaValue(visibility?.icons) ?? getSchemaValue(visibility?.icons) ?? raw?.showIcons ?? raw?.visibility?.icons,
+    true
+  );
+  const globalShowLabels = asBoolean(
+    getSchemaValue(visibility?.labels) ?? raw?.showText ?? raw?.visibility?.labels,
+    true
+  );
+  const showBg = asBoolean(
+    getSchemaValue(visibility?.bgPadding) ?? raw?.showBg ?? raw?.visibility?.bgPadding,
+    true
+  );
   const showActiveIndicator = asBoolean(
-    visibility?.activeIndicator ?? raw?.showActiveIndicator,
+    getSchemaValue(visibility?.activeIndicator) ?? raw?.showActiveIndicator ?? raw?.visibility?.activeIndicator,
     isStyle2
   );
   
@@ -219,69 +263,93 @@ function BottomNavigation({ section, activeIndexOverride }) {
     return globalShowLabels;
   };
 
-  const indicatorMode = unwrapValue(
-    raw?.indicatorMode,
-    rawProps?.indicator?.properties?.mode?.value
-  );
-  
-  // Extract colors from schema - check multiple possible locations including layout.css
+  const indicatorNode = rawProps?.indicator?.properties ?? rawProps?.indicator ?? {};
+  const indicatorMode =
+    raw?.indicatorMode ??
+    getSchemaValue(indicatorNode?.mode) ??
+    getSchemaValue(rawProps?.indicator?.properties?.mode);
+
+  const textNode = rawProps?.text?.properties ?? rawProps?.text ?? {};
+  const iconsNode = rawProps?.icons?.properties ?? rawProps?.icons ?? {};
+  const bgPaddingNode = rawProps?.backgroundAndPadding?.properties ?? rawProps?.backgroundAndPadding ?? {};
+
   const textActiveColor =
-    raw?.textActiveColor || 
-    raw?.activeColor ||
-    rawLayoutCss?.label?.color || // Check layout.css.label.color for active color
-    unwrapValue(rawProps?.text?.properties?.activeColor?.value, "#0F766E") ||
-    unwrapValue(rawProps?.text?.properties?.activeColor, "#0F766E");
-    
+    raw?.textActiveColor ??
+    raw?.activeColor ??
+    rawLayoutCss?.label?.color ??
+    getSchemaValue(textNode?.activeColor) ??
+    "#0F766E";
+
   const iconActiveColor =
-    raw?.iconActiveColor ||
-    raw?.activeColor ||
-    rawLayoutCss?.icon?.color || // Check layout.css.icon.color for active color
-    unwrapValue(rawProps?.icons?.properties?.activeColor?.value, textActiveColor) ||
-    unwrapValue(rawProps?.icons?.properties?.activeColor, textActiveColor) ||
+    raw?.iconActiveColor ??
+    raw?.activeColor ??
+    rawLayoutCss?.icon?.color ??
+    getSchemaValue(iconsNode?.activeColor) ??
     textActiveColor;
-    
+
   const iconPrimaryColor =
-    raw?.iconPrimaryColor || 
-    raw?.inactiveColor ||
-    rawLayoutCss?.icon?.color || // Check layout.css.icon.color (may be same for both states)
-    unwrapValue(rawProps?.icons?.properties?.primaryColor?.value, "#9CA3AF") ||
-    unwrapValue(rawProps?.icons?.properties?.primaryColor, "#9CA3AF") ||
+    raw?.iconPrimaryColor ??
+    raw?.inactiveColor ??
+    rawLayoutCss?.icon?.color ??
+    getSchemaValue(iconsNode?.primaryColor) ??
     "#9CA3AF";
-    
+
   const textPrimaryColor =
-    raw?.textPrimaryColor || 
-    raw?.labelColor ||
-    rawLayoutCss?.label?.color || // Check layout.css.label.color (may be same for both states)
-    unwrapValue(rawProps?.text?.properties?.primaryColor?.value, "#6B7280") ||
-    unwrapValue(rawProps?.text?.properties?.primaryColor, "#6B7280") ||
+    raw?.textPrimaryColor ??
+    raw?.labelColor ??
+    rawLayoutCss?.label?.color ??
+    getSchemaValue(textNode?.primaryColor) ??
     "#6B7280";
 
-  const iconWidth = unwrapValue(raw?.iconWidth, raw?.iconHeight) || 20;
-  const iconHeight = unwrapValue(raw?.iconHeight, iconWidth) || 20;
+  const iconWidth =
+    Number(getSchemaValue(iconsNode?.width)) ||
+    Number(raw?.iconWidth ?? raw?.iconHeight ?? raw?.iconFontSize) ||
+    20;
+  const iconHeight =
+    Number(getSchemaValue(iconsNode?.height)) ||
+    Number(raw?.iconHeight ?? raw?.iconWidth ?? raw?.iconFontSize) ||
+    20;
   const iconSize = Math.max(iconWidth, iconHeight);
 
-  const fontSize = unwrapValue(raw?.textFontSize, rawProps?.text?.properties?.fontSize?.value) || 12;
-  const fontFamily = unwrapValue(raw?.textFontFamily, rawProps?.text?.properties?.fontFamily?.value);
+  const fontSize =
+    Number(getSchemaValue(textNode?.fontSize)) ||
+    Number(raw?.textFontSize) ||
+    12;
+  const fontFamily =
+    getSchemaValue(textNode?.fontFamily) ?? raw?.textFontFamily;
   const fontWeight =
-    unwrapValue(raw?.textFontWeight, rawProps?.text?.properties?.fontWeight?.value) || "600";
+    String(getSchemaValue(textNode?.fontWeight) ?? raw?.textFontWeight ?? "600");
 
-  const itemWidth = unwrapValue(raw?.itemWidth, rawProps?.text?.properties?.itemWidth?.value);
-  const itemHeight = unwrapValue(raw?.itemHeight, rawProps?.text?.properties?.itemHeight?.value) || 64;
+  const itemWidth =
+    Number(getSchemaValue(textNode?.itemWidth) ?? raw?.itemWidth) || undefined;
+  const itemHeight =
+    Number(getSchemaValue(textNode?.itemHeight) ?? raw?.itemHeight ?? raw?.layout?.css?.item?.height) ||
+    64;
 
+  const paddingRaw = bgPaddingNode?.paddingRaw?.properties ?? bgPaddingNode?.paddingRaw ?? raw;
   const paddingStyles = convertStyles({
-    paddingTop: raw?.pt,
-    paddingBottom: raw?.pb,
-    paddingLeft: raw?.pl,
-    paddingRight: raw?.pr,
+    paddingTop: paddingRaw?.pt ?? raw?.pt,
+    paddingBottom: paddingRaw?.pb ?? raw?.pb,
+    paddingLeft: paddingRaw?.pl ?? raw?.pl,
+    paddingRight: paddingRaw?.pr ?? raw?.pr,
   });
 
   const backgroundColor =
-    raw?.bgColor || unwrapValue(rawProps?.backgroundAndPadding?.properties?.backgroundColor);
+    raw?.bgColor ??
+    getSchemaValue(bgPaddingNode?.backgroundColor) ??
+    getSchemaValue(rawProps?.backgroundAndPadding?.properties?.backgroundColor);
 
-  const parsedActiveIndexOverride = Number(activeIndexOverride);
+  const containerBorderRadius =
+    Number(getSchemaValue(bgPaddingNode?.borderRadius) ?? raw?.borderRadius) ||
+    undefined;
+
+  // activeIndexOverride can be 0 (Home) - must treat as valid override
+  const parsedActiveIndexOverride =
+    activeIndexOverride !== undefined && activeIndexOverride !== null
+      ? Number(activeIndexOverride)
+      : NaN;
   const hasActiveIndexOverride = Number.isFinite(parsedActiveIndexOverride);
-  
-  // Initialize with resolvedActiveIndex to prevent layout shifts
+
   const [activeIndex, setActiveIndex] = useState(() => {
     if (hasActiveIndexOverride) {
       return clampIndex(parsedActiveIndexOverride, items.length);
@@ -289,38 +357,45 @@ function BottomNavigation({ section, activeIndexOverride }) {
     return clampIndex(resolveActiveIndex(items, rawProps, raw, null), items.length);
   });
 
-  // Recalculate resolvedActiveIndex, but preserve current activeIndex if valid
-  // Use activeIndexRef to preserve the current index during refresh
-  // This prevents the index from changing when items array reference changes
+  // Single source of truth for which tab is active: prefer parent override (including 0 for Home)
   const resolvedActiveIndex = useMemo(() => {
     if (hasActiveIndexOverride) {
       return clampIndex(parsedActiveIndexOverride, items.length);
     }
-    // Always preserve the current activeIndex from ref during refresh
-    // Only recalculate if the current index is invalid
     const currentIndex = activeIndexRef.current;
     if (currentIndex !== null && currentIndex !== undefined && currentIndex >= 0 && currentIndex < items.length) {
-      return currentIndex; // Preserve current index - don't recalculate
+      return currentIndex;
     }
-    // Only recalculate if current index is invalid
     return clampIndex(resolveActiveIndex(items, rawProps, raw, currentIndex), items.length);
-  }, [hasActiveIndexOverride, parsedActiveIndexOverride, items.length]); // Only depend on length, not items array reference
+  }, [hasActiveIndexOverride, parsedActiveIndexOverride, items.length]);
 
-  const indicatorColor = 
-    raw?.indicatorColor ||
-    unwrapValue(rawProps?.indicator?.properties?.color?.value, textActiveColor) ||
-    unwrapValue(rawProps?.indicator?.properties?.color, textActiveColor) ||
+  // Display index: 1) local state (immediate on tap), 2) parent override, 3) from route/state, 4) internal
+  const displayActiveIndex = useMemo(() => {
+    const fromState = activeIndex >= 0 && activeIndex < items.length ? activeIndex : null;
+    const fromOverride =
+      activeIndexOverride !== undefined &&
+      activeIndexOverride !== null &&
+      Number.isFinite(Number(activeIndexOverride))
+        ? clampIndex(Number(activeIndexOverride), items.length)
+        : null;
+    const fromRoute = items.length > 0 && activeIndexFromState >= 0 && activeIndexFromState < items.length ? activeIndexFromState : null;
+    return fromState ?? fromOverride ?? fromRoute ?? resolvedActiveIndex;
+  }, [
+    activeIndex,
+    activeIndexOverride,
+    activeIndexFromState,
+    resolvedActiveIndex,
+    items.length,
+  ]);
+
+  const indicatorColor =
+    raw?.indicatorColor ??
+    getSchemaValue(indicatorNode?.color) ??
     textActiveColor;
-  const indicatorSizeRaw = 
-    raw?.indicatorSize ||
-    unwrapValue(rawProps?.indicator?.properties?.size?.value, 36) ||
-    unwrapValue(rawProps?.indicator?.properties?.size, 36) ||
-    36;
-  const indicatorThickness = 
-    raw?.indicatorThickness ||
-    unwrapValue(rawProps?.indicator?.properties?.thickness?.value, 6) ||
-    unwrapValue(rawProps?.indicator?.properties?.thickness, 6) ||
-    6;
+  const indicatorSizeRaw =
+    Number(getSchemaValue(indicatorNode?.size) ?? raw?.indicatorSize) || 36;
+  const indicatorThickness =
+    Number(getSchemaValue(indicatorNode?.thickness) ?? raw?.indicatorThickness) || 6;
   const maxIndicatorSize = Math.min(itemWidth, itemHeight) * 0.7;
   const indicatorSize = Math.min(indicatorSizeRaw, maxIndicatorSize);
   const normalizedIndicatorMode = String(indicatorMode || "").toLowerCase();
@@ -391,18 +466,13 @@ function BottomNavigation({ section, activeIndexOverride }) {
       closeSideMenu();
     }
 
-    // 👉 If user taps the already‑active Home tab, do NOTHING (no navigation, no refresh)
-    if (isHomeItem(item) && index === resolvedActiveIndex) {
-      // Still ensure local state is correct, but skip navigation entirely
-      if (activeIndex !== index) {
-        setActiveIndex(index);
-      }
+    // Tap on the tab that is already active = do nothing (no navigation, no refresh)
+    if (index === displayActiveIndex) {
       return;
     }
 
-    // Update activeIndex immediately to prevent flash
     setActiveIndex(index);
-    
+
     const target = resolveNavigationTarget(item);
 
     if (!target) return;
@@ -427,40 +497,75 @@ function BottomNavigation({ section, activeIndexOverride }) {
     }
 
     if (target.type === "stack" && target.name) {
-      // 🚫 If we're already on LayoutScreen home and user taps the home tab again,
-      // don't navigate / remount the screen. Just keep the active state.
+      const params = {
+        ...target.params,
+        activeIndex: index,
+        bottomNavSection: section,
+      };
+
+      const isGoingToHome =
+        target.name === "LayoutScreen" &&
+        (target.params?.pageName || "home").toString().trim().toLowerCase() === "home";
+
       try {
         const navState = navigation.getState?.();
-        const currentRoute =
-          navState?.routes && typeof navState.index === "number"
-            ? navState.routes[navState.index]
-            : null;
+        const routes = navState?.routes ?? [];
+        const stateIndex = typeof navState?.index === "number" ? navState.index : 0;
+        const currentRoute = routes[stateIndex] ?? null;
 
-        if (currentRoute && currentRoute.name === "LayoutScreen") {
-          const currentPageName =
-            (currentRoute.params?.pageName || "home").toString().trim().toLowerCase();
-          const targetPageName =
-            (target.params?.pageName || "home").toString().trim().toLowerCase();
+        if (BOTTOM_NAV_DEBUG) {
+          console.log("[BottomNav] Tab press:", {
+            routeSelected: target.name,
+            pageName: target.params?.pageName,
+            activeIndex: index,
+            stateIndex,
+            isGoingToHome,
+            action: isGoingToHome ? "navigate (no remount)" : currentRoute?.name === "BottomNavScreen" ? "replace" : "push",
+          });
+        }
 
-          // Same screen + same pageName ("home") → do nothing (no loader, no refresh)
-          if (currentPageName === "home" && targetPageName === "home") {
+        // Already on this screen + same logical page → no op
+        if (currentRoute?.name === target.name) {
+          const currentPage = (currentRoute.params?.pageName ?? "home")
+            .toString()
+            .trim()
+            .toLowerCase();
+          const targetPage = (target.params?.pageName ?? "home")
+            .toString()
+            .trim()
+            .toLowerCase();
+          if (currentPage === targetPage) {
+            if (BOTTOM_NAV_DEBUG) {
+              console.log("[BottomNav] Already on target page, skipping navigation");
+            }
             return;
           }
         }
-      } catch (e) {
-        // If anything goes wrong reading navigation state, fall through to normal navigation
-        console.log("BottomNavigation handlePress state check error:", e);
-      }
 
-      const params = {
-        ...target.params,
-        activeIndex: index, // Ensure activeIndex is passed
-        bottomNavSection: section,
-      };
-      
-      // Use replace to maintain navigation stack, but ensure activeIndex is set before navigation
-      // This prevents the flash of wrong icon/color
-      navigation.dispatch(StackActions.replace(target.name, params));
+        // Going to Home:
+        // - If already on LayoutScreen, do nothing (prevents any refresh/flicker)
+        // - Otherwise, navigate (pop back to existing LayoutScreen when possible)
+        if (isGoingToHome) {
+          if (currentRoute?.name === "LayoutScreen") {
+            if (BOTTOM_NAV_DEBUG) {
+              console.log("[BottomNav] Home tab tapped on Home screen – no navigation");
+            }
+            return;
+          }
+          navigation.navigate(target.name, params);
+          return;
+        }
+
+        // Other tabs: replace if already on BottomNavScreen, else push
+        if (currentRoute?.name === "BottomNavScreen") {
+          navigation.dispatch(StackActions.replace(target.name, params));
+        } else {
+          navigation.push(target.name, params);
+        }
+      } catch (e) {
+        if (BOTTOM_NAV_DEBUG) console.log("[BottomNav] Navigation error:", e);
+        navigation.dispatch(StackActions.replace(target.name, params));
+      }
     }
   };
 
@@ -471,34 +576,23 @@ function BottomNavigation({ section, activeIndexOverride }) {
         presentation.container,
         paddingStyles,
         showBg ? { backgroundColor } : { backgroundColor: "transparent" },
+        containerBorderRadius != null && containerBorderRadius >= 0
+          ? { borderRadius: containerBorderRadius }
+          : null,
       ]}
     >
       <View style={[styles.row, presentation.row]}>
         {items.map((item, index) => {
-          // Use resolvedActiveIndex to ensure stable index during refresh
-          const isActive = index === resolvedActiveIndex;
-          // Use iconActiveColor for active state, iconPrimaryColor for inactive
-          // This ensures colors are fully dynamic from the schema
-          const itemIconColor = isActive ? iconActiveColor : iconPrimaryColor;
-          const itemTextColor = isActive ? textActiveColor : textPrimaryColor;
-          // Check per-item label visibility - dynamic based on JSON config
+          const isActive = index === displayActiveIndex;
           const itemShowLabel = shouldShowItemLabel(item);
-          
-          // Extract colors from layout.css if available (these are the dynamic colors from schema)
-          // layout.css.icon.color and layout.css.label.color are the primary sources
-          const cssIconColor = presentation.icon?.color || rawLayoutCss?.icon?.color;
-          const cssLabelColor = presentation.label?.color || rawLayoutCss?.label?.color;
-          
-          // For icons: Use active/inactive colors from schema, but CSS can override
-          // If CSS provides a color, it applies to both states (unless we have separate active/inactive)
-          const finalIconColor = isActive 
-            ? (cssIconColor || iconActiveColor || "#096d70")
-            : (cssIconColor || iconPrimaryColor || "#9CA3AF");
-          
-          // For labels: Use active/inactive colors from schema, but CSS can override
+          // Active tab: always use active colors so the selected tab is visibly highlighted (dynamic from schema)
+          const finalIconColor = isActive
+            ? (iconActiveColor || rawLayoutCss?.icon?.color || "#096d70")
+            : (iconPrimaryColor || rawLayoutCss?.icon?.color || "#9CA3AF");
           const finalTextColor = isActive
-            ? (cssLabelColor || textActiveColor || "#096d70")
-            : (cssLabelColor || textPrimaryColor || "#6B7280");
+            ? (textActiveColor || rawLayoutCss?.label?.color || "#096d70")
+            : (textPrimaryColor || rawLayoutCss?.label?.color || "#6B7280");
+          const labelFontWeight = isActive ? "700" : (fontWeight || "600");
 
           return (
             <TouchableOpacity
@@ -558,7 +652,7 @@ function BottomNavigation({ section, activeIndexOverride }) {
                       color: finalTextColor,
                       fontSize,
                       fontFamily,
-                      fontWeight,
+                      fontWeight: labelFontWeight,
                     },
                   ]}
                 >

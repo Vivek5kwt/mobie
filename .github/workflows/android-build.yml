@@ -96,8 +96,8 @@ jobs:
           if [ -n "${CUSTOM_PACKAGE}" ]; then
             PACKAGE_NAME="${CUSTOM_PACKAGE}"
           else
-            # Generate with app prefix: com.mobidrag.builder.app{APP_ID}
-            PACKAGE_NAME="com.mobidrag.builder.app${APP_ID}"
+            # Generate with app prefix: com.mobidrag
+            PACKAGE_NAME="com.mobidrag"
           fi
           echo "PACKAGE_NAME=${PACKAGE_NAME}" >> $GITHUB_ENV
           echo "📦 Generated package name: ${PACKAGE_NAME}"

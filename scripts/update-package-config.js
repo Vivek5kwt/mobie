@@ -44,7 +44,7 @@ function fixPackageName(packageName) {
 }
 
 // Generate package name: com.mobidrag.builder.app{APP_ID} (prefix numeric IDs with "app")
-let PACKAGE_NAME = CUSTOM_PACKAGE_NAME || `com.mobidrag.builder.app${APP_ID}`;
+let PACKAGE_NAME = CUSTOM_PACKAGE_NAME || `com.mobidrag`;
 
 if (!APP_ID) {
   console.error('❌ APP_ID environment variable is required');

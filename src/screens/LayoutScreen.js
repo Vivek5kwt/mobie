@@ -32,10 +32,10 @@ export default function LayoutScreen({ route }) {
       : String(pageName ?? "").trim().toLowerCase();
   const isHomePage = normalizedPageName === "home";
   
-  // Extract activeIndex from route params to maintain bottom nav state when navigating to home
-  // If on home page, always use index 0 for home icon
+  // Bottom nav active tab: home = 0, others from params so bar highlights the right tab
   const activeIndexFromRoute = route?.params?.activeIndex;
-  const activeIndex = isHomePage ? 0 : (activeIndexFromRoute !== undefined ? activeIndexFromRoute : undefined);
+  const activeIndex =
+    isHomePage ? 0 : (activeIndexFromRoute !== undefined && activeIndexFromRoute !== null ? Number(activeIndexFromRoute) : undefined);
   
   const appId = useMemo(
     () =>
@@ -57,6 +57,13 @@ export default function LayoutScreen({ route }) {
   const bottomNavSectionRef = useRef(null);
   // State to hold bottom nav section - only updates when JSON actually changes
   const [stableBottomNavSection, setStableBottomNavSection] = useState(null);
+
+  useEffect(() => {
+    if (__DEV__) {
+      console.log("[LayoutScreen] mount (home). No remount expected when tapping Home tab.");
+      return () => console.log("[LayoutScreen] unmount");
+    }
+  }, []);
 
   const getComponentName = (section) =>
     section?.component?.const ||
@@ -200,27 +207,9 @@ export default function LayoutScreen({ route }) {
     }, 3200);
   };
 
-  const ensureBottomNavigationSection = (incomingDsl) => {
-    if (!incomingDsl || !Array.isArray(incomingDsl.sections)) return incomingDsl;
-
-    const hasBottomNavigation = incomingDsl.sections.some(
-      (section) => {
-        const component = section?.properties?.component?.const?.toLowerCase();
-        return [
-          "bottom_navigation",
-          "bottom_navigation_style_1",
-          "bottom_navigation_style_2",
-        ].includes(component);
-      }
-    );
-
-    if (hasBottomNavigation) return incomingDsl;
-
-    return {
-      ...incomingDsl,
-      sections: [...incomingDsl.sections, bottomNavigationStyle1Section],
-    };
-  };
+  // Keep DSL exactly as returned from the server.
+  // Do NOT inject a local default bottom navigation; the bar should only come from live JSON.
+  const ensureBottomNavigationSection = (incomingDsl) => incomingDsl;
 
   const loadHomeHeaderSections = useCallback(async () => {
     if (isHomePage) {
@@ -386,54 +375,46 @@ export default function LayoutScreen({ route }) {
         if (!latest?.dsl) return;
 
         const incomingVersion = latest.versionNumber ?? null;
-        if (incomingVersion === versionRef.current) return;
 
-        // Check if bottom navigation section has changed
-        const incomingBottomNav = (latest.dsl.sections || []).find(
-          (section) => {
+        // 1) Always check for bottom nav updates, even if version has not changed
+        const incomingBottomNav = (latest.dsl.sections || []).find((section) => {
+          const component = getComponentName(section).toLowerCase();
+          return [
+            "bottom_navigation",
+            "bottom_navigation_style_1",
+            "bottom_navigation_style_2",
+          ].includes(component);
+        });
+
+        let bottomNavUpdated = false;
+        if (incomingBottomNav) {
+          if (
+            !bottomNavSectionRef.current ||
+            !deepEqual(incomingBottomNav, bottomNavSectionRef.current)
+          ) {
+            bottomNavSectionRef.current = incomingBottomNav;
+            setStableBottomNavSection(incomingBottomNav);
+            bottomNavUpdated = true;
+            console.log("🔄 Bottom navigation updated dynamically from JSON");
+          }
+        }
+
+        // 2) Only refresh DSL when the overall version changes AND bottom nav didn't already handle it
+        if (incomingVersion !== versionRef.current && !bottomNavUpdated) {
+          const sectionsWithoutBottomNav = (latest.dsl.sections || []).filter((section) => {
             const component = getComponentName(section).toLowerCase();
-            return [
+            return ![
               "bottom_navigation",
               "bottom_navigation_style_1",
               "bottom_navigation_style_2",
             ].includes(component);
-          }
-        );
-        
-        // If bottom nav section exists and is different, update the cache and state
-        // But DON'T update DSL to prevent home screen refresh
-        let bottomNavUpdated = false;
-        if (incomingBottomNav) {
-          if (!bottomNavSectionRef.current || !deepEqual(incomingBottomNav, bottomNavSectionRef.current)) {
-            bottomNavSectionRef.current = incomingBottomNav;
-            setStableBottomNavSection(incomingBottomNav); // Update state to trigger re-render of bottom nav only
-            bottomNavUpdated = true;
-            console.log("🔄 Bottom navigation updated dynamically from JSON");
-            // Don't update DSL here - only update the cache and state
-            // The bottom nav will update via state, but home screen won't refresh
-          }
-        }
-        
-        // Only update DSL if version changed AND bottom nav didn't change
-        // This prevents home screen from refreshing when only bottom nav updates
-        if (incomingVersion !== versionRef.current && !bottomNavUpdated) {
-          // Remove bottom nav from sections to prevent it from affecting the refresh
-          const sectionsWithoutBottomNav = (latest.dsl.sections || []).filter(
-            (section) => {
-              const component = getComponentName(section).toLowerCase();
-              return ![
-                "bottom_navigation",
-                "bottom_navigation_style_1",
-                "bottom_navigation_style_2",
-              ].includes(component);
-            }
-          );
-          
+          });
+
           const dslWithoutBottomNav = {
             ...latest.dsl,
             sections: sectionsWithoutBottomNav,
           };
-          
+
           const baseDsl = ensureBottomNavigationSection(dslWithoutBottomNav);
           const nextDsl = isHomePage
             ? baseDsl
@@ -456,23 +437,27 @@ export default function LayoutScreen({ route }) {
     useCallback(() => {
       // Auto-refresh layout when screen gains focus (e.g. after saving on web)
       refreshDSL(false);
-      return () => {
-        setIsSideMenuOpen(false);
-        sideMenuTranslateX.setValue(-SIDE_MENU_WIDTH);
-      };
-    }, [SIDE_MENU_WIDTH, sideMenuTranslateX, refreshDSL])
+      // Do not forcibly close side menu here; let user control it
+      return undefined;
+    }, [refreshDSL])
   );
 
-  const closeSideMenu = () => setIsSideMenuOpen(false);
+  const closeSideMenu = () => {
+    if (__DEV__) console.log("[SideMenu] close (LayoutScreen)");
+    setIsSideMenuOpen(false);
+  };
 
   const openSideMenu = () => {
-    // Always allow opening the side menu from the app bar
+    if (__DEV__) console.log("[SideMenu] open (LayoutScreen)");
     setIsSideMenuOpen(true);
   };
 
   const toggleSideMenu = () => {
-    // Always toggle, even if DSL has no explicit side_navigation section
-    setIsSideMenuOpen((prev) => !prev);
+    setIsSideMenuOpen((prev) => {
+      const next = !prev;
+      if (__DEV__) console.log("[SideMenu] toggle (LayoutScreen) ->", next);
+      return next;
+    });
   };
 
   useEffect(() => {
@@ -517,134 +502,133 @@ export default function LayoutScreen({ route }) {
     return () => clearInterval(intervalId);
   }, [appId, ensureHeaderSections, homeHeaderSections, isHomePage, pageName]);
 
-  // Always use stable state-based bottom nav section - never changes when home screen refreshes
-  // This ensures bottom nav never refreshes when home screen refreshes
-  const fallbackBottomNavSection = stableBottomNavSection || bottomNavigationStyle1Section;
+  // Use only server-provided bottom navigation; never show local default.
+  // This ensures the bottom bar design always matches the live JSON.
+  const fallbackBottomNavSection = stableBottomNavSection;
 
-  // LOADING SCREEN
-  if (loading)
-    return (
-      <SafeArea>
-        <View style={styles.screen}>
-          <View style={[styles.loaderBackdrop, styles.loaderOverlay]}>
-            <View style={styles.loaderCard}>
-              <ActivityIndicator size="large" color="#4F46E5" />
-              <Text style={styles.loaderText}>Preparing your experience…</Text>
-            </View>
-          </View>
-          {fallbackBottomNavSection && (
-            <View style={styles.bottomNav}>
-              <BottomNavigation section={fallbackBottomNavSection} activeIndexOverride={activeIndex} />
+  // Decide what to render in the main content area (above the bottom nav)
+  let mainContent = null;
+
+  if (loading) {
+    // Show loader over the content area, but keep bottom nav mounted and visible
+    mainContent = (
+      <View style={styles.centerContainer}>
+        <View style={styles.loaderCard}>
+          <ActivityIndicator size="large" color="#4F46E5" />
+          <Text style={styles.loaderText}>Preparing your experience…</Text>
+        </View>
+      </View>
+    );
+  } else if (err || !dsl) {
+    // Error state: keep bottom nav, just show error in content area
+    mainContent = (
+      <View style={styles.centerContainer}>
+        <Text style={styles.error}>
+          Error loading: {err || "No DSL found"}
+        </Text>
+        <Button title="Retry" onPress={loadDSL} />
+      </View>
+    );
+  } else {
+    // Normal content with scroll + side menu overlay
+    mainContent = (
+      <>
+        {/* RENDER SORTED DSL COMPONENTS */}
+        <ScrollView
+          contentInsetAdjustmentBehavior="automatic"
+          style={{ flex: 1 }}
+          showsVerticalScrollIndicator
+          contentContainerStyle={[
+            styles.scrollContent,
+            { flexGrow: 1, paddingBottom: stableBottomNavSection ? 88 : 24 },
+          ]}
+          keyboardShouldPersistTaps="handled"
+          refreshControl={
+            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+          }
+        >
+          {visibleSections.length ? (
+            visibleSections.map((s, i) => {
+              const componentName = getComponentName(s).toLowerCase();
+              const nextComponentName = visibleSections[i + 1]
+                ? getComponentName(visibleSections[i + 1]).toLowerCase()
+                : null;
+              const collapseHeaderGap =
+                componentName === "header" && nextComponentName === "header_2";
+              const isBannerSlider = componentName === "banner_slider";
+              const nextIsBannerSlider = nextComponentName === "banner_slider";
+              const collapseBannerGap = isBannerSlider || nextIsBannerSlider;
+              const shouldAttachBottomNav =
+                componentName === "header" ||
+                componentName === "header_2" ||
+                componentName === "header_mobile";
+              const sectionWithNav = shouldAttachBottomNav
+                ? { ...s, bottomNavSection: stableBottomNavSection }
+                : s;
+
+              return (
+                <View
+                  key={i}
+                  style={[
+                    styles.sectionWrapper,
+                    (componentName === "header_2" || collapseHeaderGap || collapseBannerGap) &&
+                      styles.sectionWrapperTight,
+                    isBannerSlider && styles.sectionWrapperBanner,
+                  ]}
+                >
+                  <DynamicRenderer section={sectionWithNav} />
+                </View>
+              );
+            })
+          ) : (
+            <View style={styles.centerContainer}>
+              <Text style={styles.subtle}>No content available right now.</Text>
             </View>
           )}
-        </View>
-      </SafeArea>
-    );
+        </ScrollView>
 
-  // ERROR SCREEN
-  if (err || !dsl)
-    return (
-      <SafeArea>
-        <View style={styles.centerContainer}>
-          <Text style={styles.error}>
-            Error loading: {err || "No DSL found"}
-          </Text>
-          <Button title="Retry" onPress={loadDSL} />
-        </View>
-      </SafeArea>
+        {showOverlay && (
+          <View style={StyleSheet.absoluteFill} pointerEvents={showOverlay ? "auto" : "none"}>
+            <Animated.View
+              style={[StyleSheet.absoluteFill, styles.sideMenuOverlay, { opacity: overlayOpacity }]}
+              pointerEvents="none"
+            />
+            <View style={{ flex: 1, flexDirection: "row" }}>
+              <Animated.View
+                style={[
+                  styles.sideMenuContainer,
+                  { transform: [{ translateX: sideMenuTranslateX }] },
+                ]}
+              >
+                <SideNavigation section={sideNavSection || {}} />
+              </Animated.View>
+              <TouchableOpacity style={{ flex: 1 }} activeOpacity={1} onPress={closeSideMenu} />
+            </View>
+          </View>
+        )}
+      </>
     );
+  }
 
   return (
     <SafeArea>
       <SideMenuProvider
         value={{
           isOpen: isSideMenuOpen,
-          hasSideNav: true, // always allow side menu icon in header
+          hasSideNav: !!sideNavSection,
           toggleSideMenu,
           openSideMenu,
           closeSideMenu,
         }}
       >
         <View style={styles.screen}>
-          {/* RENDER SORTED DSL COMPONENTS */}
-          <ScrollView
-            contentInsetAdjustmentBehavior="automatic"
-            style={{ flex: 1 }}
-            showsVerticalScrollIndicator
-            contentContainerStyle={[
-              styles.scrollContent,
-              { flexGrow: 1, paddingBottom: stableBottomNavSection ? 88 : 24 },
-            ]}
-            keyboardShouldPersistTaps="handled"
-            refreshControl={
-              <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
-            }
-          >
-            {visibleSections.length ? (
-              visibleSections.map((s, i) => {
-                const componentName = getComponentName(s).toLowerCase();
-                const nextComponentName = visibleSections[i + 1]
-                  ? getComponentName(visibleSections[i + 1]).toLowerCase()
-                  : null;
-                const collapseHeaderGap =
-                  componentName === "header" && nextComponentName === "header_2";
-                const isBannerSlider = componentName === "banner_slider";
-                const nextIsBannerSlider = nextComponentName === "banner_slider";
-                const collapseBannerGap = isBannerSlider || nextIsBannerSlider;
-                const shouldAttachBottomNav =
-                  componentName === "header" ||
-                  componentName === "header_2" ||
-                  componentName === "header_mobile";
-                const sectionWithNav = shouldAttachBottomNav
-                  ? { ...s, bottomNavSection: stableBottomNavSection }
-                  : s;
-
-                return (
-                  <View
-                    key={i}
-                    style={[
-                      styles.sectionWrapper,
-                      (componentName === "header_2" || collapseHeaderGap || collapseBannerGap) &&
-                        styles.sectionWrapperTight,
-                      isBannerSlider && styles.sectionWrapperBanner,
-                    ]}
-                  >
-                    <DynamicRenderer section={sectionWithNav} />
-                  </View>
-                );
-              })
-            ) : (
-              <View style={styles.centerContainer}>
-                <Text style={styles.subtle}>No content available right now.</Text>
-              </View>
-            )}
-          </ScrollView>
-
-          {showOverlay && (
-            <View style={StyleSheet.absoluteFill} pointerEvents={showOverlay ? "auto" : "none"}>
-              <Animated.View
-                style={[StyleSheet.absoluteFill, styles.sideMenuOverlay, { opacity: overlayOpacity }]}
-                pointerEvents="none"
-              />
-              <View style={{ flex: 1, flexDirection: "row" }}>
-                <Animated.View
-                  style={[
-                    styles.sideMenuContainer,
-                    { transform: [{ translateX: sideMenuTranslateX }] },
-                  ]}
-                >
-                  <SideNavigation section={sideNavSection || {}} />
-                </Animated.View>
-                <TouchableOpacity style={{ flex: 1 }} activeOpacity={1} onPress={closeSideMenu} />
-              </View>
-            </View>
-          )}
+          {mainContent}
 
           {fallbackBottomNavSection && (
             <View style={styles.bottomNav}>
-              <BottomNavigation 
-                section={fallbackBottomNavSection} 
-                activeIndexOverride={activeIndex} 
+              <BottomNavigation
+                section={fallbackBottomNavSection}
+                activeIndexOverride={activeIndex}
               />
             </View>
           )}

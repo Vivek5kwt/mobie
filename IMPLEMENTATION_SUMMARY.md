@@ -63,7 +63,7 @@ This document summarizes the implementation of the dynamic package name and app 
 
 ### ✅ Package Name Generation
 
-- **Default Format:** `com.mobidrag.builder.{APP_ID}`
+- **Default Format:** `com.mobidrag`
 - **Custom Override:** Supports custom package names via `package_name` field
 - **Automatic Generation:** No manual configuration needed
 
@@ -115,7 +115,7 @@ APP_ID=123 APP_NAME="My App" node scripts/update-ios-package.js
 APP_ID=123 APP_NAME="My App" PACKAGE_NAME="com.mycompany.myapp" node scripts/update-package-config.js
 
 # Validate package name
-node scripts/validate-package-name.js "com.mobidrag.builder.123"
+node scripts/validate-package-name.js "com.mobidrag"
 ```
 
 ### GraphQL Mutation
@@ -149,7 +149,7 @@ The workflow automatically:
 
 1. **Trigger Build** - Via GraphQL mutation or workflow dispatch
 2. **Set Environment Variables** - APP_ID, APP_NAME, PACKAGE_NAME
-3. **Generate Package Name** - `com.mobidrag.builder.{APP_ID}` or custom
+3. **Generate Package Name** - `com.mobidrag` or custom
 4. **Validate Package Name** - Ensure format compliance
 5. **Update Configuration Files** - Android and iOS files updated
 6. **Save Configuration** - Write to `app-config.json`
@@ -168,7 +168,7 @@ The workflow automatically:
 - ❌ Cannot start with a number
 
 **Examples:**
-- ✅ `com.mobidrag.builder.123`
+- ✅ `com.mobidrag`
 - ✅ `com.mycompany.myapp`
 - ✅ `io.example.app123`
 - ❌ `com.MyCompany.App` (uppercase)
