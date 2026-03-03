@@ -343,7 +343,18 @@ export function convertStyles(styleObj = {}) {
 
     // --------- 5) FONT WEIGHT / TEXT STYLE ---------
     if (key === "fontWeight") {
-      out.fontWeight = val;
+      const w = val;
+      if (typeof w === "number" || (typeof w === "string" && /^\d+$/.test(String(w)))) {
+        out.fontWeight = String(w);
+      } else {
+        const normalized = String(w || "").trim().toLowerCase();
+        const weightMap = {
+          thin: "100", extralight: "200", "extra light": "200", light: "300",
+          regular: "400", normal: "400", medium: "500", semibold: "600",
+          "semi bold": "600", bold: "700", extrabold: "800", "extra bold": "800", black: "900",
+        };
+        out.fontWeight = weightMap[normalized] || (normalized ? String(w) : undefined);
+      }
       continue;
     }
 

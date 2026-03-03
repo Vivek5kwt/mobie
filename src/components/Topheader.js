@@ -7,6 +7,7 @@ import { useSelector } from "react-redux";
 import { useSideMenu } from "../services/SideMenuContext";
 import bottomNavigationStyle1Section from "../data/bottomNavigationStyle1";
 import { convertStyles } from "../utils/convertStyles";
+import { getAppLogoSync } from "../utils/appInfo";
 
 const LOCAL_LOGO_IMAGE = require("../assets/logo/mobidraglogo.png");
 
@@ -63,8 +64,22 @@ const resolveFontWeight = (value, fallback = "400") => {
 };
 
 const resolveLogoSource = (logoImage) => {
-  if (!logoImage) return LOCAL_LOGO_IMAGE;
-  if (logoImage === "/images/mobidrag.png") return LOCAL_LOGO_IMAGE;
+  // If no logo from DSL, try to get from app.json (set during build)
+  if (!logoImage) {
+    const appLogo = getAppLogoSync();
+    if (appLogo && appLogo.trim() !== "") {
+      return { uri: appLogo };
+    }
+    return LOCAL_LOGO_IMAGE;
+  }
+  if (logoImage === "/images/mobidrag.png") {
+    // Even if DSL has default logo, try app.json first
+    const appLogo = getAppLogoSync();
+    if (appLogo && appLogo.trim() !== "") {
+      return { uri: appLogo };
+    }
+    return LOCAL_LOGO_IMAGE;
+  }
   return { uri: logoImage };
 };
 
@@ -88,7 +103,7 @@ const resolveLogoSlotAlignmentStyle = (alignment, flexDirection = "column") => {
 };
 
 export default function Header({ section }) {
-  const { toggleSideMenu, hasSideNav } = useSideMenu();
+  const { openSideMenu, hasSideNav } = useSideMenu();
   const navigation = useNavigation();
   const cartCount = useSelector((state) =>
     (state?.cart?.items || []).reduce((sum, item) => {
@@ -282,8 +297,8 @@ export default function Header({ section }) {
     >
       {/* LEFT ICON */}
       <View style={[styles.leftSlot, normalizedLayout.leftSlot]}>
-        {sideMenuVisible && hasSideNav && (
-          <TouchableOpacity onPress={toggleSideMenu} activeOpacity={0.7}>
+          {sideMenuVisible && hasSideNav && (
+            <TouchableOpacity onPress={openSideMenu} activeOpacity={0.7}>
             <Icon
               name={sideMenuIconName}
               size={sideMenuIconSize}

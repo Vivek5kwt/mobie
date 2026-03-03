@@ -46,11 +46,11 @@ APP_ID=123 APP_NAME="My App" node scripts/update-ios-package.js
 
 ## Package Name Format
 
-Default format: `com.mobidrag.builder.{APP_ID}`
+Default format: `com.mobidrag`
 
 Example:
-- APP_ID: 123 → Package: `com.mobidrag.builder.123`
-- APP_ID: 456 → Package: `com.mobidrag.builder.456`
+- APP_ID: 123 → Package: `com.mobidrag`
+- APP_ID: 456 → Package: `com.mobidrag`
 
 ## Custom Package Name
 
@@ -68,7 +68,7 @@ After running the script, a `app-config.json` file is created with the current c
 {
   "appId": "123",
   "appName": "My App",
-  "packageName": "com.mobidrag.builder.123",
+  "packageName": "com.mobidrag",
   "updatedAt": "2024-01-01T00:00:00.000Z"
 }
 ```

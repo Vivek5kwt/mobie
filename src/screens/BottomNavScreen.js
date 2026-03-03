@@ -7,15 +7,18 @@ import {
   Text,
   View,
 } from "react-native";
+import { Animated, TouchableOpacity } from "react-native";
 import { useFocusEffect, useRoute } from "@react-navigation/native";
 import { SafeArea } from "../utils/SafeAreaHandler";
 import BottomNavigation from "../components/BottomNavigation";
+import SideNavigation from "../components/SideNavigation";
 import bottomNavigationStyle1Section from "../data/bottomNavigationStyle1";
 import { fetchDSL } from "../engine/dslHandler";
 import { shouldRenderSectionOnMobile } from "../engine/visibility";
 import DynamicRenderer from "../engine/DynamicRenderer";
 import { resolveAppId } from "../utils/appId";
 import { useAuth } from "../services/AuthContext";
+import { SideMenuProvider } from "../services/SideMenuContext";
 
 export default function BottomNavScreen() {
   const route = useRoute();
@@ -24,7 +27,7 @@ export default function BottomNavScreen() {
   const link = route?.params?.link || "";
   const pageName = route?.params?.pageName || link || title;
   const bottomNavSectionProp = route?.params?.bottomNavSection || bottomNavigationStyle1Section;
-  const activeIndex = route?.params?.activeIndex;
+  const activeIndexFromParams = route?.params?.activeIndex;
   const appId = useMemo(
     () =>
       resolveAppId(route?.params?.appId ?? session?.user?.appId ?? session?.user?.app_id),
@@ -49,6 +52,13 @@ export default function BottomNavScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [homeHeaderSections, setHomeHeaderSections] = useState([]);
   const versionRef = useRef(null);
+  // Store bottom navigation section separately to update dynamically
+  const [bottomNavSection, setBottomNavSection] = useState(bottomNavSectionProp);
+  const bottomNavSectionRef = useRef(bottomNavSectionProp);
+  // Side menu state (same pattern as LayoutScreen)
+  const SIDE_MENU_WIDTH = 280;
+  const [isSideMenuOpen, setIsSideMenuOpen] = useState(false);
+  const sideMenuTranslateX = useRef(new Animated.Value(-SIDE_MENU_WIDTH)).current;
 
   const getComponentName = (section) =>
     section?.component?.const ||
@@ -56,6 +66,66 @@ export default function BottomNavScreen() {
     section?.properties?.component?.const ||
     section?.properties?.component ||
     "";
+
+  // Helper function to deep compare two objects
+  const deepEqual = (obj1, obj2) => {
+    try {
+      return JSON.stringify(obj1) === JSON.stringify(obj2);
+    } catch {
+      return false;
+    }
+  };
+
+  // Function to check and update bottom navigation from DSL
+  const checkAndUpdateBottomNav = useCallback(async () => {
+    try {
+      // First check current page DSL, then fallback to home page DSL
+      let incomingBottomNav = null;
+      
+      // Try current page first
+      const currentPageDslData = await fetchDSL(appId, pageName);
+      if (currentPageDslData?.dsl) {
+        incomingBottomNav = (currentPageDslData.dsl.sections || []).find(
+          (section) => {
+            const component = getComponentName(section).toLowerCase();
+            return [
+              "bottom_navigation",
+              "bottom_navigation_style_1",
+              "bottom_navigation_style_2",
+            ].includes(component);
+          }
+        );
+      }
+      
+      // If not found in current page, check home page
+      if (!incomingBottomNav) {
+        const homeDslData = await fetchDSL(appId, "home");
+        if (homeDslData?.dsl) {
+          incomingBottomNav = (homeDslData.dsl.sections || []).find(
+            (section) => {
+              const component = getComponentName(section).toLowerCase();
+              return [
+                "bottom_navigation",
+                "bottom_navigation_style_1",
+                "bottom_navigation_style_2",
+              ].includes(component);
+            }
+          );
+        }
+      }
+
+      // If bottom nav section exists and is different, update it
+      if (incomingBottomNav) {
+        if (!bottomNavSectionRef.current || !deepEqual(incomingBottomNav, bottomNavSectionRef.current)) {
+          bottomNavSectionRef.current = incomingBottomNav;
+          setBottomNavSection(incomingBottomNav);
+          console.log("🔄 Bottom navigation updated dynamically on", pageName, "page");
+        }
+      }
+    } catch (error) {
+      console.log("❌ Error checking bottom nav update:", error);
+    }
+  }, [appId, pageName]);
   const headerComponentNames = useMemo(
     () => new Set(["header", "header_2", "header_mobile"]),
     []
@@ -85,6 +155,15 @@ export default function BottomNavScreen() {
 
   const mobileSections = useMemo(
     () => (dsl?.sections || []).filter(shouldRenderSectionOnMobile),
+    [dsl]
+  );
+
+  // Locate side navigation section for this page
+  const sideNavSection = useMemo(
+    () =>
+      (dsl?.sections || []).find(
+        (section) => getComponentName(section).toLowerCase() === "side_navigation"
+      ) || null,
     [dsl]
   );
 
@@ -125,18 +204,47 @@ export default function BottomNavScreen() {
     });
   }, [hasHeader2, hasPrimaryHeader, isHomePage, mobileSections]);
 
-  const bottomNavSection = useMemo(
-    () =>
-      sortedSections.find((section) => {
-        const component = getComponentName(section).toLowerCase();
-        return [
-          "bottom_navigation",
-          "bottom_navigation_style_1",
-          "bottom_navigation_style_2",
-        ].includes(component);
-      }) || bottomNavSectionProp,
-    [bottomNavSectionProp, sortedSections]
-  );
+  // Use state-based bottomNavSection that can be updated dynamically
+  // Fallback to sortedSections or bottomNavSectionProp if state is not set
+  const resolvedBottomNavSection = useMemo(() => {
+    // First check if we have a dynamically updated bottom nav section
+    if (bottomNavSection) {
+      return bottomNavSection;
+    }
+    // Then check sortedSections (from current page DSL)
+    const fromSections = sortedSections.find((section) => {
+      const component = getComponentName(section).toLowerCase();
+      return [
+        "bottom_navigation",
+        "bottom_navigation_style_1",
+        "bottom_navigation_style_2",
+      ].includes(component);
+    });
+    // Finally fallback to prop
+    return fromSections || bottomNavSectionProp;
+  }, [bottomNavSection, sortedSections, bottomNavSectionProp]);
+
+  const activeIndex = useMemo(() => {
+    if (activeIndexFromParams !== undefined && activeIndexFromParams !== null) {
+      const n = Number(activeIndexFromParams);
+      if (Number.isFinite(n) && n >= 0) return n;
+    }
+    const section = resolvedBottomNavSection;
+    const rawProps = section?.props || section?.properties?.props?.properties || section?.properties?.props || {};
+    const raw = rawProps?.raw?.value ?? rawProps?.raw ?? {};
+    const items = raw?.items ?? raw?.navItems ?? rawProps?.items?.value ?? rawProps?.items ?? [];
+    const list = Array.isArray(items) ? items : [];
+    if (!list.length) return 0;
+    const slug = (v) => String(v ?? "").trim().toLowerCase().replace(/[^a-z0-9]+/g, "-");
+    const page = slug(normalizedPageName || route?.params?.pageName);
+    const idx = list.findIndex(
+      (item) =>
+        slug(item?.id) === page ||
+        slug(item?.label) === page ||
+        slug(item?.link) === page
+    );
+    return idx >= 0 ? idx : 0;
+  }, [activeIndexFromParams, normalizedPageName, route?.params?.pageName, resolvedBottomNavSection]);
 
   const visibleSections = useMemo(
     () =>
@@ -151,6 +259,36 @@ export default function BottomNavScreen() {
     [sortedSections]
   );
 
+  // Side menu helpers
+  const closeSideMenu = () => setIsSideMenuOpen(false);
+
+  const openSideMenu = () => {
+    // Always allow opening the side menu from the app bar
+    setIsSideMenuOpen(true);
+  };
+
+  const toggleSideMenu = () => {
+    // Always toggle, even if DSL has no explicit side_navigation section
+    setIsSideMenuOpen((prev) => !prev);
+  };
+
+  useEffect(() => {
+    Animated.spring(sideMenuTranslateX, {
+      toValue: isSideMenuOpen ? 0 : -SIDE_MENU_WIDTH,
+      useNativeDriver: true,
+      speed: 16,
+      bounciness: 6,
+    }).start();
+  }, [SIDE_MENU_WIDTH, isSideMenuOpen, sideMenuTranslateX]);
+
+  const overlayOpacity = sideMenuTranslateX.interpolate({
+    inputRange: [-SIDE_MENU_WIDTH, 0],
+    outputRange: [0, 0.35],
+    extrapolate: "clamp",
+  });
+
+  const showOverlay = isSideMenuOpen;
+
   useEffect(() => {
     let isMounted = true;
 
@@ -160,7 +298,8 @@ export default function BottomNavScreen() {
         setErr(null);
         const dslData = await fetchDSL(appId, pageName);
         if (!dslData?.dsl) {
-          setErr("No live DSL returned from server");
+          const graphqlUrl = "https://mobidrag.ampleteck.com/graphql";
+          setErr(`No live DSL returned from server\nApp ID: ${appId}\nURL: ${graphqlUrl}`);
           return;
         }
         if (isMounted) {
@@ -220,10 +359,12 @@ export default function BottomNavScreen() {
         setDsl(nextDsl);
         versionRef.current = dslData.versionNumber ?? null;
       }
+      // Also check for bottom navigation updates from home page
+      await checkAndUpdateBottomNav();
     } catch (error) {
       console.log("❌ Bottom nav refresh error:", error);
     }
-  }, [appId, ensureHeaderSections, homeHeaderSections, isHomePage, pageName]);
+  }, [appId, ensureHeaderSections, homeHeaderSections, isHomePage, pageName, checkAndUpdateBottomNav]);
 
   const onRefresh = async () => {
     setRefreshing(true);
@@ -240,6 +381,11 @@ export default function BottomNavScreen() {
   );
 
   useEffect(() => {
+    // Check for bottom navigation updates on mount
+    checkAndUpdateBottomNav();
+  }, [checkAndUpdateBottomNav]);
+
+  useEffect(() => {
     const intervalId = setInterval(async () => {
       try {
         const latest = await fetchDSL(appId, pageName);
@@ -253,17 +399,28 @@ export default function BottomNavScreen() {
           setDsl(nextDsl);
           versionRef.current = incomingVersion;
         }
+        // Also check for bottom navigation updates from home page
+        await checkAndUpdateBottomNav();
       } catch (error) {
         console.log("❌ Bottom nav auto-refresh error:", error);
       }
     }, 5000);
 
     return () => clearInterval(intervalId);
-  }, [appId, ensureHeaderSections, homeHeaderSections, isHomePage, pageName]);
+  }, [appId, ensureHeaderSections, homeHeaderSections, isHomePage, pageName, checkAndUpdateBottomNav]);
 
   return (
     <SafeArea>
-      <View style={styles.container}>
+      <SideMenuProvider
+        value={{
+          isOpen: isSideMenuOpen,
+          hasSideNav: !!sideNavSection,
+          toggleSideMenu,
+          openSideMenu,
+          closeSideMenu,
+        }}
+      >
+        <View style={styles.container}>
         {loading ? (
           <View style={styles.loader}>
             <ActivityIndicator size="large" color="#4F46E5" />
@@ -281,7 +438,7 @@ export default function BottomNavScreen() {
             showsVerticalScrollIndicator
             contentContainerStyle={[
               styles.scrollContent,
-              { flexGrow: 1, paddingBottom: bottomNavSection ? 88 : 24 },
+              { flexGrow: 1, paddingBottom: resolvedBottomNavSection ? 88 : 24 },
             ]}
             keyboardShouldPersistTaps="handled"
             refreshControl={
@@ -324,12 +481,33 @@ export default function BottomNavScreen() {
           </ScrollView>
         )}
 
-        {bottomNavSection && (
+        {showOverlay && (
+          <View style={StyleSheet.absoluteFill} pointerEvents={showOverlay ? "auto" : "none"}>
+            <Animated.View
+              style={[StyleSheet.absoluteFill, styles.sideMenuOverlay, { opacity: overlayOpacity }]}
+              pointerEvents="none"
+            />
+            <View style={{ flex: 1, flexDirection: "row" }}>
+              <Animated.View
+                style={[
+                  styles.sideMenuContainer,
+                  { transform: [{ translateX: sideMenuTranslateX }] },
+                ]}
+              >
+                <SideNavigation section={sideNavSection || {}} />
+              </Animated.View>
+              <TouchableOpacity style={{ flex: 1 }} activeOpacity={1} onPress={closeSideMenu} />
+            </View>
+          </View>
+        )}
+
+        {resolvedBottomNavSection && (
           <View style={styles.bottomNav}>
-            <BottomNavigation section={bottomNavSection} activeIndexOverride={activeIndex} />
+            <BottomNavigation section={resolvedBottomNavSection} activeIndexOverride={activeIndex} />
           </View>
         )}
       </View>
+      </SideMenuProvider>
     </SafeArea>
   );
 }
@@ -389,5 +567,18 @@ const styles = StyleSheet.create({
   },
   sectionWrapperTight: {
     marginBottom: 0,
+  },
+  sideMenuOverlay: {
+    backgroundColor: "rgba(0,0,0,0.3)",
+  },
+  sideMenuContainer: {
+    width: 280,
+    maxWidth: "80%",
+    backgroundColor: "#fff",
+    shadowColor: "#000",
+    shadowOpacity: 0.25,
+    shadowOffset: { width: 0, height: 2 },
+    shadowRadius: 8,
+    elevation: 5,
   },
 });

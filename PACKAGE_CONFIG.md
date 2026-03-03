@@ -8,12 +8,12 @@ Each generated mobile app must have a unique package name (Android) / bundle ide
 
 ## Package Name Format
 
-**Default Format:** `com.mobidrag.builder.{APP_ID}`
+**Default Format:** `com.mobidrag`
 
 Examples:
-- APP_ID: `123` → Package: `com.mobidrag.builder.123`
-- APP_ID: `456` → Package: `com.mobidrag.builder.456`
-- APP_ID: `789` → Package: `com.mobidrag.builder.789`
+- APP_ID: `123` → Package: `com.mobidrag`
+- APP_ID: `456` → Package: `com.mobidrag`
+- APP_ID: `789` → Package: `com.mobidrag`
 
 ## Custom Package Name
 
@@ -100,7 +100,7 @@ After updating, the configuration is saved to `app-config.json`:
 {
   "appId": "123",
   "appName": "My Custom App",
-  "packageName": "com.mobidrag.builder.123",
+  "packageName": "com.mobidrag",
   "updatedAt": "2024-01-01T00:00:00.000Z"
 }
 ```
@@ -145,7 +145,7 @@ Package names must follow these rules:
 - ❌ Cannot start with a number
 
 Examples:
-- ✅ `com.mobidrag.builder.123`
+- ✅ `com.mobidrag`
 - ✅ `com.mycompany.myapp`
 - ❌ `com.MyCompany.MyApp` (uppercase)
 - ❌ `com.my company.app` (space)
@@ -183,7 +183,7 @@ Examples:
 ## Example Workflow
 
 1. User creates app with ID `123` and name `"My App"`
-2. System generates package name: `com.mobidrag.builder.123`
+2. System generates package name: `com.mobidrag`
 3. Scripts update all configuration files
 4. Configuration saved to `app-config.json`
 5. Build proceeds with new package name

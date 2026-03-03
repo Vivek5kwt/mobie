@@ -107,7 +107,7 @@ if (isValid) {
   console.error('❌ Package name validation failed:\n');
   errors.forEach(error => console.error(error));
   console.error('\nExample valid package names:');
-  console.error('  - com.mobidrag.builder.app123');
+  console.error('  - com.mobidrag');
   console.error('  - com.mycompany.myapp');
   console.error('  - io.example.app123');
   console.error('\n💡 Tip: Numeric-only segments are auto-prefixed with "app"');

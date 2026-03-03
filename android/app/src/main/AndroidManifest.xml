@@ -1,20 +1,23 @@
 <manifest
     xmlns:android="http://schemas.android.com/apk/res/android"
-    package="com.mobidrag.builder.app169">
+    xmlns:tools="http://schemas.android.com/tools"
+    package="com.mobidrag">
 
     <uses-permission android:name="android.permission.INTERNET" />
 
     <application
-        android:name=".MainApplication"
+        android:name="com.mobidrag.MainApplication"
         android:label="@string/app_name"
         android:icon="@mipmap/ic_launcher"
         android:allowBackup="false"
         android:theme="@style/AppTheme"
         android:usesCleartextTraffic="${usesCleartextTraffic}"
-        android:supportsRtl="true">
+        android:supportsRtl="true"
+        android:appComponentFactory="androidx.core.app.CoreComponentFactory"
+        tools:replace="android:appComponentFactory">
 
         <activity
-            android:name=".MainActivity"
+            android:name="com.mobidrag.MainActivity"
             android:label="@string/app_name"
             android:configChanges="keyboard|keyboardHidden|orientation|screenLayout|screenSize|smallestScreenSize|uiMode"
             android:launchMode="singleTask"
