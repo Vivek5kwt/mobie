@@ -64,6 +64,18 @@ const buildTextAttributesStyle = (attributes) => {
   const weight = unwrapValue(attributes?.weight, undefined);
   const fontWeight = toFontWeight(weight, isBold);
 
+  // Line-height and letter-spacing from attributes
+  const rawLineHeight = toNumber(attributes?.lineHeight, undefined);
+  const letterSpacing = toNumber(attributes?.letterSpacing, undefined);
+
+  // If lineHeight is a small number (like 1), treat it as a multiplier of fontSize.
+  const resolvedLineHeight =
+    rawLineHeight && fontSize
+      ? rawLineHeight > 0 && rawLineHeight <= 10
+        ? fontSize * rawLineHeight
+        : rawLineHeight
+      : undefined;
+
   return {
     color,
     fontFamily,
@@ -71,6 +83,8 @@ const buildTextAttributesStyle = (attributes) => {
     fontWeight,
     fontStyle: isItalic ? "italic" : "normal",
     textDecorationLine: isUnderline ? "underline" : "none",
+    ...(resolvedLineHeight ? { lineHeight: resolvedLineHeight } : {}),
+    ...(letterSpacing !== undefined ? { letterSpacing } : {}),
   };
 };
 
@@ -120,28 +134,56 @@ export default function HeroBanner({ section }) {
   const subtextAttributes =
     rawProps?.subtextAttributes?.properties || rawProps?.subtextAttributes || {};
 
+  // Optional explicit line-height overrides from schema
+  const headlineLineHeightToken = toNumber(rawProps?.headlineLineHeight, undefined);
+  const subtextLineHeightToken = toNumber(rawProps?.subtextLineHeight, undefined);
+
   // Build headline style from CSS and attributes
+  const headlineAttrStyle = buildTextAttributesStyle(headlineAttributes) || {};
+
   const headlineStyle = {
     ...headlineCssStyle,
-    ...buildTextAttributesStyle(headlineAttributes),
+    ...headlineAttrStyle,
     // Override with CSS if present
-    color: headlineCssStyle?.color || buildTextAttributesStyle(headlineAttributes)?.color,
-    fontSize: headlineCssStyle?.fontSize || buildTextAttributesStyle(headlineAttributes)?.fontSize,
-    fontFamily: headlineCssStyle?.fontFamily || buildTextAttributesStyle(headlineAttributes)?.fontFamily,
-    fontWeight: headlineCssStyle?.fontWeight || buildTextAttributesStyle(headlineAttributes)?.fontWeight,
+    color: headlineCssStyle?.color || headlineAttrStyle.color,
+    fontSize: headlineCssStyle?.fontSize || headlineAttrStyle.fontSize,
+    fontFamily: headlineCssStyle?.fontFamily || headlineAttrStyle.fontFamily,
+    fontWeight: headlineCssStyle?.fontWeight || headlineAttrStyle.fontWeight,
+    // Explicit line-height token wins last
+    ...(headlineLineHeightToken && (headlineCssStyle?.fontSize || headlineAttrStyle.fontSize)
+      ? {
+          lineHeight:
+            headlineLineHeightToken > 0 && headlineLineHeightToken <= 10
+              ? (headlineCssStyle?.fontSize || headlineAttrStyle.fontSize) *
+                  headlineLineHeightToken
+              : headlineLineHeightToken,
+        }
+      : {}),
   };
 
   // Build subtext style from CSS and attributes
+  const subtextAttrStyle = buildTextAttributesStyle(subtextAttributes) || {};
+
   const subtextStyle = {
     ...subtextCssStyle,
-    ...buildTextAttributesStyle(subtextAttributes),
+    ...subtextAttrStyle,
     // Override with CSS if present
-    color: subtextCssStyle?.color || buildTextAttributesStyle(subtextAttributes)?.color,
-    fontSize: subtextCssStyle?.fontSize || buildTextAttributesStyle(subtextAttributes)?.fontSize,
-    fontFamily: subtextCssStyle?.fontFamily || buildTextAttributesStyle(subtextAttributes)?.fontFamily,
-    fontWeight: subtextCssStyle?.fontWeight || buildTextAttributesStyle(subtextAttributes)?.fontWeight,
+    color: subtextCssStyle?.color || subtextAttrStyle.color,
+    fontSize: subtextCssStyle?.fontSize || subtextAttrStyle.fontSize,
+    fontFamily: subtextCssStyle?.fontFamily || subtextAttrStyle.fontFamily,
+    fontWeight: subtextCssStyle?.fontWeight || subtextAttrStyle.fontWeight,
     marginTop: subtextCssStyle?.marginTop || toNumber(subtextAttributes?.marginTop, 8),
     marginBottom: subtextCssStyle?.marginBottom || toNumber(subtextAttributes?.marginBottom, 12),
+    // Explicit line-height token wins last
+    ...(subtextLineHeightToken && (subtextCssStyle?.fontSize || subtextAttrStyle.fontSize)
+      ? {
+          lineHeight:
+            subtextLineHeightToken > 0 && subtextLineHeightToken <= 10
+              ? (subtextCssStyle?.fontSize || subtextAttrStyle.fontSize) *
+                  subtextLineHeightToken
+              : subtextLineHeightToken,
+        }
+      : {}),
   };
 
   // Image attributes and settings
@@ -184,9 +226,16 @@ export default function HeroBanner({ section }) {
           ? "contain"
           : "contain";
 
-  // Text content
-  const headline = unwrapValue(rawProps?.headline, "");
-  const subtext = unwrapValue(rawProps?.subtext, "");
+  // Text content – prefer top-level props, but fall back to flatProps snapshot
+  const flatPropsNode = rawProps?.flatProps?.value || rawProps?.flatProps || {};
+  const headline =
+    unwrapValue(rawProps?.headline, undefined) ??
+    unwrapValue(flatPropsNode?.headline, undefined) ??
+    unwrapValue(flatPropsNode?.title, "");
+  const subtext =
+    unwrapValue(rawProps?.subtext, undefined) ??
+    unwrapValue(flatPropsNode?.subtext, undefined) ??
+    unwrapValue(flatPropsNode?.subtitle, "");
   
   // Button configuration
   const button = rawProps?.button || {};
@@ -322,6 +371,27 @@ export default function HeroBanner({ section }) {
                                  toNumber(layoutCss?.container?.borderRadius, 7);
   const containerHeight = toString(styleProps?.height || layoutCss?.container?.height, "auto");
 
+  // Outer card container (white card + border), matching web DSL containerBgColor/containerBorder*
+  const outerBgColor = toString(rawProps?.containerBgColor, "#FFFFFF");
+  const outerBorderColor = toString(rawProps?.containerBorderColor, "#D1D5DB");
+  const outerBorderSide = toString(rawProps?.containerBorderSide, "all").toLowerCase();
+  const outerBorderRadius = toNumber(rawProps?.containerBorderRadius, 0);
+
+  const outerBorderStyle =
+    outerBorderSide === "none"
+      ? {}
+      : outerBorderSide === "all" || !outerBorderSide
+      ? { borderWidth: 1, borderColor: outerBorderColor }
+      : outerBorderSide === "bottom"
+      ? { borderBottomWidth: 1, borderColor: outerBorderColor }
+      : outerBorderSide === "top"
+      ? { borderTopWidth: 1, borderColor: outerBorderColor }
+      : outerBorderSide === "left"
+      ? { borderLeftWidth: 1, borderColor: outerBorderColor }
+      : outerBorderSide === "right"
+      ? { borderRightWidth: 1, borderColor: outerBorderColor }
+      : { borderWidth: 1, borderColor: outerBorderColor };
+
   const contentPositionStyle = applyMetricsPositioning({}, metricElements?.container);
   const headlinePositionStyle = applyMetricsPositioning({}, metricElements?.headline);
   const subtextPositionStyle = applyMetricsPositioning({}, metricElements?.subtext);
@@ -350,142 +420,117 @@ export default function HeroBanner({ section }) {
   return (
     <View
       style={[
-        styles.container,
+        styles.outerCard,
         {
-          backgroundColor: bgSettingsEnabled ? withColorOpacity(backgroundColor, backgroundOpacity) : "transparent",
-          borderRadius: containerBorderRadius,
-          ...containerHeightStyle,
-          // Don't apply padding to container if image should fill full section
-          // Padding should be applied to content instead
-          // Override any padding from containerStyle that might prevent image from filling
-          padding: 0,
-          paddingTop: 0,
-          paddingRight: 0,
-          paddingBottom: 0,
-          paddingLeft: 0,
-          margin: 0,
+          backgroundColor: outerBgColor,
+          borderRadius: outerBorderRadius,
+          ...outerBorderStyle,
         },
-        // Apply containerStyle last but ensure padding is overridden
-        containerStyle ? {
-          ...containerStyle,
-          padding: 0,
-          paddingTop: 0,
-          paddingRight: 0,
-          paddingBottom: 0,
-          paddingLeft: 0,
-        } : {},
       ]}
     >
-      {/* Image background - always show if image source exists */}
-      {imageSrc ? (
-        <Image
-          source={{ uri: imageSrc }}
-          style={[
-            styles.image,
-            {
-              borderRadius: imageCornerRadius || toNumber(layoutCss?.image?.borderRadius, 7),
-            },
-            // Apply CSS styles (like opacity, etc.) but don't override positioning or dimensions
-            {
-              ...(imageCssStyle?.opacity !== undefined ? { opacity: imageCssStyle.opacity } : {}),
-              // Force absolute positioning to fill full container - override any CSS positioning
-              position: "absolute",
-              top: 0,
-              left: 0,
-              right: 0,
-              bottom: 0,
-              width: "100%",
-              height: "100%",
-              zIndex: 0, // Ensure image is behind everything
-              // Override any CSS width/height that might prevent full fill
-              minWidth: "100%",
-              minHeight: "100%",
-              // Ensure image expands to fill container
-              maxWidth: "100%",
-              maxHeight: "100%",
-            },
-          ]}
-          resizeMode={resizeMode}
-          alt={imageAlt}
-        />
-      ) : null}
-
-      {/* Overlay - only show if image exists and overlay opacity is set */}
-      {imageSrc && contentSettingsEnabled && overlayOpacity > 0 ? (
-        <View
-          style={[
-            styles.overlay,
-            {
-              opacity: overlayOpacity / 100,
-              backgroundColor: "#000",
-              borderRadius: imageCornerRadius || toNumber(layoutCss?.image?.borderRadius, 7),
-            },
-          ]}
-        />
-      ) : null}
-
       <View
         style={[
-          styles.content,
-          hasAbsoluteMetrics ? styles.absoluteContentLayer : null,
+          styles.container,
           {
-            alignItems: alignSettingsEnabled ? alignItems : "center",
-            textAlign: alignSettingsEnabled ? textAlign : "center",
-            paddingTop: alignSettingsEnabled ? paddingTop : 40,
-            paddingRight: alignSettingsEnabled ? paddingRight : 16,
-            paddingBottom: alignSettingsEnabled ? paddingBottom : 40,
-            paddingLeft: alignSettingsEnabled ? paddingLeft : 16,
-            // Don't set height: "100%" - let content determine its own height dynamically
-            // This allows the container to expand based on text and button content
+            backgroundColor: bgSettingsEnabled
+              ? withColorOpacity(backgroundColor, backgroundOpacity)
+              : "transparent",
+            borderRadius: containerBorderRadius,
+            ...containerHeightStyle,
           },
-          contentPositionStyle,
+          containerStyle,
         ]}
       >
-        {headline ? (
-          <Text
+        {imageSrc ? (
+          <Image
+            source={{ uri: imageSrc }}
             style={[
-              styles.headline,
-              headlineStyle,
-              headlinePositionStyle,
-              { textAlign: alignSettingsEnabled ? textAlign : "center" },
+              styles.image,
+              {
+                borderRadius: imageCornerRadius || toNumber(layoutCss?.image?.borderRadius, 7),
+              },
+              imageCssStyle,
             ]}
-          >
-            {headline}
-          </Text>
+            resizeMode={resizeMode}
+          />
         ) : null}
 
-        {subtext ? (
-          <Text
-            style={[
-              styles.subtext,
-              subtextStyle,
-              subtextPositionStyle,
-              { textAlign: alignSettingsEnabled ? textAlign : "center" },
-            ]}
-          >
-            {subtext}
-          </Text>
-        ) : null}
-
-        {showButton && buttonLabel ? (
+        {imageSrc && contentSettingsEnabled && overlayOpacity > 0 ? (
           <View
             style={[
-              styles.buttonWrapper,
-              buttonPositionStyle,
-              { alignSelf: alignSettingsEnabled ? (align === "left" ? "flex-start" : align === "right" ? "flex-end" : "center") : "center" },
+              styles.overlay,
+              {
+                opacity: overlayOpacity / 100,
+                borderRadius: imageCornerRadius || toNumber(layoutCss?.image?.borderRadius, 7),
+              },
             ]}
-          >
-            <TouchableOpacity onPress={handleButtonPress} activeOpacity={0.8}>
-              <Text style={[styles.button, dynamicButtonStyle]}>{buttonLabel}</Text>
-            </TouchableOpacity>
-          </View>
+          />
         ) : null}
+
+        <View
+          style={[
+            styles.content,
+            hasAbsoluteMetrics ? styles.absoluteContentLayer : null,
+            {
+              alignItems: alignSettingsEnabled ? alignItems : "center",
+              paddingTop: alignSettingsEnabled ? paddingTop : 40,
+              paddingRight: alignSettingsEnabled ? paddingRight : 30,
+              paddingBottom: alignSettingsEnabled ? paddingBottom : 50,
+              paddingLeft: alignSettingsEnabled ? paddingLeft : 30,
+            },
+            contentPositionStyle,
+          ]}
+        >
+          {headline ? (
+            <Text
+              style={[
+                styles.headline,
+                headlineStyle,
+                headlinePositionStyle,
+                { textAlign: "center" },
+              ]}
+            >
+              {headline}
+            </Text>
+          ) : null}
+
+          {subtext ? (
+            <Text
+              style={[
+                styles.subtext,
+                subtextStyle,
+                subtextPositionStyle,
+                { textAlign: "center" },
+              ]}
+            >
+              {subtext}
+            </Text>
+          ) : null}
+
+          {showButton && buttonLabel ? (
+            <View
+              style={[
+                styles.buttonWrapper,
+                buttonPositionStyle,
+              ]}
+            >
+              <TouchableOpacity onPress={handleButtonPress} activeOpacity={0.8}>
+                <Text style={[styles.button, dynamicButtonStyle]}>{buttonLabel}</Text>
+              </TouchableOpacity>
+            </View>
+          ) : null}
+        </View>
       </View>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
+  outerCard: {
+    width: "100%",
+    padding: 0,
+    margin: 0,
+  },
   container: {
     position: "relative",
     width: "100%",

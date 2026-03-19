@@ -1,0 +1,18 @@
+diff --git a/node_modules/@react-native/dev-middleware/dist/inspector-proxy/InspectorProxy.js b/node_modules/@react-native/dev-middleware/dist/inspector-proxy/InspectorProxy.js
+index 9e0ad86..c92e039 100644
+--- a/node_modules/@react-native/dev-middleware/dist/inspector-proxy/InspectorProxy.js
++++ b/node_modules/@react-native/dev-middleware/dist/inspector-proxy/InspectorProxy.js
+@@ -30,7 +30,12 @@ const PAGES_LIST_JSON_URL = "/json";
+ const PAGES_LIST_JSON_URL_2 = "/json/list";
+ const PAGES_LIST_JSON_VERSION_URL = "/json/version";
+ const HEARTBEAT_TIME_BETWEEN_PINGS_MS = 5000;
+-const HEARTBEAT_TIMEOUT_MS = 60000;
++// Longer default avoids Metro dropping the device on reload (slow phones / heavy JS).
++// Optional: RN_METRO_DEVICE_TIMEOUT_MS (ms), e.g. 300000 for 5 min.
++const HEARTBEAT_TIMEOUT_MS =
++  Number(process.env.RN_METRO_DEVICE_TIMEOUT_MS) > 0
++    ? Number(process.env.RN_METRO_DEVICE_TIMEOUT_MS)
++    : 180000;
+ const MIN_PING_TO_REPORT = 500;
+ const EVENT_LOOP_PERF_MEASUREMENT_MS = 5000;
+ const MIN_EVENT_LOOP_DELAY_PERCENT_TO_REPORT = 20;

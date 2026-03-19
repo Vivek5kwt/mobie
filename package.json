@@ -8,6 +8,7 @@
     "android:analytics-debug": "adb shell setprop debug.firebase.analytics.app com.mobidrag",
     "build": "echo \"React Native project: no web build step; Android builds run via Gradle.\"",
     "start": "react-native start",
+    "postinstall": "patch-package",
     "check:no-patch-artifacts": "node scripts/check-no-patch-artifacts.mjs",
     "fix:react-native-entry": "node scripts/fix-react-native-entry-point.js"
   },
@@ -42,7 +43,8 @@
     "@babel/core": "^7.25.2",
     "@react-native-community/cli": "^20.0.0",
     "@react-native/babel-preset": "0.82.0",
-    "@react-native/metro-config": "^0.82.0"
+    "@react-native/metro-config": "^0.82.0",
+    "patch-package": "^8.0.1"
   },
   "engines": {
     "node": ">=20"
