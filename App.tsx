@@ -16,6 +16,7 @@ try {
 }
 
 import client from './src/apollo/client';
+import { StoreProvider } from './src/services/StoreContext';
 import AllProductsScreen from './src/screens/AllProductsScreen';
 import BottomNavScreen from './src/screens/BottomNavScreen';
 import CheckoutWebViewScreen from './src/screens/CheckoutWebViewScreen';
@@ -55,55 +56,57 @@ export default function App() {
     <GestureRootView style={{ flex: 1 }}>
       <Provider store={store}>
         <SafeAreaProvider>
-          <AuthProvider>
-            <ApolloProvider client={client}>
-              <NavigationContainer>
-                <Stack.Navigator
-                  screenOptions={{ headerShown: false }}
-                  initialRouteName="Splash"
-                >
-                  <Stack.Screen name="Splash" component={SplashScreen} />
-                  <Stack.Screen name="Auth" component={AuthScreen} />
+          <StoreProvider>
+            <AuthProvider>
+              <ApolloProvider client={client}>
+                <NavigationContainer>
+                  <Stack.Navigator
+                    screenOptions={{ headerShown: false }}
+                    initialRouteName="Splash"
+                  >
+                    <Stack.Screen name="Splash" component={SplashScreen} />
+                    <Stack.Screen name="Auth" component={AuthScreen} />
 
-                  <Stack.Screen
-                    name="LayoutScreen"
-                    component={LayoutScreen}
-                    options={{ animation: 'none' }}
-                  />
+                    <Stack.Screen
+                      name="LayoutScreen"
+                      component={LayoutScreen}
+                      options={{ animation: 'none' }}
+                    />
 
-                  <Stack.Screen
-                    name="BottomNavScreen"
-                    component={BottomNavScreen}
-                    options={{ animation: 'none' }}
-                  />
+                    <Stack.Screen
+                      name="BottomNavScreen"
+                      component={BottomNavScreen}
+                      options={{ animation: 'none' }}
+                    />
 
-                  <Stack.Screen
-                    name="ProductDetail"
-                    component={ProductDetailScreen}
-                    options={{ animation: 'slide_from_right' }}
-                  />
+                    <Stack.Screen
+                      name="ProductDetail"
+                      component={ProductDetailScreen}
+                      options={{ animation: 'slide_from_right' }}
+                    />
 
-                  <Stack.Screen
-                    name="CheckoutWebView"
-                    component={CheckoutWebViewScreen}
-                    options={{ animation: 'slide_from_right' }}
-                  />
+                    <Stack.Screen
+                      name="CheckoutWebView"
+                      component={CheckoutWebViewScreen}
+                      options={{ animation: 'slide_from_right' }}
+                    />
 
-                  <Stack.Screen
-                    name="CollectionProducts"
-                    component={CollectionProductsScreen}
-                    options={{ animation: 'slide_from_right' }}
-                  />
+                    <Stack.Screen
+                      name="CollectionProducts"
+                      component={CollectionProductsScreen}
+                      options={{ animation: 'slide_from_right' }}
+                    />
 
-                  <Stack.Screen
-                    name="AllProducts"
-                    component={AllProductsScreen}
-                    options={{ animation: 'slide_from_right' }}
-                  />
-                </Stack.Navigator>
-              </NavigationContainer>
-            </ApolloProvider>
-          </AuthProvider>
+                    <Stack.Screen
+                      name="AllProducts"
+                      component={AllProductsScreen}
+                      options={{ animation: 'slide_from_right' }}
+                    />
+                  </Stack.Navigator>
+                </NavigationContainer>
+              </ApolloProvider>
+            </AuthProvider>
+          </StoreProvider>
         </SafeAreaProvider>
       </Provider>
     </GestureRootView>

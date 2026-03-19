@@ -1,16 +1,26 @@
+import { getStoreConfigSync } from './storeService';
+
 const STOREFRONT_VERSION = "2024-10";
-export const SHOPIFY_SHOP = "5kwebtech-test.myshopify.com";
 
-export const SHOPIFY_TOKEN = "79363ed16cc2c1e01f4dc18f813c41a8";
+// Fallback credentials used only when the GetStore fetch has not completed yet
+const FALLBACK_SHOP = "5kwebtech-test.myshopify.com";
+const FALLBACK_TOKEN = "79363ed16cc2c1e01f4dc18f813c41a8";
 
-const getWindowValue = (key) => {
-  if (typeof window === "undefined") return undefined;
-  return window?.[key];
-};
+/**
+ * Returns the Shopify storefront domain.
+ * Prefers the value fetched dynamically from GetStore (via StoreProvider).
+ * Falls back to the hardcoded default if the store config is not yet loaded.
+ */
+export const getShopifyDomain = () =>
+  getStoreConfigSync()?.shopify_domain || FALLBACK_SHOP;
 
-export const getShopifyDomain = () => getWindowValue("__SHOP_DOMAIN__") || SHOPIFY_SHOP;
-
-export const getShopifyToken = () => getWindowValue("__STOREFRONT_TOKEN__") || SHOPIFY_TOKEN;
+/**
+ * Returns the Shopify Storefront API access token.
+ * Prefers the value fetched dynamically from GetStore (via StoreProvider).
+ * Falls back to the hardcoded default if the store config is not yet loaded.
+ */
+export const getShopifyToken = () =>
+  getStoreConfigSync()?.storefront_access_token || FALLBACK_TOKEN;
 
 // ----------------------
 // BASE GRAPHQL CALL
