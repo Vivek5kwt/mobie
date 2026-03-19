@@ -258,14 +258,30 @@ if (PACKAGE_NAME !== 'com.mobidrag' && sourcePathExists && sourcePackagePath !==
         fs.rmdirSync(oldPackagePath);
         console.log(`✅ Removed old package directory`);
       } else {
-        // Last resort: try recursive removal
-        console.log(`⚠️ Directory still has files, attempting recursive removal...`);
+        // Targeted cleanup: remove only entries that are NOT the new package directory.
+        // CRITICAL: never rm -rf oldPackagePath when newPackagePath is inside it
+        // (e.g. com/mobidrag/app251 lives inside com/mobidrag — a blanket rm -rf would
+        //  wipe the Kotlin files we just moved there, leaving Gradle with nothing to compile
+        //  and causing ClassNotFoundException at runtime).
+        console.log(`⚠️ Directory still has entries, doing targeted cleanup...`);
         try {
           const { execSync } = require('child_process');
-          execSync(`rm -rf "${oldPackagePath}"`, { stdio: 'inherit' });
-          console.log(`✅ Recursively removed old package directory`);
+          const entries = fs.readdirSync(oldPackagePath);
+          entries.forEach(entry => {
+            const entryPath = path.join(oldPackagePath, entry);
+            if (entryPath !== newPackagePath) {
+              execSync(`rm -rf "${entryPath}"`, { stdio: 'inherit' });
+              console.log(`✅ Removed stale entry: ${entry}`);
+            }
+          });
+          // Remove oldPackagePath itself only if it is now empty
+          const remaining = fs.readdirSync(oldPackagePath);
+          if (remaining.length === 0) {
+            fs.rmdirSync(oldPackagePath);
+            console.log(`✅ Removed old package directory`);
+          }
         } catch (e) {
-          console.log(`⚠️ Recursive removal failed: ${e.message}`);
+          console.log(`⚠️ Targeted cleanup failed: ${e.message}`);
         }
       }
     } catch (e) {
@@ -332,8 +348,10 @@ if (fs.existsSync(reactNativeEntryPointPath)) {
   console.log('⚠️ ReactNativeApplicationEntryPoint.java not found (will be generated during build)');
 }
 
-// Final cleanup: Ensure old package directory is removed if package name changed
-if (PACKAGE_NAME !== 'com.mobidrag' && fs.existsSync(oldPackagePath)) {
+// Final cleanup: only safe to rm -rf oldPackagePath when newPackagePath is NOT inside it.
+// When package is com.mobidrag.appXXX the new dir is a child of the old dir — skip blanket delete.
+const newIsInsideOld = newPackagePath.startsWith(oldPackagePath + path.sep);
+if (PACKAGE_NAME !== 'com.mobidrag' && fs.existsSync(oldPackagePath) && !newIsInsideOld) {
   console.log(`🧹 Final cleanup: Removing old package directory...`);
   try {
     const { execSync } = require('child_process');
