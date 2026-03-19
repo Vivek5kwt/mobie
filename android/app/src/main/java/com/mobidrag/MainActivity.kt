@@ -6,8 +6,7 @@ import com.facebook.react.defaults.DefaultNewArchitectureEntryPoint.fabricEnable
 import com.facebook.react.defaults.DefaultReactActivityDelegate
 
 class MainActivity : ReactActivity() {
-  // Keep this simple and static to avoid any startup issues
-  override fun getMainComponentName(): String = "MobiDrag"
+  override fun getMainComponentName(): String = BuildConfig.APP_NAME
 
   override fun createReactActivityDelegate(): ReactActivityDelegate =
       DefaultReactActivityDelegate(this, mainComponentName, fabricEnabled)
