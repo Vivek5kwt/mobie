@@ -167,6 +167,7 @@ jobs:
         env:
           APP_NAME: ${{ env.APP_NAME }}
           APP_LOGO: ${{ env.APP_LOGO }}
+          APP_ID: ${{ env.APP_ID }}
         run: |
           node -e "
             const fs = require('fs');
@@ -178,6 +179,9 @@ jobs:
             if (process.env.APP_LOGO) {
               appJson.logo = process.env.APP_LOGO;
             }
+            if (process.env.APP_ID) {
+              appJson.appId = parseInt(process.env.APP_ID, 10) || null;
+            }
             fs.writeFileSync('app.json', JSON.stringify(appJson, null, 2));
           "
           if [ -n "${APP_NAME}" ]; then
@@ -185,6 +189,9 @@ jobs:
           fi
           if [ -n "${APP_LOGO}" ]; then
             echo "✅ Updated app.json with app logo: ${APP_LOGO}"
+          fi
+          if [ -n "${APP_ID}" ]; then
+            echo "✅ Updated app.json with app ID: ${APP_ID}"
           fi
 
       - name: Install ImageMagick for icon resizing
@@ -267,6 +274,8 @@ jobs:
           echo "📱 This will be used for BuildConfig.APP_NAME in Android build"
 
       - name: Build Android APK
+        env:
+          REACT_APP_APP_ID: ${{ env.APP_ID }}
         run: |
           cd android
           chmod +x ./gradlew
@@ -284,6 +293,8 @@ jobs:
           fi
           
       - name: Build Android APK (Final)
+        env:
+          REACT_APP_APP_ID: ${{ env.APP_ID }}
         run: |
           cd android
           chmod +x ./gradlew

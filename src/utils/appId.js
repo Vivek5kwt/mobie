@@ -1,32 +1,38 @@
 const DEFAULT_APP_ID = 21;
 
+const isValidId = (n) => Number.isFinite(n) && n > 1;
+
 export const resolveAppId = (appId) => {
-  // First check if appId is provided directly
+  // 1. Caller-supplied value (highest priority)
   if (appId !== undefined && appId !== null && appId !== "") {
-    const numAppId = Number(appId);
-    // Treat 1 as invalid (likely a default/placeholder value) and use default instead
-    if (Number.isFinite(numAppId) && numAppId > 0 && numAppId !== 1) {
-      console.log(`📱 Using provided appId: ${numAppId}`);
-      return numAppId;
-    } else if (numAppId === 1) {
-      console.log(`📱 Provided appId is 1 (invalid), using default: ${DEFAULT_APP_ID}`);
+    const n = Number(appId);
+    if (isValidId(n)) {
+      console.log(`📱 Using provided appId: ${n}`);
+      return n;
     }
   }
 
-  // Then check environment variable (set by GitHub Actions)
+  // 2. app.json — written by CI at build time (most reliable in a bundled APK)
+  try {
+    const appJson = require('../../app.json');
+    const n = Number(appJson?.appId);
+    if (isValidId(n)) {
+      console.log(`📱 Using appId from app.json: ${n}`);
+      return n;
+    }
+  } catch (_) {}
+
+  // 3. process.env.REACT_APP_APP_ID — inlined by Metro when env var is set during Gradle build
   const envAppId = process.env.REACT_APP_APP_ID;
   if (envAppId) {
-    const numEnvAppId = Number(envAppId);
-    // Treat 1 as invalid (likely a default/placeholder value) and use default instead
-    if (Number.isFinite(numEnvAppId) && numEnvAppId > 0 && numEnvAppId !== 1) {
-      console.log(`📱 Using REACT_APP_APP_ID from environment: ${numEnvAppId}`);
-      return numEnvAppId;
-    } else if (numEnvAppId === 1) {
-      console.log(`📱 REACT_APP_APP_ID is 1 (invalid), using default: ${DEFAULT_APP_ID}`);
+    const n = Number(envAppId);
+    if (isValidId(n)) {
+      console.log(`📱 Using REACT_APP_APP_ID from env: ${n}`);
+      return n;
     }
   }
 
-  // Fallback to default
+  // 4. Fallback
   console.log(`📱 Using default appId: ${DEFAULT_APP_ID}`);
   return DEFAULT_APP_ID;
 };
