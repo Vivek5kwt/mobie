@@ -124,7 +124,6 @@ dependencies {
 }
 
 // Apply Google Services plugin for Firebase.
-// For local development we temporarily disable it to avoid build failures
-// when packageName and google-services.json fall out of sync.
-// Re-enable this line for production/CI builds if Firebase is required.
-// apply plugin: 'com.google.gms.google-services'
+// google-services.json package_name is updated by scripts/update-android-package.js
+// before the Gradle build runs, so it always matches the dynamic applicationId.
+apply plugin: 'com.google.gms.google-services'
