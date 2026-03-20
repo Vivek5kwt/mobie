@@ -236,11 +236,22 @@ export default function HeroBanner({ section }) {
     unwrapValue(rawProps?.subtext, undefined) ??
     unwrapValue(flatPropsNode?.subtext, undefined) ??
     unwrapValue(flatPropsNode?.subtitle, "");
-  
+
+  // Visibility flags from flatProps (showHeadline / showSubtext / showButton)
+  const showHeadline = flatPropsNode?.showHeadline !== undefined
+    ? toBoolean(flatPropsNode.showHeadline, true)
+    : true;
+  const showSubtext = flatPropsNode?.showSubtext !== undefined
+    ? toBoolean(flatPropsNode.showSubtext, true)
+    : true;
+
   // Button configuration
   const button = rawProps?.button || {};
   const buttonEnabled = button?.properties?.enabled || button?.enabled;
-  const showButton = buttonEnabled === "yes" || buttonEnabled === true || toBoolean(buttonEnabled, false);
+  const showButtonFromEnabled = buttonEnabled === "yes" || buttonEnabled === true || toBoolean(buttonEnabled, false);
+  const showButton = flatPropsNode?.showButton !== undefined
+    ? toBoolean(flatPropsNode.showButton, showButtonFromEnabled)
+    : showButtonFromEnabled;
   const buttonLabel = unwrapValue(button?.properties?.label || button?.label, "Shop Now");
   const buttonLink = unwrapValue(button?.properties?.link || button?.link, "/products");
   const buttonNavigateRef = unwrapValue(button?.properties?.navigateRef || button?.navigateRef, "");
@@ -302,15 +313,31 @@ export default function HeroBanner({ section }) {
   
   // Handle button navigation
   const handleButtonPress = () => {
-    if (buttonNavigateRef && buttonNavigateType) {
-      // Handle navigation based on type
-      if (buttonNavigateType === "route") {
-        navigation.navigate(buttonNavigateRef);
-      } else if (buttonNavigateType === "url" && buttonLink) {
-        // Handle URL navigation if needed
+    const ref = buttonNavigateRef?.trim();
+    const type = (buttonNavigateType || "").trim().toLowerCase();
+
+    if (ref && type) {
+      if (type === "collection") {
+        navigation.navigate("CollectionProducts", { handle: ref });
+      } else if (type === "product") {
+        navigation.navigate("ProductDetail", { handle: ref });
+      } else if (type === "allproducts" || type === "all_products" || type === "all-products") {
+        navigation.navigate("AllProducts");
+      } else if (type === "route") {
+        navigation.navigate(ref);
       }
-    } else if (buttonLink && buttonLink.startsWith("/")) {
-      navigation.navigate(buttonLink);
+      // "url" type opens external link — no-op in native app without Linking
+    } else if (buttonLink && typeof buttonLink === "string" && buttonLink.trim()) {
+      const link = buttonLink.trim();
+      if (!link.startsWith("/")) return;
+      // Map common web paths to native screens
+      if (link.startsWith("/collections/")) {
+        navigation.navigate("CollectionProducts", { handle: link.replace("/collections/", "") });
+      } else if (link.startsWith("/products/")) {
+        navigation.navigate("ProductDetail", { handle: link.replace("/products/", "") });
+      } else if (link === "/products") {
+        navigation.navigate("AllProducts");
+      }
     }
   };
 
@@ -403,7 +430,9 @@ export default function HeroBanner({ section }) {
     subtextPositionStyle?.position === "absolute" ||
     buttonPositionStyle?.position === "absolute";
 
-  if (!headline && !subtext && !imageSrc) return null;
+  const hasVisibleContent =
+    (showHeadline && headline) || (showSubtext && subtext) || (showButton && buttonLabel) || imageSrc;
+  if (!hasVisibleContent) return null;
 
   // Calculate container height:
   // - If an explicit numeric height is provided, use it.
@@ -481,7 +510,7 @@ export default function HeroBanner({ section }) {
             contentPositionStyle,
           ]}
         >
-          {headline ? (
+          {showHeadline && headline ? (
             <Text
               style={[
                 styles.headline,
@@ -494,7 +523,7 @@ export default function HeroBanner({ section }) {
             </Text>
           ) : null}
 
-          {subtext ? (
+          {showSubtext && subtext ? (
             <Text
               style={[
                 styles.subtext,
