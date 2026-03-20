@@ -3,8 +3,8 @@ import { getStoreConfigSync } from './storeService';
 const STOREFRONT_VERSION = "2024-10";
 
 // Fallback credentials used only when the GetStore fetch has not completed yet
-const FALLBACK_SHOP = "5kwebtech-test.myshopify.com";
-const FALLBACK_TOKEN = "79363ed16cc2c1e01f4dc18f813c41a8";
+const FALLBACK_SHOP = "newmobidrag.myshopify.com";
+const FALLBACK_TOKEN = "52d1c86d6cdc1821fd265b5c469f8ebf";
 
 /**
  * Returns the Shopify storefront domain.
@@ -37,7 +37,7 @@ export async function directStorefrontGraphQL({
     endpoint,
     headers: {
       "Content-Type": "application/json",
-      "X-Shopify-Storefront-Access-Token": "79363ed16cc2c1e01f4dc18f813c41a8",
+      "X-Shopify-Storefront-Access-Token": token,
     },
     variables,
   });
