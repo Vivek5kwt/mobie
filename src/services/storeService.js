@@ -4,8 +4,8 @@ const GRAPHQL_ENDPOINT = 'https://mobidrag.ampleteck.com/graphql';
 export const STORE_ID = 20; // static store ID
 
 const GET_STORE_QUERY = `
-  query GetStore($storeId: Int!) {
-    getStore(store_id: $storeId) {
+  query GetStore($storeId: Int!, $appId: Int) {
+    getStore(store_id: $storeId, app_id: $appId) {
       user_id
       updated_at
       timezone
@@ -47,7 +47,7 @@ export async function fetchStoreConfig() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           query: GET_STORE_QUERY,
-          variables: { storeId: STORE_ID },
+          variables: { storeId: STORE_ID, appId },
         }),
       });
 
