@@ -8,6 +8,7 @@ import { useSideMenu } from "../services/SideMenuContext";
 import bottomNavigationStyle1Section from "../data/bottomNavigationStyle1";
 import { convertStyles } from "../utils/convertStyles";
 import { getAppLogoSync } from "../utils/appInfo";
+import { getHeaderDefault } from "../services/headerDefaultService";
 
 const LOCAL_LOGO_IMAGE = require("../assets/logo/mobidraglogo.png");
 
@@ -138,7 +139,7 @@ export default function Header({ section }) {
     unwrapValue(sideMenuProps?.iconId ?? sideMenuProps?.iconName ?? sideMenuProps?.icon, "")
   );
   const sideMenuIconSize = unwrapValue(sideMenuProps?.width, 24);
-  const sideMenuIconColor = unwrapValue(sideMenuProps?.color, "#111827");
+  const sideMenuIconColor = unwrapValue(sideMenuProps?.color, defaultConfig?.iconColor ?? "#111827");
 
   const logoEnabled = resolveBoolean(props?.enableLogo, true);
   const logoImage = unwrapValue(props?.logoImage, "");
@@ -148,13 +149,18 @@ export default function Header({ section }) {
     setLogoSource(resolveLogoSource(logoImage));
   }, [logoImage]);
 
+  // headerdefault config — applies when the header is rendered standalone
+  // (i.e. no DSL section provided, as in AllProductsScreen, ProductDetailScreen, etc.)
+  const isStandalone = !section?.component && !section?.props;
+  const defaultConfig = isStandalone ? getHeaderDefault() : null;
+
   const headerTextEnabled = resolveBoolean(
     props?.enableheaderText ?? props?.enableHeaderText,
-    false,
+    isStandalone && defaultConfig?.title ? true : false,
   );
-  const headerTextValue = unwrapValue(props?.headerText, "");
+  const headerTextValue = unwrapValue(props?.headerText, isStandalone && defaultConfig?.title ? defaultConfig.title : "");
   const headerTextSize = unwrapValue(props?.headerTextSize, 14);
-  const headerTextColor = unwrapValue(props?.headerTextColor, "#0C1C2C");
+  const headerTextColor = unwrapValue(props?.headerTextColor, defaultConfig?.textColor ?? "#0C1C2C");
   const headerTextBold = resolveBoolean(props?.headerTextBold, false);
   const headerTextItalic = resolveBoolean(props?.headerTextItalic, false);
   const headerTextUnderline = resolveBoolean(props?.headerTextUnderline, false);
@@ -182,20 +188,24 @@ export default function Header({ section }) {
   };
 
   const cartProps = props?.cart?.properties || props?.cart || {};
-  const cartVisible = resolveBoolean(cartProps?.visible, true);
+  const cartVisible = defaultConfig?.showCart !== undefined
+    ? Boolean(defaultConfig.showCart)
+    : resolveBoolean(cartProps?.visible, true);
   const cartIconName = normalizeIconName(unwrapValue(cartProps?.iconId, "cart-shopping"));
   const cartIconSize = unwrapValue(cartProps?.width, 18);
-  const cartIconColor = unwrapValue(cartProps?.color, "#016D77");
+  const cartIconColor = unwrapValue(cartProps?.color, defaultConfig?.iconColor ?? "#016D77");
   const cartShowBadge = resolveBoolean(cartProps?.showBadge, false);
   const shouldShowCartBadge = safeCartCount > 0 || cartShowBadge;
 
   const notificationProps = props?.notification?.properties || props?.notification || {};
-  const notificationVisible = resolveBoolean(notificationProps?.visible, true);
+  const notificationVisible = defaultConfig?.showBell !== undefined
+    ? Boolean(defaultConfig.showBell)
+    : resolveBoolean(notificationProps?.visible, true);
   const notificationIconName = normalizeIconName(
     unwrapValue(notificationProps?.iconId, "bell"),
   );
   const notificationIconSize = unwrapValue(notificationProps?.width, 18);
-  const notificationIconColor = unwrapValue(notificationProps?.color, "#016D77");
+  const notificationIconColor = unwrapValue(notificationProps?.color, defaultConfig?.iconColor ?? "#016D77");
   const notificationShowBadge = resolveBoolean(notificationProps?.showBadge, false);
 
   const badgeStyle = normalizedLayout.badge || {};
@@ -276,6 +286,9 @@ export default function Header({ section }) {
     styles.container.minHeight,
   );
 
+  // If headerdefault.enabled is false, don't render the header at all
+  if (isStandalone && defaultConfig?.enabled === false) return null;
+
   const shouldShowHeaderText = headerTextEnabled && headerTextValue;
   const shouldShowLogo = logoEnabled && logoSource && !shouldShowHeaderText;
 
@@ -284,7 +297,7 @@ export default function Header({ section }) {
       style={[
         styles.container,
         {
-          backgroundColor: props.style?.properties?.backgroundColor?.value,
+          backgroundColor: props.style?.properties?.backgroundColor?.value ?? defaultConfig?.backgroundColor,
           minHeight: headerMinHeight,
           padding: convertPadding(props.style?.properties?.padding?.value),
           borderColor: headerBorderColor,

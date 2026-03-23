@@ -1,5 +1,6 @@
 import React from "react";
 import { Image, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import LinearGradient from "react-native-linear-gradient";
 import { useNavigation } from "@react-navigation/native";
 import { applyMetricsPositioning, convertStyles } from "../utils/convertStyles";
 
@@ -119,7 +120,9 @@ export default function HeroBanner({ section }) {
   // Extract layout CSS and metrics
   const layoutCss = rawProps?.layout?.properties?.css || rawProps?.layout?.css || {};
   const layoutMetrics = rawProps?.layout?.properties?.metrics || rawProps?.layout?.metrics || {};
-  const metricElements = layoutMetrics?.elements || {};
+  // Only use metrics when explicitly available (available: true) — skip when all zeros or available: false
+  const metricsAvailable = layoutMetrics?.available === true;
+  const metricElements = metricsAvailable ? (layoutMetrics?.elements || {}) : {};
 
   // Convert CSS styles
   const containerStyle = convertStyles(layoutCss?.container || {});
@@ -394,6 +397,10 @@ export default function HeroBanner({ section }) {
   const backgroundOpacity =
     toNumber(styleProps?.backgroundOpacity, undefined) ??
     toNumber(layoutCss?.container?.backgroundOpacityPct, 100);
+  // Gradient end color — used by the builder to create a gradient overlay effect
+  const containerBgGradientColor =
+    toString(rawProps?.containerBgGradiantColor, "") ||
+    toString(flatPropsNode?.containerBgGradiantColor, "");
   const containerBorderRadius = toNumber(styleProps?.borderRadius, 7) || 
                                  toNumber(layoutCss?.container?.borderRadius, 7);
   const containerHeight = toString(styleProps?.height || layoutCss?.container?.height, "auto");
@@ -446,110 +453,111 @@ export default function HeroBanner({ section }) {
     ? { height: numericContainerHeight }
     : {}; // No fixed height; container grows with content, and image fills it
 
+  const innerContainerStyle = [
+    styles.container,
+    {
+      borderRadius: containerBorderRadius,
+      minHeight: imageSrc ? 200 : undefined,
+      ...containerHeightStyle,
+    },
+    containerStyle,
+  ];
+
+  const innerChildren = (
+    <>
+      {imageSrc ? (
+        <Image
+          source={{ uri: imageSrc }}
+          style={[
+            styles.image,
+            { borderRadius: imageCornerRadius || toNumber(layoutCss?.image?.borderRadius, 7) },
+            imageCssStyle,
+          ]}
+          resizeMode={resizeMode}
+        />
+      ) : null}
+
+      {imageSrc && contentSettingsEnabled && overlayOpacity > 0 ? (
+        <View
+          style={[
+            styles.overlay,
+            {
+              opacity: overlayOpacity / 100,
+              borderRadius: imageCornerRadius || toNumber(layoutCss?.image?.borderRadius, 7),
+            },
+          ]}
+        />
+      ) : null}
+
+      <View
+        style={[
+          styles.content,
+          hasAbsoluteMetrics ? styles.absoluteContentLayer : null,
+          {
+            alignItems: alignSettingsEnabled ? alignItems : "center",
+            paddingTop: alignSettingsEnabled ? paddingTop : 40,
+            paddingRight: alignSettingsEnabled ? paddingRight : 30,
+            paddingBottom: alignSettingsEnabled ? paddingBottom : 50,
+            paddingLeft: alignSettingsEnabled ? paddingLeft : 30,
+          },
+        ]}
+      >
+        {showHeadline && headline ? (
+          <Text style={[styles.headline, headlineStyle, { textAlign: "center" }]}>
+            {headline}
+          </Text>
+        ) : null}
+
+        {showSubtext && subtext ? (
+          <Text style={[styles.subtext, subtextStyle, { textAlign: "center" }]}>
+            {subtext}
+          </Text>
+        ) : null}
+
+        {showButton && buttonLabel ? (
+          <View style={styles.buttonWrapper}>
+            <TouchableOpacity onPress={handleButtonPress} activeOpacity={0.8}>
+              <Text style={[styles.button, dynamicButtonStyle]}>{buttonLabel}</Text>
+            </TouchableOpacity>
+          </View>
+        ) : null}
+      </View>
+    </>
+  );
+
   return (
     <View
       style={[
         styles.outerCard,
-        {
-          backgroundColor: outerBgColor,
-          borderRadius: outerBorderRadius,
-          ...outerBorderStyle,
-        },
+        { backgroundColor: outerBgColor, borderRadius: outerBorderRadius, ...outerBorderStyle },
       ]}
     >
-      <View
-        style={[
-          styles.container,
-          {
-            backgroundColor: bgSettingsEnabled
-              ? withColorOpacity(backgroundColor, backgroundOpacity)
-              : "transparent",
-            borderRadius: containerBorderRadius,
-            ...containerHeightStyle,
-          },
-          containerStyle,
-        ]}
-      >
-        {imageSrc ? (
-          <Image
-            source={{ uri: imageSrc }}
-            style={[
-              styles.image,
-              {
-                borderRadius: imageCornerRadius || toNumber(layoutCss?.image?.borderRadius, 7),
-              },
-              imageCssStyle,
-            ]}
-            resizeMode={resizeMode}
-          />
-        ) : null}
-
-        {imageSrc && contentSettingsEnabled && overlayOpacity > 0 ? (
-          <View
-            style={[
-              styles.overlay,
-              {
-                opacity: overlayOpacity / 100,
-                borderRadius: imageCornerRadius || toNumber(layoutCss?.image?.borderRadius, 7),
-              },
-            ]}
-          />
-        ) : null}
-
+      {containerBgGradientColor ? (
+        <LinearGradient
+          colors={[
+            bgSettingsEnabled ? withColorOpacity(backgroundColor, backgroundOpacity) : "transparent",
+            containerBgGradientColor,
+          ]}
+          angle={180}
+          useAngle={true}
+          style={innerContainerStyle}
+        >
+          {innerChildren}
+        </LinearGradient>
+      ) : (
         <View
           style={[
-            styles.content,
-            hasAbsoluteMetrics ? styles.absoluteContentLayer : null,
+            ...innerContainerStyle,
             {
-              alignItems: alignSettingsEnabled ? alignItems : "center",
-              paddingTop: alignSettingsEnabled ? paddingTop : 40,
-              paddingRight: alignSettingsEnabled ? paddingRight : 30,
-              paddingBottom: alignSettingsEnabled ? paddingBottom : 50,
-              paddingLeft: alignSettingsEnabled ? paddingLeft : 30,
+              backgroundColor: bgSettingsEnabled
+                ? withColorOpacity(backgroundColor, backgroundOpacity)
+                : "transparent",
             },
-            contentPositionStyle,
           ]}
         >
-          {showHeadline && headline ? (
-            <Text
-              style={[
-                styles.headline,
-                headlineStyle,
-                headlinePositionStyle,
-                { textAlign: "center" },
-              ]}
-            >
-              {headline}
-            </Text>
-          ) : null}
-
-          {showSubtext && subtext ? (
-            <Text
-              style={[
-                styles.subtext,
-                subtextStyle,
-                subtextPositionStyle,
-                { textAlign: "center" },
-              ]}
-            >
-              {subtext}
-            </Text>
-          ) : null}
-
-          {showButton && buttonLabel ? (
-            <View
-              style={[
-                styles.buttonWrapper,
-                buttonPositionStyle,
-              ]}
-            >
-              <TouchableOpacity onPress={handleButtonPress} activeOpacity={0.8}>
-                <Text style={[styles.button, dynamicButtonStyle]}>{buttonLabel}</Text>
-              </TouchableOpacity>
-            </View>
-          ) : null}
+          {innerChildren}
         </View>
-      </View>
+      )}
     </View>
   );
 }
@@ -563,14 +571,10 @@ const styles = StyleSheet.create({
   container: {
     position: "relative",
     width: "100%",
-    minHeight: 200, // Minimum height to ensure visibility
     overflow: "hidden",
-    // Ensure container can expand to fit content dynamically
     flexShrink: 0,
-    // Remove any default padding/margin that might prevent image from filling
     padding: 0,
     margin: 0,
-    // Allow container to grow based on content
     alignSelf: "stretch",
   },
   image: {
@@ -600,11 +604,10 @@ const styles = StyleSheet.create({
   content: {
     position: "relative",
     width: "100%",
-    justifyContent: "center", // Center content vertically
-    alignItems: "center", // Center content horizontally (will be overridden by dynamic alignItems)
-    zIndex: 2, // Ensure content is above image/overlay
-    minHeight: 200, // Minimum height to ensure content is visible
-    // Don't use flex: 1 - let content determine its own height
+    justifyContent: "center",
+    alignItems: "center",
+    zIndex: 2,
+    // No minHeight here — container minHeight handles image banners
   },
   absoluteContentLayer: {
     position: "absolute",

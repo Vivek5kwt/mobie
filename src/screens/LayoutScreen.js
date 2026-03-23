@@ -22,6 +22,7 @@ import header2Section from "../data/header2Section";
 import BottomNavigation from "../components/BottomNavigation";
 import { resolveAppId } from "../utils/appId";
 import { useAuth } from "../services/AuthContext";
+import { setHeaderDefault } from "../services/headerDefaultService";
 
 export default function LayoutScreen({ route }) {
   const { session } = useAuth();
@@ -330,6 +331,9 @@ export default function LayoutScreen({ route }) {
         ? baseDsl
         : ensureHeaderSections(baseDsl, homeHeaderSections);
       setDsl(nextDsl);
+      if (dslData.dsl?.headerdefault !== undefined) {
+        setHeaderDefault(dslData.dsl.headerdefault);
+      }
       versionRef.current = dslData.versionNumber ?? null;
       
       // Cache the bottom navigation section on initial load
