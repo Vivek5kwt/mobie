@@ -238,6 +238,19 @@ export default function Header2({ section }) {
     rawPropsNode.presentation ||
     {};
   const presentationCss = presentationNode.css || {};
+  // Derive search row marginTop from presentation metrics when available
+  const presentationMetrics = presentationNode.metrics || {};
+  const metricsAvailable = presentationMetrics?.available === true;
+  const searchMarginTop = (() => {
+    if (!metricsAvailable) return 8;
+    const greetingEl = presentationMetrics?.elements?.greeting;
+    const searchEl = presentationMetrics?.elements?.search;
+    if (greetingEl && searchEl) {
+      const gap = searchEl.y - (greetingEl.y + greetingEl.height);
+      return Math.max(4, gap);
+    }
+    return 8;
+  })();
 
   // Base style block from "style" plus presentation.css overrides
   const styleNode = rawPropsNode.style?.properties || rawPropsNode.style || {};
@@ -327,6 +340,7 @@ export default function Header2({ section }) {
       searchAndIconsNode.showNotificationBadge,
       true
     ),
+    searchBoxHeight: resolveValue(searchAndIconsNode.searchBoxHeight, 40),
   };
 
   // Background gradient from JSON (bgStart, bgEnd) — takes precedence when present
@@ -995,7 +1009,7 @@ export default function Header2({ section }) {
             styles.searchRowLayout,
             {
               gap: normalizedSearchContainerStyle.gap ?? 10,
-              marginTop: normalizedSearchContainerStyle.marginTop ?? 16,
+              marginTop: normalizedSearchContainerStyle.marginTop ?? searchMarginTop,
             },
             normalizedSearchContainerStyle,
           ]}
@@ -1018,7 +1032,14 @@ export default function Header2({ section }) {
             </TouchableOpacity>
           )}
           {searchEnabled && searchAndIcons?.showSearch && (
-            <View style={[styles.searchBarWrapper, convertStyles(searchBarStyle)]}>
+            <View style={[
+              styles.searchBarWrapper,
+              convertStyles(searchBarStyle),
+              {
+                height: searchAndIcons.searchBoxHeight,
+                minHeight: searchAndIcons.searchBoxHeight,
+              },
+            ]}>
               <View style={styles.searchIconContainer}>
                 <FontAwesome
                   name="search"
@@ -1168,10 +1189,9 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     backgroundColor: "#FFFFFF",
-    borderRadius: 10,
-    paddingVertical: 12,
-    paddingRight: 16,
-    minHeight: 44,
+    borderRadius: 24,
+    paddingRight: 8,
+    overflow: "hidden",
   },
   searchIconContainer: {
     paddingLeft: 16,

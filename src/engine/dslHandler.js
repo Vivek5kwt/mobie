@@ -123,20 +123,26 @@ export async function fetchLiveDSL(appId, pageName) {
     );
 
     const latestVersion = sortedVersions[0];
-    const dslData = sanitizeSections(selectDslPage(latestVersion?.dsl, layout, pageName));
+    const fullDsl = latestVersion?.dsl;
+    const dslData = sanitizeSections(selectDslPage(fullDsl, layout, pageName));
+    // Preserve headerdefault from the full DSL even if selectDslPage picked a nested page
+    const headerDefault = dslData?.headerdefault ?? fullDsl?.headerdefault ?? null;
+    const dslWithDefaults = headerDefault != null
+      ? { ...dslData, headerdefault: headerDefault }
+      : dslData;
     const versionNumber = latestVersion?.version_number ?? null;
 
     console.log(`✅ LIVE DATA FETCHED - Version ${latestVersion.version_number}`);
-    console.log(`📊 Sections count: ${dslData?.sections?.length || 0}`);
+    console.log(`📊 Sections count: ${dslWithDefaults?.sections?.length || 0}`);
 
-    if (dslData?.sections) {
-      const components = dslData.sections
+    if (dslWithDefaults?.sections) {
+      const components = dslWithDefaults.sections
         .filter(Boolean)
         .map((s) => s?.component || s?.properties?.component);
       console.log(`🔍 Components found:`, components);
     }
 
-    return { dsl: dslData, versionNumber };
+    return { dsl: dslWithDefaults, versionNumber };
   } catch (error) {
     console.log("❌ LIVE DATA ERROR:", error);
     return null;
