@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useState } from "react";
 import {
   Dimensions,
   Image,
@@ -116,7 +116,9 @@ export default function ProductCarousel({ section }) {
   const collectionHandle = toString(dataSource?.collectionHandle, "");
 
   // Grid configuration
-  const grid = raw?.grid || {};
+  // DSL nests grid sub-props under grid.properties; fall back to grid itself for flat schemas
+  const gridNode = raw?.grid || {};
+  const grid = gridNode?.properties || gridNode;
   const columns = Math.max(1, toNumber(grid?.columns, 2));
   const itemsShown = toNumber(grid?.itemsShown, 3);
 
@@ -245,14 +247,10 @@ export default function ProductCarousel({ section }) {
   const outerCorners = toNumber(raw?.outerCorners, 0);
   const layoutAlign = toTextAlign(raw?.layoutAlign, "Left");
 
-  // Calculate card width
+  // Horizontal carousel: show ~2.3 cards at a time (peek of 3rd card)
   const screenWidth = Dimensions.get("window").width;
   const horizontalPadding = bgPadL + bgPadR;
-  const totalGap = colGap * (columns - 1);
-  const cardWidth = Math.max(
-    120,
-    (screenWidth - horizontalPadding - totalGap) / columns
-  );
+  const cardWidth = Math.floor((screenWidth - horizontalPadding - colGap) / 2.3);
 
   // Fetch products
   useEffect(() => {
@@ -521,12 +519,8 @@ export default function ProductCarousel({ section }) {
     };
 
     const alignStyle = {
-      alignSelf:
-        atcAlign === "center"
-          ? "center"
-          : atcAlign === "right"
-          ? "flex-end"
-          : "flex-start",
+      alignSelf: "stretch",
+      alignItems: "center",
     };
 
     return (
@@ -571,11 +565,14 @@ export default function ProductCarousel({ section }) {
       )}
 
       {!loading && !error && products.length > 0 && (
-        <View style={styles.grid}>
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={[styles.carousel, { gap: colGap }]}
+        >
           {products.slice(0, itemsShown).map((product, index) => {
             const isFavorite = favorites.has(product.id);
-            const isSoldOut = false; // TODO: Check product availability
-            const isLastInRow = (index + 1) % columns === 0;
+            const isSoldOut = product.availableForSale === false;
 
             return (
               <TouchableOpacity
@@ -584,14 +581,9 @@ export default function ProductCarousel({ section }) {
                   styles.card,
                   {
                     width: cardWidth,
-                    marginRight: isLastInRow ? 0 : colGap,
-                    marginBottom: rowGap,
-                    borderRadius: outerCorners,
+                    borderRadius: outerCorners || 8,
                     borderWidth: borderSize,
                     borderColor: borderColor,
-                    ...(borderLine && borderLine !== "none"
-                      ? { borderStyle: borderLine }
-                      : {}),
                   },
                 ]}
                 onPress={() => handleProductPress(product)}
@@ -696,7 +688,7 @@ export default function ProductCarousel({ section }) {
               </TouchableOpacity>
             );
           })}
-        </View>
+        </ScrollView>
       )}
     </View>
   );
@@ -734,14 +726,19 @@ const styles = StyleSheet.create({
     color: "#B91C1C",
     paddingVertical: 12,
   },
-  grid: {
+  carousel: {
     flexDirection: "row",
-    flexWrap: "wrap",
-    justifyContent: "flex-start",
+    alignItems: "stretch",
+    paddingBottom: 4,
   },
   card: {
     backgroundColor: "#FFFFFF",
     overflow: "hidden",
+    elevation: 2,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.08,
+    shadowRadius: 4,
   },
   imageContainer: {
     width: "100%",
