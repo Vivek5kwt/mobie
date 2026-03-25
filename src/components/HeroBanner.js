@@ -125,11 +125,29 @@ export default function HeroBanner({ section }) {
   const metricElements = metricsAvailable ? (layoutMetrics?.elements || {}) : {};
 
   // Convert CSS styles
-  const containerStyle = convertStyles(layoutCss?.container || {});
+  const containerStyleRaw = convertStyles(layoutCss?.container || {});
   const headlineCssStyle = convertStyles(layoutCss?.headline || {});
   const subtextCssStyle = convertStyles(layoutCss?.subtext || {});
   const buttonCssStyle = convertStyles(layoutCss?.button || {});
-  const imageCssStyle = convertStyles(layoutCss?.image || {});
+  const imageCssStyleRaw = convertStyles(layoutCss?.image || {});
+
+  // Strip padding from containerStyle: the image must fill edge-to-edge (padding offsets break
+  // absolute-positioned children in RN since % dimensions resolve to content size, not padding box).
+  // The content layer already applies its own padding via paddingRaw.
+  const {
+    padding: _cP, paddingTop: _cPt, paddingBottom: _cPb,
+    paddingLeft: _cPl, paddingRight: _cPr,
+    paddingHorizontal: _cPh, paddingVertical: _cPv,
+    ...containerStyle
+  } = containerStyleRaw;
+
+  // Strip width/height/min* from imageCssStyle: rely on top/left/right/bottom=0 for full-bleed fill.
+  // In React Native, width/height percentages resolve against the content area (excluding padding),
+  // so an absolute image with width:"100%" + parent paddingLeft:30 would be 30px short on each side.
+  const {
+    width: _iW, height: _iH, minWidth: _iMW, minHeight: _iMH,
+    ...imageCssStyle
+  } = imageCssStyleRaw;
 
   // Extract text attributes
   const headlineAttributes =
@@ -218,10 +236,10 @@ export default function HeroBanner({ section }) {
   const imageAspectRatio = parseImageRatio(imageAttributes?.imageRatio);
   
   // Map image scale to React Native resizeMode
-  // CSS objectFit: contain -> contain, cover -> cover, fill -> stretch
+  // CSS objectFit: cover -> cover, fill/stretch -> stretch, contain/fit -> contain
   const cssObjectFit = toString(layoutCss?.image?.objectFit, "contain").toLowerCase();
   const resizeMode =
-    cssObjectFit === "cover" || imageScale === "cover"
+    cssObjectFit === "cover" || imageScale === "cover" || imageScale === "fill"
       ? "cover"
       : cssObjectFit === "fill" || imageScale === "stretch"
         ? "stretch"
@@ -457,7 +475,11 @@ export default function HeroBanner({ section }) {
     styles.container,
     {
       borderRadius: containerBorderRadius,
-      minHeight: imageSrc ? 200 : undefined,
+      // Use image aspect ratio for correct banner height (e.g. 2:3 portrait fill).
+      // Fall back to minHeight when no ratio is provided.
+      ...(imageAspectRatio
+        ? { aspectRatio: imageAspectRatio }
+        : { minHeight: imageSrc ? 200 : undefined }),
       ...containerHeightStyle,
     },
     containerStyle,
@@ -583,13 +605,10 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     bottom: 0,
-    width: "100%",
-    height: "100%",
-    minWidth: "100%",
-    minHeight: "100%",
-    zIndex: 0, // Behind all content
-    // Ensure image covers the entire area
-    resizeMode: "cover", // This will be overridden by the resizeMode prop, but ensures default behavior
+    // No explicit width/height: top+left+right+bottom=0 fills the full padding box correctly.
+    // Adding width/height:100% would resolve against the content area (excl. padding) in RN/Yoga,
+    // causing the image to be clipped by the container's padding on all sides.
+    zIndex: 0,
   },
   overlay: {
     position: "absolute",
