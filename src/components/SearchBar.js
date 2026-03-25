@@ -296,8 +296,8 @@ export default function SearchBar({ section }) {
   }, []);
 
   return (
-    <View style={[styles.container, containerStyle, borderStyle]}>
-      <View style={[styles.inputWrapper, inputWrapperStyle]}>
+    <View style={[styles.container, containerStyle]}>
+      <View style={[styles.inputWrapper, inputWrapperStyle, borderStyle]}>
         <FontAwesome name="search" size={fontSize + 2} color={searchIconColor} />
         {showInput && (
           <TextInput

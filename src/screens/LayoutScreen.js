@@ -12,6 +12,7 @@ import {
 } from "react-native";
 import { useFocusEffect } from "@react-navigation/native";
 import DynamicRenderer from "../engine/DynamicRenderer";
+import HeaderDefault from "../components/HeaderDefault";
 import { fetchDSL } from "../engine/dslHandler";
 import { shouldRenderSectionOnMobile } from "../engine/visibility";
 import { SafeArea } from "../utils/SafeAreaHandler";
@@ -44,6 +45,7 @@ export default function LayoutScreen({ route }) {
     [route?.params?.appId, session?.user?.appId, session?.user?.app_id]
   );
   const [dsl, setDsl] = useState(null);
+  const [headerDefaultConfig, setHeaderDefaultConfig] = useState(null);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState(null);
   const [refreshing, setRefreshing] = useState(false);
@@ -297,6 +299,10 @@ export default function LayoutScreen({ route }) {
             ? baseDsl
             : ensureHeaderSections(baseDsl, homeHeaderSections);
           setDsl(nextDsl);
+          if (dslData.dsl?.headerdefault !== undefined) {
+            setHeaderDefault(dslData.dsl.headerdefault);
+            setHeaderDefaultConfig(dslData.dsl.headerdefault);
+          }
         }
         versionRef.current = dslData.versionNumber ?? null;
         if (withFeedback) showSnackbar("Live layout refreshed", "success");
@@ -333,6 +339,7 @@ export default function LayoutScreen({ route }) {
       setDsl(nextDsl);
       if (dslData.dsl?.headerdefault !== undefined) {
         setHeaderDefault(dslData.dsl.headerdefault);
+        setHeaderDefaultConfig(dslData.dsl.headerdefault);
       }
       versionRef.current = dslData.versionNumber ?? null;
       
@@ -424,6 +431,10 @@ export default function LayoutScreen({ route }) {
             ? baseDsl
             : ensureHeaderSections(baseDsl, homeHeaderSections);
           setDsl(nextDsl);
+          if (latest.dsl?.headerdefault !== undefined) {
+            setHeaderDefault(latest.dsl.headerdefault);
+            setHeaderDefaultConfig(latest.dsl.headerdefault);
+          }
           versionRef.current = incomingVersion;
         } else if (incomingVersion !== versionRef.current) {
           // Version changed but only bottom nav updated - just update version ref
@@ -496,6 +507,10 @@ export default function LayoutScreen({ route }) {
             ? baseDsl
             : ensureHeaderSections(baseDsl, homeHeaderSections);
           setDsl(nextDsl);
+          if (latest.dsl?.headerdefault !== undefined) {
+            setHeaderDefault(latest.dsl.headerdefault);
+            setHeaderDefaultConfig(latest.dsl.headerdefault);
+          }
           versionRef.current = incomingVersion;
         }
       } catch (e) {
@@ -551,6 +566,12 @@ export default function LayoutScreen({ route }) {
             <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
           }
         >
+          {isHomePage && headerDefaultConfig && (
+            <HeaderDefault
+              config={headerDefaultConfig}
+              bottomNavSection={stableBottomNavSection}
+            />
+          )}
           {visibleSections.length ? (
             visibleSections.map((s, i) => {
               const componentName = getComponentName(s).toLowerCase();

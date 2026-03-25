@@ -174,12 +174,15 @@ export async function fetchShopifyProductsPage({
             id
             title
             handle
+            availableForSale
             featuredImage {
               url
             }
             variants(first: 1) {
               edges {
                 node {
+                  id
+                  availableForSale
                   price {
                     amount
                     currencyCode
@@ -214,12 +217,15 @@ export async function fetchShopifyProductsPage({
 
     const products = edges.map((edge) => {
       const variants = edge?.node?.variants?.edges || [];
-      const price = variants[0]?.node?.price;
+      const variant = variants[0]?.node;
+      const price = variant?.price;
 
       return {
         id: edge?.node?.id,
         title: edge?.node?.title,
         handle: edge?.node?.handle,
+        availableForSale: edge?.node?.availableForSale ?? variant?.availableForSale ?? true,
+        variantId: variant?.id || null,
         imageUrl: edge?.node?.featuredImage?.url || null,
         priceAmount: price?.amount || null,
         priceCurrency: price?.currencyCode || null,

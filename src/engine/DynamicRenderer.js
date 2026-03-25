@@ -77,6 +77,9 @@ const componentAliases = {
   herobanner: "hero_banner",
   "hero-banner": "hero_banner",
   "hero banner": "hero_banner",
+  bottom_nav: "bottom_navigation",
+  "bottom-nav": "bottom_navigation",
+  bottomnav: "bottom_navigation",
 };
 
 export default function DynamicRenderer({ section }) {

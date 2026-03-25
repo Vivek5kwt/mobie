@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { Animated, Image, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { useNavigation } from "@react-navigation/native";
-import { fetchShopifyCollections, SHOPIFY_SHOP } from "../services/shopify";
+import { fetchShopifyCollections, getShopifyDomain } from "../services/shopify";
 import { convertStyles } from "../utils/convertStyles";
 
 const unwrapValue = (value, fallback) => {
@@ -146,6 +146,13 @@ export default function CollectionImage({ section }) {
     return convertStyles(allowed);
   }, [layoutCss?.card]);
 
+  const containerCfg = rawProps?.container?.properties || rawProps?.container || {};
+  const bgColor = unwrapValue(containerCfg?.bgColor, "#FFFFFF");
+  const containerPt = asNumber(containerCfg?.pt, 8);
+  const containerPb = asNumber(containerCfg?.pb, 8);
+  const containerPl = asNumber(containerCfg?.pl, 0);
+  const containerPr = asNumber(containerCfg?.pr, 0);
+
   const scrollRef = useRef(null);
   const indexRef = useRef(0);
   const [currentIndex, setCurrentIndex] = useState(0);
@@ -193,7 +200,7 @@ export default function CollectionImage({ section }) {
         image: collection?.imageUrl || "",
         handle: collection?.handle || "",
         link: collection?.handle
-          ? `https://${SHOPIFY_SHOP}/collections/${collection.handle}`
+          ? `https://${getShopifyDomain()}/collections/${collection.handle}`
           : "",
       }));
 
@@ -219,7 +226,7 @@ export default function CollectionImage({ section }) {
     }, Math.max(scrollSpeedSec, 1) * 1000);
 
     return () => clearInterval(interval);
-  }, [autoScrollEnabled, isSliderEnabled, cardWidth, gapPx, scrollSpeedSec]);
+  }, [autoScrollEnabled, isSliderEnabled, cardWidth, gapPx, scrollSpeedSec, resolvedCollections.length]);
 
   const handleScroll = (event) => {
     const xOffset = event?.nativeEvent?.contentOffset?.x || 0;
@@ -233,7 +240,7 @@ export default function CollectionImage({ section }) {
   if (!resolvedCollections.length) return null;
 
   return (
-    <View style={[styles.container, containerStyle]}>
+    <View style={[styles.container, { backgroundColor: bgColor, paddingTop: containerPt, paddingBottom: containerPb, paddingLeft: containerPl, paddingRight: containerPr }, containerStyle]}>
       {showHeader && (
         <Text
           style={[
@@ -249,7 +256,6 @@ export default function CollectionImage({ section }) {
       <Animated.ScrollView
         ref={scrollRef}
         horizontal
-        pagingEnabled={isSliderEnabled}
         scrollEnabled={isSliderEnabled}
         showsHorizontalScrollIndicator={false}
         contentContainerStyle={[
@@ -309,10 +315,12 @@ export default function CollectionImage({ section }) {
                       borderRadius: imageRadius,
                       alignItems: "center",
                       justifyContent: "center",
-                      backgroundColor: "#e9ecef",
+                      backgroundColor: "#e0f2f1",
                     }}
                   >
-                    <Text style={{ color: "#9CA3AF", fontWeight: "600" }}>n/a</Text>
+                    <Text style={{ color: "#096d70", fontSize: cardImageSize * 0.4, fontWeight: "700" }}>
+                      {(item.title || "?").charAt(0).toUpperCase()}
+                    </Text>
                   </View>
                 )}
               </View>

@@ -31,6 +31,27 @@ const asNumber = (value, fallback = undefined) => {
   return Number.isNaN(parsed) ? fallback : parsed;
 };
 
+const parsePx = (v) => {
+  if (typeof v === "number") return v;
+  if (typeof v === "string") {
+    const n = parseFloat(String(v).replace(/px/g, "").trim());
+    return Number.isFinite(n) ? n : undefined;
+  }
+  return undefined;
+};
+
+const resolveWeight = (weightStr) => {
+  if (!weightStr) return undefined;
+  const w = String(weightStr).toLowerCase().trim();
+  if (w === "bold") return "700";
+  if (w === "semi bold" || w === "semibold") return "600";
+  if (w === "medium") return "500";
+  if (w === "regular" || w === "normal") return "400";
+  if (w === "light") return "300";
+  if (/^\d+$/.test(w)) return w;
+  return undefined;
+};
+
 const applyTextAttributes = (baseStyle, attributes) => {
   const attrs = attributes || {};
   const next = { ...(baseStyle || {}) };
@@ -41,8 +62,13 @@ const applyTextAttributes = (baseStyle, attributes) => {
   const color = unwrapValue(attrs.color, undefined);
   if (color) next.color = color;
 
-  const bold = asBoolean(attrs.bold, undefined);
-  if (bold === true) next.fontWeight = "700";
+  // Read weight string first ("Bold", "Regular", etc.), fall back to bold boolean
+  const weightAttr = resolveWeight(unwrapValue(attrs.weight, undefined));
+  if (weightAttr) {
+    next.fontWeight = weightAttr;
+  } else if (asBoolean(attrs.bold, undefined) === true) {
+    next.fontWeight = "700";
+  }
 
   const italic = asBoolean(attrs.italic, undefined);
   if (italic === true) next.fontStyle = "italic";
@@ -99,12 +125,19 @@ export default function TextBlock({ section }) {
   const baseHeadlineStyle = convertStyles(layoutCss.headline || {});
   const baseSubtextStyle = convertStyles(layoutCss.subtext || {});
   const iconStyle = convertStyles(layoutCss.icon || {});
-  const overrideStyle = convertStyles({
-    backgroundColor: unwrapValue(styleCfg?.bgColor),
-    borderColor: unwrapValue(styleCfg?.borderColor),
-    borderRadius: unwrapValue(styleCfg?.borderRadius),
-    backgroundOpacity: unwrapValue(styleCfg?.backgroundOpacity),
-  });
+  const overrideBgColor = unwrapValue(styleCfg?.bgColor);
+  const overrideBorderColor = unwrapValue(styleCfg?.borderColor);
+  const overrideBorderRadius =
+    parsePx(unwrapValue(styleCfg?.borderRadius)) ??
+    parsePx(baseContainerStyle?.borderRadius);
+
+  const overrideStyle = {
+    ...(overrideBgColor ? { backgroundColor: overrideBgColor } : {}),
+    ...(overrideBorderColor
+      ? { borderColor: overrideBorderColor, borderWidth: 1 }
+      : { borderWidth: 0 }),
+    ...(overrideBorderRadius != null ? { borderRadius: overrideBorderRadius } : {}),
+  };
 
   const headlineAttributes =
     rawProps?.headlineAttributes?.properties || rawProps?.headlineAttributes || {};
@@ -202,10 +235,7 @@ const styles = StyleSheet.create({
   container: {
     flexDirection: "row",
     alignItems: "center",
-    borderWidth: 1,
-    borderColor: "#096d70",
     backgroundColor: "#FFFFFF",
-    borderRadius: 12,
     paddingHorizontal: 16,
     paddingVertical: 12,
     gap: 12,

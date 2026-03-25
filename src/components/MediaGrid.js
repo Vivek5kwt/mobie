@@ -6,8 +6,10 @@ import {
   Image,
   StyleSheet,
   Text,
+  TouchableOpacity,
   View,
 } from "react-native";
+import { useNavigation } from "@react-navigation/native";
 import { convertStyles } from "../utils/convertStyles";
 import { fetchShopifyProductsPage } from "../services/shopify";
 
@@ -114,6 +116,7 @@ const normalizeItems = (rawItems) => {
 };
 
 export default function MediaGrid({ section }) {
+  const navigation = useNavigation();
   const rawProps =
     section?.properties?.props?.properties || section?.properties?.props || section?.props || {};
 
@@ -150,6 +153,10 @@ export default function MediaGrid({ section }) {
   const buttonTextBold = toBoolean(rawProps?.buttonTextBold, false);
   const buttonTextItalic = toBoolean(rawProps?.buttonTextItalic, false);
   const buttonTextUnderline = toBoolean(rawProps?.buttonTextUnderline, false);
+  const buttonPaddingTop = toNumber(rawProps?.buttonPaddingTop, 10);
+  const buttonPaddingBottom = toNumber(rawProps?.buttonPaddingBottom, 10);
+  const buttonPaddingLeft = toNumber(rawProps?.buttonPaddingLeft, 40);
+  const buttonPaddingRight = toNumber(rawProps?.buttonPaddingRight, 40);
 
   const showCardTitle = toBoolean(rawProps?.showCardTitle, true);
   const showGrid = toBoolean(rawProps?.showGrid, true);
@@ -162,14 +169,15 @@ export default function MediaGrid({ section }) {
   const bgColor = unwrapValue(rawProps?.bgColor, "#FFFFFF");
   const shopifyDomain = toString(rawProps?.shopifyDomain, "");
   const shopifyToken = toString(rawProps?.storefrontToken, "");
-  const preferShopifyProducts = toBoolean(rawProps?.useShopifyProducts, true);
+  // Only use Shopify when DSL has no items OR explicitly enabled via useShopifyProducts
+  const preferShopifyProducts = toBoolean(rawProps?.useShopifyProducts, items.length === 0);
   const hasShopifyConfig = Boolean(shopifyDomain || shopifyToken);
   const shopifyLimit = Math.max(
     1,
     toNumber(rawProps?.productsToShow, toNumber(rawProps?.productCount, items.length || 4))
   );
 
-  const shouldUseShopify = preferShopifyProducts || hasShopifyConfig;
+  const shouldUseShopify = preferShopifyProducts || (hasShopifyConfig && items.length === 0);
   const resolvedItems = shouldUseShopify ? shopifyItems : items;
 
   useEffect(() => {
@@ -190,6 +198,7 @@ export default function MediaGrid({ section }) {
         });
         const mapped = (payload?.products || []).map((product, index) => ({
           id: product.id || `shopify-${index}`,
+          handle: product.handle || "",
           title: product.title || "Product",
           subtitle:
             product.priceCurrency && product.priceAmount
@@ -252,6 +261,10 @@ export default function MediaGrid({ section }) {
   };
 
   const renderItem = ({ item }) => (
+    <TouchableOpacity
+      activeOpacity={0.85}
+      onPress={() => navigation.navigate("ProductDetail", { product: item })}
+    >
     <View
       style={[
         styles.card,
@@ -284,7 +297,9 @@ export default function MediaGrid({ section }) {
             />
           ) : (
             <View style={[styles.placeholder, mediaStyle]}>
-              <Text style={styles.placeholderText}>Image</Text>
+              <Text style={styles.placeholderText}>
+                {item.title ? item.title.charAt(0).toUpperCase() : "?"}
+              </Text>
             </View>
           )}
           {item.badge ? (
@@ -322,6 +337,7 @@ export default function MediaGrid({ section }) {
         </Text>
       ) : null}
     </View>
+    </TouchableOpacity>
   );
 
   if (!resolvedItems.length && !isLoading && !loadError) return null;
@@ -370,25 +386,35 @@ export default function MediaGrid({ section }) {
         />
       )}
 
-      {showButton && (
+      {showButton && !!buttonLabel && (
         <View style={[styles.buttonRow, { marginTop: 12 }, buttonRowStyle]}>
-          <Text
+          <TouchableOpacity
+            activeOpacity={0.85}
             style={[
               styles.button,
               buttonStyle,
               {
-                color: buttonTextColor,
                 backgroundColor: buttonBgColor,
                 borderRadius: buttonRadius,
+                paddingTop: buttonPaddingTop,
+                paddingBottom: buttonPaddingBottom,
+                paddingLeft: buttonPaddingLeft,
+                paddingRight: buttonPaddingRight,
+              },
+            ]}
+          >
+            <Text
+              style={{
+                color: buttonTextColor,
                 fontSize: buttonFontSize,
                 fontWeight: buttonTextBold ? "700" : "600",
                 fontStyle: buttonTextItalic ? "italic" : "normal",
                 textDecorationLine: buttonTextUnderline ? "underline" : "none",
-              },
-            ]}
-          >
-            {buttonLabel}
-          </Text>
+              }}
+            >
+              {buttonLabel}
+            </Text>
+          </TouchableOpacity>
         </View>
       )}
     </View>
@@ -453,8 +479,8 @@ const styles = StyleSheet.create({
     justifyContent: "flex-start",
   },
   button: {
-    paddingHorizontal: 16,
-    paddingVertical: 8,
+    alignItems: "center",
+    justifyContent: "center",
   },
   loadingRow: {
     flexDirection: "row",

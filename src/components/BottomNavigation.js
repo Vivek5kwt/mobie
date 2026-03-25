@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState, useRef, useCallback } from "react";
 import { Linking, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { StackActions, useNavigation, useRoute } from "@react-navigation/native";
+import { useSelector } from "react-redux";
 import Icon from "react-native-vector-icons/FontAwesome6";
 
 const BOTTOM_NAV_DEBUG = __DEV__;
@@ -199,6 +200,16 @@ function BottomNavigation({ section, activeIndexOverride }) {
 
   const raw = buildRawProps(rawProps);
   const presentation = extractPresentation(section);
+
+  const cartItems = useSelector((state) => state.cart?.items || []);
+  const cartCount = cartItems.reduce((sum, i) => sum + (i.quantity || 1), 0);
+
+  const isCartItem = (item = {}) => {
+    const icon = normalizeIconName(resolveItemIcon(item));
+    const id = (item?.id || "").toString().trim().toLowerCase();
+    const label = (resolveItemLabel(item) || "").toString().trim().toLowerCase();
+    return icon === "cart-shopping" || id === "cart" || label === "cart";
+  };
   
   // Extract raw.layout.css for additional color overrides
   const rawLayoutCss = raw?.layout?.css || {};
@@ -627,6 +638,13 @@ function BottomNavigation({ section, activeIndexOverride }) {
                     color={finalIconColor}
                     style={[styles.icon, presentation.icon]}
                   />
+                  {isCartItem(item) && cartCount > 0 && (
+                    <View style={styles.cartBadge}>
+                      <Text style={styles.cartBadgeText}>
+                        {cartCount > 99 ? "99+" : String(cartCount)}
+                      </Text>
+                    </View>
+                  )}
                 </View>
               )}
               {showActiveIndicator && isActive && indicatorIsLine && (
@@ -701,6 +719,24 @@ const styles = StyleSheet.create({
   indicator: {
     alignSelf: "center",
     marginTop: 4,
+  },
+  cartBadge: {
+    position: "absolute",
+    top: -4,
+    right: -8,
+    minWidth: 16,
+    height: 16,
+    borderRadius: 8,
+    backgroundColor: "#EF4444",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 3,
+  },
+  cartBadgeText: {
+    color: "#FFFFFF",
+    fontSize: 9,
+    fontWeight: "700",
+    lineHeight: 12,
   },
 });
 

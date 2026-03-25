@@ -348,7 +348,7 @@ class Countdown extends PureComponent {
     const showSubtext = asBoolean(rawProps?.showSubtext, true);
     const showTimer = asBoolean(rawProps?.showTimer, true);
     const showButton = asBoolean(rawProps?.showButton, true) && !!buttonLabel;
-    const showIcon = asBoolean(rawProps?.showIcon, true);
+    const showIcon = asBoolean(rawProps?.showIcon, true) && !!iconName;
     const showImage = asBoolean(rawProps?.showImage, false);
 
     const ContainerComponent = gradientInfo ? LinearGradient : View;
@@ -364,9 +364,9 @@ class Countdown extends PureComponent {
     const resolvedCountdown = countdown || { days: 0, hours: 0, minutes: 0, seconds: 0 };
 
     const timerUnits = [
-      { key: "days", label: "DAYS" },
+      { key: "days", label: "DAY" },
       { key: "hours", label: "HRS" },
-      { key: "minutes", label: "MINS" },
+      { key: "minutes", label: "MIN" },
       { key: "seconds", label: "SEC" },
     ];
 
@@ -383,25 +383,24 @@ class Countdown extends PureComponent {
           />
         ) : null}
 
-        <View style={styles.headerRow}>
+        <View style={showIcon ? styles.headerRow : styles.headerRowNoIcon}>
           {showIcon && (
             <View style={[styles.iconWrap, iconStyle, iconBgColor ? { backgroundColor: iconBgColor } : null]}>
-              <FontAwesome name={iconName || "clock-o"} size={18} color={iconColor || "#111827"} />
+              <FontAwesome name={iconName} size={18} color={iconColor || "#111827"} />
             </View>
           )}
-          <View style={{ flex: 1 }}>
-            {showTitle && (
-              <Text
-                style={[
-                  styles.title,
-                  titleStyle,
-                  resolvedTextAlign ? { textAlign: resolvedTextAlign.toLowerCase() } : null,
-                ]}
-              >
-                {titleText}
-              </Text>
-            )}
-          </View>
+          {showTitle && (
+            <Text
+              style={[
+                styles.title,
+                titleStyle,
+                showIcon ? null : styles.titleCentered,
+                resolvedTextAlign ? { textAlign: resolvedTextAlign.toLowerCase() } : null,
+              ]}
+            >
+              {titleText}
+            </Text>
+          )}
         </View>
 
         {showTimer && (
@@ -508,8 +507,15 @@ const styles = StyleSheet.create({
   headerRow: {
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "space-between",
     marginBottom: 12,
+  },
+  headerRowNoIcon: {
+    width: "100%",
+    marginBottom: 12,
+  },
+  titleCentered: {
+    width: "100%",
+    textAlign: "center",
   },
   iconWrap: {
     width: 32,

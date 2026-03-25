@@ -247,7 +247,7 @@ export default function Header2({ section }) {
     const searchEl = presentationMetrics?.elements?.search;
     if (greetingEl && searchEl) {
       const gap = searchEl.y - (greetingEl.y + greetingEl.height);
-      return Math.max(4, gap);
+      return Math.min(Math.max(4, gap), 8);
     }
     return 8;
   })();
@@ -356,7 +356,7 @@ export default function Header2({ section }) {
   const containerPadding = {
     paddingTop: resolveValue(paddingRawNode.pt, 16),
     paddingRight: resolveValue(paddingRawNode.pr, 16),
-    paddingBottom: resolveValue(paddingRawNode.pb, 16),
+    paddingBottom: Math.max(resolveValue(paddingRawNode.pb, 20) ?? 20, 20),
     paddingLeft: resolveValue(paddingRawNode.pl, 16),
   };
 
@@ -432,12 +432,12 @@ export default function Header2({ section }) {
     iconId: normalizeIconName(
       resolveValue(notificationNode.iconId ?? notificationNode.iconName, "bell")
     ),
-    size:
+    size: Math.min(
       parseSize(resolveValue(notificationNode.width, undefined)) ||
-      searchAndIcons.notificationIconSize ||
-      searchAndIcons.notificationIconWidth ||
-      searchAndIcons.notificationIconHeight ||
-      24,
+      parseSize(searchAndIcons.notificationIconSize) ||
+      22,
+      24
+    ),
     color:
       resolveValue(notificationNode.color, searchAndIcons.notificationIconColor) || "#FFFFFF",
     showBadge: resolveBooleanSetting(
@@ -1285,19 +1285,19 @@ const styles = StyleSheet.create({
   },
   notificationBadge: {
     position: "absolute",
-    top: -4,
-    right: -4,
-    borderRadius: 0,
-    backgroundColor: "transparent",
+    top: -3,
+    right: -3,
+    borderRadius: 5,
+    backgroundColor: "#EF4444",
     alignItems: "center",
     justifyContent: "center",
     zIndex: 1,
   },
   notificationBadgeCompact: {
-    width: 10,
-    height: 10,
-    minWidth: 10,
-    minHeight: 10,
+    width: 9,
+    height: 9,
+    minWidth: 9,
+    minHeight: 9,
     paddingHorizontal: 0,
     paddingVertical: 0,
   },
@@ -1363,19 +1363,19 @@ const header2Styles = StyleSheet.create({
   },
   notificationBadge: {
     position: "absolute",
-    top: -4,
-    right: -4,
-    borderRadius: 0,
-    backgroundColor: "transparent",
+    top: -3,
+    right: -3,
+    borderRadius: 5,
+    backgroundColor: "#EF4444",
     alignItems: "center",
     justifyContent: "center",
     zIndex: 1,
   },
   notificationBadgeCompact: {
-    width: 10,
-    height: 10,
-    minWidth: 10,
-    minHeight: 10,
+    width: 9,
+    height: 9,
+    minWidth: 9,
+    minHeight: 9,
     paddingHorizontal: 0,
     paddingVertical: 0,
   },

@@ -71,7 +71,8 @@ const normalizePlatforms = (rawPlatforms) => {
 
 const brandColors = {
   facebook: "#1877F2",
-  twitter: "#1DA1F2",
+  twitter: "#000000",
+  "x-twitter": "#000000",
   instagram: "#C13584",
   youtube: "#FF0000",
   whatsapp: "#25D366",
@@ -82,13 +83,25 @@ const brandColors = {
 
 const iconNameMap = {
   facebook: "facebook",
-  twitter: "twitter",
+  twitter: "x-twitter",
+  "x-twitter": "x-twitter",
   instagram: "instagram",
   youtube: "youtube",
   whatsapp: "whatsapp",
   linkedin: "linkedin",
   pinterest: "pinterest",
   tiktok: "tiktok",
+};
+
+// Parse CSS border shorthand e.g. "1px solid #016D77"
+const parseBorderShorthand = (borderStr) => {
+  if (!borderStr || typeof borderStr !== "string") return null;
+  const parts = borderStr.trim().split(/\s+/);
+  const widthPart = parts.find((p) => /px$/i.test(p));
+  const colorPart = parts.find((p) => p.startsWith("#") || p.startsWith("rgb"));
+  const width = widthPart ? parseFloat(widthPart) : null;
+  if (!width || !colorPart) return null;
+  return { borderWidth: width, borderColor: colorPart };
 };
 
 const brandIconNames = new Set(Object.values(iconNameMap));
@@ -117,7 +130,7 @@ export default function SocialMediaIcons({ section }) {
 
   const titleText = unwrapValue(rawProps?.titleText, "Connect with us");
   const titleColor = unwrapValue(rawProps?.titleColor, "#111111");
-  const titleFontSize = toNumber(rawProps?.titleFontSize, 20);
+  const titleFontSize = toNumber(rawProps?.titleFontSize, 14);
   const titleFontFamily = unwrapValue(rawProps?.titleFontFamily, undefined);
   const titleFontWeight = toBoolean(rawProps?.titleBold, false)
     ? "700"
@@ -127,15 +140,24 @@ export default function SocialMediaIcons({ section }) {
 
   const iconSize = toNumber(rawProps?.iconSize, 28);
   const iconColor = unwrapValue(rawProps?.iconColor, "#FFFFFF");
-  const iconSpacing = toNumber(rawProps?.iconSpacing, 10);
-  const iconBorderRadius = toNumber(rawProps?.iconBorderRadius, 6);
+  const iconSpacing = toNumber(rawProps?.iconSpacing, 4);
+  const iconBorderRadius = toNumber(rawProps?.iconBorderRadius, 0);
   const useBrand = toBoolean(rawProps?.useBrandColors, true);
 
   const containerStyle = convertStyles(layoutCss?.container || {});
   const titleStyle = convertStyles(layoutCss?.title || {});
   const iconsRowStyle = convertStyles(layoutCss?.iconsRow || {});
-  const iconBoxStyle = convertStyles(layoutCss?.iconBox || {});
+  const iconBoxCss = layoutCss?.iconBox || {};
+  const iconBoxStyle = convertStyles(iconBoxCss);
   const iconStyle = convertStyles(layoutCss?.icon || {});
+
+  // Parse CSS shorthand border and explicit size from iconBox CSS
+  const iconBoxBorder = parseBorderShorthand(iconBoxCss?.border);
+  const iconBoxWidth = toNumber(iconBoxCss?.width, undefined);
+  const iconBoxHeight = toNumber(iconBoxCss?.height, undefined);
+  // Gap from iconsRow CSS (RN may not support gap on older versions — use marginRight fallback)
+  const iconsRowGap = toNumber(layoutCss?.iconsRow?.gap, iconSpacing);
+  const iconsRowPadding = toNumber(layoutCss?.iconsRow?.padding, 0);
 
   const alignment = align === "center" ? "center" : align === "right" ? "flex-end" : "flex-start";
 
@@ -186,6 +208,7 @@ export default function SocialMediaIcons({ section }) {
           iconsRowStyle,
           {
             justifyContent: alignment,
+            padding: iconsRowPadding || undefined,
           },
         ]}
       >
@@ -196,15 +219,15 @@ export default function SocialMediaIcons({ section }) {
           const resolvedIconName = iconNameMap[normalizedId] || normalizedId || "link";
           const isBrandIcon = brandIconNames.has(resolvedIconName);
           const accessibilityLabel = `Open ${normalizedId || "social"} link`;
+          const iconFgColor = useBrand ? "#FFFFFF" : (iconStyle.color || iconColor);
 
           return (
             <TouchableOpacity
               key={key}
-              activeOpacity={platform.url ? 0.7 : 1}
+              activeOpacity={0.75}
               onPress={() => openLink(platform.url)}
-              disabled={!platform.url}
-              style={{ marginRight: idx === platforms.length - 1 ? 0 : iconSpacing }}
-              accessibilityRole={platform.url ? "link" : "button"}
+              style={{ marginRight: idx === platforms.length - 1 ? 0 : iconsRowGap }}
+              accessibilityRole="button"
               accessibilityLabel={accessibilityLabel}
             >
               <View
@@ -214,15 +237,16 @@ export default function SocialMediaIcons({ section }) {
                   {
                     backgroundColor: brandColor || iconBoxStyle.backgroundColor || "#016D77",
                     borderRadius: iconBorderRadius,
+                    ...(iconBoxWidth ? { width: iconBoxWidth, height: iconBoxHeight || iconBoxWidth } : {}),
+                    ...(iconBoxBorder || {}),
                   },
                 ]}
               >
                 <Icon
-                  name={resolvedIconName || "link"}
+                  name={resolvedIconName}
                   size={iconSize}
-                  color={useBrand ? "#FFFFFF" : iconStyle.color || iconColor}
+                  color={iconFgColor}
                   brand={isBrandIcon}
-                  style={[iconStyle, { color: useBrand ? "#FFFFFF" : iconStyle.color || iconColor }]}
                 />
               </View>
             </TouchableOpacity>

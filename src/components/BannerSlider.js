@@ -3,26 +3,15 @@ import {
   Animated,
   Dimensions,
   Image,
-  ScrollView,
   StyleSheet,
   Text,
   TouchableOpacity,
   View,
 } from "react-native";
 import { useNavigation } from "@react-navigation/native";
-import { convertStyles } from "../utils/convertStyles";
 
-const unwrapValue = (value, fallback) => {
-  if (value === undefined || value === null) return fallback;
-  if (typeof value === "object") {
-    if (value.value !== undefined) return value.value;
-    if (value.const !== undefined) return value.const;
-    if (value.properties !== undefined) return value.properties;
-  }
-  return value;
-};
+// ─── DSL helpers ────────────────────────────────────────────────────────────
 
-/** Recursively unwrap { value: x } and { properties: x } so we get primitives from schema-shaped JSON */
 const deepUnwrap = (value, fallback = undefined) => {
   if (value === undefined || value === null) return fallback;
   if (typeof value !== "object") return value;
@@ -38,84 +27,73 @@ const deepUnwrap = (value, fallback = undefined) => {
 };
 
 const asBoolean = (value, fallback = true) => {
-  const resolved = unwrapValue(value, fallback);
-  if (typeof resolved === "boolean") return resolved;
-  if (typeof resolved === "string") {
-    const lowered = String(resolved).trim().toLowerCase();
-    if (["true", "1", "yes", "y"].includes(lowered)) return true;
-    if (["false", "0", "no", "n"].includes(lowered)) return false;
+  if (value === undefined || value === null) return fallback;
+  if (typeof value === "boolean") return value;
+  if (typeof value === "string") {
+    const l = value.trim().toLowerCase();
+    if (["true", "1", "yes", "y"].includes(l)) return true;
+    if (["false", "0", "no", "n"].includes(l)) return false;
   }
-  if (typeof resolved === "number") return resolved !== 0;
+  if (typeof value === "number") return value !== 0;
   return fallback;
 };
 
 const asNumber = (value, fallback) => {
-  const resolved = unwrapValue(value, undefined);
-  if (resolved === undefined || resolved === null || resolved === "") return fallback;
-  if (typeof resolved === "number") return resolved;
-  const parsed = parseFloat(resolved);
+  if (value === undefined || value === null || value === "") return fallback;
+  if (typeof value === "number") return value;
+  const parsed = parseFloat(value);
   return Number.isNaN(parsed) ? fallback : parsed;
 };
 
-const parsePaddingRaw = (paddingRaw) => {
-  const node = paddingRaw?.properties || paddingRaw || {};
-  return {
-    paddingTop: asNumber(node.pt, 8),
-    paddingBottom: asNumber(node.pb, 8),
-    paddingLeft: asNumber(node.pl, 8),
-    paddingRight: asNumber(node.pr, 8),
-  };
+const parseFontWeight = (value, fallback = "700") => {
+  if (!value) return fallback;
+  if (typeof value === "number") return String(value);
+  const l = String(value).toLowerCase();
+  if (l === "bold") return "700";
+  if (l === "semi bold" || l === "semibold" || l === "600") return "600";
+  if (l === "medium" || l === "500") return "500";
+  if (l === "regular" || l === "normal" || l === "400") return "400";
+  return String(value);
 };
 
-/** Build slides from props.slides (schema array) or rawProps.value.items – fully dynamic */
-const buildSlides = (rawProps = {}) => {
-  const rawPropsValue = deepUnwrap(rawProps.rawProps, {});
-  if (typeof rawPropsValue !== "object" || rawPropsValue === null) return [];
+// ─── Slide builder ───────────────────────────────────────────────────────────
 
-  const slidesSchema = rawProps.slides;
-  const unwrappedSlides = deepUnwrap(slidesSchema, slidesSchema);
-
+const buildSlides = (rawProps = {}, defaultButtonLabel = "Shop Now") => {
+  // Try props.slides (schema array) first, then rawProps.items
+  const slidesSchema = rawProps?.slides;
   let candidateArray = [];
-  if (Array.isArray(unwrappedSlides)) {
-    candidateArray = unwrappedSlides;
+
+  if (Array.isArray(slidesSchema)) {
+    candidateArray = slidesSchema;
   } else if (Array.isArray(slidesSchema?.items)) {
     candidateArray = slidesSchema.items;
-  } else if (Array.isArray(slidesSchema)) {
-    candidateArray = slidesSchema;
-  } else if (Array.isArray(rawPropsValue?.items)) {
-    candidateArray = rawPropsValue.items;
+  } else if (Array.isArray(rawProps?.rawProps?.items)) {
+    candidateArray = rawProps.rawProps.items;
   }
-
-  const defaultButtonLabel =
-    rawPropsValue?.buttonText ?? rawPropsValue?.buttonLabel ?? "Button";
 
   return candidateArray
     .map((item, idx) => {
       const raw = item?.properties ?? item;
-      const props = typeof raw === "object" && raw !== null ? deepUnwrap(raw, raw) : raw;
-      const headline =
-        props?.headline ?? props?.title ?? "";
-      const subtext =
-        props?.subtext ?? props?.subtitle ?? "";
-      const image = props?.image ?? "";
-      const perSlideLabel = props?.buttonLabel ?? props?.cta;
+      const props = typeof raw === "object" ? deepUnwrap(raw, raw) : {};
+      const headline = props?.headline ?? props?.title ?? "";
+      const subtext = props?.subtext ?? props?.subtitle ?? "";
+      const image = typeof props?.image === "string" ? props.image : "";
+      const btnLabel = props?.buttonLabel ?? props?.cta;
       const buttonLabel =
-        perSlideLabel !== undefined && perSlideLabel !== null && perSlideLabel !== ""
-          ? String(perSlideLabel)
+        btnLabel !== undefined && btnLabel !== null && btnLabel !== ""
+          ? String(btnLabel)
           : defaultButtonLabel;
-      const buttonHref =
-        props?.buttonHref ?? props?.buttonLinkHref ?? props?.href ?? props?.link ?? "";
+      const buttonHref = props?.buttonHref ?? props?.href ?? props?.link ?? "";
       const titleStrikethrough = asBoolean(props?.titleStrikethrough, false);
       const subtitleStrikethrough = asBoolean(props?.subtitleStrikethrough, false);
       const buttonStrikethrough = asBoolean(props?.buttonStrikethrough, false);
 
       if (!headline && !subtext && !image) return null;
-
       return {
         id: props?.id ?? `slide-${idx + 1}`,
         headline: String(headline),
         subtext: String(subtext),
-        image: typeof image === "string" ? image : "",
+        image,
         buttonLabel: String(buttonLabel),
         buttonHref: typeof buttonHref === "string" ? buttonHref : "",
         titleStrikethrough,
@@ -126,8 +104,12 @@ const buildSlides = (rawProps = {}) => {
     .filter(Boolean);
 };
 
+// ─── Component ────────────────────────────────────────────────────────────────
+
 export default function BannerSlider({ section }) {
   const navigation = useNavigation();
+
+  // Unwrap the full props object
   const rawProps = useMemo(() => {
     const p =
       section?.props ??
@@ -137,122 +119,73 @@ export default function BannerSlider({ section }) {
     return typeof p === "object" && p !== null ? deepUnwrap(p, p) : p;
   }, [section]);
 
-  const styleNode = rawProps?.style?.properties ?? rawProps?.style ?? {};
-  const layoutNode = rawProps?.layout?.properties ?? rawProps?.layout ?? {};
-  const layoutCss = layoutNode?.css ?? rawProps?.layout?.css ?? {};
-  const behaviorNode = rawProps?.behavior?.properties ?? rawProps?.behavior ?? {};
-  const rawPropsValue = rawProps?.rawProps ?? {};
+  // The flat rawProps.value object from DSL — primary source of truth for all styling
+  const rp = rawProps?.rawProps ?? {};
 
-  const slides = useMemo(() => buildSlides(rawProps), [rawProps]);
+  const slides = useMemo(
+    () => buildSlides(rawProps, rp?.buttonText ?? rp?.buttonLabel ?? "Shop Now"),
+    [rawProps, rp?.buttonText, rp?.buttonLabel]
+  );
 
-  const containerStyleFromProps = useMemo(() => {
-    const bgColor = unwrapValue(styleNode.bgColor, rawPropsValue?.backgroundColor) || "#FFFFFF";
-    const paddingRaw = parsePaddingRaw(styleNode.paddingRaw);
-    const paddingStr = unwrapValue(styleNode.padding, "");
-    let padding = {
-      paddingTop: asNumber(rawPropsValue?.paddingTop, paddingRaw.paddingTop),
-      paddingBottom: asNumber(rawPropsValue?.paddingBottom, paddingRaw.paddingBottom),
-      paddingLeft: asNumber(rawPropsValue?.paddingLeft, paddingRaw.paddingLeft),
-      paddingRight: asNumber(rawPropsValue?.paddingRight, paddingRaw.paddingRight),
-    };
-    if (typeof paddingStr === "string" && paddingStr.includes("px")) {
-      const parts = paddingStr.replace(/px/g, "").trim().split(/\s+/).map(Number);
-      if (parts.length >= 4) {
-        padding = {
-          paddingTop: parts[0] ?? 8,
-          paddingRight: parts[1] ?? 8,
-          paddingBottom: parts[2] ?? 8,
-          paddingLeft: parts[3] ?? 8,
-        };
-      } else if (parts.length >= 1) {
-        const n = parts[0] ?? 8;
-        padding = { paddingTop: n, paddingBottom: n, paddingLeft: n, paddingRight: n };
-      }
-    }
-    return {
-      backgroundColor: bgColor,
-      ...padding,
-    };
-  }, [styleNode, rawPropsValue]);
+  // ── Container ──
+  const bgColor = rp?.bgColor || "#8fd0d6";
+  const bannerHeight = asNumber(rp?.bannerHeight, 180);
+  const bannerRadius = asNumber(rp?.bannerRadius, 0);
 
-  const sliderCfg = layoutCss?.slider || {};
-  const headingStyleFromCss = convertStyles(layoutCss?.heading || {});
-  const subheadingStyleFromCss = convertStyles(layoutCss?.subheading || {});
-  const buttonStyleFromCss = convertStyles(layoutCss?.button || {});
-  const containerLayoutCss = convertStyles(layoutCss?.container || {});
-  const slideStyleFromCss = convertStyles(layoutCss?.slide || {});
-  const imageStyleFromCss = convertStyles(layoutCss?.image || {});
-  const dotsStyleFromCss = convertStyles(layoutCss?.dots || {});
+  // Padding inside each slide
+  const slidePt = asNumber(rp?.pt, 40);
+  const slidePb = asNumber(rp?.pb, 40);
+  const slidePl = asNumber(rp?.pl, 16);
+  const slidePr = asNumber(rp?.pr, 16);
 
-  const buttonConfig = useMemo(() => {
-    const bg = buttonStyleFromCss?.background ?? buttonStyleFromCss?.backgroundColor ?? rawPropsValue?.buttonBgColor ?? "#016D77";
-    const color = buttonStyleFromCss?.color ?? rawPropsValue?.buttonTextColor ?? "#FFFFFF";
-    const fontSize = asNumber(rawPropsValue?.buttonFontSize, buttonStyleFromCss?.fontSize ?? 12);
-    const fontWeight = String(buttonStyleFromCss?.fontWeight ?? rawPropsValue?.buttonFontWeight ?? "600");
-    const borderRadius = asNumber(rawPropsValue?.buttonBorderRadius, buttonStyleFromCss?.borderRadius ?? 999);
-    const paddingVertical = asNumber(rawPropsValue?.buttonPaddingVertical, buttonStyleFromCss?.paddingVertical ?? 8);
-    const paddingHorizontal = asNumber(rawPropsValue?.buttonPaddingHorizontal, buttonStyleFromCss?.paddingHorizontal ?? 14);
-    return {
-      containerStyle: {
-        ...buttonStyleFromCss,
-        backgroundColor: bg,
-        borderRadius,
-        paddingVertical,
-        paddingHorizontal,
-        alignSelf: buttonStyleFromCss?.alignSelf ?? rawPropsValue?.buttonAlignSelf ?? "flex-start",
-      },
-      textStyle: {
-        color,
-        fontSize,
-        fontWeight,
-        ...(buttonStyleFromCss?.fontStyle && { fontStyle: buttonStyleFromCss.fontStyle }),
-        ...(buttonStyleFromCss?.textDecorationLine && { textDecorationLine: buttonStyleFromCss.textDecorationLine }),
-      },
-    };
-  }, [buttonStyleFromCss, rawPropsValue]);
+  // ── Slider behavior ──
+  const autoScroll = asBoolean(rp?.autoScroll ?? rp?.autoPlay, true);
+  const autoScrollSpeed = asNumber(rp?.autoScrollSpeed ?? rp?.scrollSpeedSec, 4);
+  const showDots = asBoolean(rp?.showIndicators ?? rp?.showDots, true);
 
-  const showDots = asBoolean(
-    behaviorNode?.showDots ?? behaviorNode?.showIndicators ?? sliderCfg?.showIndicators ?? rawPropsValue?.showIndicators,
-    true
-  );
-  const autoScroll = asBoolean(
-    behaviorNode?.autoScroll ?? sliderCfg?.autoScroll ?? rawPropsValue?.autoPlay,
-    true
-  );
-  const showArrows = asBoolean(
-    behaviorNode?.showArrows ?? sliderCfg?.showArrows,
-    false
-  );
-  const scrollSpeedSec = asNumber(
-    behaviorNode?.scrollSpeedSec ?? behaviorNode?.scrollSpeed ?? sliderCfg?.autoScrollSpeed ?? rawPropsValue?.autoPlayDelay / 1000,
-    4
-  );
-  const bannerHeight = asNumber(
-    sliderCfg?.bannerHeight ?? rawPropsValue?.imageHeight,
-    180
-  );
-  const bannerRadius = asNumber(
-    sliderCfg?.bannerRadius ?? rawPropsValue?.imageBorderRadius,
-    12
-  );
-  const imageResizeMode = imageStyleFromCss?.resizeMode || sliderCfg?.scale === "Fill" ? "stretch" : (sliderCfg?.scale === "Contain" ? "contain" : "cover");
-  const headingAlign = unwrapValue(
-    layoutCss?.heading?.align ?? rawPropsValue?.headingAlign ?? sliderCfg?.headingAlign,
-    "Center"
-  );
-  const subheadingAlign = unwrapValue(
-    layoutCss?.subheading?.align ?? rawPropsValue?.subheadingAlign ?? sliderCfg?.subheadingAlign,
-    "Center"
-  );
-  const containerAlign = String(unwrapValue(styleNode?.align, "Center")).toLowerCase();
+  // ── Heading ──
+  const headingColor = rp?.headingColor || "#FFFFFF";
+  const headingSize = asNumber(rp?.headingSize, 16);
+  const headingAlign = (rp?.headingAlign || "center").toLowerCase();
+  const headingWeight = parseFontWeight(rp?.headingWeight, "700");
+  const headingItalic = asBoolean(rp?.headingItalic, false);
+  const headingUnderline = asBoolean(rp?.headingUnderline, false);
 
+  // ── Subheading ──
+  const subheadingColor = rp?.subheadingColor || "#E5E7EB";
+  const subheadingSize = asNumber(rp?.subheadingSize, 12);
+  const subheadingAlign = (rp?.subheadingAlign || "center").toLowerCase();
+  const subheadingWeight = parseFontWeight(rp?.subheadingWeight, "400");
+
+  // ── Button ──
+  const showButton = asBoolean(rp?.showButton, true);
+  const buttonBgColor = rp?.buttonBgColor || "#016D77";
+  const buttonTextColor = rp?.buttonTextColor || "#FFFFFF";
+  const buttonFontSize = asNumber(rp?.buttonFontSize, 11);
+  const buttonFontWeight = parseFontWeight(rp?.buttonWeight ?? rp?.buttonFontWeight, "600");
+  const buttonRadius = asNumber(rp?.buttonRadius ?? rp?.buttonBorderRadius, 999);
+  const buttonPt = asNumber(rp?.buttonPt, 8);
+  const buttonPb = asNumber(rp?.buttonPb, 8);
+  const buttonPl = asNumber(rp?.buttonPl, 16);
+  const buttonPr = asNumber(rp?.buttonPr, 16);
+  const buttonAlignSelf =
+    (rp?.buttonAlign || "center").toLowerCase() === "right"
+      ? "flex-end"
+      : (rp?.buttonAlign || "center").toLowerCase() === "left"
+      ? "flex-start"
+      : "center";
+
+  // ── Indicators ──
+  const indicatorSize = asNumber(rp?.indicatorSize, 7);
+  const indicatorColor = rp?.indicatorColor || "rgba(1,109,119,0.35)";
+  const indicatorSelectedColor = rp?.indicatorSelectedColor || "#FFFFFF";
+
+  // ── Scroll state ──
   const scrollRef = useRef(null);
   const indexRef = useRef(0);
   const [currentIndex, setCurrentIndex] = useState(0);
   const scrollX = useRef(new Animated.Value(0)).current;
-  const [containerWidth, setContainerWidth] = useState(
-    Dimensions.get("window").width - 24
-  );
+  const [containerWidth, setContainerWidth] = useState(Dimensions.get("window").width);
 
   useEffect(() => {
     indexRef.current = 0;
@@ -262,23 +195,22 @@ export default function BannerSlider({ section }) {
 
   useEffect(() => {
     if (!autoScroll || slides.length <= 1 || !containerWidth) return undefined;
-    const delayMs = Math.max(asNumber(rawPropsValue?.autoPlayDelay, scrollSpeedSec * 1000), 1000);
+    const intervalMs = Math.max(autoScrollSpeed, 1) * 1000;
     const interval = setInterval(() => {
       const nextIndex = (indexRef.current + 1) % slides.length;
-      const xOffset = nextIndex * containerWidth;
-      scrollRef.current?.scrollTo({ x: xOffset, animated: true });
+      scrollRef.current?.scrollTo({ x: nextIndex * containerWidth, animated: true });
       indexRef.current = nextIndex;
       setCurrentIndex(nextIndex);
-    }, delayMs);
+    }, intervalMs);
     return () => clearInterval(interval);
-  }, [autoScroll, slides.length, containerWidth, scrollSpeedSec, rawPropsValue?.autoPlayDelay]);
+  }, [autoScroll, slides.length, containerWidth, autoScrollSpeed]);
 
   const handleScroll = (event) => {
     const xOffset = event?.nativeEvent?.contentOffset?.x || 0;
     const index = Math.round(xOffset / Math.max(containerWidth, 1));
     if (index !== currentIndex) {
       indexRef.current = index;
-      setCurrentIndex(index);0
+      setCurrentIndex(index);
     }
   };
 
@@ -292,20 +224,12 @@ export default function BannerSlider({ section }) {
 
   if (!slides.length) return null;
 
-  const alignMap = { left: "flex-start", center: "center", right: "flex-end" };
-  const containerAlignStyle = alignMap[containerAlign] || "center";
-
   return (
     <View
-      style={[
-        styles.container,
-        containerStyleFromProps,
-        containerLayoutCss,
-        { alignItems: containerAlign === "center" ? "center" : undefined, marginTop: 0, marginBottom: 0 },
-      ]}
-      onLayout={(event) => {
-        const width = event?.nativeEvent?.layout?.width;
-        if (width) setContainerWidth(width);
+      style={[styles.wrapper, { backgroundColor: bgColor }]}
+      onLayout={(e) => {
+        const w = e?.nativeEvent?.layout?.width;
+        if (w && w > 0) setContainerWidth(w);
       }}
     >
       <Animated.ScrollView
@@ -313,102 +237,132 @@ export default function BannerSlider({ section }) {
         horizontal
         pagingEnabled
         showsHorizontalScrollIndicator={false}
+        scrollEventThrottle={16}
         onScroll={Animated.event(
           [{ nativeEvent: { contentOffset: { x: scrollX } } }],
           { useNativeDriver: false, listener: handleScroll }
         )}
-        scrollEventThrottle={16}
         style={styles.scrollView}
       >
         {slides.map((slide, idx) => (
-          <View key={slide.id || idx} style={{ width: containerWidth }}>
+          <View
+            key={slide.id || idx}
+            style={{
+              width: containerWidth,
+              minHeight: bannerHeight,
+              borderRadius: bannerRadius,
+              overflow: "hidden",
+            }}
+          >
+            {/* Background image */}
+            {slide.image ? (
+              <Image
+                source={{ uri: slide.image }}
+                style={[StyleSheet.absoluteFill, { borderRadius: bannerRadius }]}
+                resizeMode="cover"
+              />
+            ) : null}
+
+            {/* Slide content — column, centered */}
             <View
               style={[
-                styles.slide,
-                slideStyleFromCss,
+                styles.slideContent,
                 {
+                  paddingTop: slidePt,
+                  paddingBottom: slidePb,
+                  paddingLeft: slidePl,
+                  paddingRight: slidePr,
                   minHeight: bannerHeight,
-                  borderRadius: bannerRadius,
-                  backgroundColor: slideStyleFromCss?.backgroundColor ?? rawPropsValue?.backgroundColor ?? "#CFFAFE",
                 },
               ]}
             >
-              {slide.image ? (
-                <Image
-                  source={{ uri: slide.image }}
+              {slide.headline ? (
+                <Text
                   style={[
-                    styles.imageBackground,
-                    imageStyleFromCss,
-                    { borderRadius: bannerRadius },
+                    styles.heading,
+                    {
+                      color: headingColor,
+                      fontSize: headingSize,
+                      fontWeight: headingWeight,
+                      textAlign: headingAlign,
+                      fontStyle: headingItalic ? "italic" : "normal",
+                      textDecorationLine: headingUnderline ? "underline" : "none",
+                    },
+                    slide.titleStrikethrough && styles.strikethrough,
                   ]}
-                  resizeMode={imageResizeMode}
-                />
+                >
+                  {slide.headline}
+                </Text>
               ) : null}
 
-              <View style={styles.textBlock}>
-                {slide.headline ? (
+              {slide.subtext ? (
+                <Text
+                  style={[
+                    styles.subheading,
+                    {
+                      color: subheadingColor,
+                      fontSize: subheadingSize,
+                      fontWeight: subheadingWeight,
+                      textAlign: subheadingAlign,
+                    },
+                    slide.subtitleStrikethrough && styles.strikethrough,
+                  ]}
+                >
+                  {slide.subtext}
+                </Text>
+              ) : null}
+
+              {slide.buttonLabel && showButton ? (
+                <TouchableOpacity
+                  activeOpacity={0.85}
+                  style={[
+                    styles.button,
+                    {
+                      backgroundColor: buttonBgColor,
+                      borderRadius: buttonRadius,
+                      paddingTop: buttonPt,
+                      paddingBottom: buttonPb,
+                      paddingLeft: buttonPl,
+                      paddingRight: buttonPr,
+                      alignSelf: buttonAlignSelf,
+                    },
+                  ]}
+                  onPress={() => onSlideButtonPress(slide)}
+                >
                   <Text
                     style={[
-                      styles.heading,
-                      headingStyleFromCss,
-                      { textAlign: String(headingAlign).toLowerCase() },
-                      slide.titleStrikethrough && styles.strikethrough,
+                      styles.buttonText,
+                      {
+                        color: buttonTextColor,
+                        fontSize: buttonFontSize,
+                        fontWeight: buttonFontWeight,
+                      },
+                      slide.buttonStrikethrough && styles.strikethrough,
                     ]}
                   >
-                    {slide.headline}
+                    {slide.buttonLabel}
                   </Text>
-                ) : null}
-
-                {slide.subtext ? (
-                  <Text
-                    style={[
-                      styles.subheading,
-                      subheadingStyleFromCss,
-                      { textAlign: String(subheadingAlign).toLowerCase() },
-                      slide.subtitleStrikethrough && styles.strikethrough,
-                    ]}
-                  >
-                    {slide.subtext}
-                  </Text>
-                ) : null}
-
-                {slide.buttonLabel && asBoolean(rawPropsValue?.showButton, true) ? (
-                  <TouchableOpacity
-                    activeOpacity={0.85}
-                    style={[styles.button, buttonConfig.containerStyle]}
-                    onPress={() => onSlideButtonPress(slide)}
-                  >
-                    <Text
-                      style={[
-                        styles.buttonText,
-                        buttonConfig.textStyle,
-                        slide.buttonStrikethrough && styles.strikethrough,
-                      ]}
-                    >
-                      {slide.buttonLabel}
-                    </Text>
-                  </TouchableOpacity>
-                ) : null}
-              </View>
+                </TouchableOpacity>
+              ) : null}
             </View>
           </View>
         ))}
       </Animated.ScrollView>
 
       {showDots && slides.length > 1 ? (
-        <View style={[styles.dotsRow, dotsStyleFromCss]}>
+        <View style={styles.dotsRow}>
           {slides.map((_, idx) => {
             const isActive = idx === currentIndex;
             return (
               <View
                 key={`dot-${idx}`}
-                style={[
-                  styles.dot,
-                  {
-                    backgroundColor: dotsStyleFromCss?.backgroundColor ?? "#016D77",
-                    opacity: isActive ? 1 : 0.35,
-                  },
-                ]}
+                style={{
+                  width: indicatorSize,
+                  height: indicatorSize,
+                  borderRadius: indicatorSize / 2,
+                  backgroundColor: isActive ? indicatorSelectedColor : indicatorColor,
+                  marginHorizontal: 3,
+                }}
               />
             );
           })}
@@ -419,55 +373,46 @@ export default function BannerSlider({ section }) {
 }
 
 const styles = StyleSheet.create({
-  container: {
-    paddingVertical: 0,
-    paddingHorizontal: 8,
-    marginTop: 0,
-    marginBottom: 0,
+  wrapper: {
+    overflow: "hidden",
   },
   scrollView: {
     flexGrow: 0,
   },
-  slide: {
-    overflow: "hidden",
-    flexDirection: "row",
-    alignItems: "center",
-    padding: 12,
-    gap: 10,
-  },
-  textBlock: {
-    flex: 1,
-    gap: 6,
+  slideContent: {
+    justifyContent: "center",
+    alignItems: "stretch",
+    gap: 8,
   },
   heading: {
-    fontSize: 17,
+    fontSize: 16,
     fontWeight: "700",
-    color: "#111827",
+    color: "#FFFFFF",
     textTransform: "uppercase",
     letterSpacing: 1,
   },
   subheading: {
-    fontSize: 14,
-    lineHeight: 20,
-    color: "#111827",
+    fontSize: 12,
+    color: "#E5E7EB",
+    lineHeight: 18,
   },
-  button: {},
-  buttonText: {},
+  button: {
+    alignItems: "center",
+    justifyContent: "center",
+    marginTop: 8,
+  },
+  buttonText: {
+    fontSize: 11,
+    fontWeight: "600",
+    color: "#FFFFFF",
+  },
   strikethrough: {
     textDecorationLine: "line-through",
-  },
-  imageBackground: {
-    ...StyleSheet.absoluteFillObject,
   },
   dotsRow: {
     flexDirection: "row",
     justifyContent: "center",
-    marginTop: 8,
-    gap: 6,
-  },
-  dot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
+    alignItems: "center",
+    paddingVertical: 8,
   },
 });

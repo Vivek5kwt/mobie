@@ -251,19 +251,15 @@ export default function TabProductGrid({ section }) {
 
   const screenWidth = Dimensions.get("window").width;
   const horizontalPadding = paddingLeft + paddingRight;
-  
-  // For carousel, calculate card width based on columns
-  // If columns is 1, use a fixed width or screen-based calculation
+
+  // columns=1 → horizontal carousel showing 2 cards at a time (matches builder metrics)
+  // columns>1 → fit N columns in available width
   let cardWidth;
-  if (columns === 1) {
-    // Single column - use a reasonable width
-    cardWidth = Math.min(200, screenWidth - horizontalPadding - 40);
+  if (columns <= 1) {
+    cardWidth = Math.floor((screenWidth - horizontalPadding - carouselGap) / 2);
   } else {
     const totalGap = carouselGap * (columns - 1);
-    cardWidth = Math.max(
-      120,
-      (screenWidth - horizontalPadding - totalGap) / columns
-    );
+    cardWidth = Math.max(120, (screenWidth - horizontalPadding - totalGap) / columns);
   }
 
   const activeProducts = productsByTab[activeTabId] || [];
@@ -376,25 +372,39 @@ export default function TabProductGrid({ section }) {
         >
           {tabs.map((tab, index) => {
             const isActive = tab.id === activeTabId;
+            const activeBg = toString(layoutCss?.tabButton?.backgroundColor, "#096d70");
+            const activeColor = toString(layoutCss?.tabButton?.color, "#FFFFFF");
             return (
               <TouchableOpacity
                 key={tab.id}
                 onPress={() => setActiveTabId(tab.id)}
+                activeOpacity={0.8}
                 style={[
                   styles.tabButton,
-                  tabButtonStyle,
                   {
-                    marginRight: index < tabs.length - 1 ? tabsRowGap : 0,
+                    marginRight: index < tabs.length - 1 ? 8 : 0,
                     borderRadius: toNumber(layoutCss?.tabButton?.borderRadius, 32),
                     paddingTop: toNumber(layoutCss?.tabButton?.paddingTop, 8),
-                    paddingRight: toNumber(layoutCss?.tabButton?.paddingRight, 16),
+                    paddingRight: toNumber(layoutCss?.tabButton?.paddingRight, 14),
                     paddingBottom: toNumber(layoutCss?.tabButton?.paddingBottom, 8),
-                    paddingLeft: toNumber(layoutCss?.tabButton?.paddingLeft, 16),
-                    backgroundColor: toString(layoutCss?.tabButton?.backgroundColor, "#096d70"),
+                    paddingLeft: toNumber(layoutCss?.tabButton?.paddingLeft, 14),
+                    backgroundColor: isActive ? activeBg : "#FFFFFF",
+                    borderWidth: isActive ? 0 : 1,
+                    borderColor: "#E5E7EB",
                   },
                 ]}
               >
-                <Text style={[styles.tabLabel, tabButtonTextStyle]}>
+                <Text
+                  style={[
+                    styles.tabLabel,
+                    {
+                      fontSize: toNumber(layoutCss?.tabButton?.fontSize, 12),
+                      fontFamily: toString(layoutCss?.tabButton?.fontFamily, "Inter"),
+                      fontWeight: isActive ? "600" : "500",
+                      color: isActive ? activeColor : "#374151",
+                    },
+                  ]}
+                >
                   {tab.label}
                 </Text>
               </TouchableOpacity>
@@ -442,11 +452,15 @@ export default function TabProductGrid({ section }) {
                   styles.mediaWrapper,
                   mediaStyle,
                   {
-                    width: toNumber(layoutCss?.media?.width, undefined),
-                    height: toNumber(layoutCss?.media?.height, undefined),
-                    borderRadius: toNumber(layoutCss?.media?.borderRadius, 24),
+                    width: cardWidth,
+                    // Use explicit height from DSL, else aspectRatio, else square (1:1)
+                    ...(toNumber(layoutCss?.media?.height, null) != null
+                      ? { height: toNumber(layoutCss?.media?.height, cardWidth) }
+                      : aspectRatioValue
+                      ? { aspectRatio: aspectRatioValue }
+                      : { aspectRatio: 1 }),
+                    borderRadius: toNumber(layoutCss?.media?.borderRadius, 8),
                     backgroundColor: toString(layoutCss?.media?.backgroundColor, "#F3F4F6"),
-                    ...(aspectRatioValue ? { aspectRatio: aspectRatioValue } : {}),
                   },
                 ]}
               >
@@ -459,18 +473,7 @@ export default function TabProductGrid({ section }) {
                 )}
               </View>
 
-              <View
-                style={[
-                  styles.cardContent,
-                  {
-                    paddingTop: toNumber(layoutCss?.card?.paddingTop, 8),
-                    paddingRight: toNumber(layoutCss?.card?.paddingRight, 8),
-                    paddingBottom: toNumber(layoutCss?.card?.paddingBottom, 8),
-                    paddingLeft: toNumber(layoutCss?.card?.paddingLeft, 8),
-                    backgroundColor: toString(layoutCss?.card?.backgroundColor, "transparent"),
-                  },
-                ]}
-              >
+              <View style={styles.cardContent}>
                 <Text numberOfLines={2} style={[styles.cardTitle, cardTitleStyle, cardTitleTextStyle]}>
                   {product.name}
                 </Text>
@@ -496,11 +499,13 @@ export default function TabProductGrid({ section }) {
                     styles.addToCartButton,
                     addToCartButtonStyle,
                     {
-                      borderRadius: toNumber(layoutCss?.addToCartButton?.borderRadius, 999),
-                      paddingTop: toNumber(layoutCss?.addToCartButton?.paddingTop, 8),
+                      borderRadius: toNumber(layoutCss?.addToCartButton?.borderRadius, 8),
+                      paddingTop: toNumber(layoutCss?.addToCartButton?.paddingTop, 6),
                       paddingRight: toNumber(layoutCss?.addToCartButton?.paddingRight, 10),
-                      paddingBottom: toNumber(layoutCss?.addToCartButton?.paddingBottom, 8),
+                      paddingBottom: toNumber(layoutCss?.addToCartButton?.paddingBottom, 6),
                       paddingLeft: toNumber(layoutCss?.addToCartButton?.paddingLeft, 10),
+                      alignSelf: "stretch",
+                      alignItems: "center",
                     },
                   ]}
                   onPress={() =>
@@ -547,7 +552,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
   },
   tabBar: {
-    marginBottom: 40,
+    marginBottom: 12,
   },
   tabButton: {
     // Styles will be applied from CSS
@@ -562,7 +567,7 @@ const styles = StyleSheet.create({
   },
   carousel: {
     flexDirection: "row",
-    alignItems: "flex-start",
+    alignItems: "stretch",
   },
   card: {
     overflow: "hidden",
@@ -587,8 +592,11 @@ const styles = StyleSheet.create({
     color: "#9CA3AF",
   },
   cardContent: {
-    padding: 8,
+    paddingTop: 8,
+    paddingHorizontal: 6,
+    paddingBottom: 10,
     gap: 6,
+    flexGrow: 1,
   },
   cardTitle: {
     // Styles will be applied from CSS
