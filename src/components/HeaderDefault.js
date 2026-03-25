@@ -79,60 +79,108 @@ export default function HeaderDefault({ config, bottomNavSection }) {
   const renderItem = (item, idx) => {
     if (!item) return null;
 
-    if (item.type === "text") {
-      return (
-        <Text
-          key={idx}
-          style={{ color: textColor, fontSize: 13, fontWeight: "500" }}
-        >
-          {item.title || ""}
-        </Text>
-      );
-    }
+    const itemType = String(item.type || "").toLowerCase();
+    const itemIconName = normalizeIconName(item.icon || "");
+    const itemTitle = item.title || item.text || "";
+    const itemIconSize = item.iconSize ? Number(item.iconSize) : 18;
+    const itemIconColor = item.iconColor || iconColor;
 
-    if (item.type === "icon") {
-      const iconName = normalizeIconName(item.icon || "");
-      if (!iconName) return null;
-      const isCart = iconName.includes("cart");
-      const isBell = iconName.includes("bell");
-      const showBadge = isCart && cartCount > 0;
+    // Per-item text styling
+    const itemFontSize = item.textSize ? Number(item.textSize) : 13;
+    const itemFontWeight = item.textBold
+      ? "700"
+      : item.textWeight
+        ? String(item.textWeight)
+        : "500";
+    const itemFontFamily = item.textFontFamily || undefined;
+    const itemFontStyle = item.textItalic ? "italic" : "normal";
+    let itemTextDecoration = "none";
+    if (item.textUnderline && item.textStrikethrough) itemTextDecoration = "underline line-through";
+    else if (item.textUnderline) itemTextDecoration = "underline";
+    else if (item.textStrikethrough) itemTextDecoration = "line-through";
 
+    const isCart = itemIconName.includes("cart");
+    const isBell = itemIconName.includes("bell");
+    const showBadge = isCart && cartCount > 0;
+    const isInteractive = isCart || isBell;
+
+    // For "icon" type: show icon only (title is metadata)
+    // For "text" type: show icon (if present) + text
+    const showIcon = !!itemIconName;
+    const showTitle = itemType === "text" && !!itemTitle;
+
+    if (!showIcon && !showTitle) return null;
+
+    const iconNode = showIcon ? (
+      <View key="icon" style={{ position: "relative" }}>
+        <Icon name={itemIconName} size={itemIconSize} color={itemIconColor} />
+        {showBadge && (
+          <View
+            style={{
+              position: "absolute",
+              top: -4,
+              right: -6,
+              backgroundColor: "#EF4444",
+              borderRadius: 8,
+              minWidth: 16,
+              height: 16,
+              alignItems: "center",
+              justifyContent: "center",
+              paddingHorizontal: 3,
+            }}
+          >
+            <Text style={{ color: "#FFFFFF", fontSize: 9, fontWeight: "700" }}>
+              {cartCount > 99 ? "99+" : String(cartCount)}
+            </Text>
+          </View>
+        )}
+      </View>
+    ) : null;
+
+    const textNode = showTitle ? (
+      <Text
+        key="text"
+        style={{
+          color: textColor,
+          fontSize: itemFontSize,
+          fontWeight: itemFontWeight,
+          fontStyle: itemFontStyle,
+          textDecorationLine: itemTextDecoration,
+          ...(itemFontFamily ? { fontFamily: itemFontFamily } : {}),
+        }}
+      >
+        {itemTitle}
+      </Text>
+    ) : null;
+
+    const inner = (
+      <>
+        {iconNode}
+        {textNode}
+      </>
+    );
+
+    if (isInteractive) {
       return (
         <TouchableOpacity
           key={idx}
           activeOpacity={0.7}
-          style={{ position: "relative" }}
+          style={{ flexDirection: "row", alignItems: "center", gap: 4 }}
           onPress={() => {
             if (isCart) openNavTarget("cart");
             else if (isBell) openNavTarget("notification");
           }}
         >
-          <Icon name={iconName} size={20} color={iconColor} />
-          {showBadge && (
-            <View
-              style={{
-                position: "absolute",
-                top: -4,
-                right: -6,
-                backgroundColor: "#EF4444",
-                borderRadius: 8,
-                minWidth: 16,
-                height: 16,
-                alignItems: "center",
-                justifyContent: "center",
-                paddingHorizontal: 3,
-              }}
-            >
-              <Text style={{ color: "#FFFFFF", fontSize: 9, fontWeight: "700" }}>
-                {cartCount > 99 ? "99+" : String(cartCount)}
-              </Text>
-            </View>
-          )}
+          {inner}
         </TouchableOpacity>
       );
     }
 
-    return null;
+    return (
+      <View key={idx} style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
+        {inner}
+      </View>
+    );
   };
 
   const resolveArray = (v) => {
