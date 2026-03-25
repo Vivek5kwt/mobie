@@ -150,7 +150,7 @@ export default function TextBlock({ section }) {
   const overrideBorderColor = unwrapValue(styleCfg?.borderColor);
   const overrideBorderRadius =
     parsePx(unwrapValue(styleCfg?.borderRadius)) ??
-    parsePx(baseContainerStyle?.borderRadius);
+    parsePx(safeContainerStyle?.borderRadius);
 
   const overrideStyle = {
     ...(overrideBgColor ? { backgroundColor: overrideBgColor } : {}),

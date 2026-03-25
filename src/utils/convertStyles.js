@@ -199,7 +199,8 @@ export function convertStyles(styleObj = {}) {
           out.lineHeight = pxToNum(val);
         } else {
           const parsed = parseFloat(val);
-          out.lineHeight = Number.isNaN(parsed) ? val : parsed * resolvedFontSize;
+          if (!Number.isNaN(parsed)) out.lineHeight = parsed * resolvedFontSize;
+          // else: non-numeric string (e.g. "titleLineHeight") — skip, invalid for RN
         }
       } else if (typeof val === "number") {
         out.lineHeight = val < 10 ? val * resolvedFontSize : val;
