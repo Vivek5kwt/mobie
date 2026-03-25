@@ -52,6 +52,20 @@ const resolveWeight = (weightStr) => {
   return undefined;
 };
 
+// Strip web-only / layout-breaking CSS props before applying to RN Text elements.
+// e.g. maxWidth:"0%" collapses text to zero width; overflow/whiteSpace are web-only.
+const stripTextCss = (style) => {
+  if (!style) return {};
+  const {
+    maxWidth, minWidth,
+    overflow, whiteSpace, textOverflow,
+    numberOfLines,
+    display,
+    ...rest
+  } = style;
+  return rest;
+};
+
 const applyTextAttributes = (baseStyle, attributes) => {
   const attrs = attributes || {};
   const next = { ...(baseStyle || {}) };
@@ -113,17 +127,24 @@ export default function TextBlock({ section }) {
 
   const paddingRaw = alignmentCfg?.paddingRaw?.properties || alignmentCfg?.paddingRaw || {};
 
-  const baseContainerStyle = convertStyles(layoutCss.container || {});
+  const rawContainerStyle = convertStyles(layoutCss.container || {});
+  // Remove web layout props that conflict with RN flex layout for the TextBlock row
+  const {
+    justifyContent: _jc,  // DSL sends "flex-end" but text must stay centered
+    overflow: _ov,
+    display: _disp,
+    ...safeContainerStyle
+  } = rawContainerStyle;
   const containerStyle = {
-    ...baseContainerStyle,
-    paddingTop: asNumber(paddingRaw?.pt, baseContainerStyle.paddingTop),
-    paddingRight: asNumber(paddingRaw?.pr, baseContainerStyle.paddingRight),
-    paddingBottom: asNumber(paddingRaw?.pb, baseContainerStyle.paddingBottom),
-    paddingLeft: asNumber(paddingRaw?.pl, baseContainerStyle.paddingLeft),
+    ...safeContainerStyle,
+    paddingTop: asNumber(paddingRaw?.pt, safeContainerStyle.paddingTop),
+    paddingRight: asNumber(paddingRaw?.pr, safeContainerStyle.paddingRight),
+    paddingBottom: asNumber(paddingRaw?.pb, safeContainerStyle.paddingBottom),
+    paddingLeft: asNumber(paddingRaw?.pl, safeContainerStyle.paddingLeft),
   };
 
-  const baseHeadlineStyle = convertStyles(layoutCss.headline || {});
-  const baseSubtextStyle = convertStyles(layoutCss.subtext || {});
+  const baseHeadlineStyle = stripTextCss(convertStyles(layoutCss.headline || {}));
+  const baseSubtextStyle = stripTextCss(convertStyles(layoutCss.subtext || {}));
   const iconStyle = convertStyles(layoutCss.icon || {});
   const overrideBgColor = unwrapValue(styleCfg?.bgColor);
   const overrideBorderColor = unwrapValue(styleCfg?.borderColor);
