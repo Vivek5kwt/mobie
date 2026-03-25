@@ -276,6 +276,18 @@ class Countdown extends PureComponent {
       else if (lowered === "right") enhancedContainerStyle.alignItems = "flex-end";
     }
 
+    // Container border / radius from DSL (overrides CSS)
+    const contBorderLine = unwrapValue(rawProps?.containerBorderLine, "all").toLowerCase();
+    const contBorderColor = unwrapValue(rawProps?.containerBorderColor, "#D1D5DB");
+    const contBorderRadius = asNumber(rawProps?.containerBorderRadius, undefined);
+    if (contBorderRadius != null) enhancedContainerStyle.borderRadius = contBorderRadius;
+    if (contBorderLine === "none") {
+      enhancedContainerStyle.borderWidth = 0;
+    } else if (contBorderLine === "all") {
+      enhancedContainerStyle.borderWidth = 1;
+      enhancedContainerStyle.borderColor = contBorderColor;
+    }
+
     const resolvedTextAlign = unwrapValue(alignmentAndPadding?.textAlign, undefined);
 
     const baseTitleStyle = convertStyles(layoutCss.title || {});
@@ -291,6 +303,11 @@ class Countdown extends PureComponent {
 
     const titleStyle = applyTextAttributes(baseTitleStyle, titleAttributes);
     const subtextStyle = applyTextAttributes(baseSubtextStyle, subtextAttributes);
+
+    // Title alignment: prefer alignmentAndPadding.textAlign, fall back to titleAttributes.align
+    const titleAlignAttr = unwrapValue(titleAttributes?.align, null);
+    const effectiveTitleAlign =
+      (resolvedTextAlign || titleAlignAttr || "").toLowerCase() || undefined;
 
     const titleText = unwrapValue(rawProps?.title, "Sale Ends In");
     const subtextText = unwrapValue(
@@ -311,6 +328,11 @@ class Countdown extends PureComponent {
     const buttonBorderRadius = asNumber(buttonAttributes?.borderRadius, undefined);
     const buttonPaddingX = asNumber(buttonAttributes?.paddingX, undefined);
     const buttonPaddingY = asNumber(buttonAttributes?.paddingY, undefined);
+    const buttonFontWeightRaw = unwrapValue(buttonAttributes?.fontWeight, undefined);
+    const buttonFontWeight =
+      typeof buttonFontWeightRaw === "number"
+        ? String(buttonFontWeightRaw)
+        : buttonFontWeightRaw || undefined;
 
     const timerAttributes = rawProps?.timerAttributes?.properties || rawProps?.timerAttributes || {};
     const timerLabelColor = unwrapValue(timerAttributes?.labelColor, "#6B7280");
@@ -395,7 +417,7 @@ class Countdown extends PureComponent {
                 styles.title,
                 titleStyle,
                 showIcon ? null : styles.titleCentered,
-                resolvedTextAlign ? { textAlign: resolvedTextAlign.toLowerCase() } : null,
+                effectiveTitleAlign ? { textAlign: effectiveTitleAlign } : null,
               ]}
             >
               {titleText}
@@ -404,51 +426,54 @@ class Countdown extends PureComponent {
         </View>
 
         {showTimer && (
-          <View
-            style={[
-              styles.timer,
-              timerContainerStyle,
-            ]}
-          >
-            {timerUnits.map(({ key, label }) => (
-              <View
-                key={key}
-                style={[
-                  styles.timerSegment,
-                  timerGap ? { marginHorizontal: timerGap / 2 } : null,
-                ]}
-              >
-                <View
-                  style={[
-                    styles.timerValueBox,
-                    timerBackgroundColor ? { backgroundColor: timerBackgroundColor } : null,
-                    timerBoxRadius ? { borderRadius: timerBoxRadius } : null,
-                    timerHeight ? { height: timerHeight } : timerStyleHeight ? { height: timerStyleHeight } : null,
-                  ]}
-                >
-                  <Text
-                    style={[
-                      styles.timerValue,
-                      { color: timerValueColor },
-                      timerFontSize != null ? { fontSize: timerFontSize } : null,
-                      timerFontWeight ? { fontWeight: timerFontWeight } : null,
-                    ]}
-                  >
-                    {renderTimerValue(resolvedCountdown[key])}
-                  </Text>
+          <View style={styles.timerGrid}>
+            {[[timerUnits[0], timerUnits[1]], [timerUnits[2], timerUnits[3]]].map(
+              (row, rowIdx) => (
+                <View key={rowIdx} style={styles.timerRow}>
+                  {row.map(({ key, label }) => (
+                    <View key={key} style={styles.timerSegment}>
+                      <View
+                        style={[
+                          styles.timerValueBox,
+                          timerBackgroundColor
+                            ? { backgroundColor: timerBackgroundColor }
+                            : null,
+                          timerBoxRadius ? { borderRadius: timerBoxRadius } : null,
+                          timerHeight
+                            ? { height: timerHeight }
+                            : timerStyleHeight
+                              ? { height: timerStyleHeight }
+                              : null,
+                        ]}
+                      >
+                        <Text
+                          style={[
+                            styles.timerValue,
+                            { color: timerValueColor },
+                            timerFontSize != null ? { fontSize: timerFontSize } : null,
+                            timerFontWeight ? { fontWeight: timerFontWeight } : null,
+                          ]}
+                        >
+                          {renderTimerValue(resolvedCountdown[key])}
+                        </Text>
+                      </View>
+                      <Text style={[styles.timerLabel, { color: timerLabelColor }]}>
+                        {label}
+                      </Text>
+                    </View>
+                  ))}
                 </View>
-                <Text style={[styles.timerLabel, { color: timerLabelColor }]}>{label}</Text>
-              </View>
-            ))}
+              )
+            )}
           </View>
         )}
 
-        {showSubtext && (
+        {showSubtext && !!subtextText && (
           <Text
             style={[
               styles.subtext,
               subtextStyle,
-              resolvedTextAlign ? { textAlign: resolvedTextAlign.toLowerCase() } : null,
+              effectiveTitleAlign ? { textAlign: effectiveTitleAlign } : null,
             ]}
           >
             {subtextText}
@@ -472,6 +497,7 @@ class Countdown extends PureComponent {
                 styles.buttonText,
                 { color: buttonTextColor },
                 buttonFontSize != null ? { fontSize: buttonFontSize } : null,
+                buttonFontWeight ? { fontWeight: buttonFontWeight } : null,
                 buttonBold === true ? { fontWeight: "700" } : null,
                 buttonItalic === true ? { fontStyle: "italic" } : null,
                 buttonUnderline || buttonStrikethrough
@@ -536,20 +562,18 @@ const styles = StyleSheet.create({
     color: "#6B7280",
     marginTop: 4,
   },
-  timer: {
-    marginTop: 4,
+  timerGrid: {
+    width: "100%",
+    marginTop: 8,
+  },
+  timerRow: {
     flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
+    justifyContent: "space-between",
+    marginBottom: 8,
   },
   timerSegment: {
-    flexGrow: 1,
-    flexBasis: "22%",
-    minWidth: 66,
-    maxWidth: 100,
+    width: "48%",
     alignItems: "center",
-    justifyContent: "center",
-    marginHorizontal: 4,
   },
   timerValueBox: {
     width: "100%",
@@ -557,7 +581,9 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     paddingHorizontal: 10,
     backgroundColor: "#FFFFFF",
-    borderRadius: 12,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: "#E5E7EB",
     alignItems: "center",
     justifyContent: "center",
   },
