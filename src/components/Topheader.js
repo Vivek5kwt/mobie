@@ -133,6 +133,12 @@ export default function Header({ section }) {
 
   // -----------------------------------------
 
+  // headerdefault config — applies when the header is rendered standalone
+  // (i.e. no DSL section provided, as in AllProductsScreen, ProductDetailScreen, etc.)
+  // IMPORTANT: must be declared before any use of defaultConfig below
+  const isStandalone = !section?.component && !section?.props;
+  const defaultConfig = isStandalone ? getHeaderDefault() : null;
+
   const sideMenuProps = props?.sideMenu?.properties || props?.sideMenu || {};
   const sideMenuVisible = resolveBoolean(sideMenuProps?.visible, true);
   const sideMenuIconName = normalizeIconName(
@@ -148,11 +154,6 @@ export default function Header({ section }) {
   React.useEffect(() => {
     setLogoSource(resolveLogoSource(logoImage));
   }, [logoImage]);
-
-  // headerdefault config — applies when the header is rendered standalone
-  // (i.e. no DSL section provided, as in AllProductsScreen, ProductDetailScreen, etc.)
-  const isStandalone = !section?.component && !section?.props;
-  const defaultConfig = isStandalone ? getHeaderDefault() : null;
 
   const headerTextEnabled = resolveBoolean(
     props?.enableheaderText ?? props?.enableHeaderText,

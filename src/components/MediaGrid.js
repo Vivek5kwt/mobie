@@ -351,9 +351,9 @@ export default function MediaGrid({ section }) {
   const buttonRowStyle = convertStyles(layoutCss?.buttonRow || {});
 
   const contentPadding = {
-    paddingTop: toNumber(rawProps?.pt, 16),
+    paddingTop: toNumber(rawProps?.pt, 0),
     paddingRight: toNumber(rawProps?.pr, 16),
-    paddingBottom: toNumber(rawProps?.pb, 16),
+    paddingBottom: toNumber(rawProps?.pb, 0),
     paddingLeft: toNumber(rawProps?.pl, 16),
   };
 

@@ -194,8 +194,8 @@ export default function TabProductGrid({ section }) {
   const tabFontWt    = toFontWeight(rawConfig?.tabFontWeight, "600");
   const tabFamily    = toStr(rawConfig?.tabFontFamily, undefined) || undefined;
 
-  const paddingTop    = toNum(rawConfig?.paddingTop,    12);
-  const paddingBottom = toNum(rawConfig?.paddingBottom, 12);
+  const paddingTop    = toNum(rawConfig?.paddingTop,    0);
+  const paddingBottom = toNum(rawConfig?.paddingBottom, 0);
   const paddingLeft   = toNum(rawConfig?.paddingLeft,   16);
   const paddingRight  = toNum(rawConfig?.paddingRight,  16);
 
