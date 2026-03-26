@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState, useRef, useCallback } from "react";
+import React, { useEffect, useMemo, useState, useRef } from "react";
 import { Linking, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { StackActions, useNavigation, useRoute } from "@react-navigation/native";
 import { useSelector } from "react-redux";
@@ -373,27 +373,25 @@ function BottomNavigation({ section, activeIndexOverride }) {
     if (hasActiveIndexOverride) {
       return clampIndex(parsedActiveIndexOverride, items.length);
     }
-    const currentIndex = activeIndexRef.current;
-    if (currentIndex !== null && currentIndex !== undefined && currentIndex >= 0 && currentIndex < items.length) {
-      return currentIndex;
-    }
-    return clampIndex(resolveActiveIndex(items, rawProps, raw, currentIndex), items.length);
-  }, [hasActiveIndexOverride, parsedActiveIndexOverride, items.length]);
+    // Avoid accessing activeIndexRef here (declared later) — derive directly from DSL
+    return clampIndex(resolveActiveIndex(items, rawProps, raw, null), items.length);
+  }, [hasActiveIndexOverride, parsedActiveIndexOverride, items, rawProps, raw]);
 
-  // Display index: 1) local state (immediate on tap), 2) parent override, 3) from route/state, 4) internal
+  // Display index: parent override ALWAYS wins (no flash on navigation), then local tap, then route
   const displayActiveIndex = useMemo(() => {
-    const fromState = activeIndex >= 0 && activeIndex < items.length ? activeIndex : null;
-    const fromOverride =
-      activeIndexOverride !== undefined &&
-      activeIndexOverride !== null &&
-      Number.isFinite(Number(activeIndexOverride))
-        ? clampIndex(Number(activeIndexOverride), items.length)
-        : null;
-    const fromRoute = items.length > 0 && activeIndexFromState >= 0 && activeIndexFromState < items.length ? activeIndexFromState : null;
-    return fromState ?? fromOverride ?? fromRoute ?? resolvedActiveIndex;
+    if (hasActiveIndexOverride) {
+      // Override from parent (e.g. activeIndex=0 for Home) — take it immediately, no flash
+      return clampIndex(parsedActiveIndexOverride, items.length);
+    }
+    // Local tap state (immediate feedback when user presses a tab)
+    if (activeIndex >= 0 && activeIndex < items.length) return activeIndex;
+    // Route-derived fallback
+    if (activeIndexFromState >= 0 && activeIndexFromState < items.length) return activeIndexFromState;
+    return resolvedActiveIndex;
   }, [
+    hasActiveIndexOverride,
+    parsedActiveIndexOverride,
     activeIndex,
-    activeIndexOverride,
     activeIndexFromState,
     resolvedActiveIndex,
     items.length,
@@ -465,12 +463,6 @@ function BottomNavigation({ section, activeIndexOverride }) {
 
   if (!items.length) return null;
 
-  const isHomeItem = (item = {}) => {
-    const id = (item?.id || "").toString().trim().toLowerCase();
-    const label = (resolveItemLabel(item) || "").toString().trim().toLowerCase();
-    const link = (resolveItemLink(item) || "").replace(/^\//, "").toString().trim().toLowerCase();
-    return id === "home" || label === "home" || link === "home";
-  };
 
   const handlePress = async (item, index) => {
     if (isSideMenuOpen) {

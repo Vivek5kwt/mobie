@@ -12,7 +12,6 @@ import { useFocusEffect, useRoute } from "@react-navigation/native";
 import { SafeArea } from "../utils/SafeAreaHandler";
 import BottomNavigation from "../components/BottomNavigation";
 import SideNavigation from "../components/SideNavigation";
-import bottomNavigationStyle1Section from "../data/bottomNavigationStyle1";
 import { fetchDSL } from "../engine/dslHandler";
 import { shouldRenderSectionOnMobile } from "../engine/visibility";
 import DynamicRenderer from "../engine/DynamicRenderer";
@@ -26,7 +25,9 @@ export default function BottomNavScreen() {
   const title = route?.params?.title || "Page";
   const link = route?.params?.link || "";
   const pageName = route?.params?.pageName || link || title;
-  const bottomNavSectionProp = route?.params?.bottomNavSection || bottomNavigationStyle1Section;
+  // Only use the DSL-provided section — never fall back to hardcoded defaults
+  // This ensures only tabs that exist in the JSON are shown
+  const bottomNavSectionProp = route?.params?.bottomNavSection || null;
   const activeIndexFromParams = route?.params?.activeIndex;
   const appId = useMemo(
     () =>
@@ -438,7 +439,7 @@ export default function BottomNavScreen() {
             showsVerticalScrollIndicator
             contentContainerStyle={[
               styles.scrollContent,
-              { flexGrow: 1, paddingBottom: resolvedBottomNavSection ? 88 : 24 },
+              { paddingBottom: resolvedBottomNavSection ? 70 : 0 },
             ]}
             keyboardShouldPersistTaps="handled"
             refreshControl={
