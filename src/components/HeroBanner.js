@@ -479,7 +479,7 @@ export default function HeroBanner({ section }) {
       // Fall back to minHeight when no ratio is provided.
       ...(imageAspectRatio
         ? { aspectRatio: imageAspectRatio }
-        : { minHeight: imageSrc ? 200 : undefined }),
+        : { minHeight: imageSrc ? 320 : undefined }),
       ...containerHeightStyle,
     },
     containerStyle,
@@ -504,6 +504,7 @@ export default function HeroBanner({ section }) {
           style={[
             styles.overlay,
             {
+              backgroundColor: "#000000",
               opacity: overlayOpacity / 100,
               borderRadius: imageCornerRadius || toNumber(layoutCss?.image?.borderRadius, 7),
             },
@@ -622,6 +623,7 @@ const styles = StyleSheet.create({
   },
   content: {
     position: "relative",
+    flex: 1,
     width: "100%",
     justifyContent: "center",
     alignItems: "center",
