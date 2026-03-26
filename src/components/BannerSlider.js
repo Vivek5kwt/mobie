@@ -128,34 +128,51 @@ export default function BannerSlider({ section }) {
   );
 
   // ── Container ──
-  const bgColor = rp?.bgColor || "#8fd0d6";
-  const bannerHeight = asNumber(rp?.bannerHeight, 180);
-  const bannerRadius = asNumber(rp?.bannerRadius, 0);
+  const bgColor = rp?.bgColor || "#FFFFFF";
+  const bannerHeight = asNumber(rp?.bannerHeight, 200);
+  const bannerRadius = asNumber(rp?.bannerRadius ?? rp?.imageCorner, 0);
 
-  // Padding inside each slide
-  const slidePt = asNumber(rp?.pt, 40);
-  const slidePb = asNumber(rp?.pb, 40);
-  const slidePl = asNumber(rp?.pl, 16);
-  const slidePr = asNumber(rp?.pr, 16);
+  // Outer container padding (wraps the whole slider in the page)
+  const containerPt = asNumber(rp?.pt, 0);
+  const containerPb = asNumber(rp?.pb, 0);
+  const containerPl = asNumber(rp?.pl, 0);
+  const containerPr = asNumber(rp?.pr, 0);
+
+  // Slide content padding (text area inside the banner)
+  const slidePl = asNumber(rp?.boxPl, 16);
+  const slidePr = asNumber(rp?.boxPr, 16);
+  const slidePt = asNumber(rp?.boxPt, 16);
+  const slidePb = asNumber(rp?.boxPb, 16);
+
+  // Overlay on image
+  const overlayColor = rp?.overlayColor || "rgba(0,0,0,0)";
+  const imageActive = asBoolean(rp?.imageActive, true);
+  const textActive  = asBoolean(rp?.textActive, true);
 
   // ── Slider behavior ──
   const autoScroll = asBoolean(rp?.autoScroll ?? rp?.autoPlay, true);
   const autoScrollSpeed = asNumber(rp?.autoScrollSpeed ?? rp?.scrollSpeedSec, 4);
   const showDots = asBoolean(rp?.showIndicators ?? rp?.showDots, true);
 
+  // CSS snapshot (from layout.css) — secondary source for style tokens
+  const layoutCss = rawProps?.layout?.css ?? {};
+
   // ── Heading ──
-  const headingColor = rp?.headingColor || "#FFFFFF";
-  const headingSize = asNumber(rp?.headingSize, 16);
-  const headingAlign = (rp?.headingAlign || "center").toLowerCase();
-  const headingWeight = parseFontWeight(rp?.headingWeight, "700");
+  const headingColor  = rp?.headingColor  || layoutCss?.heading?.color  || "#FFFFFF";
+  const headingSize   = asNumber(rp?.headingSize ?? layoutCss?.heading?.fontSize, 18);
+  const headingAlignRaw = rp?.headingAlign || layoutCss?.heading?.align || "left";
+  const headingAlign  = headingAlignRaw.toLowerCase();
+  const headingWeight = parseFontWeight(rp?.headingWeight ?? layoutCss?.heading?.fontWeight, "700");
   const headingItalic = asBoolean(rp?.headingItalic, false);
   const headingUnderline = asBoolean(rp?.headingUnderline, false);
+  const headingTransform = (layoutCss?.heading?.textTransform || "none").toLowerCase();
+  const headingLetterSpacing = asNumber(layoutCss?.heading?.letterSpacing, 0);
 
   // ── Subheading ──
-  const subheadingColor = rp?.subheadingColor || "#E5E7EB";
-  const subheadingSize = asNumber(rp?.subheadingSize, 12);
-  const subheadingAlign = (rp?.subheadingAlign || "center").toLowerCase();
-  const subheadingWeight = parseFontWeight(rp?.subheadingWeight, "400");
+  const subheadingColor  = rp?.subheadingColor  || layoutCss?.subheading?.color  || "#E5E7EB";
+  const subheadingSize   = asNumber(rp?.subheadingSize ?? layoutCss?.subheading?.fontSize, 13);
+  const subheadingAlign  = (rp?.subheadingAlign || layoutCss?.subheading?.align || "left").toLowerCase();
+  const subheadingWeight = parseFontWeight(rp?.subheadingWeight ?? layoutCss?.subheading?.fontWeight, "400");
 
   // ── Button ──
   const showButton = asBoolean(rp?.showButton, true);
@@ -226,10 +243,19 @@ export default function BannerSlider({ section }) {
 
   return (
     <View
-      style={[styles.wrapper, { backgroundColor: bgColor }]}
+      style={[
+        styles.wrapper,
+        {
+          backgroundColor: bgColor,
+          paddingTop: containerPt,
+          paddingBottom: containerPb,
+          paddingLeft: containerPl,
+          paddingRight: containerPr,
+        },
+      ]}
       onLayout={(e) => {
         const w = e?.nativeEvent?.layout?.width;
-        if (w && w > 0) setContainerWidth(w);
+        if (w && w > 0) setContainerWidth(w - containerPl - containerPr);
       }}
     >
       <Animated.ScrollView
@@ -244,18 +270,20 @@ export default function BannerSlider({ section }) {
         )}
         style={styles.scrollView}
       >
-        {slides.map((slide, idx) => (
+        {slides.map((slide, idx) => {
+          const trimmedSubtext = slide.subtext ? slide.subtext.trim() : "";
+          return (
           <View
             key={slide.id || idx}
             style={{
               width: containerWidth,
-              minHeight: bannerHeight,
+              height: bannerHeight,
               borderRadius: bannerRadius,
               overflow: "hidden",
             }}
           >
             {/* Background image */}
-            {slide.image ? (
+            {imageActive && slide.image ? (
               <Image
                 source={{ uri: slide.image }}
                 style={[StyleSheet.absoluteFill, { borderRadius: bannerRadius }]}
@@ -263,16 +291,27 @@ export default function BannerSlider({ section }) {
               />
             ) : null}
 
-            {/* Slide content — column, centered */}
+            {/* Dark overlay */}
+            {overlayColor && overlayColor !== "rgba(0,0,0,0)" && overlayColor !== "transparent" ? (
+              <View
+                style={[
+                  StyleSheet.absoluteFill,
+                  { backgroundColor: overlayColor, borderRadius: bannerRadius },
+                ]}
+              />
+            ) : null}
+
+            {/* Slide content */}
+            {textActive ? (
             <View
               style={[
                 styles.slideContent,
                 {
+                  height: bannerHeight,
                   paddingTop: slidePt,
                   paddingBottom: slidePb,
                   paddingLeft: slidePl,
                   paddingRight: slidePr,
-                  minHeight: bannerHeight,
                 },
               ]}
             >
@@ -287,6 +326,9 @@ export default function BannerSlider({ section }) {
                       textAlign: headingAlign,
                       fontStyle: headingItalic ? "italic" : "normal",
                       textDecorationLine: headingUnderline ? "underline" : "none",
+                      textTransform: headingTransform !== "none" ? headingTransform : undefined,
+                      letterSpacing: headingLetterSpacing || undefined,
+                      width: "100%",
                     },
                     slide.titleStrikethrough && styles.strikethrough,
                   ]}
@@ -295,7 +337,7 @@ export default function BannerSlider({ section }) {
                 </Text>
               ) : null}
 
-              {slide.subtext ? (
+              {trimmedSubtext ? (
                 <Text
                   style={[
                     styles.subheading,
@@ -304,11 +346,12 @@ export default function BannerSlider({ section }) {
                       fontSize: subheadingSize,
                       fontWeight: subheadingWeight,
                       textAlign: subheadingAlign,
+                      width: "100%",
                     },
                     slide.subtitleStrikethrough && styles.strikethrough,
                   ]}
                 >
-                  {slide.subtext}
+                  {trimmedSubtext}
                 </Text>
               ) : null}
 
@@ -345,8 +388,10 @@ export default function BannerSlider({ section }) {
                 </TouchableOpacity>
               ) : null}
             </View>
+            ) : null}
           </View>
-        ))}
+          );
+        })}
       </Animated.ScrollView>
 
       {showDots && slides.length > 1 ? (
@@ -385,11 +430,10 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   heading: {
-    fontSize: 16,
+    fontSize: 18,
     fontWeight: "700",
     color: "#FFFFFF",
-    textTransform: "uppercase",
-    letterSpacing: 1,
+    lineHeight: 24,
   },
   subheading: {
     fontSize: 12,

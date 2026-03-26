@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState, useCallback } from "react";
 import {
+  ActivityIndicator,
   Dimensions,
   ScrollView,
   StyleSheet,
@@ -14,8 +15,9 @@ import {
   fetchShopifyCollectionProducts,
   fetchShopifyProducts,
 } from "../services/shopify";
-import { convertStyles } from "../utils/convertStyles";
 import { addItem } from "../store/slices/cartSlice";
+
+// ─── Helpers ─────────────────────────────────────────────────────────────────
 
 const unwrapValue = (value, fallback = undefined) => {
   if (value === undefined || value === null) return fallback;
@@ -27,383 +29,278 @@ const unwrapValue = (value, fallback = undefined) => {
   return value;
 };
 
-const toNumber = (value, fallback) => {
-  const resolved = unwrapValue(value, undefined);
-  if (resolved === undefined || resolved === "") return fallback;
-  if (typeof resolved === "number") return resolved;
-  const parsed = parseFloat(resolved);
-  return Number.isNaN(parsed) ? fallback : parsed;
+const toStr = (value, fallback = "") => {
+  const r = unwrapValue(value, fallback);
+  return r === undefined || r === null ? fallback : String(r);
 };
 
-const toString = (value, fallback = "") => {
-  const resolved = unwrapValue(value, fallback);
-  if (resolved === undefined || resolved === null) return fallback;
-  return String(resolved);
+const toNum = (value, fallback) => {
+  const r = unwrapValue(value, undefined);
+  if (r === undefined || r === "") return fallback;
+  if (typeof r === "number") return r;
+  const n = parseFloat(r);
+  return Number.isNaN(n) ? fallback : n;
+};
+
+const toBool = (value, fallback = true) => {
+  const r = unwrapValue(value, fallback);
+  if (typeof r === "boolean") return r;
+  if (typeof r === "string") {
+    const l = r.trim().toLowerCase();
+    if (["true", "1", "yes", "y"].includes(l)) return true;
+    if (["false", "0", "no", "n"].includes(l)) return false;
+  }
+  if (typeof r === "number") return r !== 0;
+  return fallback;
+};
+
+const toFontWeight = (value, fallback = "500") => {
+  const r = unwrapValue(value, undefined);
+  if (!r) return fallback;
+  const s = String(r).trim().toLowerCase();
+  if (s === "bold") return "700";
+  if (s === "semibold" || s === "semi bold") return "600";
+  if (s === "medium") return "500";
+  if (s === "regular" || s === "normal") return "400";
+  if (/^\d+$/.test(s)) return s;
+  return fallback;
+};
+
+// Returns true if a hex color is "dark" (used to auto-pick text color)
+const isDark = (hex) => {
+  if (!hex || typeof hex !== "string") return false;
+  const c = hex.replace("#", "");
+  if (c.length < 6) return false;
+  const r = parseInt(c.slice(0, 2), 16);
+  const g = parseInt(c.slice(2, 4), 16);
+  const b = parseInt(c.slice(4, 6), 16);
+  // Perceived luminance
+  return (0.299 * r + 0.587 * g + 0.114 * b) < 128;
 };
 
 const normalizeTabs = (rawTabs = []) => {
-  if (Array.isArray(rawTabs)) {
-    return rawTabs
-      .map((tab, idx) => {
-        const props = tab?.properties || tab || {};
-        const id = toString(props?.id, `tab-${idx + 1}`);
-        const label = toString(props?.label, "Tab");
-        const collectionHandle = toString(props?.collectionHandle, "");
-        if (!label) return null;
-        return { id, label, collectionHandle };
-      })
-      .filter(Boolean);
-  }
-
-  return [];
+  if (!Array.isArray(rawTabs)) return [];
+  return rawTabs
+    .map((tab, idx) => {
+      const t = tab?.properties || tab || {};
+      const id = toStr(t.id, `tab-${idx + 1}`);
+      const label = toStr(t.label, "Tab");
+      const handle = toStr(t.collectionHandle, "");
+      const limit = toNum(t.productsToShow, 4);
+      if (!label) return null;
+      return { id, label, handle, limit };
+    })
+    .filter(Boolean);
 };
 
-const FALLBACK_PRODUCTS = [
-  {
-    id: "demo-1",
-    name: "Demo Hat",
-    image:
-      "https://images.unsplash.com/photo-1504595403659-9088ce801e29?auto=format&fit=crop&w=400&q=80",
-    price: "14.99",
-    currency: "USD",
-  },
-  {
-    id: "demo-2",
-    name: "Demo Sunglasses",
-    image:
-      "https://images.unsplash.com/photo-1465805139202-a644e217f00e?auto=format&fit=crop&w=400&q=80",
-    price: "29.00",
-    currency: "USD",
-  },
-  {
-    id: "demo-3",
-    name: "Demo Backpack",
-    image:
-      "https://images.unsplash.com/photo-1505693416388-ac5ce068fe85?auto=format&fit=crop&w=400&q=80",
-    price: "54.00",
-    currency: "USD",
-  },
-  {
-    id: "demo-4",
-    name: "Demo Sneakers",
-    image:
-      "https://images.unsplash.com/photo-1521093470119-a3acdc43374b?auto=format&fit=crop&w=400&q=80",
-    price: "79.00",
-    currency: "USD",
-  },
-];
+// ─── Component ────────────────────────────────────────────────────────────────
 
-const extractLayoutCss = (rawProps) => {
-  const layoutBlock = rawProps?.layout || {};
-  return (
-    layoutBlock?.properties?.css?.value ||
-    layoutBlock?.properties?.css ||
-    layoutBlock?.css?.value ||
-    layoutBlock?.css ||
-    layoutBlock?.value?.css ||
-    {}
-  );
-};
-
-const toFontWeight = (value, fallback) => {
-  const resolved = unwrapValue(value, undefined);
-  if (resolved === undefined || resolved === null) return fallback;
-  if (typeof resolved === "number") return String(resolved);
-  const normalized = String(resolved).trim().toLowerCase();
-  if (normalized === "bold") return "700";
-  if (normalized === "semibold" || normalized === "semi bold") return "600";
-  if (normalized === "medium") return "500";
-  if (normalized === "regular" || normalized === "normal") return "400";
-  if (/^\d+$/.test(normalized)) return normalized;
-  return fallback;
-};
+const { width: SCREEN_W } = Dimensions.get("window");
+const COL_GAP = 8;
 
 export default function TabProductGrid({ section }) {
   const dispatch = useDispatch();
   const navigation = useNavigation();
-  const rawProps =
-    section?.properties?.props?.properties || section?.properties?.props || section?.props || {};
 
-  // Extract raw config - handle both raw.value and raw structures
+  // ── Parse DSL ──────────────────────────────────────────────────────────────
+  const rawProps =
+    section?.properties?.props?.properties ||
+    section?.properties?.props ||
+    section?.props ||
+    {};
+
+  // rawConfig holds all the flat builder values
   const rawConfig = rawProps?.raw?.value || rawProps?.raw || rawProps || {};
-  
-  // Extract tabs - they should be in rawConfig.tabs
-  const tabs = useMemo(() => normalizeTabs(rawConfig?.tabs || []), [rawConfig?.tabs]);
+
+  const tabs = useMemo(() => normalizeTabs(rawConfig?.tabs || []), []);
 
   const initialTabId =
-    toString(rawConfig?.activeTabId, "") || (tabs.length ? tabs[0]?.id : "");
+    toStr(rawConfig?.activeTabId, "") || (tabs.length ? tabs[0].id : "");
 
   const [activeTabId, setActiveTabId] = useState(initialTabId);
   const [productsByTab, setProductsByTab] = useState({});
-  const [loadingTab, setLoadingTab] = useState(null);
+  const [loadingTabId, setLoadingTabId] = useState(null);
+  const [favorited, setFavorited] = useState({});
 
   const activeTab = useMemo(
-    () => tabs.find((tab) => tab.id === activeTabId),
+    () => tabs.find((t) => t.id === activeTabId) || tabs[0],
     [tabs, activeTabId]
   );
 
+  // ── Fetch products when active tab changes ─────────────────────────────────
   useEffect(() => {
-    if (!activeTabId) return;
-    if (productsByTab[activeTabId]) return;
+    if (!activeTabId || productsByTab[activeTabId]) return;
 
-    let isMounted = true;
+    let alive = true;
+    const limit = activeTab?.limit || toNum(rawConfig?.productsPerTab, 4);
+    const handle = activeTab?.handle || "";
 
-    const loadProducts = async () => {
-      setLoadingTab(activeTabId);
+    const load = async () => {
+      setLoadingTabId(activeTabId);
       try {
-        const limit = productsPerTab;
-        const collectionHandle = activeTab?.collectionHandle || "";
+        let items = [];
 
-        let nextProducts = [];
-
-        // Handle special collection handles
-        if (collectionHandle && collectionHandle !== "all" && collectionHandle !== "frontpage") {
-          // Fetch from specific collection
-          const response = await fetchShopifyCollectionProducts({
-            handle: collectionHandle,
-            first: limit,
-          });
-
-          nextProducts = (response?.products || []).map((product) => ({
-            id: product.id,
-            name: product.title,
-            image: product.imageUrl,
-            price: product.priceAmount,
-            currency: product.priceCurrency,
+        if (handle && handle !== "all" && handle !== "frontpage") {
+          const res = await fetchShopifyCollectionProducts({ handle, first: limit });
+          items = (res?.products || []).map((p) => ({
+            id: p.id,
+            variantId: p.variantId || "",
+            name: p.title,
+            image: p.imageUrl,
+            price: p.priceAmount,
+            currency: p.priceCurrency,
+            handle: p.handle,
+            availableForSale: p.availableForSale ?? true,
           }));
         } else {
-          // Fetch all products (for "all", "frontpage", or empty handle)
-          nextProducts = await fetchShopifyProducts(limit);
+          const list = await fetchShopifyProducts(limit);
+          items = (list || []).map((p) => ({
+            id: p.id,
+            variantId: p.variantId || "",
+            name: p.name || p.title,
+            image: p.image || p.imageUrl,
+            price: p.price || p.priceAmount,
+            currency: p.currency || p.priceCurrency,
+            handle: p.handle,
+            availableForSale: p.availableForSale ?? true,
+          }));
         }
 
-        if (!nextProducts?.length) {
-          nextProducts = FALLBACK_PRODUCTS;
+        if (alive) {
+          setProductsByTab((prev) => ({ ...prev, [activeTabId]: items }));
         }
-
-        if (isMounted) {
-          setProductsByTab((prev) => ({ ...prev, [activeTabId]: nextProducts }));
-        }
-      } catch (error) {
-        if (isMounted) {
-          setProductsByTab((prev) => ({ ...prev, [activeTabId]: FALLBACK_PRODUCTS }));
-        }
+      } catch (_) {
+        if (alive) setProductsByTab((prev) => ({ ...prev, [activeTabId]: [] }));
       } finally {
-        if (isMounted) setLoadingTab(null);
+        if (alive) setLoadingTabId(null);
       }
     };
 
-    loadProducts();
-
-    return () => {
-      isMounted = false;
-    };
-  }, [
-    activeTab?.collectionHandle,
-    activeTabId,
-    productsByTab,
-    rawConfig?.productsPerTab,
-  ]);
-
-  useEffect(() => {
-    if (initialTabId && initialTabId !== activeTabId) {
-      setActiveTabId(initialTabId);
-    }
-  }, [initialTabId]);
+    load();
+    return () => { alive = false; };
+  }, [activeTabId]);
 
   if (!tabs.length) return null;
 
-  // Extract layout CSS
-  const layoutCss = extractLayoutCss(rawProps);
+  // ── Read styling from rawConfig ────────────────────────────────────────────
+  const columns = Math.max(1, toNum(rawConfig?.columns, 2));
+  const containerBg  = toStr(rawConfig?.bgColor || rawConfig?.gridBgColor, "#FFFFFF");
+  const tabBarBg     = toStr(rawConfig?.tabBarBgColor, containerBg);
+  const tabBgColor   = toStr(rawConfig?.tabBgColor, "#E5E7EB");
+  const tabTextColor = toStr(rawConfig?.tabTextColor, "#374151");
+  const activeBg     = toStr(rawConfig?.tabActiveBgColor, "#111111");
+  const activeText   = toStr(rawConfig?.tabActiveTextColor, "#FFFFFF");
+  const tabFontSize  = toNum(rawConfig?.tabFontSize, 12);
+  const tabFontWt    = toFontWeight(rawConfig?.tabFontWeight, "600");
+  const tabFamily    = toStr(rawConfig?.tabFontFamily, undefined) || undefined;
 
-  // Apply all CSS styles dynamically
-  const containerStyle = convertStyles(layoutCss?.container || {});
-  const tabsRowStyle = convertStyles(layoutCss?.tabsRow || {});
-  const carouselStyle = convertStyles(layoutCss?.carousel || layoutCss?.grid || {});
-  const tabBarStyle = convertStyles(layoutCss?.tabBar || {});
-  const cardStyle = convertStyles(layoutCss?.card || {});
-  const cardTitleStyle = convertStyles(layoutCss?.cardTitle || {});
-  const priceRowStyle = convertStyles(layoutCss?.priceRow || {});
-  const mediaStyle = convertStyles(layoutCss?.media || {});
-  const tabButtonStyle = convertStyles(layoutCss?.tabButton || {});
-  const addToCartButtonStyle = convertStyles(layoutCss?.addToCartButton || {});
+  const paddingTop    = toNum(rawConfig?.paddingTop,    0);
+  const paddingBottom = toNum(rawConfig?.paddingBottom, 0);
+  const paddingLeft   = toNum(rawConfig?.paddingLeft,   16);
+  const paddingRight  = toNum(rawConfig?.paddingRight,  16);
 
-  // Extract raw config values with schema defaults
-  // Prefer "header" from JSON schema (which may be { type, value }) then fall back to "title"
-  const headerText = toString(rawConfig?.header, "");
-  const title = headerText || toString(rawConfig?.title, "");
-  const viewAllEnabled = unwrapValue(rawConfig?.viewAllEnabled, true);
-  const viewAllLabel = toString(rawConfig?.viewAllLabel, "View all");
-  const viewAllLink = toString(rawConfig?.viewAllLink, "");
-  const columns = Math.max(1, toNumber(rawConfig?.columns, 1));
-  const gridColGap = toNumber(rawConfig?.gridColGap, 28);
-  const paddingTop = toNumber(rawConfig?.paddingTop, 12);
-  const paddingBottom = toNumber(rawConfig?.paddingBottom, 12);
-  const paddingLeft = toNumber(rawConfig?.paddingLeft, 16);
-  const paddingRight = toNumber(rawConfig?.paddingRight, 16);
-  const productsPerTab = toNumber(rawConfig?.productsPerTab, 8);
-  const backgroundColor = toString(rawConfig?.backgroundColor, "#FFFFFF");
-  const cardRadius = toNumber(rawConfig?.cardBorderRadius, 12);
-  const tabBgBorderSide = toString(rawConfig?.tabBgBorderSide, "");
+  const cardRadius     = toNum(rawConfig?.cardBorderRadius, 12);
+  const imageCorner    = toNum(rawConfig?.cardImageCorner, 0);
+  const cardTitleSize  = toNum(rawConfig?.cardTitleSize, 12);
+  const cardTitleWt    = toFontWeight(rawConfig?.cardTitleWeight, "600");
+  const cardTitleFamily= toStr(rawConfig?.cardTitleFamily, undefined) || undefined;
 
-  // Extract gap from CSS or use gridColGap
-  const carouselGap = toNumber(layoutCss?.carousel?.gap, gridColGap);
-  const tabsRowGap = toNumber(layoutCss?.tabsRow?.gap, 16);
+  const showFavorite   = toBool(rawConfig?.showFavorite ?? rawConfig?.favEnabled, true);
+  const showAddToCart  = toBool(rawConfig?.showAddToCart, true);
+  const showPrice      = toBool(rawConfig?.showPrice, true);
+  const showTitleText  = toBool(rawConfig?.showTitle, true);
+  const alignText      = toStr(rawConfig?.alignText, "Left").toLowerCase();
+  const textAlign      = alignText === "center" ? "center" : alignText === "right" ? "right" : "left";
 
-  const screenWidth = Dimensions.get("window").width;
-  const horizontalPadding = paddingLeft + paddingRight;
+  // Auto text color based on bg brightness
+  const containerDark = isDark(containerBg);
+  const cardTextColor = containerDark ? "#FFFFFF" : "#111111";
+  const priceColor    = containerDark ? "#E5E7EB" : "#374151";
 
-  // columns=1 → horizontal carousel showing 2 cards at a time (matches builder metrics)
-  // columns>1 → fit N columns in available width
-  let cardWidth;
-  if (columns <= 1) {
-    cardWidth = Math.floor((screenWidth - horizontalPadding - carouselGap) / 2);
-  } else {
-    const totalGap = carouselGap * (columns - 1);
-    cardWidth = Math.max(120, (screenWidth - horizontalPadding - totalGap) / columns);
+  // Card dimensions
+  const availableW = SCREEN_W - paddingLeft - paddingRight;
+  const colGap = columns > 1 ? COL_GAP * (columns - 1) : 0;
+  const cardW = Math.floor((availableW - colGap) / columns);
+
+  const products = productsByTab[activeTabId] || [];
+  const isLoading = loadingTabId === activeTabId && products.length === 0;
+
+  // ── Build grid rows ────────────────────────────────────────────────────────
+  const rows = [];
+  for (let i = 0; i < products.length; i += columns) {
+    rows.push(products.slice(i, i + columns));
   }
 
-  const activeProducts = productsByTab[activeTabId] || [];
-
-  // Extract styles from CSS for tab button text
-  const tabButtonTextStyle = {
-    fontSize: toNumber(layoutCss?.tabButton?.fontSize, 14),
-    color: toString(layoutCss?.tabButton?.color, "#FFFFFF"),
-    fontFamily: toString(layoutCss?.tabButton?.fontFamily, "Inter"),
-    fontWeight: toFontWeight(layoutCss?.tabButton?.fontWeight, "500"),
-  };
-
-  // Extract styles from CSS for card title
-  const cardTitleTextStyle = {
-    fontSize: toNumber(layoutCss?.cardTitle?.fontSize, 14),
-    color: toString(layoutCss?.cardTitle?.color, "#111827"),
-    fontFamily: toString(layoutCss?.cardTitle?.fontFamily, "Inter"),
-    fontWeight: toFontWeight(layoutCss?.cardTitle?.fontWeight, "500"),
-    textAlign: toString(layoutCss?.cardTitle?.textAlign, "left"),
-    marginTop: toNumber(layoutCss?.cardTitle?.marginTop, 0),
-  };
-
-  // Extract styles from CSS for add to cart button text
-  const addToCartTextStyle = {
-    fontSize: toNumber(layoutCss?.addToCartButton?.fontSize, 13),
-    color: toString(layoutCss?.addToCartButton?.color, "#FFFFFF"),
-    fontFamily: toString(layoutCss?.addToCartButton?.fontFamily, "Inter"),
-    fontWeight: toFontWeight(layoutCss?.addToCartButton?.fontWeight, "600"),
-  };
-
-  // Extract media aspect ratio from CSS
-  const mediaAspectRatio = layoutCss?.media?.aspectRatio;
-  let aspectRatioValue = null;
-  if (mediaAspectRatio) {
-    const match = String(mediaAspectRatio).match(/(\d+)\s*\/\s*(\d+)/);
-    if (match) {
-      aspectRatioValue = parseFloat(match[1]) / parseFloat(match[2]);
+  // ── Handlers ───────────────────────────────────────────────────────────────
+  const handleProductPress = useCallback((product) => {
+    if (product.handle) {
+      navigation.navigate("ProductDetail", { handle: product.handle });
     }
-  }
+  }, [navigation]);
 
-  const handleViewAllPress = useCallback(() => {
-    if (!viewAllEnabled) return;
-    if (viewAllLink) {
-      navigation.navigate("BottomNavScreen", {
-        title: viewAllLabel || title || "All products",
-        link: viewAllLink.replace(/^\//, ""),
-        pageName: viewAllLink.replace(/^\//, ""),
-      });
-    }
-  }, [navigation, viewAllEnabled, viewAllLink, viewAllLabel, title]);
+  const handleAddToCart = useCallback((product) => {
+    dispatch(
+      addItem({
+        item: {
+          id: product.variantId || product.id,
+          variantId: product.variantId || "",
+          title: product.name || "",
+          image: product.image || "",
+          price: toNum(product.price, 0),
+          variant: "",
+          currency: product.currency || "",
+          quantity: 1,
+        },
+      })
+    );
+  }, [dispatch]);
 
+  const toggleFavorite = useCallback((id) => {
+    setFavorited((prev) => ({ ...prev, [id]: !prev[id] }));
+  }, []);
+
+  // ── Render ─────────────────────────────────────────────────────────────────
   return (
     <View
       style={[
         styles.container,
-        containerStyle,
         {
+          backgroundColor: containerBg,
           paddingTop,
           paddingBottom,
           paddingLeft,
           paddingRight,
-          backgroundColor,
         },
       ]}
     >
-      {title ? (
-        <>
-          <Text style={styles.title}>{title}</Text>
-          {viewAllEnabled && (
-            <TouchableOpacity
-              onPress={handleViewAllPress}
-              disabled={!viewAllLink}
-              style={styles.viewAllButton}
-            >
-              <Text
-                style={[
-                  styles.viewAllText,
-                  !viewAllLink && styles.viewAllTextDisabled,
-                ]}
-              >
-                {viewAllLabel}
-              </Text>
-            </TouchableOpacity>
-          )}
-        </>
-      ) : null}
-      
-      <View
-        style={[
-          styles.tabBar,
-          tabBarStyle,
-          tabBgBorderSide
-            ? {
-                borderTopWidth: tabBgBorderSide.includes("top") ? 1 : 0,
-                borderBottomWidth: tabBgBorderSide.includes("bottom") ? 1 : 0,
-                borderLeftWidth: tabBgBorderSide.includes("left") ? 1 : 0,
-                borderRightWidth: tabBgBorderSide.includes("right") ? 1 : 0,
-                borderColor: toString(layoutCss?.tabBar?.borderColor, "#111111"),
-              }
-            : {},
-        ]}
-      >
+      {/* ── Tab Bar ── */}
+      <View style={[styles.tabBar, { backgroundColor: tabBarBg }]}>
         <ScrollView
           horizontal
           showsHorizontalScrollIndicator={false}
-          contentContainerStyle={[
-            styles.tabsRow,
-            tabsRowStyle,
-          ]}
+          contentContainerStyle={styles.tabsRow}
         >
-          {tabs.map((tab, index) => {
+          {tabs.map((tab) => {
             const isActive = tab.id === activeTabId;
-            const activeBg = toString(layoutCss?.tabButton?.backgroundColor, "#096d70");
-            const activeColor = toString(layoutCss?.tabButton?.color, "#FFFFFF");
             return (
               <TouchableOpacity
                 key={tab.id}
                 onPress={() => setActiveTabId(tab.id)}
-                activeOpacity={0.8}
+                activeOpacity={0.75}
                 style={[
                   styles.tabButton,
                   {
-                    marginRight: index < tabs.length - 1 ? 8 : 0,
-                    borderRadius: toNumber(layoutCss?.tabButton?.borderRadius, 32),
-                    paddingTop: toNumber(layoutCss?.tabButton?.paddingTop, 8),
-                    paddingRight: toNumber(layoutCss?.tabButton?.paddingRight, 14),
-                    paddingBottom: toNumber(layoutCss?.tabButton?.paddingBottom, 8),
-                    paddingLeft: toNumber(layoutCss?.tabButton?.paddingLeft, 14),
-                    backgroundColor: isActive ? activeBg : "#FFFFFF",
-                    borderWidth: isActive ? 0 : 1,
-                    borderColor: "#E5E7EB",
+                    backgroundColor: isActive ? activeBg : tabBgColor,
                   },
                 ]}
               >
                 <Text
-                  style={[
-                    styles.tabLabel,
-                    {
-                      fontSize: toNumber(layoutCss?.tabButton?.fontSize, 12),
-                      fontFamily: toString(layoutCss?.tabButton?.fontFamily, "Inter"),
-                      fontWeight: isActive ? "600" : "500",
-                      color: isActive ? activeColor : "#374151",
-                    },
-                  ]}
+                  style={{
+                    color: isActive ? activeText : tabTextColor,
+                    fontSize: tabFontSize,
+                    fontWeight: tabFontWt,
+                    ...(tabFamily ? { fontFamily: tabFamily } : {}),
+                  }}
                 >
                   {tab.label}
                 </Text>
@@ -413,126 +310,142 @@ export default function TabProductGrid({ section }) {
         </ScrollView>
       </View>
 
-      {loadingTab === activeTabId && !activeProducts.length ? (
-        <Text style={styles.statusText}>Loading products…</Text>
+      {/* ── Product Grid ── */}
+      {isLoading ? (
+        <ActivityIndicator
+          style={{ paddingVertical: 32 }}
+          color={containerDark ? "#FFFFFF" : "#6B7280"}
+          size="small"
+        />
+      ) : products.length === 0 ? (
+        <Text style={[styles.emptyText, { color: priceColor }]}>
+          No products available
+        </Text>
       ) : (
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={[
-            styles.carousel,
-            carouselStyle,
-          ]}
-        >
-          {activeProducts.map((product, index) => (
+        <View style={styles.grid}>
+          {rows.map((row, rowIdx) => (
             <View
-              key={product.id}
+              key={rowIdx}
               style={[
-                styles.card,
-                cardStyle,
-                {
-                  width: cardWidth,
-                  marginRight: index < activeProducts.length - 1 ? carouselGap : 0,
-                  borderRadius: cardRadius || toNumber(layoutCss?.card?.borderRadius, 0),
-                  backgroundColor: toString(layoutCss?.card?.backgroundColor, "#FFFFFF"),
-                  ...(layoutCss?.card?.boxShadow && layoutCss?.card?.boxShadow !== "none"
-                    ? {
-                        shadowColor: "#000",
-                        shadowOffset: { width: 0, height: 2 },
-                        shadowOpacity: 0.1,
-                        shadowRadius: 4,
-                        elevation: 3,
-                      }
-                    : {}),
-                },
+                styles.row,
+                { marginBottom: rowIdx < rows.length - 1 ? COL_GAP : 0 },
               ]}
             >
-              <View
-                style={[
-                  styles.mediaWrapper,
-                  mediaStyle,
-                  {
-                    width: cardWidth,
-                    // Use explicit height from DSL, else aspectRatio, else square (1:1)
-                    ...(toNumber(layoutCss?.media?.height, null) != null
-                      ? { height: toNumber(layoutCss?.media?.height, cardWidth) }
-                      : aspectRatioValue
-                      ? { aspectRatio: aspectRatioValue }
-                      : { aspectRatio: 1 }),
-                    borderRadius: toNumber(layoutCss?.media?.borderRadius, 8),
-                    backgroundColor: toString(layoutCss?.media?.backgroundColor, "#F3F4F6"),
-                  },
-                ]}
-              >
-                {product.image ? (
-                  <Image source={{ uri: product.image }} style={styles.image} />
-                ) : (
-                  <View style={styles.imagePlaceholder}>
-                    <Text style={styles.placeholderText}>Image</Text>
-                  </View>
-                )}
-              </View>
-
-              <View style={styles.cardContent}>
-                <Text numberOfLines={2} style={[styles.cardTitle, cardTitleStyle, cardTitleTextStyle]}>
-                  {product.name}
-                </Text>
-
-                <View
-                  style={[
-                    styles.priceRow,
-                    priceRowStyle,
-                    {
-                      marginTop: toNumber(layoutCss?.priceRow?.marginTop, 0),
-                      alignItems: toString(layoutCss?.priceRow?.alignItems, "baseline"),
-                      justifyContent: toString(layoutCss?.priceRow?.justifyContent, "flex-start"),
-                    },
-                  ]}
-                >
-                  <Text style={styles.priceText}>
-                    {product.currency} {product.price}
-                  </Text>
-                </View>
-
-                <TouchableOpacity
-                  style={[
-                    styles.addToCartButton,
-                    addToCartButtonStyle,
-                    {
-                      borderRadius: toNumber(layoutCss?.addToCartButton?.borderRadius, 8),
-                      paddingTop: toNumber(layoutCss?.addToCartButton?.paddingTop, 6),
-                      paddingRight: toNumber(layoutCss?.addToCartButton?.paddingRight, 10),
-                      paddingBottom: toNumber(layoutCss?.addToCartButton?.paddingBottom, 6),
-                      paddingLeft: toNumber(layoutCss?.addToCartButton?.paddingLeft, 10),
-                      alignSelf: "stretch",
-                      alignItems: "center",
-                    },
-                  ]}
-                  onPress={() =>
-                    dispatch(
-                      addItem({
-                        item: {
-                          id: product.variantId || product.id,
-                          variantId: product.variantId || "",
-                          title: product.name || "Product Name",
-                          image: product.image || "",
-                          price: toNumber(product.price, 0),
-                          variant: "",
-                          currency: product.currency || "",
-                          quantity: 1,
+              {row.map((product, colIdx) => {
+                const isFav = !!favorited[product.id];
+                const inStock = product.availableForSale !== false;
+                return (
+                  <TouchableOpacity
+                    key={product.id}
+                    activeOpacity={0.9}
+                    onPress={() => handleProductPress(product)}
+                    style={[
+                      styles.card,
+                      {
+                        width: cardW,
+                        borderRadius: cardRadius,
+                        backgroundColor: containerBg,
+                        marginRight: colIdx < row.length - 1 ? COL_GAP : 0,
+                      },
+                    ]}
+                  >
+                    {/* Image + Favourite */}
+                    <View
+                      style={[
+                        styles.imageWrapper,
+                        {
+                          width: cardW,
+                          height: cardW,
+                          borderTopLeftRadius: cardRadius,
+                          borderTopRightRadius: cardRadius,
+                          borderBottomLeftRadius: imageCorner,
+                          borderBottomRightRadius: imageCorner,
                         },
-                      })
-                    )
-                  }
-                >
-                  <Text style={[styles.addToCartLabel, addToCartTextStyle]}>
-                    Add to cart
-                  </Text>
-                </TouchableOpacity>
-              </View>
+                      ]}
+                    >
+                      {product.image ? (
+                        <Image
+                          source={{ uri: product.image }}
+                          style={styles.image}
+                          resizeMode="cover"
+                        />
+                      ) : (
+                        <View style={styles.imagePlaceholder} />
+                      )}
+
+                      {showFavorite && (
+                        <TouchableOpacity
+                          style={styles.favBtn}
+                          activeOpacity={0.8}
+                          onPress={() => toggleFavorite(product.id)}
+                          hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+                        >
+                          <Text style={[styles.favIcon, isFav && styles.favIconActive]}>
+                            {isFav ? "♥" : "♡"}
+                          </Text>
+                        </TouchableOpacity>
+                      )}
+                    </View>
+
+                    {/* Card content */}
+                    <View style={styles.cardContent}>
+                      {showTitleText && (
+                        <Text
+                          numberOfLines={2}
+                          style={[
+                            styles.cardTitle,
+                            {
+                              color: cardTextColor,
+                              fontSize: cardTitleSize,
+                              fontWeight: cardTitleWt,
+                              textAlign,
+                              ...(cardTitleFamily ? { fontFamily: cardTitleFamily } : {}),
+                            },
+                          ]}
+                        >
+                          {product.name}
+                        </Text>
+                      )}
+
+                      {showPrice && product.price && (
+                        <Text style={[styles.priceText, { color: priceColor, textAlign }]}>
+                          {product.currency} {parseFloat(product.price).toFixed(1)}
+                        </Text>
+                      )}
+
+                      {showAddToCart && (
+                        <TouchableOpacity
+                          activeOpacity={inStock ? 0.8 : 1}
+                          disabled={!inStock}
+                          onPress={() => inStock && handleAddToCart(product)}
+                          style={[
+                            styles.cartBtn,
+                            inStock ? styles.cartBtnActive : styles.cartBtnSoldOut,
+                          ]}
+                        >
+                          <Text
+                            style={[
+                              styles.cartBtnText,
+                              inStock ? styles.cartBtnTextActive : styles.cartBtnTextSoldOut,
+                            ]}
+                          >
+                            {inStock ? "Add to cart" : "Out of stock"}
+                          </Text>
+                        </TouchableOpacity>
+                      )}
+                    </View>
+                  </TouchableOpacity>
+                );
+              })}
+
+              {/* Fill empty slots in last row so columns align */}
+              {row.length < columns &&
+                Array.from({ length: columns - row.length }).map((_, i) => (
+                  <View key={`empty-${i}`} style={{ width: cardW }} />
+                ))}
             </View>
           ))}
-        </ScrollView>
+        </View>
       )}
     </View>
   );
@@ -542,40 +455,33 @@ const styles = StyleSheet.create({
   container: {
     width: "100%",
   },
-  title: {
-    fontSize: 18,
-    fontWeight: "700",
-    color: "#111827",
-    marginBottom: 4,
-  },
-  tabsRow: {
-    flexDirection: "row",
-  },
   tabBar: {
     marginBottom: 12,
   },
+  tabsRow: {
+    flexDirection: "row",
+    gap: 6,
+    paddingVertical: 8,
+  },
   tabButton: {
-    // Styles will be applied from CSS
+    paddingVertical: 7,
+    paddingHorizontal: 14,
+    borderRadius: 999,
   },
-  tabLabel: {
-    // Styles will be applied from CSS
+  grid: {
+    width: "100%",
   },
-  statusText: {
-    textAlign: "center",
-    color: "#6B7280",
-    paddingVertical: 12,
-  },
-  carousel: {
+  row: {
     flexDirection: "row",
     alignItems: "stretch",
   },
   card: {
     overflow: "hidden",
-    marginBottom: 12,
   },
-  mediaWrapper: {
-    width: "100%",
+  imageWrapper: {
     overflow: "hidden",
+    backgroundColor: "#F3F4F6",
+    position: "relative",
   },
   image: {
     width: "100%",
@@ -584,51 +490,71 @@ const styles = StyleSheet.create({
   },
   imagePlaceholder: {
     flex: 1,
+    backgroundColor: "#E5E7EB",
+  },
+  favBtn: {
+    position: "absolute",
+    top: 7,
+    right: 7,
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: "#FFFFFF",
     alignItems: "center",
     justifyContent: "center",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.15,
+    shadowRadius: 3,
+    elevation: 3,
   },
-  placeholderText: {
-    fontSize: 12,
+  favIcon: {
+    fontSize: 14,
     color: "#9CA3AF",
+    lineHeight: 16,
+  },
+  favIconActive: {
+    color: "#EF4444",
   },
   cardContent: {
+    paddingHorizontal: 8,
     paddingTop: 8,
-    paddingHorizontal: 6,
     paddingBottom: 10,
-    gap: 6,
-    flexGrow: 1,
+    gap: 5,
   },
   cardTitle: {
-    // Styles will be applied from CSS
-  },
-  priceRow: {
-    flexDirection: "row",
-    alignItems: "center",
+    lineHeight: 17,
   },
   priceText: {
     fontSize: 12,
     fontWeight: "600",
-    color: "#111827",
   },
-  addToCartButton: {
-    alignSelf: "flex-start",
-    // Styles will be applied from CSS
+  cartBtn: {
+    marginTop: 2,
+    paddingVertical: 7,
+    paddingHorizontal: 8,
+    borderRadius: 6,
+    alignItems: "center",
   },
-  addToCartLabel: {
-    // Styles will be applied from CSS
+  cartBtnActive: {
+    backgroundColor: "#111111",
   },
-  viewAllButton: {
-    paddingHorizontal: 0,
-    paddingVertical: 4,
-    alignSelf: "flex-start",
-    marginBottom: 12,
+  cartBtnSoldOut: {
+    backgroundColor: "#374151",
   },
-  viewAllText: {
-    fontSize: 13,
-    color: "#2563EB",
+  cartBtnText: {
+    fontSize: 11,
     fontWeight: "600",
   },
-  viewAllTextDisabled: {
-    opacity: 0.5,
+  cartBtnTextActive: {
+    color: "#FFFFFF",
+  },
+  cartBtnTextSoldOut: {
+    color: "#9CA3AF",
+  },
+  emptyText: {
+    textAlign: "center",
+    paddingVertical: 24,
+    fontSize: 13,
   },
 });

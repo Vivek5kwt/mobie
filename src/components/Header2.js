@@ -354,9 +354,9 @@ export default function Header2({ section }) {
   const paddingRawNode = alignmentNode.paddingRaw?.properties || alignmentNode.paddingRaw || {};
 
   const containerPadding = {
-    paddingTop: resolveValue(paddingRawNode.pt, 16),
+    paddingTop: resolveValue(paddingRawNode.pt, 22),
     paddingRight: resolveValue(paddingRawNode.pr, 16),
-    paddingBottom: Math.max(resolveValue(paddingRawNode.pb, 20) ?? 20, 20),
+    paddingBottom: Math.max(resolveValue(paddingRawNode.pb, 26) ?? 26, 26),
     paddingLeft: resolveValue(paddingRawNode.pl, 16),
   };
 

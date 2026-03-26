@@ -10,6 +10,20 @@ const normalizeIconName = (name) => {
   return String(name).replace(/^fa[srldb]?[-_]?/, "");
 };
 
+// Unwrap DSL-wrapped values like { value: "..." } or { const: "..." }
+const resolveVal = (v) => {
+  if (v && typeof v === "object") {
+    if (v.value !== undefined) return v.value;
+    if (v.const !== undefined) return v.const;
+  }
+  return v;
+};
+
+const resolveArray = (v) => {
+  const u = resolveVal(v);
+  return Array.isArray(u) ? u : [];
+};
+
 export default function HeaderDefault({ config, bottomNavSection }) {
   const navigation = useNavigation();
   const navSection = bottomNavSection || bottomNavigationStyle1Section;
@@ -23,25 +37,16 @@ export default function HeaderDefault({ config, bottomNavSection }) {
 
   if (!config) return null;
 
-  // Unwrap DSL value if needed, then check enabled
-  const resolveVal = (v) => {
-    if (v && typeof v === "object") {
-      if (v.value !== undefined) return v.value;
-      if (v.const !== undefined) return v.const;
-    }
-    return v;
-  };
+  // enabled check
   const enabledRaw = resolveVal(config.enabled);
-  // enabled: true  → show the bar
-  // enabled: false → hide the bar
   if (enabledRaw !== true && enabledRaw !== "true" && enabledRaw !== 1) return null;
 
-  console.log("[HeaderDefault] rendering config:", JSON.stringify(config));
+  const bgColor      = resolveVal(config.backgroundColor) || "#e6d7cd";
+  const textColor    = resolveVal(config.textColor)       || "#111111";
+  const iconColor    = resolveVal(config.iconColor)       || "#000000";
+  const titleText    = resolveVal(config.title)           || "";
 
-  const bgColor = resolveVal(config.backgroundColor) || "#e6d7cd";
-  const textColor = resolveVal(config.textColor) || "#111111";
-  const iconColor = resolveVal(config.iconColor) || "#000000";
-
+  // Resolve nav items for cart / bell tap
   const resolveNavItems = (rawSection) => {
     if (!rawSection) return [];
     const rawProps =
@@ -59,16 +64,13 @@ export default function HeaderDefault({ config, bottomNavSection }) {
     const items = resolveNavItems(navSection);
     const normalized = String(target || "").trim().toLowerCase();
     let idx = items.findIndex((item) => {
-      const id = String(item?.id || "").toLowerCase();
-      const label = String(
-        item?.label ?? item?.title ?? item?.name ?? item?.text ?? ""
-      ).toLowerCase();
+      const id    = String(item?.id    || "").toLowerCase();
+      const label = String(item?.label ?? item?.title ?? item?.name ?? item?.text ?? "").toLowerCase();
       return id.includes(normalized) || label.includes(normalized);
     });
     if (idx < 0) idx = target === "cart" ? 1 : 2;
-    const item = items[idx];
-    const title =
-      item?.label || item?.title || item?.name || (target === "cart" ? "Cart" : "Notifications");
+    const item  = items[idx];
+    const title = item?.label || item?.title || item?.name || (target === "cart" ? "Cart" : "Notifications");
     const rawLink = item?.link ?? item?.href ?? item?.url ?? "";
     const link = typeof rawLink === "string" ? rawLink.replace(/^\//, "") : "";
     navigation.dispatch(
@@ -76,38 +78,113 @@ export default function HeaderDefault({ config, bottomNavSection }) {
     );
   };
 
+  // ── Flat DSL structure: { title, showBell, showCart, iconColor, textColor, bgColor }
+  // ── Array DSL structure: { left: [...], center: [...], right: [...] }
+  const leftItems   = resolveArray(config.left);
+  const centerItems = resolveArray(config.center);
+  const rightItems  = resolveArray(config.right);
+  const useFlatMode = leftItems.length === 0 && centerItems.length === 0 && rightItems.length === 0;
+
+  if (useFlatMode) {
+    // ── FLAT MODE: render title on left, icons on right ───────────────────────
+    const showBell = resolveVal(config.showBell) === true || resolveVal(config.showBell) === "true";
+    const showCart = resolveVal(config.showCart) === true || resolveVal(config.showCart) === "true" || resolveVal(config.showCart) === undefined;
+
+    return (
+      <View
+        style={{
+          flexDirection: "row",
+          alignItems: "center",
+          justifyContent: "space-between",
+          backgroundColor: bgColor,
+          paddingVertical: 10,
+          paddingHorizontal: 16,
+          minHeight: 48,
+        }}
+      >
+        {/* Brand title */}
+        <Text
+          style={{
+            fontSize: 18,
+            fontWeight: "700",
+            color: textColor,
+            flex: 1,
+          }}
+          numberOfLines={1}
+        >
+          {titleText}
+        </Text>
+
+        {/* Right icons */}
+        <View style={{ flexDirection: "row", alignItems: "center", gap: 16 }}>
+          {showBell && (
+            <TouchableOpacity
+              activeOpacity={0.7}
+              onPress={() => openNavTarget("notification")}
+            >
+              <Icon name="bell" size={20} color={iconColor} />
+            </TouchableOpacity>
+          )}
+          {showCart && (
+            <TouchableOpacity
+              activeOpacity={0.7}
+              onPress={() => openNavTarget("cart")}
+              style={{ position: "relative" }}
+            >
+              <Icon name="cart-shopping" size={20} color={iconColor} />
+              {cartCount > 0 && (
+                <View
+                  style={{
+                    position: "absolute",
+                    top: -5,
+                    right: -7,
+                    backgroundColor: "#EF4444",
+                    borderRadius: 8,
+                    minWidth: 16,
+                    height: 16,
+                    alignItems: "center",
+                    justifyContent: "center",
+                    paddingHorizontal: 3,
+                  }}
+                >
+                  <Text style={{ color: "#FFFFFF", fontSize: 9, fontWeight: "700" }}>
+                    {cartCount > 99 ? "99+" : String(cartCount)}
+                  </Text>
+                </View>
+              )}
+            </TouchableOpacity>
+          )}
+        </View>
+      </View>
+    );
+  }
+
+  // ── ARRAY MODE: render left / center / right item arrays ─────────────────
   const renderItem = (item, idx) => {
     if (!item) return null;
 
-    const itemType = String(item.type || "").toLowerCase();
-    const itemIconName = normalizeIconName(item.icon || "");
-    const itemTitle = item.title || item.text || "";
-    const itemIconSize = item.iconSize ? Number(item.iconSize) : 18;
-    const itemIconColor = item.iconColor || iconColor;
-
-    // Per-item text styling
-    const itemFontSize = item.textSize ? Number(item.textSize) : 13;
-    const itemFontWeight = item.textBold
-      ? "700"
-      : item.textWeight
-        ? String(item.textWeight)
-        : "500";
-    const itemFontFamily = item.textFontFamily || undefined;
-    const itemFontStyle = item.textItalic ? "italic" : "normal";
+    const itemType        = String(item.type || "").toLowerCase();
+    const itemIconName    = normalizeIconName(item.icon || "");
+    const itemTitle       = item.title || item.text || "";
+    const itemIconSize    = item.iconSize ? Number(item.iconSize) : 18;
+    const itemIconColor   = item.iconColor || iconColor;
+    const itemFontSize    = item.textSize   ? Number(item.textSize)  : 13;
+    const itemFontWeight  = item.textBold   ? "700" : item.textWeight ? String(item.textWeight) : "600";
+    const itemFontFamily  = item.textFontFamily || undefined;
+    const itemFontStyle   = item.textItalic ? "italic" : "normal";
     let itemTextDecoration = "none";
     if (item.textUnderline && item.textStrikethrough) itemTextDecoration = "underline line-through";
-    else if (item.textUnderline) itemTextDecoration = "underline";
-    else if (item.textStrikethrough) itemTextDecoration = "line-through";
+    else if (item.textUnderline)                       itemTextDecoration = "underline";
+    else if (item.textStrikethrough)                   itemTextDecoration = "line-through";
 
-    const isCart = itemIconName.includes("cart");
-    const isBell = itemIconName.includes("bell");
-    const showBadge = isCart && cartCount > 0;
+    const isCart  = itemIconName.includes("cart");
+    const isBell  = itemIconName.includes("bell");
+    const showBadge   = isCart && cartCount > 0;
     const isInteractive = isCart || isBell;
 
-    // For "icon" type: show icon only (title is metadata)
-    // For "text" type: show icon (if present) + text
-    const showIcon = !!itemIconName;
-    const showTitle = itemType === "text" && !!itemTitle;
+    const showIcon  = !!itemIconName;
+    // Show title for any type except pure "icon" type
+    const showTitle = itemType !== "icon" && !!itemTitle;
 
     if (!showIcon && !showTitle) return null;
 
@@ -183,14 +260,6 @@ export default function HeaderDefault({ config, bottomNavSection }) {
     );
   };
 
-  const resolveArray = (v) => {
-    const unwrapped = resolveVal(v);
-    return Array.isArray(unwrapped) ? unwrapped : [];
-  };
-  const leftItems = resolveArray(config.left);
-  const rightItems = resolveArray(config.right);
-  const centerItems = resolveArray(config.center);
-
   return (
     <View
       style={{
@@ -198,8 +267,9 @@ export default function HeaderDefault({ config, bottomNavSection }) {
         alignItems: "center",
         justifyContent: "space-between",
         backgroundColor: bgColor,
-        paddingVertical: 8,
+        paddingVertical: 10,
         paddingHorizontal: 16,
+        minHeight: 48,
       }}
     >
       {/* Left */}

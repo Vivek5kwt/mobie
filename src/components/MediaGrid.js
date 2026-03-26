@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Dimensions,
@@ -61,15 +61,118 @@ const deriveWeight = (value, fallback = "700") => {
   return String(resolved);
 };
 
-const parseAspectRatio = (value, fallback = 1) => {
+// Returns null for "Auto" (caller should use Image.getSize instead)
+const parseAspectRatio = (value) => {
   const resolved = unwrapValue(value, undefined);
-  if (!resolved || typeof resolved !== "string") return fallback;
-  const parts = resolved.split(":").map((p) => parseFloat(p.trim()));
-  if (parts.length === 2 && !Number.isNaN(parts[0]) && !Number.isNaN(parts[1])) {
+  if (!resolved || typeof resolved !== "string") return null;
+  const trimmed = resolved.trim().toLowerCase();
+  if (!trimmed || trimmed === "auto") return null;
+  const parts = trimmed.split(":").map((p) => parseFloat(p.trim()));
+  if (parts.length === 2 && !Number.isNaN(parts[0]) && !Number.isNaN(parts[1]) && parts[1] > 0) {
     return parts[0] / parts[1];
   }
-  return fallback;
+  const n = parseFloat(trimmed);
+  return Number.isNaN(n) || n <= 0 ? null : n;
 };
+
+// Sub-component that resolves image natural size when no fixed aspect ratio is given
+function MediaCard({
+  item,
+  cardWidth,
+  fixedAspectRatio,   // null → use Image.getSize
+  cardRadius,
+  showCardTitle,
+  cardTitleColor,
+  cardTitleSize,
+  cardTitleWeight,
+  cardTitleAlign,
+  cardStyle,
+  mediaStyle,
+  gap,
+  onPress,
+}) {
+  const [naturalRatio, setNaturalRatio] = useState(16 / 9); // landscape fallback while loading
+  const didFetch = useRef(false);
+
+  useEffect(() => {
+    if (fixedAspectRatio !== null || !item.src || didFetch.current) return;
+    didFetch.current = true;
+    Image.getSize(
+      item.src,
+      (w, h) => { if (w > 0 && h > 0) setNaturalRatio(w / h); },
+      () => {} // keep fallback on error
+    );
+  }, [item.src, fixedAspectRatio]);
+
+  const ratio = fixedAspectRatio !== null ? fixedAspectRatio : naturalRatio;
+  const imageHeight = Math.round(cardWidth / ratio);
+
+  return (
+    <TouchableOpacity
+      activeOpacity={item.src ? 0.88 : 1}
+      onPress={onPress}
+      style={[
+        styles.card,
+        cardStyle,
+        { width: cardWidth, borderRadius: cardRadius, overflow: "hidden" },
+      ]}
+    >
+      {/* Image */}
+      <View
+        style={[
+          styles.mediaContainer,
+          { width: cardWidth, height: imageHeight, borderRadius: cardRadius },
+        ]}
+      >
+        {item.src ? (
+          <Image
+            source={{ uri: item.src }}
+            style={[styles.media, mediaStyle]}
+            resizeMode="cover"
+          />
+        ) : (
+          <View style={[styles.placeholder, mediaStyle]}>
+            <Text style={styles.placeholderText}>
+              {item.title ? item.title.charAt(0).toUpperCase() : "?"}
+            </Text>
+          </View>
+        )}
+        {item.badge ? (
+          <View style={styles.badge}>
+            <Text style={styles.badgeText}>{item.badge}</Text>
+          </View>
+        ) : null}
+      </View>
+
+      {/* Card title */}
+      {showCardTitle && !!item.title && (
+        <Text
+          numberOfLines={2}
+          style={[
+            styles.cardTitle,
+            {
+              color: cardTitleColor,
+              fontSize: cardTitleSize,
+              fontWeight: toBoolean(item.titleBold, false) ? "700" : cardTitleWeight,
+              fontStyle: toBoolean(item.titleItalic, false) ? "italic" : "normal",
+              textDecorationLine: toBoolean(item.titleUnderline, false) ? "underline" : "none",
+              textAlign: cardTitleAlign,
+              padding: 8,
+            },
+          ]}
+        >
+          {item.title}
+        </Text>
+      )}
+
+      {!!item.subtitle && (
+        <Text style={[styles.subtitle, { textAlign: cardTitleAlign, paddingHorizontal: 8 }]}>
+          {item.subtitle}
+        </Text>
+      )}
+    </TouchableOpacity>
+  );
+}
 
 const normalizeItems = (rawItems) => {
   let source = [];
@@ -131,7 +234,8 @@ export default function MediaGrid({ section }) {
   const columns = Math.max(1, toNumber(rawProps?.columns, 2));
   const gap = toNumber(rawProps?.cardGap, 8);
   const cardRadius = toNumber(rawProps?.cardRadius, 8);
-  const cardAspectRatio = parseAspectRatio(rawProps?.cardAspectRatio, 4 / 5);
+  // null means "Auto" — MediaCard will call Image.getSize per item
+  const cardAspectRatio = parseAspectRatio(rawProps?.cardAspectRatio);
 
   const showHeader = toBoolean(rawProps?.showHeader, true);
   const headerText = unwrapValue(
@@ -247,103 +351,63 @@ export default function MediaGrid({ section }) {
   const buttonRowStyle = convertStyles(layoutCss?.buttonRow || {});
 
   const contentPadding = {
-    paddingTop: toNumber(rawProps?.pt, 16),
+    paddingTop: toNumber(rawProps?.pt, 0),
     paddingRight: toNumber(rawProps?.pr, 16),
-    paddingBottom: toNumber(rawProps?.pb, 16),
+    paddingBottom: toNumber(rawProps?.pb, 0),
     paddingLeft: toNumber(rawProps?.pl, 16),
   };
 
-  const cardWidth = () => {
-    const screenWidth = Dimensions.get("window").width;
-    const horizontalPadding = (contentPadding.paddingLeft || 0) + (contentPadding.paddingRight || 0);
-    const totalGap = gap * (columns - 1);
-    return (screenWidth - horizontalPadding - totalGap) / columns;
+  const screenWidth = Dimensions.get("window").width;
+  const horizontalPadding = (contentPadding.paddingLeft || 0) + (contentPadding.paddingRight || 0);
+  const totalGap = gap * (columns - 1);
+  const computedCardWidth = (screenWidth - horizontalPadding - totalGap) / columns;
+
+  const handleItemPress = (item) => {
+    const ref  = (item.navigateRef  || "").trim();
+    const type = (item.navigateType || "").trim().toLowerCase();
+    if (ref && type) {
+      if (type === "collection") navigation.navigate("CollectionProducts", { handle: ref });
+      else if (type === "product") navigation.navigate("ProductDetail", { handle: ref });
+      else if (type === "allproducts" || type === "all_products") navigation.navigate("AllProducts");
+      else if (type === "route") navigation.navigate(ref);
+    } else if (item.handle) {
+      navigation.navigate("ProductDetail", { handle: item.handle });
+    }
+    // href / linkTo links → no-op in native (no browser)
   };
 
   const renderItem = ({ item }) => (
-    <TouchableOpacity
-      activeOpacity={0.85}
-      onPress={() => navigation.navigate("ProductDetail", { product: item })}
-    >
-    <View
-      style={[
-        styles.card,
-        cardStyle,
-        {
-          width: cardWidth(),
-          marginBottom: gap,
-          borderRadius: cardRadius,
-          overflow: "hidden",
-          backgroundColor: cardStyle.backgroundColor || "#F3F4F6",
-        },
-      ]}
-    >
-      {toBoolean(rawProps?.showMediaImage, true) && (
-        <View
-          style={[
-            styles.mediaContainer,
-            {
-              width: "100%",
-              aspectRatio: cardAspectRatio,
-              borderRadius: cardRadius,
-            },
-          ]}
-        >
-          {item.src ? (
-            <Image
-              source={{ uri: item.src }}
-              style={[styles.media, mediaStyle]}
-              resizeMode="cover"
-            />
-          ) : (
-            <View style={[styles.placeholder, mediaStyle]}>
-              <Text style={styles.placeholderText}>
-                {item.title ? item.title.charAt(0).toUpperCase() : "?"}
-              </Text>
-            </View>
-          )}
-          {item.badge ? (
-            <View style={styles.badge}>
-              <Text style={styles.badgeText}>{item.badge}</Text>
-            </View>
-          ) : null}
-        </View>
-      )}
-
-      {showCardTitle && (
-        <Text
-          numberOfLines={2}
-          style={[
-            styles.cardTitle,
-            cardTitleStyle,
-            {
-              color: cardTitleColor,
-              fontSize: cardTitleSize,
-              fontWeight: toBoolean(item.titleBold, false) ? "700" : cardTitleWeight,
-              fontStyle: toBoolean(item.titleItalic, false) ? "italic" : "normal",
-              textDecorationLine: toBoolean(item.titleUnderline, false) ? "underline" : "none",
-              textAlign: cardTitleAlign,
-              padding: 8,
-            },
-          ]}
-        >
-          {item.title}
-        </Text>
-      )}
-
-      {item.subtitle ? (
-        <Text style={[styles.subtitle, { textAlign: cardTitleAlign, paddingHorizontal: 8 }]}>
-          {item.subtitle}
-        </Text>
-      ) : null}
-    </View>
-    </TouchableOpacity>
+    <MediaCard
+      item={item}
+      cardWidth={computedCardWidth}
+      fixedAspectRatio={cardAspectRatio}
+      cardRadius={cardRadius}
+      showCardTitle={showCardTitle}
+      cardTitleColor={cardTitleColor}
+      cardTitleSize={cardTitleSize}
+      cardTitleWeight={cardTitleWeight}
+      cardTitleAlign={cardTitleAlign}
+      cardStyle={cardStyle}
+      mediaStyle={mediaStyle}
+      gap={gap}
+      onPress={() => handleItemPress(item)}
+    />
   );
 
   if (!resolvedItems.length && !isLoading && !loadError) return null;
 
+  // borderRadius from CSS (e.g. "12px" → 12) wins over the default stylesheet value
+  const containerBorderRadius = containerStyle?.borderRadius ?? 12;
+
   return (
-    <View style={[styles.container, { backgroundColor: bgColor }, containerStyle, contentPadding]}>
+    <View
+      style={[
+        styles.container,
+        { backgroundColor: bgColor, borderRadius: containerBorderRadius },
+        containerStyle,
+        contentPadding,
+      ]}
+    >
       {showHeader && (
         <Text
           style={[
@@ -380,7 +444,7 @@ export default function MediaGrid({ section }) {
           renderItem={renderItem}
           keyExtractor={(item) => item.id}
           numColumns={columns}
-          columnWrapperStyle={{ columnGap: gap }}
+          columnWrapperStyle={columns > 1 ? { columnGap: gap } : undefined}
           contentContainerStyle={[{ rowGap: gap }, gridStyle]}
           scrollEnabled={false}
         />

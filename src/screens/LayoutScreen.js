@@ -184,20 +184,35 @@ export default function LayoutScreen({ route }) {
     }
   }, []); // Only run once on mount - never recalculate
 
+  // Check if headerdefault config is enabled (same logic as HeaderDefault component)
+  const isHeaderDefaultEnabled = useMemo(() => {
+    if (!headerDefaultConfig) return false;
+    const cfg = headerDefaultConfig;
+    const raw = cfg?.enabled;
+    const v = (raw && typeof raw === "object")
+      ? (raw.value ?? raw.const ?? raw)
+      : raw;
+    return v === true || v === "true" || v === 1;
+  }, [headerDefaultConfig]);
+
   const visibleSections = useMemo(
     () =>
       sortedSections.filter(
         (section) => {
           const component = getComponentName(section).toLowerCase();
-          return ![
+          if ([
             "side_navigation",
             "bottom_navigation",
             "bottom_navigation_style_1",
             "bottom_navigation_style_2",
-          ].includes(component);
+          ].includes(component)) return false;
+          // When HeaderDefault is active on home page, suppress plain DSL header to avoid double bar
+          // header_2 is a different widget (greeting + search + profile) — keep it visible
+          if (isHomePage && isHeaderDefaultEnabled && ["header", "header_mobile"].includes(component)) return false;
+          return true;
         }
       ),
-    [sortedSections]
+    [sortedSections, isHomePage, isHeaderDefaultEnabled]
   );
 
   const showSnackbar = (message, type = "info") => {
@@ -559,7 +574,7 @@ export default function LayoutScreen({ route }) {
           showsVerticalScrollIndicator
           contentContainerStyle={[
             styles.scrollContent,
-            { flexGrow: 1, paddingBottom: stableBottomNavSection ? 88 : 24 },
+            { paddingBottom: stableBottomNavSection ? 70 : 0 },
           ]}
           keyboardShouldPersistTaps="handled"
           refreshControl={
@@ -690,7 +705,7 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     paddingHorizontal: 0,
-    paddingBottom: 24,
+    paddingBottom: 0,
   },
   bottomNav: {
     position: "absolute",
@@ -699,7 +714,7 @@ const styles = StyleSheet.create({
     bottom: 0,
   },
   sectionWrapper: {
-    marginBottom: 10,
+    marginBottom: 0,
   },
   sectionWrapperTight: {
     marginBottom: 0,

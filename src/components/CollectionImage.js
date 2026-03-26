@@ -67,20 +67,26 @@ const deriveFontWeight = (input, fallback = "700") => {
 
 export default function CollectionImage({ section }) {
   const navigation = useNavigation();
-  const rawProps =
-    section?.props ||
-    section?.properties?.props?.properties ||
-    section?.properties?.props ||
-    {};
+
+  // Memoize rawProps keyed on section so any DSL refresh triggers recomputation
+  const rawProps = useMemo(
+    () =>
+      section?.props ||
+      section?.properties?.props?.properties ||
+      section?.properties?.props ||
+      {},
+    [section]
+  );
 
   const layoutCss = rawProps?.layout?.properties?.css || rawProps?.layout?.css || {};
   const behavior = rawProps?.behavior?.properties || rawProps?.behavior || {};
   const headerCfg = rawProps?.header?.properties || rawProps?.header || {};
   const cardCfg = rawProps?.card?.properties || rawProps?.card || {};
 
+  // Re-build collections whenever rawProps changes (i.e. whenever DSL refreshes)
   const collections = useMemo(
     () => buildCollections(rawProps?.collections || {}),
-    [rawProps?.collections]
+    [rawProps]
   );
   const [shopifyCollections, setShopifyCollections] = useState([]);
 
@@ -148,8 +154,8 @@ export default function CollectionImage({ section }) {
 
   const containerCfg = rawProps?.container?.properties || rawProps?.container || {};
   const bgColor = unwrapValue(containerCfg?.bgColor, "#FFFFFF");
-  const containerPt = asNumber(containerCfg?.pt, 8);
-  const containerPb = asNumber(containerCfg?.pb, 8);
+  const containerPt = asNumber(containerCfg?.pt, 0);
+  const containerPb = asNumber(containerCfg?.pb, 0);
   const containerPl = asNumber(containerCfg?.pl, 0);
   const containerPr = asNumber(containerCfg?.pr, 0);
 
@@ -160,16 +166,34 @@ export default function CollectionImage({ section }) {
   const collectionsLimit = asNumber(rawProps?.collectionsLimit, 12);
   const resolvedCollections = collections.length ? collections : shopifyCollections;
   const isSliderEnabled = resolvedCollections.length > 1;
+  // Derive a Shopify-style handle from a title string
+  // e.g. "Automated Collection" → "automated-collection"
+  const deriveHandleFromTitle = (title) => {
+    if (!title) return "";
+    return String(title)
+      .toLowerCase()
+      .trim()
+      .replace(/[^a-z0-9\s-]/g, "")
+      .replace(/\s+/g, "-")
+      .replace(/-+/g, "-")
+      .replace(/^-|-$/g, "");
+  };
+
   const resolveCollectionHandle = (item) => {
+    // 1. Explicit handle field
     if (item?.handle) return item.handle;
+    // 2. Link field — extract handle from /collections/<handle>
     const link = item?.link || "";
-    if (!link) return "";
-    const marker = "/collections/";
-    if (link.includes(marker)) {
-      const handle = link.split(marker)[1] || "";
-      return handle.split(/[?#/]/)[0];
+    if (link) {
+      const marker = "/collections/";
+      if (link.includes(marker)) {
+        const h = link.split(marker)[1] || "";
+        return h.split(/[?#/]/)[0];
+      }
+      return link;
     }
-    return link;
+    // 3. Fallback: derive from title (Shopify standard convention)
+    return deriveHandleFromTitle(item?.title);
   };
 
   const handleCollectionPress = (item) => {
@@ -181,11 +205,14 @@ export default function CollectionImage({ section }) {
     });
   };
 
+  // Reset scroll position whenever the collection list itself changes
   useEffect(() => {
     indexRef.current = 0;
     setCurrentIndex(0);
-  }, [resolvedCollections.length]);
+    scrollRef.current?.scrollTo({ x: 0, animated: false });
+  }, [collections]);
 
+  // Fetch from Shopify only when DSL has no collections
   useEffect(() => {
     if (collections.length) return;
 
@@ -212,7 +239,7 @@ export default function CollectionImage({ section }) {
     return () => {
       isMounted = false;
     };
-  }, [collections.length, collectionsLimit]);
+  }, [rawProps, collectionsLimit]);
 
   useEffect(() => {
     if (!autoScrollEnabled || !isSliderEnabled) return undefined;
@@ -369,7 +396,6 @@ export default function CollectionImage({ section }) {
 
 const styles = StyleSheet.create({
   container: {
-    padding: 12,
     backgroundColor: "#FFFFFF",
   },
   header: {
