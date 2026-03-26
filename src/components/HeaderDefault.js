@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState } from "react";
 import { Text, TouchableOpacity, View } from "react-native";
 import { StackActions, useNavigation } from "@react-navigation/native";
 import Icon from "react-native-vector-icons/FontAwesome6";
@@ -35,18 +35,37 @@ export default function HeaderDefault({ config, bottomNavSection }) {
     }, 0)
   );
 
+  // Tabs active index — must be a hook (called before any early returns)
+  const [activeTabIdx, setActiveTabIdx] = useState(
+    Number.isFinite(Number(config?.activeTabIndex)) ? Number(config.activeTabIndex) : 0
+  );
+
   if (!config) return null;
 
   // enabled check
   const enabledRaw = resolveVal(config.enabled);
   if (enabledRaw !== true && enabledRaw !== "true" && enabledRaw !== 1) return null;
 
-  const bgColor      = resolveVal(config.backgroundColor) || "#e6d7cd";
-  const textColor    = resolveVal(config.textColor)       || "#111111";
-  const iconColor    = resolveVal(config.iconColor)       || "#000000";
-  const titleText    = resolveVal(config.title)           || "";
+  // ── Global style tokens ───────────────────────────────────────────────────
+  // bgColor falls back to bgColor field in case backgroundColor is absent
+  const bgColor   = resolveVal(config.backgroundColor) || resolveVal(config.bgColor) || "#e6d7cd";
+  const textColor = resolveVal(config.textColor)       || "#111111";
+  const iconColor = resolveVal(config.iconColor)       || "#000000";
+  const titleText = resolveVal(config.title)           || "";
 
-  // Resolve nav items for cart / bell tap
+  // ── Tab bar tokens ────────────────────────────────────────────────────────
+  const tabs              = resolveArray(config.tabs);
+  const multiTab          = resolveVal(config.multiTab) === true || resolveVal(config.multiTab) === "true";
+  const showTabs          = multiTab && tabs.length > 0;
+  const tabBgColor        = resolveVal(config.tabBgColor)        || "#ffffff";
+  // Active tab color: if activeTextColor matches tabBgColor (invisible), fall back to bgColor
+  const rawActiveTabColor = resolveVal(config.activeTextColor)   || bgColor;
+  const activeTabColor    = rawActiveTabColor.toLowerCase() === tabBgColor.toLowerCase()
+    ? bgColor
+    : rawActiveTabColor;
+  const inactiveTabColor  = resolveVal(config.inactiveTextColor) || "#9CA3AF";
+
+  // ── Nav helpers ───────────────────────────────────────────────────────────
   const resolveNavItems = (rawSection) => {
     if (!rawSection) return [];
     const rawProps =
@@ -78,6 +97,47 @@ export default function HeaderDefault({ config, bottomNavSection }) {
     );
   };
 
+  // ── Tab bar (shared between flat and array mode) ──────────────────────────
+  const tabBar = showTabs ? (
+    <View
+      style={{
+        flexDirection: "row",
+        backgroundColor: tabBgColor,
+        paddingHorizontal: 4,
+        borderBottomWidth: 1,
+        borderBottomColor: "rgba(0,0,0,0.06)",
+      }}
+    >
+      {tabs.map((tab, idx) => {
+        const isActive = idx === activeTabIdx;
+        const label = tab.label || `Tab ${idx + 1}`;
+        return (
+          <TouchableOpacity
+            key={tab.id || String(idx)}
+            style={{
+              paddingVertical: 10,
+              paddingHorizontal: 14,
+              borderBottomWidth: 2,
+              borderBottomColor: isActive ? activeTabColor : "transparent",
+            }}
+            activeOpacity={0.75}
+            onPress={() => setActiveTabIdx(idx)}
+          >
+            <Text
+              style={{
+                fontSize: 14,
+                fontWeight: isActive ? "700" : "500",
+                color: isActive ? activeTabColor : inactiveTabColor,
+              }}
+            >
+              {label}
+            </Text>
+          </TouchableOpacity>
+        );
+      })}
+    </View>
+  ) : null;
+
   // ── Flat DSL structure: { title, showBell, showCart, iconColor, textColor, bgColor }
   // ── Array DSL structure: { left: [...], center: [...], right: [...] }
   const leftItems   = resolveArray(config.left);
@@ -91,70 +151,75 @@ export default function HeaderDefault({ config, bottomNavSection }) {
     const showCart = resolveVal(config.showCart) === true || resolveVal(config.showCart) === "true" || resolveVal(config.showCart) === undefined;
 
     return (
-      <View
-        style={{
-          flexDirection: "row",
-          alignItems: "center",
-          justifyContent: "space-between",
-          backgroundColor: bgColor,
-          paddingVertical: 10,
-          paddingHorizontal: 16,
-          minHeight: 48,
-        }}
-      >
-        {/* Brand title */}
-        <Text
+      <View>
+        <View
           style={{
-            fontSize: 18,
-            fontWeight: "700",
-            color: textColor,
-            flex: 1,
+            flexDirection: "row",
+            alignItems: "center",
+            justifyContent: "space-between",
+            backgroundColor: bgColor,
+            paddingVertical: 10,
+            paddingHorizontal: 16,
+            minHeight: 48,
           }}
-          numberOfLines={1}
         >
-          {titleText}
-        </Text>
+          {/* Brand title */}
+          <Text
+            style={{
+              fontSize: 18,
+              fontWeight: "700",
+              color: textColor,
+              flex: 1,
+            }}
+            numberOfLines={1}
+          >
+            {titleText}
+          </Text>
 
-        {/* Right icons */}
-        <View style={{ flexDirection: "row", alignItems: "center", gap: 16 }}>
-          {showBell && (
-            <TouchableOpacity
-              activeOpacity={0.7}
-              onPress={() => openNavTarget("notification")}
-            >
-              <Icon name="bell" size={20} color={iconColor} />
-            </TouchableOpacity>
-          )}
-          {showCart && (
-            <TouchableOpacity
-              activeOpacity={0.7}
-              onPress={() => openNavTarget("cart")}
-              style={{ position: "relative" }}
-            >
-              <Icon name="cart-shopping" size={20} color={iconColor} />
-              {cartCount > 0 && (
-                <View
-                  style={{
-                    position: "absolute",
-                    top: -5,
-                    right: -7,
-                    backgroundColor: "#EF4444",
-                    borderRadius: 8,
-                    minWidth: 16,
-                    height: 16,
-                    alignItems: "center",
-                    justifyContent: "center",
-                    paddingHorizontal: 3,
-                  }}
-                >
-                  <Text style={{ color: "#FFFFFF", fontSize: 9, fontWeight: "700" }}>
-                    {cartCount > 99 ? "99+" : String(cartCount)}
-                  </Text>
-                </View>
-              )}
-            </TouchableOpacity>
-          )}
+          {/* Right icons */}
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 16 }}>
+            {showBell && (
+              <TouchableOpacity
+                activeOpacity={0.7}
+                onPress={() => openNavTarget("notification")}
+              >
+                <Icon name="bell" size={20} color={iconColor} />
+              </TouchableOpacity>
+            )}
+            {showCart && (
+              <TouchableOpacity
+                activeOpacity={0.7}
+                onPress={() => openNavTarget("cart")}
+                style={{ position: "relative" }}
+              >
+                <Icon name="cart-shopping" size={20} color={iconColor} />
+                {cartCount > 0 && (
+                  <View
+                    style={{
+                      position: "absolute",
+                      top: -5,
+                      right: -7,
+                      backgroundColor: "#EF4444",
+                      borderRadius: 8,
+                      minWidth: 16,
+                      height: 16,
+                      alignItems: "center",
+                      justifyContent: "center",
+                      paddingHorizontal: 3,
+                    }}
+                  >
+                    <Text style={{ color: "#FFFFFF", fontSize: 9, fontWeight: "700" }}>
+                      {cartCount > 99 ? "99+" : String(cartCount)}
+                    </Text>
+                  </View>
+                )}
+              </TouchableOpacity>
+            )}
+          </View>
         </View>
+
+        {/* Tab bar (shown below header when multiTab + tabs configured) */}
+        {tabBar}
       </View>
     );
   }
@@ -168,6 +233,8 @@ export default function HeaderDefault({ config, bottomNavSection }) {
     const itemTitle       = item.title || item.text || "";
     const itemIconSize    = item.iconSize ? Number(item.iconSize) : 18;
     const itemIconColor   = item.iconColor || iconColor;
+    // Use item-level textColor first, then fall back to global textColor
+    const itemTextColor   = item.textColor || textColor;
     const itemFontSize    = item.textSize   ? Number(item.textSize)  : 13;
     const itemFontWeight  = item.textBold   ? "700" : item.textWeight ? String(item.textWeight) : "600";
     const itemFontFamily  = item.textFontFamily || undefined;
@@ -218,7 +285,7 @@ export default function HeaderDefault({ config, bottomNavSection }) {
       <Text
         key="text"
         style={{
-          color: textColor,
+          color: itemTextColor,
           fontSize: itemFontSize,
           fontWeight: itemFontWeight,
           fontStyle: itemFontStyle,
@@ -261,33 +328,39 @@ export default function HeaderDefault({ config, bottomNavSection }) {
   };
 
   return (
-    <View
-      style={{
-        flexDirection: "row",
-        alignItems: "center",
-        justifyContent: "space-between",
-        backgroundColor: bgColor,
-        paddingVertical: 10,
-        paddingHorizontal: 16,
-        minHeight: 48,
-      }}
-    >
-      {/* Left */}
-      <View style={{ flexDirection: "row", alignItems: "center", gap: 8, flex: 1 }}>
-        {leftItems.map(renderItem)}
-      </View>
-
-      {/* Center */}
-      {centerItems.length > 0 && (
-        <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-          {centerItems.map(renderItem)}
+    <View>
+      {/* Main header row */}
+      <View
+        style={{
+          flexDirection: "row",
+          alignItems: "center",
+          justifyContent: "space-between",
+          backgroundColor: bgColor,
+          paddingVertical: 10,
+          paddingHorizontal: 16,
+          minHeight: 48,
+        }}
+      >
+        {/* Left */}
+        <View style={{ flexDirection: "row", alignItems: "center", gap: 8, flex: 1 }}>
+          {leftItems.map(renderItem)}
         </View>
-      )}
 
-      {/* Right */}
-      <View style={{ flexDirection: "row", alignItems: "center", gap: 12, justifyContent: "flex-end" }}>
-        {rightItems.map(renderItem)}
+        {/* Center */}
+        {centerItems.length > 0 && (
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+            {centerItems.map(renderItem)}
+          </View>
+        )}
+
+        {/* Right */}
+        <View style={{ flexDirection: "row", alignItems: "center", gap: 12, justifyContent: "flex-end" }}>
+          {rightItems.map(renderItem)}
+        </View>
       </View>
+
+      {/* Tab bar (shown below header when multiTab + tabs configured) */}
+      {tabBar}
     </View>
   );
 }
