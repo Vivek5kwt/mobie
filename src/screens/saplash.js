@@ -1,10 +1,18 @@
 import React, { useEffect, useRef, useState } from "react";
-import { View, StyleSheet, Animated, Text, Image } from "react-native";
+import {
+  View,
+  StyleSheet,
+  Animated,
+  Text,
+  Image,
+  Dimensions,
+} from "react-native";
 import LinearGradient from "react-native-linear-gradient";
 import { useNavigation } from "@react-navigation/native";
 import { useAuth } from "../services/AuthContext";
 import { getAppNameSync, getAppLogoSync } from "../utils/appInfo";
 
+const { height } = Dimensions.get("window");
 const DEFAULT_LOGO = require("../assets/logo/mobidraglogo.png");
 
 export default function SplashScreen() {
@@ -13,59 +21,110 @@ export default function SplashScreen() {
   const [appName, setAppName] = useState("MobiDrag");
   const [logoSource, setLogoSource] = useState(DEFAULT_LOGO);
 
-  const fadeAnim = useRef(new Animated.Value(0)).current;
-  const scaleAnim = useRef(new Animated.Value(0.4)).current;
-  const circleScale = useRef(new Animated.Value(0)).current;
+  // ── Animations ───────────────────────────────────────────────
+  const logoFade    = useRef(new Animated.Value(0)).current;
+  const logoScale   = useRef(new Animated.Value(0.65)).current;
+  const ring1Scale  = useRef(new Animated.Value(0.5)).current;
+  const ring1Opacity= useRef(new Animated.Value(0.5)).current;
+  const ring2Scale  = useRef(new Animated.Value(0.5)).current;
+  const ring2Opacity= useRef(new Animated.Value(0.3)).current;
+  const taglineFade = useRef(new Animated.Value(0)).current;
+  const taglineSlide= useRef(new Animated.Value(18)).current;
+  const dot1        = useRef(new Animated.Value(0.2)).current;
+  const dot2        = useRef(new Animated.Value(0.2)).current;
+  const dot3        = useRef(new Animated.Value(0.2)).current;
+  const footerFade  = useRef(new Animated.Value(0)).current;
 
-  // Load app info on mount
+  // ── Load dynamic app info ─────────────────────────────────────
   useEffect(() => {
-    const loadAppInfo = async () => {
-      try {
-        const name = getAppNameSync();
-        const logoUrl = getAppLogoSync();
-        
-        setAppName(name);
-        
-        if (logoUrl && logoUrl.trim() !== "") {
-          setLogoSource({ uri: logoUrl });
-        } else {
-          setLogoSource(DEFAULT_LOGO);
-        }
-      } catch (error) {
-        console.log("Error loading app info:", error);
-        setAppName("MobiDrag");
-        setLogoSource(DEFAULT_LOGO);
+    try {
+      const name = getAppNameSync();
+      const logoUrl = getAppLogoSync();
+      setAppName(name);
+      if (logoUrl && logoUrl.trim() !== "") {
+        setLogoSource({ uri: logoUrl });
       }
-    };
-    
-    loadAppInfo();
+    } catch (_) {}
   }, []);
 
+  // ── Run animations ────────────────────────────────────────────
   useEffect(() => {
+    // Logo springs in
     Animated.parallel([
-      Animated.timing(fadeAnim, {
+      Animated.timing(logoFade, {
         toValue: 1,
-        duration: 900,
+        duration: 600,
         useNativeDriver: true,
       }),
-
-      Animated.spring(scaleAnim, {
+      Animated.spring(logoScale, {
         toValue: 1,
-        friction: 5,
-        tension: 60,
-        useNativeDriver: true,
-      }),
-
-      Animated.timing(circleScale, {
-        toValue: 1,
-        duration: 1500,
+        friction: 6,
+        tension: 65,
         useNativeDriver: true,
       }),
     ]).start();
 
+    // Pulsing rings (loop)
+    const pulseRing = (scale, opacity, duration, delay) => {
+      Animated.loop(
+        Animated.sequence([
+          Animated.delay(delay),
+          Animated.parallel([
+            Animated.timing(scale, { toValue: 1.5, duration, useNativeDriver: true }),
+            Animated.timing(opacity, { toValue: 0.04, duration, useNativeDriver: true }),
+          ]),
+          Animated.parallel([
+            Animated.timing(scale, { toValue: 0.6, duration, useNativeDriver: true }),
+            Animated.timing(opacity, { toValue: 0.4, duration, useNativeDriver: true }),
+          ]),
+        ])
+      ).start();
+    };
+    pulseRing(ring1Scale, ring1Opacity, 1800, 0);
+    pulseRing(ring2Scale, ring2Opacity, 2000, 500);
+
+    // Tagline slides up after logo
+    setTimeout(() => {
+      Animated.parallel([
+        Animated.timing(taglineFade, {
+          toValue: 1,
+          duration: 550,
+          useNativeDriver: true,
+        }),
+        Animated.timing(taglineSlide, {
+          toValue: 0,
+          duration: 550,
+          useNativeDriver: true,
+        }),
+      ]).start();
+    }, 650);
+
+    // Footer fades in
+    setTimeout(() => {
+      Animated.timing(footerFade, {
+        toValue: 1,
+        duration: 700,
+        useNativeDriver: true,
+      }).start();
+    }, 1100);
+
+    // Sequentially bouncing dots
+    const animateDot = (dot, delay) => {
+      Animated.loop(
+        Animated.sequence([
+          Animated.delay(delay),
+          Animated.timing(dot, { toValue: 1, duration: 350, useNativeDriver: true }),
+          Animated.timing(dot, { toValue: 0.2, duration: 350, useNativeDriver: true }),
+          Animated.delay(700),
+        ])
+      ).start();
+    };
+    animateDot(dot1, 0);
+    animateDot(dot2, 220);
+    animateDot(dot3, 440);
+
     if (initializing) return;
 
-    // After animation → always navigate directly to the main layout
     const timeout = setTimeout(() => {
       navigation.reset({ index: 0, routes: [{ name: "LayoutScreen" }] });
     }, 3000);
@@ -75,49 +134,67 @@ export default function SplashScreen() {
 
   return (
     <LinearGradient
-      colors={["#F7F9FF", "#E7EEFF", "#D7E2FF"]}
+      colors={["#0B1426", "#12224A", "#1B3068"]}
+      start={{ x: 0.1, y: 0 }}
+      end={{ x: 0.9, y: 1 }}
       style={styles.container}
     >
-      {/* Glowing expanding circle */}
+      {/* Pulsing background rings */}
       <Animated.View
         style={[
-          styles.circle,
-          {
-            transform: [{ scale: circleScale }],
-            opacity: circleScale.interpolate({
-              inputRange: [0, 1],
-              outputRange: [0.4, 0.1],
-            }),
-          },
+          styles.ring,
+          { width: 300, height: 300, transform: [{ scale: ring1Scale }], opacity: ring1Opacity },
+        ]}
+      />
+      <Animated.View
+        style={[
+          styles.ring,
+          { width: 450, height: 450, transform: [{ scale: ring2Scale }], opacity: ring2Opacity },
         ]}
       />
 
+      {/* Logo + branding */}
       <Animated.View
         style={[
           styles.brandBox,
-          {
-            opacity: fadeAnim,
-            transform: [{ scale: scaleAnim }],
-          },
+          { opacity: logoFade, transform: [{ scale: logoScale }] },
         ]}
       >
-        <Image 
-          source={logoSource} 
-          style={styles.logo}
-          onError={() => setLogoSource(DEFAULT_LOGO)}
-        />
+        {/* Glow card around logo */}
+        <View style={styles.logoCard}>
+          <Image
+            source={logoSource}
+            style={styles.logo}
+            onError={() => setLogoSource(DEFAULT_LOGO)}
+          />
+        </View>
 
         <Text style={styles.appName}>{appName}</Text>
-        <Text style={styles.tagline}>Create. Drag. Build.</Text>
+
+        <Animated.Text
+          style={[
+            styles.tagline,
+            { opacity: taglineFade, transform: [{ translateY: taglineSlide }] },
+          ]}
+        >
+          BUILD · LAUNCH · SELL
+        </Animated.Text>
       </Animated.View>
 
-      <Text style={styles.footerText}>
-        Empowering Everyone To Build Apps
-      </Text>
+      {/* Loading dots */}
+      <View style={styles.dotsRow}>
+        <Animated.View style={[styles.dot, { opacity: dot1 }]} />
+        <Animated.View style={[styles.dot, { opacity: dot2 }]} />
+        <Animated.View style={[styles.dot, { opacity: dot3 }]} />
+      </View>
+
+      {/* Footer */}
+      <Animated.Text style={[styles.footer, { opacity: footerFade }]}>
+        Powered by MobiDrag
+      </Animated.Text>
     </LinearGradient>
   );
 }
-
 
 const styles = StyleSheet.create({
   container: {
@@ -126,52 +203,74 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
 
-  circle: {
+  ring: {
     position: "absolute",
-    width: 340,
-    height: 340,
-    backgroundColor: "#9BB0FF",
-    borderRadius: 200,
-    opacity: 0.3,
-    zIndex: -1,
+    borderRadius: 9999,
+    borderWidth: 1.5,
+    borderColor: "#5B82FF",
   },
 
   brandBox: {
     alignItems: "center",
   },
 
+  logoCard: {
+    width: 128,
+    height: 128,
+    borderRadius: 32,
+    backgroundColor: "rgba(91, 130, 255, 0.12)",
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 28,
+    // Glow
+    shadowColor: "#5B82FF",
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.7,
+    shadowRadius: 32,
+    elevation: 14,
+  },
+
   logo: {
-    width: 200,
-    height: 200,
+    width: 88,
+    height: 88,
     resizeMode: "contain",
-    marginBottom: 12,
-    shadowColor: "#3C4A8A",
-    shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 0.18,
-    shadowRadius: 18,
-    elevation: 8,
   },
 
   appName: {
-    fontSize: 34,
-    color: "#1F2A4B",
-    fontWeight: "700",
-    letterSpacing: 1.2,
-    marginTop: 16,
+    fontSize: 38,
+    color: "#FFFFFF",
+    fontWeight: "800",
+    letterSpacing: 2,
     textAlign: "center",
   },
 
   tagline: {
-    fontSize: 16,
-    marginTop: 8,
-    color: "#5A6BA8",
-    letterSpacing: 0.5,
+    fontSize: 12,
+    color: "#7B9EFF",
+    letterSpacing: 4,
+    marginTop: 12,
+    fontWeight: "600",
   },
 
-  footerText: {
+  dotsRow: {
+    flexDirection: "row",
     position: "absolute",
-    bottom: 40,
-    color: "#6B7BB3",
-    fontSize: 13
+    bottom: height * 0.13,
+    gap: 9,
+  },
+
+  dot: {
+    width: 7,
+    height: 7,
+    borderRadius: 4,
+    backgroundColor: "#5B82FF",
+  },
+
+  footer: {
+    position: "absolute",
+    bottom: height * 0.055,
+    color: "rgba(255, 255, 255, 0.22)",
+    fontSize: 12,
+    letterSpacing: 1.2,
   },
 });
