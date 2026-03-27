@@ -128,15 +128,18 @@ export default function BannerSlider({ section }) {
   );
 
   // ── Container ──
-  const bgColor = rp?.bgColor || "#FFFFFF";
+  // Read bgColor and padding from rawProps first, then fall back to style.properties
+  const styleProp = rawProps?.style || {};
+  const bgColor = rp?.bgColor || styleProp?.bgColor || "#FFFFFF";
   const bannerHeight = asNumber(rp?.bannerHeight, 200);
   const bannerRadius = asNumber(rp?.bannerRadius ?? rp?.imageCorner, 0);
 
-  // Outer container padding (wraps the whole slider in the page)
-  const containerPt = asNumber(rp?.pt, 0);
-  const containerPb = asNumber(rp?.pb, 0);
-  const containerPl = asNumber(rp?.pl, 0);
-  const containerPr = asNumber(rp?.pr, 0);
+  // Outer container padding — primary: rawProps.pt/pb/pl/pr, fallback: style.paddingRaw
+  const paddingRaw = styleProp?.paddingRaw || {};
+  const containerPt = asNumber(rp?.pt ?? paddingRaw?.pt, 0);
+  const containerPb = asNumber(rp?.pb ?? paddingRaw?.pb, 0);
+  const containerPl = asNumber(rp?.pl ?? paddingRaw?.pl, 0);
+  const containerPr = asNumber(rp?.pr ?? paddingRaw?.pr, 0);
 
   // Slide content padding (text area inside the banner)
   const slidePl = asNumber(rp?.boxPl, 16);
@@ -196,13 +199,20 @@ export default function BannerSlider({ section }) {
   const indicatorSize = asNumber(rp?.indicatorSize, 7);
   const indicatorColor = rp?.indicatorColor || "rgba(1,109,119,0.35)";
   const indicatorSelectedColor = rp?.indicatorSelectedColor || "#FFFFFF";
+  // "inside" = dots overlaid at the bottom of the banner image; "bottom" = below the banner
+  const indicatorPosition = (rp?.indicatorPosition || layoutCss?.slider?.indicatorPosition || "bottom").toLowerCase();
+  const indicatorsInside = indicatorPosition === "inside" || indicatorPosition === "inside-bottom";
 
   // ── Scroll state ──
   const scrollRef = useRef(null);
   const indexRef = useRef(0);
   const [currentIndex, setCurrentIndex] = useState(0);
   const scrollX = useRef(new Animated.Value(0)).current;
-  const [containerWidth, setContainerWidth] = useState(Dimensions.get("window").width);
+  // Initialize containerWidth already accounting for outer padding so first render
+  // matches post-onLayout size — prevents image from appearing clipped on initial paint.
+  const [containerWidth, setContainerWidth] = useState(
+    Math.max(Dimensions.get("window").width - containerPl - containerPr, 1)
+  );
 
   useEffect(() => {
     indexRef.current = 0;
@@ -389,12 +399,34 @@ export default function BannerSlider({ section }) {
               ) : null}
             </View>
             ) : null}
+
+            {/* Dots overlaid inside the banner (indicatorPosition: "inside") */}
+            {indicatorsInside && showDots && slides.length > 1 ? (
+              <View style={styles.dotsInside}>
+                {slides.map((_, dotIdx) => {
+                  const isActive = dotIdx === currentIndex;
+                  return (
+                    <View
+                      key={`dot-in-${dotIdx}`}
+                      style={{
+                        width: indicatorSize,
+                        height: indicatorSize,
+                        borderRadius: indicatorSize / 2,
+                        backgroundColor: isActive ? indicatorSelectedColor : indicatorColor,
+                        marginHorizontal: 3,
+                      }}
+                    />
+                  );
+                })}
+              </View>
+            ) : null}
           </View>
           );
         })}
       </Animated.ScrollView>
 
-      {showDots && slides.length > 1 ? (
+      {/* Dots below the banner (indicatorPosition: "bottom" or default) */}
+      {!indicatorsInside && showDots && slides.length > 1 ? (
         <View style={styles.dotsRow}>
           {slides.map((_, idx) => {
             const isActive = idx === currentIndex;
@@ -419,7 +451,8 @@ export default function BannerSlider({ section }) {
 
 const styles = StyleSheet.create({
   wrapper: {
-    overflow: "hidden",
+    // No overflow:hidden here — bgColor must paint in padding areas.
+    // Each slide clips itself via overflow:hidden + borderRadius.
   },
   scrollView: {
     flexGrow: 0,
@@ -458,5 +491,16 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
     paddingVertical: 8,
+  },
+  // Dots overlaid at the bottom-center of the banner image
+  dotsInside: {
+    position: "absolute",
+    bottom: 10,
+    left: 0,
+    right: 0,
+    flexDirection: "row",
+    justifyContent: "center",
+    alignItems: "center",
+    zIndex: 10,
   },
 });
