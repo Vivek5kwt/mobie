@@ -460,11 +460,13 @@ export default function HeroBanner({ section }) {
   if (!hasVisibleContent) return null;
 
   // Calculate container height:
-  // - If an explicit numeric height is provided, use it.
-  // - Otherwise, let content determine the height dynamically so the image
-  //   always expands behind all text (no clipping when text is taller).
+  // 1. Explicit numeric height from DSL style/CSS (highest priority)
+  // 2. Metrics container height — builder-defined pixel height (use when CSS says "auto")
+  // 3. No fixed height — container grows with content
   const numericContainerHeight = containerHeight !== "auto"
     ? toNumber(containerHeight, undefined)
+    : metricsAvailable && metricElements?.container?.height
+    ? toNumber(metricElements.container.height, undefined)
     : undefined;
 
   const containerHeightStyle = numericContainerHeight
@@ -515,10 +517,11 @@ export default function HeroBanner({ section }) {
       <View
         style={[
           styles.content,
-          hasAbsoluteMetrics ? styles.absoluteContentLayer : null,
           {
             alignItems: alignSettingsEnabled ? alignItems : "center",
-            paddingTop: alignSettingsEnabled ? paddingTop : 40,
+            paddingTop: alignSettingsEnabled
+              ? paddingTop > 0 ? paddingTop : (numericContainerHeight ? 0 : 40)
+              : 40,
             paddingRight: alignSettingsEnabled ? paddingRight : 30,
             paddingBottom: alignSettingsEnabled ? paddingBottom : 50,
             paddingLeft: alignSettingsEnabled ? paddingLeft : 30,

@@ -25,6 +25,18 @@ import { resolveAppId } from "../utils/appId";
 import { useAuth } from "../services/AuthContext";
 import { setHeaderDefault } from "../services/headerDefaultService";
 
+// ── Module-level cache ────────────────────────────────────────────────────────
+// Survives re-mounts within the same JS session.
+// Key: "<appId>:<pageName>"  Value: { dsl, bottomNavSection, headerDefaultConfig }
+// This prevents a blank screen + missing bottom nav when LayoutScreen remounts
+// (e.g. tapping Home tab causes navigate() to push a new instance on some paths).
+const _pageCache = {};
+
+function _cacheKey(appId, pageName) {
+  return `${appId}:${String(pageName || "home").trim().toLowerCase()}`;
+}
+// ─────────────────────────────────────────────────────────────────────────────
+
 export default function LayoutScreen({ route }) {
   const { session } = useAuth();
   const pageName = route?.params?.pageName || "home";
@@ -44,9 +56,15 @@ export default function LayoutScreen({ route }) {
       resolveAppId(route?.params?.appId ?? session?.user?.appId ?? session?.user?.app_id),
     [route?.params?.appId, session?.user?.appId, session?.user?.app_id]
   );
-  const [dsl, setDsl] = useState(null);
-  const [headerDefaultConfig, setHeaderDefaultConfig] = useState(null);
-  const [loading, setLoading] = useState(true);
+
+  // Read from module-level cache so remounts show content instantly (no blank screen)
+  const cacheKey = _cacheKey(appId, normalizedPageName);
+  const cached = _pageCache[cacheKey] ?? null;
+
+  const [dsl, setDsl] = useState(() => cached?.dsl ?? null);
+  const [headerDefaultConfig, setHeaderDefaultConfig] = useState(() => cached?.headerDefaultConfig ?? null);
+  // Only show loading spinner on first mount when there is no cached content
+  const [loading, setLoading] = useState(() => !cached?.dsl);
   const [err, setErr] = useState(null);
   const [refreshing, setRefreshing] = useState(false);
   const [homeHeaderSections, setHomeHeaderSections] = useState([]);
@@ -58,8 +76,8 @@ export default function LayoutScreen({ route }) {
   const sideMenuTranslateX = useRef(new Animated.Value(-SIDE_MENU_WIDTH)).current;
   // Store bottom navigation section separately to prevent it from refreshing
   const bottomNavSectionRef = useRef(null);
-  // State to hold bottom nav section - only updates when JSON actually changes
-  const [stableBottomNavSection, setStableBottomNavSection] = useState(null);
+  // Initialize bottom nav from cache immediately — never shows blank on remount
+  const [stableBottomNavSection, setStableBottomNavSection] = useState(() => cached?.bottomNavSection ?? null);
 
   useEffect(() => {
     if (__DEV__) {
@@ -321,6 +339,15 @@ export default function LayoutScreen({ route }) {
         }
         versionRef.current = dslData.versionNumber ?? null;
         if (withFeedback) showSnackbar("Live layout refreshed", "success");
+
+        // Keep module-level cache in sync so future remounts are instant
+        _pageCache[cacheKey] = {
+          ..._pageCache[cacheKey],
+          dsl: _pageCache[cacheKey]?.dsl ?? null,
+          bottomNavSection: bottomNavUpdated
+            ? bottomNavSectionRef.current
+            : (_pageCache[cacheKey]?.bottomNavSection ?? null),
+        };
       }
     } catch (e) {
       console.log("❌ Refresh error:", e);
@@ -337,7 +364,10 @@ export default function LayoutScreen({ route }) {
   // Load DSL on mount
   const loadDSL = async () => {
     try {
-      setLoading(true);
+      // Only show spinner if there is no cached content to show yet
+      if (!_pageCache[cacheKey]?.dsl) {
+        setLoading(true);
+      }
       setErr(null);
 
       const dslData = await fetchDSL(appId, pageName);
@@ -352,12 +382,13 @@ export default function LayoutScreen({ route }) {
         ? baseDsl
         : ensureHeaderSections(baseDsl, homeHeaderSections);
       setDsl(nextDsl);
-      if (dslData.dsl?.headerdefault !== undefined) {
-        setHeaderDefault(dslData.dsl.headerdefault);
-        setHeaderDefaultConfig(dslData.dsl.headerdefault);
+      const hdrDefault = dslData.dsl?.headerdefault;
+      if (hdrDefault !== undefined) {
+        setHeaderDefault(hdrDefault);
+        setHeaderDefaultConfig(hdrDefault);
       }
       versionRef.current = dslData.versionNumber ?? null;
-      
+
       // Cache the bottom navigation section on initial load
       const bottomNav = (nextDsl.sections || []).find(
         (section) => {
@@ -371,14 +402,19 @@ export default function LayoutScreen({ route }) {
       );
       if (bottomNav) {
         bottomNavSectionRef.current = bottomNav;
-        setStableBottomNavSection(bottomNav); // Set state on initial load
+        setStableBottomNavSection(bottomNav);
       }
 
-      console.log(
-        `================ LIVE DSL OUTPUT ================\n`,
-        JSON.stringify(dslData.dsl, null, 2),
-        "\n================================================="
-      );
+      // ── Persist to module-level cache so remounts show instantly ──
+      _pageCache[cacheKey] = {
+        dsl: nextDsl,
+        bottomNavSection: bottomNav ?? _pageCache[cacheKey]?.bottomNavSection ?? null,
+        headerDefaultConfig: hdrDefault !== undefined ? hdrDefault : (_pageCache[cacheKey]?.headerDefaultConfig ?? null),
+      };
+
+      if (__DEV__) {
+        console.log(`================ LIVE DSL OUTPUT ================`);
+      }
 
     } catch (e) {
       setErr(e.message);

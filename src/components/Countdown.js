@@ -1,5 +1,5 @@
 import React, { PureComponent } from "react";
-import { Image, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { ImageBackground, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import LinearGradient from "react-native-linear-gradient";
 import FontAwesome from "react-native-vector-icons/FontAwesome";
 import { convertStyles, extractGradientInfo } from "../utils/convertStyles";
@@ -372,6 +372,9 @@ class Countdown extends PureComponent {
     const showButton = asBoolean(rawProps?.showButton, true) && !!buttonLabel;
     const showIcon = asBoolean(rawProps?.showIcon, true) && !!iconName;
     const showImage = asBoolean(rawProps?.showImage, false);
+    const imageUrl = showImage
+      ? unwrapValue(rawProps?.image ?? rawProps?.imageUrl ?? rawProps?.backgroundImage, null)
+      : null;
 
     const ContainerComponent = gradientInfo ? LinearGradient : View;
     const containerProps = gradientInfo
@@ -392,19 +395,9 @@ class Countdown extends PureComponent {
       { key: "seconds", label: "SEC" },
     ];
 
-    return (
-      <ContainerComponent
-        style={[styles.container, enhancedContainerStyle]}
-        {...containerProps}
-      >
-        {showImage && rawProps?.image ? (
-          <Image
-            source={{ uri: unwrapValue(rawProps.image) }}
-            style={{ width: "100%", height: 120, borderRadius: 8, marginBottom: 12 }}
-            resizeMode="cover"
-          />
-        ) : null}
-
+    // ── Inner content (header, timer, subtext, button) ────────────────────────
+    const innerContent = (
+      <>
         <View style={showIcon ? styles.headerRow : styles.headerRowNoIcon}>
           {showIcon && (
             <View style={[styles.iconWrap, iconStyle, iconBgColor ? { backgroundColor: iconBgColor } : null]}>
@@ -426,45 +419,39 @@ class Countdown extends PureComponent {
         </View>
 
         {showTimer && (
-          <View style={styles.timerGrid}>
-            {[[timerUnits[0], timerUnits[1]], [timerUnits[2], timerUnits[3]]].map(
-              (row, rowIdx) => (
-                <View key={rowIdx} style={styles.timerRow}>
-                  {row.map(({ key, label }) => (
-                    <View key={key} style={styles.timerSegment}>
-                      <View
-                        style={[
-                          styles.timerValueBox,
-                          timerBackgroundColor
-                            ? { backgroundColor: timerBackgroundColor }
-                            : null,
-                          timerBoxRadius ? { borderRadius: timerBoxRadius } : null,
-                          timerHeight
-                            ? { height: timerHeight }
-                            : timerStyleHeight
-                              ? { height: timerStyleHeight }
-                              : null,
-                        ]}
-                      >
-                        <Text
-                          style={[
-                            styles.timerValue,
-                            { color: timerValueColor },
-                            timerFontSize != null ? { fontSize: timerFontSize } : null,
-                            timerFontWeight ? { fontWeight: timerFontWeight } : null,
-                          ]}
-                        >
-                          {renderTimerValue(resolvedCountdown[key])}
-                        </Text>
-                      </View>
-                      <Text style={[styles.timerLabel, { color: timerLabelColor }]}>
-                        {label}
-                      </Text>
-                    </View>
-                  ))}
+          <View style={styles.timerRow}>
+            {timerUnits.map(({ key, label }) => (
+              <View key={key} style={styles.timerSegment}>
+                <View
+                  style={[
+                    styles.timerValueBox,
+                    timerBackgroundColor
+                      ? { backgroundColor: timerBackgroundColor }
+                      : null,
+                    timerBoxRadius ? { borderRadius: timerBoxRadius } : null,
+                    timerHeight
+                      ? { height: timerHeight }
+                      : timerStyleHeight
+                        ? { height: timerStyleHeight }
+                        : null,
+                  ]}
+                >
+                  <Text
+                    style={[
+                      styles.timerValue,
+                      { color: timerValueColor },
+                      timerFontSize != null ? { fontSize: timerFontSize } : null,
+                      timerFontWeight ? { fontWeight: timerFontWeight } : null,
+                    ]}
+                  >
+                    {renderTimerValue(resolvedCountdown[key])}
+                  </Text>
                 </View>
-              )
-            )}
+                <Text style={[styles.timerLabel, { color: timerLabelColor }]}>
+                  {label}
+                </Text>
+              </View>
+            ))}
           </View>
         )}
 
@@ -516,6 +503,51 @@ class Countdown extends PureComponent {
             </Text>
           </TouchableOpacity>
         )}
+      </>
+    );
+
+    // ── When a background image is configured, overlay the content on top ─────
+    // The ImageBackground must be full-width (no horizontal padding on the outer
+    // container). Padding is moved to an inner View so the image extends edge-to-edge.
+    if (imageUrl) {
+      const imageCornerRadius = asNumber(
+        rawProps?.imageCorner ?? rawProps?.imageCornerRadius,
+        enhancedContainerStyle.borderRadius ?? 0
+      );
+      // Collect content padding separately so the image is not clipped by padding
+      const contentPadding = {
+        paddingTop:    enhancedContainerStyle.paddingTop    ?? pt ?? 16,
+        paddingBottom: enhancedContainerStyle.paddingBottom ?? pb ?? 16,
+        paddingLeft:   enhancedContainerStyle.paddingLeft   ?? pl ?? 16,
+        paddingRight:  enhancedContainerStyle.paddingRight  ?? pr ?? 16,
+      };
+      // Outer style: full-width, no padding, keep border/radius/background for frame
+      const {
+        paddingTop: _pt, paddingBottom: _pb, paddingLeft: _pl, paddingRight: _pr,
+        padding: _p, alignItems: _ai,
+        ...outerStyle
+      } = enhancedContainerStyle;
+
+      return (
+        <ImageBackground
+          source={{ uri: imageUrl }}
+          style={[styles.imageContainer, outerStyle]}
+          imageStyle={{ borderRadius: imageCornerRadius }}
+          resizeMode="cover"
+        >
+          <View style={[contentPadding, { width: "100%" }]}>
+            {innerContent}
+          </View>
+        </ImageBackground>
+      );
+    }
+
+    return (
+      <ContainerComponent
+        style={[styles.container, enhancedContainerStyle]}
+        {...containerProps}
+      >
+        {innerContent}
       </ContainerComponent>
     );
   }
@@ -529,6 +561,11 @@ const styles = StyleSheet.create({
     padding: 16,
     borderRadius: 12,
     backgroundColor: "#F3F4F6",
+  },
+  // Used when image is the background — no padding so image fills edge-to-edge
+  imageContainer: {
+    width: "100%",
+    overflow: "hidden",
   },
   headerRow: {
     flexDirection: "row",
@@ -562,17 +599,15 @@ const styles = StyleSheet.create({
     color: "#6B7280",
     marginTop: 4,
   },
-  timerGrid: {
-    width: "100%",
-    marginTop: 8,
-  },
   timerRow: {
     flexDirection: "row",
     justifyContent: "space-between",
-    marginBottom: 8,
+    width: "100%",
+    marginTop: 8,
+    gap: 6,
   },
   timerSegment: {
-    width: "48%",
+    flex: 1,
     alignItems: "center",
   },
   timerValueBox: {
