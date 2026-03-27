@@ -168,8 +168,15 @@ export default function BannerSlider({ section }) {
   // ── Heading ──
   const headingColor  = rp?.headingColor  || layoutCss?.heading?.color  || "#FFFFFF";
   const headingSize   = asNumber(rp?.headingSize ?? layoutCss?.heading?.fontSize, 18);
-  const headingAlignRaw = rp?.headingAlign || layoutCss?.heading?.align || "left";
-  const headingAlign  = headingAlignRaw.toLowerCase();
+  // textAlign is the correct CSS property name; also support legacy "align" key
+  const headingAlignRaw = (
+    rp?.headingAlign ||
+    layoutCss?.heading?.textAlign ||
+    layoutCss?.heading?.["text-align"] ||
+    layoutCss?.heading?.align ||
+    "left"
+  ).toLowerCase();
+  const headingAlign  = headingAlignRaw;
   const headingWeight = parseFontWeight(rp?.headingWeight ?? layoutCss?.heading?.fontWeight, "700");
   const headingItalic = asBoolean(rp?.headingItalic, false);
   const headingUnderline = asBoolean(rp?.headingUnderline, false);
@@ -179,8 +186,20 @@ export default function BannerSlider({ section }) {
   // ── Subheading ──
   const subheadingColor  = rp?.subheadingColor  || layoutCss?.subheading?.color  || "#E5E7EB";
   const subheadingSize   = asNumber(rp?.subheadingSize ?? layoutCss?.subheading?.fontSize, 13);
-  const subheadingAlign  = (rp?.subheadingAlign || layoutCss?.subheading?.align || "left").toLowerCase();
+  const subheadingAlign  = (
+    rp?.subheadingAlign ||
+    layoutCss?.subheading?.textAlign ||
+    layoutCss?.subheading?.["text-align"] ||
+    layoutCss?.subheading?.align ||
+    headingAlignRaw   // inherit from heading direction
+  ).toLowerCase();
   const subheadingWeight = parseFontWeight(rp?.subheadingWeight ?? layoutCss?.subheading?.fontWeight, "400");
+
+  // ── Content container alignment (flex-start for left, center, flex-end for right) ──
+  const contentAlignItems =
+    headingAlign === "right" ? "flex-end"
+    : headingAlign === "center" ? "center"
+    : "flex-start";
 
   // ── Button ──
   const showButton = asBoolean(rp?.showButton, true);
@@ -207,12 +226,12 @@ export default function BannerSlider({ section }) {
   const buttonPb = asNumber(rp?.buttonPb, 8);
   const buttonPl = asNumber(rp?.buttonPl, 16);
   const buttonPr = asNumber(rp?.buttonPr, 16);
+  // Button aligns to match heading direction by default; DSL buttonAlign overrides
+  const rawButtonAlign = (rp?.buttonAlign || headingAlignRaw || "left").toLowerCase();
   const buttonAlignSelf =
-    (rp?.buttonAlign || "center").toLowerCase() === "right"
-      ? "flex-end"
-      : (rp?.buttonAlign || "center").toLowerCase() === "left"
-      ? "flex-start"
-      : "center";
+    rawButtonAlign === "right" ? "flex-end"
+    : rawButtonAlign === "center" ? "center"
+    : "flex-start";
 
   // ── Indicators ──
   const indicatorSize = asNumber(rp?.indicatorSize, 7);
@@ -339,6 +358,7 @@ export default function BannerSlider({ section }) {
                   paddingBottom: slidePb,
                   paddingLeft: slidePl,
                   paddingRight: slidePr,
+                  alignItems: contentAlignItems,
                 },
               ]}
             >
@@ -476,7 +496,6 @@ const styles = StyleSheet.create({
   },
   slideContent: {
     justifyContent: "center",
-    alignItems: "stretch",
     gap: 8,
   },
   heading: {

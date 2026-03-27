@@ -26,6 +26,12 @@ const bottomNavigationStyle1Section = {
                 label: "Home",
               },
               {
+                id: "search",
+                icon: "fa-magnifying-glass",
+                link: "search",
+                label: "Search",
+              },
+              {
                 id: "cart",
                 icon: "fa-cart-shopping",
                 link: "",
@@ -38,37 +44,37 @@ const bottomNavigationStyle1Section = {
                 label: "Notifications",
               },
               {
-                id: "my-account",
+                id: "profile",
                 icon: "fa-user",
                 link: "my-account",
-                label: "My Account",
+                label: "Profile",
               },
             ],
             showBg: true,
             bgColor: "#FFFFFF",
             showText: true,
-            iconWidth: 20,
-            itemWidth: 72,
+            iconWidth: 22,
+            itemWidth: 0,
             libraryId: "31",
             showIcons: true,
             gradientTo: "",
-            iconHeight: 20,
-            itemHeight: 56,
+            iconHeight: 22,
+            itemHeight: 60,
             // Use square corners on mobile for a cleaner, platform‑native feel
             borderRadius: 0,
             gradientFrom: "",
-            textFontSize: 12,
-            indicatorMode: "Line",
+            textFontSize: 11,
+            indicatorMode: "",
             indicatorSize: 24,
             indicatorColor: "#096d70",
             textFontFamily: "Inter",
-            textFontWeight: "Bold",
-            iconActiveColor: "#FFFFFF",
+            textFontWeight: "600",
+            iconActiveColor: "#096d70",
             textActiveColor: "#096d70",
             iconPrimaryColor: "#9CA3AF",
             textPrimaryColor: "#6B7280",
             indicatorThickness: 6,
-            showActiveIndicator: true,
+            showActiveIndicator: false,
           },
           description:
             "Raw props as used by the builder (includes toggles + all customization).",
@@ -78,11 +84,11 @@ const bottomNavigationStyle1Section = {
           properties: {
             fontSize: {
               type: "number",
-              value: 12,
+              value: 11,
             },
             itemWidth: {
               type: "number",
-              value: 72,
+              value: 0,
             },
             fontFamily: {
               type: "string",
@@ -90,11 +96,11 @@ const bottomNavigationStyle1Section = {
             },
             fontWeight: {
               type: "string",
-              value: "Bold",
+              value: "600",
             },
             itemHeight: {
               type: "number",
-              value: 56,
+              value: 60,
             },
             activeColor: {
               type: "string",
@@ -111,15 +117,15 @@ const bottomNavigationStyle1Section = {
           properties: {
             width: {
               type: "number",
-              value: 20,
+              value: 22,
             },
             height: {
               type: "number",
-              value: 20,
+              value: 22,
             },
             activeColor: {
               type: "string",
-              value: "#FFFFFF",
+              value: "#096d70",
             },
             primaryColor: {
               type: "string",
@@ -137,6 +143,12 @@ const bottomNavigationStyle1Section = {
               label: "Home",
             },
             {
+              id: "search",
+              icon: "fa-magnifying-glass",
+              link: "search",
+              label: "Search",
+            },
+            {
               id: "cart",
               icon: "fa-cart-shopping",
               link: "",
@@ -149,10 +161,10 @@ const bottomNavigationStyle1Section = {
               label: "Notifications",
             },
             {
-              id: "my-account",
+              id: "profile",
               icon: "fa-user",
               link: "my-account",
-              label: "My Account",
+              label: "Profile",
             },
           ],
         },
@@ -266,7 +278,7 @@ const bottomNavigationStyle1Section = {
             },
             activeIndicator: {
               type: "boolean",
-              value: true,
+              value: false,
             },
           },
         },

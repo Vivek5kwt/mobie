@@ -309,11 +309,8 @@ class Countdown extends PureComponent {
     const effectiveTitleAlign =
       (resolvedTextAlign || titleAlignAttr || "").toLowerCase() || undefined;
 
-    const titleText = unwrapValue(rawProps?.title, "Sale Ends In");
-    const subtextText = unwrapValue(
-      rawProps?.subtext,
-      "Limited time offer. Don’t miss out on this deal."
-    );
+    const titleText = unwrapValue(rawProps?.title, "");
+    const subtextText = unwrapValue(rawProps?.subtext, "");
 
     const buttonAttributes = rawProps?.buttonAttributes?.properties || rawProps?.buttonAttributes || {};
     const buttonLabel = unwrapValue(buttonAttributes?.label, "");
