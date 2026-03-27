@@ -500,6 +500,8 @@ function BottomNavigation({ section, activeIndexOverride }) {
     }
 
     if (target.type === "stack" && target.name) {
+      // Pass bottomNavSection so BottomNavScreen can render the nav bar instantly
+      // (without waiting for its own DSL fetch to complete)
       const params = {
         ...target.params,
         activeIndex: index,
@@ -523,7 +525,7 @@ function BottomNavigation({ section, activeIndexOverride }) {
             activeIndex: index,
             stateIndex,
             isGoingToHome,
-            action: isGoingToHome ? "navigate (no remount)" : currentRoute?.name === "BottomNavScreen" ? "replace" : "push",
+            currentRoute: currentRoute?.name,
           });
         }
 
@@ -545,9 +547,9 @@ function BottomNavigation({ section, activeIndexOverride }) {
           }
         }
 
-        // Going to Home:
-        // - If already on LayoutScreen, do nothing (prevents any refresh/flicker)
-        // - Otherwise, navigate (pop back to existing LayoutScreen when possible)
+        // ── Home tab ──────────────────────────────────────────────────────────
+        // popToTop() instantly returns to the existing LayoutScreen root without
+        // remounting it — no blank screen, no reload.
         if (isGoingToHome) {
           if (currentRoute?.name === "LayoutScreen") {
             if (BOTTOM_NAV_DEBUG) {
@@ -555,13 +557,16 @@ function BottomNavigation({ section, activeIndexOverride }) {
             }
             return;
           }
-          navigation.navigate(target.name, params);
+          navigation.dispatch(StackActions.popToTop());
           return;
         }
 
-        // Other tabs: replace if already on BottomNavScreen, else push
+        // ── Non-home tabs ─────────────────────────────────────────────────────
+        // If we're ALREADY on BottomNavScreen, update params in-place via setParams()
+        // instead of replace() — setParams causes zero remount, zero blank screen.
+        // Only push() a fresh BottomNavScreen when coming from LayoutScreen (first time).
         if (currentRoute?.name === "BottomNavScreen") {
-          navigation.dispatch(StackActions.replace(target.name, params));
+          navigation.setParams(params);
         } else {
           navigation.push(target.name, params);
         }

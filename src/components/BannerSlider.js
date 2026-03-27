@@ -127,23 +127,31 @@ export default function BannerSlider({ section }) {
     [rawProps, rp?.buttonText, rp?.buttonLabel]
   );
 
+  // CSS snapshot (from layout.css) — secondary source for style tokens
+  const layoutCss = rawProps?.layout?.css ?? {};
+
   // ── Container ──
-  // Read bgColor and padding from rawProps first, then fall back to style.properties
   const styleProp = rawProps?.style || {};
-  const bgColor = rp?.bgColor || styleProp?.bgColor || "#FFFFFF";
-  const bannerHeight = asNumber(rp?.bannerHeight, 200);
-  const bannerRadius = asNumber(rp?.bannerRadius ?? rp?.imageCorner, 0);
+  const bgColor = rp?.bgColor || styleProp?.bgColor || "transparent";
+  const bannerHeight = asNumber(
+    rp?.bannerHeight ?? layoutCss?.slider?.bannerHeight,
+    200
+  );
+  const bannerRadius = asNumber(rp?.bannerRadius ?? rp?.imageCorner ?? layoutCss?.slider?.bannerRadius, 0);
 
-  // Outer container padding — primary: rawProps.pt/pb/pl/pr, fallback: style.paddingRaw
+  // Outer vertical spacing — top/bottom only, applied as margin so the slider
+  // itself always fills the full component width (full-bleed horizontal).
   const paddingRaw = styleProp?.paddingRaw || {};
-  const containerPt = asNumber(rp?.pt ?? paddingRaw?.pt, 0);
-  const containerPb = asNumber(rp?.pb ?? paddingRaw?.pb, 0);
-  const containerPl = asNumber(rp?.pl ?? paddingRaw?.pl, 0);
-  const containerPr = asNumber(rp?.pr ?? paddingRaw?.pr, 0);
+  const outerMt = asNumber(rp?.pt ?? paddingRaw?.pt, 0);
+  const outerMb = asNumber(rp?.pb ?? paddingRaw?.pb, 0);
+  // Horizontal padding from DSL becomes text-content inner padding (not frame).
+  const outerPl = asNumber(rp?.pl ?? paddingRaw?.pl, 0);
+  const outerPr = asNumber(rp?.pr ?? paddingRaw?.pr, 0);
 
-  // Slide content padding (text area inside the banner)
-  const slidePl = asNumber(rp?.boxPl, 16);
-  const slidePr = asNumber(rp?.boxPr, 16);
+  // Slide content padding (text area inside the banner).
+  // boxPl/boxPr/boxPt/boxPb take priority; fall back to DSL outer h-padding.
+  const slidePl = asNumber(rp?.boxPl, outerPl || 16);
+  const slidePr = asNumber(rp?.boxPr, outerPr || 16);
   const slidePt = asNumber(rp?.boxPt, 16);
   const slidePb = asNumber(rp?.boxPb, 16);
 
@@ -156,9 +164,6 @@ export default function BannerSlider({ section }) {
   const autoScroll = asBoolean(rp?.autoScroll ?? rp?.autoPlay, true);
   const autoScrollSpeed = asNumber(rp?.autoScrollSpeed ?? rp?.scrollSpeedSec, 4);
   const showDots = asBoolean(rp?.showIndicators ?? rp?.showDots, true);
-
-  // CSS snapshot (from layout.css) — secondary source for style tokens
-  const layoutCss = rawProps?.layout?.css ?? {};
 
   // ── Heading ──
   const headingColor  = rp?.headingColor  || layoutCss?.heading?.color  || "#FFFFFF";
@@ -179,11 +184,25 @@ export default function BannerSlider({ section }) {
 
   // ── Button ──
   const showButton = asBoolean(rp?.showButton, true);
-  const buttonBgColor = rp?.buttonBgColor || "#016D77";
-  const buttonTextColor = rp?.buttonTextColor || "#FFFFFF";
-  const buttonFontSize = asNumber(rp?.buttonFontSize, 11);
-  const buttonFontWeight = parseFontWeight(rp?.buttonWeight ?? rp?.buttonFontWeight, "600");
-  const buttonRadius = asNumber(rp?.buttonRadius ?? rp?.buttonBorderRadius, 999);
+  const buttonBgColor =
+    rp?.buttonBgColor ||
+    layoutCss?.button?.background ||
+    layoutCss?.button?.backgroundColor ||
+    "#111111";
+  const buttonTextColor =
+    rp?.buttonTextColor || layoutCss?.button?.color || "#FFFFFF";
+  const buttonFontSize = asNumber(
+    rp?.buttonFontSize ?? layoutCss?.button?.fontSize,
+    12
+  );
+  const buttonFontWeight = parseFontWeight(
+    rp?.buttonWeight ?? rp?.buttonFontWeight ?? layoutCss?.button?.fontWeight,
+    "600"
+  );
+  const buttonRadius = asNumber(
+    rp?.buttonRadius ?? rp?.buttonBorderRadius ?? layoutCss?.button?.borderRadius,
+    999
+  );
   const buttonPt = asNumber(rp?.buttonPt, 8);
   const buttonPb = asNumber(rp?.buttonPb, 8);
   const buttonPl = asNumber(rp?.buttonPl, 16);
@@ -208,10 +227,10 @@ export default function BannerSlider({ section }) {
   const indexRef = useRef(0);
   const [currentIndex, setCurrentIndex] = useState(0);
   const scrollX = useRef(new Animated.Value(0)).current;
-  // Initialize containerWidth already accounting for outer padding so first render
-  // matches post-onLayout size — prevents image from appearing clipped on initial paint.
+  // containerWidth = full layout width (no horizontal padding subtracted).
+  // The slider is always full-bleed; text inner padding uses slidePl/slidePr.
   const [containerWidth, setContainerWidth] = useState(
-    Math.max(Dimensions.get("window").width - containerPl - containerPr, 1)
+    Math.max(Dimensions.get("window").width, 1)
   );
 
   useEffect(() => {
@@ -256,16 +275,14 @@ export default function BannerSlider({ section }) {
       style={[
         styles.wrapper,
         {
-          backgroundColor: bgColor,
-          paddingTop: containerPt,
-          paddingBottom: containerPb,
-          paddingLeft: containerPl,
-          paddingRight: containerPr,
+          // Vertical outer spacing only — slider is always full-bleed horizontally
+          marginTop: outerMt,
+          marginBottom: outerMb,
         },
       ]}
       onLayout={(e) => {
         const w = e?.nativeEvent?.layout?.width;
-        if (w && w > 0) setContainerWidth(w - containerPl - containerPr);
+        if (w && w > 0) setContainerWidth(w);
       }}
     >
       <Animated.ScrollView
