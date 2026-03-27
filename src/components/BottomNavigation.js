@@ -331,11 +331,13 @@ function BottomNavigation({ section, activeIndexOverride }) {
   const fontWeight =
     String(getSchemaValue(textNode?.fontWeight) ?? raw?.textFontWeight ?? "600");
 
-  const itemWidth =
-    Number(getSchemaValue(textNode?.itemWidth) ?? raw?.itemWidth) || undefined;
+  const itemWidthRaw =
+    Number(getSchemaValue(textNode?.itemWidth) ?? raw?.itemWidth);
+  // 0 means "auto" (flex: 1); only use a fixed width when explicitly > 0
+  const itemWidth = itemWidthRaw > 0 ? itemWidthRaw : undefined;
   const itemHeight =
     Number(getSchemaValue(textNode?.itemHeight) ?? raw?.itemHeight ?? raw?.layout?.css?.item?.height) ||
-    64;
+    60;
 
   const paddingRaw = bgPaddingNode?.paddingRaw?.properties ?? bgPaddingNode?.paddingRaw ?? raw;
   const paddingStyles = convertStyles({

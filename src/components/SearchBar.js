@@ -100,46 +100,49 @@ try {
 
 export default function SearchBar({ section }) {
   const navigation = useNavigation();
+
+  // Read DSL: most-specific first (properties.props.properties → properties.props → props)
   const rawProps = useMemo(
     () =>
-      section?.props ??
-      section?.properties?.props?.properties ??
-      section?.properties?.props ??
+      section?.properties?.props?.properties ||
+      section?.properties?.props ||
+      section?.props ||
       {},
     [section]
   );
-  const flatProps = rawProps?.properties ?? rawProps;
 
-  const get = (key, fallback) => unwrapValue(flatProps?.[key], fallback);
-  const getNum = (key, fallback) => toNumber(flatProps?.[key], fallback);
-  const getBool = (key, fallback) => unwrapBoolean(flatProps?.[key], fallback);
+  const get    = (key, fallback) => unwrapValue(rawProps?.[key], fallback);
+  const getNum = (key, fallback) => toNumber(rawProps?.[key], fallback);
+  const getBool = (key, fallback) => unwrapBoolean(rawProps?.[key], fallback);
 
-  const paddingTop = getNum("pt", 12);
+  const paddingTop    = getNum("pt", 12);
   const paddingBottom = getNum("pb", 12);
-  const paddingLeft = getNum("pl", 16);
-  const paddingRight = getNum("pr", 16);
-  const bgColor = get("bgColor", "#FFFFFF");
-  const searchBgColor = get("searchBgColor", "#FFFFFF");
-  const borderColor = get("borderColor", "#E5E7EB");
+  const paddingLeft   = getNum("pl", 16);
+  const paddingRight  = getNum("pr", 16);
+  const bgColor         = get("bgColor", "#FFFFFF");
+  const searchBgColor   = get("searchBgColor", "#F9FAFB");
+  const borderColor     = get("borderColor", "#E5E7EB");
   const searchTextColor = get("searchTextColor", "#111827");
-  const clearIconColor = get("clearIconColor", "#6B7280");
-  const voiceIconColor = get("voiceIconColor", "#6B7280");
-  const searchIconColor = get("searchIconColor", "#6B7280");
-  const fontSize = getNum("fontSize", 14);
-  const fontFamily = get("fontFamily", "Inter");
-  const fontWeight = toFontWeight(flatProps?.fontWeight, "400");
-  const borderRadius = getNum("borderRadius", 12);
-  const borderSide = get("borderSide", "all");
-  const clearIconSize = getNum("clearIconSize", 13);
-  const voiceIconSize = getNum("voiceIconSize", 16);
-  const placeholderBold = getBool("placeholderBold", false);
-  const placeholderItalic = getBool("placeholderItalic", false);
-  const placeholderUnderline = getBool("placeholderUnderline", false);
+  const placeholderColor = get("placeholderColor", "#9CA3AF");
+  const clearIconColor  = get("clearIconColor", "#6B7280");
+  const voiceIconColor  = get("voiceIconColor", "#6B7280");
+  const searchIconColor = get("searchIconColor", "#9CA3AF");
+  const fontSize        = getNum("fontSize", 14);
+  const fontFamily      = get("fontFamily", undefined);
+  const fontWeight      = toFontWeight(rawProps?.fontWeight, "400");
+  const borderRadius    = getNum("borderRadius", 24);
+  const borderSide      = get("borderSide", "all");
+  const searchIconSize  = getNum("searchIconSize", getNum("fontSize", 14));
+  const clearIconSize   = getNum("clearIconSize", 13);
+  const voiceIconSize   = getNum("voiceIconSize", 16);
+  const placeholderBold        = getBool("placeholderBold", false);
+  const placeholderItalic      = getBool("placeholderItalic", false);
+  const placeholderUnderline   = getBool("placeholderUnderline", false);
   const placeholderStrikethrough = getBool("placeholderStrikethrough", false);
-  const searchPlaceholder = get("searchPlaceholder", "Search products...");
-  const showClear = getBool("clearButtonVisible", true);
-  const showInput = getBool("searchInputVisible", true);
-  const showVoice = getBool("voiceSearchVisible", true);
+  const searchPlaceholder = get("searchPlaceholder", "Search...");
+  const showClear  = getBool("clearButtonVisible", true);
+  const showInput  = getBool("searchInputVisible", true);
+  const showVoice  = getBool("voiceSearchVisible", true);
   const searchLimit = getNum("searchLimit", 10);
 
   const [value, setValue] = useState("");
@@ -149,7 +152,11 @@ export default function SearchBar({ section }) {
   const [isListening, setIsListening] = useState(false);
   const voiceDestroyRef = useRef(false);
 
-  const detailSections = useMemo(() => extractDetailSections(rawProps), [rawProps]);
+  // detailSections may live one level up (on the section itself) when rawProps is already flat
+  const detailSections = useMemo(
+    () => extractDetailSections(rawProps) || extractDetailSections(section?.properties?.props ?? {}),
+    [rawProps, section]
+  );
 
   const containerStyle = useMemo(
     () =>
@@ -298,13 +305,13 @@ export default function SearchBar({ section }) {
   return (
     <View style={[styles.container, containerStyle]}>
       <View style={[styles.inputWrapper, inputWrapperStyle, borderStyle]}>
-        <FontAwesome name="search" size={fontSize + 2} color={searchIconColor} />
+        <FontAwesome name="search" size={searchIconSize} color={searchIconColor} />
         {showInput && (
           <TextInput
             value={value}
             onChangeText={setValue}
             placeholder={searchPlaceholder}
-            placeholderTextColor={searchTextColor || "#6B7280"}
+            placeholderTextColor={placeholderColor}
             style={[styles.input, inputTextStyle, placeholderTextStyle]}
             underlineColorAndroid="transparent"
             editable={!isListening}
