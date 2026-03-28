@@ -29,6 +29,9 @@ import CheckoutButton from "../components/CheckoutButton";
 import FaqNew from "../components/FaqNew";
 import ProductCarousel from "../components/ProductCarousel";
 import SignUp from "../components/SignUp";
+import VariantSelector from "../components/VariantSelector";
+import TrustBadges from "../components/TrustBadges";
+import CustomerReviews from "../components/CustomerReviews";
 
 const normalizeComponentName = (value) =>
   String(value || "")
@@ -68,6 +71,11 @@ const componentMap = {
   checkout_button: CheckoutButton,
   faq_new: FaqNew,
   product_carousel: ProductCarousel,
+  variant_selector: VariantSelector,
+  trust_badges: TrustBadges,
+  customer_reviews: CustomerReviews,
+  product_reviews: CustomerReviews,
+  reviews: CustomerReviews,
   signup: SignUp,
   sign_up: SignUp,
   "sign-up": SignUp,

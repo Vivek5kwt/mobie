@@ -37,6 +37,7 @@ export default function SplashScreen() {
 
   // ── Load dynamic app info ─────────────────────────────────────
   useEffect(() => {
+  
     try {
       const name = getAppNameSync();
       const logoUrl = getAppLogoSync();

@@ -2,6 +2,10 @@
 #
 .DS_Store
 
+# Firebase — local cache files (never commit these)
+firebase-mapping.json
+/tmp/firebase-sa.json
+
 # Xcode
 #
 build/

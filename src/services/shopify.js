@@ -257,6 +257,13 @@ export async function fetchShopifyProductDetails({ handle, id, options = {} }) {
         featuredImage {
           url
         }
+        images(first: 10) {
+          edges {
+            node {
+              url
+            }
+          }
+        }
         options {
           name
           values
@@ -286,6 +293,13 @@ export async function fetchShopifyProductDetails({ handle, id, options = {} }) {
         description
         featuredImage {
           url
+        }
+        images(first: 10) {
+          edges {
+            node {
+              url
+            }
+          }
         }
         options {
           name
@@ -340,6 +354,10 @@ export async function fetchShopifyProductDetails({ handle, id, options = {} }) {
         }))
       ) || [];
 
+    const images = (product?.images?.edges || [])
+      .map((e) => e?.node?.url)
+      .filter(Boolean);
+
     return {
       id: product?.id,
       title: product?.title,
@@ -347,6 +365,7 @@ export async function fetchShopifyProductDetails({ handle, id, options = {} }) {
       vendor: product?.vendor,
       description: product?.description,
       imageUrl: product?.featuredImage?.url,
+      images: images.length > 0 ? images : (product?.featuredImage?.url ? [product.featuredImage.url] : []),
       priceAmount: priceNode?.amount,
       priceCurrency: priceNode?.currencyCode,
       variantOptions,

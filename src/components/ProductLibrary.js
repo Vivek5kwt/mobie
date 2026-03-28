@@ -1,7 +1,19 @@
-import React, { useEffect, useRef, useState } from "react";
-import { Animated, Dimensions, Image, Modal, Pressable, StyleSheet, Text, View } from "react-native";
+import React, { useEffect, useMemo, useRef, useState } from "react";
+import {
+  Animated,
+  Dimensions,
+  Image,
+  Modal,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
+} from "react-native";
 import { useNavigation } from "@react-navigation/native";
 import { PinchGestureHandler, State } from "react-native-gesture-handler";
+import FontAwesome from "react-native-vector-icons/FontAwesome";
 
 const unwrapValue = (value, fallback = undefined) => {
   if (value === undefined || value === null) return fallback;
@@ -38,29 +50,27 @@ const toBoolean = (value, fallback = false) => {
 const normalizePosition = (position, fallback = {}) => {
   if (!position || typeof position !== "string") return fallback;
   const normalized = position.toLowerCase();
-  const styles = {};
-  if (normalized.includes("top")) styles.top = 16;
-  if (normalized.includes("bottom")) styles.bottom = 16;
-  if (normalized.includes("left")) styles.left = 16;
-  if (normalized.includes("right")) styles.right = 16;
-  return Object.keys(styles).length ? styles : fallback;
+  const s = {};
+  if (normalized.includes("top")) s.top = 16;
+  if (normalized.includes("bottom")) s.bottom = 16;
+  if (normalized.includes("left")) s.left = 16;
+  if (normalized.includes("right")) s.right = 16;
+  return Object.keys(s).length ? s : fallback;
 };
-
-const buildInsets = (layout = {}) => ({
-  paddingTop: toNumber(layout?.paddingTop, 0),
-  paddingRight: toNumber(layout?.paddingRight, 0),
-  paddingBottom: toNumber(layout?.paddingBottom, 0),
-  paddingLeft: toNumber(layout?.paddingLeft, 0),
-});
 
 export default function ProductLibrary({ section }) {
   const navigation = useNavigation();
   const [isFullscreenVisible, setIsFullscreenVisible] = useState(false);
   const [isFavourite, setIsFavourite] = useState(false);
+  const [currentIdx, setCurrentIdx] = useState(0);
+  const galleryRef = useRef(null);
+
+  // Pinch-to-zoom state for fullscreen
   const baseScale = useRef(new Animated.Value(1)).current;
   const pinchScale = useRef(new Animated.Value(1)).current;
   const lastScale = useRef(1);
   const scale = Animated.multiply(baseScale, pinchScale);
+
   const propsNode =
     section?.properties?.props?.properties || section?.properties?.props || section?.props || {};
   const layout = unwrapValue(propsNode?.layout, {});
@@ -72,109 +82,32 @@ export default function ProductLibrary({ section }) {
   const shareStyles = css?.share || {};
   const reviewStyles = css?.reviews || {};
   const favouriteStyles = css?.favourite || {};
-  const classNames = css?.classNames || {};
   const visibility = css?.visibility || {};
 
-  const resolvedImageUrl = toString(raw?.imageUrl, "");
+  // ── Images ────────────────────────────────────────────────────────────────
+  // Prefer raw.images array; fall back to single raw.imageUrl
+  const images = useMemo(() => {
+    const arr = raw?.images;
+    if (Array.isArray(arr) && arr.length > 0) return arr.filter(Boolean);
+    const single = toString(raw?.imageUrl, "");
+    return single ? [single] : [];
+  }, [raw?.images, raw?.imageUrl]);
+
+  const activeImageUrl = images[currentIdx] || images[0] || "";
+  const hasMultiple = images.length > 1;
+
+  // ── Visibility toggles ────────────────────────────────────────────────────
   const showRating = toBoolean(raw?.showRating, true);
   const ratingText = toString(raw?.ratingText, "0");
   const ratingCountText = toString(raw?.ratingCountText, "(0)");
   const showBackButton = toBoolean(raw?.showBackButton, true);
   const initialFavourite = toBoolean(raw?.isFavourite, false);
-  
-  // Don't render if no image URL exists
-  if (!resolvedImageUrl) return null;
-
-  const containerStyle = [
-    styles.container,
-    {
-      backgroundColor: toString(outer?.background, "#ffffff"),
-      borderColor: toString(outer?.borderColor, "#e5e7eb"),
-      borderRadius: toNumber(outer?.borderRadius, 0),
-      borderWidth: outer?.borderLine ? 1 : 0,
-    },
-    buildInsets(outer),
-  ];
-
-  const screenWidth = Dimensions.get("window").width;
-  const metrics = layout?.metrics?.elements || {};
-  const imageMetrics = metrics?.image || {};
-  const imageWidth = imageMetrics?.width ? Number(imageMetrics.width) : screenWidth - 32;
-  const imageHeight = imageMetrics?.height
-    ? Number(imageMetrics.height)
-    : Math.round(imageWidth * 1.05);
-  const imageCorner = toNumber(imageStyles?.corner, 18);
-  const imageScale = toString(imageStyles?.scale, "Fit").toLowerCase();
-
   const ratingVisible = toBoolean(visibility?.reviews, showRating);
-  const shareVisible = toBoolean(visibility?.share, true);
+  const shareVisible = toBoolean(visibility?.share, false); // off by default in screenshot
   const favouriteVisible = toBoolean(visibility?.favourite, true);
   const ratingIconVisible = toBoolean(visibility?.reviewsIcon, true);
   const ratingTextVisible = toBoolean(visibility?.reviewsRating, true);
   const ratingCountVisible = toBoolean(visibility?.reviewsRatingCounter, true);
-
-  const sharePadding = shareStyles?.padding || {};
-  const favouritePadding = favouriteStyles?.padding || {};
-  const reviewPadding = reviewStyles?.padding || {};
-
-  const shareIconSize = toNumber(shareStyles?.icon?.size, 14);
-  const favouriteIconSize = toNumber(favouriteStyles?.icon?.size, 14);
-  const ratingIconSize = toNumber(reviewStyles?.icon?.size, 12);
-
-  const shareBubbleStyle = [
-    styles.iconBubble,
-    {
-      backgroundColor: toString(shareStyles?.bg, "#e5f3f4"),
-      borderRadius: toNumber(shareStyles?.corner, 17),
-      borderWidth: shareStyles?.borderLine ? 1 : 0,
-      borderColor: toString(shareStyles?.borderColor, "#e5e7eb"),
-      paddingTop: toNumber(sharePadding?.top, 8),
-      paddingRight: toNumber(sharePadding?.right, 8),
-      paddingBottom: toNumber(sharePadding?.bottom, 8),
-      paddingLeft: toNumber(sharePadding?.left, 8),
-      minWidth: shareIconSize + toNumber(sharePadding?.left, 8) + toNumber(sharePadding?.right, 8),
-      minHeight: shareIconSize + toNumber(sharePadding?.top, 8) + toNumber(sharePadding?.bottom, 8),
-    },
-    normalizePosition(shareStyles?.position, styles.shareBubble),
-  ];
-
-  const favouriteBubbleStyle = [
-    styles.iconBubble,
-    {
-      backgroundColor: toString(favouriteStyles?.bg, "#e5f3f4"),
-      borderRadius: toNumber(favouriteStyles?.corner, 17),
-      borderWidth: favouriteStyles?.borderLine ? 1 : 0,
-      borderColor: toString(favouriteStyles?.borderColor, "#e5e7eb"),
-      paddingTop: toNumber(favouritePadding?.top, 8),
-      paddingRight: toNumber(favouritePadding?.right, 8),
-      paddingBottom: toNumber(favouritePadding?.bottom, 8),
-      paddingLeft: toNumber(favouritePadding?.left, 8),
-      minWidth:
-        favouriteIconSize +
-        toNumber(favouritePadding?.left, 8) +
-        toNumber(favouritePadding?.right, 8),
-      minHeight:
-        favouriteIconSize +
-        toNumber(favouritePadding?.top, 8) +
-        toNumber(favouritePadding?.bottom, 8),
-    },
-    normalizePosition(favouriteStyles?.position, styles.favoriteBubble),
-  ];
-
-  const ratingBubbleStyle = [
-    styles.ratingBubble,
-    {
-      backgroundColor: toString(reviewStyles?.bg, "#ffffff"),
-      borderRadius: toNumber(reviewStyles?.corner, 12),
-      borderWidth: reviewStyles?.borderLine ? 1 : 0,
-      borderColor: toString(reviewStyles?.borderColor, "#e5e7eb"),
-      paddingTop: toNumber(reviewPadding?.top, 6),
-      paddingRight: toNumber(reviewPadding?.right, 6),
-      paddingBottom: toNumber(reviewPadding?.bottom, 6),
-      paddingLeft: toNumber(reviewPadding?.left, 6),
-    },
-    normalizePosition(reviewStyles?.position, styles.ratingBubble),
-  ];
 
   useEffect(() => {
     setIsFavourite(initialFavourite);
@@ -188,59 +121,111 @@ export default function ProductLibrary({ section }) {
     }
   }, [baseScale, pinchScale, isFullscreenVisible]);
 
-  const onPinchGestureEvent = Animated.event([{ nativeEvent: { scale: pinchScale } }], {
-    useNativeDriver: true,
-  });
+  // Reset gallery to first image when section changes
+  useEffect(() => {
+    setCurrentIdx(0);
+    galleryRef.current?.scrollTo({ x: 0, animated: false });
+  }, [images.length]);
+
+  if (!images.length) return null;
+
+  // ── Dimensions ────────────────────────────────────────────────────────────
+  const screenWidth = Dimensions.get("window").width;
+  const metrics = layout?.metrics?.elements || {};
+  const imageMetrics = metrics?.image || {};
+  const imageWidth = imageMetrics?.width ? Number(imageMetrics.width) : screenWidth - 32;
+  const imageHeight = imageMetrics?.height
+    ? Number(imageMetrics.height)
+    : Math.round(imageWidth * 1.0);
+  const imageCorner = toNumber(imageStyles?.corner, 16);
+  const imageScale = toString(imageStyles?.scale, "Fit").toLowerCase();
+  const resizeMode = imageScale === "fill" || imageScale === "cover" ? "cover" : "contain";
+
+  // ── Icon sizes ────────────────────────────────────────────────────────────
+  const shareIconSize = toNumber(shareStyles?.icon?.size, 14);
+  const favouriteIconSize = toNumber(favouriteStyles?.icon?.size, 16);
+  const ratingIconSize = toNumber(reviewStyles?.icon?.size, 12);
+
+  // ── Container ─────────────────────────────────────────────────────────────
+  const containerStyle = [
+    styles.container,
+    {
+      backgroundColor: toString(outer?.background, "#ffffff"),
+      borderColor: toString(outer?.borderColor, "#e5e7eb"),
+      borderRadius: toNumber(outer?.borderRadius, 0),
+      borderWidth: outer?.borderLine ? 1 : 0,
+      paddingTop: toNumber(outer?.paddingTop, 0),
+      paddingBottom: toNumber(outer?.paddingBottom, 0),
+      paddingLeft: toNumber(outer?.paddingLeft, 0),
+      paddingRight: toNumber(outer?.paddingRight, 0),
+    },
+  ];
+
+  // ── Gallery scroll ─────────────────────────────────────────────────────────
+  const handleGalleryScroll = (event) => {
+    const x = event.nativeEvent.contentOffset.x;
+    const idx = Math.round(x / screenWidth);
+    if (idx >= 0 && idx < images.length && idx !== currentIdx) {
+      setCurrentIdx(idx);
+    }
+  };
+
+  const scrollToImage = (idx) => {
+    galleryRef.current?.scrollTo({ x: idx * screenWidth, animated: true });
+    setCurrentIdx(idx);
+  };
+
+  // ── Pinch zoom ────────────────────────────────────────────────────────────
+  const onPinchGestureEvent = Animated.event(
+    [{ nativeEvent: { scale: pinchScale } }],
+    { useNativeDriver: true }
+  );
 
   const onPinchHandlerStateChange = (event) => {
     if (event.nativeEvent.oldState === State.ACTIVE) {
-      const rawNextScale = lastScale.current * event.nativeEvent.scale;
-      const nextScale = Math.max(1, Math.min(rawNextScale, 4));
-      lastScale.current = nextScale;
-      baseScale.setValue(nextScale);
+      const next = Math.max(1, Math.min(lastScale.current * event.nativeEvent.scale, 4));
+      lastScale.current = next;
+      baseScale.setValue(next);
       pinchScale.setValue(1);
     }
   };
 
   return (
     <View style={containerStyle}>
-      <View style={styles.imageWrap}>
-        {resolvedImageUrl ? (
-          <Pressable
-            onPress={() => setIsFullscreenVisible(true)}
-            accessibilityRole="button"
-            accessibilityLabel="Open product image fullscreen"
-          >
-            <View
-              style={[
-                styles.imageCard,
-                {
-                  width: imageWidth,
-                  height: imageHeight,
-                  borderRadius: imageCorner,
-                },
-              ]}
-            >
-              <Image
-                source={{ uri: resolvedImageUrl }}
-                style={styles.image}
-                resizeMode={imageScale === "fill" ? "cover" : "contain"}
-                accessibilityLabel="Product"
-              />
-            </View>
-          </Pressable>
-        ) : (
-          <View
-            style={[
-              styles.imageCard,
-              styles.imagePlaceholder,
-              { width: imageWidth, height: imageHeight, borderRadius: imageCorner },
-            ]}
-          >
-            <Text style={styles.placeholderText}>Product image</Text>
-          </View>
-        )}
 
+      {/* ── Gallery + overlays ─────────────────────────────────────────────── */}
+      <View style={[styles.galleryWrap, { height: imageHeight + 16 }]}>
+        <ScrollView
+          ref={galleryRef}
+          horizontal
+          pagingEnabled
+          showsHorizontalScrollIndicator={false}
+          scrollEnabled={hasMultiple}
+          onScroll={handleGalleryScroll}
+          scrollEventThrottle={16}
+          style={{ width: screenWidth }}
+        >
+          {images.map((uri, idx) => (
+            <Pressable
+              key={`img-${idx}`}
+              style={{ width: screenWidth, alignItems: "center", paddingVertical: 8 }}
+              onPress={() => setIsFullscreenVisible(true)}
+              accessibilityRole="button"
+              accessibilityLabel="Open product image fullscreen"
+            >
+              <View style={[styles.imageCard, { width: imageWidth, height: imageHeight, borderRadius: imageCorner }]}>
+                <Image
+                  source={{ uri }}
+                  style={styles.image}
+                  resizeMode={resizeMode}
+                  accessibilityLabel="Product"
+                />
+              </View>
+            </Pressable>
+          ))}
+        </ScrollView>
+
+        {/* Back button */}
         {showBackButton && navigation?.canGoBack?.() && (
           <Pressable
             onPress={() => navigation.goBack()}
@@ -248,93 +233,98 @@ export default function ProductLibrary({ section }) {
             accessibilityRole="button"
             accessibilityLabel="Go back"
           >
-            <Text style={styles.iconText}>←</Text>
+            <FontAwesome name="arrow-left" size={14} color="#111827" />
           </Pressable>
         )}
 
+        {/* Favourite button */}
         {favouriteVisible && (
           <Pressable
             onPress={() => setIsFavourite((prev) => !prev)}
             style={[
-              favouriteBubbleStyle,
-              isFavourite ? styles.favoriteActiveBubble : null,
+              styles.iconBubble,
+              normalizePosition(favouriteStyles?.position, styles.favBubble),
+              {
+                backgroundColor: isFavourite
+                  ? toString(favouriteStyles?.activeBg, "#EF4444")
+                  : toString(favouriteStyles?.bg, "#EF4444"),
+              },
             ]}
             accessibilityRole="button"
-            accessibilityLabel={isFavourite ? "Remove from favorites" : "Add to favorites"}
+            accessibilityLabel={isFavourite ? "Remove from favourites" : "Add to favourites"}
           >
-            <Text
-              style={[
-                styles.iconText,
-                {
-                  fontSize: favouriteIconSize,
-                  color: toString(favouriteStyles?.icon?.color, "#111827"),
-                },
-                isFavourite ? styles.favoriteActiveText : null,
-              ]}
-            >
-              {isFavourite ? "❤" : "♡"}
-            </Text>
+            <FontAwesome
+              name={isFavourite ? "heart" : "heart-o"}
+              size={favouriteIconSize}
+              color={toString(favouriteStyles?.icon?.color, "#FFFFFF")}
+            />
           </Pressable>
         )}
 
+        {/* Share button */}
         {shareVisible && (
-          <View style={shareBubbleStyle}>
-            <Text
-              style={[
-                styles.iconText,
-                {
-                  fontSize: shareIconSize,
-                  color: toString(shareStyles?.icon?.color, "#111827"),
-                },
-              ]}
-            >
-              ⇪
-            </Text>
+          <View
+            style={[
+              styles.iconBubble,
+              normalizePosition(shareStyles?.position, styles.shareBubble),
+              {
+                backgroundColor: toString(shareStyles?.bg, "#e5f3f4"),
+                borderRadius: toNumber(shareStyles?.corner, 17),
+              },
+            ]}
+          >
+            <FontAwesome
+              name="share-alt"
+              size={shareIconSize}
+              color={toString(shareStyles?.icon?.color, "#111827")}
+            />
           </View>
         )}
 
+        {/* Rating bubble */}
         {ratingVisible && (
-          <View style={ratingBubbleStyle}>
+          <View
+            style={[
+              styles.ratingBubble,
+              {
+                backgroundColor: toString(reviewStyles?.bg, "#ffffff"),
+                borderRadius: toNumber(reviewStyles?.corner, 12),
+                borderWidth: reviewStyles?.borderLine ? 1 : 0,
+                borderColor: toString(reviewStyles?.borderColor, "#e5e7eb"),
+                paddingTop: toNumber(reviewStyles?.padding?.top, 4),
+                paddingRight: toNumber(reviewStyles?.padding?.right, 6),
+                paddingBottom: toNumber(reviewStyles?.padding?.bottom, 4),
+                paddingLeft: toNumber(reviewStyles?.padding?.left, 6),
+              },
+              normalizePosition(reviewStyles?.position, styles.ratingBubblePos),
+            ]}
+          >
             {ratingIconVisible && (
-              <Text
-                style={[
-                  styles.ratingStar,
-                  {
-                    fontSize: ratingIconSize,
-                    color: toString(reviewStyles?.icon?.color, "#111827"),
-                  },
-                ]}
-              >
-                ★
-              </Text>
+              <FontAwesome
+                name="star"
+                size={ratingIconSize}
+                color={toString(reviewStyles?.icon?.color, "#F59E0B")}
+                style={{ marginRight: ratingTextVisible ? 4 : 0 }}
+              />
             )}
             {ratingTextVisible && (
               <Text
-                style={[
-                  styles.ratingText,
-                  {
-                    fontSize: toNumber(reviewStyles?.rating?.fontSize, 12),
-                    color: toString(reviewStyles?.rating?.color, "#111827"),
-                    fontWeight: toString(reviewStyles?.rating?.fontWeight, "600"),
-                    fontFamily: toString(reviewStyles?.rating?.fontFamily, "System"),
-                  },
-                ]}
+                style={{
+                  fontSize: toNumber(reviewStyles?.rating?.fontSize, 12),
+                  color: toString(reviewStyles?.rating?.color, "#111827"),
+                  fontWeight: toString(reviewStyles?.rating?.fontWeight, "600"),
+                }}
               >
                 {ratingText}
               </Text>
             )}
             {ratingCountVisible && (
               <Text
-                style={[
-                  styles.ratingText,
-                  {
-                    fontSize: toNumber(reviewStyles?.count?.fontSize, 12),
-                    color: toString(reviewStyles?.count?.color, "#6b7280"),
-                    fontWeight: toString(reviewStyles?.count?.fontWeight, "400"),
-                    fontFamily: toString(reviewStyles?.count?.fontFamily, "System"),
-                    marginLeft: ratingTextVisible ? 4 : 0,
-                  },
-                ]}
+                style={{
+                  fontSize: toNumber(reviewStyles?.count?.fontSize, 12),
+                  color: toString(reviewStyles?.count?.color, "#6b7280"),
+                  marginLeft: ratingTextVisible ? 4 : 0,
+                }}
               >
                 {ratingCountText}
               </Text>
@@ -343,12 +333,45 @@ export default function ProductLibrary({ section }) {
         )}
       </View>
 
-      {!!classNames && (
-        <Text style={styles.debugLabel}>
-          {classNames.container ? `.${classNames.container}` : "Product Library"}
-        </Text>
+      {/* ── Thumbnail strip ─────────────────────────────────────────────────── */}
+      {hasMultiple && (
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.thumbRow}
+        >
+          {images.map((uri, idx) => (
+            <TouchableOpacity
+              key={`thumb-${idx}`}
+              onPress={() => scrollToImage(idx)}
+              activeOpacity={0.8}
+            >
+              <Image
+                source={{ uri }}
+                style={[
+                  styles.thumb,
+                  idx === currentIdx && styles.thumbActive,
+                ]}
+                resizeMode="cover"
+              />
+            </TouchableOpacity>
+          ))}
+        </ScrollView>
       )}
 
+      {/* ── Pagination dots ─────────────────────────────────────────────────── */}
+      {hasMultiple && (
+        <View style={styles.dotsRow}>
+          {images.map((_, idx) => (
+            <View
+              key={`dot-${idx}`}
+              style={[styles.dot, idx === currentIdx && styles.dotActive]}
+            />
+          ))}
+        </View>
+      )}
+
+      {/* ── Fullscreen modal with pinch-to-zoom ───────────────────────────── */}
       <Modal
         visible={isFullscreenVisible}
         transparent
@@ -366,7 +389,7 @@ export default function ProductLibrary({ section }) {
             >
               <Animated.View style={[styles.fullscreenImage, { transform: [{ scale }] }]}>
                 <Image
-                  source={{ uri: resolvedImageUrl }}
+                  source={{ uri: activeImageUrl }}
                   style={styles.fullscreenImage}
                   resizeMode="contain"
                   accessibilityLabel="Product image fullscreen"
@@ -380,7 +403,7 @@ export default function ProductLibrary({ section }) {
             accessibilityRole="button"
             accessibilityLabel="Close fullscreen image"
           >
-            <Text style={styles.closeButtonText}>✕</Text>
+            <FontAwesome name="times" size={16} color="#fff" />
           </Pressable>
         </Pressable>
       </Modal>
@@ -391,71 +414,53 @@ export default function ProductLibrary({ section }) {
 const styles = StyleSheet.create({
   container: {
     width: "100%",
-    padding: 0,
+    backgroundColor: "#ffffff",
   },
-  imageWrap: {
-    alignItems: "center",
-    justifyContent: "center",
-    paddingVertical: 8,
+  // Gallery wrapper: clips absolute overlays to the image area
+  galleryWrap: {
+    width: "100%",
+    overflow: "hidden",
+    position: "relative",
   },
   imageCard: {
-    borderRadius: 18,
+    borderRadius: 16,
     overflow: "hidden",
     backgroundColor: "#f8fafc",
     shadowColor: "#111827",
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.12,
-    shadowRadius: 12,
-    elevation: 6,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.10,
+    shadowRadius: 10,
+    elevation: 4,
   },
   image: {
     width: "100%",
     height: "100%",
     backgroundColor: "#f8fafc",
   },
-  imagePlaceholder: {
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  placeholderText: {
-    color: "#6b7280",
-    fontSize: 12,
-  },
+  // ── Overlay bubbles ──────────────────────────────────────────────────────
   iconBubble: {
     position: "absolute",
-    width: 34,
-    height: 34,
-    borderRadius: 17,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
     alignItems: "center",
     justifyContent: "center",
     backgroundColor: "#e5f3f4",
   },
-  iconText: {
-    fontSize: 14,
-    color: "#111827",
-  },
-  favoriteBubble: {
-    top: 16,
-    right: 16,
-  },
-  favoriteActiveBubble: {
-    backgroundColor: "#111827",
-  },
-  favoriteActiveText: {
-    color: "#ffffff",
-  },
   backBubble: {
-    top: 16,
-    left: 16,
+    top: 24,
+    left: 24,
+  },
+  favBubble: {
+    top: 24,
+    right: 24,
   },
   shareBubble: {
-    top: 64,
-    right: 16,
+    top: 72,
+    right: 24,
   },
   ratingBubble: {
     position: "absolute",
-    left: 16,
-    bottom: 16,
     flexDirection: "row",
     alignItems: "center",
     backgroundColor: "#ffffff",
@@ -464,28 +469,55 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
+    shadowOpacity: 0.10,
     shadowRadius: 2,
     elevation: 2,
   },
-  ratingStar: {
-    fontSize: 12,
-    color: "#111827",
-    marginRight: 4,
+  ratingBubblePos: {
+    left: 24,
+    bottom: 24,
   },
-  ratingText: {
-    fontSize: 12,
-    color: "#111827",
+  // ── Thumbnails ────────────────────────────────────────────────────────────
+  thumbRow: {
+    flexDirection: "row",
+    paddingHorizontal: 16,
+    paddingTop: 12,
+    gap: 10,
   },
-  debugLabel: {
-    marginTop: 12,
-    fontSize: 12,
-    color: "#9ca3af",
-    textAlign: "center",
+  thumb: {
+    width: 54,
+    height: 54,
+    borderRadius: 10,
+    backgroundColor: "#f3f4f6",
+    borderWidth: 2,
+    borderColor: "transparent",
   },
+  thumbActive: {
+    borderColor: "#0D9488",
+  },
+  // ── Pagination dots ───────────────────────────────────────────────────────
+  dotsRow: {
+    flexDirection: "row",
+    justifyContent: "center",
+    alignItems: "center",
+    paddingVertical: 10,
+    gap: 6,
+  },
+  dot: {
+    width: 7,
+    height: 7,
+    borderRadius: 4,
+    backgroundColor: "#D1D5DB",
+  },
+  dotActive: {
+    backgroundColor: "#0D9488",
+    width: 16,
+    borderRadius: 4,
+  },
+  // ── Fullscreen modal ──────────────────────────────────────────────────────
   fullscreenBackdrop: {
     flex: 1,
-    backgroundColor: "rgba(0,0,0,0.9)",
+    backgroundColor: "rgba(0,0,0,0.92)",
     justifyContent: "center",
     alignItems: "center",
   },
@@ -509,10 +541,5 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(255,255,255,0.2)",
     alignItems: "center",
     justifyContent: "center",
-  },
-  closeButtonText: {
-    color: "#fff",
-    fontSize: 18,
-    fontWeight: "600",
   },
 });

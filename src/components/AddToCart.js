@@ -63,14 +63,14 @@ const buildPadding = (config) => ({
   paddingRight: toNumber(config?.pr, 0),
 });
 
-const buildButtonStyles = (config) => {
+const buildButtonStyles = (config, defaultBg = "#F9A8D4") => {
   const borderColor = toString(config?.borderColor, "");
   const borderWidth = config?.borderLine || borderColor ? 1 : 0;
 
   return {
     ...buildPadding(config),
-    backgroundColor: toString(config?.bgColor, "#ffffff"),
-    borderRadius: toNumber(config?.borderRadius, 6),
+    backgroundColor: toString(config?.bgColor, defaultBg),
+    borderRadius: toNumber(config?.borderRadius, 8),
     borderColor: borderColor || undefined,
     borderWidth,
     flexDirection: "row",
@@ -138,8 +138,9 @@ export default function AddToCart({ section }) {
   const showQuantityText = toBoolean(visibility?.quantityPickerText, true);
   const showQuantityIcons = toBoolean(visibility?.quantityPickerIcons, true);
 
-  const addToCartText = toString(raw?.buttonText, "ADD TO CART");
-  const buyNowText = toString(raw?.buyNowText, "BUY NOW");
+  const addToCartText = toString(raw?.buttonText ?? addToCartConfig?.text, "Add to Cart");
+  const buyNowText = toString(raw?.buyNowText ?? buyNowConfig?.text, "Buy Now");
+  const quantityLabel = toString(raw?.quantityLabel ?? quantityConfig?.label, "Quantity");
   const shopifyDomain = toString(raw?.shopifyDomain, getShopifyDomain());
   const shopifyToken = toString(raw?.storefrontToken, getShopifyToken());
   const productHandle = toString(raw?.handle, "");
@@ -179,8 +180,8 @@ export default function AddToCart({ section }) {
 
   const addToCartTextStyle = {
     color: toString(addToCartConfig?.textColor, "#111827"),
-    fontSize: toNumber(addToCartConfig?.textSize, 12),
-    fontWeight: toString(addToCartConfig?.textWeight, "700"),
+    fontSize: toNumber(addToCartConfig?.textSize, 15),
+    fontWeight: toString(addToCartConfig?.textWeight, "600"),
     marginLeft: showAddToCartIcon ? 6 : 0,
   };
 
@@ -314,67 +315,118 @@ export default function AddToCart({ section }) {
     }
   };
 
+  const containerBg = toString(
+    raw?.bgColor ?? css?.bgColor ?? propsNode?.backgroundAndPadding?.bgColor,
+    "#FFFFFF"
+  );
+  const containerPT = toNumber(raw?.pt ?? css?.pt ?? propsNode?.backgroundAndPadding?.paddingTop, 12);
+  const containerPB = toNumber(raw?.pb ?? css?.pb ?? propsNode?.backgroundAndPadding?.paddingBottom, 12);
+  const containerPL = toNumber(raw?.pl ?? css?.pl ?? propsNode?.backgroundAndPadding?.paddingLeft, 16);
+  const containerPR = toNumber(raw?.pr ?? css?.pr ?? propsNode?.backgroundAndPadding?.paddingRight, 16);
+
+  const quantityLabelColor  = toString(quantityConfig?.labelColor, "#111827");
+  const quantityLabelSize   = toNumber(quantityConfig?.labelFontSize, 14);
+  const quantityLabelWeight = toString(quantityConfig?.labelFontWeight, "500");
+
   return (
-    <View style={styles.container}>
+    <View style={[
+      styles.container,
+      {
+        backgroundColor: containerBg,
+        paddingTop:      containerPT,
+        paddingBottom:   containerPB,
+        paddingLeft:     containerPL,
+        paddingRight:    containerPR,
+      },
+    ]}>
+
+      {/* ── Quantity row: label left, controls right ── */}
+      {showQuantityPicker && (
+        <View style={styles.quantityRow}>
+          {/* Label */}
+          <Text style={{
+            fontSize:   quantityLabelSize,
+            color:      quantityLabelColor,
+            fontWeight: quantityLabelWeight,
+          }}>
+            {quantityLabel}
+          </Text>
+
+          {/* – count + controls */}
+          <View style={[styles.quantityControls, quantityContainerStyle]}>
+            {showQuantityIcons && (
+              <TouchableOpacity onPress={decrement} style={styles.quantityButton}>
+                {minusIconName ? (
+                  <FontAwesome
+                    name={minusIconName}
+                    size={toNumber(quantityConfig?.minusIconSize, 14)}
+                    color={toString(quantityConfig?.minusIconColor, quantityTextStyle.color)}
+                  />
+                ) : (
+                  <Text style={[quantityTextStyle, styles.quantitySymbol]}>−</Text>
+                )}
+              </TouchableOpacity>
+            )}
+            {showQuantityText && (
+              <Text style={[styles.quantityText, quantityTextStyle]}>{quantity}</Text>
+            )}
+            {showQuantityIcons && (
+              <TouchableOpacity onPress={increment} style={styles.quantityButton}>
+                {plusIconName ? (
+                  <FontAwesome
+                    name={plusIconName}
+                    size={toNumber(quantityConfig?.plusIconSize, 14)}
+                    color={toString(quantityConfig?.plusIconColor, quantityTextStyle.color)}
+                  />
+                ) : (
+                  <Text style={[quantityTextStyle, styles.quantitySymbol]}>+</Text>
+                )}
+              </TouchableOpacity>
+            )}
+          </View>
+        </View>
+      )}
+
+      {/* ── Add to Cart button (full-width) ── */}
       {showAddToCart && (
         <TouchableOpacity
-          style={[styles.button, addToCartButtonStyle]}
+          style={[styles.fullButton, addToCartButtonStyle]}
           onPress={handleAddToCart}
           disabled={!addToCartUrl && !productVariantGid && !canAddLocally}
+          activeOpacity={0.8}
         >
           {showAddToCartIcon && !!addToCartIconName && (
             <FontAwesome
               name={addToCartIconName}
               size={toNumber(addToCartConfig?.iconSize, 14)}
               color={toString(addToCartConfig?.iconColor, addToCartTextStyle.color)}
+              style={{ marginRight: 6 }}
             />
           )}
-          {showAddToCartText && <Text style={addToCartTextStyle}>{addToCartText}</Text>}
+          {showAddToCartText && (
+            <Text style={addToCartTextStyle}>{addToCartText}</Text>
+          )}
         </TouchableOpacity>
       )}
 
-      {showQuantityPicker && (
-        <View style={[styles.quantityContainer, quantityContainerStyle]}>
-          {showQuantityIcons && (
-            <TouchableOpacity onPress={decrement} style={styles.quantityButton}>
-              {minusIconName ? (
-                <FontAwesome
-                  name={minusIconName}
-                  size={toNumber(quantityConfig?.minusIconSize, 14)}
-                  color={toString(quantityConfig?.minusIconColor, quantityTextStyle.color)}
-                />
-              ) : (
-                <Text style={quantityTextStyle}>-</Text>
-              )}
-            </TouchableOpacity>
-          )}
-          {showQuantityText && <Text style={[styles.quantityText, quantityTextStyle]}>{quantity}</Text>}
-          {showQuantityIcons && (
-            <TouchableOpacity onPress={increment} style={styles.quantityButton}>
-              {plusIconName ? (
-                <FontAwesome
-                  name={plusIconName}
-                  size={toNumber(quantityConfig?.plusIconSize, 14)}
-                  color={toString(quantityConfig?.plusIconColor, quantityTextStyle.color)}
-                />
-              ) : (
-                <Text style={quantityTextStyle}>+</Text>
-              )}
-            </TouchableOpacity>
-          )}
-        </View>
-      )}
-
+      {/* ── Buy Now button (full-width) ── */}
       {showBuyNow && (
-        <TouchableOpacity style={[styles.button, buyNowButtonStyle]} onPress={handleBuyNow}>
+        <TouchableOpacity
+          style={[styles.fullButton, buyNowButtonStyle, showAddToCart && { marginTop: 8 }]}
+          onPress={handleBuyNow}
+          activeOpacity={0.8}
+        >
           {showBuyNowIcon && !!buyNowIconName && (
             <FontAwesome
               name={buyNowIconName}
               size={toNumber(buyNowConfig?.iconSize, 14)}
               color={toString(buyNowConfig?.iconColor, buyNowTextStyle.color)}
+              style={{ marginRight: 6 }}
             />
           )}
-          {showBuyNowText && <Text style={buyNowTextStyle}>{buyNowText}</Text>}
+          {showBuyNowText && (
+            <Text style={buyNowTextStyle}>{buyNowText}</Text>
+          )}
         </TouchableOpacity>
       )}
     </View>
@@ -384,32 +436,48 @@ export default function AddToCart({ section }) {
 const styles = StyleSheet.create({
   container: {
     width: "100%",
+    flexDirection: "column",
+  },
+  // Quantity row: label left, controls right
+  quantityRow: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    gap: 8,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
+    marginBottom: 12,
   },
-  button: {
-    flex: 1,
-    minHeight: 44,
+  quantityControls: {
+    flexDirection: "row",
+    alignItems: "center",
     borderWidth: 1,
-  },
-  quantityContainer: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    minHeight: 44,
-    paddingHorizontal: 6,
-    gap: 8,
+    borderColor: "#E5E7EB",
+    borderRadius: 6,
+    paddingHorizontal: 4,
+    gap: 4,
   },
   quantityButton: {
-    paddingHorizontal: 6,
-    paddingVertical: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 6,
+    alignItems: "center",
+    justifyContent: "center",
+    minWidth: 28,
+  },
+  quantitySymbol: {
+    fontSize: 16,
+    lineHeight: 20,
   },
   quantityText: {
-    minWidth: 16,
+    minWidth: 24,
     textAlign: "center",
+    fontSize: 14,
+    fontWeight: "600",
+  },
+  // Full-width buttons
+  fullButton: {
+    width: "100%",
+    minHeight: 46,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    borderRadius: 8,
   },
 });

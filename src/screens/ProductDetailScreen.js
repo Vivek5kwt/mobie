@@ -25,21 +25,28 @@ const resolveSections = (detailSections) => {
   return [];
 };
 
-const buildProductDefaults = (product = {}) => ({
-  titleText: product?.title,
-  title: product?.title,
-  imageUrl: product?.imageUrl,
-  salePrice: product?.priceAmount,
-  standardPrice: product?.priceAmount,
-  currencySymbol: product?.priceCurrency ? `${product.priceCurrency} ` : undefined,
-  vendorText: product?.vendor,
-  shop: product?.vendor,
-  description: product?.description,
-  descriptionText: product?.description,
-  variantOptions: product?.variantOptions,
-  variantId: product?.variantId,
-  handle: product?.handle,
-});
+const buildProductDefaults = (product = {}) => {
+  const imageUrl = product?.imageUrl;
+  const images = Array.isArray(product?.images) && product.images.length > 0
+    ? product.images
+    : imageUrl ? [imageUrl] : [];
+  return {
+    titleText: product?.title,
+    title: product?.title,
+    imageUrl,
+    images,
+    salePrice: product?.priceAmount,
+    standardPrice: product?.priceAmount,
+    currencySymbol: product?.priceCurrency ? `${product.priceCurrency} ` : undefined,
+    vendorText: product?.vendor,
+    shop: product?.vendor,
+    description: product?.description,
+    descriptionText: product?.description,
+    variantOptions: product?.variantOptions,
+    variantId: product?.variantId,
+    handle: product?.handle,
+  };
+};
 
 const mergeRawNode = (rawNode, mergedRaw) => {
   if (rawNode && typeof rawNode === "object") {
