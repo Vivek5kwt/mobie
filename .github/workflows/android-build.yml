@@ -226,14 +226,18 @@ jobs:
             echo "🔑 Authenticating Firebase via Service Account…"
             echo '${{ secrets.FIREBASE_SERVICE_ACCOUNT }}' > /tmp/firebase-sa.json
             echo "GOOGLE_APPLICATION_CREDENTIALS=/tmp/firebase-sa.json" >> $GITHUB_ENV
+            echo "FIREBASE_CREDENTIALS_SET=true" >> $GITHUB_ENV
             echo "✅ Service account saved"
           elif [ -n "${{ secrets.FIREBASE_TOKEN }}" ]; then
             echo "🔑 Authenticating Firebase via CI token…"
             echo "FIREBASE_TOKEN=${{ secrets.FIREBASE_TOKEN }}" >> $GITHUB_ENV
+            echo "FIREBASE_CREDENTIALS_SET=true" >> $GITHUB_ENV
             echo "✅ CI token set"
           else
-            echo "⚠️ No FIREBASE_SERVICE_ACCOUNT or FIREBASE_TOKEN secret found"
-            echo "   Firebase setup will be skipped — using fallback google-services.json"
+            echo "FIREBASE_CREDENTIALS_SET=false" >> $GITHUB_ENV
+            echo "FIREBASE_SETUP_STATUS=skipped" >> $GITHUB_ENV
+            echo "FIREBASE_SKIP_REASON=No FIREBASE_SERVICE_ACCOUNT or FIREBASE_TOKEN secret found in repo Settings → Secrets" >> $GITHUB_ENV
+            echo "::warning title=Firebase Not Configured::No Firebase credentials found. Each generated app will share the base google-services.json. Add FIREBASE_SERVICE_ACCOUNT secret to enable per-app Firebase isolation."
           fi
 
       - name: Setup Firebase App & Inject google-services.json
@@ -245,23 +249,81 @@ jobs:
           GRAPHQL_ENDPOINT:    ${{ secrets.GRAPHQL_ENDPOINT || 'https://mobidrag.ampleteck.com/graphql' }}
           GRAPHQL_TOKEN:       ${{ secrets.GRAPHQL_TOKEN }}
         run: |
-          if [ -n "${{ env.GOOGLE_APPLICATION_CREDENTIALS }}" ] || [ -n "${{ env.FIREBASE_TOKEN }}" ]; then
+          if [ "${FIREBASE_CREDENTIALS_SET}" = "true" ]; then
             echo "🔥 Running Firebase setup…"
-            node scripts/firebase-setup.js
+            if node scripts/firebase-setup.js; then
+              echo "FIREBASE_SETUP_STATUS=success" >> $GITHUB_ENV
+              echo "::notice title=Firebase OK::Firebase app created/reused for ${PACKAGE_NAME}. google-services.json injected."
+            else
+              echo "FIREBASE_SETUP_STATUS=failed" >> $GITHUB_ENV
+              echo "FIREBASE_SKIP_REASON=firebase-setup.js exited with an error — see logs above" >> $GITHUB_ENV
+              echo "::warning title=Firebase Setup Failed::Script error — using fallback google-services.json. Check logs for details."
+            fi
           else
-            echo "⚠️ Skipping Firebase setup — no credentials available"
-            echo "   Using existing google-services.json (com.mobidrag fallback)"
+            echo "⏭️  Firebase setup skipped (no credentials)"
           fi
 
       - name: Reserve FCM Notification Topic
         env:
-          APP_ID:             ${{ env.APP_ID }}
-          FIREBASE_APP_ID:    ${{ env.FIREBASE_APP_ID }}
-          FIREBASE_PROJECT_ID:${{ env.FIREBASE_PROJECT_ID || 'mobidrag-d2f5e' }}
-          PACKAGE_NAME:       ${{ env.PACKAGE_NAME }}
+          APP_ID:              ${{ env.APP_ID }}
+          FIREBASE_APP_ID:     ${{ env.FIREBASE_APP_ID }}
+          FIREBASE_PROJECT_ID: ${{ env.FIREBASE_PROJECT_ID || 'mobidrag-d2f5e' }}
+          PACKAGE_NAME:        ${{ env.PACKAGE_NAME }}
         run: |
           node scripts/firebase-notify.js
           echo "📬 FCM Topic: app-${APP_ID}-notifications"
+
+      # ── Firebase Status Report (always runs — tells you exactly what happened) ──
+      - name: Firebase Status Report
+        if: always()
+        run: |
+          echo ""
+          echo "╔══════════════════════════════════════════════════════════╗"
+          echo "║              FIREBASE SETUP STATUS REPORT               ║"
+          echo "╠══════════════════════════════════════════════════════════╣"
+          echo "║  APP_ID       : ${APP_ID}"
+          echo "║  Package      : ${PACKAGE_NAME}"
+          echo "╠══════════════════════════════════════════════════════════╣"
+
+          if [ "${FIREBASE_SETUP_STATUS}" = "success" ]; then
+            echo "║  STATUS       : ✅ SUCCESS — Firebase fully configured"
+            echo "║  Firebase ID  : ${FIREBASE_APP_ID}"
+            echo "║  Project      : ${FIREBASE_PROJECT_ID}"
+            echo "║  FCM Topic    : app-${APP_ID}-notifications"
+            echo "║  Config file  : android/app/google-services.json ✅"
+            echo "╠══════════════════════════════════════════════════════════╣"
+            echo "║  ✅ Each generated app has its OWN Firebase config     ║"
+            echo "║  ✅ Push notifications are ISOLATED per app            ║"
+
+          elif [ "${FIREBASE_SETUP_STATUS}" = "skipped" ]; then
+            echo "║  STATUS       : ⚠️  SKIPPED — Firebase NOT configured"
+            echo "║  Reason       : ${FIREBASE_SKIP_REASON}"
+            echo "║  Config file  : android/app/google-services.json (shared fallback)"
+            echo "╠══════════════════════════════════════════════════════════╣"
+            echo "║  ⚠️  All generated apps share ONE Firebase config      ║"
+            echo "║  ⚠️  Push notifications will NOT be isolated per app   ║"
+            echo "║                                                          ║"
+            echo "║  TO FIX — Add these secrets in:                         ║"
+            echo "║  GitHub → Repo Settings → Secrets → Actions             ║"
+            echo "║    Secret 1: FIREBASE_SERVICE_ACCOUNT                   ║"
+            echo "║              (contents of your service account JSON)    ║"
+            echo "║    Secret 2: FIREBASE_PROJECT_ID                        ║"
+            echo "║              (value: mobidrag-d2f5e)                    ║"
+
+          elif [ "${FIREBASE_SETUP_STATUS}" = "failed" ]; then
+            echo "║  STATUS       : ❌ FAILED — Error during setup"
+            echo "║  Reason       : ${FIREBASE_SKIP_REASON}"
+            echo "║  Config file  : android/app/google-services.json (shared fallback)"
+            echo "╠══════════════════════════════════════════════════════════╣"
+            echo "║  ❌ Firebase setup failed — check logs above            ║"
+            echo "║  ⚠️  Build continued with fallback google-services.json ║"
+
+          else
+            echo "║  STATUS       : ⚠️  UNKNOWN — Status was not recorded"
+          fi
+
+          echo "╚══════════════════════════════════════════════════════════╝"
+          echo ""
 
       # ── End Firebase Setup ─────────────────────────────────────────────────
 
@@ -409,17 +471,52 @@ jobs:
             ASSET_URL=$(gh release view "$TAG_NAME" --json assets -q '.assets[0].browser_download_url' 2>/dev/null || echo "")
           fi
           {
-            echo "### Android build generated"
+            echo "## ✅ Android Build Complete"
+            echo ""
             if [ -n "${APP_NAME}" ] && [ "${APP_NAME}" != "App-${APP_ID}" ]; then
               echo "**App:** ${APP_NAME}"
             fi
-            echo "- APK: [${{ steps.prepare_apk.outputs.apk_name }}]($ASSET_URL)"
-            echo "- APP_ID: ${APP_ID}"
-            echo "- Package: ${PACKAGE_NAME}"
-            if [ -n "${{ env.FIREBASE_APP_ID }}" ]; then
-              echo "- Firebase App ID: ${{ env.FIREBASE_APP_ID }}"
-              echo "- Firebase Project: ${{ env.FIREBASE_PROJECT_ID }}"
-              echo "- FCM Topic: app-${APP_ID}-notifications"
+            echo ""
+            echo "| Field | Value |"
+            echo "|---|---|"
+            echo "| APK | [${{ steps.prepare_apk.outputs.apk_name }}]($ASSET_URL) |"
+            echo "| APP_ID | ${APP_ID} |"
+            echo "| Package | \`${PACKAGE_NAME}\` |"
+            echo ""
+
+            echo "## 🔥 Firebase Status"
+            echo ""
+            if [ "${FIREBASE_SETUP_STATUS}" = "success" ]; then
+              echo "| Field | Value |"
+              echo "|---|---|"
+              echo "| Status | ✅ **Configured — per-app Firebase** |"
+              echo "| Firebase App ID | \`${FIREBASE_APP_ID}\` |"
+              echo "| Firebase Project | \`${FIREBASE_PROJECT_ID}\` |"
+              echo "| FCM Topic | \`app-${APP_ID}-notifications\` |"
+              echo "| google-services.json | ✅ Injected for \`${PACKAGE_NAME}\` |"
+            elif [ "${FIREBASE_SETUP_STATUS}" = "skipped" ]; then
+              echo "> ⚠️ **Firebase NOT configured — all apps share the same Firebase config**"
+              echo ""
+              echo "**Reason:** ${FIREBASE_SKIP_REASON}"
+              echo ""
+              echo "### How to fix"
+              echo "Go to **Repo → Settings → Secrets and variables → Actions** and add:"
+              echo ""
+              echo "| Secret name | Value |"
+              echo "|---|---|"
+              echo "| \`FIREBASE_SERVICE_ACCOUNT\` | Full JSON content of your Firebase service account key |"
+              echo "| \`FIREBASE_PROJECT_ID\` | \`mobidrag-d2f5e\` |"
+            elif [ "${FIREBASE_SETUP_STATUS}" = "failed" ]; then
+              echo "> ❌ **Firebase setup FAILED — using shared fallback config**"
+              echo ""
+              echo "**Reason:** ${FIREBASE_SKIP_REASON}"
+              echo ""
+              echo "Check the **Firebase Status Report** step logs above for details."
+            else
+              echo "> ⚠️ Firebase status unknown — check logs"
             fi
-            echo "- Release: [${RELEASE_NAME}](https://github.com/${{ github.repository }}/releases/tag/${TAG_NAME})"
+
+            echo ""
+            echo "---"
+            echo "Release: [${RELEASE_NAME}](https://github.com/${{ github.repository }}/releases/tag/${TAG_NAME})"
           } >> "$GITHUB_STEP_SUMMARY"
