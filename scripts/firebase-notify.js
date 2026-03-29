@@ -28,8 +28,9 @@ const FIREBASE_PROJECT   = process.env.FIREBASE_PROJECT_ID || 'mobidrag-d2f5e';
 const PACKAGE_NAME       = process.env.PACKAGE_NAME || `com.mobidrag.app${APP_ID}`;
 
 if (!APP_ID) {
-  console.error('❌ APP_ID is required');
-  process.exit(1);
+  // Not a fatal error — skip silently
+  console.log('⚠️  APP_ID not set, skipping FCM topic registration');
+  process.exit(0);
 }
 
 const topicName   = `app-${APP_ID}-notifications`;

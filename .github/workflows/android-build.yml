@@ -222,56 +222,100 @@ jobs:
 
       - name: Authenticate Firebase CLI
         run: |
+          # ── Strategy: ONE account → SEPARATE project per app ──────────────
+          # Each app gets its own Firebase project: mbdrag-{appId}
+          # Credentials must be set in: Repo Settings → Secrets → Actions
+          #
+          # Option A (recommended): FIREBASE_TOKEN
+          #   1. Run on your local machine:  npx firebase-tools login:ci
+          #   2. Copy the printed token
+          #   3. Add secret:  FIREBASE_TOKEN = <that token>
+          #
+          # Option B: FIREBASE_SERVICE_ACCOUNT
+          #   1. Google Cloud Console → IAM → Service Accounts → Create
+          #   2. Grant roles: Firebase Admin + Project Creator + Service Usage Admin
+          #   3. Keys tab → Add Key → JSON → Download
+          #   4. Add secret:  FIREBASE_SERVICE_ACCOUNT = <full JSON content>
+          # ──────────────────────────────────────────────────────────────────
+
           if [ -n "${{ secrets.FIREBASE_SERVICE_ACCOUNT }}" ]; then
-            echo "🔑 Authenticating Firebase via Service Account…"
+            echo "🔑 Using Service Account credentials"
             echo '${{ secrets.FIREBASE_SERVICE_ACCOUNT }}' > /tmp/firebase-sa.json
             echo "GOOGLE_APPLICATION_CREDENTIALS=/tmp/firebase-sa.json" >> $GITHUB_ENV
-            echo "FIREBASE_CREDENTIALS_SET=true" >> $GITHUB_ENV
-            echo "✅ Service account saved"
+            echo "FIREBASE_CREDENTIALS_SET=true"  >> $GITHUB_ENV
+            echo "FIREBASE_AUTH_METHOD=service-account" >> $GITHUB_ENV
+            echo "✅ Service account ready"
+
           elif [ -n "${{ secrets.FIREBASE_TOKEN }}" ]; then
-            echo "🔑 Authenticating Firebase via CI token…"
+            echo "🔑 Using CI Token credentials"
             echo "FIREBASE_TOKEN=${{ secrets.FIREBASE_TOKEN }}" >> $GITHUB_ENV
-            echo "FIREBASE_CREDENTIALS_SET=true" >> $GITHUB_ENV
-            echo "✅ CI token set"
+            echo "FIREBASE_CREDENTIALS_SET=true"  >> $GITHUB_ENV
+            echo "FIREBASE_AUTH_METHOD=ci-token"  >> $GITHUB_ENV
+            echo "✅ CI token ready"
+
           else
             echo "FIREBASE_CREDENTIALS_SET=false" >> $GITHUB_ENV
-            echo "FIREBASE_SETUP_STATUS=skipped" >> $GITHUB_ENV
-            echo "FIREBASE_SKIP_REASON=No FIREBASE_SERVICE_ACCOUNT or FIREBASE_TOKEN secret found in repo Settings → Secrets" >> $GITHUB_ENV
-            echo "::warning title=Firebase Not Configured::No Firebase credentials found. Each generated app will share the base google-services.json. Add FIREBASE_SERVICE_ACCOUNT secret to enable per-app Firebase isolation."
+            echo "FIREBASE_SETUP_STATUS=skipped"  >> $GITHUB_ENV
+            echo "FIREBASE_SKIP_REASON=No Firebase secret set. See instructions in this step." >> $GITHUB_ENV
+            echo ""
+            echo "════════════════════════════════════════════════════"
+            echo "  ⚠️  FIREBASE CREDENTIALS NOT SET"
+            echo "════════════════════════════════════════════════════"
+            echo "  Firebase will be SKIPPED for this build."
+            echo "  All apps will share one google-services.json."
+            echo ""
+            echo "  TO ENABLE FIREBASE — add ONE of these secrets:"
+            echo "  Repo → Settings → Secrets → Actions → New secret"
+            echo ""
+            echo "  ┌─ OPTION A (easier) ──────────────────────────┐"
+            echo "  │  Secret name : FIREBASE_TOKEN                 │"
+            echo "  │  How to get  : Run on your machine:           │"
+            echo "  │    npx firebase-tools login:ci                │"
+            echo "  │  Copy the token it prints and paste as value  │"
+            echo "  └───────────────────────────────────────────────┘"
+            echo ""
+            echo "  ┌─ OPTION B (production) ───────────────────────┐"
+            echo "  │  Secret name : FIREBASE_SERVICE_ACCOUNT        │"
+            echo "  │  How to get  :                                  │"
+            echo "  │    1. Google Cloud Console                      │"
+            echo "  │    2. IAM & Admin → Service Accounts → Create  │"
+            echo "  │    3. Grant roles:                              │"
+            echo "  │       - Firebase Admin                         │"
+            echo "  │       - Project Creator                        │"
+            echo "  │       - Service Usage Admin                    │"
+            echo "  │    4. Keys tab → Add Key → JSON → Download     │"
+            echo "  │    5. Paste entire JSON as the secret value    │"
+            echo "  └───────────────────────────────────────────────┘"
+            echo "════════════════════════════════════════════════════"
+            echo "::warning title=Firebase Skipped — Action Required::No Firebase secret found. Run 'npx firebase-tools login:ci' on your machine and add the output as FIREBASE_TOKEN secret. Each generated app will share one google-services.json until this is done."
           fi
 
-      - name: Setup Firebase App & Inject google-services.json
+      - name: Create Firebase Project + Register App + Inject Config
         env:
-          APP_ID:              ${{ env.APP_ID }}
-          APP_NAME:            ${{ env.APP_NAME }}
-          PACKAGE_NAME:        ${{ env.PACKAGE_NAME }}
-          FIREBASE_PROJECT_ID: ${{ secrets.FIREBASE_PROJECT_ID || 'mobidrag-d2f5e' }}
-          GRAPHQL_ENDPOINT:    ${{ secrets.GRAPHQL_ENDPOINT || 'https://mobidrag.ampleteck.com/graphql' }}
-          GRAPHQL_TOKEN:       ${{ secrets.GRAPHQL_TOKEN }}
+          APP_ID:           ${{ env.APP_ID }}
+          APP_NAME:         ${{ env.APP_NAME }}
+          PACKAGE_NAME:     ${{ env.PACKAGE_NAME }}
+          GRAPHQL_ENDPOINT: ${{ secrets.GRAPHQL_ENDPOINT || 'https://mobidrag.ampleteck.com/graphql' }}
+          GRAPHQL_TOKEN:    ${{ secrets.GRAPHQL_TOKEN }}
         run: |
+          # Strategy: creates project mbdrag-{appId} in the Firebase account
           if [ "${FIREBASE_CREDENTIALS_SET}" = "true" ]; then
-            echo "🔥 Running Firebase setup…"
-            if node scripts/firebase-setup.js; then
-              echo "FIREBASE_SETUP_STATUS=success" >> $GITHUB_ENV
-              echo "::notice title=Firebase OK::Firebase app created/reused for ${PACKAGE_NAME}. google-services.json injected."
-            else
-              echo "FIREBASE_SETUP_STATUS=failed" >> $GITHUB_ENV
-              echo "FIREBASE_SKIP_REASON=firebase-setup.js exited with an error — see logs above" >> $GITHUB_ENV
-              echo "::warning title=Firebase Setup Failed::Script error — using fallback google-services.json. Check logs for details."
-            fi
+            echo "🔥 Creating Firebase project: mbdrag-${APP_ID}"
+            node scripts/firebase-setup.js
           else
-            echo "⏭️  Firebase setup skipped (no credentials)"
+            echo "⏭️  Firebase setup skipped — no credentials (build continues with fallback config)"
           fi
 
-      - name: Reserve FCM Notification Topic
+      - name: Write FCM Topic (always runs)
         env:
-          APP_ID:              ${{ env.APP_ID }}
-          FIREBASE_APP_ID:     ${{ env.FIREBASE_APP_ID }}
-          FIREBASE_PROJECT_ID: ${{ env.FIREBASE_PROJECT_ID || 'mobidrag-d2f5e' }}
-          PACKAGE_NAME:        ${{ env.PACKAGE_NAME }}
+          APP_ID:       ${{ env.APP_ID }}
+          PACKAGE_NAME: ${{ env.PACKAGE_NAME }}
         run: |
+          # FCM topic is isolated per project — just record it
+          FCM_TOPIC="app-${APP_ID}-notifications"
+          echo "FCM_TOPIC=${FCM_TOPIC}" >> $GITHUB_ENV
           node scripts/firebase-notify.js
-          echo "📬 FCM Topic: app-${APP_ID}-notifications"
+          echo "📬 FCM Topic: ${FCM_TOPIC}"
 
       # ── Firebase Status Report (always runs — tells you exactly what happened) ──
       - name: Firebase Status Report
