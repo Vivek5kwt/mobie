@@ -58,7 +58,7 @@ jobs:
       - name: Fetch App Name and Icon (Fallback if not provided)
         env:
           APP_ID: ${{ env.APP_ID }}
-          GRAPHQL_ENDPOINT: ${{ secrets.GRAPHQL_ENDPOINT || 'https://mobidrag.ampleteck.com/graphql' }}
+          GRAPHQL_ENDPOINT: ${{ secrets.GRAPHQL_ENDPOINT || 'https://app.mobidrag.com/graphql' }}
           GRAPHQL_TOKEN: ${{ secrets.GRAPHQL_TOKEN }}
         run: |
           # Only fetch if app name was not provided from mutation
@@ -295,7 +295,7 @@ jobs:
           APP_ID:           ${{ env.APP_ID }}
           APP_NAME:         ${{ env.APP_NAME }}
           PACKAGE_NAME:     ${{ env.PACKAGE_NAME }}
-          GRAPHQL_ENDPOINT: ${{ secrets.GRAPHQL_ENDPOINT || 'https://mobidrag.ampleteck.com/graphql' }}
+          GRAPHQL_ENDPOINT: ${{ secrets.GRAPHQL_ENDPOINT || 'https://app.mobidrag.com/graphql' }}
           GRAPHQL_TOKEN:    ${{ secrets.GRAPHQL_TOKEN }}
         run: |
           # Strategy: creates project mbdrag-{appId} in the Firebase account

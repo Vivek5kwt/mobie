@@ -372,7 +372,7 @@ export default function LayoutScreen({ route }) {
 
       const dslData = await fetchDSL(appId, pageName);
       if (!dslData?.dsl) {
-        const graphqlUrl = "https://mobidrag.ampleteck.com/graphql";
+        const graphqlUrl = "https://app.mobidrag.com/graphql";
         setErr(`No live DSL returned from server\nApp ID: ${appId}\nURL: ${graphqlUrl}`);
         return;
       }
