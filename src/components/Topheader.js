@@ -145,31 +145,71 @@ export default function Header({ section }) {
     unwrapValue(sideMenuProps?.iconId ?? sideMenuProps?.iconName ?? sideMenuProps?.icon, "")
   );
   const sideMenuIconSize = unwrapValue(sideMenuProps?.width, 24);
-  const sideMenuIconColor = unwrapValue(sideMenuProps?.color, defaultConfig?.iconColor ?? "#111827");
+  const sideMenuIconColor = unwrapValue(
+    sideMenuProps?.color,
+    defaultConfig?.sideMenuIconColor ?? defaultConfig?.iconColor ?? "#111827",
+  );
 
-  const logoEnabled = resolveBoolean(props?.enableLogo, true);
-  const logoImage = unwrapValue(props?.logoImage, "");
+  // ── Logo ──────────────────────────────────────────────────────────────────
+  // Standalone: fall back to defaultConfig?.logoEnabled / logoImage
+  const logoEnabled = resolveBoolean(
+    props?.enableLogo,
+    isStandalone ? (defaultConfig?.logoEnabled ?? defaultConfig?.enableLogo ?? true) : true,
+  );
+  const logoImage = unwrapValue(
+    props?.logoImage,
+    isStandalone ? (defaultConfig?.logoImage ?? defaultConfig?.logo ?? "") : "",
+  );
   const [logoSource, setLogoSource] = React.useState(() => resolveLogoSource(logoImage));
 
   React.useEffect(() => {
     setLogoSource(resolveLogoSource(logoImage));
   }, [logoImage]);
 
+  // ── Header text ──────────────────────────────────────────────────────────
+  // Standalone: show text when defaultConfig has a title or explicitly enabled
   const headerTextEnabled = resolveBoolean(
     props?.enableheaderText ?? props?.enableHeaderText,
-    isStandalone && defaultConfig?.title ? true : false,
+    isStandalone
+      ? resolveBoolean(
+          defaultConfig?.enableHeaderText ?? defaultConfig?.showTitle,
+          !!defaultConfig?.title,
+        )
+      : false,
   );
-  const headerTextValue = unwrapValue(props?.headerText, isStandalone && defaultConfig?.title ? defaultConfig.title : "");
-  const headerTextSize = unwrapValue(props?.headerTextSize, 14);
-  const headerTextColor = unwrapValue(props?.headerTextColor, defaultConfig?.textColor ?? "#0C1C2C");
-  const headerTextBold = resolveBoolean(props?.headerTextBold, false);
+  const headerTextValue = unwrapValue(
+    props?.headerText,
+    isStandalone ? (defaultConfig?.title ?? defaultConfig?.headerText ?? "") : "",
+  );
+  const headerTextSize = unwrapValue(
+    props?.headerTextSize,
+    isStandalone ? (defaultConfig?.fontSize ?? defaultConfig?.titleFontSize ?? 14) : 14,
+  );
+  const headerTextColor = unwrapValue(
+    props?.headerTextColor,
+    defaultConfig?.textColor ?? defaultConfig?.titleColor ?? "#0C1C2C",
+  );
+  const headerTextBold = resolveBoolean(
+    props?.headerTextBold,
+    isStandalone ? resolveBoolean(defaultConfig?.bold ?? defaultConfig?.titleBold, false) : false,
+  );
   const headerTextItalic = resolveBoolean(props?.headerTextItalic, false);
   const headerTextUnderline = resolveBoolean(props?.headerTextUnderline, false);
-  const headerTextAlign = String(unwrapValue(props?.headerTextAlign, "center")).toLowerCase();
-  const headerFontFamily = unwrapValue(props?.headerFontFamily, undefined);
+  const headerTextAlign = String(
+    unwrapValue(
+      props?.headerTextAlign,
+      isStandalone ? (defaultConfig?.textAlign ?? defaultConfig?.titleAlign ?? "center") : "center",
+    ),
+  ).toLowerCase();
+  const headerFontFamily = unwrapValue(
+    props?.headerFontFamily,
+    isStandalone ? (defaultConfig?.fontFamily ?? undefined) : undefined,
+  );
   const headerFontWeight = resolveFontWeight(
     props?.headerFontWeight,
-    headerTextBold ? "700" : "400",
+    isStandalone
+      ? resolveFontWeight(defaultConfig?.fontWeight ?? defaultConfig?.titleFontWeight, headerTextBold ? "700" : "400")
+      : headerTextBold ? "700" : "400",
   );
   const logoAlignment = resolveLogoAlignment(props?.logoAlign);
   const logoSlotFlexDirection = normalizedLayout.logoSlot?.flexDirection || "column";
@@ -189,24 +229,40 @@ export default function Header({ section }) {
   };
 
   const cartProps = props?.cart?.properties || props?.cart || {};
+  // ── Cart ──────────────────────────────────────────────────────────────────
   const cartVisible = defaultConfig?.showCart !== undefined
     ? Boolean(defaultConfig.showCart)
     : resolveBoolean(cartProps?.visible, true);
-  const cartIconName = normalizeIconName(unwrapValue(cartProps?.iconId, "cart-shopping"));
-  const cartIconSize = unwrapValue(cartProps?.width, 18);
-  const cartIconColor = unwrapValue(cartProps?.color, defaultConfig?.iconColor ?? "#016D77");
+  const cartIconName = normalizeIconName(
+    unwrapValue(cartProps?.iconId, isStandalone ? (defaultConfig?.cartIcon ?? "cart-shopping") : "cart-shopping"),
+  );
+  const cartIconSize = unwrapValue(
+    cartProps?.width,
+    isStandalone ? (defaultConfig?.cartIconSize ?? defaultConfig?.iconSize ?? 18) : 18,
+  );
+  const cartIconColor = unwrapValue(
+    cartProps?.color,
+    defaultConfig?.cartIconColor ?? defaultConfig?.iconColor ?? "#016D77",
+  );
   const cartShowBadge = resolveBoolean(cartProps?.showBadge, false);
   const shouldShowCartBadge = safeCartCount > 0 || cartShowBadge;
 
+  // ── Notification / Bell ───────────────────────────────────────────────────
   const notificationProps = props?.notification?.properties || props?.notification || {};
   const notificationVisible = defaultConfig?.showBell !== undefined
     ? Boolean(defaultConfig.showBell)
     : resolveBoolean(notificationProps?.visible, true);
   const notificationIconName = normalizeIconName(
-    unwrapValue(notificationProps?.iconId, "bell"),
+    unwrapValue(notificationProps?.iconId, isStandalone ? (defaultConfig?.bellIcon ?? "bell") : "bell"),
   );
-  const notificationIconSize = unwrapValue(notificationProps?.width, 18);
-  const notificationIconColor = unwrapValue(notificationProps?.color, defaultConfig?.iconColor ?? "#016D77");
+  const notificationIconSize = unwrapValue(
+    notificationProps?.width,
+    isStandalone ? (defaultConfig?.bellIconSize ?? defaultConfig?.iconSize ?? 18) : 18,
+  );
+  const notificationIconColor = unwrapValue(
+    notificationProps?.color,
+    defaultConfig?.bellIconColor ?? defaultConfig?.iconColor ?? "#016D77",
+  );
   const notificationShowBadge = resolveBoolean(notificationProps?.showBadge, false);
 
   const badgeStyle = normalizedLayout.badge || {};
@@ -298,7 +354,10 @@ export default function Header({ section }) {
       style={[
         styles.container,
         {
-          backgroundColor: props.style?.properties?.backgroundColor?.value ?? defaultConfig?.backgroundColor,
+          backgroundColor:
+          props.style?.properties?.backgroundColor?.value ??
+          defaultConfig?.backgroundColor ??
+          defaultConfig?.bgColor,
           minHeight: headerMinHeight,
           padding: convertPadding(props.style?.properties?.padding?.value),
           borderColor: headerBorderColor,
