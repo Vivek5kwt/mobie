@@ -44,7 +44,7 @@ const PACKAGE_NAME = (process.env.PACKAGE_NAME || `com.mobidrag.app${APP_ID}`).t
 const FIREBASE_PROJECT_ID  = `mbdrag-${APP_ID}`;
 const FIREBASE_DISPLAY_NAME = `Builder App ${APP_ID}`;
 
-const GRAPHQL_ENDPOINT = process.env.GRAPHQL_ENDPOINT || 'https://mobidrag.ampleteck.com/graphql';
+const GRAPHQL_ENDPOINT = process.env.GRAPHQL_ENDPOINT || 'https://app.mobidrag.com/graphql';
 const GRAPHQL_TOKEN    = process.env.GRAPHQL_TOKEN || '';
 
 const GOOGLE_SERVICES_DEST = path.join(__dirname, '..', 'android', 'app', 'google-services.json');

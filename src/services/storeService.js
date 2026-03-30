@@ -1,6 +1,6 @@
 import { resolveAppId } from '../utils/appId';
 
-const GRAPHQL_ENDPOINT = 'https://mobidrag.ampleteck.com/graphql';
+const GRAPHQL_ENDPOINT = 'https://app.mobidrag.com/graphql';
 export const STORE_ID = 20; // static store ID
 
 const GET_STORE_QUERY = `

@@ -51,26 +51,62 @@ const deriveWeight = (value, fallback = "600") => {
   return String(resolved);
 };
 
+// ─── Deep-unwrap a DSL node to its plain value ───────────────────────────────
+
+const deepUnwrap = (value) => {
+  if (value === undefined || value === null) return value;
+  if (typeof value !== "object") return value;
+  if (value.value !== undefined) return deepUnwrap(value.value);
+  if (value.const !== undefined) return value.const;
+  if (value.properties !== undefined) return deepUnwrap(value.properties);
+  return value;
+};
+
 // ─── Normalize search items from various DSL shapes ──────────────────────────
 
 const normalizeSearches = (raw) => {
   if (!raw) return [];
+
+  // Unwrap DSL envelope: { value: [...] } or { properties: { value: [...] } }
   let source = raw;
-  if (raw?.value) source = raw.value;
-  else if (raw?.properties?.value) source = raw.properties.value;
+  const unwrapped = deepUnwrap(raw);
+  if (Array.isArray(unwrapped)) {
+    source = unwrapped;
+  } else if (unwrapped && typeof unwrapped === "object") {
+    // Still an object — try common array keys inside it
+    const inner =
+      unwrapped.items     ??
+      unwrapped.searches  ??
+      unwrapped.keywords  ??
+      unwrapped.tags      ??
+      unwrapped.list      ??
+      null;
+    if (inner !== null) {
+      source = deepUnwrap(inner);
+    } else {
+      source = unwrapped;
+    }
+  }
 
   const mapItem = (item) => {
-    const props = item?.properties || item || {};
+    // Plain string item → use as both text and query
+    if (typeof item === "string") {
+      const t = item.trim();
+      return t ? { text: t, link: "", query: t } : null;
+    }
+    if (!item || typeof item !== "object") return null;
+
+    const p = item?.properties || item;
     const text = unwrapValue(
-      props?.label ?? props?.text ?? props?.query ?? props?.name ?? props?.keyword,
+      p?.label ?? p?.text ?? p?.title ?? p?.query ?? p?.name ?? p?.keyword,
       ""
     );
     if (!text) return null;
-    const link = unwrapValue(props?.link ?? props?.href ?? props?.url, "");
-    const query = unwrapValue(props?.query ?? props?.searchQuery ?? props?.keyword, text);
+    const link  = unwrapValue(p?.link ?? p?.href ?? p?.url, "");
+    const query = unwrapValue(p?.query ?? p?.searchQuery ?? p?.keyword, text);
     return {
-      text: String(text),
-      link: typeof link === "string" ? link.trim() : "",
+      text:  String(text),
+      link:  typeof link === "string" ? link.trim() : "",
       query: String(query),
     };
   };
@@ -105,53 +141,78 @@ export default function TrendingSearches({ section }) {
     section?.props ||
     {};
 
-  // Try multiple DSL field names for the searches array
-  const searchesRaw =
-    rawProps?.trendingSearches ??
-    rawProps?.searches ??
-    rawProps?.items ??
-    rawProps?.keywords ??
-    rawProps?.tags ??
-    [];
+  // `raw` sub-object is where builder stores live data (same pattern as all other components)
+  const rawData = deepUnwrap(rawProps?.raw) || {};
 
-  const searches = useMemo(() => normalizeSearches(searchesRaw), [searchesRaw]);
+  // Search through every likely key, checking both rawProps and rawData
+  const searchesRaw =
+    rawProps?.trendingSearches   ??
+    rawData?.trendingSearches    ??
+    rawProps?.searches           ??
+    rawData?.searches            ??
+    rawProps?.items              ??
+    rawData?.items               ??
+    rawProps?.keywords           ??
+    rawData?.keywords            ??
+    rawProps?.tags               ??
+    rawData?.tags                ??
+    rawData?.list                ??
+    rawProps?.list               ??
+    null;
+
+  const searches = useMemo(
+    () => normalizeSearches(searchesRaw),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [JSON.stringify(searchesRaw)]
+  );
+
+  // Debug: log what was found (remove after confirming it works)
+  if (__DEV__) {
+    if (!searches.length) {
+      console.log("[TrendingSearches] No searches found. rawProps keys:", Object.keys(rawProps));
+      console.log("[TrendingSearches] rawData keys:", Object.keys(rawData));
+    }
+  }
 
   if (!searches.length) return null;
 
+  // helper: check rawProps first, fall back to rawData
+  const rp = (key) => rawProps?.[key] ?? rawData?.[key];
+
   // ── Heading ────────────────────────────────────────────────────────────────
-  const headingVisible = toBoolean(rawProps?.headingVisible, true);
-  const headingText = unwrapValue(rawProps?.headingText ?? rawProps?.title, "Trending Searches");
-  const headingColor = unwrapValue(rawProps?.headingColor, "#111827");
-  const headingSize = toNumber(rawProps?.headingFontSize ?? rawProps?.titleFontSize, 18);
-  const headingBold = toBoolean(rawProps?.headingBold, true);
-  const headingItalic = toBoolean(rawProps?.headingItalic, false);
-  const headingUnderline = toBoolean(rawProps?.headingUnderline, false);
-  const headingWeight = deriveWeight(rawProps?.headingFontWeight, headingBold ? "700" : "600");
-  const headingPaddingBottom = toNumber(rawProps?.headingPaddingBottom, 10);
+  const headingVisible = toBoolean(rp("headingVisible"), true);
+  const headingText    = unwrapValue(rp("headingText") ?? rp("title"), "Trending Searches");
+  const headingColor   = unwrapValue(rp("headingColor"), "#111827");
+  const headingSize    = toNumber(rp("headingFontSize") ?? rp("titleFontSize"), 16);
+  const headingBold    = toBoolean(rp("headingBold"), true);
+  const headingItalic  = toBoolean(rp("headingItalic"), false);
+  const headingUnderline = toBoolean(rp("headingUnderline"), false);
+  const headingWeight  = deriveWeight(rp("headingFontWeight"), headingBold ? "700" : "600");
+  const headingPaddingBottom = toNumber(rp("headingPaddingBottom"), 10);
 
   // ── Chip / pill styling ────────────────────────────────────────────────────
-  const chipBgColor = unwrapValue(rawProps?.chipBgColor ?? rawProps?.tagBgColor, "#C8EDF0");
-  const chipTextColor = unwrapValue(rawProps?.chipTextColor ?? rawProps?.tagTextColor, "#0E7490");
-  const chipFontSize = toNumber(rawProps?.chipFontSize ?? rawProps?.tagFontSize, 13);
-  const chipFontWeight = deriveWeight(rawProps?.chipFontWeight ?? rawProps?.tagFontWeight, "500");
-  const chipBorderRadius = toNumber(rawProps?.chipBorderRadius ?? rawProps?.tagBorderRadius, 999);
-  const chipPaddingH = toNumber(rawProps?.chipPaddingH ?? rawProps?.tagPaddingH, 14);
-  const chipPaddingV = toNumber(rawProps?.chipPaddingV ?? rawProps?.tagPaddingV, 8);
-  const chipBorderColor = unwrapValue(rawProps?.chipBorderColor, "transparent");
-  const chipBorderWidth = toNumber(rawProps?.chipBorderWidth, 0);
-  const chipGap = toNumber(rawProps?.chipGap ?? rawProps?.gap, 8);
+  const chipBgColor     = unwrapValue(rp("chipBgColor") ?? rp("tagBgColor"), "#C8EDF0");
+  const chipTextColor   = unwrapValue(rp("chipTextColor") ?? rp("tagTextColor"), "#0E7490");
+  const chipFontSize    = toNumber(rp("chipFontSize") ?? rp("tagFontSize"), 13);
+  const chipFontWeight  = deriveWeight(rp("chipFontWeight") ?? rp("tagFontWeight"), "500");
+  const chipBorderRadius = toNumber(rp("chipBorderRadius") ?? rp("tagBorderRadius"), 999);
+  const chipPaddingH    = toNumber(rp("chipPaddingH") ?? rp("tagPaddingH"), 14);
+  const chipPaddingV    = toNumber(rp("chipPaddingV") ?? rp("tagPaddingV"), 8);
+  const chipBorderColor = unwrapValue(rp("chipBorderColor"), "transparent");
+  const chipBorderWidth = toNumber(rp("chipBorderWidth"), 0);
+  const chipGap         = toNumber(rp("chipGap") ?? rp("gap"), 8);
 
   // ── Container ─────────────────────────────────────────────────────────────
-  const bgColor = unwrapValue(rawProps?.bgColor, "#FFFFFF");
-  const containerBorderRadius = toNumber(rawProps?.borderRadius, 0);
-  const borderColor = unwrapValue(rawProps?.borderColor, "#E5E7EB");
-  const borderSide = unwrapValue(rawProps?.borderSide, "");
+  const bgColor              = unwrapValue(rp("bgColor"), "#FFFFFF");
+  const containerBorderRadius = toNumber(rp("borderRadius"), 0);
+  const borderColor          = unwrapValue(rp("borderColor"), "#E5E7EB");
+  const borderSide           = unwrapValue(rp("borderSide"), "");
 
   const padding = {
-    paddingTop: toNumber(rawProps?.pt, 16),
-    paddingRight: toNumber(rawProps?.pr, 16),
-    paddingBottom: toNumber(rawProps?.pb, 16),
-    paddingLeft: toNumber(rawProps?.pl, 16),
+    paddingTop:    toNumber(rp("pt"), 16),
+    paddingRight:  toNumber(rp("pr"), 16),
+    paddingBottom: toNumber(rp("pb"), 16),
+    paddingLeft:   toNumber(rp("pl"), 16),
   };
 
   // ── Navigation ────────────────────────────────────────────────────────────
