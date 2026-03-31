@@ -32,6 +32,9 @@ import SignUp from "../components/SignUp";
 import VariantSelector from "../components/VariantSelector";
 import TrustBadges from "../components/TrustBadges";
 import CustomerReviews from "../components/CustomerReviews";
+import FreeShipping from "../components/FreeShipping";
+import DiscountCode from "../components/DiscountCode";
+import OrderSummary from "../components/OrderSummary";
 
 const normalizeComponentName = (value) =>
   String(value || "")
@@ -76,6 +79,19 @@ const componentMap = {
   customer_reviews: CustomerReviews,
   product_reviews: CustomerReviews,
   reviews: CustomerReviews,
+  free_shipping: FreeShipping,
+  free_shipping_bar: FreeShipping,
+  shipping_progress: FreeShipping,
+  cart_free_shipping: FreeShipping,
+  discount_code: DiscountCode,
+  gift_card: DiscountCode,
+  discount_gift_card: DiscountCode,
+  coupon_code: DiscountCode,
+  cart_discount: DiscountCode,
+  order_summary: OrderSummary,
+  price_line: OrderSummary,
+  cart_summary: OrderSummary,
+  cart_total: OrderSummary,
   signup: SignUp,
   sign_up: SignUp,
   "sign-up": SignUp,

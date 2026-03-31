@@ -199,10 +199,9 @@ export default function ProductCarousel({ section }) {
   const favoriteIconId = toString(raw?.favoriteIconId, "fa-heart");
   const favoriteIconSize = toNumber(raw?.favIconSize, 16);
   const favoriteIconColor = toString(raw?.favIconColor, "#111827");
-  const unfavoriteIconId = toString(raw?.unfavoriteIconId, "fa-heart");
+  const unfavoriteIconId = toString(raw?.unfavoriteIconId, "fa-heart-o");
   const unfavoriteIconSize = toNumber(raw?.unfavoriteIconSize, 16);
-  const unfavoriteIconColor = toString(raw?.unfavoriteIconColor, "#111827");
-  const unfavoriteIconEnabled = toBoolean(raw?.unfavoriteIconEnabled, false);
+  const unfavoriteIconColor = toString(raw?.unfavoriteIconColor, "#9CA3AF");
   const favPosition = toString(raw?.favPosition, "top-right");
   const favBubbleBgColor = toString(raw?.favBubbleBgColor, "#FFFFFF");
   const favBubblePadT = toNumber(raw?.favBubblePadT, 0);
@@ -433,17 +432,14 @@ export default function ProductCarousel({ section }) {
   };
 
   const renderFavorite = (product, isFavorite) => {
+    // Only show heart icon when favActive or favEnabled is true in DSL
     if (!favActive && !favEnabled) return null;
 
-    const showFavorite = isFavorite && favoriteIconEnabled;
-    const showUnfavorite = !isFavorite && unfavoriteIconEnabled;
-
-    if (!showFavorite && !showUnfavorite) return null;
-
+    // Always show icon: filled heart when favorited, outline heart when not
     const iconId = isFavorite ? favoriteIconId : unfavoriteIconId;
-    const iconSize = isFavorite ? favoriteIconSize : unfavoriteIconSize;
+    const iconSize = isFavorite ? favoriteIconSize : (unfavoriteIconSize || favoriteIconSize);
     const iconColor = isFavorite ? favoriteIconColor : unfavoriteIconColor;
-    const iconName = parseIconName(iconId);
+    const iconName = parseIconName(iconId) || "heart-o";
 
     if (!iconName) return null;
 

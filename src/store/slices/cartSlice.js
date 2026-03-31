@@ -2,6 +2,7 @@ import { createSlice } from "@reduxjs/toolkit";
 
 const initialState = {
   items: [],
+  discounts: [],
 };
 
 const normalizeId = (item = {}) =>
@@ -28,6 +29,8 @@ const cartSlice = createSlice({
           title: item.title || "Product",
           image: item.image || "",
           price: item.price ?? 0,
+          compareAtPrice: item.compareAtPrice ?? item.originalPrice ?? 0,
+          vendor: item.vendor || "",
           variant: item.variant || "",
           currency: item.currency || "",
           quantity: Math.max(1, quantity),
@@ -54,9 +57,23 @@ const cartSlice = createSlice({
     },
     clearCart(state) {
       state.items = [];
+      state.discounts = [];
+    },
+    applyDiscount(state, action) {
+      const code = String(action.payload?.code || "").trim().toUpperCase();
+      if (!code) return;
+      if (!state.discounts) state.discounts = [];
+      if (!state.discounts.includes(code)) {
+        state.discounts.push(code);
+      }
+    },
+    removeDiscount(state, action) {
+      const code = String(action.payload?.code || "").trim().toUpperCase();
+      if (!state.discounts) return;
+      state.discounts = state.discounts.filter((c) => c !== code);
     },
   },
 });
 
-export const { addItem, updateQuantity, removeItem, clearCart } = cartSlice.actions;
+export const { addItem, updateQuantity, removeItem, clearCart, applyDiscount, removeDiscount } = cartSlice.actions;
 export default cartSlice.reducer;

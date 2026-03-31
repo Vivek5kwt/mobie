@@ -147,6 +147,8 @@ export default function AddToCart({ section }) {
   const productTitle = toString(raw?.title, "Product Name");
   const productImage = toString(raw?.imageUrl, "");
   const productPrice = toNumber(raw?.salePrice ?? raw?.standardPrice, 0);
+  const productCompareAtPrice = toNumber(raw?.compareAtPrice ?? raw?.originalPrice ?? raw?.regularPrice, 0);
+  const productVendor = toString(raw?.vendor ?? raw?.vendorName, "");
   const productVariantText = toString(raw?.variantText, "");
   const productCurrency = toString(raw?.currencySymbol, "");
   const { gid: productVariantGid, numeric: productVariantNumericId } = extractVariantIdentifiers(
@@ -283,6 +285,8 @@ export default function AddToCart({ section }) {
           title: productTitle,
           image: productImage,
           price: productPrice,
+          compareAtPrice: productCompareAtPrice,
+          vendor: productVendor,
           variant: productVariantText,
           currency: productCurrency,
           quantity,
