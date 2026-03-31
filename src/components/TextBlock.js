@@ -118,7 +118,7 @@ export default function TextBlock({ section }) {
   const alignmentCfg =
     rawProps?.alignmentAndPadding?.properties || rawProps?.alignmentAndPadding || {};
 
-  const showIcon = asBoolean(rawProps?.showIcon, true);
+  const showIcon = asBoolean(rawProps?.showIcon, false);
   const showHeadline = asBoolean(rawProps?.showHeadline, true);
   const showSubtext = asBoolean(rawProps?.showSubtext, true);
 
@@ -128,11 +128,16 @@ export default function TextBlock({ section }) {
   const paddingRaw = alignmentCfg?.paddingRaw?.properties || alignmentCfg?.paddingRaw || {};
 
   const rawContainerStyle = convertStyles(layoutCss.container || {});
-  // Remove web layout props that conflict with RN flex layout for the TextBlock row
+  // Remove web layout props and border/bg props (we handle those via overrideStyle)
   const {
-    justifyContent: _jc,  // DSL sends "flex-end" but text must stay centered
+    justifyContent: _jc,
     overflow: _ov,
     display: _disp,
+    borderWidth: _bw,
+    borderColor: _bc,
+    borderStyle: _bs,
+    border: _b,
+    backgroundColor: _bg,
     ...safeContainerStyle
   } = rawContainerStyle;
   const containerStyle = {
@@ -154,9 +159,7 @@ export default function TextBlock({ section }) {
 
   const overrideStyle = {
     ...(overrideBgColor ? { backgroundColor: overrideBgColor } : {}),
-    ...(overrideBorderColor
-      ? { borderColor: overrideBorderColor, borderWidth: 1 }
-      : { borderWidth: 0 }),
+    ...(overrideBorderColor ? { borderColor: overrideBorderColor, borderWidth: 1 } : {}),
     ...(overrideBorderRadius != null ? { borderRadius: overrideBorderRadius } : {}),
   };
 
@@ -256,7 +259,6 @@ const styles = StyleSheet.create({
   container: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#FFFFFF",
     paddingHorizontal: 16,
     paddingVertical: 12,
     gap: 12,

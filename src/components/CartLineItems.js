@@ -1,7 +1,14 @@
 import React, { useMemo } from "react";
-import { Image, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import {
+  Image,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
+} from "react-native";
 import { useDispatch, useSelector } from "react-redux";
-import { updateQuantity } from "../store/slices/cartSlice";
+import FontAwesome from "react-native-vector-icons/FontAwesome";
+import { updateQuantity, removeItem } from "../store/slices/cartSlice";
 
 const unwrapValue = (value, fallback = undefined) => {
   if (value === undefined || value === null) return fallback;
@@ -27,111 +34,388 @@ const toString = (value, fallback = "") => {
   return String(resolved);
 };
 
+const toBoolean = (value, fallback = false) => {
+  const resolved = unwrapValue(value, fallback);
+  if (resolved === undefined || resolved === null) return fallback;
+  if (typeof resolved === "boolean") return resolved;
+  if (typeof resolved === "number") return resolved !== 0;
+  const s = String(resolved).trim().toLowerCase();
+  if (["true", "yes", "1"].includes(s)) return true;
+  if (["false", "no", "0"].includes(s)) return false;
+  return fallback;
+};
+
+const toFontWeight = (value, fallback = "400") => {
+  const resolved = unwrapValue(value, undefined);
+  if (!resolved) return fallback;
+  const w = String(resolved).toLowerCase().trim();
+  if (w === "bold") return "700";
+  if (w === "semibold" || w === "semi bold") return "600";
+  if (w === "medium") return "500";
+  if (w === "regular" || w === "normal") return "400";
+  if (/^\d+$/.test(w)) return w;
+  return fallback;
+};
+
+const fmtPrice = (amount, symbol) =>
+  `${symbol}${Math.abs(toNumber(amount, 0)).toFixed(2)}`;
+
 export default function CartLineItems({ section }) {
   const dispatch = useDispatch();
-  const propsNode =
-    section?.properties?.props?.properties || section?.properties?.props || section?.props || {};
-  const raw = unwrapValue(propsNode?.raw, {});
-
-  const paddingTop = toNumber(raw?.pt, 12);
-  const paddingBottom = toNumber(raw?.pb, 12);
-  const paddingLeft = toNumber(raw?.pl, 16);
-  const paddingRight = toNumber(raw?.pr, 16);
-  const backgroundColor = toString(raw?.bgColor, "#FFFFFF");
-  const cardBgColor = toString(raw?.cardBgColor, "#F9FAFB");
-  const borderRadius = toNumber(raw?.borderRadius, 12);
-  const currencySymbol = toString(raw?.currency, "₹");
-  const showTotal = Boolean(unwrapValue(raw?.showTotal, true));
-  const showQuantityControls = Boolean(unwrapValue(raw?.showQuantityControls, true));
-
   const cartItems = useSelector((state) => state?.cart?.items || []);
-  const items = cartItems;
+  const appliedDiscounts = useSelector((state) => state?.cart?.discounts || []);
+
+  const propsNode =
+    section?.properties?.props?.properties ||
+    section?.properties?.props ||
+    section?.props ||
+    {};
+  const raw = unwrapValue(propsNode?.raw, null) || propsNode || {};
+
+  // Container
+  const bgColor = toString(raw?.bgColor ?? raw?.backgroundColor, "#FFFFFF");
+  const padT = toNumber(raw?.padT ?? raw?.pt, 12);
+  const padR = toNumber(raw?.padR ?? raw?.pr, 16);
+  const padB = toNumber(raw?.padB ?? raw?.pb, 12);
+  const padL = toNumber(raw?.padL ?? raw?.pl, 16);
+
+  // Card
+  const cardBgColor = toString(raw?.cardBgColor, "#FFFFFF");
+  const cardBorderColor = toString(raw?.cardBorderColor ?? raw?.borderColor, "#F3F4F6");
+  const cardBorderRadius = toNumber(raw?.cardBorderRadius ?? raw?.borderRadius, 12);
+  const cardBorderWidth = toNumber(raw?.cardBorderWidth ?? raw?.borderSize, 1);
+  const cardGap = toNumber(raw?.cardGap ?? raw?.gap, 12);
+
+  // Image
+  const imageSize = toNumber(raw?.imageSize ?? raw?.imageWidth, 88);
+  const imageRadius = toNumber(raw?.imageRadius ?? raw?.imageCorner, 10);
+  const imageBg = toString(raw?.imageBg, "#F3F4F6");
+
+  // Variant row
+  const showVariant = toBoolean(raw?.showVariant, true);
+  const variantColor = toString(raw?.variantColor, "#0D9488");
+  const variantSize = toNumber(raw?.variantSize ?? raw?.variantFontSize, 12);
+  const variantSeparator = toString(raw?.variantSeparator, " | ");
+
+  // Vendor
+  const showVendor = toBoolean(raw?.showVendor, true);
+  const vendorColor = toString(raw?.vendorColor, "#111827");
+  const vendorSize = toNumber(raw?.vendorSize, 14);
+  const vendorWeight = toFontWeight(raw?.vendorWeight, "600");
+
+  // Title
+  const showTitle = toBoolean(raw?.showTitle, true);
+  const titleColor = toString(raw?.titleColor, "#111827");
+  const titleSize = toNumber(raw?.titleSize, 14);
+  const titleWeight = toFontWeight(raw?.titleWeight, "600");
+
+  // Price
+  const showPrice = toBoolean(raw?.showPrice, true);
+  const priceColor = toString(raw?.priceColor, "#111827");
+  const priceSize = toNumber(raw?.priceSize, 14);
+  const priceWeight = toFontWeight(raw?.priceWeight, "700");
+  const currencySymbol = toString(raw?.currencySymbol ?? raw?.currency, "₹");
+
+  // Compare-at (original) price
+  const showCompareAt = toBoolean(raw?.showCompareAt ?? raw?.showOriginalPrice, true);
+  const compareAtColor = toString(raw?.compareAtColor ?? raw?.strikeColor, "#9CA3AF");
+  const compareAtSize = toNumber(raw?.compareAtSize, 13);
+
+  // Savings badge
+  const showSavings = toBoolean(raw?.showSavings, true);
+  const savingsLabel = toString(raw?.savingsLabel, "Savings");
+  const savingsBg = toString(raw?.savingsBg, "#FFFFFF");
+  const savingsColor = toString(raw?.savingsColor, "#16A34A");
+  const savingsBorderColor = toString(raw?.savingsBorderColor, "#16A34A");
+  const savingsBorderRadius = toNumber(raw?.savingsBorderRadius, 20);
+  const savingsFontSize = toNumber(raw?.savingsFontSize, 12);
+  const savingsFontWeight = toFontWeight(raw?.savingsFontWeight, "600");
+
+  // Discounts applied badge
+  const showDiscountBadge = toBoolean(raw?.showDiscountBadge, true);
+  const discountBadgeBg = toString(raw?.discountBadgeBg, "#DBEAFE");
+  const discountBadgeColor = toString(raw?.discountBadgeColor, "#1D4ED8");
+  const discountBadgeRadius = toNumber(raw?.discountBadgeRadius, 20);
+  const discountBadgeFontSize = toNumber(raw?.discountBadgeFontSize, 11);
+  const discountBadgeFontWeight = toFontWeight(raw?.discountBadgeFontWeight, "700");
+  const discountBadgeSuffix = toString(raw?.discountBadgeSuffix, "DISCOUNTS APPLIED");
+
+  // Quantity controls
+  const showQuantityControls = toBoolean(raw?.showQuantityControls, true);
+  const qtyBorderColor = toString(raw?.qtyBorderColor, "#E5E7EB");
+  const qtyBtnSize = toNumber(raw?.qtyBtnSize, 32);
+  const qtyBtnRadius = toNumber(raw?.qtyBtnRadius, 8);
+  const qtyTextColor = toString(raw?.qtyTextColor, "#111827");
+  const qtyTextSize = toNumber(raw?.qtyTextSize, 14);
+  const qtyIconSize = toNumber(raw?.qtyIconSize, 12);
+  const qtyIconColor = toString(raw?.qtyIconColor, "#111827");
+
+  // Delete button
+  const showDelete = toBoolean(raw?.showDelete ?? raw?.showDeleteButton, true);
+  const deleteIconColor = toString(raw?.deleteIconColor, "#9CA3AF");
+  const deleteIconSize = toNumber(raw?.deleteIconSize, 16);
+
+  // Divider between items
+  const showDivider = toBoolean(raw?.showDivider, false);
+  const dividerColor = toString(raw?.dividerColor, "#F3F4F6");
+
+  const discountCount = appliedDiscounts.length;
+
+  // Total (shown if DSL enables it)
+  const showTotal = toBoolean(raw?.showTotal, false);
+  const totalLabel = toString(raw?.totalLabel, "Total");
+  const totalColor = toString(raw?.totalLabelColor, "#111827");
+  const totalValueColor = toString(raw?.totalValueColor, "#111827");
 
   const total = useMemo(
-    () =>
-      items.reduce(
-        (sum, item) => sum + toNumber(item?.price, 0) * toNumber(item?.quantity, 1),
-        0
-      ),
-    [items]
+    () => cartItems.reduce((sum, item) => sum + toNumber(item?.price, 0) * toNumber(item?.quantity, 1), 0),
+    [cartItems]
   );
+
+  if (cartItems.length === 0) {
+    return (
+      <View style={[styles.emptyContainer, { backgroundColor: bgColor, paddingHorizontal: padL }]}>
+        <Text style={styles.emptyText}>Your cart is empty</Text>
+      </View>
+    );
+  }
 
   return (
     <View
       style={[
         styles.container,
         {
-          paddingTop,
-          paddingBottom,
-          paddingLeft,
-          paddingRight,
-          backgroundColor,
+          backgroundColor: bgColor,
+          paddingTop: padT,
+          paddingRight: padR,
+          paddingBottom: padB,
+          paddingLeft: padL,
+          gap: cardGap,
         },
       ]}
     >
-      {items.length === 0 ? (
-        <Text style={styles.emptyText}>No products added.</Text>
-      ) : (
-        items.map((item) => {
-          const quantity = toNumber(item?.quantity, 1);
-          const price = toNumber(item?.price, 0);
-          return (
+      {cartItems.map((item, index) => {
+        const quantity = toNumber(item?.quantity, 1);
+        const price = toNumber(item?.price, 0);
+        const compareAt = toNumber(item?.compareAtPrice, 0);
+        const savings = compareAt > price ? (compareAt - price) * quantity : 0;
+
+        // Parse variant string into parts for "Size: M | Color: Blue" display
+        const variantText = String(item?.variant || "").trim();
+        const variantParts = variantText
+          ? variantText.split("/").map((v) => v.trim()).filter(Boolean)
+          : [];
+
+        return (
+          <View key={String(item?.id || index)}>
             <View
-              key={String(item?.id || item?.title)}
               style={[
                 styles.card,
                 {
                   backgroundColor: cardBgColor,
-                  borderRadius,
+                  borderRadius: cardBorderRadius,
+                  borderWidth: cardBorderWidth,
+                  borderColor: cardBorderColor,
                 },
               ]}
             >
-              {item?.image ? (
-                <Image source={{ uri: item.image }} style={styles.image} />
-              ) : (
-                <View style={styles.imagePlaceholder}>
-                  <Text style={styles.imagePlaceholderText}>Image</Text>
-                </View>
-              )}
+              {/* Image */}
+              <View
+                style={[
+                  styles.imageWrap,
+                  {
+                    width: imageSize,
+                    height: imageSize,
+                    borderRadius: imageRadius,
+                    backgroundColor: imageBg,
+                  },
+                ]}
+              >
+                {item?.image ? (
+                  <Image
+                    source={{ uri: item.image }}
+                    style={[styles.image, { borderRadius: imageRadius }]}
+                    resizeMode="cover"
+                  />
+                ) : (
+                  <View style={styles.imagePlaceholder}>
+                    <FontAwesome name="image" size={24} color="#D1D5DB" />
+                  </View>
+                )}
+              </View>
+
+              {/* Right content */}
               <View style={styles.info}>
-                <Text style={styles.title} numberOfLines={2}>
-                  {item?.title}
-                </Text>
-                {!!item?.variant && <Text style={styles.variant}>{item.variant}</Text>}
-                <Text style={styles.price}>
-                  {item?.currency || currencySymbol} {price}
-                </Text>
+
+                {/* Variant row: Size: M | Color: Blue */}
+                {showVariant && variantParts.length > 0 && (
+                  <Text
+                    style={[styles.variant, { color: variantColor, fontSize: variantSize }]}
+                    numberOfLines={1}
+                  >
+                    {variantParts.join(variantSeparator)}
+                  </Text>
+                )}
+
+                {/* Vendor */}
+                {showVendor && !!item?.vendor && (
+                  <Text
+                    style={[styles.vendor, { color: vendorColor, fontSize: vendorSize, fontWeight: vendorWeight }]}
+                    numberOfLines={1}
+                  >
+                    {item.vendor}
+                  </Text>
+                )}
+
+                {/* Title */}
+                {showTitle && !!item?.title && (
+                  <Text
+                    style={[styles.title, { color: titleColor, fontSize: titleSize, fontWeight: titleWeight }]}
+                    numberOfLines={2}
+                  >
+                    {item.title}
+                  </Text>
+                )}
+
+                {/* Price row */}
+                {showPrice && (
+                  <View style={styles.priceRow}>
+                    <Text style={[styles.price, { color: priceColor, fontSize: priceSize, fontWeight: priceWeight }]}>
+                      {fmtPrice(price, currencySymbol)}
+                    </Text>
+                    {showCompareAt && compareAt > 0 && (
+                      <Text style={[styles.compareAt, { color: compareAtColor, fontSize: compareAtSize }]}>
+                        {fmtPrice(compareAt, currencySymbol)}
+                      </Text>
+                    )}
+                  </View>
+                )}
+
+                {/* Savings badge */}
+                {showSavings && (
+                  <View
+                    style={[
+                      styles.badge,
+                      {
+                        backgroundColor: savingsBg,
+                        borderColor: savingsBorderColor,
+                        borderRadius: savingsBorderRadius,
+                      },
+                    ]}
+                  >
+                    <Text
+                      style={[
+                        styles.badgeText,
+                        { color: savingsColor, fontSize: savingsFontSize, fontWeight: savingsFontWeight },
+                      ]}
+                    >
+                      {savingsLabel} : {fmtPrice(savings, currencySymbol)}
+                    </Text>
+                  </View>
+                )}
+
+                {/* Discounts applied badge */}
+                {showDiscountBadge && discountCount > 0 && (
+                  <View
+                    style={[
+                      styles.discountBadge,
+                      {
+                        backgroundColor: discountBadgeBg,
+                        borderRadius: discountBadgeRadius,
+                      },
+                    ]}
+                  >
+                    <Text
+                      style={[
+                        styles.badgeText,
+                        {
+                          color: discountBadgeColor,
+                          fontSize: discountBadgeFontSize,
+                          fontWeight: discountBadgeFontWeight,
+                        },
+                      ]}
+                    >
+                      {discountCount} {discountBadgeSuffix}
+                    </Text>
+                  </View>
+                )}
+
+                {/* Quantity + Delete row */}
                 {showQuantityControls && (
-                  <View style={styles.quantityRow}>
-                    <TouchableOpacity
-                      style={styles.quantityButton}
-                      onPress={() =>
-                        dispatch(updateQuantity({ id: item?.id, quantity: quantity - 1 }))
-                      }
-                    >
-                      <Text style={styles.quantityButtonText}>-</Text>
-                    </TouchableOpacity>
-                    <Text style={styles.quantityText}>{quantity}</Text>
-                    <TouchableOpacity
-                      style={styles.quantityButton}
-                      onPress={() =>
-                        dispatch(updateQuantity({ id: item?.id, quantity: quantity + 1 }))
-                      }
-                    >
-                      <Text style={styles.quantityButtonText}>+</Text>
-                    </TouchableOpacity>
+                  <View style={styles.qtyRow}>
+                    <View style={styles.qtyControls}>
+                      {/* Minus */}
+                      <TouchableOpacity
+                        style={[
+                          styles.qtyBtn,
+                          {
+                            width: qtyBtnSize,
+                            height: qtyBtnSize,
+                            borderRadius: qtyBtnRadius,
+                            borderColor: qtyBorderColor,
+                          },
+                        ]}
+                        onPress={() =>
+                          dispatch(updateQuantity({ id: item?.id, quantity: quantity - 1 }))
+                        }
+                        hitSlop={{ top: 4, bottom: 4, left: 4, right: 4 }}
+                      >
+                        <FontAwesome name="minus" size={qtyIconSize} color={qtyIconColor} />
+                      </TouchableOpacity>
+
+                      {/* Count */}
+                      <Text style={[styles.qtyText, { color: qtyTextColor, fontSize: qtyTextSize }]}>
+                        {quantity}
+                      </Text>
+
+                      {/* Plus */}
+                      <TouchableOpacity
+                        style={[
+                          styles.qtyBtn,
+                          {
+                            width: qtyBtnSize,
+                            height: qtyBtnSize,
+                            borderRadius: qtyBtnRadius,
+                            borderColor: qtyBorderColor,
+                          },
+                        ]}
+                        onPress={() =>
+                          dispatch(updateQuantity({ id: item?.id, quantity: quantity + 1 }))
+                        }
+                        hitSlop={{ top: 4, bottom: 4, left: 4, right: 4 }}
+                      >
+                        <FontAwesome name="plus" size={qtyIconSize} color={qtyIconColor} />
+                      </TouchableOpacity>
+                    </View>
+
+                    {/* Delete */}
+                    {showDelete && (
+                      <TouchableOpacity
+                        style={styles.deleteBtn}
+                        onPress={() => dispatch(removeItem({ id: item?.id }))}
+                        hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                      >
+                        <FontAwesome name="trash-o" size={deleteIconSize} color={deleteIconColor} />
+                      </TouchableOpacity>
+                    )}
                   </View>
                 )}
               </View>
             </View>
-          );
-        })
-      )}
-      {showTotal && items.length > 0 && (
+
+            {showDivider && index < cartItems.length - 1 && (
+              <View style={[styles.divider, { backgroundColor: dividerColor }]} />
+            )}
+          </View>
+        );
+      })}
+
+      {/* Cart total */}
+      {showTotal && cartItems.length > 0 && (
         <View style={styles.totalRow}>
-          <Text style={styles.totalLabel}>Total</Text>
-          <Text style={styles.totalValue}>
-            {currencySymbol} {total.toFixed(2)}
+          <Text style={[styles.totalLabel, { color: totalColor }]}>{totalLabel}</Text>
+          <Text style={[styles.totalValue, { color: totalValueColor }]}>
+            {fmtPrice(total, currencySymbol)}
           </Text>
         </View>
       )}
@@ -142,93 +426,112 @@ export default function CartLineItems({ section }) {
 const styles = StyleSheet.create({
   container: {
     width: "100%",
-    gap: 12,
+  },
+  emptyContainer: {
+    paddingVertical: 32,
+    alignItems: "center",
   },
   emptyText: {
-    textAlign: "center",
     color: "#6B7280",
-    paddingVertical: 16,
+    fontSize: 14,
   },
   card: {
     flexDirection: "row",
-    alignItems: "center",
     padding: 12,
     gap: 12,
+    overflow: "hidden",
+  },
+  imageWrap: {
+    overflow: "hidden",
+    flexShrink: 0,
   },
   image: {
-    width: 72,
-    height: 72,
-    borderRadius: 10,
-    backgroundColor: "#E5E7EB",
+    width: "100%",
+    height: "100%",
   },
   imagePlaceholder: {
-    width: 72,
-    height: 72,
-    borderRadius: 10,
+    flex: 1,
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: "#E5E7EB",
-  },
-  imagePlaceholderText: {
-    fontSize: 10,
-    color: "#6B7280",
   },
   info: {
     flex: 1,
-    gap: 6,
-  },
-  title: {
-    fontSize: 14,
-    fontWeight: "600",
-    color: "#111827",
+    gap: 5,
   },
   variant: {
-    fontSize: 12,
-    color: "#6B7280",
+    lineHeight: 16,
   },
-  price: {
-    fontSize: 14,
-    fontWeight: "700",
-    color: "#111827",
+  vendor: {
+    lineHeight: 18,
   },
-  quantityRow: {
+  title: {
+    lineHeight: 18,
+  },
+  priceRow: {
     flexDirection: "row",
     alignItems: "center",
     gap: 8,
   },
-  quantityButton: {
-    width: 28,
-    height: 28,
-    borderRadius: 6,
+  price: {},
+  compareAt: {
+    textDecorationLine: "line-through",
+  },
+  badge: {
+    alignSelf: "flex-start",
     borderWidth: 1,
-    borderColor: "#D1D5DB",
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+  },
+  discountBadge: {
+    alignSelf: "flex-start",
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+  },
+  badgeText: {
+    letterSpacing: 0.2,
+  },
+  qtyRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "flex-end",
+    gap: 10,
+    marginTop: 4,
+  },
+  qtyControls: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+  },
+  qtyBtn: {
+    borderWidth: 1,
     alignItems: "center",
     justifyContent: "center",
   },
-  quantityButtonText: {
-    fontSize: 14,
-    fontWeight: "700",
-    color: "#111827",
-  },
-  quantityText: {
-    minWidth: 18,
+  qtyText: {
+    minWidth: 20,
     textAlign: "center",
     fontWeight: "600",
   },
+  deleteBtn: {
+    padding: 4,
+  },
+  divider: {
+    height: 1,
+    marginVertical: 4,
+  },
   totalRow: {
     flexDirection: "row",
-    alignItems: "center",
     justifyContent: "space-between",
     paddingTop: 8,
+    borderTopWidth: 1,
+    borderTopColor: "#F3F4F6",
   },
   totalLabel: {
     fontSize: 14,
     fontWeight: "600",
-    color: "#111827",
   },
   totalValue: {
     fontSize: 16,
     fontWeight: "700",
-    color: "#111827",
   },
 });

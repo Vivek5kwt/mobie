@@ -127,17 +127,19 @@ export default function BottomNavScreen() {
       console.log("❌ Error checking bottom nav update:", error);
     }
   }, [appId, pageName]);
-  const headerComponentNames = useMemo(
-    () => new Set(["header", "header_2", "header_mobile"]),
+  // Only primary headers count as "real" headers for injection purposes.
+  // header_2 is a secondary/title component — it must NOT prevent the primary header from being injected.
+  const primaryHeaderNames = useMemo(
+    () => new Set(["header", "header_mobile"]),
     []
   );
 
   const extractHeaderSections = useCallback(
     (incomingDsl) =>
       (incomingDsl?.sections || []).filter((section) =>
-        headerComponentNames.has(getComponentName(section).toLowerCase())
+        primaryHeaderNames.has(getComponentName(section).toLowerCase())
       ),
-    [headerComponentNames]
+    [primaryHeaderNames]
   );
 
   const ensureHeaderSections = useCallback(
@@ -168,42 +170,23 @@ export default function BottomNavScreen() {
     [dsl]
   );
 
-  const hasPrimaryHeader = useMemo(
-    () =>
-      mobileSections.some((section) => {
-        const component = getComponentName(section).toLowerCase();
-        return component === "header" || component === "header_mobile";
-      }),
-    [mobileSections]
-  );
-  const hasHeader2 = useMemo(
-    () =>
-      mobileSections.some(
-        (section) => getComponentName(section).toLowerCase() === "header_2"
-      ),
-    [mobileSections]
-  );
-
   const sortedSections = useMemo(() => {
     const sectionsCopy = mobileSections.filter((section) => {
       const component = getComponentName(section).toLowerCase();
-      if (component !== "header_2") return true;
-      return isHomePage || !hasPrimaryHeader;
+      // header_2 is only shown on the home page — always remove it from all other tabs/pages
+      if (component === "header_2") return isHomePage;
+      return true;
     });
 
     return sectionsCopy.sort((a, b) => {
       const A = getComponentName(a);
       const B = getComponentName(b);
-
-      if (A === "header") return -1;
-      if (B === "header") return 1;
-
-      if (A === "header_2") return -1;
-      if (B === "header_2") return 1;
-
+      // Primary header always floats to top
+      if (A === "header" || A === "header_mobile") return -1;
+      if (B === "header" || B === "header_mobile") return 1;
       return 0;
     });
-  }, [hasHeader2, hasPrimaryHeader, isHomePage, mobileSections]);
+  }, [isHomePage, mobileSections]);
 
   // Use state-based bottomNavSection that can be updated dynamically
   // Fallback to sortedSections or bottomNavSectionProp if state is not set
@@ -447,26 +430,14 @@ export default function BottomNavScreen() {
             }
           >
             {visibleSections.length ? (
-              visibleSections.map((section, index) => {
-                const componentName = getComponentName(section).toLowerCase();
-                const nextComponentName = visibleSections[index + 1]
-                  ? getComponentName(visibleSections[index + 1]).toLowerCase()
-                  : null;
-                const collapseHeaderGap =
-                  componentName === "header" && nextComponentName === "header_2";
-
-                return (
-                  <View
-                    key={index}
-                    style={[
-                      styles.sectionWrapper,
-                      collapseHeaderGap && styles.sectionWrapperTight,
-                    ]}
-                  >
-                    <DynamicRenderer section={section} />
-                  </View>
-                );
-              })
+              visibleSections.map((section, index) => (
+                <View
+                  key={index}
+                  style={styles.sectionWrapper}
+                >
+                  <DynamicRenderer section={section} />
+                </View>
+              ))
             ) : (
               <View style={styles.content}>
                 <Text style={styles.subtitleText}>
