@@ -2,6 +2,7 @@ import React from "react";
 import { Image, StyleSheet, Text, View } from "react-native";
 import FontAwesome from "react-native-vector-icons/FontAwesome";
 import { convertStyles } from "../utils/convertStyles";
+import { useAuth } from "../services/AuthContext";
 
 const resolveValue = (input, fallback) => {
   if (input === undefined || input === null) return fallback;
@@ -66,6 +67,7 @@ const resolveBorderStyle = (borderLine, borderColor) => {
 };
 
 export default function AccountProfile({ section }) {
+  const { session } = useAuth();
   const propsRoot =
     section?.props || section?.properties?.props?.properties || section?.properties?.props || {};
 
@@ -73,8 +75,9 @@ export default function AccountProfile({ section }) {
   const presentation = resolveObject(propsRoot?.presentation, {});
   const css = resolveObject(presentation?.css, {});
 
-  const name = resolveValue(rawProps?.name, "");
-  const email = resolveValue(rawProps?.email, "");
+  // Session is the primary source; DSL props serve as override/fallback
+  const name  = resolveValue(rawProps?.name,  "") || resolveValue(session?.user?.name,  "");
+  const email = resolveValue(rawProps?.email, "") || resolveValue(session?.user?.email, "");
   const avatarUrl = resolveValue(rawProps?.avatarUrl, "");
 
   const containerStyle = convertStyles(css?.container || {});

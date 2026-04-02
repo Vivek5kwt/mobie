@@ -119,8 +119,8 @@ export default function SearchBar({ section }) {
   const paddingBottom = getNum("pb", 12);
   const paddingLeft   = getNum("pl", 16);
   const paddingRight  = getNum("pr", 16);
-  const bgColor         = get("bgColor", "#FFFFFF");
-  const searchBgColor   = get("searchBgColor", "#F9FAFB");
+  const bgColor         = get("bgColor", "transparent");
+  const searchBgColor   = get("searchBgColor", "#F3F4F6");
   const borderColor     = get("borderColor", "#E5E7EB");
   const searchTextColor = get("searchTextColor", "#111827");
   const placeholderColor = get("placeholderColor", "#9CA3AF");
@@ -131,7 +131,7 @@ export default function SearchBar({ section }) {
   const fontFamily      = get("fontFamily", undefined);
   const fontWeight      = toFontWeight(rawProps?.fontWeight, "400");
   const borderRadius    = getNum("borderRadius", 24);
-  const borderSide      = get("borderSide", "all");
+  const borderSide      = get("borderSide", "none");
   const searchIconSize  = getNum("searchIconSize", getNum("fontSize", 14));
   const clearIconSize   = getNum("clearIconSize", 13);
   const voiceIconSize   = getNum("voiceIconSize", 16);
@@ -139,7 +139,7 @@ export default function SearchBar({ section }) {
   const placeholderItalic      = getBool("placeholderItalic", false);
   const placeholderUnderline   = getBool("placeholderUnderline", false);
   const placeholderStrikethrough = getBool("placeholderStrikethrough", false);
-  const searchPlaceholder = get("searchPlaceholder", "Search...");
+  const searchPlaceholder = get("searchPlaceholder", "Search products...");
   const showClear  = getBool("clearButtonVisible", true);
   const showInput  = getBool("searchInputVisible", true);
   const showVoice  = getBool("voiceSearchVisible", true);
