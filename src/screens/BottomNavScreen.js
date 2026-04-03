@@ -327,8 +327,12 @@ export default function BottomNavScreen() {
         setErr(null);
         const dslData = await fetchDSL(appId, pageName);
         if (!dslData?.dsl) {
-          const graphqlUrl = "https://app.mobidrag.com/graphql";
-          setErr(`No live DSL returned from server\nApp ID: ${appId}\nURL: ${graphqlUrl}`);
+          if (isMounted) {
+            // Page DSL not found — still inject home header so the header always shows
+            const fallbackDsl = { sections: homeHeaderSectionsRef.current };
+            setDsl(fallbackDsl);
+            setLoading(false);
+          }
           return;
         }
         if (isMounted) {
@@ -538,6 +542,7 @@ const styles = StyleSheet.create({
     backgroundColor: "#F7F7F7",
   },
   scrollContent: {
+    flexGrow: 1,
     paddingHorizontal: 0,
     paddingBottom: 24,
   },
