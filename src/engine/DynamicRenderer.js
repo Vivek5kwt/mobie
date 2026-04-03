@@ -35,6 +35,7 @@ import CustomerReviews from "../components/CustomerReviews";
 import FreeShipping from "../components/FreeShipping";
 import DiscountCode from "../components/DiscountCode";
 import OrderSummary from "../components/OrderSummary";
+import ProfileHeader from "../components/ProfileHeader";
 
 const normalizeComponentName = (value) =>
   String(value || "")
@@ -92,6 +93,10 @@ const componentMap = {
   price_line: OrderSummary,
   cart_summary: OrderSummary,
   cart_total: OrderSummary,
+  profile_header: ProfileHeader,
+  account_profile_header: ProfileHeader,
+  user_profile_header: ProfileHeader,
+  profile_card: ProfileHeader,
   signup: SignUp,
   sign_up: SignUp,
   "sign-up": SignUp,

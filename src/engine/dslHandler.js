@@ -12,6 +12,47 @@ const normalizeName = (value) =>
         .replace(/^-+|-+$/g, "")
     : "";
 
+// Common page name aliases — maps any incoming slug to alternatives worth trying
+const PAGE_ALIASES = {
+  "profile":      ["profile", "account", "accounts", "my-account", "my-profile", "user-profile", "user"],
+  "account":      ["account", "accounts", "profile", "my-account", "user"],
+  "accounts":     ["accounts", "account", "profile", "my-account"],
+  "cart":         ["cart", "shopping-cart", "bag", "my-cart", "my-bag"],
+  "search":       ["search", "search-results", "find", "explore"],
+  "home":         ["home", "index", "main"],
+  "notification": ["notification", "notifications", "alerts", "inbox"],
+  "orders":       ["orders", "my-orders", "order-history", "order"],
+};
+
+// Find the best matching layout entry for a target page name.
+// Priority: exact → alias → contains → null (no home fallback for non-home pages)
+const findMatchingLayout = (layouts, targetName) => {
+  if (!targetName || targetName === "home") return layouts[0];
+
+  // 1. Exact match
+  const exact = layouts.find(
+    (e) => normalizeName(e?.page_name) === targetName
+  );
+  if (exact) return exact;
+
+  // 2. Alias match
+  const aliases = PAGE_ALIASES[targetName] || [];
+  for (const alias of aliases) {
+    const found = layouts.find((e) => normalizeName(e?.page_name) === alias);
+    if (found) return found;
+  }
+
+  // 3. Partial / contains match (e.g. "user-profile" matches "profile")
+  const partial = layouts.find((e) => {
+    const n = normalizeName(e?.page_name);
+    return n && (n.includes(targetName) || targetName.includes(n));
+  });
+  if (partial) return partial;
+
+  // 4. No match — do NOT fall back to layouts[0] (that's the home page)
+  return null;
+};
+
 const sanitizeSections = (dslPage) => {
   if (!dslPage || !Array.isArray(dslPage.sections)) return dslPage;
   const filteredSections = dslPage.sections.filter(Boolean);
@@ -100,14 +141,10 @@ export async function fetchLiveDSL(appId, pageName) {
     }
 
     const targetName = normalizeName(pageName);
-    const layout =
-      (targetName &&
-        layouts.find(
-          (entry) => normalizeName(entry?.page_name) === targetName
-        )) ||
-      layouts[0];
+    const layout = findMatchingLayout(layouts, targetName);
     if (!layout) {
-      console.log("❌ No matching layout found");
+      console.log(`❌ No layout found for page: "${pageName}" (normalized: "${targetName}")`);
+      console.log("📋 Available pages:", layouts.map((e) => e?.page_name).join(", "));
       return null;
     }
 

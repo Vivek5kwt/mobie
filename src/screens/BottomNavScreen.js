@@ -45,13 +45,21 @@ export default function BottomNavScreen() {
   const isCartPage = normalizedPageName.includes("cart") || normalizedTitle.includes("cart");
   const isNotificationPage =
     normalizedPageName.includes("notification") || normalizedTitle.includes("notification");
-  const isAutoRefreshPage = isCartPage || isNotificationPage;
+  const isSearchPage = normalizedPageName.includes("search") || normalizedTitle.includes("search");
+  const isProfilePage =
+    normalizedPageName.includes("profile") ||
+    normalizedPageName.includes("account") ||
+    normalizedTitle.includes("profile") ||
+    normalizedTitle.includes("account");
+  const isAutoRefreshPage = isCartPage || isNotificationPage || isSearchPage || isProfilePage;
   const isHomePage = normalizedPageName === "home";
   const [dsl, setDsl] = useState(null);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState(null);
   const [refreshing, setRefreshing] = useState(false);
   const [homeHeaderSections, setHomeHeaderSections] = useState([]);
+  // Mirror state in a ref so callbacks always read the latest value (no stale closures)
+  const homeHeaderSectionsRef = useRef([]);
   const versionRef = useRef(null);
   // Store bottom navigation section separately to update dynamically
   const [bottomNavSection, setBottomNavSection] = useState(bottomNavSectionProp);
@@ -142,18 +150,23 @@ export default function BottomNavScreen() {
     [primaryHeaderNames]
   );
 
+  // On non-home pages: ALWAYS strip the page's own header and replace it
+  // with the home-page header so every tab shows the identical header.
   const ensureHeaderSections = useCallback(
     (incomingDsl, fallbackHeaders) => {
       if (!incomingDsl || !Array.isArray(incomingDsl.sections)) return incomingDsl;
-      const existingHeaders = extractHeaderSections(incomingDsl);
-      if (existingHeaders.length) return incomingDsl;
       if (!fallbackHeaders || !fallbackHeaders.length) return incomingDsl;
+      // Remove any header that belongs to this page's own DSL
+      const sectionsWithoutHeader = incomingDsl.sections.filter(
+        (section) => !primaryHeaderNames.has(getComponentName(section).toLowerCase())
+      );
+      // Prepend the home-page header
       return {
         ...incomingDsl,
-        sections: [...fallbackHeaders, ...incomingDsl.sections],
+        sections: [...fallbackHeaders, ...sectionsWithoutHeader],
       };
     },
-    [extractHeaderSections]
+    [primaryHeaderNames]
   );
 
   const mobileSections = useMemo(
@@ -170,22 +183,54 @@ export default function BottomNavScreen() {
     [dsl]
   );
 
+  // Components that must appear at most once per page.
+  // If the DSL accidentally includes multiples, only the first is kept.
+  const SINGLETON_COMPONENTS = new Set([
+    "header",
+    "header_mobile",
+    "header_2",
+    "search_bar",
+    "trending_searches",
+    "trending_collections",
+    "bottom_navigation",
+    "bottom_navigation_style_1",
+    "bottom_navigation_style_2",
+    "side_navigation",
+    "free_shipping",
+    "discount_code",
+    "order_summary",
+    "checkout_button",
+  ]);
+
   const sortedSections = useMemo(() => {
-    const sectionsCopy = mobileSections.filter((section) => {
+    // Step 1: filter visibility + header_2 on non-home pages
+    const filtered = mobileSections.filter((section) => {
       const component = getComponentName(section).toLowerCase();
-      // header_2 is only shown on the home page — always remove it from all other tabs/pages
       if (component === "header_2") return isHomePage;
       return true;
     });
 
-    return sectionsCopy.sort((a, b) => {
+    // Step 2: deduplicate singletons — keep only the FIRST occurrence
+    // of each singleton component. Non-singleton components (carousels,
+    // banners, text blocks, etc.) are kept even if repeated.
+    const seenSingletons = new Set();
+    const deduped = filtered.filter((section) => {
+      const component = getComponentName(section).toLowerCase();
+      if (!SINGLETON_COMPONENTS.has(component)) return true;
+      if (seenSingletons.has(component)) return false;
+      seenSingletons.add(component);
+      return true;
+    });
+
+    // Step 3: sort — primary header always floats to top
+    return deduped.sort((a, b) => {
       const A = getComponentName(a);
       const B = getComponentName(b);
-      // Primary header always floats to top
       if (A === "header" || A === "header_mobile") return -1;
       if (B === "header" || B === "header_mobile") return 1;
       return 0;
     });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isHomePage, mobileSections]);
 
   // Use state-based bottomNavSection that can be updated dynamically
@@ -282,14 +327,18 @@ export default function BottomNavScreen() {
         setErr(null);
         const dslData = await fetchDSL(appId, pageName);
         if (!dslData?.dsl) {
-          const graphqlUrl = "https://app.mobidrag.com/graphql";
-          setErr(`No live DSL returned from server\nApp ID: ${appId}\nURL: ${graphqlUrl}`);
+          if (isMounted) {
+            // Page DSL not found — still inject home header so the header always shows
+            const fallbackDsl = { sections: homeHeaderSectionsRef.current };
+            setDsl(fallbackDsl);
+            setLoading(false);
+          }
           return;
         }
         if (isMounted) {
           const nextDsl = isHomePage
             ? dslData.dsl
-            : ensureHeaderSections(dslData.dsl, homeHeaderSections);
+            : ensureHeaderSections(dslData.dsl, homeHeaderSectionsRef.current);
           setDsl(nextDsl);
           versionRef.current = dslData.versionNumber ?? null;
         }
@@ -305,10 +354,11 @@ export default function BottomNavScreen() {
     return () => {
       isMounted = false;
     };
-  }, [appId, ensureHeaderSections, homeHeaderSections, isHomePage, pageName]);
+  }, [appId, ensureHeaderSections, isHomePage, pageName]);
 
   const loadHomeHeaderSections = useCallback(async () => {
     if (isHomePage) {
+      homeHeaderSectionsRef.current = [];
       setHomeHeaderSections([]);
       return;
     }
@@ -316,9 +366,11 @@ export default function BottomNavScreen() {
     try {
       const homeDslData = await fetchDSL(appId, "home");
       const headers = extractHeaderSections(homeDslData?.dsl || {});
+      homeHeaderSectionsRef.current = headers;
       setHomeHeaderSections(headers);
     } catch (error) {
       console.log("❌ Failed to fetch home header sections:", error);
+      homeHeaderSectionsRef.current = [];
       setHomeHeaderSections([]);
     }
   }, [appId, extractHeaderSections, isHomePage]);
@@ -328,10 +380,10 @@ export default function BottomNavScreen() {
   }, [loadHomeHeaderSections]);
 
   useEffect(() => {
-    if (!isHomePage && dsl) {
-      setDsl(ensureHeaderSections(dsl, homeHeaderSections));
+    if (!isHomePage && dsl && homeHeaderSectionsRef.current.length > 0) {
+      setDsl((prev) => ensureHeaderSections(prev, homeHeaderSectionsRef.current));
     }
-  }, [dsl, ensureHeaderSections, homeHeaderSections, isHomePage]);
+  }, [homeHeaderSections, ensureHeaderSections, isHomePage]);
 
   const refreshDSL = useCallback(async () => {
     try {
@@ -339,7 +391,7 @@ export default function BottomNavScreen() {
       if (dslData?.dsl) {
         const nextDsl = isHomePage
           ? dslData.dsl
-          : ensureHeaderSections(dslData.dsl, homeHeaderSections);
+          : ensureHeaderSections(dslData.dsl, homeHeaderSectionsRef.current);
         setDsl(nextDsl);
         versionRef.current = dslData.versionNumber ?? null;
       }
@@ -348,7 +400,7 @@ export default function BottomNavScreen() {
     } catch (error) {
       console.log("❌ Bottom nav refresh error:", error);
     }
-  }, [appId, ensureHeaderSections, homeHeaderSections, isHomePage, pageName, checkAndUpdateBottomNav]);
+  }, [appId, ensureHeaderSections, isHomePage, pageName, checkAndUpdateBottomNav]);
 
   const onRefresh = async () => {
     setRefreshing(true);
@@ -379,7 +431,7 @@ export default function BottomNavScreen() {
         if (incomingVersion !== versionRef.current) {
           const nextDsl = isHomePage
             ? latest.dsl
-            : ensureHeaderSections(latest.dsl, homeHeaderSections);
+            : ensureHeaderSections(latest.dsl, homeHeaderSectionsRef.current);
           setDsl(nextDsl);
           versionRef.current = incomingVersion;
         }
@@ -391,7 +443,7 @@ export default function BottomNavScreen() {
     }, 5000);
 
     return () => clearInterval(intervalId);
-  }, [appId, ensureHeaderSections, homeHeaderSections, isHomePage, pageName, checkAndUpdateBottomNav]);
+  }, [appId, ensureHeaderSections, isHomePage, pageName, checkAndUpdateBottomNav]);
 
   return (
     <SafeArea>
@@ -490,6 +542,7 @@ const styles = StyleSheet.create({
     backgroundColor: "#F7F7F7",
   },
   scrollContent: {
+    flexGrow: 1,
     paddingHorizontal: 0,
     paddingBottom: 24,
   },

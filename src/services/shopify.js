@@ -1,24 +1,27 @@
-import { getStoreConfigSync } from './storeService';
+import { fetchStoreConfig, getStoreConfigSync } from './storeService';
 
 const STOREFRONT_VERSION = "2024-10";
 
-// Fallback credentials used only when the GetStore fetch has not completed yet
+// Fallback credentials — only used if GetStore completely fails to respond
 const FALLBACK_SHOP = "newmobidrag.myshopify.com";
-const FALLBACK_TOKEN = "52d1c86d6cdc1821fd265b5c469f8ebf";
+const FALLBACK_TOKEN = "";   // intentionally empty — do NOT use a stale token
 
 /**
- * Returns the Shopify storefront domain.
- * Prefers the value fetched dynamically from GetStore (via StoreProvider).
- * Falls back to the hardcoded default if the store config is not yet loaded.
+ * Async: awaits the GetStore result so we always use the live credentials.
+ * Falls back to hardcoded only if the API call itself fails.
  */
+const getShopifyCredentials = async () => {
+  const config = await fetchStoreConfig();
+  return {
+    shop:  config?.shopify_domain             || FALLBACK_SHOP,
+    token: config?.storefront_access_token    || FALLBACK_TOKEN,
+  };
+};
+
+// Sync accessors kept for callers that haven't migrated yet (post-cache only)
 export const getShopifyDomain = () =>
   getStoreConfigSync()?.shopify_domain || FALLBACK_SHOP;
 
-/**
- * Returns the Shopify Storefront API access token.
- * Prefers the value fetched dynamically from GetStore (via StoreProvider).
- * Falls back to the hardcoded default if the store config is not yet loaded.
- */
 export const getShopifyToken = () =>
   getStoreConfigSync()?.storefront_access_token || FALLBACK_TOKEN;
 
@@ -75,8 +78,9 @@ export async function directStorefrontGraphQL({
 // FETCH PRODUCTS
 // ----------------------
 export async function fetchShopifyProducts(limit = 10, options = {}) {
-  const shop = options.shop || getShopifyDomain();
-  const token = options.token || getShopifyToken();
+  const creds = await getShopifyCredentials();
+  const shop = options.shop || creds.shop;
+  const token = options.token || creds.token;
 
   const query = `
     query Products($first: Int!) {
@@ -159,8 +163,9 @@ export async function fetchShopifyProductsPage({
   after = null,
   options = {},
 } = {}) {
-  const shop = options.shop || getShopifyDomain();
-  const token = options.token || getShopifyToken();
+  const creds = await getShopifyCredentials();
+  const shop = options.shop || creds.shop;
+  const token = options.token || creds.token;
 
   const query = `
     query Products($first: Int!, $after: String) {
@@ -243,8 +248,9 @@ export async function fetchShopifyProductsPage({
 // FETCH PRODUCT DETAILS
 // ----------------------
 export async function fetchShopifyProductDetails({ handle, id, options = {} }) {
-  const shop = options.shop || getShopifyDomain();
-  const token = options.token || getShopifyToken();
+  const creds = await getShopifyCredentials();
+  const shop = options.shop || creds.shop;
+  const token = options.token || creds.token;
 
   const queryByHandle = `
     query ProductByHandle($handle: String!) {
@@ -395,8 +401,9 @@ export async function createShopifyCheckout({ variantId, quantity = 1, options =
     throw new Error("Missing variant ID for checkout.");
   }
 
-  const shop = options.shop || getShopifyDomain();
-  const token = options.token || getShopifyToken();
+  const creds = await getShopifyCredentials();
+  const shop = options.shop || creds.shop;
+  const token = options.token || creds.token;
   const merchandiseId = ensureVariantGid(variantId);
 
   if (!merchandiseId) {
@@ -453,8 +460,9 @@ export async function createShopifyCheckout({ variantId, quantity = 1, options =
 }
 
 export async function createShopifyCartCheckout({ items = [], options = {} }) {
-  const shop = options.shop || getShopifyDomain();
-  const token = options.token || getShopifyToken();
+  const creds = await getShopifyCredentials();
+  const shop = options.shop || creds.shop;
+  const token = options.token || creds.token;
 
   const lines = (items || [])
     .map((item) => ({
@@ -518,8 +526,9 @@ export async function searchShopifyProducts(searchTerm, limit = 10, options = {}
   const term = String(searchTerm || "").trim();
   if (!term) return [];
 
-  const shop = options.shop || getShopifyDomain();
-  const token = options.token || getShopifyToken();
+  const creds = await getShopifyCredentials();
+  const shop = options.shop || creds.shop;
+  const token = options.token || creds.token;
 
   const query = `
     query SearchProducts($first: Int!, $query: String!) {
@@ -586,8 +595,9 @@ export async function searchShopifyProducts(searchTerm, limit = 10, options = {}
 // FETCH COLLECTIONS
 // ----------------------
 export async function fetchShopifyCollections(limit = 10, options = {}) {
-  const shop = options.shop || getShopifyDomain();
-  const token = options.token || getShopifyToken();
+  const creds = await getShopifyCredentials();
+  const shop = options.shop || creds.shop;
+  const token = options.token || creds.token;
 
   const query = `
     query Collections($first: Int!) {
@@ -644,8 +654,9 @@ export async function fetchShopifyCollectionProducts({
 } = {}) {
   if (!handle) return { products: [], pageInfo: { hasNextPage: false, endCursor: null } };
 
-  const shop = options.shop || getShopifyDomain();
-  const token = options.token || getShopifyToken();
+  const creds = await getShopifyCredentials();
+  const shop = options.shop || creds.shop;
+  const token = options.token || creds.token;
 
   const query = `
     query CollectionProducts($handle: String!, $first: Int!, $after: String) {

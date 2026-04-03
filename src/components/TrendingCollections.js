@@ -10,6 +10,16 @@ import {
 import { useNavigation } from "@react-navigation/native";
 import Icon from "react-native-vector-icons/FontAwesome6";
 
+// ─── Deep-unwrap a DSL node ───────────────────────────────────────────────────
+const deepUnwrap = (value) => {
+  if (value === undefined || value === null) return value;
+  if (typeof value !== "object") return value;
+  if (value.value !== undefined) return deepUnwrap(value.value);
+  if (value.const !== undefined) return value.const;
+  if (value.properties !== undefined) return deepUnwrap(value.properties);
+  return value;
+};
+
 const unwrapValue = (value, fallback) => {
   if (value === undefined || value === null) return fallback;
   if (typeof value === "object") {
@@ -141,53 +151,69 @@ export default function TrendingCollections({ section }) {
   const rawProps =
     section?.properties?.props?.properties || section?.properties?.props || section?.props || {};
 
+  // `raw` sub-object — same pattern as TrendingSearches, ProductCarousel, etc.
+  const rawData = deepUnwrap(rawProps?.raw) || {};
+
+  // helper: check rawProps first, fall back to rawData
+  const rp = (key) => rawProps?.[key] ?? rawData?.[key];
+
+  // Check all possible keys where collections might live
+  const collectionsRaw =
+    rp("trendingCollections") ??
+    rp("collections") ??
+    rp("items") ??
+    rp("collectionList") ??
+    rp("collectionItems") ??
+    [];
+
   const collections = useMemo(
-    () => normalizeCollections(rawProps?.trendingCollections || []),
-    [rawProps?.trendingCollections]
+    () => normalizeCollections(collectionsRaw),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [JSON.stringify(collectionsRaw)]
   );
 
   if (!collections.length) return null;
 
   // ── Heading ────────────────────────────────────────────────────────────────
-  const headingVisible = toBoolean(rawProps?.headingVisible, true);
-  const headingText = unwrapValue(rawProps?.headingText, "Trending Collections");
-  const headingColor = unwrapValue(rawProps?.headingColor, "#111827");
-  const headingSize = toNumber(rawProps?.headingFontSize, 18);
-  const headingBold = toBoolean(rawProps?.headingBold, true);
-  const headingItalic = toBoolean(rawProps?.headingItalic, false);
-  const headingUnderline = toBoolean(rawProps?.headingUnderline, false);
-  const headingWeight = deriveWeight(rawProps?.headingFontWeight, headingBold ? "700" : "600");
-  const headingPaddingTop = toNumber(rawProps?.headingPaddingTop, 0);
-  const headingPaddingBottom = toNumber(rawProps?.headingPaddingBottom, 10);
-  const headingPaddingLeft = toNumber(rawProps?.headingPaddingLeft, 0);
-  const headingPaddingRight = toNumber(rawProps?.headingPaddingRight, 0);
+  const headingVisible = toBoolean(rp("headingVisible"), true);
+  const headingText = unwrapValue(rp("headingText") ?? rp("title"), "Trending Collections");
+  const headingColor = unwrapValue(rp("headingColor"), "#111827");
+  const headingSize = toNumber(rp("headingFontSize") ?? rp("titleFontSize"), 18);
+  const headingBold = toBoolean(rp("headingBold"), true);
+  const headingItalic = toBoolean(rp("headingItalic"), false);
+  const headingUnderline = toBoolean(rp("headingUnderline"), false);
+  const headingWeight = deriveWeight(rp("headingFontWeight"), headingBold ? "700" : "600");
+  const headingPaddingTop = toNumber(rp("headingPaddingTop"), 0);
+  const headingPaddingBottom = toNumber(rp("headingPaddingBottom"), 10);
+  const headingPaddingLeft = toNumber(rp("headingPaddingLeft"), 0);
+  const headingPaddingRight = toNumber(rp("headingPaddingRight"), 0);
 
   // ── Collection item styles ─────────────────────────────────────────────────
-  const collectionColor = unwrapValue(rawProps?.collectionColor, "#111827");
-  const collectionSize = toNumber(rawProps?.collectionFontSize, 12);
-  const collectionWeight = deriveWeight(rawProps?.collectionFontWeight, "500");
+  const collectionColor = unwrapValue(rp("collectionColor") ?? rp("labelColor"), "#111827");
+  const collectionSize = toNumber(rp("collectionFontSize") ?? rp("labelFontSize"), 12);
+  const collectionWeight = deriveWeight(rp("collectionFontWeight") ?? rp("labelFontWeight"), "500");
+  const itemGap = toNumber(rp("itemGap") ?? rp("gap"), 16);
 
   // Circle size: read from DSL or default 68px
-  const circleSize = toNumber(rawProps?.collectionCircleSize ?? rawProps?.circleSize, 68);
-  const circleBg = unwrapValue(rawProps?.collectionCircleBgColor, "#E5F3F4");
-  const circleIconColor = unwrapValue(rawProps?.collectionCircleIconColor, "#0D9488");
-  // Placeholder icon name inside circle when no image (default: "image" = image placeholder)
+  const circleSize = toNumber(rp("collectionCircleSize") ?? rp("circleSize") ?? rp("imageSize"), 68);
+  const circleBg = unwrapValue(rp("collectionCircleBgColor") ?? rp("circleBg") ?? rp("imageBg"), "#E5F3F4");
+  const circleIconColor = unwrapValue(rp("collectionCircleIconColor") ?? rp("iconColor"), "#0D9488");
   const defaultPlaceholderIcon = normalizeIconName(
-    unwrapValue(rawProps?.collectionPlaceholderIcon, "image")
+    unwrapValue(rp("collectionPlaceholderIcon") ?? rp("placeholderIcon"), "image")
   ) || "image";
-  const circleIconSize = toNumber(rawProps?.collectionCircleIconSize, 26);
+  const circleIconSize = toNumber(rp("collectionCircleIconSize") ?? rp("iconSize"), 26);
 
   // ── Container ─────────────────────────────────────────────────────────────
-  const bgColor = unwrapValue(rawProps?.bgColor, "#FFFFFF");
-  const borderRadius = toNumber(rawProps?.borderRadius, 0);
-  const borderColor = unwrapValue(rawProps?.borderColor, "#E5E7EB");
-  const borderSide = unwrapValue(rawProps?.borderSide, "");
+  const bgColor = unwrapValue(rp("bgColor"), "#FFFFFF");
+  const borderRadius = toNumber(rp("borderRadius"), 0);
+  const borderColor = unwrapValue(rp("borderColor"), "#E5E7EB");
+  const borderSide = unwrapValue(rp("borderSide"), "");
 
   const padding = {
-    paddingTop: toNumber(rawProps?.pt, 16),
-    paddingRight: toNumber(rawProps?.pr, 16),
-    paddingBottom: toNumber(rawProps?.pb, 16),
-    paddingLeft: toNumber(rawProps?.pl, 16),
+    paddingTop: toNumber(rp("pt"), 16),
+    paddingRight: toNumber(rp("pr"), 16),
+    paddingBottom: toNumber(rp("pb"), 16),
+    paddingLeft: toNumber(rp("pl"), 16),
   };
 
   // ── Navigation ────────────────────────────────────────────────────────────
@@ -241,7 +267,7 @@ export default function TrendingCollections({ section }) {
       <ScrollView
         horizontal
         showsHorizontalScrollIndicator={false}
-        contentContainerStyle={styles.listContent}
+        contentContainerStyle={[styles.listContent, { gap: itemGap }]}
       >
         {collections.map((item, index) => (
           <TouchableOpacity
@@ -317,7 +343,6 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "flex-start",
     paddingVertical: 4,
-    gap: 16,
   },
   item: {
     alignItems: "center",
