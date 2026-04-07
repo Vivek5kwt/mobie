@@ -1,6 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
-  ActivityIndicator,
   RefreshControl,
   ScrollView,
   StyleSheet,
@@ -15,9 +14,11 @@ import SideNavigation from "../components/SideNavigation";
 import { fetchDSL } from "../engine/dslHandler";
 import { shouldRenderSectionOnMobile } from "../engine/visibility";
 import DynamicRenderer from "../engine/DynamicRenderer";
+import SkeletonLoader from "../components/SkeletonLoader";
 import { resolveAppId } from "../utils/appId";
 import { useAuth } from "../services/AuthContext";
 import { SideMenuProvider } from "../services/SideMenuContext";
+import { setHeaderDefault } from "../services/headerDefaultService";
 
 export default function BottomNavScreen() {
   const route = useRoute();
@@ -135,12 +136,20 @@ export default function BottomNavScreen() {
       console.log("❌ Error checking bottom nav update:", error);
     }
   }, [appId, pageName]);
-  // Only primary headers count as "real" headers for injection purposes.
-  // header_2 is a secondary/title component — it must NOT prevent the primary header from being injected.
+  // Only true header components — header_2 is excluded so it never gets
+  // injected on non-home pages. Non-home pages get a synthetic standalone
+  // header built from headerdefault instead.
   const primaryHeaderNames = useMemo(
     () => new Set(["header", "header_mobile"]),
     []
   );
+
+  // Synthetic standalone header section — triggers Topheader's defaultConfig
+  // path which reads getHeaderDefault() for title/colors/cart icon.
+  const STANDALONE_HEADER_SECTION = useMemo(() => ({
+    component: { const: "header" },
+    _synthetic: true,
+  }), []);
 
   const extractHeaderSections = useCallback(
     (incomingDsl) =>
@@ -200,13 +209,22 @@ export default function BottomNavScreen() {
     "discount_code",
     "order_summary",
     "checkout_button",
+    "account_profile",
+    "account_menu",
+    "profile_header",
+    "account_profile_header",
+    "sign_up",
+    "signup",
   ]);
 
   const sortedSections = useMemo(() => {
-    // Step 1: filter visibility + header_2 on non-home pages
+    // Step 1: filter by mobile visibility
     const filtered = mobileSections.filter((section) => {
       const component = getComponentName(section).toLowerCase();
+      // header_2 only shows on home page — other tabs get the synthetic standalone header
       if (component === "header_2") return isHomePage;
+      // side_navigation is rendered separately (slide-out drawer), not inline
+      if (component === "side_navigation") return false;
       return true;
     });
 
@@ -222,12 +240,15 @@ export default function BottomNavScreen() {
       return true;
     });
 
-    // Step 3: sort — primary header always floats to top
+    // Step 3: sort — any header variant always floats to the top
+    const isHeaderComponent = (name) =>
+      name === "header" || name === "header_mobile" || name === "header_2";
+
     return deduped.sort((a, b) => {
-      const A = getComponentName(a);
-      const B = getComponentName(b);
-      if (A === "header" || A === "header_mobile") return -1;
-      if (B === "header" || B === "header_mobile") return 1;
+      const A = getComponentName(a).toLowerCase();
+      const B = getComponentName(b).toLowerCase();
+      if (isHeaderComponent(A)) return -1;
+      if (isHeaderComponent(B)) return 1;
       return 0;
     });
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -318,30 +339,60 @@ export default function BottomNavScreen() {
 
   const showOverlay = isSideMenuOpen;
 
+  // Single sequential load: home headers first → then page DSL.
+  // This eliminates the race condition where loadDSL ran before
+  // homeHeaderSectionsRef was populated.
   useEffect(() => {
     let isMounted = true;
 
-    const loadDSL = async () => {
+    const loadAll = async () => {
       try {
         setLoading(true);
         setErr(null);
-        const dslData = await fetchDSL(appId, pageName);
-        if (!dslData?.dsl) {
-          if (isMounted) {
-            // Page DSL not found — still inject home header so the header always shows
-            const fallbackDsl = { sections: homeHeaderSectionsRef.current };
-            setDsl(fallbackDsl);
-            setLoading(false);
+
+        // Step 1: fetch home DSL to get headerdefault + real header sections.
+        // Skip on home page itself.
+        let headers = homeHeaderSectionsRef.current;
+        if (!isHomePage && headers.length === 0) {
+          try {
+            const homeDslData = await fetchDSL(appId, "home");
+            // Store headerdefault globally so Topheader standalone mode can read it
+            if (homeDslData?.dsl?.headerdefault) {
+              setHeaderDefault(homeDslData.dsl.headerdefault);
+            }
+            // Try real header sections first (header / header_mobile)
+            headers = extractHeaderSections(homeDslData?.dsl || {});
+            // If home page only has header_2, fall back to synthetic standalone header
+            if (headers.length === 0) {
+              headers = [STANDALONE_HEADER_SECTION];
+            }
+            homeHeaderSectionsRef.current = headers;
+            if (isMounted) setHomeHeaderSections(headers);
+          } catch (err) {
+            console.log("❌ Failed to fetch home header sections:", err);
+            // Even on error, inject a synthetic header
+            headers = [STANDALONE_HEADER_SECTION];
+            homeHeaderSectionsRef.current = headers;
           }
+        }
+
+        // Step 2: fetch the current page DSL
+        console.log(`📱 Loading DSL — page: "${pageName}", appId: ${appId}`);
+        const dslData = await fetchDSL(appId, pageName);
+
+        if (!isMounted) return;
+
+        if (!dslData?.dsl) {
+          // Page not found — show home header with empty body
+          setDsl({ sections: headers });
           return;
         }
-        if (isMounted) {
-          const nextDsl = isHomePage
-            ? dslData.dsl
-            : ensureHeaderSections(dslData.dsl, homeHeaderSectionsRef.current);
-          setDsl(nextDsl);
-          versionRef.current = dslData.versionNumber ?? null;
-        }
+
+        const nextDsl = isHomePage
+          ? dslData.dsl
+          : ensureHeaderSections(dslData.dsl, headers);
+        setDsl(nextDsl);
+        versionRef.current = dslData.versionNumber ?? null;
       } catch (error) {
         if (isMounted) setErr(error.message);
       } finally {
@@ -349,58 +400,46 @@ export default function BottomNavScreen() {
       }
     };
 
-    loadDSL();
+    loadAll();
 
-    return () => {
-      isMounted = false;
-    };
-  }, [appId, ensureHeaderSections, isHomePage, pageName]);
-
-  const loadHomeHeaderSections = useCallback(async () => {
-    if (isHomePage) {
-      homeHeaderSectionsRef.current = [];
-      setHomeHeaderSections([]);
-      return;
-    }
-
-    try {
-      const homeDslData = await fetchDSL(appId, "home");
-      const headers = extractHeaderSections(homeDslData?.dsl || {});
-      homeHeaderSectionsRef.current = headers;
-      setHomeHeaderSections(headers);
-    } catch (error) {
-      console.log("❌ Failed to fetch home header sections:", error);
-      homeHeaderSectionsRef.current = [];
-      setHomeHeaderSections([]);
-    }
-  }, [appId, extractHeaderSections, isHomePage]);
-
-  useEffect(() => {
-    loadHomeHeaderSections();
-  }, [loadHomeHeaderSections]);
-
-  useEffect(() => {
-    if (!isHomePage && dsl && homeHeaderSectionsRef.current.length > 0) {
-      setDsl((prev) => ensureHeaderSections(prev, homeHeaderSectionsRef.current));
-    }
-  }, [homeHeaderSections, ensureHeaderSections, isHomePage]);
+    return () => { isMounted = false; };
+  }, [appId, ensureHeaderSections, extractHeaderSections, isHomePage, pageName]);
 
   const refreshDSL = useCallback(async () => {
     try {
+      // Re-fetch home headers if not loaded yet
+      let headers = homeHeaderSectionsRef.current;
+      if (!isHomePage && headers.length === 0) {
+        try {
+          const homeDslData = await fetchDSL(appId, "home");
+          if (homeDslData?.dsl?.headerdefault) {
+            setHeaderDefault(homeDslData.dsl.headerdefault);
+          }
+          headers = extractHeaderSections(homeDslData?.dsl || {});
+          if (headers.length === 0) {
+            headers = [STANDALONE_HEADER_SECTION];
+          }
+          homeHeaderSectionsRef.current = headers;
+          setHomeHeaderSections(headers);
+        } catch (_) {
+          headers = [STANDALONE_HEADER_SECTION];
+          homeHeaderSectionsRef.current = headers;
+        }
+      }
+
       const dslData = await fetchDSL(appId, pageName);
       if (dslData?.dsl) {
         const nextDsl = isHomePage
           ? dslData.dsl
-          : ensureHeaderSections(dslData.dsl, homeHeaderSectionsRef.current);
+          : ensureHeaderSections(dslData.dsl, headers);
         setDsl(nextDsl);
         versionRef.current = dslData.versionNumber ?? null;
       }
-      // Also check for bottom navigation updates from home page
       await checkAndUpdateBottomNav();
     } catch (error) {
-      console.log("❌ Bottom nav refresh error:", error);
+      console.log("❌ Refresh error:", error);
     }
-  }, [appId, ensureHeaderSections, isHomePage, pageName, checkAndUpdateBottomNav]);
+  }, [appId, ensureHeaderSections, extractHeaderSections, isHomePage, pageName, checkAndUpdateBottomNav]);
 
   const onRefresh = async () => {
     setRefreshing(true);
@@ -429,16 +468,16 @@ export default function BottomNavScreen() {
 
         const incomingVersion = latest.versionNumber ?? null;
         if (incomingVersion !== versionRef.current) {
+          const headers = homeHeaderSectionsRef.current;
           const nextDsl = isHomePage
             ? latest.dsl
-            : ensureHeaderSections(latest.dsl, homeHeaderSectionsRef.current);
+            : ensureHeaderSections(latest.dsl, headers);
           setDsl(nextDsl);
           versionRef.current = incomingVersion;
         }
-        // Also check for bottom navigation updates from home page
         await checkAndUpdateBottomNav();
       } catch (error) {
-        console.log("❌ Bottom nav auto-refresh error:", error);
+        console.log("❌ Auto-refresh error:", error);
       }
     }, 5000);
 
@@ -458,10 +497,7 @@ export default function BottomNavScreen() {
       >
         <View style={styles.container}>
         {loading ? (
-          <View style={styles.loader}>
-            <ActivityIndicator size="large" color="#4F46E5" />
-            <Text style={styles.loaderText}>Loading {title}...</Text>
-          </View>
+          <SkeletonLoader />
         ) : err ? (
           <View style={styles.content}>
             <Text style={styles.error}>Error loading: {err}</Text>
@@ -568,18 +604,6 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     bottom: 0,
-  },
-  loader: {
-    flex: 1,
-    alignItems: "center",
-    justifyContent: "center",
-    paddingHorizontal: 24,
-    paddingBottom: 96,
-  },
-  loaderText: {
-    marginTop: 12,
-    fontSize: 14,
-    color: "#475569",
   },
   error: {
     fontSize: 16,

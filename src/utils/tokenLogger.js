@@ -170,33 +170,25 @@ class TokenLogger {
 
     try {
       const profile = await this.getStoredUserProfile();
+      // userid is optional — send null for anonymous users, backend accepts nullable Int
       const userid = profile?.id ? Number(profile.id) : null;
       const profileAppId = profile?.appId ?? profile?.app_id;
       const appid = resolveAppId(profileAppId);
 
-      // Skip token sync if userid is null (user not logged in)
-      // Backend requires userid, so we can't create token without it
-      if (!userid) {
-        console.log('⚠️ Skipping FCM token sync - user not logged in (userid is null)');
-        return;
-      }
-
-      console.log('📡 Sending device token to backend...');
+      console.log(`📡 Sending FCM token to backend — appid: ${appid}, userid: ${userid ?? 'anonymous'}`);
       const result = await createFcmToken({
         token: this.token,
-        userid,
-        appid
+        userid,   // null is fine — mutation declares Int (nullable)
+        appid,
       });
 
       if (result?.id) {
-        console.log('✅ createFcmToken success:', result);
+        console.log('✅ FCM token synced to backend:', result.id);
       } else {
         console.log('⚠️ createFcmToken returned no data');
       }
     } catch (error) {
-      // Log error but don't crash the app - FCM token is not critical for app functionality
       console.log('❌ createFcmToken failed:', error.message);
-      console.log('⚠️ App will continue to work without FCM token sync');
     }
   }
 
@@ -206,28 +198,25 @@ class TokenLogger {
   async getTokenFromAnySource() {
     await this.initialize();
 
-    // 1. Check stored token
-    const storedToken = await this.getStoredToken();
-    if (storedToken) {
-      console.log('✅ Found token in AsyncStorage');
-      return storedToken;
-    }
-
-    // 2. Try FCM token
+    // 1. Try real FCM token first
     const fcmToken = await this.getFCMToken();
     if (fcmToken) {
-      console.log('✅ Got FCM token');
+      console.log('✅ Got FCM token from Firebase');
       await this.setToken(fcmToken);
       return fcmToken;
     }
 
-    // 3. Generate a dummy token for testing
-    const dummyToken = this.generateDummyToken();
-    console.log('⚠️ Using dummy token for testing');
-    console.log('💡 Install Firebase for real token');
+    // 2. Fall back to previously stored token (device offline / Firebase slow)
+    const storedToken = await this.getStoredToken();
+    if (storedToken && !storedToken.startsWith('dummy_token_')) {
+      console.log('✅ Using stored FCM token');
+      this.token = storedToken;
+      await this.syncTokenToBackend();
+      return storedToken;
+    }
 
-    await this.setToken(dummyToken);
-    return dummyToken;
+    console.log('⚠️ No real FCM token available — Firebase may not be configured');
+    return null;
   }
 
   /**

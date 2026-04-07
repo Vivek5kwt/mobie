@@ -119,8 +119,25 @@ const buildCountdown = (endTime, startTime) => {
   return { days, hours, minutes, seconds, remainingMs: effectiveDiff };
 };
 
-const getRawProps = (section) =>
-  section?.props || section?.properties?.props?.properties || section?.properties?.props || {};
+// Deep-unwrap DSL envelope (value / const wrappers)
+const deepUnwrap = (v) => {
+  if (v === undefined || v === null) return v;
+  if (typeof v !== "object") return v;
+  if (v.value !== undefined) return deepUnwrap(v.value);
+  if (v.const !== undefined) return deepUnwrap(v.const);
+  return v;
+};
+
+// Merge the .raw sub-object into root so DSL data is reachable at top-level
+const getRawProps = (section) => {
+  const root =
+    section?.props ||
+    section?.properties?.props?.properties ||
+    section?.properties?.props ||
+    {};
+  const raw = deepUnwrap(root?.raw);
+  return (raw && typeof raw === "object") ? { ...root, ...raw } : root;
+};
 
 const getLayoutCss = (rawProps) => rawProps?.layout?.properties?.css || rawProps?.layout?.css || {};
 
@@ -256,12 +273,20 @@ class Countdown extends PureComponent {
     const paddingRaw =
       alignmentAndPadding?.paddingRaw?.properties || alignmentAndPadding?.paddingRaw || {};
 
-    let enhancedContainerStyle = { ...containerStyle };
+    // Container background — DSL bgColor overrides CSS/default
+    const dslBgColor = unwrapValue(
+      rawProps?.bgColor ?? rawProps?.backgroundColor ?? rawProps?.containerBgColor,
+      null
+    );
+    let enhancedContainerStyle = {
+      ...containerStyle,
+      ...(dslBgColor ? { backgroundColor: dslBgColor } : {}),
+    };
 
-    const pt = asNumber(paddingRaw?.pt, undefined);
-    const pr = asNumber(paddingRaw?.pr, undefined);
-    const pb = asNumber(paddingRaw?.pb, undefined);
-    const pl = asNumber(paddingRaw?.pl, undefined);
+    const pt = asNumber(paddingRaw?.pt ?? rawProps?.pt, undefined);
+    const pr = asNumber(paddingRaw?.pr ?? rawProps?.pr, undefined);
+    const pb = asNumber(paddingRaw?.pb ?? rawProps?.pb, undefined);
+    const pl = asNumber(paddingRaw?.pl ?? rawProps?.pl, undefined);
 
     if (pt != null) enhancedContainerStyle.paddingTop = pt;
     if (pr != null) enhancedContainerStyle.paddingRight = pr;
@@ -332,15 +357,23 @@ class Countdown extends PureComponent {
         : buttonFontWeightRaw || undefined;
 
     const timerAttributes = rawProps?.timerAttributes?.properties || rawProps?.timerAttributes || {};
-    const timerLabelColor = unwrapValue(timerAttributes?.labelColor, "#6B7280");
-    const timerValueColor = unwrapValue(timerAttributes?.valueColor, "#111111");
-    const timerHeight = asNumber(timerAttributes?.height, timerStyle.height);
+    const timerLabelColor = unwrapValue(timerAttributes?.labelColor ?? rawProps?.timerLabelColor, "#6B7280");
+    const timerValueColor = unwrapValue(timerAttributes?.valueColor ?? rawProps?.timerValueColor, "#111111");
+    const timerHeight = asNumber(timerAttributes?.height ?? rawProps?.timerHeight, timerStyle.height);
     const timerBackgroundColor = unwrapValue(
-      timerAttributes?.bgColor,
+      timerAttributes?.bgColor ?? rawProps?.timerBgColor,
       timerStyle.backgroundColor || "#FFFFFF"
     );
+    const timerBorderColor = unwrapValue(
+      timerAttributes?.borderColor ?? rawProps?.timerBorderColor,
+      "#E5E7EB"
+    );
+    const timerBorderWidth = asNumber(
+      timerAttributes?.borderWidth ?? rawProps?.timerBorderWidth,
+      1
+    );
     const timerGap = asNumber(
-      timerAttributes?.gap ?? timerStyle.gap,
+      timerAttributes?.gap ?? timerStyle.gap ?? rawProps?.timerGap,
       8
     );
 
@@ -422,9 +455,7 @@ class Countdown extends PureComponent {
                 <View
                   style={[
                     styles.timerValueBox,
-                    timerBackgroundColor
-                      ? { backgroundColor: timerBackgroundColor }
-                      : null,
+                    { backgroundColor: timerBackgroundColor, borderColor: timerBorderColor, borderWidth: timerBorderWidth },
                     timerBoxRadius ? { borderRadius: timerBoxRadius } : null,
                     timerHeight
                       ? { height: timerHeight }
@@ -557,7 +588,7 @@ const styles = StyleSheet.create({
     width: "100%",
     padding: 16,
     borderRadius: 12,
-    backgroundColor: "#F3F4F6",
+    backgroundColor: "#FFFFFF",
   },
   // Used when image is the background — no padding so image fills edge-to-edge
   imageContainer: {

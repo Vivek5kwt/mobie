@@ -1,4 +1,4 @@
-import React, { PropsWithChildren } from 'react';
+import React, { PropsWithChildren, useEffect } from 'react';
 import { Alert } from 'react-native';
 import { ApolloProvider } from '@apollo/client/react';
 import { NavigationContainer, useNavigationContainerRef } from '@react-navigation/native';
@@ -6,6 +6,7 @@ import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { Provider } from 'react-redux';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
+import tokenLogger from './src/utils/tokenLogger';
 
 // Import Firebase messaging safely - don't crash if Firebase is not initialized
 let messaging: any = null;
@@ -41,6 +42,48 @@ type GestureHandlerRootViewComponent = React.ComponentType<
 const GestureRootView = GestureHandlerRootView as GestureHandlerRootViewComponent;
 
 export default function App() {
+  // ── FCM token: request permission → get token → send to backend ──────────
+  useEffect(() => {
+    const setupFCM = async () => {
+      try {
+        if (!messaging) {
+          console.log('⚠️ Firebase messaging not available — skipping FCM setup');
+          return;
+        }
+
+        // 1. Request notification permission (iOS requires explicit grant)
+        const authStatus = await messaging().requestPermission();
+        const granted =
+          authStatus === messaging.AuthorizationStatus?.AUTHORIZED ||
+          authStatus === messaging.AuthorizationStatus?.PROVISIONAL ||
+          authStatus === 1 || // AUTHORIZED
+          authStatus === 2;   // PROVISIONAL
+
+        if (!granted) {
+          console.log('⚠️ FCM permission denied by user');
+          return;
+        }
+
+        // 2. Get FCM token and send to backend
+        await tokenLogger.getTokenFromAnySource();
+
+        // 3. Listen for token refresh — send new token whenever Firebase rotates it
+        const unsubscribe = messaging().onTokenRefresh(async (newToken: string) => {
+          console.log('🔄 FCM token refreshed');
+          await tokenLogger.setToken(newToken, true); // forceLog = true
+        });
+
+        return unsubscribe;
+      } catch (error: any) {
+        console.log('❌ FCM setup error:', error?.message);
+      }
+    };
+
+    let cleanup: (() => void) | undefined;
+    setupFCM().then((unsub) => { cleanup = unsub; });
+    return () => { cleanup?.(); };
+  }, []);
+
   const showInAppMessage = (title: string, body: string) => {
     const messageText = body ? `${title}\n${body}` : title;
     const toastFn = (global as ToastGlobal)?.showToast;
