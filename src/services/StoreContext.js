@@ -37,12 +37,23 @@ export function useStore() {
   return {
     store,
     loading,
-    shopifyDomain: store?.shopify_domain ?? null,
-    storefrontToken: store?.storefront_access_token ?? null,
-    shopName: store?.shop_name ?? null,
-    currency: store?.currency ?? null,
-    country: store?.country ?? null,
-    storeStatus: store?.status ?? null,
+    // Shopify credentials
+    shopifyDomain:    store?.shopify_domain              ?? null,
+    storefrontToken:  store?.storefront_access_token     ?? null,
+    accessToken:      store?.access_token                ?? null,
+    // Store identity
+    storeId:          store?.id                          ?? null,
+    userId:           store?.user_id                     ?? null,
+    shopName:         store?.shop_name                   ?? null,
+    shopOwner:        store?.shop_owner                  ?? null,
+    // Locale / commerce
+    currency:         store?.currency                    ?? null,
+    country:          store?.country                     ?? null,
+    timezone:         store?.timezone                    ?? null,
+    // Status
+    storeStatus:      store?.status                      ?? null,
+    planName:         store?.plan_name                   ?? null,
+    onboarding:       store?.onboarding                  ?? null,
   };
 }
 

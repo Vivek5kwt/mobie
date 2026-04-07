@@ -72,7 +72,13 @@ export default function AccountProfile({ section }) {
     section?.props || section?.properties?.props?.properties || section?.properties?.props || {};
 
   const rawProps = resolveObject(propsRoot?.raw, {});
-  const presentation = resolveObject(propsRoot?.presentation, {});
+  // DSL uses two patterns:
+  //   pattern A: presentation.value.css          (account_menu)
+  //   pattern B: presentation.properties.css.value (account_profile)
+  // Try .properties first so pattern B is found, fall back to root for pattern A
+  const presentation = resolveObject(
+    propsRoot?.presentation?.properties || propsRoot?.presentation, {}
+  );
   const css = resolveObject(presentation?.css, {});
 
   // Session is the primary source; DSL props serve as override/fallback

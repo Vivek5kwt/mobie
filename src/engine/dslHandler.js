@@ -14,14 +14,82 @@ const normalizeName = (value) =>
 
 // Common page name aliases — maps any incoming slug to alternatives worth trying
 const PAGE_ALIASES = {
-  "profile":      ["profile", "account", "accounts", "my-account", "my-profile", "user-profile", "user"],
-  "account":      ["account", "accounts", "profile", "my-account", "user"],
-  "accounts":     ["accounts", "account", "profile", "my-account"],
-  "cart":         ["cart", "shopping-cart", "bag", "my-cart", "my-bag"],
-  "search":       ["search", "search-results", "find", "explore"],
-  "home":         ["home", "index", "main"],
-  "notification": ["notification", "notifications", "alerts", "inbox"],
-  "orders":       ["orders", "my-orders", "order-history", "order"],
+  "profile":        ["profile", "account", "accounts", "my-account", "my-profile", "user-profile", "user"],
+  "account":        ["account", "accounts", "profile", "my-account", "user"],
+  "accounts":       ["accounts", "account", "profile", "my-account"],
+  "cart":           ["cart", "shopping-cart", "bag", "my-cart", "my-bag"],
+  "search":         ["search", "search-results", "find", "explore"],
+  "home":           ["home", "index", "main"],
+  "notification":   ["notification", "notifications", "alerts", "inbox"],
+  "orders":         ["orders", "my-orders", "order-history", "order"],
+  "create-account": ["create-account", "signup", "sign-up", "register", "createaccount", "create-an-account"],
+  "signup":         ["signup", "sign-up", "create-account", "register", "create-an-account"],
+  "sign-up":        ["sign-up", "signup", "create-account", "register"],
+};
+
+// Pages that should auto-show a sign-up form when DSL sections are empty
+const CREATE_ACCOUNT_SLUGS = new Set([
+  "create-account", "signup", "sign-up", "register", "createaccount", "create-an-account",
+]);
+
+// Build a sign_up DSL section using colors from the page's headerdefault
+const buildSignUpSection = (headerDefault = {}) => {
+  const accentColor = headerDefault?.backgroundColor || "#027579";
+  const textColor   = headerDefault?.textColor       || "#111827";
+  return {
+    type: "object",
+    title: "Sign Up Component Schema",
+    properties: {
+      props: {
+        type: "object",
+        properties: {
+          raw: {
+            type: "object",
+            value: {
+              pt: 32,
+              pb: 32,
+              pl: 20,
+              pr: 20,
+              bgColor:             "#FFFFFF",
+              cardBgColor:         "#FFFFFF",
+              authTitle:           "Create an Account",
+              buttonText:          "Create Account",
+              footerText:          "Already have an account?",
+              footerLinkText:      "Sign In",
+              titleColor:          textColor,
+              buttonBgColor:       accentColor,
+              buttonTextColor:     "#FFFFFF",
+              footerLinkColor:     accentColor,
+              footerTextColor:     "#6B7280",
+              inputBorderColor:    "#D1D5DB",
+              cardBorderColor:     "#E5E7EB",
+              firstNameVisible:    true,
+              lastNameVisible:     true,
+              emailInputVisible:   true,
+              passwordInputVisible:true,
+              signInLinkVisible:   true,
+            },
+          },
+        },
+      },
+      component: { const: "sign_up" },
+    },
+  };
+};
+
+// When a known create-account page has no sections from the builder yet,
+// inject a sign_up section so the page is always functional.
+const injectDefaultSectionsIfNeeded = (dslData, pageName) => {
+  if (!dslData) return dslData;
+  const sections = dslData?.sections || [];
+  if (sections.length > 0) return dslData; // builder has content — use it as-is
+  const normalized = normalizeName(pageName);
+  if (!CREATE_ACCOUNT_SLUGS.has(normalized)) return dslData;
+  console.log(`🔧 Injecting sign_up section for empty "${pageName}" page`);
+  return {
+    ...dslData,
+    sections: [buildSignUpSection(dslData?.headerdefault)],
+  };
 };
 
 // Find the best matching layout entry for a target page name.
@@ -49,8 +117,11 @@ const findMatchingLayout = (layouts, targetName) => {
   });
   if (partial) return partial;
 
-  // 4. No match — do NOT fall back to layouts[0] (that's the home page)
-  return null;
+  // 4. Fall back to layouts[0] so selectDslPage can search within a
+  //    multi-page DSL (all pages stored under one layout's pages object).
+  //    selectDslPage uses isPageNameMatch (alias-aware), so it will still
+  //    find "My Account" when targetName is "profile".
+  return layouts[0];
 };
 
 const sanitizeSections = (dslPage) => {
@@ -58,6 +129,19 @@ const sanitizeSections = (dslPage) => {
   const filteredSections = dslPage.sections.filter(Boolean);
   if (filteredSections.length === dslPage.sections.length) return dslPage;
   return { ...dslPage, sections: filteredSections };
+};
+
+// Check if candidateName is an acceptable match for targetName (exact or alias)
+const isPageNameMatch = (candidateName, targetName) => {
+  if (!candidateName || !targetName) return false;
+  if (candidateName === targetName) return true;
+  // Check if candidateName appears in targetName's alias list
+  const aliases = PAGE_ALIASES[targetName] || [];
+  if (aliases.includes(candidateName)) return true;
+  // Check reverse: targetName appears in candidateName's alias list
+  const reverseAliases = PAGE_ALIASES[candidateName] || [];
+  if (reverseAliases.includes(targetName)) return true;
+  return false;
 };
 
 const selectDslPage = (dslData, layoutMeta, pageOverride) => {
@@ -69,7 +153,15 @@ const selectDslPage = (dslData, layoutMeta, pageOverride) => {
     );
     const targetName = normalizeName(pageOverride);
 
-    if (currentPageName && currentPageName === targetName) {
+    // Accept if exact match OR alias match
+    if (currentPageName && isPageNameMatch(currentPageName, targetName)) {
+      return dslData;
+    }
+
+    // If layoutMeta confirms this is the right layout, trust it and return as-is
+    // (findMatchingLayout already resolved the correct layout via alias)
+    const layoutPageName = normalizeName(layoutMeta?.page_name);
+    if (layoutPageName && isPageNameMatch(layoutPageName, targetName)) {
       return dslData;
     }
 
@@ -91,10 +183,15 @@ const selectDslPage = (dslData, layoutMeta, pageOverride) => {
         normalizeName(pageInfo?.name),
         normalizeName(pageInfo?.handle),
       ];
-      return candidates.includes(targetName);
+      return candidates.some((c) => isPageNameMatch(c, targetName));
     });
 
   if (pageOverride && !match) {
+    // Last chance: if layoutMeta confirms the right layout, use first entry
+    const layoutPageName = normalizeName(layoutMeta?.page_name);
+    if (layoutPageName && isPageNameMatch(layoutPageName, targetName) && entries.length) {
+      return sanitizeSections(entries[0][1]);
+    }
     console.log(`📄 No DSL match for "${pageOverride}". Returning empty page data.`);
     return { page: { name: pageOverride }, sections: [] };
   }
@@ -142,11 +239,13 @@ export async function fetchLiveDSL(appId, pageName) {
 
     const targetName = normalizeName(pageName);
     const layout = findMatchingLayout(layouts, targetName);
+    // findMatchingLayout always returns at least layouts[0] — null only if layouts[] is empty
     if (!layout) {
-      console.log(`❌ No layout found for page: "${pageName}" (normalized: "${targetName}")`);
-      console.log("📋 Available pages:", layouts.map((e) => e?.page_name).join(", "));
+      console.log(`❌ No layouts available at all for appId ${appIdInt}`);
       return null;
     }
+    console.log(`🗂️ Layout selected: "${layout?.page_name}" for page "${pageName}"`);
+    console.log("📋 All available pages:", layouts.map((e) => e?.page_name).join(", "));
 
     // Get all versions and sort by version_number (descending)
     const layoutVersions = layout?.layout_versions || [];
@@ -167,19 +266,23 @@ export async function fetchLiveDSL(appId, pageName) {
     const dslWithDefaults = headerDefault != null
       ? { ...dslData, headerdefault: headerDefault }
       : dslData;
+
+    // Auto-inject sign_up section when builder left sections empty for create-account pages
+    const finalDsl = injectDefaultSectionsIfNeeded(dslWithDefaults, pageName);
+
     const versionNumber = latestVersion?.version_number ?? null;
 
     console.log(`✅ LIVE DATA FETCHED - Version ${latestVersion.version_number}`);
-    console.log(`📊 Sections count: ${dslWithDefaults?.sections?.length || 0}`);
+    console.log(`📊 Sections count: ${finalDsl?.sections?.length || 0}`);
 
-    if (dslWithDefaults?.sections) {
-      const components = dslWithDefaults.sections
+    if (finalDsl?.sections) {
+      const components = finalDsl.sections
         .filter(Boolean)
         .map((s) => s?.component || s?.properties?.component);
       console.log(`🔍 Components found:`, components);
     }
 
-    return { dsl: dslWithDefaults, versionNumber };
+    return { dsl: finalDsl, versionNumber };
   } catch (error) {
     console.log("❌ LIVE DATA ERROR:", error);
     return null;

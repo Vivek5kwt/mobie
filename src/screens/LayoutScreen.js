@@ -1,6 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
-  ActivityIndicator,
   RefreshControl,
   ScrollView,
   Text,
@@ -12,6 +11,7 @@ import {
 } from "react-native";
 import { useFocusEffect } from "@react-navigation/native";
 import DynamicRenderer from "../engine/DynamicRenderer";
+import SkeletonLoader from "../components/SkeletonLoader";
 import HeaderDefault from "../components/HeaderDefault";
 import { fetchDSL } from "../engine/dslHandler";
 import { shouldRenderSectionOnMobile } from "../engine/visibility";
@@ -580,15 +580,7 @@ export default function LayoutScreen({ route }) {
   let mainContent = null;
 
   if (loading) {
-    // Show loader over the content area, but keep bottom nav mounted and visible
-    mainContent = (
-      <View style={styles.centerContainer}>
-        <View style={styles.loaderCard}>
-          <ActivityIndicator size="large" color="#4F46E5" />
-          <Text style={styles.loaderText}>Preparing your experience…</Text>
-        </View>
-      </View>
-    );
+    mainContent = <SkeletonLoader />;
   } else if (err || !dsl) {
     // Error state: keep bottom nav, just show error in content area
     mainContent = (
