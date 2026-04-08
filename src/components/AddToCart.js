@@ -4,7 +4,6 @@ import FontAwesome from "react-native-vector-icons/FontAwesome";
 import { StackActions, useNavigation } from "@react-navigation/native";
 import { useDispatch } from "react-redux";
 import { addItem } from "../store/slices/cartSlice";
-import bottomNavigationStyle1Section from "../data/bottomNavigationStyle1";
 import {
   createShopifyCheckout,
   getShopifyDomain,
@@ -19,6 +18,15 @@ const unwrapValue = (value, fallback = undefined) => {
     if (value.properties) return unwrapValue(value.properties, fallback);
   }
   return value;
+};
+
+// Deep unwrap — keeps traversing value/const wrappers until a plain value
+const deepUnwrap = (v) => {
+  if (v === undefined || v === null) return v;
+  if (typeof v !== "object") return v;
+  if (v.value !== undefined) return deepUnwrap(v.value);
+  if (v.const !== undefined) return deepUnwrap(v.const);
+  return v;
 };
 
 const toNumber = (value, fallback = 0) => {
@@ -119,24 +127,28 @@ export default function AddToCart({ section }) {
   const dispatch = useDispatch();
   const propsNode =
     section?.properties?.props?.properties || section?.properties?.props || section?.props || {};
-  const raw = unwrapValue(propsNode?.raw, {});
-  const presentation = unwrapValue(propsNode?.presentation, {});
-  const css = unwrapValue(presentation?.css, {});
 
-  const addToCartConfig = raw?.addToCart || css?.addToCart || {};
-  const buyNowConfig = raw?.buyNow || css?.buyNow || {};
-  const quantityConfig = raw?.quantityPicker || css?.quantityPicker || {};
-  const visibility = raw?.visibility || css?.visibility || {};
+  // Merge the .raw sub-object into the top-level props (same pattern as Countdown/AccountMenu)
+  const rawWrapped = deepUnwrap(propsNode?.raw);
+  const raw = (rawWrapped && typeof rawWrapped === "object") ? { ...propsNode, ...rawWrapped } : (propsNode || {});
 
-  const showAddToCart = toBoolean(visibility?.addToCart, true);
-  const showAddToCartIcon = toBoolean(visibility?.addToCartIcon, false);
-  const showAddToCartText = toBoolean(visibility?.addToCartText, true);
-  const showBuyNow = toBoolean(visibility?.buyNow, true);
-  const showBuyNowIcon = toBoolean(visibility?.buyNowIcon, false);
-  const showBuyNowText = toBoolean(visibility?.buyNowText, true);
-  const showQuantityPicker = toBoolean(visibility?.quantityPicker, true);
-  const showQuantityText = toBoolean(visibility?.quantityPickerText, true);
-  const showQuantityIcons = toBoolean(visibility?.quantityPickerIcons, true);
+  const presentation = deepUnwrap(propsNode?.presentation) || {};
+  const css = deepUnwrap(presentation?.css) || deepUnwrap(presentation?.properties?.css) || {};
+
+  const addToCartConfig = deepUnwrap(raw?.addToCart) || deepUnwrap(css?.addToCart) || {};
+  const buyNowConfig    = deepUnwrap(raw?.buyNow)    || deepUnwrap(css?.buyNow)    || {};
+  const quantityConfig  = deepUnwrap(raw?.quantityPicker) || deepUnwrap(css?.quantityPicker) || {};
+  const visibility      = deepUnwrap(raw?.visibility) || deepUnwrap(css?.visibility) || {};
+
+  const showAddToCart      = toBoolean(deepUnwrap(visibility?.addToCart),           true);
+  const showAddToCartIcon  = toBoolean(deepUnwrap(visibility?.addToCartIcon),       false);
+  const showAddToCartText  = toBoolean(deepUnwrap(visibility?.addToCartText),       true);
+  const showBuyNow         = toBoolean(deepUnwrap(visibility?.buyNow),              true);
+  const showBuyNowIcon     = toBoolean(deepUnwrap(visibility?.buyNowIcon),          false);
+  const showBuyNowText     = toBoolean(deepUnwrap(visibility?.buyNowText),          true);
+  const showQuantityPicker = toBoolean(deepUnwrap(visibility?.quantityPicker),      true);
+  const showQuantityText   = toBoolean(deepUnwrap(visibility?.quantityPickerText),  true);
+  const showQuantityIcons  = toBoolean(deepUnwrap(visibility?.quantityPickerIcons), true);
 
   const addToCartText = toString(raw?.buttonText ?? addToCartConfig?.text, "Add to Cart");
   const buyNowText = toString(raw?.buyNowText ?? buyNowConfig?.text, "Buy Now");
@@ -244,19 +256,21 @@ export default function AddToCart({ section }) {
   };
 
   const openCartScreen = () => {
-    const bottomNavSection = section?.bottomNavSection || bottomNavigationStyle1Section;
-    const items = resolveBottomNavItems(bottomNavSection);
+    // Only use the real DSL-provided bottom nav — never fall back to hardcoded defaults.
+    // If the app has no bottom navigation, the cart page should not show one either.
+    const navSection = section?.bottomNavSection || null;
+    const items = resolveBottomNavItems(navSection);
     const resolvedIndex = resolveBottomNavIndex(items, "cart");
-    const activeIndex = resolvedIndex >= 0 ? resolvedIndex : 1;
+    const activeIndex = resolvedIndex >= 0 ? resolvedIndex : 0;
     const item = items[activeIndex];
     const title = item?.label || item?.title || item?.name || "Cart";
     const rawLink = item?.link ?? item?.href ?? item?.url ?? "";
-    const link = typeof rawLink === "string" ? rawLink.replace(/^\//, "") : "";
+    const link = typeof rawLink === "string" ? rawLink.replace(/^\//, "") : "cart";
     const params = {
-      title,
-      link,
+      title: title || "Cart",
+      link: link || "cart",
       activeIndex,
-      bottomNavSection,
+      ...(navSection ? { bottomNavSection: navSection } : {}),
     };
     navigation.dispatch(StackActions.replace("BottomNavScreen", params));
   };

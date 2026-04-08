@@ -14,6 +14,48 @@ const unwrapValue = (value, fallback = undefined) => {
   return value;
 };
 
+// Recursively unwrap value/const DSL envelope wrappers
+const deepUnwrap = (v) => {
+  if (v === undefined || v === null) return v;
+  if (typeof v !== "object") return v;
+  if (v.value !== undefined) return deepUnwrap(v.value);
+  if (v.const !== undefined) return deepUnwrap(v.const);
+  return v;
+};
+
+// Merge the .raw sub-object into root props so all DSL fields are top-level accessible
+const getRawProps = (section) => {
+  const root =
+    section?.properties?.props?.properties ||
+    section?.properties?.props ||
+    section?.props ||
+    {};
+  const rawUnwrapped = deepUnwrap(root?.raw);
+  return (rawUnwrapped && typeof rawUnwrapped === "object")
+    ? { ...root, ...rawUnwrapped }
+    : root;
+};
+
+// Read layout CSS from both 'layout' and 'presentation' DSL paths
+const getLayoutCss = (rawProps) => {
+  const fromLayout = rawProps?.layout?.properties?.css || rawProps?.layout?.css || {};
+  const presUnwrapped = deepUnwrap(rawProps?.presentation) || {};
+  const fromPres = presUnwrapped?.properties?.css || presUnwrapped?.css || {};
+  const fromCss = deepUnwrap(rawProps?.css) || {};
+  const merge = (key) => ({
+    ...(fromLayout[key] || {}),
+    ...(fromPres[key]   || {}),
+    ...(fromCss[key]    || {}),
+  });
+  return {
+    container: merge("container"),
+    headline:  merge("headline"),
+    subtext:   merge("subtext"),
+    button:    merge("button"),
+    image:     merge("image"),
+  };
+};
+
 const toBoolean = (value, fallback = true) => {
   const resolved = unwrapValue(value, undefined);
   if (resolved === undefined) return fallback;
@@ -114,12 +156,13 @@ const withColorOpacity = (color, opacityPct = 100) => {
 
 export default function HeroBanner({ section }) {
   const navigation = useNavigation();
-  const rawProps =
-    section?.properties?.props?.properties || section?.properties?.props || section?.props || {};
+  // Merge .raw sub-object so DSL data nested inside raw is accessible at top level
+  const rawProps = getRawProps(section);
 
-  // Extract layout CSS and metrics
-  const layoutCss = rawProps?.layout?.properties?.css || rawProps?.layout?.css || {};
-  const layoutMetrics = rawProps?.layout?.properties?.metrics || rawProps?.layout?.metrics || {};
+  // Extract layout CSS from all possible DSL sources (layout / presentation / css)
+  const layoutCss = getLayoutCss(rawProps);
+  const layoutNode = rawProps?.layout?.properties || rawProps?.layout || {};
+  const layoutMetrics = layoutNode?.metrics || {};
   // Only use metrics when explicitly available (available: true) — skip when all zeros or available: false
   const metricsAvailable = layoutMetrics?.available === true;
   const metricElements = metricsAvailable ? (layoutMetrics?.elements || {}) : {};
@@ -211,7 +254,8 @@ export default function HeroBanner({ section }) {
   const imageAttributes = rawProps?.imageAttributes?.properties || rawProps?.imageAttributes || {};
   const imageSettingsEnabled = toBoolean(rawProps?.imageSettingsEnabled, true);
   const imageScale = toString(imageAttributes?.scale, "Fit").toLowerCase();
-  const imageCornerRadius = toNumber(imageAttributes?.imageCorner, 7);
+  // Default to 0 — no rounded corners unless DSL explicitly sets a radius
+  const imageCornerRadius = toNumber(imageAttributes?.imageCorner, 0);
   
   // Parse image ratio
   const parseImageRatio = (value) => {
@@ -419,14 +463,17 @@ export default function HeroBanner({ section }) {
   const containerBgGradientColor =
     toString(rawProps?.containerBgGradiantColor, "") ||
     toString(flatPropsNode?.containerBgGradiantColor, "");
-  const containerBorderRadius = toNumber(styleProps?.borderRadius, 7) || 
-                                 toNumber(layoutCss?.container?.borderRadius, 7);
+  // Default to 0 — no rounded corners unless DSL explicitly sets a radius
+  const containerBorderRadius =
+    toNumber(styleProps?.borderRadius, undefined) ??
+    toNumber(layoutCss?.container?.borderRadius, undefined) ??
+    toNumber(rawProps?.borderRadius, 0);
   const containerHeight = toString(styleProps?.height || layoutCss?.container?.height, "auto");
 
-  // Outer card container (white card + border), matching web DSL containerBgColor/containerBorder*
-  const outerBgColor = toString(rawProps?.containerBgColor, "#FFFFFF");
-  const outerBorderColor = toString(rawProps?.containerBorderColor, "#D1D5DB");
-  const outerBorderSide = toString(rawProps?.containerBorderSide, "all").toLowerCase();
+  // Outer card container — transparent by default so no white box appears around the banner
+  const outerBgColor = toString(rawProps?.containerBgColor, "transparent");
+  const outerBorderColor = toString(rawProps?.containerBorderColor, "transparent");
+  const outerBorderSide = toString(rawProps?.containerBorderSide, "none").toLowerCase();
   const outerBorderRadius = toNumber(rawProps?.containerBorderRadius, 0);
 
   const outerBorderStyle =
@@ -494,7 +541,8 @@ export default function HeroBanner({ section }) {
           source={{ uri: imageSrc }}
           style={[
             styles.image,
-            { borderRadius: imageCornerRadius || toNumber(layoutCss?.image?.borderRadius, 7) },
+            // Image clips to container's border radius — no separate image corner radius
+            // unless DSL explicitly configured one; container overflow:hidden handles the rest
             imageCssStyle,
           ]}
           resizeMode={resizeMode}
@@ -508,7 +556,6 @@ export default function HeroBanner({ section }) {
             {
               backgroundColor: "#000000",
               opacity: overlayOpacity / 100,
-              borderRadius: imageCornerRadius || toNumber(layoutCss?.image?.borderRadius, 7),
             },
           ]}
         />
@@ -529,13 +576,13 @@ export default function HeroBanner({ section }) {
         ]}
       >
         {showHeadline && headline ? (
-          <Text style={[styles.headline, headlineStyle, { textAlign: "center" }]}>
+          <Text style={[styles.headline, headlineStyle, { textAlign: textAlign || "center" }]}>
             {headline}
           </Text>
         ) : null}
 
         {showSubtext && subtext ? (
-          <Text style={[styles.subtext, subtextStyle, { textAlign: "center" }]}>
+          <Text style={[styles.subtext, subtextStyle, { textAlign: textAlign || "center" }]}>
             {subtext}
           </Text>
         ) : null}
@@ -591,16 +638,13 @@ export default function HeroBanner({ section }) {
 const styles = StyleSheet.create({
   outerCard: {
     width: "100%",
-    padding: 0,
-    margin: 0,
+    // No padding, margin, or border radius by default — purely a passthrough wrapper
   },
   container: {
     position: "relative",
     width: "100%",
     overflow: "hidden",
     flexShrink: 0,
-    padding: 0,
-    margin: 0,
     alignSelf: "stretch",
   },
   image: {

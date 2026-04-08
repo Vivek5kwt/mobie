@@ -124,12 +124,19 @@ export default function BottomNavScreen() {
         }
       }
 
-      // If bottom nav section exists and is different, update it
       if (incomingBottomNav) {
+        // DSL has a bottom nav — update state if it changed
         if (!bottomNavSectionRef.current || !deepEqual(incomingBottomNav, bottomNavSectionRef.current)) {
           bottomNavSectionRef.current = incomingBottomNav;
           setBottomNavSection(incomingBottomNav);
           console.log("🔄 Bottom navigation updated dynamically on", pageName, "page");
+        }
+      } else {
+        // DSL has NO bottom nav — explicitly clear so no nav is shown anywhere
+        if (bottomNavSectionRef.current !== null) {
+          bottomNavSectionRef.current = null;
+          setBottomNavSection(null);
+          console.log("🚫 No bottom navigation in DSL — hiding nav on", pageName, "page");
         }
       }
     } catch (error) {
@@ -254,25 +261,21 @@ export default function BottomNavScreen() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isHomePage, mobileSections]);
 
-  // Use state-based bottomNavSection that can be updated dynamically
-  // Fallback to sortedSections or bottomNavSectionProp if state is not set
+  // Bottom nav is DSL-authoritative — never show a hardcoded fallback.
+  // State starts from the route param (real section or null). checkAndUpdateBottomNav
+  // will explicitly set null when DSL has no nav, so hardcoded props never persist.
   const resolvedBottomNavSection = useMemo(() => {
-    // First check if we have a dynamically updated bottom nav section
-    if (bottomNavSection) {
-      return bottomNavSection;
-    }
-    // Then check sortedSections (from current page DSL)
-    const fromSections = sortedSections.find((section) => {
+    if (bottomNavSection) return bottomNavSection;
+    // Before async check: use current page's DSL sections if they contain a nav
+    return sortedSections.find((section) => {
       const component = getComponentName(section).toLowerCase();
       return [
         "bottom_navigation",
         "bottom_navigation_style_1",
         "bottom_navigation_style_2",
       ].includes(component);
-    });
-    // Finally fallback to prop
-    return fromSections || bottomNavSectionProp;
-  }, [bottomNavSection, sortedSections, bottomNavSectionProp]);
+    }) || null;
+  }, [bottomNavSection, sortedSections]);
 
   const activeIndex = useMemo(() => {
     if (activeIndexFromParams !== undefined && activeIndexFromParams !== null) {

@@ -1,6 +1,8 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { Dimensions, Image, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { useNavigation } from "@react-navigation/native";
+import { useDispatch } from "react-redux";
+import { addItem } from "../store/slices/cartSlice";
 import { fetchShopifyProductsPage } from "../services/shopify";
 
 const unwrapValue = (value, fallback = undefined) => {
@@ -11,6 +13,26 @@ const unwrapValue = (value, fallback = undefined) => {
     if (value.properties) return unwrapValue(value.properties, fallback);
   }
   return value;
+};
+
+const deepUnwrap = (v) => {
+  if (v === undefined || v === null) return v;
+  if (typeof v !== "object") return v;
+  if (v.value !== undefined) return deepUnwrap(v.value);
+  if (v.const !== undefined) return deepUnwrap(v.const);
+  return v;
+};
+
+const getRawProps = (section) => {
+  const root =
+    section?.properties?.props?.properties ||
+    section?.properties?.props ||
+    section?.props ||
+    {};
+  const rawUnwrapped = deepUnwrap(root?.raw);
+  return (rawUnwrapped && typeof rawUnwrapped === "object")
+    ? { ...root, ...rawUnwrapped }
+    : root;
 };
 
 const toNumber = (value, fallback) => {
@@ -68,13 +90,14 @@ const toFontWeight = (value, fallback) => {
 
 export default function ProductGrid({ section, limit = 8, title = "Products" }) {
   const navigation = useNavigation();
+  const dispatch = useDispatch();
   const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [hasMore, setHasMore] = useState(false);
 
-  const rawProps =
-    section?.properties?.props?.properties || section?.properties?.props || section?.props || {};
+  // Merge .raw sub-object so all DSL fields are top-level accessible
+  const rawProps = getRawProps(section);
   const resolvedLimit = resolveFirstNumber(
     [rawProps?.productsToShow, rawProps?.productCount, rawProps?.limit],
     limit
@@ -284,6 +307,67 @@ export default function ProductGrid({ section, limit = 8, title = "Products" }) 
     rawProps?.favoriteIconFontFamily ?? presentationCss?.favorite?.fontFamily,
     ""
   );
+  // ── Add to Cart button config (fully DSL-driven) ──────────────────────────
+  const cardAddToCartCss  = deepUnwrap(cardCss?.addToCart)  || deepUnwrap(presentationCss?.addToCart)  || deepUnwrap(presentationCss?.button) || {};
+  const showAddToCart     = toBoolean(
+    rawProps?.showAddToCart ?? rawProps?.showCartButton ?? rawProps?.addToCartEnabled ?? rawProps?.cartBtnEnabled,
+    true
+  );
+  const addToCartLabel    = toString(
+    rawProps?.addToCartText ?? rawProps?.cartBtnText ?? rawProps?.addToCartLabel ?? rawProps?.cartButtonText ?? cardAddToCartCss?.label,
+    "Add to Cart"
+  );
+  const addToCartBgColor  = toString(
+    rawProps?.addToCartBgColor ?? rawProps?.cartBtnBgColor ?? rawProps?.buttonBgColor ?? rawProps?.btnBgColor ?? cardAddToCartCss?.backgroundColor,
+    "#0D9488"
+  );
+  const addToCartTextColor = toString(
+    rawProps?.addToCartTextColor ?? rawProps?.cartBtnTextColor ?? rawProps?.buttonTextColor ?? rawProps?.btnTextColor ?? cardAddToCartCss?.color,
+    "#FFFFFF"
+  );
+  const addToCartBorderRadius = resolveFirstNumber(
+    [rawProps?.addToCartBorderRadius, rawProps?.cartBtnRadius, rawProps?.btnRadius, cardAddToCartCss?.borderRadius],
+    6
+  );
+  const addToCartFontSize  = resolveFirstNumber(
+    [rawProps?.addToCartFontSize, rawProps?.cartBtnFontSize, cardAddToCartCss?.fontSize],
+    13
+  );
+  const addToCartFontWeight = toFontWeight(
+    rawProps?.addToCartFontWeight ?? rawProps?.cartBtnFontWeight ?? cardAddToCartCss?.fontWeight,
+    "600"
+  );
+  const addToCartFontFamily = toString(
+    rawProps?.addToCartFontFamily ?? rawProps?.cartBtnFontFamily ?? cardAddToCartCss?.fontFamily,
+    ""
+  );
+
+  const handleAddToCart = useCallback((product, e) => {
+    if (e?.stopPropagation) e.stopPropagation();
+    const variantId =
+      product?.variantId ||
+      product?.variants?.[0]?.id ||
+      product?.defaultVariantId ||
+      product?.id ||
+      "";
+    dispatch(
+      addItem({
+        item: {
+          id: variantId || product?.id,
+          variantId: String(variantId),
+          title: product?.title || "",
+          image: product?.imageUrl || "",
+          price: parseFloat(product?.priceAmount) || 0,
+          compareAtPrice: parseFloat(product?.compareAtPrice) || 0,
+          vendor: product?.vendor || "",
+          variant: product?.variantTitle || "",
+          currency: product?.priceCurrency || "",
+          quantity: 1,
+        },
+      })
+    );
+  }, [dispatch]);
+
   const detailSections = useMemo(() => {
     const candidates = [
       rawProps?.productDetailSections,
@@ -531,6 +615,34 @@ export default function ProductGrid({ section, limit = 8, title = "Products" }) 
                     </Text>
                   )}
                 </View>
+
+                {showAddToCart && (
+                  <TouchableOpacity
+                    activeOpacity={0.8}
+                    style={[
+                      styles.addToCartBtn,
+                      {
+                        backgroundColor: addToCartBgColor,
+                        borderRadius: addToCartBorderRadius,
+                      },
+                    ]}
+                    onPress={(e) => handleAddToCart(product, e)}
+                  >
+                    <Text
+                      style={[
+                        styles.addToCartText,
+                        {
+                          color: addToCartTextColor,
+                          fontSize: addToCartFontSize,
+                          fontWeight: addToCartFontWeight,
+                          ...(addToCartFontFamily ? { fontFamily: addToCartFontFamily } : null),
+                        },
+                      ]}
+                    >
+                      {addToCartLabel}
+                    </Text>
+                  </TouchableOpacity>
+                )}
               </TouchableOpacity>
             ))}
           </View>
@@ -631,5 +743,20 @@ const styles = StyleSheet.create({
     color: "#111827",
     fontWeight: "600",
     fontSize: 14,
+  },
+  addToCartBtn: {
+    marginHorizontal: 10,
+    marginBottom: 10,
+    marginTop: 4,
+    paddingVertical: 9,
+    paddingHorizontal: 12,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  addToCartText: {
+    fontSize: 13,
+    fontWeight: "600",
+    color: "#FFFFFF",
+    textAlign: "center",
   },
 });
