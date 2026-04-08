@@ -256,151 +256,47 @@ export default function ProductDetailScreen() {
     );
   };
 
-  // Helper to check if a section should be rendered based on available data
-  const shouldRenderSection = (section, product) => {
-    if (!section || !hasProductData(product)) return false;
-    
-    const componentName = section?.component || section?.properties?.component?.const || "";
-    const defaults = buildProductDefaults(product);
-    
-    // Check component-specific data requirements
-    if (componentName === "product_library") {
-      return !!defaults.imageUrl;
-    }
-    if (componentName === "product_info") {
-      return !!(defaults.titleText || defaults.vendorText || defaults.salePrice || defaults.standardPrice);
-    }
-    if (componentName === "product_description") {
-      return !!defaults.description;
-    }
-    
-    // For other components, check if they have any meaningful data
-    const propsNode = section?.properties?.props?.properties || section?.properties?.props || section?.props || {};
-    const raw = unwrapValue(propsNode?.raw, {});
-    return Object.keys(raw).length > 0 || hasProductData(product);
-  };
-
+  // Minimal fallback — ONLY used when the builder has configured zero sections for this page.
+  // This prevents a completely blank screen when no product detail layout has been designed yet.
+  // As soon as the builder adds any section, this is bypassed entirely.
   const fallbackSections = useMemo(() => {
-    // Only create fallback sections if product has data
     if (!hasProductData(detailProduct)) return [];
-    
     const defaults = buildProductDefaults(detailProduct);
     const sections = [];
 
-    // Only add image section if image exists
     if (defaults.imageUrl) {
       sections.push({
-        id: "product-detail-image",
+        id: "fallback-image",
         component: "product_library",
-        props: {
-          raw: {
-            imageUrl: defaults.imageUrl,
-          },
-        },
+        props: { raw: { imageUrl: defaults.imageUrl } },
       });
     }
-
-    // Only add info section if there's title, vendor, or price
-    if (defaults.titleText || defaults.vendorText || defaults.salePrice || defaults.standardPrice) {
+    if (defaults.titleText || defaults.salePrice) {
       sections.push({
-        id: "product-detail-info",
+        id: "fallback-info",
         component: "product_info",
-        props: {
-          raw: defaults,
-        },
+        props: { raw: defaults },
       });
     }
-
-    // Only add description section if description exists
-    if (defaults.description) {
-      sections.push({
-        id: "product-detail-description",
-        component: "product_description",
-        props: {
-          raw: defaults,
-        },
-      });
-    }
-
+    // Note: description is intentionally NOT included in the fallback.
+    // It must be explicitly added by the user in the builder.
     return sections;
   }, [detailProduct]);
 
-  // Helper to get component name from a section
-  const getComponentName = (section) => {
-    return (
-      section?.component ||
-      section?.properties?.component?.const ||
-      section?.properties?.component ||
-      ""
-    ).toLowerCase();
-  };
-
-  // Helper to check if DSL sections already include a specific component type
-  const hasComponentInDSL = (componentName) => {
-    return sectionsToRender.some((section) => getComponentName(section) === componentName.toLowerCase());
-  };
-
   const renderSections = useMemo(() => {
-    if (!hasProductData(detailProduct)) {
-      // If no product data, only show DSL sections
-      return sectionsToRender
-        .filter((section) => shouldRenderSection(section, detailProduct))
-        .map((section) => mergeSectionWithProduct(section, detailProduct));
+    if (!hasProductData(detailProduct)) return [];
+
+    // DSL has sections the builder configured → render ONLY those.
+    // Never auto-inject sections the user did not add in the builder.
+    if (sectionsToRender.length > 0) {
+      return sectionsToRender.map((section) =>
+        mergeSectionWithProduct(section, detailProduct)
+      );
     }
-    
-    const defaults = buildProductDefaults(detailProduct);
-    const mergedSections = [];
-    
-    // Always add product image first if it exists and not already in DSL
-    if (!hasComponentInDSL("product_library") && defaults.imageUrl) {
-      mergedSections.push({
-        id: "product-detail-image",
-        component: "product_library",
-        props: {
-          raw: {
-            imageUrl: defaults.imageUrl,
-          },
-        },
-      });
-    }
-    
-    // Always add product info if data exists and not already in DSL
-    if (!hasComponentInDSL("product_info") && 
-        (defaults.titleText || defaults.vendorText || defaults.salePrice || defaults.standardPrice)) {
-      mergedSections.push({
-        id: "product-detail-info",
-        component: "product_info",
-        props: {
-          raw: defaults,
-        },
-      });
-    }
-    
-    // Merge DSL sections (user-added components) in the middle
-    sectionsToRender.forEach((section) => {
-      mergedSections.push(section);
-    });
-    
-    // Always add product description at the end if it exists and not already in DSL
-    if (!hasComponentInDSL("product_description") && defaults.description) {
-      mergedSections.push({
-        id: "product-detail-description",
-        component: "product_description",
-        props: {
-          raw: defaults,
-        },
-      });
-    }
-    
-    // If no sections at all, use fallback sections
-    if (mergedSections.length === 0 && fallbackSections.length > 0) {
-      mergedSections.push(...fallbackSections);
-    }
-    
-    // Filter sections to only include those with data, then merge with product data
-    return mergedSections
-      .filter((section) => shouldRenderSection(section, detailProduct))
-      .map((section) => mergeSectionWithProduct(section, detailProduct));
+
+    // No DSL sections at all (page not designed yet) → show minimal fallback
+    // so the screen isn't completely blank.
+    return fallbackSections;
   }, [detailProduct, fallbackSections, sectionsToRender]);
 
   return (

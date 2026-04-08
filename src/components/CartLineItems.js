@@ -238,9 +238,7 @@ export default function CartLineItems({ section }) {
                     resizeMode="cover"
                   />
                 ) : (
-                  <View style={styles.imagePlaceholder}>
-                    <FontAwesome name="image" size={24} color="#D1D5DB" />
-                  </View>
+                  <View style={[styles.imagePlaceholder, { backgroundColor: imageBg }]} />
                 )}
               </View>
 

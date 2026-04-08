@@ -2,11 +2,7 @@ import React, { useMemo } from "react";
 import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { useNavigation } from "@react-navigation/native";
 import { useSelector } from "react-redux";
-import {
-  createShopifyCartCheckout,
-  getShopifyDomain,
-  getShopifyToken,
-} from "../services/shopify";
+import { createShopifyCartCheckout } from "../services/shopify";
 
 const unwrapValue = (value, fallback = undefined) => {
   if (value === undefined || value === null) return fallback;
@@ -16,6 +12,14 @@ const unwrapValue = (value, fallback = undefined) => {
     if (value.properties) return unwrapValue(value.properties, fallback);
   }
   return value;
+};
+
+const deepUnwrap = (v) => {
+  if (v === undefined || v === null) return v;
+  if (typeof v !== "object") return v;
+  if (v.value !== undefined) return deepUnwrap(v.value);
+  if (v.const !== undefined) return deepUnwrap(v.const);
+  return v;
 };
 
 const toNumber = (value, fallback = 0) => {
@@ -63,7 +67,17 @@ export default function CheckoutButton({ section }) {
     section?.properties?.props ||
     section?.props ||
     {};
-  const raw = unwrapValue(propsNode?.raw, null) || propsNode || {};
+
+  // deepUnwrap raw sub-object and merge it in so all DSL paths are readable
+  const rawNode = deepUnwrap(propsNode?.raw);
+  const raw = (rawNode && typeof rawNode === "object")
+    ? { ...propsNode, ...rawNode }
+    : (propsNode || {});
+
+  // Read presentation.css for button styling fallback
+  const presUnwrapped = deepUnwrap(propsNode?.presentation) || {};
+  const presentationCss = presUnwrapped?.properties?.css || presUnwrapped?.css || {};
+  const buttonCss = deepUnwrap(presentationCss?.button) || deepUnwrap(presentationCss?.checkout) || {};
 
   const cartItems = useSelector((state) => state?.cart?.items || []);
   const appliedDiscounts = useSelector((state) => state?.cart?.discounts || []);
@@ -82,8 +96,11 @@ export default function CheckoutButton({ section }) {
   const height = toNumber(raw?.height ?? raw?.btnHeight, 52);
   const fullWidth = toBoolean(raw?.fullWidth ?? raw?.isFullWidth, true);
 
-  // Button appearance
-  const bgColor = toString(raw?.bgColor ?? raw?.backgroundColor ?? raw?.buttonBg, "#111827");
+  // Button appearance — read from raw props first, then presentation.css
+  const bgColor = toString(
+    raw?.bgColor ?? raw?.backgroundColor ?? raw?.buttonBg ?? buttonCss?.backgroundColor,
+    "#111827"
+  );
   const borderRadius = toNumber(raw?.borderRadius ?? raw?.cornerRadius ?? raw?.corner, 10);
 
   // Border — only show when DSL explicitly sets borderColor or borderWidth
@@ -91,8 +108,8 @@ export default function CheckoutButton({ section }) {
   const borderWidthVal = toNumber(raw?.borderWidth ?? raw?.borderSize, 0);
   const showBorder = borderWidthVal > 0 || !!borderColorVal;
 
-  // Text style
-  const textColor = toString(raw?.textColor ?? raw?.labelColor ?? raw?.color, "#FFFFFF");
+  // Text style — also check presentation.css button
+  const textColor = toString(raw?.textColor ?? raw?.labelColor ?? raw?.color ?? buttonCss?.color, "#FFFFFF");
   const fontSize = toNumber(raw?.fontSize ?? raw?.textSize ?? raw?.labelSize, 16);
   const fontWeight = toFontWeight(raw?.fontWeight ?? raw?.textWeight ?? raw?.labelWeight, "600");
   const fontFamily = toString(raw?.fontFamily ?? raw?.labelFamily, "");
@@ -104,29 +121,23 @@ export default function CheckoutButton({ section }) {
   const disabledBg = toString(raw?.disabledBg ?? raw?.disabledBackground, "#6B7280");
   const disabledTextColor = toString(raw?.disabledTextColor, "#D1D5DB");
 
-  // Shopify
-  const shopifyDomain = toString(raw?.shopifyDomain, getShopifyDomain());
-  const shopifyToken = toString(raw?.storefrontToken ?? raw?.shopifyToken, getShopifyToken());
-
+  // All cart items — createShopifyCartCheckout handles variantId/id fallback internally
   const checkoutLines = useMemo(
     () =>
-      cartItems
-        .filter((item) => item?.variantId)
-        .map((item) => ({
-          id: item?.id,
-          variantId: item?.variantId,
-          quantity: item?.quantity,
-        })),
+      cartItems.map((item) => ({
+        id: item?.id,
+        variantId: item?.variantId,
+        quantity: item?.quantity,
+      })),
     [cartItems]
   );
 
   const handleCheckout = async () => {
-    if (!checkoutLines.length) return;
+    if (!hasCartItems) return;
     try {
+      // Pass no options — createShopifyCartCheckout uses async credentials internally
       const checkoutUrl = await createShopifyCartCheckout({
         items: checkoutLines,
-        discountCodes: appliedDiscounts,
-        options: { shop: shopifyDomain, token: shopifyToken },
       });
       if (checkoutUrl && navigation?.navigate) {
         navigation.navigate("CheckoutWebView", { url: checkoutUrl, title: "Checkout" });

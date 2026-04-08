@@ -139,7 +139,33 @@ const getRawProps = (section) => {
   return (raw && typeof raw === "object") ? { ...root, ...raw } : root;
 };
 
-const getLayoutCss = (rawProps) => rawProps?.layout?.properties?.css || rawProps?.layout?.css || {};
+// Read CSS from both 'layout' and 'presentation' — App Builder may use either.
+// Return merged per-slot objects so every caller gets the right CSS block.
+const getLayoutCss = (rawProps) => {
+  const fromLayout = rawProps?.layout?.properties?.css || rawProps?.layout?.css || {};
+  const presUnwrapped = deepUnwrap(rawProps?.presentation) || {};
+  const fromPres = presUnwrapped?.properties?.css || presUnwrapped?.css || {};
+  const fromCss   = deepUnwrap(rawProps?.css) || {};
+  const merge = (key) => ({
+    ...(fromLayout[key] || {}),
+    ...(fromPres[key]    || {}),
+    ...(fromCss[key]     || {}),
+  });
+  return {
+    container: merge("container"),
+    timer:     merge("timer"),
+    title:     merge("title"),
+    subtext:   merge("subtext"),
+    button:    merge("button"),
+    icon:      merge("icon"),
+    // Top-level bg from any source
+    _bgRaw:
+      fromCss.backgroundColor   || fromCss.background   ||
+      fromPres.backgroundColor  || fromPres.background  ||
+      fromLayout.backgroundColor|| fromLayout.background||
+      null,
+  };
+};
 
 const deriveContainerStyles = (layoutCss, styleBlock) => {
   const converted = convertStyles({ ...(layoutCss.container || {}), ...styleBlock });
@@ -264,7 +290,8 @@ class Countdown extends PureComponent {
     const rawProps = getRawProps(this.props.section);
 
     const layoutCss = getLayoutCss(rawProps);
-    const styleBlock = rawProps?.style?.properties || rawProps?.style || {};
+    // deepUnwrap styleBlock so wrapped DSL values are resolved
+    const styleBlock = deepUnwrap(rawProps?.style?.properties ?? rawProps?.style) || {};
 
     const { containerStyle, gradientInfo } = deriveContainerStyles(layoutCss, styleBlock);
 
@@ -273,11 +300,28 @@ class Countdown extends PureComponent {
     const paddingRaw =
       alignmentAndPadding?.paddingRaw?.properties || alignmentAndPadding?.paddingRaw || {};
 
-    // Container background — DSL bgColor overrides CSS/default
-    const dslBgColor = unwrapValue(
-      rawProps?.bgColor ?? rawProps?.backgroundColor ?? rawProps?.containerBgColor,
+    // Container background — check every possible DSL source in priority order:
+    // 1. Explicit scalar props (bgColor / backgroundColor / containerBgColor / background / containerBackground)
+    // 2. style block's backgroundColor
+    // 3. CSS container block (from presentation / layout / css)
+    // 4. Top-level CSS bg gathered by getLayoutCss
+    const cssBg = unwrapValue(
+      layoutCss.container?.backgroundColor ??
+      layoutCss.container?.background ??
+      layoutCss._bgRaw,
       null
     );
+    const dslBgColor = unwrapValue(
+      rawProps?.bgColor ??
+      rawProps?.backgroundColor ??
+      rawProps?.containerBgColor ??
+      rawProps?.background ??
+      rawProps?.containerBackground ??
+      styleBlock?.backgroundColor ??
+      styleBlock?.background,
+      null
+    ) || cssBg || containerStyle?.backgroundColor || null;
+
     let enhancedContainerStyle = {
       ...containerStyle,
       ...(dslBgColor ? { backgroundColor: dslBgColor } : {}),
@@ -392,7 +436,8 @@ class Countdown extends PureComponent {
         : timerFontWeightRaw;
 
     const iconAttributes = rawProps?.iconAttributes?.properties || rawProps?.iconAttributes || {};
-    const iconName = unwrapValue(iconAttributes?.iconName, "star");
+    // Default iconName to "" — no icon unless DSL explicitly configures one
+    const iconName = unwrapValue(iconAttributes?.iconName, "");
     const iconColor = unwrapValue(iconAttributes?.iconColor, iconStyle.color || "#111827");
     const iconBgColor = unwrapValue(iconAttributes?.iconBgColor, iconStyle.backgroundColor);
 
@@ -400,7 +445,8 @@ class Countdown extends PureComponent {
     const showSubtext = asBoolean(rawProps?.showSubtext, true);
     const showTimer = asBoolean(rawProps?.showTimer, true);
     const showButton = asBoolean(rawProps?.showButton, true) && !!buttonLabel;
-    const showIcon = asBoolean(rawProps?.showIcon, true) && !!iconName;
+    // Default showIcon to false — only show when DSL explicitly enables it AND provides an icon name
+    const showIcon = asBoolean(rawProps?.showIcon, false) && !!iconName;
     const showImage = asBoolean(rawProps?.showImage, false);
     const imageUrl = showImage
       ? unwrapValue(rawProps?.image ?? rawProps?.imageUrl ?? rawProps?.backgroundImage, null)
@@ -450,17 +496,27 @@ class Countdown extends PureComponent {
 
         {showTimer && (
           <View style={styles.timerRow}>
-            {timerUnits.map(({ key, label }) => (
-              <View key={key} style={styles.timerSegment}>
+            {timerUnits.map(({ key, label }, idx) => (
+              <View
+                key={key}
+                style={[
+                  styles.timerSegment,
+                  idx > 0 && { marginLeft: timerGap },
+                ]}
+              >
                 <View
                   style={[
                     styles.timerValueBox,
-                    { backgroundColor: timerBackgroundColor, borderColor: timerBorderColor, borderWidth: timerBorderWidth },
+                    {
+                      backgroundColor: timerBackgroundColor,
+                      borderColor: timerBorderColor,
+                      borderWidth: timerBorderWidth,
+                    },
                     timerBoxRadius ? { borderRadius: timerBoxRadius } : null,
                     timerHeight
-                      ? { height: timerHeight }
+                      ? { height: timerHeight, minHeight: timerHeight }
                       : timerStyleHeight
-                        ? { height: timerStyleHeight }
+                        ? { height: timerStyleHeight, minHeight: timerStyleHeight }
                         : null,
                   ]}
                 >
@@ -586,7 +642,8 @@ export default Countdown;
 const styles = StyleSheet.create({
   container: {
     width: "100%",
-    padding: 16,
+    paddingHorizontal: 16,
+    paddingVertical: 18,
     borderRadius: 12,
     backgroundColor: "#FFFFFF",
   },
@@ -629,10 +686,9 @@ const styles = StyleSheet.create({
   },
   timerRow: {
     flexDirection: "row",
-    justifyContent: "space-between",
+    alignItems: "flex-start",
     width: "100%",
-    marginTop: 8,
-    gap: 6,
+    marginTop: 10,
   },
   timerSegment: {
     flex: 1,
@@ -640,9 +696,9 @@ const styles = StyleSheet.create({
   },
   timerValueBox: {
     width: "100%",
-    minHeight: 44,
-    paddingVertical: 8,
-    paddingHorizontal: 10,
+    minHeight: 48,
+    paddingVertical: 10,
+    paddingHorizontal: 4,
     backgroundColor: "#FFFFFF",
     borderRadius: 8,
     borderWidth: 1,
@@ -651,13 +707,16 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   timerLabel: {
-    fontSize: 12,
-    fontWeight: "600",
-    marginTop: 4,
+    fontSize: 10,
+    fontWeight: "700",
+    marginTop: 5,
+    letterSpacing: 0.5,
+    textTransform: "uppercase",
   },
   timerValue: {
-    fontSize: 18,
-    fontWeight: "700",
+    fontSize: 22,
+    fontWeight: "800",
+    letterSpacing: -0.5,
   },
   button: {
     marginTop: 12,

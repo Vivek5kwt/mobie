@@ -71,15 +71,15 @@ const resolveLogoSource = (logoImage) => {
     if (appLogo && appLogo.trim() !== "") {
       return { uri: appLogo };
     }
-    return LOCAL_LOGO_IMAGE;
+    return null;
   }
   if (logoImage === "/images/mobidrag.png") {
-    // Even if DSL has default logo, try app.json first
+    // Default placeholder — try app.json first, otherwise show nothing
     const appLogo = getAppLogoSync();
     if (appLogo && appLogo.trim() !== "") {
       return { uri: appLogo };
     }
-    return LOCAL_LOGO_IMAGE;
+    return null;
   }
   return { uri: logoImage };
 };
@@ -392,7 +392,7 @@ export default function Header({ section }) {
             source={logoSource}
             style={[styles.logoImage, logoImageStyle]}
             resizeMode="contain"
-            onError={() => setLogoSource(LOCAL_LOGO_IMAGE)}
+            onError={() => setLogoSource(null)}
           />
         ) : null}
       </View>
