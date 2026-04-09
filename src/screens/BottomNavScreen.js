@@ -65,6 +65,9 @@ export default function BottomNavScreen() {
   // Store bottom navigation section separately to update dynamically
   const [bottomNavSection, setBottomNavSection] = useState(bottomNavSectionProp);
   const bottomNavSectionRef = useRef(bottomNavSectionProp);
+  // Measured height of the rendered bottom nav — used to pad the scroll content
+  // so the last section is never hidden behind the nav bar.
+  const [bottomNavHeight, setBottomNavHeight] = useState(70);
   // Side menu state (same pattern as LayoutScreen)
   const SIDE_MENU_WIDTH = 280;
   const [isSideMenuOpen, setIsSideMenuOpen] = useState(false);
@@ -513,7 +516,7 @@ export default function BottomNavScreen() {
             showsVerticalScrollIndicator
             contentContainerStyle={[
               styles.scrollContent,
-              { paddingBottom: resolvedBottomNavSection ? 70 : 0 },
+              { paddingBottom: resolvedBottomNavSection ? bottomNavHeight : 0 },
             ]}
             keyboardShouldPersistTaps="handled"
             refreshControl={
@@ -565,7 +568,10 @@ export default function BottomNavScreen() {
         )}
 
         {resolvedBottomNavSection && (
-          <View style={styles.bottomNav}>
+          <View
+            style={styles.bottomNav}
+            onLayout={(e) => setBottomNavHeight(e.nativeEvent.layout.height)}
+          >
             <BottomNavigation section={resolvedBottomNavSection} activeIndexOverride={activeIndex} />
           </View>
         )}

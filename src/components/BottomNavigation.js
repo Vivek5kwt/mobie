@@ -352,9 +352,14 @@ function BottomNavigation({ section, activeIndexOverride }) {
     getSchemaValue(bgPaddingNode?.backgroundColor) ??
     getSchemaValue(rawProps?.backgroundAndPadding?.properties?.backgroundColor);
 
+  // Resolve borderRadius from DSL — must preserve 0 (square corners).
+  // Do NOT use "|| undefined" because 0 is a valid, intentional value.
+  const _rawBorderRadius =
+    getSchemaValue(bgPaddingNode?.borderRadius) ?? raw?.borderRadius;
   const containerBorderRadius =
-    Number(getSchemaValue(bgPaddingNode?.borderRadius) ?? raw?.borderRadius) ||
-    undefined;
+    _rawBorderRadius != null && !Number.isNaN(Number(_rawBorderRadius))
+      ? Number(_rawBorderRadius)
+      : undefined;
 
   // activeIndexOverride can be 0 (Home) - must treat as valid override
   const parsedActiveIndexOverride =
@@ -410,7 +415,9 @@ function BottomNavigation({ section, activeIndexOverride }) {
   const maxIndicatorSize = Math.min(itemWidth, itemHeight) * 0.7;
   const indicatorSize = Math.min(indicatorSizeRaw, maxIndicatorSize);
   const normalizedIndicatorMode = String(indicatorMode || "").toLowerCase();
-  const indicatorIsBubble = normalizedIndicatorMode === "bubble" || isStyle2;
+  // Never force bubble mode — respect exactly what the DSL specifies.
+  // isStyle2 is a layout variant, not an indicator shape override.
+  const indicatorIsBubble = normalizedIndicatorMode === "bubble";
   const indicatorIsLine = normalizedIndicatorMode === "line";
   const safeItemHeight = Number.isNaN(Number(itemHeight)) ? 0 : Number(itemHeight);
   const bubbleSize = Math.max(
