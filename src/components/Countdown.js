@@ -168,7 +168,17 @@ const getLayoutCss = (rawProps) => {
 };
 
 const deriveContainerStyles = (layoutCss, styleBlock) => {
-  const converted = convertStyles({ ...(layoutCss.container || {}), ...styleBlock });
+  // Resolve any DSL-wrapped { type, value } objects in styleBlock before converting.
+  // Without this, convertStyles sets containerStyle.backgroundColor to the raw wrapper
+  // object instead of the color string, which React Native ignores (shows white).
+  const resolvedBlock = {};
+  for (const k of Object.keys(styleBlock || {})) {
+    const v = unwrapValue(styleBlock[k], undefined);
+    if (v !== undefined && v !== null && typeof v !== "object") {
+      resolvedBlock[k] = v;
+    }
+  }
+  const converted = convertStyles({ ...(layoutCss.container || {}), ...resolvedBlock });
   const { _gradient, ...rest } = converted;
   return { containerStyle: rest, gradientInfo: extractGradientInfo(converted) };
 };
@@ -302,13 +312,20 @@ class Countdown extends PureComponent {
 
     // Container background — check every possible DSL source in priority order:
     // 1. Explicit scalar props (bgColor / backgroundColor / containerBgColor / background / containerBackground)
-    // 2. style block's backgroundColor
-    // 3. CSS container block (from presentation / layout / css)
-    // 4. Top-level CSS bg gathered by getLayoutCss
+    // 2. Direct style.properties.backgroundColor (handles { type, value } envelope)
+    // 3. style block's backgroundColor
+    // 4. CSS container block (from presentation / layout / css)
+    // 5. Top-level CSS bg gathered by getLayoutCss
     const cssBg = unwrapValue(
       layoutCss.container?.backgroundColor ??
       layoutCss.container?.background ??
       layoutCss._bgRaw,
+      null
+    );
+    // Direct read of style.properties.backgroundColor — the most common DSL path
+    const stylePropsNode = rawProps?.style?.properties || {};
+    const stylePropsBg = unwrapValue(
+      stylePropsNode?.backgroundColor ?? stylePropsNode?.background ?? stylePropsNode?.bgColor,
       null
     );
     const dslBgColor = unwrapValue(
@@ -320,7 +337,7 @@ class Countdown extends PureComponent {
       styleBlock?.backgroundColor ??
       styleBlock?.background,
       null
-    ) || cssBg || containerStyle?.backgroundColor || null;
+    ) || stylePropsBg || cssBg || unwrapValue(containerStyle?.backgroundColor, null) || null;
 
     let enhancedContainerStyle = {
       ...containerStyle,
