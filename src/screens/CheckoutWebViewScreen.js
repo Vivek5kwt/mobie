@@ -1,6 +1,7 @@
 import React, { useCallback, useRef, useState } from "react";
 import { ActivityIndicator, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { useNavigation, useRoute } from "@react-navigation/native";
+import { useSelector } from "react-redux";
 import FontAwesome from "react-native-vector-icons/FontAwesome";
 import { WebView } from "react-native-webview";
 import { SafeArea } from "../utils/SafeAreaHandler";
@@ -9,10 +10,13 @@ import Header from "../components/Topheader";
 export default function CheckoutWebViewScreen() {
   const navigation = useNavigation();
   const route = useRoute();
+  const cartItems = useSelector((state) => state.cart?.items || []);
   const checkoutUrl = route?.params?.url;
   const headerTitle = route?.params?.title || "Web View";
   const [isLoading, setIsLoading] = useState(true);
   const hasReturnedHomeRef = useRef(false);
+  // Capture cart snapshot at mount time (before cart gets cleared)
+  const capturedItemsRef = useRef(cartItems);
 
   const isOrderCompleteUrl = useCallback((url) => {
     if (!url) return false;
@@ -30,15 +34,16 @@ export default function CheckoutWebViewScreen() {
       if (!navState?.url || hasReturnedHomeRef.current) return;
       if (!isOrderCompleteUrl(navState.url)) return;
       hasReturnedHomeRef.current = true;
+      const capturedItems = capturedItemsRef.current || [];
       if (navigation?.reset) {
         navigation.reset({
           index: 0,
-          routes: [{ name: "LayoutScreen", params: { pageName: "home" } }],
+          routes: [{ name: "PostPurchase", params: { capturedItems } }],
         });
         return;
       }
       if (navigation?.navigate) {
-        navigation.navigate("LayoutScreen", { pageName: "home" });
+        navigation.navigate("PostPurchase", { capturedItems });
       }
     },
     [isOrderCompleteUrl, navigation],

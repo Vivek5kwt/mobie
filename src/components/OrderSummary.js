@@ -1,5 +1,5 @@
 import React, { useMemo } from "react";
-import { StyleSheet, Text, View } from "react-native";
+import { Image, StyleSheet, Text, View } from "react-native";
 import { useSelector } from "react-redux";
 
 const unwrapValue = (value, fallback = undefined) => {
@@ -64,15 +64,27 @@ export default function OrderSummary({ section }) {
   const cartItems = useSelector((state) => state?.cart?.items || []);
   const appliedCodes = useSelector((state) => state?.cart?.discounts || []);
 
+  // DSL items (post-purchase / injected items override Redux cart)
+  const dslItems = Array.isArray(raw?.items) ? raw.items : [];
+  const usesDslItems = dslItems.length > 0;
+
+  // Source items — DSL items take priority (post-purchase), else Redux cart
+  const sourceItems = usesDslItems ? dslItems : cartItems;
+
+  // DSL styling for item cards
+  const cardBgColor = toString(raw?.cardBgColor, "#FFFFFF");
+  const cardRadius = toNumber(raw?.radius ?? raw?.cardRadius, 12);
+  const cardBorderColor = toString(raw?.borderColor, "#E5E7EB");
+
   // Cart total from items
   const cartTotal = useMemo(
     () =>
-      cartItems.reduce(
+      sourceItems.reduce(
         (sum, item) =>
-          sum + toNumber(item?.price, 0) * toNumber(item?.quantity, 1),
+          sum + toNumber(item?.price, 0) * toNumber(item?.qty ?? item?.quantity, 1),
         0
       ),
-    [cartItems]
+    [sourceItems]
   );
 
   // DSL — container
@@ -99,7 +111,7 @@ export default function OrderSummary({ section }) {
 
   // Cart total row
   const showCartTotal = toBoolean(raw?.showCartTotal, true);
-  const cartTotalLabel = toString(raw?.cartTotalLabel, "Cart Total");
+  const cartTotalLabel = toString(raw?.cartTotalLabel, usesDslItems ? "Subtotal" : "Cart Total");
   const cartTotalColor = toString(raw?.cartTotalColor, "#111827");
   const cartTotalWeight = toFontWeight(raw?.cartTotalWeight, "700");
 
@@ -113,7 +125,7 @@ export default function OrderSummary({ section }) {
     : (toNumber(raw?.savingsPercent, 0) / 100) * cartTotal;
 
   // Discount row (applied codes)
-  const showDiscount = toBoolean(raw?.showDiscount, true);
+  const showDiscount = toBoolean(raw?.showDiscount, !usesDslItems);
   const discountLabel = toString(raw?.discountLabel, "Discount");
   const discountColor = toString(raw?.discountColor, "#EF4444");
   // Discount per code: fixed amount or % per code
@@ -144,7 +156,7 @@ export default function OrderSummary({ section }) {
 
   // Sub total row
   const showSubTotal = toBoolean(raw?.showSubTotal ?? raw?.showSubtotal, true);
-  const subTotalLabel = toString(raw?.subTotalLabel ?? raw?.subtotalLabel, "Sub Total");
+  const subTotalLabel = toString(raw?.subTotalLabel ?? raw?.subtotalLabel, usesDslItems ? "Total" : "Sub Total");
   const subTotalColor = toString(raw?.subTotalColor, "#EF4444");
   const subTotalWeight = toFontWeight(raw?.subTotalWeight, "700");
   const showOriginalStrike = toBoolean(raw?.showOriginalPrice ?? raw?.showStrike, true);
@@ -155,7 +167,7 @@ export default function OrderSummary({ section }) {
 
   const hasReductions = savingsAmount > 0 || totalDiscountAmount > 0;
 
-  if (cartItems.length === 0) return null;
+  if (sourceItems.length === 0) return null;
 
   return (
     <View
@@ -181,6 +193,55 @@ export default function OrderSummary({ section }) {
           {titleText}
         </Text>
       )}
+
+      {/* DSL item cards (post-purchase line items) */}
+      {usesDslItems && dslItems.map((item, idx) => {
+        const itemQty = toNumber(item?.qty ?? item?.quantity, 1);
+        const itemPrice = toNumber(item?.price, 0);
+        const lineTotal = itemQty * itemPrice;
+        return (
+          <View
+            key={item?.id ?? idx}
+            style={[
+              styles.itemCard,
+              {
+                backgroundColor: cardBgColor,
+                borderRadius: cardRadius,
+                borderColor: cardBorderColor,
+              },
+            ]}
+          >
+            {/* Product image */}
+            <View style={styles.itemImageWrap}>
+              {item?.image ? (
+                <Image
+                  source={{ uri: item.image }}
+                  style={styles.itemImage}
+                  resizeMode="cover"
+                />
+              ) : (
+                <View style={styles.itemImagePlaceholder} />
+              )}
+            </View>
+
+            {/* Item details */}
+            <View style={styles.itemDetails}>
+              <Text style={styles.itemTitle} numberOfLines={2}>
+                {toString(item?.title, "Product")}
+              </Text>
+              {!!item?.variant && (
+                <Text style={styles.itemVariant}>{item.variant}</Text>
+              )}
+              <Text style={styles.itemQty}>Qty {itemQty}</Text>
+            </View>
+
+            {/* Price */}
+            <Text style={styles.itemPrice}>
+              {currencySymbol}{lineTotal.toFixed(2)}
+            </Text>
+          </View>
+        );
+      })}
 
       {/* Cart Total */}
       {showCartTotal && (
@@ -325,6 +386,54 @@ const styles = StyleSheet.create({
   },
   title: {
     marginBottom: 4,
+  },
+  // ── DSL item cards ─────────────────────────────────────────────────────────
+  itemCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    borderWidth: 1,
+    padding: 10,
+    gap: 10,
+  },
+  itemImageWrap: {
+    width: 52,
+    height: 52,
+    borderRadius: 8,
+    overflow: "hidden",
+    flexShrink: 0,
+    backgroundColor: "#F3F4F6",
+  },
+  itemImage: {
+    width: "100%",
+    height: "100%",
+  },
+  itemImagePlaceholder: {
+    flex: 1,
+    backgroundColor: "#E5E7EB",
+  },
+  itemDetails: {
+    flex: 1,
+    gap: 2,
+  },
+  itemTitle: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: "#111827",
+    lineHeight: 20,
+  },
+  itemVariant: {
+    fontSize: 12,
+    color: "#6B7280",
+  },
+  itemQty: {
+    fontSize: 12,
+    color: "#6B7280",
+  },
+  itemPrice: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: "#111827",
+    flexShrink: 0,
   },
   row: {
     flexDirection: "row",

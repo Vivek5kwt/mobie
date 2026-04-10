@@ -24,6 +24,8 @@ import CheckoutWebViewScreen from './src/screens/CheckoutWebViewScreen';
 import CollectionProductsScreen from './src/screens/CollectionProductsScreen';
 import LayoutScreen from './src/screens/LayoutScreen';
 import OrderDetailScreen from './src/screens/OrderDetailScreen';
+import SettingsScreen from './src/screens/SettingsScreen';
+import PostPurchaseScreen from './src/screens/PostPurchaseScreen';
 import ProductDetailScreen from './src/screens/ProductDetailScreen';
 import SplashScreen from './src/screens/saplash';
 import AuthScreen from './src/screens/AuthScreen';
@@ -151,6 +153,18 @@ export default function App() {
                       name="OrderDetail"
                       component={OrderDetailScreen}
                       options={{ animation: 'slide_from_right' }}
+                    />
+
+                    <Stack.Screen
+                      name="Settings"
+                      component={SettingsScreen}
+                      options={{ animation: 'slide_from_right' }}
+                    />
+
+                    <Stack.Screen
+                      name="PostPurchase"
+                      component={PostPurchaseScreen}
+                      options={{ animation: 'fade', gestureEnabled: false }}
                     />
                   </Stack.Navigator>
                 </NavigationContainer>

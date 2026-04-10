@@ -11,9 +11,11 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
-import { useNavigation } from "@react-navigation/native";
+import { useNavigation, useRoute } from "@react-navigation/native";
+import { useDispatch, useSelector } from "react-redux";
 import { PinchGestureHandler, State } from "react-native-gesture-handler";
 import FontAwesome from "react-native-vector-icons/FontAwesome";
+import { toggleWishlist } from "../store/slices/wishlistSlice";
 
 const unwrapValue = (value, fallback = undefined) => {
   if (value === undefined || value === null) return fallback;
@@ -60,8 +62,10 @@ const normalizePosition = (position, fallback = {}) => {
 
 export default function ProductLibrary({ section }) {
   const navigation = useNavigation();
+  const route = useRoute();
+  const dispatch = useDispatch();
+  const wishlistItems = useSelector((state) => state.wishlist?.items || []);
   const [isFullscreenVisible, setIsFullscreenVisible] = useState(false);
-  const [isFavourite, setIsFavourite] = useState(false);
   const [currentIdx, setCurrentIdx] = useState(0);
   const galleryRef = useRef(null);
 
@@ -101,7 +105,6 @@ export default function ProductLibrary({ section }) {
   const ratingText = toString(raw?.ratingText, "0");
   const ratingCountText = toString(raw?.ratingCountText, "(0)");
   const showBackButton = toBoolean(raw?.showBackButton, true);
-  const initialFavourite = toBoolean(raw?.isFavourite, false);
   const ratingVisible = toBoolean(visibility?.reviews, showRating);
   const shareVisible = toBoolean(visibility?.share, false); // off by default in screenshot
   const favouriteVisible = toBoolean(visibility?.favourite, true);
@@ -109,9 +112,31 @@ export default function ProductLibrary({ section }) {
   const ratingTextVisible = toBoolean(visibility?.reviewsRating, true);
   const ratingCountVisible = toBoolean(visibility?.reviewsRatingCounter, true);
 
-  useEffect(() => {
-    setIsFavourite(initialFavourite);
-  }, [initialFavourite]);
+  // ── Wishlist state from Redux (derived from route product) ─────────────────
+  const routeProduct = route?.params?.product || {};
+  const productId = String(
+    routeProduct?.id || routeProduct?.variantId || routeProduct?.handle || routeProduct?.title || ""
+  ).trim();
+  const isFavourite = productId
+    ? wishlistItems.some((p) => String(p.id || "").trim() === productId)
+    : false;
+
+  const handleToggleFavourite = () => {
+    dispatch(
+      toggleWishlist({
+        product: {
+          id: productId || routeProduct?.handle || routeProduct?.title || "",
+          title: routeProduct?.title || "",
+          image: routeProduct?.imageUrl || (Array.isArray(routeProduct?.images) ? routeProduct.images[0] : "") || "",
+          price: routeProduct?.priceAmount ?? routeProduct?.price ?? 0,
+          compareAtPrice: routeProduct?.compareAtPrice ?? routeProduct?.originalPrice ?? 0,
+          currency: routeProduct?.priceCurrency || routeProduct?.currency || "",
+          handle: routeProduct?.handle || "",
+          vendor: routeProduct?.vendor || "",
+        },
+      })
+    );
+  };
 
   useEffect(() => {
     if (!isFullscreenVisible) {
@@ -240,7 +265,7 @@ export default function ProductLibrary({ section }) {
         {/* Favourite button */}
         {favouriteVisible && (
           <Pressable
-            onPress={() => setIsFavourite((prev) => !prev)}
+            onPress={handleToggleFavourite}
             style={[
               styles.iconBubble,
               normalizePosition(favouriteStyles?.position, styles.favBubble),

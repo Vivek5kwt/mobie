@@ -7,6 +7,7 @@ import {
   View,
 } from "react-native";
 import { Animated, TouchableOpacity } from "react-native";
+import FontAwesome from "react-native-vector-icons/FontAwesome";
 import { useFocusEffect, useNavigation, useRoute } from "@react-navigation/native";
 import { SafeArea } from "../utils/SafeAreaHandler";
 import BottomNavigation from "../components/BottomNavigation";
@@ -35,6 +36,8 @@ export default function BottomNavScreen() {
   // This ensures only tabs that exist in the JSON are shown
   const bottomNavSectionProp = route?.params?.bottomNavSection || null;
   const activeIndexFromParams = route?.params?.activeIndex;
+  // When true: suppress bottom nav bar and show a back-button header row
+  const hideBottomNav = route?.params?.hideBottomNav === true;
   const appId = useMemo(
     () =>
       resolveAppId(route?.params?.appId ?? session?.user?.appId ?? session?.user?.app_id),
@@ -554,6 +557,21 @@ export default function BottomNavScreen() {
         }}
       >
         <View style={styles.container}>
+          {/* Back-button row shown when screen is opened from Settings (no bottom nav) */}
+          {hideBottomNav && (
+            <View style={styles.backRow}>
+              <TouchableOpacity
+                onPress={() => navigation.goBack()}
+                style={styles.backRowBtn}
+                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+              >
+                <FontAwesome name="angle-left" size={24} color="#111827" />
+              </TouchableOpacity>
+              <Text style={styles.backRowTitle} numberOfLines={1}>
+                {title}
+              </Text>
+            </View>
+          )}
         {loading ? (
           <SkeletonLoader />
         ) : err ? (
@@ -568,14 +586,14 @@ export default function BottomNavScreen() {
             showsVerticalScrollIndicator
             contentContainerStyle={[
               styles.scrollContent,
-              { paddingBottom: resolvedBottomNavSection ? bottomNavHeight : 0 },
+              { paddingBottom: resolvedBottomNavSection && !hideBottomNav ? bottomNavHeight : 0 },
             ]}
             keyboardShouldPersistTaps="handled"
             refreshControl={
               <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
             }
           >
-            {isHeaderDefaultEnabled && (
+            {isHeaderDefaultEnabled && !hideBottomNav && (
               <HeaderDefault
                 config={headerDefaultConfig}
                 bottomNavSection={resolvedBottomNavSection}
@@ -625,7 +643,7 @@ export default function BottomNavScreen() {
           </View>
         )}
 
-        {resolvedBottomNavSection && (
+        {resolvedBottomNavSection && !hideBottomNav && (
           <View
             style={styles.bottomNav}
             onLayout={(e) => setBottomNavHeight(e.nativeEvent.layout.height)}
@@ -643,6 +661,25 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: "#F7F7F7",
+  },
+  backRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#FFFFFF",
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    borderBottomWidth: 1,
+    borderBottomColor: "#E5E7EB",
+    gap: 12,
+  },
+  backRowBtn: {
+    paddingRight: 4,
+  },
+  backRowTitle: {
+    fontSize: 17,
+    fontWeight: "700",
+    color: "#111827",
+    flex: 1,
   },
   scrollContent: {
     flexGrow: 1,
