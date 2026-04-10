@@ -388,6 +388,11 @@ export default function LayoutScreen({ route }) {
         setHeaderDefaultConfig(hdrDefault);
       }
       versionRef.current = dslData.versionNumber ?? null;
+      // Seed the fingerprint so the first interval poll doesn't falsely detect a change
+      sectionsFpRef.current = (nextDsl.sections || [])
+        .map((s) => getComponentName(s))
+        .filter(Boolean)
+        .join(",");
 
       // Cache the bottom navigation section on initial load
       const bottomNav = (nextDsl.sections || []).find(
@@ -429,16 +434,31 @@ export default function LayoutScreen({ route }) {
     loadDSL();
   }, [appId, pageName]);
 
-  // Auto-refresh DSL periodically to pick up bottom navigation updates
+  // ── Single auto-refresh interval ─────────────────────────────────────────
+  // Polls every 3 seconds. Detects changes via version number OR section
+  // fingerprint (component list) so updates fire even when versionNumber is null.
+  const sectionsFpRef = useRef(null);
+
   useEffect(() => {
+    const getSectionsFp = (dsl) =>
+      (dsl?.sections || [])
+        .map((s) => getComponentName(s))
+        .filter(Boolean)
+        .join(",");
+
     const intervalId = setInterval(async () => {
       try {
         const latest = await fetchDSL(appId, pageName);
         if (!latest?.dsl) return;
 
         const incomingVersion = latest.versionNumber ?? null;
+        const incomingFp = getSectionsFp(latest.dsl);
 
-        // 1) Always check for bottom nav updates, even if version has not changed
+        // Detect change: version differs OR section fingerprint differs
+        const versionChanged = incomingVersion !== null && incomingVersion !== versionRef.current;
+        const contentChanged = incomingFp !== sectionsFpRef.current;
+
+        // 1) Always check bottom nav — update independently of content change
         const incomingBottomNav = (latest.dsl.sections || []).find((section) => {
           const component = getComponentName(section).toLowerCase();
           return [
@@ -448,21 +468,14 @@ export default function LayoutScreen({ route }) {
           ].includes(component);
         });
 
-        let bottomNavUpdated = false;
-        if (incomingBottomNav) {
-          if (
-            !bottomNavSectionRef.current ||
-            !deepEqual(incomingBottomNav, bottomNavSectionRef.current)
-          ) {
-            bottomNavSectionRef.current = incomingBottomNav;
-            setStableBottomNavSection(incomingBottomNav);
-            bottomNavUpdated = true;
-            console.log("🔄 Bottom navigation updated dynamically from JSON");
-          }
+        if (incomingBottomNav && !deepEqual(incomingBottomNav, bottomNavSectionRef.current)) {
+          bottomNavSectionRef.current = incomingBottomNav;
+          setStableBottomNavSection(incomingBottomNav);
+          console.log("🔄 Bottom navigation updated from JSON");
         }
 
-        // 2) Only refresh DSL when the overall version changes AND bottom nav didn't already handle it
-        if (incomingVersion !== versionRef.current && !bottomNavUpdated) {
+        // 2) Refresh page DSL when anything changed
+        if (versionChanged || contentChanged) {
           const sectionsWithoutBottomNav = (latest.dsl.sections || []).filter((section) => {
             const component = getComponentName(section).toLowerCase();
             return ![
@@ -471,30 +484,25 @@ export default function LayoutScreen({ route }) {
               "bottom_navigation_style_2",
             ].includes(component);
           });
-
-          const dslWithoutBottomNav = {
-            ...latest.dsl,
-            sections: sectionsWithoutBottomNav,
-          };
-
-          const baseDsl = ensureBottomNavigationSection(dslWithoutBottomNav);
           const nextDsl = isHomePage
-            ? baseDsl
-            : ensureHeaderSections(baseDsl, homeHeaderSections);
+            ? { ...latest.dsl, sections: sectionsWithoutBottomNav }
+            : ensureHeaderSections(
+                { ...latest.dsl, sections: sectionsWithoutBottomNav },
+                homeHeaderSections
+              );
           setDsl(nextDsl);
           if (latest.dsl?.headerdefault !== undefined) {
             setHeaderDefault(latest.dsl.headerdefault);
             setHeaderDefaultConfig(latest.dsl.headerdefault);
           }
           versionRef.current = incomingVersion;
-        } else if (incomingVersion !== versionRef.current) {
-          // Version changed but only bottom nav updated - just update version ref
-          versionRef.current = incomingVersion;
+          sectionsFpRef.current = incomingFp;
+          console.log("🔄 DSL auto-refreshed (version:", incomingVersion, ")");
         }
       } catch (e) {
         console.log("❌ Auto-refresh error:", e);
       }
-    }, 5000);
+    }, 3000);
 
     return () => clearInterval(intervalId);
   }, [appId, pageName, isHomePage, ensureHeaderSections, homeHeaderSections]);
@@ -543,34 +551,7 @@ export default function LayoutScreen({ route }) {
 
   const showOverlay = isSideMenuOpen;
 
-  // Auto-refresh DSL periodically to pick up newly published versions
-  useEffect(() => {
-    const intervalId = setInterval(async () => {
-      try {
-        const latest = await fetchDSL(appId, pageName);
-        if (!latest?.dsl) return;
-
-        const incomingVersion = latest.versionNumber ?? null;
-
-        if (incomingVersion !== versionRef.current) {
-          const baseDsl = ensureBottomNavigationSection(latest.dsl);
-          const nextDsl = isHomePage
-            ? baseDsl
-            : ensureHeaderSections(baseDsl, homeHeaderSections);
-          setDsl(nextDsl);
-          if (latest.dsl?.headerdefault !== undefined) {
-            setHeaderDefault(latest.dsl.headerdefault);
-            setHeaderDefaultConfig(latest.dsl.headerdefault);
-          }
-          versionRef.current = incomingVersion;
-        }
-      } catch (e) {
-        console.log("❌ Auto-refresh error:", e);
-      }
-    }, 5000);
-
-    return () => clearInterval(intervalId);
-  }, [appId, ensureHeaderSections, homeHeaderSections, isHomePage, pageName]);
+  // (duplicate interval removed — single interval above handles all refresh logic)
 
   // Use only server-provided bottom navigation; never show local default.
   // This ensures the bottom bar design always matches the live JSON.

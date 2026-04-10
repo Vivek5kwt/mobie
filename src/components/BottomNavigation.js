@@ -154,6 +154,8 @@ const slugifyPageName = (value) =>
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/^-+|-+$/g, "");
 
+const SIGNIN_SLUGS = new Set(["signin", "sign-in", "login", "log-in", "auth"]);
+
 const resolveNavigationTarget = (item = {}) => {
   const link = resolveItemLink(item);
   const label = resolveItemLabel(item);
@@ -164,6 +166,10 @@ const resolveNavigationTarget = (item = {}) => {
   if (!link) {
     if (id.toLowerCase() === "home" || label.toLowerCase() === "home") {
       return { type: "stack", name: "LayoutScreen", params: { pageName: "home" } };
+    }
+    // Sign-in slugs → Auth screen
+    if (SIGNIN_SLUGS.has(pageName)) {
+      return { type: "stack", name: "Auth" };
     }
     return {
       type: "stack",
@@ -177,8 +183,13 @@ const resolveNavigationTarget = (item = {}) => {
   }
 
   const cleaned = link.replace(/^\//, "");
+  const cleanedSlug = slugifyPageName(cleaned);
   if (cleaned.toLowerCase() === "home") {
     return { type: "stack", name: "LayoutScreen" };
+  }
+  // Sign-in links → Auth screen
+  if (SIGNIN_SLUGS.has(cleanedSlug)) {
+    return { type: "stack", name: "Auth" };
   }
 
   return {
@@ -509,6 +520,12 @@ function BottomNavigation({ section, activeIndexOverride }) {
     }
 
     if (target.type === "stack" && target.name) {
+      // Auth screen — navigate directly without extra params
+      if (target.name === "Auth") {
+        try { navigation.push("Auth"); } catch (_) { navigation.navigate("Auth"); }
+        return;
+      }
+
       // Pass bottomNavSection so BottomNavScreen can render the nav bar instantly
       // (without waiting for its own DSL fetch to complete)
       const params = {

@@ -23,6 +23,7 @@ import BottomNavScreen from './src/screens/BottomNavScreen';
 import CheckoutWebViewScreen from './src/screens/CheckoutWebViewScreen';
 import CollectionProductsScreen from './src/screens/CollectionProductsScreen';
 import LayoutScreen from './src/screens/LayoutScreen';
+import OrderDetailScreen from './src/screens/OrderDetailScreen';
 import ProductDetailScreen from './src/screens/ProductDetailScreen';
 import SplashScreen from './src/screens/saplash';
 import AuthScreen from './src/screens/AuthScreen';
@@ -143,6 +144,12 @@ export default function App() {
                     <Stack.Screen
                       name="AllProducts"
                       component={AllProductsScreen}
+                      options={{ animation: 'slide_from_right' }}
+                    />
+
+                    <Stack.Screen
+                      name="OrderDetail"
+                      component={OrderDetailScreen}
                       options={{ animation: 'slide_from_right' }}
                     />
                   </Stack.Navigator>

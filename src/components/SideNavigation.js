@@ -1,5 +1,5 @@
 import React, { useCallback, useMemo } from "react";
-import { Image, ImageBackground, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { Alert, Image, ImageBackground, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { useNavigation } from "@react-navigation/native";
 import Icon from "react-native-vector-icons/FontAwesome6";
 import { convertStyles } from "../utils/convertStyles";
@@ -133,10 +133,24 @@ export default function SideNavigation({ section }) {
   );
 
   const handleItemPress = useCallback(
-    async (item) => {
+    (item) => {
       if (!isLogoutItem(item)) return;
-      await logout();
-      navigation.reset({ index: 0, routes: [{ name: "Auth" }] });
+      Alert.alert(
+        "Log Out",
+        "Are you sure you want to log out?",
+        [
+          { text: "Cancel", style: "cancel" },
+          {
+            text: "Log Out",
+            style: "destructive",
+            onPress: async () => {
+              await logout();
+              navigation.reset({ index: 0, routes: [{ name: "Auth" }] });
+            },
+          },
+        ],
+        { cancelable: true }
+      );
     },
     [logout, navigation]
   );

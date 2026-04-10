@@ -1,0 +1,509 @@
+import React, { useCallback, useEffect, useRef, useState } from "react";
+import {
+  ActivityIndicator,
+  Alert,
+  Image,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
+} from "react-native";
+import { useNavigation, useRoute } from "@react-navigation/native";
+import { SafeArea } from "../utils/SafeAreaHandler";
+import Header from "../components/Topheader";
+import { fetchDSL } from "../engine/dslHandler";
+import { resolveAppId } from "../utils/appId";
+
+// ─── DSL helpers ─────────────────────────────────────────────────────────────
+
+const unwrap = (v, fb) => {
+  if (v === undefined || v === null) return fb;
+  if (typeof v === "object") {
+    if (v.value !== undefined) return v.value;
+    if (v.const !== undefined) return v.const;
+  }
+  return v !== undefined ? v : fb;
+};
+
+const toNum = (v, fb = 0) => {
+  const r = unwrap(v, undefined);
+  if (r === undefined || r === null || r === "") return fb;
+  if (typeof r === "number") return r;
+  const p = parseFloat(r);
+  return Number.isNaN(p) ? fb : p;
+};
+
+const toStr = (v, fb = "") => {
+  const r = unwrap(v, fb);
+  return r === null || r === undefined ? fb : String(r);
+};
+
+const getComponent = (section) => {
+  const c =
+    section?.component?.const ||
+    section?.properties?.component?.const ||
+    section?.component ||
+    "";
+  return String(c).trim().toLowerCase().replace(/[\s-]+/g, "_");
+};
+
+const getProps = (section) =>
+  section?.properties?.props?.properties ||
+  section?.properties?.props ||
+  section?.props ||
+  {};
+
+const fmt = (n, symbol = "$") =>
+  `${symbol}${Math.abs(toNum(n, 0)).toFixed(2)}`;
+
+// ─── Main Screen ──────────────────────────────────────────────────────────────
+
+export default function OrderDetailScreen() {
+  const navigation = useNavigation();
+  const route = useRoute();
+  const { order } = route.params || {};
+  const appId = resolveAppId();
+
+  const [sections, setSections] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const versionRef = useRef(null);
+  const fpRef = useRef(null);
+
+  const getSectionsFp = (dsl) =>
+    (dsl?.sections || []).map(getComponent).filter(Boolean).join(",");
+
+  const loadDsl = useCallback(async () => {
+    try {
+      const dslData = await fetchDSL(appId, "order-details");
+      const dsl = dslData?.dsl;
+      if (dsl?.sections?.length) {
+        setSections(dsl.sections);
+        versionRef.current = dslData.versionNumber ?? null;
+        fpRef.current = getSectionsFp(dsl);
+      }
+    } catch (_) {
+      // keep existing sections on error
+    } finally {
+      setLoading(false);
+    }
+  }, [appId]);
+
+  useEffect(() => {
+    loadDsl();
+  }, [loadDsl]);
+
+  // 3-second auto-refresh
+  useEffect(() => {
+    const id = setInterval(async () => {
+      try {
+        const latest = await fetchDSL(appId, "order-details");
+        if (!latest?.dsl) return;
+        const incomingVersion = latest.versionNumber ?? null;
+        const incomingFp = getSectionsFp(latest.dsl);
+        const versionChanged =
+          incomingVersion !== null && incomingVersion !== versionRef.current;
+        const contentChanged = incomingFp !== fpRef.current;
+        if (versionChanged || contentChanged) {
+          setSections(latest.dsl.sections || []);
+          versionRef.current = incomingVersion;
+          fpRef.current = incomingFp;
+        }
+      } catch (_) {}
+    }, 3000);
+    return () => clearInterval(id);
+  }, [appId]);
+
+  const findSection = (name) =>
+    sections.find((s) => getComponent(s) === name);
+
+  const orderInfoSection = findSection("order_info");
+  const priceInfoSection = findSection("price_info");
+  const cancelOrderSection = findSection("cancel_order");
+  const itemsSection = findSection("order_detail_page");
+
+  return (
+    <SafeArea>
+      <View style={styles.container}>
+        <Header showBack={false} />
+
+        {loading ? (
+          <View style={styles.center}>
+            <ActivityIndicator size="large" color="#0EA5E9" />
+          </View>
+        ) : (
+          <ScrollView
+            style={styles.scroll}
+            contentContainerStyle={styles.scrollContent}
+            showsVerticalScrollIndicator={false}
+          >
+            <OrderInfoSection section={orderInfoSection} order={order} />
+            <PriceInfoSection section={priceInfoSection} order={order} />
+            {cancelOrderSection && (
+              <CancelOrderSection
+                section={cancelOrderSection}
+                navigation={navigation}
+                order={order}
+              />
+            )}
+            {order?.lineItems?.length > 0 && (
+              <OrderItemsSection section={itemsSection} items={order.lineItems} />
+            )}
+          </ScrollView>
+        )}
+      </View>
+    </SafeArea>
+  );
+}
+
+// ─── Order Info Section ───────────────────────────────────────────────────────
+
+function OrderInfoSection({ section, order }) {
+  const propsNode = section ? getProps(section) : {};
+  const dslInfo = unwrap(propsNode?.orderInfo, {}) || {};
+
+  const info = {
+    orderDate: order?.orderDate || toStr(dslInfo.orderDate, ""),
+    orderNumber: order?.orderNumber || toStr(dslInfo.orderNumber, ""),
+    status: order?.status || toStr(dslInfo.status, ""),
+    deliveryMethod: order?.deliveryMethod || toStr(dslInfo.deliveryMethod, ""),
+    address: order?.address || toStr(dslInfo.address, ""),
+    arrival: order?.arrival || toStr(dslInfo.arrival, ""),
+    billing: order?.billing || toStr(dslInfo.billing, ""),
+    payment: order?.payment || toStr(dslInfo.payment, ""),
+  };
+
+  const rows = [
+    { label: "Order date", value: info.orderDate },
+    { label: "Order number", value: info.orderNumber },
+    { label: "Status", value: info.status },
+    { label: "Delivery method", value: info.deliveryMethod },
+    { label: "Delivery address", value: info.address },
+    { label: "Estimated arrival", value: info.arrival },
+    { label: "Billing details", value: info.billing },
+    { label: "Payment method", value: info.payment },
+  ].filter((r) => r.value);
+
+  if (!rows.length) return null;
+
+  return (
+    <View style={styles.card}>
+      {rows.map((row, i) => (
+        <View
+          key={i}
+          style={[styles.infoRow, i < rows.length - 1 && styles.infoRowBorder]}
+        >
+          <Text style={styles.infoLabel}>{row.label}</Text>
+          <Text style={styles.infoValue}>{row.value}</Text>
+        </View>
+      ))}
+    </View>
+  );
+}
+
+// ─── Price Info Section ───────────────────────────────────────────────────────
+
+function PriceInfoSection({ section, order }) {
+  const propsNode = section ? getProps(section) : {};
+
+  const delivery = order?.delivery !== undefined ? order.delivery : toNum(propsNode?.delivery, 0);
+  const tax = order?.tax !== undefined ? order.tax : toNum(propsNode?.tax, 0);
+  const total = order?.total !== undefined ? order.total : toNum(propsNode?.total, 0);
+
+  const rows = [
+    { label: "Delivery", value: fmt(delivery), bold: false },
+    { label: "Tax", value: fmt(tax), bold: false },
+    { label: "Total", value: fmt(total), bold: true },
+  ];
+
+  return (
+    <View style={[styles.card, styles.priceCard]}>
+      {rows.map((row, i) => (
+        <View
+          key={i}
+          style={[styles.priceRow, i < rows.length - 1 && styles.priceRowBorder]}
+        >
+          <Text style={[styles.priceLabel, row.bold && styles.priceBold]}>
+            {row.label}
+          </Text>
+          <Text style={[styles.priceValue, row.bold && styles.priceBold]}>
+            {row.value}
+          </Text>
+        </View>
+      ))}
+    </View>
+  );
+}
+
+// ─── Cancel Order Section ─────────────────────────────────────────────────────
+
+function CancelOrderSection({ section, navigation, order }) {
+  const propsNode = getProps(section);
+  const raw = unwrap(propsNode?.raw, {}) || {};
+
+  const label = toStr(raw.label, "Cancel order");
+  const textStyle = raw.textStyle || {};
+  const bg = raw.backgroundPadding || {};
+
+  const textColor = toStr(textStyle.color, "#FFFFFF");
+  const fontSize = Math.min(toNum(textStyle.fontSize, 14), 18);
+  const fontWeight = toStr(textStyle.fontWeight, "600");
+  const bgColor = toStr(bg.backgroundColor, "#0D9488");
+  const borderColor = toStr(bg.borderColor, "#0EA5A8");
+  const borderRadius = Math.max(toNum(bg.borderRadius, 2) * 4, 8);
+
+  const handleCancel = () => {
+    Alert.alert(
+      "Cancel Order",
+      "Are you sure you want to cancel this order?",
+      [
+        { text: "Keep Order", style: "cancel" },
+        {
+          text: "Cancel Order",
+          style: "destructive",
+          onPress: () => {
+            // TODO: call cancel order API with order.id
+            navigation.goBack();
+          },
+        },
+      ],
+      { cancelable: true }
+    );
+  };
+
+  return (
+    <View style={styles.cancelContainer}>
+      <TouchableOpacity
+        style={[
+          styles.cancelButton,
+          { backgroundColor: bgColor, borderColor, borderRadius },
+        ]}
+        onPress={handleCancel}
+        activeOpacity={0.85}
+      >
+        <Text style={{ color: textColor, fontSize, fontWeight }}>{label}</Text>
+      </TouchableOpacity>
+    </View>
+  );
+}
+
+// ─── Order Items Section ──────────────────────────────────────────────────────
+
+function OrderItemsSection({ section, items }) {
+  const propsNode = section ? getProps(section) : {};
+
+  const bgColor = toStr(propsNode?.bgColor, "#FFFFFF");
+  const borderColor = toStr(propsNode?.borderColor, "#EAEAEA");
+  const radius = toNum(propsNode?.radius, 14);
+  const titleColor = toStr(propsNode?.titleColor, "#000000");
+  const priceColor = toStr(propsNode?.priceColor, "#000000");
+  const titleFontSize = Math.min(toNum(propsNode?.titleFontSize, 14), 18);
+  const priceFontSize = Math.min(toNum(propsNode?.priceFontSize, 13), 16);
+  const titleFontWeight = toStr(propsNode?.titleFontWeight, "600");
+  const priceFontWeight = toStr(propsNode?.priceFontWeight, "500");
+  const padTop = toNum(propsNode?.paddingTop, 12);
+  const padLeft = toNum(propsNode?.paddingLeft, 12);
+  const padRight = toNum(propsNode?.paddingRight, 12);
+  const padBottom = toNum(propsNode?.paddingBottom, 12);
+
+  return (
+    <View style={styles.itemsContainer}>
+      {items.map((item, i) => (
+        <View
+          key={item.id || i}
+          style={[
+            styles.itemCard,
+            {
+              backgroundColor: bgColor,
+              borderColor,
+              borderRadius: radius,
+              paddingTop: padTop,
+              paddingLeft: padLeft,
+              paddingRight: padRight,
+              paddingBottom: padBottom,
+            },
+          ]}
+        >
+          {item.imageUrl ? (
+            <Image
+              source={{ uri: item.imageUrl }}
+              style={styles.itemImage}
+              resizeMode="cover"
+            />
+          ) : (
+            <View style={[styles.itemImage, styles.itemImagePlaceholder]}>
+              <Text style={styles.itemImagePlaceholderText}>No image</Text>
+            </View>
+          )}
+          <View style={styles.itemInfo}>
+            <Text
+              style={[
+                styles.itemTitle,
+                { color: titleColor, fontSize: titleFontSize, fontWeight: titleFontWeight },
+              ]}
+              numberOfLines={3}
+            >
+              {item.title}
+            </Text>
+            {item.variant ? (
+              <Text style={styles.itemMeta}>Variant: {item.variant}</Text>
+            ) : null}
+            {item.deliveryDate ? (
+              <Text style={styles.itemMeta}>Delivery Date: {item.deliveryDate}</Text>
+            ) : null}
+            {item.price ? (
+              <Text
+                style={[
+                  styles.itemPrice,
+                  { color: priceColor, fontSize: priceFontSize, fontWeight: priceFontWeight },
+                ]}
+              >
+                Price: {item.price}
+              </Text>
+            ) : null}
+          </View>
+        </View>
+      ))}
+    </View>
+  );
+}
+
+// ─── Styles ───────────────────────────────────────────────────────────────────
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: "#F5F5F5",
+  },
+  center: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  scroll: {
+    flex: 1,
+  },
+  scrollContent: {
+    padding: 16,
+    paddingBottom: 32,
+    gap: 12,
+  },
+
+  // ── Card shared
+  card: {
+    backgroundColor: "#FFFFFF",
+    borderRadius: 12,
+    overflow: "hidden",
+    borderWidth: 1,
+    borderColor: "#E5E7EB",
+  },
+
+  // ── Order Info
+  infoRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "flex-start",
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    gap: 12,
+  },
+  infoRowBorder: {
+    borderBottomWidth: 1,
+    borderBottomColor: "#F3F4F6",
+  },
+  infoLabel: {
+    fontSize: 13,
+    color: "#6B7280",
+    flex: 1,
+    fontWeight: "400",
+  },
+  infoValue: {
+    fontSize: 13,
+    color: "#111827",
+    fontWeight: "500",
+    textAlign: "right",
+    flex: 1.4,
+  },
+
+  // ── Price Info
+  priceCard: {
+    marginTop: 0,
+  },
+  priceRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+  },
+  priceRowBorder: {
+    borderBottomWidth: 1,
+    borderBottomColor: "#F3F4F6",
+  },
+  priceLabel: {
+    fontSize: 14,
+    color: "#374151",
+    fontWeight: "400",
+  },
+  priceValue: {
+    fontSize: 14,
+    color: "#111827",
+    fontWeight: "400",
+  },
+  priceBold: {
+    fontWeight: "700",
+    fontSize: 15,
+  },
+
+  // ── Cancel Button
+  cancelContainer: {
+    paddingVertical: 4,
+  },
+  cancelButton: {
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 16,
+    borderWidth: 1,
+  },
+
+  // ── Order Items
+  itemsContainer: {
+    gap: 12,
+  },
+  itemCard: {
+    flexDirection: "row",
+    borderWidth: 1,
+    overflow: "hidden",
+    gap: 12,
+  },
+  itemImage: {
+    width: 90,
+    height: 90,
+    borderRadius: 8,
+    backgroundColor: "#F3F4F6",
+    flexShrink: 0,
+  },
+  itemImagePlaceholder: {
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  itemImagePlaceholderText: {
+    fontSize: 11,
+    color: "#9CA3AF",
+  },
+  itemInfo: {
+    flex: 1,
+    justifyContent: "center",
+    gap: 4,
+  },
+  itemTitle: {
+    lineHeight: 20,
+  },
+  itemMeta: {
+    fontSize: 12,
+    color: "#6B7280",
+  },
+  itemPrice: {
+    marginTop: 4,
+  },
+});

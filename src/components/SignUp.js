@@ -9,11 +9,15 @@ import {
   Image,
   ActivityIndicator,
   Alert,
+  useWindowDimensions,
+  KeyboardAvoidingView,
+  Platform,
 } from "react-native";
 import { useNavigation } from "@react-navigation/native";
 import { convertStyles } from "../utils/convertStyles";
 import { registerCustomer } from "../services/customerService";
 import { resolveAppId } from "../utils/appId";
+import { fetchStoreConfig } from "../services/storeService";
 import Icon from "react-native-vector-icons/FontAwesome6";
 
 const unwrapValue = (value, fallback = undefined) => {
@@ -92,7 +96,8 @@ const getTextAlign = (align) => {
 
 export default function SignUp({ section }) {
   const navigation = useNavigation();
-  
+  const { width: screenWidth } = useWindowDimensions();
+
   // Use useMemo to extract props so component updates when section changes
   const rawProps = useMemo(() => {
     return section?.props || section?.properties?.props?.properties || section?.properties?.props || {};
@@ -184,24 +189,25 @@ export default function SignUp({ section }) {
     const footerBgColor = toString(raw.footerBgColor, "#FFFFFF");
     const signInLinkBgColor = toString(raw.signInLinkBgColor, "#FFFFFF");
 
-    // Font sizes
-    const headerTitleFontSize = toNumber(raw.headerTitleFontSize, 18);
-    const buttonFontSize = toNumber(raw.buttonFontSize, 24);
+    // Font sizes — cap to sensible mobile maximums so DSL large values don't break layout
+    const capFs = (val, def) => Math.min(toNumber(val, def), 22);
+    const headerTitleFontSize = capFs(raw.headerTitleFontSize, 18);
+    const buttonFontSize = capFs(raw.buttonFontSize, 16);
     const buttonIconSize = toNumber(raw.buttonIconSize, 16);
-    const footerTextFontSize = toNumber(raw.footerTextFontSize, 13);
-    const footerLinkFontSize = toNumber(raw.footerLinkFontSize, 24);
-    const firstNameLabelFontSize = toNumber(raw.firstNameLabelFontSize, 24);
-    const lastNameLabelFontSize = toNumber(raw.lastNameLabelFontSize, 24);
-    const emailLabelFontSize = toNumber(raw.emailLabelFontSize, 24);
-    const passwordLabelFontSize = toNumber(raw.passwordLabelFontSize, 24);
-    const firstNameInputTextFontSize = toNumber(raw.firstNameInputTextFontSize, 24);
-    const lastNameInputTextFontSize = toNumber(raw.lastNameInputTextFontSize, 24);
-    const emailInputTextFontSize = toNumber(raw.emailInputTextFontSize, 24);
-    const passwordInputTextFontSize = toNumber(raw.passwordInputTextFontSize, 24);
-    const firstNamePlaceholderFontSize = toNumber(raw.firstNamePlaceholderFontSize, 24);
-    const lastNamePlaceholderFontSize = toNumber(raw.lastNamePlaceholderFontSize, 24);
-    const emailPlaceholderFontSize = toNumber(raw.emailPlaceholderFontSize, 24);
-    const passwordPlaceholderFontSize = toNumber(raw.passwordPlaceholderFontSize, 24);
+    const footerTextFontSize = capFs(raw.footerTextFontSize, 13);
+    const footerLinkFontSize = capFs(raw.footerLinkFontSize, 14);
+    const firstNameLabelFontSize = capFs(raw.firstNameLabelFontSize, 14);
+    const lastNameLabelFontSize = capFs(raw.lastNameLabelFontSize, 14);
+    const emailLabelFontSize = capFs(raw.emailLabelFontSize, 14);
+    const passwordLabelFontSize = capFs(raw.passwordLabelFontSize, 14);
+    const firstNameInputTextFontSize = capFs(raw.firstNameInputTextFontSize, 15);
+    const lastNameInputTextFontSize = capFs(raw.lastNameInputTextFontSize, 15);
+    const emailInputTextFontSize = capFs(raw.emailInputTextFontSize, 15);
+    const passwordInputTextFontSize = capFs(raw.passwordInputTextFontSize, 15);
+    const firstNamePlaceholderFontSize = capFs(raw.firstNamePlaceholderFontSize, 15);
+    const lastNamePlaceholderFontSize = capFs(raw.lastNamePlaceholderFontSize, 15);
+    const emailPlaceholderFontSize = capFs(raw.emailPlaceholderFontSize, 15);
+    const passwordPlaceholderFontSize = capFs(raw.passwordPlaceholderFontSize, 15);
 
     // Font families
     const headerTitleFontFamily = toString(raw.headerTitleFontFamily, "Inter, sans-serif");
@@ -251,15 +257,16 @@ export default function SignUp({ section }) {
 
     // Button properties
     const buttonWidth = toNumber(raw.buttonWidth, 100);
-    const buttonHeight = toNumber(raw.buttonHeight, 50);
+    const buttonHeight = Math.min(toNumber(raw.buttonHeight, 50), 60);
     const buttonBgColor = parseGradient(toString(raw.buttonBgColor, "#FFFFFF")) || "#FFFFFF";
     const buttonBorderColor = toString(raw.buttonBorderColor, "#0c9297");
     const buttonAutoUppercase = toBoolean(raw.buttonAutoUppercase, false);
     const buttonIcon = toString(raw.buttonIcon, "");
 
-    // Profile picture
+    // Profile picture — cap to 30% of screen width so it doesn't overflow on small screens
     const profilePictureUrl = toString(raw.profilePictureUrl, "");
-    const profilePictureSize = toNumber(raw.profilePictureSize, 198);
+    const profilePictureSizeRaw = toNumber(raw.profilePictureSize, 90);
+    const profilePictureSize = Math.min(profilePictureSizeRaw, Math.round(screenWidth * 0.3));
 
     // Navigation
     const navigateTo = toString(raw.navigateTo, "screen");
@@ -331,7 +338,7 @@ export default function SignUp({ section }) {
       firstNameInputTextAutoUppercase, lastNameInputTextAutoUppercase,
       emailInputTextAutoUppercase, passwordInputTextAutoUppercase, footerLinkAutoUppercase,
     };
-  }, [raw]);
+  }, [raw, screenWidth]);
 
   // Destructure all props from extractedProps
   const {
@@ -439,9 +446,12 @@ export default function SignUp({ section }) {
 
     setLoading(true);
     try {
-      // Get app_id and store_id - you may need to adjust these based on your app structure
       const app_id = resolveAppId();
-      const store_id = 1; // Default store_id, adjust as needed
+      const storeConfig = await fetchStoreConfig();
+      const store_id = storeConfig?.id ?? null;
+      if (!store_id) {
+        throw new Error("Store not configured. Please try again.");
+      }
 
       await registerCustomer({
         first_name: firstName.trim(),
@@ -454,9 +464,17 @@ export default function SignUp({ section }) {
 
       // Navigate to success screen or handle success
       if (navigateTo === "screen" && selectScreen) {
-        navigation.navigate(selectScreen);
+        const dest = selectScreen.trim().toLowerCase().replace(/[^a-z0-9]+/g, "-");
+        if (dest === "home" || dest === "index") {
+          navigation.navigate("LayoutScreen");
+        } else {
+          navigation.navigate("BottomNavScreen", { pageName: dest });
+        }
       } else {
-        Alert.alert("Success", "Account created successfully!");
+        Alert.alert("Success", "Account created successfully!", [
+          { text: "Sign In", onPress: () => navigation.navigate("Auth") },
+          { text: "OK" },
+        ]);
       }
     } catch (err) {
       setError(err.message || "Failed to create account. Please try again.");
@@ -465,19 +483,25 @@ export default function SignUp({ section }) {
     }
   };
 
+  // "Sign In" footer link always goes to the Auth screen
   const handleSignInLink = () => {
-    if (navigateTo === "screen" && selectScreen) {
-      navigation.navigate(selectScreen);
-    }
+    navigation.navigate("Auth");
   };
 
   const displayButtonText = buttonAutoUppercase ? buttonText.toUpperCase() : buttonText;
   const displayFooterLinkText = footerLinkAutoUppercase ? footerLinkText.toUpperCase() : footerLinkText;
 
   return (
+    <KeyboardAvoidingView
+      style={[styles.kavContainer, { backgroundColor: bgColor }]}
+      behavior={Platform.OS === "ios" ? "padding" : "height"}
+      keyboardVerticalOffset={Platform.OS === "ios" ? 64 : 0}
+    >
     <ScrollView
-      style={[styles.container, { backgroundColor: bgColor }]}
+      style={styles.container}
       contentContainerStyle={styles.scrollContent}
+      keyboardShouldPersistTaps="handled"
+      showsVerticalScrollIndicator={false}
     >
       <View
         style={[
@@ -485,10 +509,10 @@ export default function SignUp({ section }) {
           {
             backgroundColor: cardBgColor,
             borderRadius,
-            paddingTop: pt,
-            paddingBottom: pb,
-            paddingLeft: pl,
-            paddingRight: pr,
+            paddingTop: Math.min(pt, 40),
+            paddingBottom: Math.min(pb, 40),
+            paddingLeft: Math.min(pl, 24),
+            paddingRight: Math.min(pr, 24),
             borderColor: cardBorderColor,
             borderWidth: cardBorderColor ? 1 : 0,
           },
@@ -724,8 +748,8 @@ export default function SignUp({ section }) {
               styles.footer,
               {
                 backgroundColor: footerBgColor,
-                paddingTop: footerPt,
-                paddingBottom: footerPb,
+                paddingTop: footerPt || 8,
+                paddingBottom: footerPb || 4,
                 paddingLeft: footerPl,
                 paddingRight: footerPr,
                 borderRadius: footerBorderRadius,
@@ -751,8 +775,8 @@ export default function SignUp({ section }) {
                     backgroundColor: signInLinkBgColor,
                     paddingTop: signInLinkPt,
                     paddingBottom: signInLinkPb,
-                    paddingLeft: signInLinkPl,
-                    paddingRight: signInLinkPr,
+                    paddingLeft: signInLinkPl || 4,
+                    paddingRight: signInLinkPr || 4,
                     borderRadius: signInLinkBorderRadius,
                   },
                 ]}
@@ -766,7 +790,6 @@ export default function SignUp({ section }) {
                       fontSize: footerLinkFontSize,
                       fontFamily: footerLinkFontFamily,
                       fontWeight: footerLinkFontWeight,
-                      textAlign: getTextAlign(footerLinkAlignment),
                     },
                   ]}
                 >
@@ -778,34 +801,40 @@ export default function SignUp({ section }) {
         )}
       </View>
     </ScrollView>
+    </KeyboardAvoidingView>
   );
 }
 
 const styles = StyleSheet.create({
+  kavContainer: {
+    flex: 1,
+  },
   container: {
     flex: 1,
   },
   scrollContent: {
     flexGrow: 1,
-    justifyContent: "center",
+    paddingVertical: 16,
   },
   card: {
-    margin: 20,
+    marginHorizontal: 16,
+    marginVertical: 8,
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
+    shadowOpacity: 0.08,
     shadowRadius: 4,
     elevation: 3,
   },
   menuIcon: {
     position: "absolute",
-    top: 20,
-    right: 20,
+    top: 16,
+    right: 16,
     zIndex: 10,
+    padding: 4,
   },
   profilePictureContainer: {
     alignSelf: "center",
-    marginBottom: 20,
+    marginBottom: 16,
     justifyContent: "center",
     alignItems: "center",
     overflow: "hidden",
@@ -816,61 +845,69 @@ const styles = StyleSheet.create({
   },
   headerTitle: {
     textAlign: "center",
-    marginBottom: 10,
+    marginBottom: 8,
   },
   authTitle: {
     textAlign: "center",
-    fontSize: 24,
+    fontSize: 20,
     fontWeight: "700",
-    marginBottom: 30,
+    marginBottom: 20,
   },
   fieldContainer: {
-    marginBottom: 20,
+    marginBottom: 14,
     width: "100%",
   },
   label: {
-    marginBottom: 8,
+    marginBottom: 6,
   },
   input: {
     borderWidth: 1,
     borderRadius: 8,
-    padding: 12,
-    fontSize: 16,
+    paddingHorizontal: 12,
+    paddingVertical: 11,
+    fontSize: 15,
+    width: "100%",
+    minHeight: 46,
   },
   errorText: {
-    color: "#FF0000",
-    fontSize: 14,
-    marginBottom: 10,
+    color: "#DC2626",
+    fontSize: 13,
+    marginBottom: 8,
     textAlign: "center",
   },
   button: {
     justifyContent: "center",
     alignItems: "center",
-    marginTop: 20,
-    marginBottom: 20,
+    marginTop: 16,
+    marginBottom: 16,
     alignSelf: "center",
   },
   buttonContent: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
+    paddingHorizontal: 8,
   },
   buttonIcon: {
-    marginHorizontal: 8,
+    marginHorizontal: 6,
   },
   buttonText: {
     textAlign: "center",
   },
   footer: {
-    marginTop: 20,
+    marginTop: 16,
     alignItems: "center",
+    flexDirection: "row",
+    flexWrap: "wrap",
+    justifyContent: "center",
   },
   footerText: {
     textAlign: "center",
-    marginBottom: 10,
+    marginBottom: 4,
   },
   signInLink: {
-    marginTop: 5,
+    marginTop: 4,
+    marginLeft: 4,
   },
   signInLinkText: {
     textDecorationLine: "underline",

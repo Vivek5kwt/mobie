@@ -16,6 +16,7 @@ import {
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import { useAuth } from '../services/AuthContext';
 import { fetchDSL } from '../engine/dslHandler';
+import authLayoutFallback from '../data/authLayoutFallback';
 import { getShopifyDomain } from '../services/shopify';
 import Header from '../components/Topheader';
 
@@ -769,27 +770,40 @@ const AuthScreen = () => {
     }
 
     try {
+      // Fetch live DSL using the actual page names from the builder
       const [signInDsl, signUpDsl] = await Promise.all([
-        fetchDSL(undefined, 'Signin/Create Account'),
-        fetchDSL(undefined, 'Create User'),
+        fetchDSL(undefined, 'signin'),
+        fetchDSL(undefined, 'create-account'),
       ]);
 
       if (!isMountedRef.current) return;
 
-      const signInSections = Array.isArray(signInDsl?.dsl?.sections)
-        ? signInDsl?.dsl?.sections
+      // For signin: live DSL may have empty sections (builder left it blank).
+      // Fall back to authLayoutFallback which has the signin + forgot_password structure.
+      const livSignInSections = Array.isArray(signInDsl?.dsl?.sections)
+        ? signInDsl.dsl.sections
         : [];
+      const signInSections =
+        livSignInSections.length > 0
+          ? livSignInSections
+          : (authLayoutFallback.sections || []);
+
+      // For create-account: use live DSL sections (builder has signup component with full props)
       const signUpSections = Array.isArray(signUpDsl?.dsl?.sections)
-        ? signUpDsl?.dsl?.sections
+        ? signUpDsl.dsl.sections
         : [];
+
       const signInSection = signInSections.find(
         (section) => getSectionComponent(section) === 'signin'
       );
       const forgotSection = signInSections.find(
         (section) => getSectionComponent(section) === 'forgot_password'
       );
+      // Support both "signup" and "sign_up" component names
       const signUpSection = signUpSections.find(
-        (section) => getSectionComponent(section) === 'signup'
+        (section) =>
+          getSectionComponent(section) === 'signup' ||
+          getSectionComponent(section) === 'sign_up'
       );
 
       if (signInSection) {
@@ -818,6 +832,14 @@ const AuthScreen = () => {
 
   useEffect(() => {
     loadAuthLayout();
+  }, [loadAuthLayout]);
+
+  // Auto-refresh every 5 seconds so DSL changes in the builder appear without interaction
+  useEffect(() => {
+    const intervalId = setInterval(() => {
+      loadAuthLayout();
+    }, 5000);
+    return () => clearInterval(intervalId);
   }, [loadAuthLayout]);
 
   useFocusEffect(
