@@ -1,8 +1,9 @@
-import React, { useMemo } from "react";
+import React, { useMemo, useState } from "react";
 import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { useNavigation } from "@react-navigation/native";
 import { useSelector } from "react-redux";
 import { createShopifyCartCheckout } from "../services/shopify";
+import Snackbar from "./Snackbar";
 
 const unwrapValue = (value, fallback = undefined) => {
   if (value === undefined || value === null) return fallback;
@@ -132,8 +133,13 @@ export default function CheckoutButton({ section }) {
     [cartItems]
   );
 
+  const [emptySnackbar, setEmptySnackbar] = useState(false);
+
   const handleCheckout = async () => {
-    if (!hasCartItems) return;
+    if (!hasCartItems) {
+      setEmptySnackbar(true);
+      return;
+    }
     try {
       // Pass no options — createShopifyCartCheckout uses async credentials internally
       const checkoutUrl = await createShopifyCartCheckout({
@@ -187,12 +193,21 @@ export default function CheckoutButton({ section }) {
     >
       <TouchableOpacity
         style={[styles.button, buttonStyle]}
-        activeOpacity={hasCartItems ? 0.8 : 1}
+        activeOpacity={0.8}
         onPress={handleCheckout}
-        disabled={!hasCartItems}
       >
         <Text style={[styles.label, textStyle]}>{label}</Text>
       </TouchableOpacity>
+
+      <Snackbar
+        visible={emptySnackbar}
+        message="Your cart is empty. Add items to continue."
+        actionLabel="Browse"
+        onAction={() => navigation.navigate("LayoutScreen")}
+        onDismiss={() => setEmptySnackbar(false)}
+        duration={3000}
+        type="info"
+      />
     </View>
   );
 }

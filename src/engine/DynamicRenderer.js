@@ -36,6 +36,10 @@ import FreeShipping from "../components/FreeShipping";
 import DiscountCode from "../components/DiscountCode";
 import OrderSummary from "../components/OrderSummary";
 import ProfileHeader from "../components/ProfileHeader";
+import TestimonialCardNew from "../components/TestimonialCardNew";
+import AboutUs from "../components/AboutUs";
+import WishlistItem from "../components/WishlistItem";
+import ConfirmationHeader from "../components/ConfirmationHeader";
 
 const normalizeComponentName = (value) =>
   String(value || "")
@@ -102,6 +106,17 @@ const componentMap = {
   signup: SignUp,
   sign_up: SignUp,
   "sign-up": SignUp,
+  testimonial_card_new: TestimonialCardNew,
+  testimonial_card: TestimonialCardNew,
+  testimonials: TestimonialCardNew,
+  about_us: AboutUs,
+  "about-us": AboutUs,
+  wishlist_item: WishlistItem,
+  wishlist: WishlistItem,
+  "wishlist-item": WishlistItem,
+  confirmation_header: ConfirmationHeader,
+  "confirmation-header": ConfirmationHeader,
+  order_confirmation: ConfirmationHeader,
 };
 
 const componentAliases = {

@@ -38,6 +38,15 @@ const normalizeIconName = (name) => {
 const isLogoutItem = (item) =>
   String(item?.label || item?.title || "").trim().toLowerCase() === "logout";
 
+const SIGNIN_SLUGS = new Set(["signin", "sign-in", "login", "log-in", "auth"]);
+
+const labelToSlug = (label) =>
+  String(label || "")
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-|-$/g, "");
+
 const resolveLogoSource = (logoUrl) => {
   if (!logoUrl) return null;
   if (logoUrl === "/images/mobidrag.png") return LOCAL_LOGO_IMAGE;
@@ -134,23 +143,71 @@ export default function SideNavigation({ section }) {
 
   const handleItemPress = useCallback(
     (item) => {
-      if (!isLogoutItem(item)) return;
-      Alert.alert(
-        "Log Out",
-        "Are you sure you want to log out?",
-        [
-          { text: "Cancel", style: "cancel" },
-          {
-            text: "Log Out",
-            style: "destructive",
-            onPress: async () => {
-              await logout();
-              navigation.reset({ index: 0, routes: [{ name: "Auth" }] });
+      // ── Logout ───────────────────────────────────────────────────────────
+      if (isLogoutItem(item)) {
+        Alert.alert(
+          "Log Out",
+          "Are you sure you want to log out?",
+          [
+            { text: "Cancel", style: "cancel" },
+            {
+              text: "Log Out",
+              style: "destructive",
+              onPress: async () => {
+                await logout();
+                navigation.reset({ index: 0, routes: [{ name: "Auth" }] });
+              },
             },
-          },
-        ],
-        { cancelable: true }
-      );
+          ],
+          { cancelable: true }
+        );
+        return;
+      }
+
+      // ── Resolve link target ───────────────────────────────────────────────
+      const link = String(
+        item?.link ?? item?.href ?? item?.url ?? item?.page ?? item?.navigateTo ?? ""
+      ).trim();
+
+      // Derive slug: prefer explicit link, fall back to label → slug
+      const slug = link
+        ? link.replace(/^\//, "").toLowerCase().replace(/[^a-z0-9-]+/g, "-")
+        : labelToSlug(item?.label || item?.title || "");
+
+      if (!slug) return;
+
+      // ── External URL ──────────────────────────────────────────────────────
+      if (/^https?:\/\//i.test(link)) {
+        navigation.navigate("CheckoutWebView", {
+          url: link,
+          title: String(item?.label || item?.title || "Page"),
+        });
+        return;
+      }
+
+      // ── Auth pages ────────────────────────────────────────────────────────
+      if (SIGNIN_SLUGS.has(slug)) {
+        navigation.navigate("Auth");
+        return;
+      }
+
+      // ── Home ──────────────────────────────────────────────────────────────
+      if (slug === "home" || slug === "index") {
+        navigation.navigate("LayoutScreen");
+        return;
+      }
+
+      // ── Settings ─────────────────────────────────────────────────────────
+      if (slug === "settings" || slug === "setting") {
+        navigation.navigate("Settings");
+        return;
+      }
+
+      // ── All other DSL pages ───────────────────────────────────────────────
+      navigation.navigate("BottomNavScreen", {
+        pageName: slug,
+        title: String(item?.label || item?.title || slug),
+      });
     },
     [logout, navigation]
   );

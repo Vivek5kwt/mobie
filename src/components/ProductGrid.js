@@ -1,8 +1,9 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { Dimensions, Image, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { useNavigation } from "@react-navigation/native";
-import { useDispatch } from "react-redux";
+import { useDispatch, useSelector } from "react-redux";
 import { addItem } from "../store/slices/cartSlice";
+import { toggleWishlist } from "../store/slices/wishlistSlice";
 import { fetchShopifyProductsPage } from "../services/shopify";
 
 const unwrapValue = (value, fallback = undefined) => {
@@ -91,6 +92,7 @@ const toFontWeight = (value, fallback) => {
 export default function ProductGrid({ section, limit = 8, title = "Products" }) {
   const navigation = useNavigation();
   const dispatch = useDispatch();
+  const wishlistItems = useSelector((state) => state.wishlist?.items || []);
   const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -542,25 +544,47 @@ export default function ProductGrid({ section, limit = 8, title = "Products" }) 
                   })
                 }
               >
-                {resolvedShowFavorite && (
-                  <View style={[styles.favoriteBadge, { backgroundColor: resolvedFavoriteBackgroundColor }]}>
-                    <Text
-                      style={[
-                        styles.favoriteIcon,
-                        {
-                          color: resolvedFavoriteIconColor,
-                          fontSize: resolvedFavoriteIconSize,
-                          fontWeight: resolvedFavoriteIconWeight,
-                          ...(resolvedFavoriteIconFontFamily
-                            ? { fontFamily: resolvedFavoriteIconFontFamily }
-                            : null),
-                        },
-                      ]}
+                {resolvedShowFavorite && (() => {
+                  const prodId = String(product?.id || product?.variantId || product?.handle || product?.title || "").trim();
+                  const isInWishlist = prodId ? wishlistItems.some((p) => String(p.id || "").trim() === prodId) : false;
+                  return (
+                    <TouchableOpacity
+                      style={[styles.favoriteBadge, { backgroundColor: resolvedFavoriteBackgroundColor }]}
+                      activeOpacity={0.8}
+                      onPress={(e) => {
+                        e.stopPropagation?.();
+                        dispatch(toggleWishlist({
+                          product: {
+                            id: prodId,
+                            title: product?.title || "",
+                            image: product?.imageUrl || "",
+                            price: product?.priceAmount ?? product?.price ?? 0,
+                            compareAtPrice: product?.compareAtPrice ?? product?.originalPrice ?? 0,
+                            currency: product?.priceCurrency || product?.currency || "",
+                            handle: product?.handle || "",
+                            vendor: product?.vendor || "",
+                          },
+                        }));
+                      }}
                     >
-                      ♥
-                    </Text>
-                  </View>
-                )}
+                      <Text
+                        style={[
+                          styles.favoriteIcon,
+                          {
+                            color: isInWishlist ? "#EF4444" : resolvedFavoriteIconColor,
+                            fontSize: resolvedFavoriteIconSize,
+                            fontWeight: resolvedFavoriteIconWeight,
+                            ...(resolvedFavoriteIconFontFamily
+                              ? { fontFamily: resolvedFavoriteIconFontFamily }
+                              : null),
+                          },
+                        ]}
+                      >
+                        {isInWishlist ? "♥" : "♡"}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })()}
                 {product.imageUrl && (
                   <View style={styles.imageWrapper}>
                     <Image
