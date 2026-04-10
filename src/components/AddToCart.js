@@ -4,6 +4,7 @@ import FontAwesome from "react-native-vector-icons/FontAwesome";
 import { StackActions, useNavigation } from "@react-navigation/native";
 import { useDispatch } from "react-redux";
 import { addItem } from "../store/slices/cartSlice";
+import Snackbar from "./Snackbar";
 import {
   createShopifyCheckout,
   getShopifyDomain,
@@ -168,6 +169,7 @@ export default function AddToCart({ section }) {
   );
 
   const [quantity, setQuantity] = useState(1);
+  const [snackbarVisible, setSnackbarVisible] = useState(false);
 
   const addToCartButtonStyle = useMemo(() => buildButtonStyles(addToCartConfig), [addToCartConfig]);
   const buyNowButtonStyle = useMemo(() => buildButtonStyles(buyNowConfig), [buyNowConfig]);
@@ -308,7 +310,7 @@ export default function AddToCart({ section }) {
       })
     );
 
-    openCartScreen();
+    setSnackbarVisible(true);
   };
 
   const handleBuyNow = async () => {
@@ -447,6 +449,17 @@ export default function AddToCart({ section }) {
           )}
         </TouchableOpacity>
       )}
+
+      {/* ── Add to Cart snackbar ── */}
+      <Snackbar
+        visible={snackbarVisible}
+        message={`${productTitle || "Item"} added to cart`}
+        actionLabel="View Cart"
+        onAction={openCartScreen}
+        onDismiss={() => setSnackbarVisible(false)}
+        duration={2500}
+        type="success"
+      />
     </View>
   );
 }

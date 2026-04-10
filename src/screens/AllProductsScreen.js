@@ -94,7 +94,7 @@ export default function AllProductsScreen() {
   return (
     <SafeArea>
       <View style={styles.container}>
-        <Header />
+        <Header showBack={false} />
         <View style={styles.content}>
           <View style={styles.headerRow}>
             <TouchableOpacity

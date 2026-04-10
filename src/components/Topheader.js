@@ -103,9 +103,10 @@ const resolveLogoSlotAlignmentStyle = (alignment, flexDirection = "column") => {
   return isRow ? { justifyContent: flexAlignment } : { alignItems: flexAlignment };
 };
 
-export default function Header({ section }) {
+export default function Header({ section, showBack }) {
   const { openSideMenu, hasSideNav } = useSideMenu();
   const navigation = useNavigation();
+  const canGoBack = navigation.canGoBack();
   const cartCount = useSelector((state) =>
     (state?.cart?.items || []).reduce((sum, item) => {
       const quantity = Number(item?.quantity);
@@ -368,16 +369,34 @@ export default function Header({ section }) {
         }
       ]}
     >
-      {/* LEFT ICON */}
+      {/* LEFT ICON — back arrow on detail screens, hamburger on primary screens */}
       <View style={[styles.leftSlot, normalizedLayout.leftSlot]}>
-          {sideMenuVisible && hasSideNav && (
-            <TouchableOpacity onPress={openSideMenu} activeOpacity={0.7}>
+        {/* Back arrow: show when caller explicitly passes showBack={true},
+            OR when standalone (no DSL section) and navigation stack allows going back.
+            Suppressed when caller passes showBack={false}. */}
+        {showBack !== false && (showBack === true || isStandalone) && canGoBack ? (
+          <TouchableOpacity
+            onPress={() => navigation.goBack()}
+            activeOpacity={0.7}
+            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+            style={styles.backBtn}
+          >
             <Icon
-              name={sideMenuIconName}
-              size={sideMenuIconSize}
-              color={sideMenuIconColor}
+              name="chevron-left"
+              size={22}
+              color={sideMenuIconColor || defaultConfig?.iconColor || "#111827"}
             />
           </TouchableOpacity>
+        ) : (
+          sideMenuVisible && hasSideNav && (
+            <TouchableOpacity onPress={openSideMenu} activeOpacity={0.7}>
+              <Icon
+                name={sideMenuIconName}
+                size={sideMenuIconSize}
+                color={sideMenuIconColor}
+              />
+            </TouchableOpacity>
+          )
         )}
       </View>
 
@@ -480,6 +499,7 @@ const styles = StyleSheet.create({
     backgroundColor: "#ffffff",
   },
   leftSlot: { flexDirection: "row", alignItems: "center" },
+  backBtn: { paddingRight: 4 },
   logoSlot: {
     flex: 1,
     alignItems: "center",

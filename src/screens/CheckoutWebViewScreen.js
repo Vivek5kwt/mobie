@@ -47,7 +47,7 @@ export default function CheckoutWebViewScreen() {
   return (
     <SafeArea>
       <View style={styles.container}>
-        <Header />
+        <Header showBack={false} />
         <View style={styles.header}>
           <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
             <FontAwesome name="angle-left" size={24} color="#111827" />

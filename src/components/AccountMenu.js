@@ -180,7 +180,38 @@ export default function AccountMenu({ section }) {
   const handlePress = (item) => {
     const link = str(item?.link ?? item?.href ?? item?.url ?? item?.page ?? item?.navigateTo, "");
     if (!link) return;
-    try { navigation.navigate(link); } catch (_) {}
+
+    const normalized = link.trim().toLowerCase().replace(/[^a-z0-9]+/g, "-");
+
+    try {
+      // External URL → open in CheckoutWebView
+      if (/^https?:\/\//i.test(link)) {
+        navigation.navigate("CheckoutWebView", {
+          url: link,
+          title: str(item?.label ?? item?.text ?? item?.title, "Page"),
+        });
+        return;
+      }
+
+      // Sign-in / login → Auth screen
+      const signinSlugs = new Set(["signin", "sign-in", "login", "log-in", "auth"]);
+      if (signinSlugs.has(normalized)) {
+        navigation.navigate("Auth");
+        return;
+      }
+
+      // Home → LayoutScreen root
+      if (normalized === "home" || normalized === "index") {
+        navigation.navigate("LayoutScreen");
+        return;
+      }
+
+      // All other internal page slugs → BottomNavScreen
+      navigation.navigate("BottomNavScreen", {
+        pageName: normalized,
+        title: str(item?.label ?? item?.text ?? item?.title, link),
+      });
+    } catch (_) {}
   };
 
   return (

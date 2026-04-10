@@ -39,6 +39,7 @@ const GET_STORE_QUERY = `
 // ── Cache ──────────────────────────────────────────────────────────────────
 
 let _cache = null;
+let _cacheAppId = null;   // track which appId the cache belongs to
 let _inflight = null;
 
 // ── Helpers ────────────────────────────────────────────────────────────────
@@ -66,12 +67,17 @@ async function graphqlFetch(query, variables) {
  * Result is cached for the lifetime of the session.
  */
 export async function fetchStoreConfig() {
+  const appId = resolveAppId();
+  // Invalidate cache if appId changed since last fetch
+  if (_cache && _cacheAppId !== appId) {
+    _cache = null;
+    _cacheAppId = null;
+  }
   if (_cache) return _cache;
   if (_inflight) return _inflight;
 
   _inflight = (async () => {
     try {
-      const appId = resolveAppId();
       console.log(`🏪 Fetching store config for appId: ${appId}`);
 
       // Step 1 — resolve storeId from layouts
@@ -102,6 +108,7 @@ export async function fetchStoreConfig() {
       }
 
       _cache = storeJson.data.getStore;
+      _cacheAppId = appId;
       console.log(`✅ Store loaded: ${_cache.shop_name} (${_cache.shopify_domain})`);
       console.log(`   currency: ${_cache.currency} | country: ${_cache.country} | status: ${_cache.status}`);
       return _cache;
@@ -125,4 +132,5 @@ export function getStoreConfigSync() {
 /** Clear cache — call this if appId changes at runtime */
 export function clearStoreCache() {
   _cache = null;
+  _cacheAppId = null;
 }
