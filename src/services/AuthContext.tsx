@@ -8,6 +8,7 @@ import React, {
   useState,
 } from 'react';
 import { AuthSession, clearSession, login, restoreSession, signup } from './authService';
+import tokenLogger from '../utils/tokenLogger';
 
 export type AuthContextValue = {
   session: AuthSession | null;
@@ -41,12 +42,20 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const handleLogin = useCallback(async (email: string, password: string) => {
     const newSession = await login(email, password);
     setSession(newSession);
+    // Associate FCM token with the logged-in user
+    if (newSession?.user?.id) {
+      tokenLogger.updateTokenForUser(newSession.user.id, newSession.user.appId).catch(() => {});
+    }
   }, []);
 
   const handleSignup = useCallback(
     async (email: string, password: string, fullName?: string) => {
       const newSession = await signup(email, password, fullName);
       setSession(newSession);
+      // Associate FCM token with the newly registered user
+      if (newSession?.user?.id) {
+        tokenLogger.updateTokenForUser(newSession.user.id, newSession.user.appId).catch(() => {});
+      }
     },
     []
   );
@@ -54,6 +63,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const handleLogout = useCallback(async () => {
     await clearSession();
     setSession(null);
+    // Clear stored FCM record ID so next login gets a fresh token association
+    tokenLogger.clearToken().catch(() => {});
   }, []);
 
   const value = useMemo(
