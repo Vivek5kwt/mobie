@@ -45,6 +45,11 @@ const buildProductDefaults = (product = {}) => {
     variantOptions: product?.variantOptions,
     variantId: product?.variantId,
     handle: product?.handle,
+    // Rating from Shopify metafields (populated by review apps)
+    rating: product?.rating || undefined,
+    ratingText: product?.rating || undefined,
+    reviewCount: product?.reviewCount || undefined,
+    ratingCountText: product?.reviewCount ? `(${product.reviewCount})` : undefined,
   };
 };
 

@@ -15,11 +15,26 @@ import { fetchShopifyCollectionProducts } from "../services/shopify";
 import { SafeArea } from "../utils/SafeAreaHandler";
 import { addItem } from "../store/slices/cartSlice";
 import Header from "../components/Topheader";
+import FilterSortHeader from "../components/FilterSortHeader";
 
 const PAGE_SIZE = 20;
 const GAP = 12;
 const H_PAD = 16;
 const { width: SCREEN_W } = Dimensions.get("window");
+
+function sortProducts(products, sortKey) {
+  const copy = [...products];
+  switch (sortKey) {
+    case "Price: Low":
+      return copy.sort((a, b) => parseFloat(a.priceAmount || 0) - parseFloat(b.priceAmount || 0));
+    case "Price: High":
+      return copy.sort((a, b) => parseFloat(b.priceAmount || 0) - parseFloat(a.priceAmount || 0));
+    case "Newest":
+      return copy.reverse();
+    default:
+      return copy;
+  }
+}
 
 export default function CollectionProductsScreen() {
   const navigation = useNavigation();
@@ -27,12 +42,22 @@ export default function CollectionProductsScreen() {
   const dispatch = useDispatch();
   const { collectionHandle, collectionTitle } = route?.params || {};
 
-  const [products, setProducts] = useState([]);
-  const [pageInfo, setPageInfo] = useState({ hasNextPage: false, endCursor: null });
-  const [loading, setLoading] = useState(false);
+  const [products, setProducts]     = useState([]);
+  const [pageInfo, setPageInfo]     = useState({ hasNextPage: false, endCursor: null });
+  const [loading, setLoading]       = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
-  const [error, setError] = useState("");
-  const [favorites, setFavorites] = useState({});
+  const [error, setError]           = useState("");
+  const [favorites, setFavorites]   = useState({});
+
+  // FilterSortHeader state
+  const [sortKey, setSortKey]       = useState("Popular");
+  const [viewMode, setViewMode]     = useState("grid"); // "grid" | "list"
+  const [activeFilter, setActiveFilter] = useState(null);
+
+  const numColumns = viewMode === "list" ? 1 : 2;
+  const CARD_W = viewMode === "list"
+    ? SCREEN_W - H_PAD * 2
+    : (SCREEN_W - H_PAD * 2 - GAP) / 2;
 
   const loadProducts = useCallback(
     async ({ after = null, append = false } = {}) => {
@@ -49,7 +74,7 @@ export default function CollectionProductsScreen() {
           first: PAGE_SIZE,
           after,
         });
-        const next = payload?.products || [];
+        const next     = payload?.products || [];
         const nextPage = payload?.pageInfo || { hasNextPage: false, endCursor: null };
         setProducts((prev) => (append ? [...prev, ...next] : next));
         setPageInfo(nextPage);
@@ -87,28 +112,40 @@ export default function CollectionProductsScreen() {
   const toggleFav = (id) =>
     setFavorites((prev) => ({ ...prev, [id]: !prev[id] }));
 
+  // Apply sort + optional filter
+  const displayProducts = React.useMemo(() => {
+    let list = sortProducts(products, sortKey);
+    if (activeFilter) {
+      list = list.filter((p) =>
+        (p.title || "").toLowerCase().includes(activeFilter.toLowerCase())
+      );
+    }
+    return list;
+  }, [products, sortKey, activeFilter]);
+
   const renderItem = ({ item }) => {
     const inStock = item.availableForSale !== false;
-    const isFav = !!favorites[item.id];
+    const isFav   = !!favorites[item.id];
+    const isListMode = viewMode === "list";
 
     return (
       <TouchableOpacity
-        style={styles.card}
+        style={[styles.card, { width: CARD_W }, isListMode && styles.cardList]}
         activeOpacity={0.88}
         onPress={() =>
-          navigation.navigate("ProductDetail", { handle: item.handle })
+          navigation.navigate("ProductDetail", { product: item })
         }
       >
         {/* Product image */}
-        <View style={styles.imageWrap}>
+        <View style={[styles.imageWrap, isListMode && styles.imageWrapList]}>
           {item.imageUrl ? (
             <Image
               source={{ uri: item.imageUrl }}
-              style={styles.image}
+              style={[styles.image, isListMode && styles.imageList]}
               resizeMode="cover"
             />
           ) : (
-            <View style={[styles.image, styles.placeholder]}>
+            <View style={[styles.image, isListMode && styles.imageList, styles.placeholder]}>
               <Text style={styles.placeholderText}>
                 {(item.title || "?").charAt(0).toUpperCase()}
               </Text>
@@ -129,25 +166,19 @@ export default function CollectionProductsScreen() {
 
         {/* Card body */}
         <View style={styles.cardBody}>
-          <Text numberOfLines={2} style={styles.productName}>
+          <Text numberOfLines={isListMode ? 1 : 2} style={styles.productName}>
             {item.title}
           </Text>
           <Text style={styles.price}>
-            {parseFloat(item.priceAmount || 0).toFixed(1)}
+            {parseFloat(item.priceAmount || 0).toFixed(2)}
           </Text>
-
-          {/* Add to Cart / Sold Out */}
           <TouchableOpacity
             style={inStock ? styles.cartBtnActive : styles.cartBtnSoldOut}
             activeOpacity={inStock ? 0.8 : 1}
             disabled={!inStock}
             onPress={() => inStock && handleAddToCart(item)}
           >
-            <Text
-              style={
-                inStock ? styles.cartBtnTextActive : styles.cartBtnTextSoldOut
-              }
-            >
+            <Text style={inStock ? styles.cartBtnTextActive : styles.cartBtnTextSoldOut}>
               {inStock ? "Add To Cart" : "Sold Out"}
             </Text>
           </TouchableOpacity>
@@ -159,59 +190,54 @@ export default function CollectionProductsScreen() {
   return (
     <SafeArea>
       <View style={styles.container}>
-        {/* Header (same as home page — reads from headerdefault config) */}
         <Header />
 
-        <View style={styles.body}>
-          {/* Section title row */}
-          <View style={styles.sectionRow}>
-            <Text style={styles.sectionTitle}>
-              {collectionTitle || "Products"}
-            </Text>
-            {pageInfo.hasNextPage && (
-              <TouchableOpacity
-                onPress={() =>
-                  loadProducts({ after: pageInfo.endCursor, append: true })
-                }
-              >
-                <Text style={styles.viewAll}>View all &gt;</Text>
-              </TouchableOpacity>
-            )}
-          </View>
+        {/* Section title row */}
+        <View style={styles.sectionRow}>
+          <Text style={styles.sectionTitle}>
+            {collectionTitle || "Products"}
+          </Text>
+          {pageInfo.hasNextPage && (
+            <TouchableOpacity
+              onPress={() => loadProducts({ after: pageInfo.endCursor, append: true })}
+            >
+              <Text style={styles.viewAll}>View all &gt;</Text>
+            </TouchableOpacity>
+          )}
+        </View>
 
+        {/* Filter + Sort header bar */}
+        <FilterSortHeader
+          section={{}}
+          onSortChange={(opt) => setSortKey(opt)}
+          onViewModeChange={(mode) => setViewMode(mode)}
+          onFilterChange={(filter) => setActiveFilter(filter)}
+        />
+
+        <View style={styles.body}>
           {loading && (
-            <ActivityIndicator
-              style={styles.loader}
-              size="small"
-              color="#016D77"
-            />
+            <ActivityIndicator style={styles.loader} size="small" color="#016D77" />
           )}
           {!!error && <Text style={styles.error}>{error}</Text>}
 
           {!loading && !error && (
             <FlatList
-              data={products}
+              key={`cols-${numColumns}`}
+              data={displayProducts}
               keyExtractor={(item) => String(item.id)}
-              numColumns={2}
-              columnWrapperStyle={{ gap: GAP }}
+              numColumns={numColumns}
+              columnWrapperStyle={numColumns > 1 ? { gap: GAP } : undefined}
               renderItem={renderItem}
               contentContainerStyle={styles.list}
               showsVerticalScrollIndicator={false}
               ListEmptyComponent={
-                <Text style={styles.empty}>
-                  No products in this collection.
-                </Text>
+                <Text style={styles.empty}>No products in this collection.</Text>
               }
               ListFooterComponent={
                 pageInfo.hasNextPage ? (
                   <TouchableOpacity
                     style={styles.loadMoreBtn}
-                    onPress={() =>
-                      loadProducts({
-                        after: pageInfo.endCursor,
-                        append: true,
-                      })
-                    }
+                    onPress={() => loadProducts({ after: pageInfo.endCursor, append: true })}
                     disabled={loadingMore}
                     activeOpacity={0.85}
                   >
@@ -229,25 +255,19 @@ export default function CollectionProductsScreen() {
   );
 }
 
-const CARD_W = (SCREEN_W - H_PAD * 2 - GAP) / 2;
-
 const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: "#FFFFFF",
   },
-  body: {
-    flex: 1,
-    paddingHorizontal: H_PAD,
-    paddingTop: 14,
-  },
 
-  // ── Section header row ──────────────────────────────────────────────────────
   sectionRow: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    marginBottom: 12,
+    paddingHorizontal: H_PAD,
+    paddingTop: 14,
+    paddingBottom: 8,
   },
   sectionTitle: {
     fontSize: 16,
@@ -260,28 +280,45 @@ const styles = StyleSheet.create({
     color: "#016D77",
   },
 
-  // ── Grid ───────────────────────────────────────────────────────────────────
+  body: {
+    flex: 1,
+    paddingHorizontal: H_PAD,
+    paddingTop: 8,
+  },
+
   list: {
     paddingBottom: 32,
     rowGap: GAP,
   },
 
-  // ── Card ───────────────────────────────────────────────────────────────────
+  // ── Card (grid) ────────────────────────────────────────────────────────────
   card: {
-    width: CARD_W,
     backgroundColor: "#FFFFFF",
     borderRadius: 10,
     overflow: "hidden",
     borderWidth: 1,
     borderColor: "#E5E7EB",
   },
+  cardList: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
   imageWrap: {
     position: "relative",
+  },
+  imageWrapList: {
+    width: 100,
+    flexShrink: 0,
   },
   image: {
     width: "100%",
     aspectRatio: 1,
     backgroundColor: "#F3F4F6",
+  },
+  imageList: {
+    width: 100,
+    height: 100,
+    aspectRatio: undefined,
   },
   placeholder: {
     alignItems: "center",
@@ -302,10 +339,6 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(255,255,255,0.9)",
     alignItems: "center",
     justifyContent: "center",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.12,
-    shadowRadius: 2,
     elevation: 2,
   },
   favIcon: {
@@ -317,6 +350,7 @@ const styles = StyleSheet.create({
     color: "#EF4444",
   },
   cardBody: {
+    flex: 1,
     padding: 10,
     gap: 4,
   },
@@ -331,8 +365,6 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     color: "#111827",
   },
-
-  // ── Buttons ────────────────────────────────────────────────────────────────
   cartBtnActive: {
     marginTop: 4,
     backgroundColor: "#111111",
@@ -362,21 +394,9 @@ const styles = StyleSheet.create({
     color: "#016D77",
   },
 
-  // ── States ─────────────────────────────────────────────────────────────────
-  loader: {
-    marginTop: 32,
-  },
-  error: {
-    textAlign: "center",
-    color: "#B91C1C",
-    paddingVertical: 12,
-  },
-  empty: {
-    textAlign: "center",
-    color: "#6B7280",
-    paddingVertical: 32,
-    fontSize: 14,
-  },
+  loader: { marginTop: 32 },
+  error: { textAlign: "center", color: "#B91C1C", paddingVertical: 12 },
+  empty: { textAlign: "center", color: "#6B7280", paddingVertical: 32, fontSize: 14 },
   loadMoreBtn: {
     alignSelf: "center",
     paddingVertical: 10,
@@ -386,9 +406,5 @@ const styles = StyleSheet.create({
     marginTop: 12,
     marginBottom: 8,
   },
-  loadMoreText: {
-    color: "#FFFFFF",
-    fontWeight: "600",
-    fontSize: 13,
-  },
+  loadMoreText: { color: "#FFFFFF", fontWeight: "600", fontSize: 13 },
 });

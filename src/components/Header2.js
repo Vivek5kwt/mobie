@@ -320,7 +320,7 @@ export default function Header2({ section }) {
     searchBgColor: resolveValue(searchAndIconsNode.searchBgColor, "#FFFFFF"),
     searchIconColor: resolveValue(searchAndIconsNode.searchIconColor, "#4B5563"),
     searchTextColor: resolveValue(searchAndIconsNode.searchTextColor, "#131b28"),
-    showNotification: resolveBooleanSetting(searchAndIconsNode.showNotification, true),
+    showNotification: resolveBooleanSetting(searchAndIconsNode.showNotification, false),
     sideMenuIconColor: resolveValue(searchAndIconsNode.sideMenuIconColor, "#FFFFFF"),
     sideMenuIconWidth: resolveValue(searchAndIconsNode.sideMenuIconWidth, 16),
     sideMenuIconHeight: resolveValue(searchAndIconsNode.sideMenuIconHeight, 16),
@@ -428,7 +428,7 @@ export default function Header2({ section }) {
   const notificationBell = {
     visible:
       resolveBooleanSetting(notificationNode.visible, searchAndIcons.showNotification) &&
-      resolveBooleanSetting(rawPropsNode?.notificationSettingsEnabled, true),
+      resolveBooleanSetting(rawPropsNode?.notificationSettingsEnabled, false),
     iconId: normalizeIconName(
       resolveValue(notificationNode.iconId ?? notificationNode.iconName, "bell")
     ),
@@ -771,7 +771,7 @@ export default function Header2({ section }) {
     const shouldShowCartBadge = cartCount > 0 || cartShowBadge;
 
     const notificationProps = rawPropsNode.notification?.properties || rawPropsNode.notification || {};
-    const notificationVisible = resolveBooleanSetting(notificationProps.visible, true);
+    const notificationVisible = resolveBooleanSetting(notificationProps.visible, false);
     const notificationIconName = normalizeIconName(
       resolveValue(notificationProps.iconId, "bell")
     );

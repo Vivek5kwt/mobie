@@ -40,6 +40,7 @@ import TestimonialCardNew from "../components/TestimonialCardNew";
 import AboutUs from "../components/AboutUs";
 import WishlistItem from "../components/WishlistItem";
 import ConfirmationHeader from "../components/ConfirmationHeader";
+import FilterSortHeader from "../components/FilterSortHeader";
 
 const normalizeComponentName = (value) =>
   String(value || "")
@@ -117,15 +118,44 @@ const componentMap = {
   confirmation_header: ConfirmationHeader,
   "confirmation-header": ConfirmationHeader,
   order_confirmation: ConfirmationHeader,
+  filter_sort_header: FilterSortHeader,
+  "filter-sort-header": FilterSortHeader,
+  filter_header: FilterSortHeader,
+  sort_header: FilterSortHeader,
 };
 
 const componentAliases = {
+  // Hero banner
   herobanner: "hero_banner",
   "hero-banner": "hero_banner",
   "hero banner": "hero_banner",
+  // Bottom nav
   bottom_nav: "bottom_navigation",
   "bottom-nav": "bottom_navigation",
   bottomnav: "bottom_navigation",
+  // Reviews (builder may send camelCase)
+  customerreviews: "customer_reviews",
+  "customer-reviews": "customer_reviews",
+  productreviews: "product_reviews",
+  "product-reviews": "product_reviews",
+  // Variant selector
+  variantselector: "variant_selector",
+  "variant-selector": "variant_selector",
+  // Add to cart
+  addtocart: "add_to_cart",
+  "add-to-cart": "add_to_cart",
+  // Product components
+  productinfo: "product_info",
+  "product-info": "product_info",
+  productdescription: "product_description",
+  "product-description": "product_description",
+  productlibrary: "product_library",
+  "product-library": "product_library",
+  // Filter / sort
+  filtersort: "filter_sort_header",
+  "filter-sort": "filter_sort_header",
+  filtersortheader: "filter_sort_header",
+  "filter-sort-header": "filter_sort_header",
 };
 
 export default function DynamicRenderer({ section }) {
