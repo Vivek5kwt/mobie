@@ -67,13 +67,13 @@ export default function App() {
           return;
         }
 
-        // 2. Get FCM token and send to backend
-        await tokenLogger.getTokenFromAnySource();
+        // 2. Capture FCM token locally — backend sync happens after login (with userid+appid)
+        await tokenLogger.captureToken();
 
-        // 3. Listen for token refresh — send new token whenever Firebase rotates it
+        // 3. Listen for token refresh — save new token locally
         const unsubscribe = messaging().onTokenRefresh(async (newToken: string) => {
           console.log('🔄 FCM token refreshed');
-          await tokenLogger.setToken(newToken, true); // forceLog = true
+          await tokenLogger.refreshToken(newToken);
         });
 
         return unsubscribe;
@@ -107,6 +107,7 @@ export default function App() {
               <ApolloProvider client={client}>
                 <NavigationContainer>
                   <Stack.Navigator
+                    id={undefined}
                     screenOptions={{ headerShown: false }}
                     initialRouteName="Splash"
                   >
