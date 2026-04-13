@@ -151,30 +151,7 @@ const AvatarInitial = ({ author, avatarColor, size = 36 }) => {
   );
 };
 
-// ─── Default sample data ──────────────────────────────────────────────────────
-
-const DEFAULT_REVIEWS = [
-  {
-    id:          "1",
-    author:      "Sarah Johnson",
-    avatar:      "",
-    avatarColor: "#22C55E",
-    date:        "2 days ago",
-    rating:      5,
-    title:       "Absolutely love it!",
-    body:        "Amazing product! Exceeded all my expectations. The quality is outstanding and shipping was incredibly fast. Would definitely recommend to anyone looking for a reliable product.",
-    verified:    true,
-    filter:      "all",
-  },
-];
-
-const DEFAULT_BREAKDOWN = [
-  { stars: 5, pct: 59 },
-  { stars: 4, pct: 18 },
-  { stars: 3, pct: 9 },
-  { stars: 2, pct: 8 },
-  { stars: 1, pct: 6 },
-];
+// ─── Default tabs (always shown for UI structure) ─────────────────────────────
 
 const DEFAULT_TABS = [
   { label: "All",    key: "all" },
@@ -201,20 +178,31 @@ export default function CustomerReviews({ section }) {
   const buttonCss   = unwrapValue(propsNode?.writeButton ?? propsNode?.button, {});
   const visibility  = unwrapValue(propsNode?.visibility, {});
 
-  // ── Data ────────────────────────────────────────────────────────────────────
-  const overallRating  = toString(raw?.rating ?? raw?.averageRating, toString(ratingCss?.value, ""));
-  const reviewCountRaw = toString(raw?.reviewCount ?? raw?.totalReviews ?? raw?.count, "");
-  const reviewCountText = reviewCountRaw
-    ? `${reviewCountRaw} reviews`
-    : "";
+  // ── Dynamic data: rating comes from Shopify metafields (merged by ProductDetailScreen)
+  // raw.rating / raw.ratingText are injected by buildProductDefaults when the product
+  // has been enriched by fetchShopifyProductDetails (reviews.rating metafield).
+  // raw.reviewCount / raw.ratingCountText are injected similarly.
+  const overallRating = toString(
+    raw?.rating ?? raw?.ratingText ?? raw?.averageRating,
+    toString(ratingCss?.value, "")
+  );
+  const reviewCountRaw = toString(
+    raw?.reviewCount ?? raw?.totalReviews ?? raw?.count,
+    ""
+  );
+  const reviewCountText = reviewCountRaw ? `${reviewCountRaw} reviews` : "";
 
-  const dslReviews  = useMemo(() => normalizeReviews(raw?.reviews ?? propsNode?.reviews), [raw?.reviews, propsNode?.reviews]);
+  // ── DSL-provided reviews / breakdown / tabs ─────────────────────────────────
+  const dslReviews   = useMemo(() => normalizeReviews(raw?.reviews ?? propsNode?.reviews),   [raw?.reviews,        propsNode?.reviews]);
   const dslBreakdown = useMemo(() => normalizeBreakdown(raw?.ratingBreakdown ?? raw?.breakdown ?? propsNode?.breakdown), [raw?.ratingBreakdown, raw?.breakdown, propsNode?.breakdown]);
-  const dslTabs     = useMemo(() => normalizeTabs(raw?.tabs ?? propsNode?.tabs), [raw?.tabs, propsNode?.tabs]);
+  const dslTabs      = useMemo(() => normalizeTabs(raw?.tabs ?? propsNode?.tabs),             [raw?.tabs,           propsNode?.tabs]);
 
-  const reviews   = dslReviews.length   > 0 ? dslReviews   : DEFAULT_REVIEWS;
-  const breakdown = dslBreakdown.length > 0 ? dslBreakdown : DEFAULT_BREAKDOWN;
-  const tabs      = dslTabs.length      > 0 ? dslTabs      : DEFAULT_TABS;
+  // Real reviews come from DSL only — no fake hardcoded reviews.
+  // Breakdown bars are shown only when DSL provides them.
+  // Tabs always show (UI chrome).
+  const reviews   = dslReviews;
+  const breakdown = dslBreakdown;
+  const tabs      = dslTabs.length > 0 ? dslTabs : DEFAULT_TABS;
 
   // ── Active tab ──────────────────────────────────────────────────────────────
   const [activeTab, setActiveTab] = useState(tabs[0]?.key ?? "all");
@@ -330,29 +318,31 @@ export default function CustomerReviews({ section }) {
             )}
           </View>
 
-          {/* Right: bar chart */}
-          <View style={styles.summaryRight}>
-            {breakdown.map((row) => (
-              <View key={row.stars} style={styles.barRow}>
-                <Text style={{ fontSize: 11, color: barLabelColor, width: 8, marginRight: 6 }}>
-                  {row.stars}
-                </Text>
-                <View style={[styles.barTrack, { backgroundColor: barTrackColor, height: barHeight, borderRadius: barRadius }]}>
-                  <View
-                    style={{
-                      width:           `${Math.min(row.pct, 100)}%`,
-                      height:          barHeight,
-                      borderRadius:    barRadius,
-                      backgroundColor: barFillColor,
-                    }}
-                  />
+          {/* Right: bar chart — only shown when DSL provides breakdown data */}
+          {breakdown.length > 0 && (
+            <View style={styles.summaryRight}>
+              {breakdown.map((row) => (
+                <View key={row.stars} style={styles.barRow}>
+                  <Text style={{ fontSize: 11, color: barLabelColor, width: 8, marginRight: 6 }}>
+                    {row.stars}
+                  </Text>
+                  <View style={[styles.barTrack, { backgroundColor: barTrackColor, height: barHeight, borderRadius: barRadius }]}>
+                    <View
+                      style={{
+                        width:           `${Math.min(row.pct, 100)}%`,
+                        height:          barHeight,
+                        borderRadius:    barRadius,
+                        backgroundColor: barFillColor,
+                      }}
+                    />
+                  </View>
+                  <Text style={{ fontSize: 11, color: barPctColor, width: 30, textAlign: "right" }}>
+                    {row.pct}%
+                  </Text>
                 </View>
-                <Text style={{ fontSize: 11, color: barPctColor, width: 30, textAlign: "right" }}>
-                  {row.pct}%
-                </Text>
-              </View>
-            ))}
-          </View>
+              ))}
+            </View>
+          )}
         </View>
       )}
 
@@ -453,9 +443,13 @@ export default function CustomerReviews({ section }) {
         </View>
       ))}
 
-      {!showReviews || visibleReviews.length === 0 ? (
-        <Text style={styles.noReviews}>No reviews yet</Text>
-      ) : null}
+      {showReviews && visibleReviews.length === 0 && (
+        <Text style={styles.noReviews}>
+          {activeTab === "all"
+            ? "Be the first to review this product"
+            : `No ${activeTab} reviews yet`}
+        </Text>
+      )}
 
       {/* ── Write a Review button ─────────────────────────────────────────── */}
       {showWriteBtn && (

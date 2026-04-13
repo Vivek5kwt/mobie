@@ -285,6 +285,8 @@ export async function fetchShopifyProductDetails({ handle, id, options = {} }) {
             }
           }
         }
+        ratingMeta: metafield(namespace: "reviews", key: "rating") { value }
+        ratingCountMeta: metafield(namespace: "reviews", key: "rating_count") { value }
       }
     }
   `;
@@ -322,6 +324,8 @@ export async function fetchShopifyProductDetails({ handle, id, options = {} }) {
             }
           }
         }
+        ratingMeta: metafield(namespace: "reviews", key: "rating") { value }
+        ratingCountMeta: metafield(namespace: "reviews", key: "rating_count") { value }
       }
     }
   `;
@@ -364,6 +368,23 @@ export async function fetchShopifyProductDetails({ handle, id, options = {} }) {
       .map((e) => e?.node?.url)
       .filter(Boolean);
 
+    // Rating metafields — written by Judge.me / Yotpo / Stamped / Okendo etc.
+    // The "rating" metafield value is JSON like {"value":"4.6","scale_max":"5.0"}
+    // The "rating_count" metafield is a plain number string
+    let ratingValue = "";
+    let ratingCount = "";
+    try {
+      const ratingRaw = product?.ratingMeta?.value;
+      if (ratingRaw) {
+        const parsed = typeof ratingRaw === "string" ? JSON.parse(ratingRaw) : ratingRaw;
+        ratingValue = String(parsed?.value ?? parsed ?? "");
+      }
+      const countRaw = product?.ratingCountMeta?.value;
+      if (countRaw) {
+        ratingCount = String(countRaw);
+      }
+    } catch (_) {}
+
     return {
       id: product?.id,
       title: product?.title,
@@ -376,6 +397,8 @@ export async function fetchShopifyProductDetails({ handle, id, options = {} }) {
       priceCurrency: priceNode?.currencyCode,
       variantOptions,
       variantId,
+      rating: ratingValue,
+      reviewCount: ratingCount,
     };
   } catch (error) {
     console.error("❌ Shopify Product Detail Fetch Error:", error);

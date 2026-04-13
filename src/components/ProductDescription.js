@@ -1,5 +1,6 @@
-import React from "react";
-import { StyleSheet, Text, View } from "react-native";
+import React, { useState } from "react";
+import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import FontAwesome from "react-native-vector-icons/FontAwesome";
 
 const unwrapValue = (value, fallback = undefined) => {
   if (value === undefined || value === null) return fallback;
@@ -35,88 +36,163 @@ const toBoolean = (value, fallback = false) => {
 
 export default function ProductDescription({ section }) {
   const propsNode =
-    section?.properties?.props?.properties || section?.properties?.props || section?.props || {};
-  const raw = unwrapValue(propsNode?.raw, {});
-  const title = unwrapValue(propsNode?.title, {});
-  const info = unwrapValue(propsNode?.info, {});
+    section?.properties?.props?.properties ||
+    section?.properties?.props ||
+    section?.props ||
+    {};
+
+  const raw        = unwrapValue(propsNode?.raw, {});
+  const titleCss   = unwrapValue(propsNode?.title, {});
+  const infoCss    = unwrapValue(propsNode?.info, {});
+  const outerCss   = unwrapValue(propsNode?.outer, {});
+  const iconCss    = unwrapValue(propsNode?.icon, {});
+  const layoutCss  = unwrapValue(propsNode?.layout, {});
   const visibility = unwrapValue(propsNode?.visibility, {});
 
-  const titleText = toString(title?.text, raw?.title || "");
-  const descriptionText = toString(
-    raw?.description || raw?.descriptionText,
-    info?.descriptionText || ""
+  // ── Text content ───────────────────────────────────────────────────────────
+  const titleText = toString(
+    titleCss?.text ?? raw?.title,
+    "Description"
   );
-  
-  // Only render if we have actual description data
+  const descriptionText = toString(
+    raw?.description ?? raw?.descriptionText ?? infoCss?.descriptionText,
+    ""
+  );
+
   if (!descriptionText && !titleText) return null;
 
-  const resolvedPaddingTop = (() => {
-    const value = toNumber(info?.paddingTop, 16);
-    return value === 0 ? 16 : value;
-  })();
-  const resolvedPaddingRight = (() => {
-    const value = toNumber(info?.paddingRight, 16);
-    return value === 0 ? 16 : value;
-  })();
-  const resolvedPaddingBottom = (() => {
-    const value = toNumber(info?.paddingBottom, 16);
-    return value === 0 ? 16 : value;
-  })();
-  const resolvedPaddingLeft = (() => {
-    const value = toNumber(info?.paddingLeft, 16);
-    return value === 0 ? 16 : value;
+  // ── Visibility ─────────────────────────────────────────────────────────────
+  const showTitle       = toBoolean(visibility?.title, true);
+  const showDescription = toBoolean(visibility?.infoDescription, true);
+  const showIcon        = toBoolean(visibility?.icon, true);
+
+  // ── Icon ───────────────────────────────────────────────────────────────────
+  const iconColor = toString(iconCss?.color, "#096d70");
+  const iconSize  = toNumber(iconCss?.size, 14);
+  // DSL may say "fa-circle-info" — FontAwesome 4 uses "info-circle"
+  const rawIconName = toString(iconCss?.icon, "info-circle");
+  const iconName  = rawIconName.replace(/^fa-/, "").replace("circle-info", "info-circle");
+
+  // ── Container (outer) padding ──────────────────────────────────────────────
+  const outerPT = toNumber(outerCss?.paddingTop,    0);
+  const outerPB = toNumber(outerCss?.paddingBottom, 0);
+  const outerPL = toNumber(outerCss?.paddingLeft,   0);
+  const outerPR = toNumber(outerCss?.paddingRight,  0);
+  const outerBg = toString(outerCss?.backgroundColor ?? outerCss?.background, "#FFFFFF");
+
+  // ── Info box padding ───────────────────────────────────────────────────────
+  const infoPT = toNumber(infoCss?.paddingTop,    0);
+  const infoPB = toNumber(infoCss?.paddingBottom, 0);
+  const infoPL = toNumber(infoCss?.paddingLeft,   0);
+  const infoPR = toNumber(infoCss?.paddingRight,  0);
+  const infoBg = toString(infoCss?.backgroundColor ?? infoCss?.background, "#FFFFFF");
+
+  // ── Header row paddingTop (from layout.css.headerRow or default 30) ────────
+  const headerPT = (() => {
+    const css = layoutCss?.css || layoutCss;
+    const hr  = css?.headerRow;
+    if (hr?.paddingTop !== undefined) {
+      return toNumber(String(hr.paddingTop).replace("px", ""), 16);
+    }
+    return 16;
   })();
 
-  const showTitle = toBoolean(visibility?.title, true);
-  const showDescription = toBoolean(visibility?.infoDescription, true);
+  // ── Title style ────────────────────────────────────────────────────────────
+  const titleFontSize  = toNumber(titleCss?.style?.fontSize, 14);
+  const titleColor     = toString(titleCss?.style?.color, "#111827");
+  const titleWeight    = toString(titleCss?.style?.fontWeight, "700");
+
+  // ── Body style ─────────────────────────────────────────────────────────────
+  const bodyFontSize  = toNumber(infoCss?.descriptionStyle?.fontSize, 12);
+  const bodyColor     = toString(infoCss?.descriptionStyle?.color, "#6B7280");
+  const bodyWeight    = toString(infoCss?.descriptionStyle?.fontWeight, "400");
+  const bodyItalic    = toBoolean(infoCss?.descriptionStyle?.italic, false);
+  const bodyUnderline = toBoolean(infoCss?.descriptionStyle?.underline, false);
+
+  // ── Arrow / chevron colour ─────────────────────────────────────────────────
+  const arrowColor = (() => {
+    const css = layoutCss?.css || layoutCss;
+    return toString(css?.arrow?.color, "#111827");
+  })();
+
+  // ── Accordion open state ───────────────────────────────────────────────────
+  const defaultOpen = toBoolean(raw?.defaultOpen, false);
+  const [open, setOpen] = useState(defaultOpen);
 
   return (
     <View
       style={[
         styles.container,
         {
-          backgroundColor: toString(info?.backgroundColor, "#ffffff"),
-          paddingTop: resolvedPaddingTop,
-          paddingRight: resolvedPaddingRight,
-          paddingBottom: resolvedPaddingBottom,
-          paddingLeft: resolvedPaddingLeft,
+          backgroundColor: outerBg,
+          paddingTop:    outerPT,
+          paddingBottom: outerPB,
+          paddingLeft:   outerPL,
+          paddingRight:  outerPR,
         },
       ]}
     >
-      {showTitle && (
-        <Text
-          style={[
-            styles.title,
-            {
-              fontSize: toNumber(title?.style?.fontSize, 14),
-              color: toString(title?.style?.color, "#111827"),
-              fontWeight: toString(title?.style?.fontWeight, "700"),
-            },
-          ]}
-        >
-          {titleText}
-        </Text>
-      )}
+      {/* ── Accordion header ──────────────────────────────────────────────── */}
+      <TouchableOpacity
+        style={[styles.headerRow, { paddingTop: headerPT }]}
+        activeOpacity={0.75}
+        onPress={() => setOpen((v) => !v)}
+        accessibilityRole="button"
+        accessibilityLabel={open ? "Collapse description" : "Expand description"}
+      >
+        <View style={styles.titleRow}>
+          {showIcon && (
+            <FontAwesome
+              name={iconName}
+              size={iconSize}
+              color={iconColor}
+              style={styles.infoIcon}
+            />
+          )}
+          {showTitle && (
+            <Text
+              style={{
+                fontSize:   titleFontSize,
+                color:      titleColor,
+                fontWeight: String(titleWeight),
+                flex: 1,
+              }}
+            >
+              {titleText}
+            </Text>
+          )}
+        </View>
+        <FontAwesome
+          name={open ? "chevron-up" : "chevron-down"}
+          size={12}
+          color={arrowColor}
+        />
+      </TouchableOpacity>
 
-      {showDescription && !!descriptionText && (
-        <Text
-          style={[
-            styles.description,
-            {
-              fontSize: toNumber(info?.descriptionStyle?.fontSize, 12),
-              color: toString(info?.descriptionStyle?.color, "#6B7280"),
-              fontWeight: toString(info?.descriptionStyle?.fontWeight, "400"),
-              fontStyle: toBoolean(info?.descriptionStyle?.italic, false)
-                ? "italic"
-                : "normal",
-              textDecorationLine: toBoolean(info?.descriptionStyle?.underline, false)
-                ? "underline"
-                : "none",
-            },
-          ]}
+      {/* ── Description body ──────────────────────────────────────────────── */}
+      {open && showDescription && !!descriptionText && (
+        <View
+          style={{
+            backgroundColor: infoBg,
+            paddingTop:    infoPT || 10,
+            paddingBottom: infoPB,
+            paddingLeft:   infoPL,
+            paddingRight:  infoPR,
+          }}
         >
-          {descriptionText}
-        </Text>
+          <Text
+            style={{
+              fontSize:          bodyFontSize,
+              color:             bodyColor,
+              fontWeight:        String(bodyWeight),
+              fontStyle:         bodyItalic    ? "italic"    : "normal",
+              textDecorationLine: bodyUnderline ? "underline" : "none",
+              lineHeight:        bodyFontSize * 1.6,
+            }}
+          >
+            {descriptionText}
+          </Text>
+        </View>
       )}
     </View>
   );
@@ -125,12 +201,20 @@ export default function ProductDescription({ section }) {
 const styles = StyleSheet.create({
   container: {
     width: "100%",
-    padding: 0,
+    backgroundColor: "#FFFFFF",
   },
-  title: {
-    marginBottom: 8,
+  headerRow: {
+    flexDirection:  "row",
+    alignItems:     "center",
+    justifyContent: "space-between",
+    paddingBottom:  16,
   },
-  description: {
-    lineHeight: 18,
+  titleRow: {
+    flexDirection: "row",
+    alignItems:    "center",
+    flex: 1,
+  },
+  infoIcon: {
+    marginRight: 8,
   },
 });
