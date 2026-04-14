@@ -5,15 +5,7 @@ import { useSelector } from "react-redux";
 import { createShopifyCartCheckout } from "../services/shopify";
 import Snackbar from "./Snackbar";
 
-const unwrapValue = (value, fallback = undefined) => {
-  if (value === undefined || value === null) return fallback;
-  if (typeof value === "object") {
-    if (value.value !== undefined) return value.value;
-    if (value.const !== undefined) return value.const;
-    if (value.properties) return unwrapValue(value.properties, fallback);
-  }
-  return value;
-};
+// ── DSL helpers ────────────────────────────────────────────────────────────────
 
 const deepUnwrap = (v) => {
   if (v === undefined || v === null) return v;
@@ -23,35 +15,55 @@ const deepUnwrap = (v) => {
   return v;
 };
 
-const toNumber = (value, fallback = 0) => {
-  const resolved = unwrapValue(value, undefined);
-  if (resolved === undefined || resolved === null || resolved === "") return fallback;
-  if (typeof resolved === "number") return resolved;
-  const parsed = parseFloat(resolved);
-  return Number.isNaN(parsed) ? fallback : parsed;
+const toStr = (value, fallback = "") => {
+  const v = deepUnwrap(value);
+  if (v === undefined || v === null) return fallback;
+  const s = String(v).trim();
+  return s && s !== "undefined" && s !== "null" ? s : fallback;
 };
 
-const toString = (value, fallback = "") => {
-  const resolved = unwrapValue(value, fallback);
-  if (resolved === undefined || resolved === null) return fallback;
-  return String(resolved);
+const toNum = (value, fallback = 0) => {
+  const v = deepUnwrap(value);
+  if (v === undefined || v === null || v === "") return fallback;
+  if (typeof v === "number" && !Number.isNaN(v)) return v;
+  const p = parseFloat(String(v));
+  return Number.isNaN(p) ? fallback : p;
 };
 
-const toBoolean = (value, fallback = false) => {
-  const resolved = unwrapValue(value, fallback);
-  if (resolved === undefined || resolved === null) return fallback;
-  if (typeof resolved === "boolean") return resolved;
-  if (typeof resolved === "number") return resolved !== 0;
-  const s = String(resolved).trim().toLowerCase();
+const toBool = (value, fallback = false) => {
+  const v = deepUnwrap(value);
+  if (v === undefined || v === null) return fallback;
+  if (typeof v === "boolean") return v;
+  if (typeof v === "number") return v !== 0;
+  const s = String(v).trim().toLowerCase();
   if (["true", "yes", "1"].includes(s)) return true;
   if (["false", "no", "0"].includes(s)) return false;
   return fallback;
 };
 
+// Pick first non-empty value from a list of DSL candidates (handles "" and "undefined")
+const pick = (candidates, fallback) => {
+  for (const c of candidates) {
+    const v = toStr(c, "");
+    if (v) return v;
+  }
+  return fallback;
+};
+
+const pickNum = (candidates, fallback) => {
+  for (const c of candidates) {
+    const raw = deepUnwrap(c);
+    if (raw === undefined || raw === null || raw === "") continue;
+    const n = typeof raw === "number" ? raw : parseFloat(String(raw));
+    if (!Number.isNaN(n)) return n;
+  }
+  return fallback;
+};
+
 const toFontWeight = (value, fallback = "600") => {
-  const resolved = unwrapValue(value, undefined);
-  if (!resolved) return fallback;
-  const w = String(resolved).toLowerCase().trim();
+  const v = deepUnwrap(value);
+  if (!v) return fallback;
+  const w = String(v).toLowerCase().trim();
   if (w === "bold") return "700";
   if (w === "semibold" || w === "semi bold") return "600";
   if (w === "medium") return "500";
@@ -60,76 +72,95 @@ const toFontWeight = (value, fallback = "600") => {
   return fallback;
 };
 
+// ── Component ──────────────────────────────────────────────────────────────────
+
 export default function CheckoutButton({ section }) {
   const navigation = useNavigation();
+  const cartItems = useSelector((state) => state?.cart?.items || []);
+  const hasCartItems = cartItems.length > 0;
 
+  // ── Resolve props node (handles both schema and flat DSL structures) ─────────
   const propsNode =
     section?.properties?.props?.properties ||
     section?.properties?.props ||
     section?.props ||
     {};
 
-  // deepUnwrap raw sub-object and merge it in so all DSL paths are readable
-  const rawNode = deepUnwrap(propsNode?.raw);
-  const raw = (rawNode && typeof rawNode === "object")
-    ? { ...propsNode, ...rawNode }
-    : (propsNode || {});
+  // Unwrap raw sub-object — handles { type, value: {...} } AND plain { key: value }
+  const rawUnwrapped = deepUnwrap(propsNode?.raw);
+  const raw = (rawUnwrapped && typeof rawUnwrapped === "object")
+    ? rawUnwrapped
+    : {};
 
-  // Read presentation.css for button styling fallback
-  const presUnwrapped = deepUnwrap(propsNode?.presentation) || {};
-  const presentationCss = presUnwrapped?.properties?.css || presUnwrapped?.css || {};
-  const buttonCss = deepUnwrap(presentationCss?.button) || deepUnwrap(presentationCss?.checkout) || {};
+  // Also check presentation.css for layout/style fallbacks
+  const pressCss = deepUnwrap(propsNode?.presentation)?.css || {};
+  const btnCss   = deepUnwrap(pressCss?.button ?? pressCss?.checkout) || {};
 
-  const cartItems = useSelector((state) => state?.cart?.items || []);
-  const appliedDiscounts = useSelector((state) => state?.cart?.discounts || []);
-  const hasCartItems = cartItems.length > 0;
+  // ── Button label ─────────────────────────────────────────────────────────────
+  const label = pick([raw?.label, raw?.text, raw?.buttonText, propsNode?.label], "Checkout");
 
-  // Label
-  const label = toString(raw?.label ?? raw?.text ?? raw?.buttonText, "Checkout");
-
-  // Container padding — read DSL first, fallback to outer padding defaults
-  const padT = toNumber(raw?.padT ?? raw?.pt ?? raw?.paddingTop, 12);
-  const padR = toNumber(raw?.padR ?? raw?.pr ?? raw?.paddingRight, 16);
-  const padB = toNumber(raw?.padB ?? raw?.pb ?? raw?.paddingBottom, 12);
-  const padL = toNumber(raw?.padL ?? raw?.pl ?? raw?.paddingLeft, 16);
-
-  // Button size
-  const height = toNumber(raw?.height ?? raw?.btnHeight, 52);
-  const fullWidth = toBoolean(raw?.fullWidth ?? raw?.isFullWidth, true);
-
-  // Button appearance — read from raw props first, then presentation.css
-  const bgColor = toString(
-    raw?.bgColor ?? raw?.backgroundColor ?? raw?.buttonBg ?? buttonCss?.backgroundColor,
+  // ── Background colour (priority: raw.backgroundColor → raw.bgColor → …) ─────
+  const bgColor = pick(
+    [raw?.backgroundColor, raw?.bgColor, raw?.background, raw?.buttonBg, raw?.btn_bg, btnCss?.backgroundColor],
     "#111827"
   );
-  const borderRadius = toNumber(raw?.borderRadius ?? raw?.cornerRadius ?? raw?.corner, 10);
 
-  // Border — only show when DSL explicitly sets borderColor or borderWidth
-  const borderColorVal = toString(raw?.borderColor, "");
-  const borderWidthVal = toNumber(raw?.borderWidth ?? raw?.borderSize, 0);
-  const showBorder = borderWidthVal > 0 || !!borderColorVal;
+  // ── Text colour ──────────────────────────────────────────────────────────────
+  const textColor = pick(
+    [raw?.textColor, raw?.labelColor, raw?.color, raw?.text_color, btnCss?.color],
+    "#FFFFFF"
+  );
 
-  // Text style — also check presentation.css button
-  const textColor = toString(raw?.textColor ?? raw?.labelColor ?? raw?.color ?? buttonCss?.color, "#FFFFFF");
-  const fontSize = toNumber(raw?.fontSize ?? raw?.textSize ?? raw?.labelSize, 16);
-  const fontWeight = toFontWeight(raw?.fontWeight ?? raw?.textWeight ?? raw?.labelWeight, "600");
-  const fontFamily = toString(raw?.fontFamily ?? raw?.labelFamily, "");
-  const italic = toBoolean(raw?.italic, false);
-  const underline = toBoolean(raw?.underline, false);
-  const letterSpacing = toNumber(raw?.letterSpacing, 0.3);
+  // ── Border ───────────────────────────────────────────────────────────────────
+  const borderColorVal = pick(
+    [raw?.borderColor, raw?.border_color, raw?.strokeColor, btnCss?.borderColor],
+    ""
+  );
+  const borderWidthVal = pickNum(
+    [raw?.borderWidth, raw?.borderSize, raw?.border_width, btnCss?.borderWidth],
+    0
+  );
+  // Show border whenever DSL provides a borderColor, even without explicit borderWidth
+  const showBorder   = !!borderColorVal || borderWidthVal > 0;
+  const borderWidth  = showBorder ? (borderWidthVal > 0 ? borderWidthVal : 1) : 0;
 
-  // Disabled state styling
-  const disabledBg = toString(raw?.disabledBg ?? raw?.disabledBackground, "#6B7280");
-  const disabledTextColor = toString(raw?.disabledTextColor, "#D1D5DB");
+  // ── Dimensions & shape ───────────────────────────────────────────────────────
+  const height       = pickNum([raw?.height, raw?.btnHeight, raw?.buttonHeight, btnCss?.height], 52);
+  const borderRadius = pickNum([raw?.borderRadius, raw?.cornerRadius, raw?.corner, raw?.rounded, btnCss?.borderRadius], 10);
+  const fullWidth    = toBool(raw?.fullWidth ?? raw?.isFullWidth, true);
 
-  // All cart items — createShopifyCartCheckout handles variantId/id fallback internally
+  // ── Typography ───────────────────────────────────────────────────────────────
+  const fontSize     = pickNum([raw?.fontSize, raw?.textSize, raw?.labelSize, btnCss?.fontSize], 16);
+  const fontWeight   = toFontWeight(raw?.fontWeight ?? raw?.textWeight ?? raw?.labelWeight ?? btnCss?.fontWeight, "600");
+  const fontFamily   = toStr(raw?.fontFamily ?? raw?.labelFamily ?? btnCss?.fontFamily, "");
+  const italic       = toBool(raw?.italic, false);
+  const underline    = toBool(raw?.underline, false);
+  const letterSpacing = pickNum([raw?.letterSpacing, btnCss?.letterSpacing], 0.3);
+
+  // ── Outer container padding ───────────────────────────────────────────────────
+  const padT = pickNum([raw?.paddingTop,    raw?.padT, raw?.pt, btnCss?.paddingTop],    12);
+  const padB = pickNum([raw?.paddingBottom, raw?.padB, raw?.pb, btnCss?.paddingBottom], 12);
+  const padL = pickNum([raw?.paddingLeft,   raw?.padL, raw?.pl, btnCss?.paddingLeft],   16);
+  const padR = pickNum([raw?.paddingRight,  raw?.padR, raw?.pr, btnCss?.paddingRight],  16);
+  const gap  = pickNum([raw?.gap, raw?.marginTop, raw?.mt], 0);
+
+  // ── Outer container background ───────────────────────────────────────────────
+  const containerBg = pick(
+    [raw?.containerBg, raw?.outerBg, raw?.wrapperBg, raw?.sectionBg],
+    "#FFFFFF"
+  );
+
+  // ── Disabled state ───────────────────────────────────────────────────────────
+  const disabledBg        = pick([raw?.disabledBg,        raw?.disabledBackground], "#9CA3AF");
+  const disabledTextColor = pick([raw?.disabledTextColor, raw?.disabledColor],      "#E5E7EB");
+
+  // ── Checkout lines from Redux cart ──────────────────────────────────────────
   const checkoutLines = useMemo(
-    () =>
-      cartItems.map((item) => ({
-        id: item?.id,
-        variantId: item?.variantId,
-        quantity: item?.quantity,
-      })),
+    () => cartItems.map((item) => ({
+      id: item?.id,
+      variantId: item?.variantId,
+      quantity: item?.quantity,
+    })),
     [cartItems]
   );
 
@@ -141,10 +172,7 @@ export default function CheckoutButton({ section }) {
       return;
     }
     try {
-      // Pass no options — createShopifyCartCheckout uses async credentials internally
-      const checkoutUrl = await createShopifyCartCheckout({
-        items: checkoutLines,
-      });
+      const checkoutUrl = await createShopifyCartCheckout({ items: checkoutLines });
       if (checkoutUrl && navigation?.navigate) {
         navigation.navigate("CheckoutWebView", { url: checkoutUrl, title: "Checkout" });
       }
@@ -153,30 +181,28 @@ export default function CheckoutButton({ section }) {
     }
   };
 
-  const activeBg = hasCartItems ? bgColor : disabledBg;
-  const activeTextColor = hasCartItems ? textColor : disabledTextColor;
-
-  const textStyle = {
-    fontSize,
-    color: activeTextColor,
-    fontWeight,
-    fontStyle: italic ? "italic" : "normal",
-    letterSpacing,
-    textDecorationLine: underline ? "underline" : "none",
-    ...(fontFamily ? { fontFamily } : {}),
-  };
+  // Active vs disabled styling
+  const activeBg        = hasCartItems ? bgColor       : disabledBg;
+  const activeTextColor = hasCartItems ? textColor      : disabledTextColor;
+  const activeBorderClr = hasCartItems ? borderColorVal : disabledBg;
 
   const buttonStyle = {
     height,
     borderRadius,
     backgroundColor: activeBg,
     width: fullWidth ? "100%" : undefined,
-    ...(showBorder
-      ? {
-          borderWidth: borderWidthVal || 1,
-          borderColor: borderColorVal || bgColor,
-        }
-      : { borderWidth: 0 }),
+    borderWidth,
+    borderColor: showBorder ? activeBorderClr : undefined,
+  };
+
+  const textStyle = {
+    fontSize,
+    color: activeTextColor,
+    fontWeight,
+    fontStyle:          italic    ? "italic"    : "normal",
+    letterSpacing,
+    textDecorationLine: underline ? "underline" : "none",
+    ...(fontFamily ? { fontFamily } : {}),
   };
 
   return (
@@ -184,10 +210,12 @@ export default function CheckoutButton({ section }) {
       style={[
         styles.container,
         {
-          paddingTop: padT,
-          paddingRight: padR,
+          backgroundColor: containerBg,
+          paddingTop:    padT,
           paddingBottom: padB,
-          paddingLeft: padL,
+          paddingLeft:   padL,
+          paddingRight:  padR,
+          marginTop:     gap,
         },
       ]}
     >
@@ -195,6 +223,8 @@ export default function CheckoutButton({ section }) {
         style={[styles.button, buttonStyle]}
         activeOpacity={0.8}
         onPress={handleCheckout}
+        accessibilityRole="button"
+        accessibilityLabel={label}
       >
         <Text style={[styles.label, textStyle]}>{label}</Text>
       </TouchableOpacity>
@@ -217,8 +247,9 @@ const styles = StyleSheet.create({
     width: "100%",
   },
   button: {
-    alignItems: "center",
+    alignItems:     "center",
     justifyContent: "center",
+    width:          "100%",
   },
   label: {},
 });

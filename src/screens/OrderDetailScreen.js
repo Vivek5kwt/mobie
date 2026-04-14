@@ -36,7 +36,20 @@ const toNum = (v, fb = 0) => {
 
 const toStr = (v, fb = "") => {
   const r = unwrap(v, fb);
-  return r === null || r === undefined ? fb : String(r);
+  if (r === null || r === undefined) return fb;
+  const s = String(r).trim();
+  return s && s !== "undefined" && s !== "null" ? s : fb;
+};
+
+// Returns a border style object only when DSL explicitly provides a borderColor
+const dslBorder = (propsNode, defaultWidth = 1) => {
+  const color = toStr(
+    propsNode?.borderColor ?? propsNode?.cardBorderColor ?? propsNode?.strokeColor,
+    ""
+  );
+  if (!color) return {};
+  const width = toNum(propsNode?.borderWidth ?? propsNode?.strokeWidth, defaultWidth);
+  return { borderWidth: width, borderColor: color };
 };
 
 const getComponent = (section) => {
@@ -162,39 +175,53 @@ function OrderInfoSection({ section, order }) {
   const propsNode = section ? getProps(section) : {};
   const dslInfo = unwrap(propsNode?.orderInfo, {}) || {};
 
+  // ── Card styling — only from DSL, no hardcoded defaults ──────────────────
+  const cardBg     = toStr(propsNode?.bgColor ?? propsNode?.backgroundColor ?? propsNode?.cardBg, "#FFFFFF");
+  const cardRadius = toNum(propsNode?.borderRadius ?? propsNode?.radius ?? propsNode?.cornerRadius, 12);
+  const rowDividerColor = toStr(propsNode?.dividerColor ?? propsNode?.rowBorderColor, "#F3F4F6");
+  const labelColor = toStr(propsNode?.labelColor ?? propsNode?.subtitleColor, "#6B7280");
+  const valueColor = toStr(propsNode?.valueColor ?? propsNode?.textColor, "#111827");
+  const labelSize  = toNum(propsNode?.labelFontSize ?? propsNode?.fontSize, 13);
+  const valueSize  = toNum(propsNode?.valueFontSize ?? propsNode?.fontSize, 13);
+
   const info = {
-    orderDate: order?.orderDate || toStr(dslInfo.orderDate, ""),
-    orderNumber: order?.orderNumber || toStr(dslInfo.orderNumber, ""),
-    status: order?.status || toStr(dslInfo.status, ""),
-    deliveryMethod: order?.deliveryMethod || toStr(dslInfo.deliveryMethod, ""),
-    address: order?.address || toStr(dslInfo.address, ""),
-    arrival: order?.arrival || toStr(dslInfo.arrival, ""),
-    billing: order?.billing || toStr(dslInfo.billing, ""),
-    payment: order?.payment || toStr(dslInfo.payment, ""),
+    orderDate:      order?.orderDate      || toStr(dslInfo.orderDate,      ""),
+    orderNumber:    order?.orderNumber    || toStr(dslInfo.orderNumber,     ""),
+    status:         order?.status         || toStr(dslInfo.status,          ""),
+    deliveryMethod: order?.deliveryMethod || toStr(dslInfo.deliveryMethod,  ""),
+    address:        order?.address        || toStr(dslInfo.address,         ""),
+    arrival:        order?.arrival        || toStr(dslInfo.arrival,         ""),
+    billing:        order?.billing        || toStr(dslInfo.billing,         ""),
+    payment:        order?.payment        || toStr(dslInfo.payment,         ""),
   };
 
   const rows = [
-    { label: "Order date", value: info.orderDate },
-    { label: "Order number", value: info.orderNumber },
-    { label: "Status", value: info.status },
-    { label: "Delivery method", value: info.deliveryMethod },
+    { label: "Order date",       value: info.orderDate },
+    { label: "Order number",     value: info.orderNumber },
+    { label: "Status",           value: info.status },
+    { label: "Delivery method",  value: info.deliveryMethod },
     { label: "Delivery address", value: info.address },
-    { label: "Estimated arrival", value: info.arrival },
-    { label: "Billing details", value: info.billing },
-    { label: "Payment method", value: info.payment },
+    { label: "Estimated arrival",value: info.arrival },
+    { label: "Billing details",  value: info.billing },
+    { label: "Payment method",   value: info.payment },
   ].filter((r) => r.value);
 
   if (!rows.length) return null;
 
+  const border = dslBorder(propsNode);
+
   return (
-    <View style={styles.card}>
+    <View style={[styles.card, { backgroundColor: cardBg, borderRadius: cardRadius }, border]}>
       {rows.map((row, i) => (
         <View
           key={i}
-          style={[styles.infoRow, i < rows.length - 1 && styles.infoRowBorder]}
+          style={[
+            styles.infoRow,
+            i < rows.length - 1 && { borderBottomWidth: 1, borderBottomColor: rowDividerColor },
+          ]}
         >
-          <Text style={styles.infoLabel}>{row.label}</Text>
-          <Text style={styles.infoValue}>{row.value}</Text>
+          <Text style={[styles.infoLabel, { color: labelColor, fontSize: labelSize }]}>{row.label}</Text>
+          <Text style={[styles.infoValue, { color: valueColor, fontSize: valueSize }]}>{row.value}</Text>
         </View>
       ))}
     </View>
@@ -206,27 +233,51 @@ function OrderInfoSection({ section, order }) {
 function PriceInfoSection({ section, order }) {
   const propsNode = section ? getProps(section) : {};
 
+  // ── Card styling — only from DSL ─────────────────────────────────────────
+  const cardBg       = toStr(propsNode?.bgColor ?? propsNode?.backgroundColor ?? propsNode?.cardBg, "#FFFFFF");
+  const cardRadius   = toNum(propsNode?.borderRadius ?? propsNode?.radius, 12);
+  const dividerColor = toStr(propsNode?.dividerColor ?? propsNode?.rowBorderColor, "#F3F4F6");
+  const labelColor   = toStr(propsNode?.labelColor, "#374151");
+  const valueColor   = toStr(propsNode?.valueColor ?? propsNode?.textColor, "#111827");
+  const totalColor   = toStr(propsNode?.totalColor ?? propsNode?.boldColor, "#111827");
+  const rowFontSize  = toNum(propsNode?.fontSize, 14);
+  const totalSize    = toNum(propsNode?.totalFontSize ?? propsNode?.boldFontSize, 15);
+  const currSymbol   = toStr(propsNode?.currencySymbol ?? propsNode?.currency, "$");
+
   const delivery = order?.delivery !== undefined ? order.delivery : toNum(propsNode?.delivery, 0);
-  const tax = order?.tax !== undefined ? order.tax : toNum(propsNode?.tax, 0);
-  const total = order?.total !== undefined ? order.total : toNum(propsNode?.total, 0);
+  const tax      = order?.tax      !== undefined ? order.tax      : toNum(propsNode?.tax,      0);
+  const total    = order?.total    !== undefined ? order.total    : toNum(propsNode?.total,    0);
 
   const rows = [
-    { label: "Delivery", value: fmt(delivery), bold: false },
-    { label: "Tax", value: fmt(tax), bold: false },
-    { label: "Total", value: fmt(total), bold: true },
+    { label: "Delivery", value: fmt(delivery, currSymbol), bold: false },
+    { label: "Tax",      value: fmt(tax,      currSymbol), bold: false },
+    { label: "Total",    value: fmt(total,    currSymbol), bold: true  },
   ];
 
+  const border = dslBorder(propsNode);
+
   return (
-    <View style={[styles.card, styles.priceCard]}>
+    <View style={[styles.card, { backgroundColor: cardBg, borderRadius: cardRadius }, border]}>
       {rows.map((row, i) => (
         <View
           key={i}
-          style={[styles.priceRow, i < rows.length - 1 && styles.priceRowBorder]}
+          style={[
+            styles.priceRow,
+            i < rows.length - 1 && { borderBottomWidth: 1, borderBottomColor: dividerColor },
+          ]}
         >
-          <Text style={[styles.priceLabel, row.bold && styles.priceBold]}>
+          <Text style={[
+            styles.priceLabel,
+            { color: labelColor, fontSize: row.bold ? totalSize : rowFontSize },
+            row.bold && { fontWeight: "700", color: totalColor },
+          ]}>
             {row.label}
           </Text>
-          <Text style={[styles.priceValue, row.bold && styles.priceBold]}>
+          <Text style={[
+            styles.priceValue,
+            { color: valueColor, fontSize: row.bold ? totalSize : rowFontSize },
+            row.bold && { fontWeight: "700", color: totalColor },
+          ]}>
             {row.value}
           </Text>
         </View>
@@ -245,11 +296,11 @@ function CancelOrderSection({ section, navigation, order }) {
   const textStyle = raw.textStyle || {};
   const bg = raw.backgroundPadding || {};
 
-  const textColor = toStr(textStyle.color, "#FFFFFF");
-  const fontSize = Math.min(toNum(textStyle.fontSize, 14), 18);
-  const fontWeight = toStr(textStyle.fontWeight, "600");
-  const bgColor = toStr(bg.backgroundColor, "#0D9488");
-  const borderColor = toStr(bg.borderColor, "#0EA5A8");
+  const textColor   = toStr(textStyle.color,      "#FFFFFF");
+  const fontSize    = Math.min(toNum(textStyle.fontSize, 14), 18);
+  const fontWeight  = toStr(textStyle.fontWeight, "600");
+  const bgColor     = toStr(bg.backgroundColor,  "#0D9488");
+  const borderColor = toStr(bg.borderColor,       "");          // no border unless DSL provides one
   const borderRadius = Math.max(toNum(bg.borderRadius, 2) * 4, 8);
 
   const handleCancel = () => {
@@ -276,7 +327,11 @@ function CancelOrderSection({ section, navigation, order }) {
       <TouchableOpacity
         style={[
           styles.cancelButton,
-          { backgroundColor: bgColor, borderColor, borderRadius },
+          {
+            backgroundColor: bgColor,
+            borderRadius,
+            ...(borderColor ? { borderColor, borderWidth: 1 } : { borderWidth: 0 }),
+          },
         ]}
         onPress={handleCancel}
         activeOpacity={0.85}
@@ -292,9 +347,9 @@ function CancelOrderSection({ section, navigation, order }) {
 function OrderItemsSection({ section, items }) {
   const propsNode = section ? getProps(section) : {};
 
-  const bgColor = toStr(propsNode?.bgColor, "#FFFFFF");
-  const borderColor = toStr(propsNode?.borderColor, "#EAEAEA");
-  const radius = toNum(propsNode?.radius, 14);
+  const bgColor     = toStr(propsNode?.bgColor ?? propsNode?.backgroundColor ?? propsNode?.cardBg, "#FFFFFF");
+  const borderColor = toStr(propsNode?.borderColor ?? propsNode?.strokeColor, "");  // no border unless DSL provides
+  const radius      = toNum(propsNode?.radius ?? propsNode?.borderRadius ?? propsNode?.cornerRadius, 14);
   const titleColor = toStr(propsNode?.titleColor, "#000000");
   const priceColor = toStr(propsNode?.priceColor, "#000000");
   const titleFontSize = Math.min(toNum(propsNode?.titleFontSize, 14), 18);
@@ -315,12 +370,12 @@ function OrderItemsSection({ section, items }) {
             styles.itemCard,
             {
               backgroundColor: bgColor,
-              borderColor,
               borderRadius: radius,
               paddingTop: padTop,
               paddingLeft: padLeft,
               paddingRight: padRight,
               paddingBottom: padBottom,
+              ...(borderColor ? { borderWidth: 1, borderColor } : { borderWidth: 0 }),
             },
           ]}
         >
@@ -391,11 +446,7 @@ const styles = StyleSheet.create({
 
   // ── Card shared
   card: {
-    backgroundColor: "#FFFFFF",
-    borderRadius: 12,
     overflow: "hidden",
-    borderWidth: 1,
-    borderColor: "#E5E7EB",
   },
 
   // ── Order Info
@@ -407,38 +458,23 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     gap: 12,
   },
-  infoRowBorder: {
-    borderBottomWidth: 1,
-    borderBottomColor: "#F3F4F6",
-  },
   infoLabel: {
-    fontSize: 13,
-    color: "#6B7280",
     flex: 1,
     fontWeight: "400",
   },
   infoValue: {
-    fontSize: 13,
-    color: "#111827",
     fontWeight: "500",
     textAlign: "right",
     flex: 1.4,
   },
 
   // ── Price Info
-  priceCard: {
-    marginTop: 0,
-  },
   priceRow: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
     paddingHorizontal: 16,
     paddingVertical: 12,
-  },
-  priceRowBorder: {
-    borderBottomWidth: 1,
-    borderBottomColor: "#F3F4F6",
   },
   priceLabel: {
     fontSize: 14,
@@ -452,7 +488,6 @@ const styles = StyleSheet.create({
   },
   priceBold: {
     fontWeight: "700",
-    fontSize: 15,
   },
 
   // ── Cancel Button
@@ -463,7 +498,6 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     paddingVertical: 16,
-    borderWidth: 1,
   },
 
   // ── Order Items
@@ -472,7 +506,6 @@ const styles = StyleSheet.create({
   },
   itemCard: {
     flexDirection: "row",
-    borderWidth: 1,
     overflow: "hidden",
     gap: 12,
   },
