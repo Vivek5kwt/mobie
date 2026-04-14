@@ -128,15 +128,28 @@ export default function SocialMediaIcons({ section }) {
   const pl = toNumber(rawProps?.pl, 0);
   const align = (unwrapValue(rawProps?.align, "left") || "left").toLowerCase();
 
-  const titleText = unwrapValue(rawProps?.titleText, "Connect with us");
+  // ── Feature toggles — respect builder on/off switches ───────────────────────
+  const titleSettingsEnabled   = toBoolean(rawProps?.titleSettingsEnabled,   true);
+  const iconsSettingsEnabled   = toBoolean(rawProps?.iconsSettingsEnabled,   true);
+
+  const titleText = unwrapValue(rawProps?.titleText, "");
   const titleColor = unwrapValue(rawProps?.titleColor, "#111111");
   const titleFontSize = toNumber(rawProps?.titleFontSize, 14);
   const titleFontFamily = unwrapValue(rawProps?.titleFontFamily, undefined);
   const titleFontWeight = toBoolean(rawProps?.titleBold, false)
     ? "700"
-    : deriveWeight(rawProps?.titleFontWeight, "700");
+    : deriveWeight(rawProps?.titleFontWeight, "600");
   const titleFontStyle = toBoolean(rawProps?.titleItalic, false) ? "italic" : "normal";
   const titleDecoration = toBoolean(rawProps?.titleUnderline, false) ? "underline" : "none";
+  const titleStrikethrough = toBoolean(rawProps?.titleStrikethrough, false);
+  const titleDecorationLine = titleDecoration === "underline" && titleStrikethrough
+    ? "underline line-through"
+    : titleDecoration === "underline" ? "underline"
+    : titleStrikethrough ? "line-through"
+    : "none";
+
+  // Title is shown ONLY when the builder explicitly enables it AND there is text
+  const showTitle = titleSettingsEnabled && !!titleText;
 
   const iconSize = toNumber(rawProps?.iconSize, 28);
   const iconColor = unwrapValue(rawProps?.iconColor, "#FFFFFF");
@@ -182,7 +195,7 @@ export default function SocialMediaIcons({ section }) {
         containerStyle,
       ]}
     >
-      {titleText ? (
+      {showTitle && (
         <Text
           style={[
             styles.title,
@@ -192,7 +205,7 @@ export default function SocialMediaIcons({ section }) {
               fontSize: titleFontSize,
               fontWeight: titleFontWeight,
               fontStyle: titleFontStyle,
-              textDecorationLine: titleDecoration,
+              textDecorationLine: titleDecorationLine,
               fontFamily: titleFontFamily,
               textAlign: align,
             },
@@ -200,8 +213,9 @@ export default function SocialMediaIcons({ section }) {
         >
           {titleText}
         </Text>
-      ) : null}
+      )}
 
+      {iconsSettingsEnabled && (
       <View
         style={[
           styles.iconsRow,
@@ -253,6 +267,7 @@ export default function SocialMediaIcons({ section }) {
           );
         })}
       </View>
+      )}
     </View>
   );
 }

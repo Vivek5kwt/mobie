@@ -103,7 +103,7 @@ const resolveLogoSlotAlignmentStyle = (alignment, flexDirection = "column") => {
   return isRow ? { justifyContent: flexAlignment } : { alignItems: flexAlignment };
 };
 
-export default function Header({ section, showBack }) {
+export default function Header({ section, showBack, showNotification }) {
   const { openSideMenu, hasSideNav } = useSideMenu();
   const navigation = useNavigation();
   const canGoBack = navigation.canGoBack();
@@ -250,9 +250,11 @@ export default function Header({ section, showBack }) {
 
   // ── Notification / Bell ───────────────────────────────────────────────────
   const notificationProps = props?.notification?.properties || props?.notification || {};
-  const notificationVisible = defaultConfig?.showBell !== undefined
-    ? Boolean(defaultConfig.showBell)
-    : resolveBoolean(notificationProps?.visible, true);
+  const notificationVisible = showNotification === false
+    ? false
+    : defaultConfig?.showBell !== undefined
+      ? Boolean(defaultConfig.showBell)
+      : resolveBoolean(notificationProps?.visible, true);
   const notificationIconName = normalizeIconName(
     unwrapValue(notificationProps?.iconId, isStandalone ? (defaultConfig?.bellIcon ?? "bell") : "bell"),
   );

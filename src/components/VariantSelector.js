@@ -9,7 +9,7 @@ import {
 import FontAwesome from "react-native-vector-icons/FontAwesome";
 import FontAwesome6 from "react-native-vector-icons/FontAwesome6";
 
-// ─── DSL helpers ─────────────────────────────────────────────────────────────
+// ─── DSL helpers ──────────────────────────────────────────────────────────────
 
 const unwrapValue = (value, fallback = undefined) => {
   if (value === undefined || value === null) return fallback;
@@ -21,28 +21,63 @@ const unwrapValue = (value, fallback = undefined) => {
   return value;
 };
 
-const toString = (value, fallback = "") => {
+const toStr = (value, fallback = "") => {
   const r = unwrapValue(value, fallback);
-  return r === undefined || r === null ? fallback : String(r);
+  if (r === undefined || r === null) return fallback;
+  const s = String(r).trim();
+  return s && s !== "undefined" && s !== "null" ? s : fallback;
 };
 
-const toNumber = (value, fallback) => {
+const toNum = (value, fallback) => {
   const r = unwrapValue(value, undefined);
-  if (r === undefined || r === "") return fallback;
+  if (r === undefined || r === null || r === "") return fallback;
   if (typeof r === "number") return r;
   const p = parseFloat(r);
   return Number.isNaN(p) ? fallback : p;
 };
 
-const toBoolean = (value, fallback = true) => {
-  const r = unwrapValue(value, fallback);
+const toBool = (value, fallback = true) => {
+  const r = unwrapValue(value, undefined);
   if (r === undefined || r === null) return fallback;
   if (typeof r === "boolean") return r;
-  if (typeof r === "string") return ["true", "1", "yes", "y"].includes(r.toLowerCase());
-  return Boolean(r);
+  if (typeof r === "number") return r !== 0;
+  if (typeof r === "string") return ["true", "1", "yes", "y"].includes(r.trim().toLowerCase());
+  return fallback;
 };
 
-// ─── Color name → hex map ────────────────────────────────────────────────────
+// Pick first non-empty string from a list of raw DSL candidates
+const pick = (candidates, fallback = "") => {
+  for (const c of candidates) {
+    const v = toStr(c, "");
+    if (v) return v;
+  }
+  return fallback;
+};
+
+const pickNum = (candidates, fallback) => {
+  for (const c of candidates) {
+    const r = unwrapValue(c, undefined);
+    if (r === undefined || r === null || r === "") continue;
+    const n = typeof r === "number" ? r : parseFloat(String(r));
+    if (!Number.isNaN(n)) return n;
+  }
+  return fallback;
+};
+
+const resolveWeight = (value) => {
+  const v = unwrapValue(value, undefined);
+  if (!v && v !== 0) return undefined;
+  const w = String(v).toLowerCase().trim();
+  if (w === "bold")                        return "700";
+  if (w === "semibold" || w === "semi bold") return "600";
+  if (w === "medium")                      return "500";
+  if (w === "regular" || w === "normal")   return "400";
+  if (w === "light")                       return "300";
+  if (/^\d+$/.test(w))                     return w;
+  return undefined;
+};
+
+// ─── Color helpers ────────────────────────────────────────────────────────────
 const COLOR_MAP = {
   red: "#EF4444", blue: "#3B82F6", green: "#22C55E", yellow: "#EAB308",
   orange: "#F97316", purple: "#A855F7", pink: "#EC4899", black: "#111827",
@@ -64,53 +99,65 @@ const resolveColor = (value) => {
 const isColorGroup = (name, values) => {
   const n = (name || "").toLowerCase();
   if (["color", "colour", "colors", "colours"].includes(n)) return true;
-  // If at least half the values look like colors, treat as color group
   if (values.length === 0) return false;
   const colorCount = values.filter((v) => resolveColor(v)).length;
   return colorCount >= Math.ceil(values.length / 2);
 };
 
-// ─── Normalize feature badges from DSL ───────────────────────────────────────
-const normalizeFeatures = (raw) => {
-  if (!raw) return [];
-  let src = raw;
-  if (raw?.value) src = raw.value;
-  else if (raw?.properties?.value) src = raw.properties.value;
-
-  const mapItem = (item) => {
-    const p = item?.properties || item || {};
-    const icon  = toString(p?.icon ?? p?.iconName ?? p?.fa, "");
-    const label = toString(p?.label ?? p?.text ?? p?.title ?? p?.name, "");
-    const iconColor = toString(p?.iconColor ?? p?.color, "");
-    if (!label) return null;
-    return { icon, label, iconColor };
-  };
-
-  if (Array.isArray(src)) return src.map(mapItem).filter(Boolean);
-  if (src && typeof src === "object") return Object.values(src).map(mapItem).filter(Boolean);
-  return [];
-};
-
-// ─── Group flat variantOptions by name ───────────────────────────────────────
+// ─── Group variant options — handles BOTH Shopify formats:
+//   Format A (options): [{ name: "Color", values: ["Red","Blue"] }]
+//   Format B (selectedOptions): [{ name: "Color", value: "Red" }, { name: "Color", value: "Blue" }]
 const groupVariantOptions = (variantOptions) => {
   if (!Array.isArray(variantOptions)) return [];
   const map = new Map();
+
   for (const opt of variantOptions) {
-    const name = toString(opt?.name, "Option");
+    const name = toStr(opt?.name, "Option");
     if (!map.has(name)) map.set(name, []);
-    map.get(name).push(toString(opt?.value, ""));
+
+    if (Array.isArray(opt?.values)) {
+      // Format A — Shopify product.options: { name, values: [...] }
+      for (const v of opt.values) {
+        const s = toStr(v, "");
+        if (s && !map.get(name).includes(s)) map.get(name).push(s);
+      }
+    } else {
+      // Format B — selectedOptions: { name, value }
+      const s = toStr(opt?.value, "");
+      if (s && !map.get(name).includes(s)) map.get(name).push(s);
+    }
   }
-  return Array.from(map.entries()).map(([name, values]) => ({ name, values }));
+
+  return Array.from(map.entries())
+    .filter(([, values]) => values.length > 0)
+    .map(([name, values]) => ({ name, values }));
 };
 
-// ─── Default feature badges (shown only when DSL has none) ───────────────────
+// ─── Feature badges ───────────────────────────────────────────────────────────
+const normalizeFeatures = (src) => {
+  if (!src) return [];
+  const arr = Array.isArray(src)
+    ? src
+    : Array.isArray(src?.value) ? src.value
+    : Array.isArray(src?.items) ? src.items
+    : typeof src === "object" ? Object.values(src) : [];
+  return arr.map((item) => {
+    const p = item?.properties || item || {};
+    const icon  = toStr(p?.icon ?? p?.iconName, "");
+    const label = toStr(p?.label ?? p?.text ?? p?.title ?? p?.name, "");
+    const iconColor = toStr(p?.iconColor ?? p?.color, "");
+    if (!label) return null;
+    return { icon, label, iconColor };
+  }).filter(Boolean);
+};
+
 const DEFAULT_FEATURES = [
-  { icon: "lock",    fa: 5, label: "Secured",       iconColor: "#6B7280" },
-  { icon: "truck",   fa: 5, label: "Free Shipping",  iconColor: "#6B7280" },
-  { icon: "rotate-left", fa: 6, label: "Easy Returns", iconColor: "#6B7280" },
+  { icon: "lock",        label: "Secured",       iconColor: "#6B7280" },
+  { icon: "truck",       label: "Free Shipping",  iconColor: "#6B7280" },
+  { icon: "rotate-left", label: "Easy Returns",   iconColor: "#6B7280" },
 ];
 
-// ─── Component ───────────────────────────────────────────────────────────────
+// ─── Component ────────────────────────────────────────────────────────────────
 
 export default function VariantSelector({ section }) {
   const propsNode =
@@ -119,115 +166,125 @@ export default function VariantSelector({ section }) {
     section?.props ||
     {};
 
-  const raw        = unwrapValue(propsNode?.raw, {});
-  const bgCss      = unwrapValue(propsNode?.backgroundAndPadding ?? propsNode?.background, {});
-  const groupCss   = unwrapValue(propsNode?.groupLabel ?? propsNode?.label, {});
-  const swatchCss  = unwrapValue(propsNode?.swatch ?? propsNode?.colorSwatch, {});
-  const chipCss    = unwrapValue(propsNode?.chip ?? propsNode?.sizeChip, {});
-  const featureCss = unwrapValue(propsNode?.featureStyle ?? propsNode?.badge, {});
-  const visibility = unwrapValue(propsNode?.visibility, {});
+  // raw holds ALL style + data props for this component
+  const raw = unwrapValue(propsNode?.raw, {}) || {};
+
+  // ── Visibility (inside raw.visibility) ────────────────────────────────────
+  const vis = (raw?.visibility && typeof raw.visibility === "object") ? raw.visibility : {};
+  const showSelectors = toBool(vis?.selectors ?? vis?.variants ?? vis?.options, true);
+  const showFeatures  = toBool(vis?.features  ?? vis?.badges,                  false);
 
   // ── Variant groups ─────────────────────────────────────────────────────────
-  const groups = useMemo(
+  const allGroups = useMemo(
     () => groupVariantOptions(raw?.variantOptions),
     [raw?.variantOptions]
   );
 
-  // Selected value per group
+  // Hide Shopify's synthetic "Title: Default Title" placeholder — not a real variant
+  const groups = useMemo(
+    () => allGroups.filter(g =>
+      !(g.name === "Title" && g.values.length === 1 && g.values[0] === "Default Title")
+    ),
+    [allGroups]
+  );
+
   const [selected, setSelected] = useState(() => {
     const init = {};
-    for (const g of groupVariantOptions(raw?.variantOptions ?? [])) {
-      init[g.name] = null;
-    }
+    for (const g of groups) init[g.name] = null;
     return init;
   });
 
   // ── Feature badges ─────────────────────────────────────────────────────────
   const dslFeatures = useMemo(
-    () =>
-      normalizeFeatures(
-        propsNode?.features ??
-        propsNode?.badges ??
-        propsNode?.trustBadges ??
-        raw?.features ??
-        raw?.badges
-      ),
-    [propsNode?.features, propsNode?.badges, propsNode?.trustBadges, raw?.features, raw?.badges]
+    () => normalizeFeatures(propsNode?.features ?? propsNode?.badges ?? raw?.features ?? raw?.badges),
+    [propsNode?.features, propsNode?.badges, raw?.features, raw?.badges]
   );
-
   const features = dslFeatures.length > 0 ? dslFeatures : DEFAULT_FEATURES;
-
-  // ── Visibility ─────────────────────────────────────────────────────────────
-  const showVariants = toBoolean(visibility?.variants ?? visibility?.options, true);
-  const showFeatures = toBoolean(visibility?.features ?? visibility?.badges, true);
 
   if (!groups.length && !showFeatures) return null;
 
-  // ── Background / padding ───────────────────────────────────────────────────
-  const resolvedPL = (() => { const v = toNumber(bgCss?.paddingLeft, 16); return v === 0 ? 16 : v; })();
-  const resolvedPR = (() => { const v = toNumber(bgCss?.paddingRight, 16); return v === 0 ? 16 : v; })();
-  const containerPad = {
-    paddingTop:    toNumber(bgCss?.paddingTop, 12),
-    paddingBottom: toNumber(bgCss?.paddingBottom, 12),
-    paddingLeft:   resolvedPL,
-    paddingRight:  resolvedPR,
-    backgroundColor: toString(bgCss?.bgColor, "#FFFFFF"),
-    borderRadius: toNumber(bgCss?.cornerRadius, 0),
-    borderWidth: bgCss?.borderLine ? 1 : 0,
-    borderColor: toString(bgCss?.borderColor, "#E5E7EB"),
-  };
+  // ── Container / background ─────────────────────────────────────────────────
+  const containerBg  = pick([raw?.backgroundColor, raw?.bgColor], "#FFFFFF");
+  const padTop       = pickNum([raw?.paddingTop],    20);
+  const padLeft      = pickNum([raw?.paddingLeft],   20);
+  const padRight     = pickNum([raw?.paddingRight],  20);
+  const padBottom    = pickNum([raw?.paddingBottom], 20);
 
-  // ── Group label styles ─────────────────────────────────────────────────────
-  const labelFontSize   = toNumber(groupCss?.fontSize, 13);
-  const labelColor      = toString(groupCss?.color, "#111827");
-  const labelFontWeight = toString(groupCss?.fontWeight, "600");
-  const labelMB         = toNumber(groupCss?.marginBottom, 8);
+  // ── Group label ────────────────────────────────────────────────────────────
+  const labelColor      = pick([raw?.titleColor],      "#111111");
+  const labelFontSize   = pickNum([raw?.titleFontsize,  raw?.titleFontSize],  14);
+  const labelFontFamily = pick([raw?.titleFontfamily, raw?.titleFontFamily], "Inter");
+  const labelFontWeight = resolveWeight(raw?.titleFontWeight ?? raw?.titleFontweight) || "600";
 
-  // ── Swatch styles ──────────────────────────────────────────────────────────
-  const swatchSize         = toNumber(swatchCss?.size, 30);
-  const swatchBorderRadius = toNumber(swatchCss?.borderRadius, 999);
-  const swatchGap          = toNumber(swatchCss?.gap, 10);
-  const swatchSelectedBorder = toString(swatchCss?.selectedBorderColor, "#111827");
-  const swatchSelectedBorderWidth = toNumber(swatchCss?.selectedBorderWidth, 2);
-  const swatchBorderColor  = toString(swatchCss?.borderColor, "#E5E7EB");
+  // ── Chip (text selector) styles ────────────────────────────────────────────
+  const chipFontSize   = pickNum([raw?.textFontsize, raw?.textFontSize],   12);
+  const chipFontFamily = pick([raw?.textFontfamily, raw?.textFontFamily],  "Inter");
+  const chipFontWeight = resolveWeight(raw?.textFontWeight ?? raw?.textFontweight) || "500";
+  const chipRadius     = pickNum([raw?.buttonRadius, raw?.boxBorderRadius], 8);
+  const chipPadH       = pickNum([raw?.boxPaddingleft, raw?.boxPaddingLeft], 14);
+  const chipPadV       = pickNum([raw?.boxPaddingtop,  raw?.boxPaddingTop],  8);
 
-  // ── Chip styles ────────────────────────────────────────────────────────────
-  const chipFontSize       = toNumber(chipCss?.fontSize, 12);
-  const chipBorderRadius   = toNumber(chipCss?.borderRadius, 8);
-  const chipGap            = toNumber(chipCss?.gap, 8);
-  const chipPH             = toNumber(chipCss?.paddingH, 14);
-  const chipPV             = toNumber(chipCss?.paddingV, 7);
-  const chipSelectedBg     = toString(chipCss?.selectedBg, "#FECDD3");
-  const chipSelectedColor  = toString(chipCss?.selectedColor, "#111827");
-  const chipSelectedBorder = toString(chipCss?.selectedBorderColor, "#F9A8D4");
-  const chipUnselectedBg   = toString(chipCss?.unselectedBg, "#FFFFFF");
-  const chipUnselectedColor= toString(chipCss?.unselectedColor, "#6B7280");
-  const chipBorderColor    = toString(chipCss?.borderColor, "#E5E7EB");
-  const chipBorderWidth    = toNumber(chipCss?.borderWidth, 1);
+  // Selected state
+  const selBg     = pick([raw?.bgSelectedcolor,    raw?.bgSelectedColor],    "#505050");
+  const selText   = pick([raw?.selectedcolor,      raw?.selectedColor],      "#FFFFFF");
+  const selBorder = pick([
+    raw?.selectorborderSelectedColor,
+    raw?.borderSelectedColor,
+  ], "#000000");
+
+  // Unselected state
+  const unselBg     = pick([raw?.bgUnselectedColor],                                    "#FFFFFF");
+  const unselText   = pick([raw?.unselectedcolor,    raw?.unselectedColor],              "#6B7280");
+  const unselBorder = pick([
+    raw?.selectorborderUnselectedColor,
+    raw?.borderUnselectedColor,
+  ], "#C8C8C8");
+
+  // Sold-out state
+  const soldOutText   = pick([raw?.soldOutColor,   raw?.soldOutcolor],   "#9CA3AF");
+  const soldOutBg     = pick([raw?.bgSoldOutcolor, raw?.bgSoldOutColor], "#F3F4F6");
+  const soldOutBorder = pick([
+    raw?.selectorborderSoldOutColor,
+    raw?.borderSoldOutColor,
+  ], "#D1D5DB");
+
+  // ── Swatch (color selector) styles ────────────────────────────────────────
+  const swatchSize   = 30;
+  const swatchRadius = 999;  // always circular
 
   // ── Feature badge styles ───────────────────────────────────────────────────
-  const featureIconSize    = toNumber(featureCss?.iconSize, 18);
-  const featureIconColor   = toString(featureCss?.iconColor, "#6B7280");
-  const featureFontSize    = toNumber(featureCss?.fontSize, 11);
-  const featureFontColor   = toString(featureCss?.color, "#6B7280");
-  const featureFontWeight  = toString(featureCss?.fontWeight, "500");
-  const featureDividerColor= toString(featureCss?.dividerColor, "#E5E7EB");
+  const featureIconSize  = pickNum([raw?.iconSize],   18);
+  const featureIconColor = pick([raw?.iconColor],     "#6B7280");
+  const featureFontSize  = 11;
+  const featureFontColor = "#6B7280";
+  const dividerColor     = "#E5E7EB";
 
   return (
-    <View style={[styles.container, containerPad]}>
-
-      {/* ── Variant groups ─────────────────────────────────────────────────── */}
-      {showVariants && groups.map((group) => {
+    <View
+      style={[
+        styles.container,
+        {
+          backgroundColor: containerBg,
+          paddingTop:    padTop,
+          paddingLeft:   padLeft,
+          paddingRight:  padRight,
+          paddingBottom: padBottom,
+        },
+      ]}
+    >
+      {/* ── Variant groups ──────────────────────────────────────────────────── */}
+      {showSelectors && groups.map((group) => {
         const isColor = isColorGroup(group.name, group.values);
         return (
           <View key={group.name} style={styles.group}>
             {/* Group label */}
             <Text
               style={{
-                fontSize:   labelFontSize,
-                color:      labelColor,
-                fontWeight: labelFontWeight,
-                marginBottom: labelMB,
+                fontSize:    labelFontSize,
+                color:       labelColor,
+                fontWeight:  labelFontWeight,
+                fontFamily:  labelFontFamily || undefined,
+                marginBottom: 10,
               }}
             >
               {group.name}
@@ -238,11 +295,11 @@ export default function VariantSelector({ section }) {
               <ScrollView
                 horizontal
                 showsHorizontalScrollIndicator={false}
-                contentContainerStyle={[styles.row, { gap: swatchGap }]}
+                contentContainerStyle={[styles.row, { gap: 10 }]}
               >
                 {group.values.map((val) => {
                   const hex = resolveColor(val) || "#E5E7EB";
-                  const isSelected = selected[group.name] === val;
+                  const isSel = selected[group.name] === val;
                   return (
                     <TouchableOpacity
                       key={val}
@@ -250,22 +307,18 @@ export default function VariantSelector({ section }) {
                       onPress={() =>
                         setSelected((prev) => ({
                           ...prev,
-                          [group.name]: isSelected ? null : val,
+                          [group.name]: isSel ? null : val,
                         }))
                       }
                       style={[
                         styles.swatchWrap,
-                        isSelected && {
-                          borderColor: swatchSelectedBorder,
-                          borderWidth: swatchSelectedBorderWidth,
-                        },
                         {
-                          width:        swatchSize + (isSelected ? 6 : 4),
-                          height:       swatchSize + (isSelected ? 6 : 4),
-                          borderRadius: swatchBorderRadius,
-                          borderColor:  isSelected ? swatchSelectedBorder : swatchBorderColor,
-                          borderWidth:  isSelected ? swatchSelectedBorderWidth : 1,
-                          padding:      isSelected ? 2 : 2,
+                          width:        swatchSize + 6,
+                          height:       swatchSize + 6,
+                          borderRadius: swatchRadius,
+                          borderColor:  isSel ? selBorder : "transparent",
+                          borderWidth:  isSel ? 2 : 2,
+                          padding:      2,
                         },
                       ]}
                       accessibilityRole="button"
@@ -273,10 +326,10 @@ export default function VariantSelector({ section }) {
                     >
                       <View
                         style={{
-                          flex:         1,
-                          borderRadius: swatchBorderRadius - 2,
+                          flex:            1,
+                          borderRadius:    swatchRadius,
                           backgroundColor: hex,
-                          borderWidth: hex.toLowerCase() === "#ffffff" || hex.toLowerCase() === "white" ? 1 : 0,
+                          borderWidth: hex.toLowerCase() === "#ffffff" ? 1 : 0,
                           borderColor: "#E5E7EB",
                         }}
                       />
@@ -289,10 +342,10 @@ export default function VariantSelector({ section }) {
               <ScrollView
                 horizontal
                 showsHorizontalScrollIndicator={false}
-                contentContainerStyle={[styles.row, { gap: chipGap }]}
+                contentContainerStyle={[styles.row, { gap: 8 }]}
               >
                 {group.values.map((val) => {
-                  const isSelected = selected[group.name] === val;
+                  const isSel = selected[group.name] === val;
                   return (
                     <TouchableOpacity
                       key={val}
@@ -300,18 +353,18 @@ export default function VariantSelector({ section }) {
                       onPress={() =>
                         setSelected((prev) => ({
                           ...prev,
-                          [group.name]: isSelected ? null : val,
+                          [group.name]: isSel ? null : val,
                         }))
                       }
                       style={[
                         styles.chip,
                         {
-                          paddingHorizontal: chipPH,
-                          paddingVertical:   chipPV,
-                          borderRadius:      chipBorderRadius,
-                          backgroundColor:   isSelected ? chipSelectedBg   : chipUnselectedBg,
-                          borderColor:       isSelected ? chipSelectedBorder : chipBorderColor,
-                          borderWidth:       chipBorderWidth,
+                          paddingHorizontal: Math.max(chipPadH, 10),
+                          paddingVertical:   Math.max(chipPadV, 7),
+                          borderRadius:      chipRadius,
+                          backgroundColor:   isSel ? selBg    : unselBg,
+                          borderColor:       isSel ? selBorder : unselBorder,
+                          borderWidth:       1,
                         },
                       ]}
                       accessibilityRole="button"
@@ -320,8 +373,9 @@ export default function VariantSelector({ section }) {
                       <Text
                         style={{
                           fontSize:   chipFontSize,
-                          fontWeight: "500",
-                          color:      isSelected ? chipSelectedColor : chipUnselectedColor,
+                          fontWeight: chipFontWeight,
+                          fontFamily: chipFontFamily || undefined,
+                          color:      isSel ? selText : unselText,
                         }}
                       >
                         {val}
@@ -335,12 +389,15 @@ export default function VariantSelector({ section }) {
         );
       })}
 
-      {/* ── Feature badges ─────────────────────────────────────────────────── */}
+      {/* ── Feature badges ──────────────────────────────────────────────────── */}
       {showFeatures && features.length > 0 && (
         <View
           style={[
             styles.featuresRow,
-            { borderTopColor: featureDividerColor, marginTop: showVariants && groups.length ? 14 : 0 },
+            {
+              borderTopColor: dividerColor,
+              marginTop: showSelectors && groups.length > 0 ? 14 : 0,
+            },
           ]}
         >
           {features.map((feat, idx) => (
@@ -353,18 +410,18 @@ export default function VariantSelector({ section }) {
                 />
                 <Text
                   style={{
-                    fontSize:   featureFontSize,
-                    color:      featureFontColor,
-                    fontWeight: featureFontWeight,
-                    marginTop:  4,
-                    textAlign:  "center",
+                    fontSize:  featureFontSize,
+                    color:     featureFontColor,
+                    fontWeight: "500",
+                    marginTop: 4,
+                    textAlign: "center",
                   }}
                 >
                   {feat.label}
                 </Text>
               </View>
               {idx < features.length - 1 && (
-                <View style={[styles.featureDivider, { backgroundColor: featureDividerColor }]} />
+                <View style={[styles.featureDivider, { backgroundColor: dividerColor }]} />
               )}
             </React.Fragment>
           ))}
@@ -374,17 +431,12 @@ export default function VariantSelector({ section }) {
   );
 }
 
-// ─── Icon renderer: tries FontAwesome6 then FontAwesome ───────────────────────
+// ─── Icon renderer ────────────────────────────────────────────────────────────
 function FeatureIcon({ icon, size, color }) {
   if (!icon) return <FontAwesome6 name="circle-dot" size={size} color={color} />;
-
-  const fa5Icons = ["lock","truck","undo","refresh","check","star","heart","shield","home","user","tag"];
-  const useFa5 = fa5Icons.includes(icon);
-
+  const fa5Icons = ["lock", "truck", "undo", "refresh", "check", "star", "heart", "shield", "home", "user", "tag"];
   try {
-    if (useFa5) {
-      return <FontAwesome name={icon} size={size} color={color} />;
-    }
+    if (fa5Icons.includes(icon)) return <FontAwesome name={icon} size={size} color={color} />;
     return <FontAwesome6 name={icon} size={size} color={color} />;
   } catch {
     return <FontAwesome name="check" size={size} color={color} />;
@@ -397,24 +449,21 @@ const styles = StyleSheet.create({
     backgroundColor: "#FFFFFF",
   },
   group: {
-    marginBottom: 14,
+    marginBottom: 16,
   },
   row: {
     flexDirection: "row",
     alignItems: "center",
+    flexWrap: "nowrap",
   },
-  // ── Color swatch ──────────────────────────────────────────────────────────
   swatchWrap: {
     alignItems: "center",
     justifyContent: "center",
-    padding: 2,
   },
-  // ── Size chip ─────────────────────────────────────────────────────────────
   chip: {
     alignItems: "center",
     justifyContent: "center",
   },
-  // ── Feature badges ────────────────────────────────────────────────────────
   featuresRow: {
     flexDirection: "row",
     alignItems: "flex-start",
