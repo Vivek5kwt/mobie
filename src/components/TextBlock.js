@@ -2,6 +2,7 @@ import React from "react";
 import { StyleSheet, Text, View } from "react-native";
 import FontAwesome from "react-native-vector-icons/FontAwesome";
 import { convertStyles } from "../utils/convertStyles";
+import { getTypography } from "../services/typographyService";
 
 // ── DSL helpers ────────────────────────────────────────────────────────────────
 
@@ -198,8 +199,20 @@ export default function TextBlock({ section }) {
   const headlineAttributes = rawProps?.headlineAttributes?.properties || rawProps?.headlineAttributes || {};
   const subtextAttributes  = rawProps?.subtextAttributes?.properties  || rawProps?.subtextAttributes  || {};
 
+  // Global typography fonts (set by dslHandler after every DSL fetch).
+  // Per-element fontFamily from the DSL attributes takes priority; global
+  // font is used only when no per-element override is present.
+  const typography = getTypography();
+
   const headlineStyle = applyTextAttributes(stripTextCss(convertStyles(layoutCss.headline || {})), headlineAttributes);
+  if (!headlineStyle.fontFamily && typography.headlineFontFamily) {
+    headlineStyle.fontFamily = typography.headlineFontFamily;
+  }
+
   const subtextStyle  = applyTextAttributes(stripTextCss(convertStyles(layoutCss.subtext  || {})), subtextAttributes);
+  if (!subtextStyle.fontFamily && typography.subtextFontFamily) {
+    subtextStyle.fontFamily = typography.subtextFontFamily;
+  }
 
   const headtextAlign     = asStr(rawProps?.headtextAlign, "");
   const subtextAlign      = asStr(rawProps?.subtextAlign,  "");

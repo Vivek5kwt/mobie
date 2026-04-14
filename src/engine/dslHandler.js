@@ -2,6 +2,7 @@ import client from "../apollo/client";
 import LAYOUT_VERSION_QUERY from "../graphql/queries/layoutVersionQuery";
 import authLayoutFallback from "../data/authLayoutFallback";
 import { resolveAppId } from "../utils/appId";
+import { setTypography } from "../services/typographyService";
 
 const normalizeName = (value) =>
   value
@@ -271,6 +272,10 @@ export async function fetchLiveDSL(appId, pageName) {
     const finalDsl = injectDefaultSectionsIfNeeded(dslWithDefaults, pageName);
 
     const versionNumber = latestVersion?.version_number ?? null;
+
+    // Cache global font families so every TextBlock can pick them up without
+    // needing a React context (same pattern as headerDefaultService).
+    setTypography(finalDsl);
 
     console.log(`✅ LIVE DATA FETCHED - Version ${latestVersion.version_number}`);
     console.log(`📊 Sections count: ${finalDsl?.sections?.length || 0}`);
