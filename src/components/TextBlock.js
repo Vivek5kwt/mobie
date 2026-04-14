@@ -1,12 +1,16 @@
 import React from "react";
 import { StyleSheet, Text, View } from "react-native";
+import FontAwesome from "react-native-vector-icons/FontAwesome";
 import { convertStyles } from "../utils/convertStyles";
+
+// ── DSL helpers ────────────────────────────────────────────────────────────────
 
 const unwrapValue = (value, fallback) => {
   if (value === undefined || value === null) return fallback;
   if (typeof value === "object") {
     if (value.value !== undefined) return value.value;
     if (value.const !== undefined) return value.const;
+    if (value.properties) return unwrapValue(value.properties, fallback);
   }
   return value;
 };
@@ -15,9 +19,9 @@ const asBoolean = (value, fallback = true) => {
   const resolved = unwrapValue(value, fallback);
   if (typeof resolved === "boolean") return resolved;
   if (typeof resolved === "string") {
-    const lowered = resolved.trim().toLowerCase();
-    if (["true", "1", "yes", "y"].includes(lowered)) return true;
-    if (["false", "0", "no", "n"].includes(lowered)) return false;
+    const l = resolved.trim().toLowerCase();
+    if (["true", "1", "yes", "y"].includes(l)) return true;
+    if (["false", "0", "no", "n"].includes(l)) return false;
   }
   if (typeof resolved === "number") return resolved !== 0;
   return fallback;
@@ -29,6 +33,13 @@ const asNumber = (value, fallback = undefined) => {
   if (typeof resolved === "number") return resolved;
   const parsed = parseFloat(resolved);
   return Number.isNaN(parsed) ? fallback : parsed;
+};
+
+const asStr = (value, fallback = "") => {
+  const resolved = unwrapValue(value, fallback);
+  if (resolved === undefined || resolved === null) return fallback;
+  const s = String(resolved).trim();
+  return s && s !== "undefined" && s !== "null" ? s : fallback;
 };
 
 const parsePx = (v) => {
@@ -52,16 +63,25 @@ const resolveWeight = (weightStr) => {
   return undefined;
 };
 
-// Strip web-only / layout-breaking CSS props before applying to RN Text elements.
-// e.g. maxWidth:"0%" collapses text to zero width; overflow/whiteSpace are web-only.
+// Detect if a string is an emoji / non-ASCII character (not usable as FA icon name)
+// Returns true if the string contains any character outside basic ASCII printable range
+const containsEmoji = (str) => {
+  if (!str) return false;
+  return /[^\x00-\x7E]/.test(str);
+};
+
+// Normalise a FontAwesome icon name: strip "fa-" prefix and whitespace
+const normaliseFaName = (raw) => {
+  if (!raw) return "";
+  return String(raw).trim().replace(/^fa-/, "").toLowerCase();
+};
+
+// Strip web-only CSS props before applying to RN Text
 const stripTextCss = (style) => {
   if (!style) return {};
   const {
-    maxWidth, minWidth,
-    overflow, whiteSpace, textOverflow,
-    numberOfLines,
-    display,
-    ...rest
+    maxWidth, minWidth, overflow, whiteSpace,
+    textOverflow, numberOfLines, display, ...rest
   } = style;
   return rest;
 };
@@ -76,7 +96,6 @@ const applyTextAttributes = (baseStyle, attributes) => {
   const color = unwrapValue(attrs.color, undefined);
   if (color) next.color = color;
 
-  // Read weight string first ("Bold", "Regular", etc.), fall back to bold boolean
   const weightAttr = resolveWeight(unwrapValue(attrs.weight, undefined));
   if (weightAttr) {
     next.fontWeight = weightAttr;
@@ -90,13 +109,9 @@ const applyTextAttributes = (baseStyle, attributes) => {
   const underline = asBoolean(attrs.underline, undefined);
   const strikethrough = asBoolean(attrs.strikethrough, undefined);
   if (underline || strikethrough) {
-    if (underline && strikethrough) {
-      next.textDecorationLine = "underline line-through";
-    } else if (underline) {
-      next.textDecorationLine = "underline";
-    } else {
-      next.textDecorationLine = "line-through";
-    }
+    if (underline && strikethrough) next.textDecorationLine = "underline line-through";
+    else if (underline) next.textDecorationLine = "underline";
+    else next.textDecorationLine = "line-through";
   }
 
   const fontFamily = unwrapValue(attrs.fontFamily, undefined);
@@ -105,6 +120,8 @@ const applyTextAttributes = (baseStyle, attributes) => {
   return next;
 };
 
+// ── Component ──────────────────────────────────────────────────────────────────
+
 export default function TextBlock({ section }) {
   const rawProps =
     section?.props ||
@@ -112,140 +129,147 @@ export default function TextBlock({ section }) {
     section?.properties?.props ||
     {};
 
-  const layoutCss = rawProps?.layout?.properties?.css || rawProps?.layout?.css || {};
-  const iconCfg = rawProps?.icon?.properties || rawProps?.icon || {};
-  const styleCfg = rawProps?.style?.properties || rawProps?.style || {};
-  const alignmentCfg =
-    rawProps?.alignmentAndPadding?.properties || rawProps?.alignmentAndPadding || {};
+  const layoutCss     = rawProps?.layout?.properties?.css  || rawProps?.layout?.css  || {};
+  const iconCfg       = rawProps?.icon?.properties         || rawProps?.icon         || {};
+  const styleCfg      = rawProps?.style?.properties        || rawProps?.style        || {};
+  const alignmentCfg  = rawProps?.alignmentAndPadding?.properties || rawProps?.alignmentAndPadding || {};
+  const paddingRaw    = alignmentCfg?.paddingRaw?.properties || alignmentCfg?.paddingRaw || {};
 
-  const showIcon = asBoolean(rawProps?.showIcon, false);
-  const showHeadline = asBoolean(rawProps?.showHeadline, true);
-  const showSubtext = asBoolean(rawProps?.showSubtext, true);
+  // ── Visibility ─────────────────────────────────────────────────────────────
+  const showHeadline  = asBoolean(rawProps?.showHeadline, true);
+  const showSubtext   = asBoolean(rawProps?.showSubtext,  true);
+  // showIcon only activates when DSL explicitly enables it AND provides a valid FA icon name
+  const showIconDsl   = asBoolean(rawProps?.showIcon, false);
 
-  const headline = unwrapValue(rawProps?.headline, "");
-  const subtext = unwrapValue(rawProps?.subtext, "");
+  // ── Text content ───────────────────────────────────────────────────────────
+  const headline = asStr(rawProps?.headline, "");
+  const subtext  = asStr(rawProps?.subtext,  "");
 
-  const paddingRaw = alignmentCfg?.paddingRaw?.properties || alignmentCfg?.paddingRaw || {};
+  // ── Icon — emoji is NEVER rendered; only valid FontAwesome icon names ───────
+  // Builder may send: iconCfg.emoji (emoji char), iconCfg.icon / iconCfg.iconName (FA name)
+  const rawIconValue = asStr(
+    iconCfg?.icon ?? iconCfg?.iconName ?? iconCfg?.name ?? iconCfg?.emoji,
+    ""
+  );
+  // If the value is an emoji character, discard it (no emoji on mobile)
+  const faIconName   = containsEmoji(rawIconValue) ? "" : normaliseFaName(rawIconValue);
+  const iconColor    = asStr(iconCfg?.color, "#FFFFFF");
+  const iconBgColor  = asStr(iconCfg?.bgColor ?? iconCfg?.backgroundColor, "#16A34A");
+  const iconSize     = asNumber(iconCfg?.size ?? iconCfg?.width, 20);
+  const iconFaSize   = asNumber(iconCfg?.iconSize ?? iconCfg?.faSize, 11);
+  const iconRadius   = asNumber(iconCfg?.borderRadius ?? iconCfg?.corner, 999);
 
+  // Only render icon when: DSL says show + a valid FA name exists (no emoji fallback)
+  const hasIcon      = showIconDsl && !!faIconName;
+  const hasHeadline  = showHeadline && !!headline;
+  const hasSubtext   = showSubtext  && !!subtext;
+
+  if (!hasIcon && !hasHeadline && !hasSubtext) return null;
+
+  // ── Container style ────────────────────────────────────────────────────────
   const rawContainerStyle = convertStyles(layoutCss.container || {});
-  // Remove web layout props and border/bg props (we handle those via overrideStyle)
   const {
-    justifyContent: _jc,
-    overflow: _ov,
-    display: _disp,
-    borderWidth: _bw,
-    borderColor: _bc,
-    borderStyle: _bs,
-    border: _b,
-    backgroundColor: _bg,
-    ...safeContainerStyle
+    justifyContent: _jc, overflow: _ov, display: _disp,
+    borderWidth: _bw, borderColor: _bc, borderStyle: _bs,
+    border: _b, backgroundColor: _bg, ...safeContainerStyle
   } = rawContainerStyle;
+
   const containerStyle = {
     ...safeContainerStyle,
-    paddingTop: asNumber(paddingRaw?.pt, safeContainerStyle.paddingTop),
-    paddingRight: asNumber(paddingRaw?.pr, safeContainerStyle.paddingRight),
+    paddingTop:    asNumber(paddingRaw?.pt, safeContainerStyle.paddingTop),
+    paddingRight:  asNumber(paddingRaw?.pr, safeContainerStyle.paddingRight),
     paddingBottom: asNumber(paddingRaw?.pb, safeContainerStyle.paddingBottom),
-    paddingLeft: asNumber(paddingRaw?.pl, safeContainerStyle.paddingLeft),
+    paddingLeft:   asNumber(paddingRaw?.pl, safeContainerStyle.paddingLeft),
   };
 
-  const baseHeadlineStyle = stripTextCss(convertStyles(layoutCss.headline || {}));
-  const baseSubtextStyle = stripTextCss(convertStyles(layoutCss.subtext || {}));
-  const iconStyle = convertStyles(layoutCss.icon || {});
-  const overrideBgColor = unwrapValue(styleCfg?.bgColor);
-  const overrideBorderColor = unwrapValue(styleCfg?.borderColor);
+  const overrideBgColor = asStr(styleCfg?.bgColor, "");
+
+  // ── Border: ONLY from DSL — never hardcoded ─────────────────────────────────
+  // Try styleCfg.borderColor first, then fall back to the color parsed from
+  // layout.css.container border shorthand (_bc). If neither provides a value,
+  // no border is rendered at all.
+  const dslBorderColor =
+    asStr(styleCfg?.borderColor, "") ||
+    (typeof _bc === "string" && _bc ? _bc : "");
+  const dslBorderWidth =
+    asNumber(styleCfg?.borderWidth, null) ??
+    (typeof _bw === "number" && _bw > 0 ? _bw : 1);
+
+  // Border radius: prefer style.borderRadius → container CSS → none
   const overrideBorderRadius =
-    parsePx(unwrapValue(styleCfg?.borderRadius)) ??
-    parsePx(safeContainerStyle?.borderRadius);
+    parsePx(unwrapValue(styleCfg?.borderRadius)) ?? parsePx(safeContainerStyle?.borderRadius);
 
   const overrideStyle = {
-    ...(overrideBgColor ? { backgroundColor: overrideBgColor } : {}),
-    ...(overrideBorderColor ? { borderColor: overrideBorderColor, borderWidth: 1 } : {}),
-    ...(overrideBorderRadius != null ? { borderRadius: overrideBorderRadius } : {}),
+    ...(overrideBgColor    ? { backgroundColor: overrideBgColor }                                   : {}),
+    ...(dslBorderColor     ? { borderColor: dslBorderColor, borderWidth: dslBorderWidth }           : {}),
+    ...(overrideBorderRadius != null ? { borderRadius: overrideBorderRadius }                       : {}),
   };
 
-  const headlineAttributes =
-    rawProps?.headlineAttributes?.properties || rawProps?.headlineAttributes || {};
-  const subtextAttributes =
-    rawProps?.subtextAttributes?.properties || rawProps?.subtextAttributes || {};
+  // ── Text styles ────────────────────────────────────────────────────────────
+  const headlineAttributes = rawProps?.headlineAttributes?.properties || rawProps?.headlineAttributes || {};
+  const subtextAttributes  = rawProps?.subtextAttributes?.properties  || rawProps?.subtextAttributes  || {};
 
-  const headlineStyle = applyTextAttributes(baseHeadlineStyle, headlineAttributes);
-  const subtextStyle = applyTextAttributes(baseSubtextStyle, subtextAttributes);
+  const headlineStyle = applyTextAttributes(stripTextCss(convertStyles(layoutCss.headline || {})), headlineAttributes);
+  const subtextStyle  = applyTextAttributes(stripTextCss(convertStyles(layoutCss.subtext  || {})), subtextAttributes);
 
-  const iconEmoji = unwrapValue(iconCfg?.emoji, "");
-  const iconColor = unwrapValue(iconCfg?.color, iconStyle?.color || "#FFFFFF");
-  const iconSize = unwrapValue(iconCfg?.width, iconStyle?.width || 20);
-
-  const headtextAlign = unwrapValue(rawProps?.headtextAlign, null);
-  const subtextAlign = unwrapValue(rawProps?.subtextAlign, null);
-
-  const textContainerStyle = [styles.textContainer, { flex: 1 }];
-
-  const rawHeadlineLines = asNumber(rawProps?.headlineHeight, undefined);
-  const rawSubtextLines = asNumber(rawProps?.subtextHeight, undefined);
-
-  const resolvedHeadlineLines =
-    rawHeadlineLines && rawHeadlineLines > 0 ? rawHeadlineLines : undefined;
-  const resolvedSubtextLines =
-    rawSubtextLines && rawSubtextLines > 0 ? rawSubtextLines : undefined;
-
-  const hasIcon = showIcon && !!iconEmoji;
-  const hasHeadline = showHeadline && !!headline;
-  const hasSubtext = showSubtext && !!subtext;
-
-  if (!hasIcon && !hasHeadline && !hasSubtext) {
-    return null;
-  }
+  const headtextAlign     = asStr(rawProps?.headtextAlign, "");
+  const subtextAlign      = asStr(rawProps?.subtextAlign,  "");
+  const resolvedHLines    = asNumber(rawProps?.headlineHeight, undefined);
+  const resolvedSLines    = asNumber(rawProps?.subtextHeight,  undefined);
+  const headlineLines     = resolvedHLines && resolvedHLines > 0 ? resolvedHLines : undefined;
+  const subtextLines      = resolvedSLines && resolvedSLines > 0 ? resolvedSLines : undefined;
 
   return (
     <View style={[styles.container, containerStyle, overrideStyle]}>
+
+      {/* ── Icon: FontAwesome only — emoji characters are never rendered ─── */}
       {hasIcon && (
         <View
           style={[
-            styles.icon,
-            iconStyle,
+            styles.iconWrap,
             {
-              width: iconSize,
-              height: iconSize,
-              minWidth: iconSize,
-              minHeight: iconSize,
-              backgroundColor: iconStyle?.backgroundColor || "#16A34A",
+              width:           iconSize,
+              height:          iconSize,
+              minWidth:        iconSize,
+              minHeight:       iconSize,
+              borderRadius:    iconRadius,
+              backgroundColor: iconBgColor,
             },
           ]}
         >
-          <Text style={[styles.iconText, { color: iconColor, fontSize: iconStyle?.fontSize || 14 }]}>
-            {iconEmoji}
-          </Text>
+          <FontAwesome
+            name={faIconName}
+            size={iconFaSize}
+            color={iconColor}
+          />
         </View>
       )}
 
-      <View style={textContainerStyle}>
-        {showHeadline && !!headline && (
+      {/* ── Text ──────────────────────────────────────────────────────────── */}
+      <View style={styles.textContainer}>
+        {hasHeadline && (
           <Text
-            numberOfLines={resolvedHeadlineLines}
+            numberOfLines={headlineLines}
+            ellipsizeMode="tail"
             style={[
               styles.headline,
               headlineStyle,
-              headtextAlign
-                ? { textAlign: String(headtextAlign).toLowerCase() }
-                : null,
+              headtextAlign ? { textAlign: headtextAlign.toLowerCase() } : null,
             ]}
-            ellipsizeMode="tail"
           >
             {headline}
           </Text>
         )}
 
-        {showSubtext && !!subtext && (
+        {hasSubtext && (
           <Text
-            numberOfLines={resolvedSubtextLines}
+            numberOfLines={subtextLines}
+            ellipsizeMode="tail"
             style={[
               styles.subtext,
               subtextStyle,
-              subtextAlign
-                ? { textAlign: String(subtextAlign).toLowerCase() }
-                : null,
+              subtextAlign ? { textAlign: subtextAlign.toLowerCase() } : null,
             ]}
-            ellipsizeMode="tail"
           >
             {subtext}
           </Text>
@@ -257,32 +281,30 @@ export default function TextBlock({ section }) {
 
 const styles = StyleSheet.create({
   container: {
-    flexDirection: "row",
-    alignItems: "center",
+    flexDirection:  "row",
+    alignItems:     "center",
     paddingHorizontal: 16,
-    paddingVertical: 12,
+    paddingVertical:   12,
     gap: 12,
   },
-  icon: {
+  iconWrap: {
     justifyContent: "center",
-    alignItems: "center",
-    borderRadius: 999,
-  },
-  iconText: {
-    fontWeight: "700",
+    alignItems:     "center",
+    flexShrink:     0,
   },
   textContainer: {
+    flex:          1,
     flexDirection: "column",
-    gap: 4,
+    gap:           4,
   },
   headline: {
-    color: "#111111",
-    fontSize: 18,
+    color:      "#111111",
+    fontSize:   18,
     fontWeight: "600",
   },
   subtext: {
-    color: "#6B7280",
-    fontSize: 14,
+    color:      "#6B7280",
+    fontSize:   14,
     fontWeight: "400",
   },
 });
