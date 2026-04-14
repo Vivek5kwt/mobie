@@ -338,7 +338,6 @@ export default function LayoutScreen({ route }) {
           }
         }
         versionRef.current = dslData.versionNumber ?? null;
-        if (withFeedback) showSnackbar("Live layout refreshed", "success");
 
         // Keep module-level cache in sync so future remounts are instant
         _pageCache[cacheKey] = {
