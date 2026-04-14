@@ -203,10 +203,15 @@ export default function TextBlock({ section }) {
 
   const headtextAlign     = asStr(rawProps?.headtextAlign, "");
   const subtextAlign      = asStr(rawProps?.subtextAlign,  "");
-  const resolvedHLines    = asNumber(rawProps?.headlineHeight, undefined);
-  const resolvedSLines    = asNumber(rawProps?.subtextHeight,  undefined);
-  const headlineLines     = resolvedHLines && resolvedHLines > 0 ? resolvedHLines : undefined;
-  const subtextLines      = resolvedSLines && resolvedSLines > 0 ? resolvedSLines : undefined;
+  // Only use as numberOfLines when the DSL sends a whole positive integer.
+  // Fractional values like 1.2 or 4.1 are builder-internal metrics, not line counts —
+  // using them would floor to 1 and wrongly truncate multi-line headline text.
+  const resolvedHLines = asNumber(rawProps?.headlineHeight, undefined);
+  const resolvedSLines = asNumber(rawProps?.subtextHeight,  undefined);
+  const headlineLines  = (resolvedHLines != null && Number.isInteger(resolvedHLines) && resolvedHLines >= 1)
+    ? resolvedHLines : undefined;
+  const subtextLines   = (resolvedSLines != null && Number.isInteger(resolvedSLines) && resolvedSLines >= 1)
+    ? resolvedSLines : undefined;
 
   return (
     <View style={[styles.container, containerStyle, overrideStyle]}>

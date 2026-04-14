@@ -308,7 +308,7 @@ export default function ProductDetailScreen() {
     <SafeAreaView style={styles.safeArea} edges={["left", "right", "bottom"]}>
       <View style={styles.container}>
         <View style={[styles.headerWrapper, { paddingTop: insets.top }]}>
-          <Header />
+          <Header showNotification={false} />
         </View>
         <ScrollView contentContainerStyle={styles.scrollContent}>
           {dslLoading && <Text style={styles.status}>Loading product layout...</Text>}

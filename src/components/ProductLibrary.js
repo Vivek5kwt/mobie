@@ -104,7 +104,7 @@ export default function ProductLibrary({ section }) {
   const showRating = toBoolean(raw?.showRating, true);
   const ratingText = toString(raw?.ratingText, "0");
   const ratingCountText = toString(raw?.ratingCountText, "(0)");
-  const showBackButton = toBoolean(raw?.showBackButton, true);
+  const showBackButton = toBoolean(raw?.showBackButton, false);
   const ratingVisible = toBoolean(visibility?.reviews, showRating);
   const shareVisible = toBoolean(visibility?.share, false); // off by default in screenshot
   const favouriteVisible = toBoolean(visibility?.favourite, true);

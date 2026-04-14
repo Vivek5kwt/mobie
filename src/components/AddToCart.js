@@ -6,9 +6,7 @@ import { useDispatch } from "react-redux";
 import { addItem } from "../store/slices/cartSlice";
 import Snackbar from "./Snackbar";
 import {
-  createShopifyCheckout,
   getShopifyDomain,
-  getShopifyToken,
 } from "../services/shopify";
 
 const unwrapValue = (value, fallback = undefined) => {
@@ -52,18 +50,6 @@ const toBoolean = (value, fallback = false) => {
   return Boolean(resolved);
 };
 
-const alignToJustify = (align) => {
-  switch (align?.toLowerCase?.()) {
-    case "left":
-      return "flex-start";
-    case "right":
-      return "flex-end";
-    case "center":
-      return "center";
-    default:
-      return "center";
-  }
-};
 
 const buildPadding = (config) => ({
   paddingTop: toNumber(config?.pt, 0),
@@ -72,19 +58,29 @@ const buildPadding = (config) => ({
   paddingRight: toNumber(config?.pr, 0),
 });
 
-const buildButtonStyles = (config, defaultBg = "#F9A8D4") => {
+const buildButtonStyles = (config, defaultBg = "#1F2937") => {
   const borderColor = toString(config?.borderColor, "");
   const borderWidth = config?.borderLine || borderColor ? 1 : 0;
 
+  // Use DSL padding if > 0, otherwise fall back to sensible defaults
+  // (zero padding from builder means "not explicitly set", not intentional zero)
+  const pt = toNumber(config?.pt, 0) || 12;
+  const pb = toNumber(config?.pb, 0) || 12;
+  const pl = toNumber(config?.pl, 0) || 16;
+  const pr = toNumber(config?.pr, 0) || 16;
+
   return {
-    ...buildPadding(config),
+    paddingTop: pt,
+    paddingBottom: pb,
+    paddingLeft: pl,
+    paddingRight: pr,
     backgroundColor: toString(config?.bgColor, defaultBg),
     borderRadius: toNumber(config?.borderRadius, 8),
     borderColor: borderColor || undefined,
     borderWidth,
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: alignToJustify(config?.align),
+    justifyContent: "center",
   };
 };
 
@@ -137,25 +133,19 @@ export default function AddToCart({ section }) {
   const css = deepUnwrap(presentation?.css) || deepUnwrap(presentation?.properties?.css) || {};
 
   const addToCartConfig = deepUnwrap(raw?.addToCart) || deepUnwrap(css?.addToCart) || {};
-  const buyNowConfig    = deepUnwrap(raw?.buyNow)    || deepUnwrap(css?.buyNow)    || {};
   const quantityConfig  = deepUnwrap(raw?.quantityPicker) || deepUnwrap(css?.quantityPicker) || {};
   const visibility      = deepUnwrap(raw?.visibility) || deepUnwrap(css?.visibility) || {};
 
   const showAddToCart      = toBoolean(deepUnwrap(visibility?.addToCart),           true);
   const showAddToCartIcon  = toBoolean(deepUnwrap(visibility?.addToCartIcon),       false);
   const showAddToCartText  = toBoolean(deepUnwrap(visibility?.addToCartText),       true);
-  const showBuyNow         = toBoolean(deepUnwrap(visibility?.buyNow),              true);
-  const showBuyNowIcon     = toBoolean(deepUnwrap(visibility?.buyNowIcon),          false);
-  const showBuyNowText     = toBoolean(deepUnwrap(visibility?.buyNowText),          true);
   const showQuantityPicker = toBoolean(deepUnwrap(visibility?.quantityPicker),      true);
   const showQuantityText   = toBoolean(deepUnwrap(visibility?.quantityPickerText),  true);
   const showQuantityIcons  = toBoolean(deepUnwrap(visibility?.quantityPickerIcons), true);
 
   const addToCartText = toString(raw?.buttonText ?? addToCartConfig?.text, "Add to Cart");
-  const buyNowText = toString(raw?.buyNowText ?? buyNowConfig?.text, "Buy Now");
   const quantityLabel = toString(raw?.quantityLabel ?? quantityConfig?.label, "Quantity");
   const shopifyDomain = toString(raw?.shopifyDomain, getShopifyDomain());
-  const shopifyToken = toString(raw?.storefrontToken, getShopifyToken());
   const productHandle = toString(raw?.handle, "");
   const productTitle = toString(raw?.title, "Product Name");
   const productImage = toString(raw?.imageUrl, "");
@@ -171,8 +161,7 @@ export default function AddToCart({ section }) {
   const [quantity, setQuantity] = useState(1);
   const [snackbarVisible, setSnackbarVisible] = useState(false);
 
-  const addToCartButtonStyle = useMemo(() => buildButtonStyles(addToCartConfig), [addToCartConfig]);
-  const buyNowButtonStyle = useMemo(() => buildButtonStyles(buyNowConfig), [buyNowConfig]);
+  const addToCartButtonStyle = useMemo(() => buildButtonStyles(addToCartConfig, "#1F2937"), [addToCartConfig]);
   const addToCartUrl = useMemo(
     () =>
       buildCheckoutUrl({
@@ -183,29 +172,20 @@ export default function AddToCart({ section }) {
       }),
     [shopifyDomain, productVariantNumericId, quantity, productHandle]
   );
-  const buyNowUrl = useMemo(
-    () =>
-      buildCheckoutUrl({
-        shopifyDomain,
-        variantNumericId: productVariantNumericId,
-        quantity,
-        handle: productHandle,
-      }),
-    [shopifyDomain, productVariantNumericId, quantity, productHandle]
-  );
+
+  const addToCartBg = toString(addToCartConfig?.bgColor, "#1F2937");
+  const addToCartFgRaw = toString(addToCartConfig?.textColor, "");
+  // If text color is same as bg (invisible), fall back to contrasting white/black
+  const addToCartFg = addToCartFgRaw && addToCartFgRaw !== addToCartBg
+    ? addToCartFgRaw
+    : addToCartBg.toLowerCase() === "#ffffff" || addToCartBg.toLowerCase() === "#fff" ? "#111827" : "#ffffff";
 
   const addToCartTextStyle = {
-    color: toString(addToCartConfig?.textColor, "#111827"),
+    color: addToCartFg,
     fontSize: toNumber(addToCartConfig?.textSize, 15),
     fontWeight: toString(addToCartConfig?.textWeight, "600"),
+    fontFamily: toString(addToCartConfig?.textFamily ?? addToCartConfig?.fontFamily, undefined) || undefined,
     marginLeft: showAddToCartIcon ? 6 : 0,
-  };
-
-  const buyNowTextStyle = {
-    color: toString(buyNowConfig?.textColor, "#ffffff"),
-    fontSize: toNumber(buyNowConfig?.textSize, 12),
-    fontWeight: toString(buyNowConfig?.textWeight, "700"),
-    marginLeft: showBuyNowIcon ? 6 : 0,
   };
 
   const quantityContainerStyle = {
@@ -228,7 +208,6 @@ export default function AddToCart({ section }) {
   const minusIconName = resolveIconName(quantityConfig?.minusIcon);
   const plusIconName = resolveIconName(quantityConfig?.plusIcon);
   const addToCartIconName = resolveIconName(addToCartConfig?.icon);
-  const buyNowIconName = resolveIconName(buyNowConfig?.icon);
 
   const resolveBottomNavItems = (rawSection) => {
     if (!rawSection) return [];
@@ -277,16 +256,6 @@ export default function AddToCart({ section }) {
     navigation.dispatch(StackActions.replace("BottomNavScreen", params));
   };
 
-  const openCheckoutUrl = async (url, title = "Checkout") => {
-    if (!url) return false;
-    if (navigation?.navigate) {
-      navigation.navigate("CheckoutWebView", { url, title });
-      return true;
-    }
-    console.log("Checkout webview navigation not available.");
-    return false;
-  };
-
   const canAddLocally =
     productTitle || productHandle || productVariantGid || productVariantNumericId;
 
@@ -311,28 +280,6 @@ export default function AddToCart({ section }) {
     );
 
     setSnackbarVisible(true);
-  };
-
-  const handleBuyNow = async () => {
-    if (!buyNowUrl && !productVariantGid) return;
-
-    if (buyNowUrl) {
-      const opened = await openCheckoutUrl(buyNowUrl, "Checkout");
-      if (opened) return;
-    }
-
-    if (!productVariantGid) return;
-
-    try {
-      const checkoutUrl = await createShopifyCheckout({
-        variantId: productVariantGid,
-        quantity,
-        options: { shop: shopifyDomain, token: shopifyToken },
-      });
-      await openCheckoutUrl(checkoutUrl, "Checkout");
-    } catch (error) {
-      console.log("Unable to open Shopify checkout:", error);
-    }
   };
 
   const containerBg = toString(
@@ -429,27 +376,6 @@ export default function AddToCart({ section }) {
         </TouchableOpacity>
       )}
 
-      {/* ── Buy Now button (full-width) ── */}
-      {showBuyNow && (
-        <TouchableOpacity
-          style={[styles.fullButton, buyNowButtonStyle, showAddToCart && { marginTop: 8 }]}
-          onPress={handleBuyNow}
-          activeOpacity={0.8}
-        >
-          {showBuyNowIcon && !!buyNowIconName && (
-            <FontAwesome
-              name={buyNowIconName}
-              size={toNumber(buyNowConfig?.iconSize, 14)}
-              color={toString(buyNowConfig?.iconColor, buyNowTextStyle.color)}
-              style={{ marginRight: 6 }}
-            />
-          )}
-          {showBuyNowText && (
-            <Text style={buyNowTextStyle}>{buyNowText}</Text>
-          )}
-        </TouchableOpacity>
-      )}
-
       {/* ── Add to Cart snackbar ── */}
       <Snackbar
         visible={snackbarVisible}
@@ -505,10 +431,11 @@ const styles = StyleSheet.create({
   // Full-width buttons
   fullButton: {
     width: "100%",
-    minHeight: 46,
+    minHeight: 48,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
     borderRadius: 8,
+    overflow: "hidden",
   },
 });
