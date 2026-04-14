@@ -184,25 +184,14 @@ export default function TextBlock({ section }) {
 
   const overrideBgColor = asStr(styleCfg?.bgColor, "");
 
-  // ── Border: ONLY from DSL — never hardcoded ─────────────────────────────────
-  // Try styleCfg.borderColor first, then fall back to the color parsed from
-  // layout.css.container border shorthand (_bc). If neither provides a value,
-  // no border is rendered at all.
-  const dslBorderColor =
-    asStr(styleCfg?.borderColor, "") ||
-    (typeof _bc === "string" && _bc ? _bc : "");
-  const dslBorderWidth =
-    asNumber(styleCfg?.borderWidth, null) ??
-    (typeof _bw === "number" && _bw > 0 ? _bw : 1);
-
-  // Border radius: prefer style.borderRadius → container CSS → none
+  // ── No border ever on mobile TextBlock ───────────────────────────────────────
+  // Border is a web-only concept for this component; never render one on mobile.
   const overrideBorderRadius =
     parsePx(unwrapValue(styleCfg?.borderRadius)) ?? parsePx(safeContainerStyle?.borderRadius);
 
   const overrideStyle = {
-    ...(overrideBgColor    ? { backgroundColor: overrideBgColor }                                   : {}),
-    ...(dslBorderColor     ? { borderColor: dslBorderColor, borderWidth: dslBorderWidth }           : {}),
-    ...(overrideBorderRadius != null ? { borderRadius: overrideBorderRadius }                       : {}),
+    ...(overrideBgColor            ? { backgroundColor: overrideBgColor }     : {}),
+    ...(overrideBorderRadius != null ? { borderRadius: overrideBorderRadius } : {}),
   };
 
   // ── Text styles ────────────────────────────────────────────────────────────
