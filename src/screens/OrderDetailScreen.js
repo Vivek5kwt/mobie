@@ -10,10 +10,13 @@ import {
   View,
 } from "react-native";
 import { useNavigation, useRoute } from "@react-navigation/native";
+import { useDispatch } from "react-redux";
 import { SafeArea } from "../utils/SafeAreaHandler";
 import Header from "../components/Topheader";
 import { fetchDSL } from "../engine/dslHandler";
 import { resolveAppId } from "../utils/appId";
+import { clearCart } from "../store/slices/cartSlice";
+import FontAwesome from "react-native-vector-icons/FontAwesome";
 
 // ─── DSL helpers ─────────────────────────────────────────────────────────────
 
@@ -75,6 +78,7 @@ const fmt = (n, symbol = "$") =>
 export default function OrderDetailScreen() {
   const navigation = useNavigation();
   const route = useRoute();
+  const dispatch = useDispatch();
   const { order } = route.params || {};
   const appId = resolveAppId();
 
@@ -82,6 +86,11 @@ export default function OrderDetailScreen() {
   const [loading, setLoading] = useState(true);
   const versionRef = useRef(null);
   const fpRef = useRef(null);
+
+  // Clear cart when order is confirmed
+  useEffect(() => {
+    dispatch(clearCart());
+  }, [dispatch]);
 
   const getSectionsFp = (dsl) =>
     (dsl?.sections || []).map(getComponent).filter(Boolean).join(",");
@@ -138,7 +147,7 @@ export default function OrderDetailScreen() {
   return (
     <SafeArea>
       <View style={styles.container}>
-        <Header showBack={false} />
+        <Header showBack />
 
         {loading ? (
           <View style={styles.center}>
@@ -150,8 +159,29 @@ export default function OrderDetailScreen() {
             contentContainerStyle={styles.scrollContent}
             showsVerticalScrollIndicator={false}
           >
+            {/* Confirmation header */}
+            <View style={styles.confirmHeader}>
+              <View style={styles.confirmIcon}>
+                <FontAwesome name="check" size={22} color="#FFFFFF" />
+              </View>
+              <Text style={styles.confirmTitle}>Order Confirmed!</Text>
+              {order?.orderNumber ? (
+                <Text style={styles.confirmSubtitle}>Order {order.orderNumber}</Text>
+              ) : null}
+            </View>
+
+            {/* Items at the top — matching the design */}
+            {order?.lineItems?.length > 0 && (
+              <OrderItemsSection section={itemsSection} items={order.lineItems} />
+            )}
+
+            {/* Order info card */}
             <OrderInfoSection section={orderInfoSection} order={order} />
+
+            {/* Price breakdown */}
             <PriceInfoSection section={priceInfoSection} order={order} />
+
+            {/* Cancel button */}
             {cancelOrderSection && (
               <CancelOrderSection
                 section={cancelOrderSection}
@@ -159,9 +189,18 @@ export default function OrderDetailScreen() {
                 order={order}
               />
             )}
-            {order?.lineItems?.length > 0 && (
-              <OrderItemsSection section={itemsSection} items={order.lineItems} />
-            )}
+
+            {/* Continue shopping */}
+            <TouchableOpacity
+              style={styles.continueBtn}
+              activeOpacity={0.85}
+              onPress={() =>
+                navigation.reset({ index: 0, routes: [{ name: "LayoutScreen" }] })
+              }
+            >
+              <FontAwesome name="shopping-bag" size={15} color="#FFFFFF" style={{ marginRight: 8 }} />
+              <Text style={styles.continueBtnText}>Continue Shopping</Text>
+            </TouchableOpacity>
           </ScrollView>
         )}
       </View>
@@ -442,6 +481,48 @@ const styles = StyleSheet.create({
     padding: 16,
     paddingBottom: 32,
     gap: 12,
+  },
+
+  // ── Confirmation header
+  confirmHeader: {
+    alignItems: "center",
+    paddingVertical: 20,
+    gap: 8,
+  },
+  confirmIcon: {
+    width: 52,
+    height: 52,
+    borderRadius: 26,
+    backgroundColor: "#0D9488",
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 4,
+  },
+  confirmTitle: {
+    fontSize: 20,
+    fontWeight: "700",
+    color: "#111827",
+  },
+  confirmSubtitle: {
+    fontSize: 14,
+    color: "#6B7280",
+    fontWeight: "500",
+  },
+
+  // ── Continue Shopping button
+  continueBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#0D9488",
+    paddingVertical: 14,
+    borderRadius: 12,
+    marginTop: 8,
+  },
+  continueBtnText: {
+    color: "#FFFFFF",
+    fontSize: 16,
+    fontWeight: "700",
   },
 
   // ── Card shared

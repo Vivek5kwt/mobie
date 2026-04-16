@@ -98,13 +98,16 @@ export default function BottomNavScreen() {
     }
   };
 
+  // True when this screen was opened with an explicit bottom nav section (bottom nav tab
+  // navigation). False when opened from a header icon (cart / notification).
+  const hasInitialBottomNav = bottomNavSectionProp !== null;
+
   // Function to check and update bottom navigation from DSL
   const checkAndUpdateBottomNav = useCallback(async () => {
     try {
-      // First check current page DSL, then fallback to home page DSL
       let incomingBottomNav = null;
-      
-      // Try current page first
+
+      // Always check the current page's own DSL first
       const currentPageDslData = await fetchDSL(appId, pageName);
       if (currentPageDslData?.dsl) {
         incomingBottomNav = (currentPageDslData.dsl.sections || []).find(
@@ -118,9 +121,12 @@ export default function BottomNavScreen() {
           }
         );
       }
-      
-      // If not found in current page, check home page
-      if (!incomingBottomNav) {
+
+      // Only fall back to home DSL when this screen was explicitly opened via a bottom nav
+      // tab (hasInitialBottomNav = true). When opened from a header icon the route param
+      // bottomNavSection is null — in that case we must NOT inherit the home nav, otherwise
+      // a bottom bar flashes on pages (e.g. cart) that have no nav of their own.
+      if (!incomingBottomNav && hasInitialBottomNav) {
         const homeDslData = await fetchDSL(appId, "home");
         if (homeDslData?.dsl) {
           incomingBottomNav = (homeDslData.dsl.sections || []).find(
@@ -154,7 +160,7 @@ export default function BottomNavScreen() {
     } catch (error) {
       console.log("❌ Error checking bottom nav update:", error);
     }
-  }, [appId, pageName]);
+  }, [appId, pageName, hasInitialBottomNav]);
   // Only true header components — header_2 is excluded so it never gets
   // injected on non-home pages. Non-home pages get a synthetic standalone
   // header built from headerdefault instead.

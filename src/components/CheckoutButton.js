@@ -41,7 +41,6 @@ const toBool = (value, fallback = false) => {
   return fallback;
 };
 
-// Pick first non-empty value from a list of DSL candidates (handles "" and "undefined")
 const pick = (candidates, fallback) => {
   for (const c of candidates) {
     const v = toStr(c, "");
@@ -72,6 +71,36 @@ const toFontWeight = (value, fallback = "600") => {
   return fallback;
 };
 
+// ── Gradient text helpers ──────────────────────────────────────────────────────
+
+// Default rainbow gradient matching the design shown in the image
+const DEFAULT_TEXT_GRADIENT = ["#60A5FA", "#A78BFA", "#F472B6", "#FBBF24", "#34D399"];
+
+const hexToRgb = (hex) => {
+  const h = String(hex || "").trim().replace("#", "");
+  if (h.length !== 6) return { r: 255, g: 255, b: 255 };
+  return {
+    r: parseInt(h.slice(0, 2), 16),
+    g: parseInt(h.slice(2, 4), 16),
+    b: parseInt(h.slice(4, 6), 16),
+  };
+};
+
+// Smoothly interpolates a colour at `ratio` (0–1) across an array of hex stops
+const interpolateGradientColor = (colors, ratio) => {
+  if (!colors || colors.length === 0) return "#FFFFFF";
+  if (colors.length === 1) return colors[0];
+  const scaled = Math.max(0, Math.min(1, ratio)) * (colors.length - 1);
+  const idx = Math.min(Math.floor(scaled), colors.length - 2);
+  const t = scaled - idx;
+  const c1 = hexToRgb(colors[idx]);
+  const c2 = hexToRgb(colors[idx + 1]);
+  const r = Math.round(c1.r + (c2.r - c1.r) * t);
+  const g = Math.round(c1.g + (c2.g - c1.g) * t);
+  const b = Math.round(c1.b + (c2.b - c1.b) * t);
+  return `rgb(${r},${g},${b})`;
+};
+
 // ── Component ──────────────────────────────────────────────────────────────────
 
 export default function CheckoutButton({ section }) {
@@ -79,37 +108,65 @@ export default function CheckoutButton({ section }) {
   const cartItems = useSelector((state) => state?.cart?.items || []);
   const hasCartItems = cartItems.length > 0;
 
-  // ── Resolve props node (handles both schema and flat DSL structures) ─────────
+  // ── Resolve props node ───────────────────────────────────────────────────────
   const propsNode =
     section?.properties?.props?.properties ||
     section?.properties?.props ||
     section?.props ||
     {};
 
-  // Unwrap raw sub-object — handles { type, value: {...} } AND plain { key: value }
   const rawUnwrapped = deepUnwrap(propsNode?.raw);
-  const raw = (rawUnwrapped && typeof rawUnwrapped === "object")
-    ? rawUnwrapped
-    : {};
+  const raw = rawUnwrapped && typeof rawUnwrapped === "object" ? rawUnwrapped : {};
 
-  // Also check presentation.css for layout/style fallbacks
   const pressCss = deepUnwrap(propsNode?.presentation)?.css || {};
   const btnCss   = deepUnwrap(pressCss?.button ?? pressCss?.checkout) || {};
 
-  // ── Button label ─────────────────────────────────────────────────────────────
+  // ── Label ────────────────────────────────────────────────────────────────────
   const label = pick([raw?.label, raw?.text, raw?.buttonText, propsNode?.label], "Checkout");
 
-  // ── Background colour (priority: raw.backgroundColor → raw.bgColor → …) ─────
+  // ── Background colour ────────────────────────────────────────────────────────
+  // NOTE: btnCss.backgroundColor intentionally excluded — DSL's presentation CSS
+  // may carry a legacy/builder colour that differs from raw. raw props are the
+  // single source of truth for the button background.
   const bgColor = pick(
-    [raw?.backgroundColor, raw?.bgColor, raw?.background, raw?.buttonBg, raw?.btn_bg, btnCss?.backgroundColor],
+    [raw?.backgroundColor, raw?.bgColor, raw?.background, raw?.buttonBg, raw?.btn_bg],
     "#111827"
   );
 
-  // ── Text colour ──────────────────────────────────────────────────────────────
+  // ── Solid text colour (used when gradient is disabled) ───────────────────────
+  // NOTE: btnCss.color excluded for the same reason — only raw props disable the
+  // default rainbow gradient.
+  const hasExplicitTextColor = !!(
+    deepUnwrap(raw?.textColor) ||
+    deepUnwrap(raw?.labelColor) ||
+    deepUnwrap(raw?.color) ||
+    deepUnwrap(raw?.text_color)
+  );
   const textColor = pick(
-    [raw?.textColor, raw?.labelColor, raw?.color, raw?.text_color, btnCss?.color],
+    [raw?.textColor, raw?.labelColor, raw?.color, raw?.text_color],
     "#FFFFFF"
   );
+
+  // ── Gradient text colours ────────────────────────────────────────────────────
+  // DSL can supply: gradientColors (array or comma-separated string)
+  // When no explicit solid textColor is set → falls back to DEFAULT_TEXT_GRADIENT
+  const gradientColorsRaw = deepUnwrap(
+    raw?.gradientColors ?? raw?.textGradient ?? raw?.labelGradient ?? raw?.textGradientColors
+  );
+  const dslGradient = useMemo(() => {
+    if (Array.isArray(gradientColorsRaw)) {
+      const arr = gradientColorsRaw.map((c) => toStr(c, "")).filter(Boolean);
+      return arr.length >= 2 ? arr : null;
+    }
+    if (typeof gradientColorsRaw === "string" && gradientColorsRaw.includes(",")) {
+      const arr = gradientColorsRaw.split(",").map((c) => c.trim()).filter(Boolean);
+      return arr.length >= 2 ? arr : null;
+    }
+    return null;
+  }, [gradientColorsRaw]);
+
+  // Effective gradient: explicit DSL gradient > default (when no solid override) > null (solid)
+  const textGradient = dslGradient ?? (hasExplicitTextColor ? null : DEFAULT_TEXT_GRADIENT);
 
   // ── Border ───────────────────────────────────────────────────────────────────
   const borderColorVal = pick(
@@ -120,9 +177,8 @@ export default function CheckoutButton({ section }) {
     [raw?.borderWidth, raw?.borderSize, raw?.border_width, btnCss?.borderWidth],
     0
   );
-  // Show border whenever DSL provides a borderColor, even without explicit borderWidth
-  const showBorder   = !!borderColorVal || borderWidthVal > 0;
-  const borderWidth  = showBorder ? (borderWidthVal > 0 ? borderWidthVal : 1) : 0;
+  const showBorder  = !!borderColorVal || borderWidthVal > 0;
+  const borderWidth = showBorder ? (borderWidthVal > 0 ? borderWidthVal : 1) : 0;
 
   // ── Dimensions & shape ───────────────────────────────────────────────────────
   const height       = pickNum([raw?.height, raw?.btnHeight, raw?.buttonHeight, btnCss?.height], 52);
@@ -130,21 +186,19 @@ export default function CheckoutButton({ section }) {
   const fullWidth    = toBool(raw?.fullWidth ?? raw?.isFullWidth, true);
 
   // ── Typography ───────────────────────────────────────────────────────────────
-  const fontSize     = pickNum([raw?.fontSize, raw?.textSize, raw?.labelSize, btnCss?.fontSize], 16);
-  const fontWeight   = toFontWeight(raw?.fontWeight ?? raw?.textWeight ?? raw?.labelWeight ?? btnCss?.fontWeight, "600");
-  const fontFamily   = toStr(raw?.fontFamily ?? raw?.labelFamily ?? btnCss?.fontFamily, "");
-  const italic       = toBool(raw?.italic, false);
-  const underline    = toBool(raw?.underline, false);
+  const fontSize      = pickNum([raw?.fontSize, raw?.textSize, raw?.labelSize, btnCss?.fontSize], 16);
+  const fontWeight    = toFontWeight(raw?.fontWeight ?? raw?.textWeight ?? raw?.labelWeight ?? btnCss?.fontWeight, "600");
+  const fontFamily    = toStr(raw?.fontFamily ?? raw?.labelFamily ?? btnCss?.fontFamily, "");
+  const italic        = toBool(raw?.italic, false);
+  const underline     = toBool(raw?.underline, false);
   const letterSpacing = pickNum([raw?.letterSpacing, btnCss?.letterSpacing], 0.3);
 
-  // ── Outer container padding ───────────────────────────────────────────────────
+  // ── Outer container ──────────────────────────────────────────────────────────
   const padT = pickNum([raw?.paddingTop,    raw?.padT, raw?.pt, btnCss?.paddingTop],    12);
   const padB = pickNum([raw?.paddingBottom, raw?.padB, raw?.pb, btnCss?.paddingBottom], 12);
   const padL = pickNum([raw?.paddingLeft,   raw?.padL, raw?.pl, btnCss?.paddingLeft],   16);
   const padR = pickNum([raw?.paddingRight,  raw?.padR, raw?.pr, btnCss?.paddingRight],  16);
   const gap  = pickNum([raw?.gap, raw?.marginTop, raw?.mt], 0);
-
-  // ── Outer container background ───────────────────────────────────────────────
   const containerBg = pick(
     [raw?.containerBg, raw?.outerBg, raw?.wrapperBg, raw?.sectionBg],
     "#FFFFFF"
@@ -154,12 +208,12 @@ export default function CheckoutButton({ section }) {
   const disabledBg        = pick([raw?.disabledBg,        raw?.disabledBackground], "#9CA3AF");
   const disabledTextColor = pick([raw?.disabledTextColor, raw?.disabledColor],      "#E5E7EB");
 
-  // ── Checkout lines from Redux cart ──────────────────────────────────────────
+  // ── Checkout lines ───────────────────────────────────────────────────────────
   const checkoutLines = useMemo(
     () => cartItems.map((item) => ({
-      id: item?.id,
+      id:        item?.id,
       variantId: item?.variantId,
-      quantity: item?.quantity,
+      quantity:  item?.quantity,
     })),
     [cartItems]
   );
@@ -181,7 +235,7 @@ export default function CheckoutButton({ section }) {
     }
   };
 
-  // Active vs disabled styling
+  // ── Computed styles ──────────────────────────────────────────────────────────
   const activeBg        = hasCartItems ? bgColor       : disabledBg;
   const activeTextColor = hasCartItems ? textColor      : disabledTextColor;
   const activeBorderClr = hasCartItems ? borderColorVal : disabledBg;
@@ -190,19 +244,56 @@ export default function CheckoutButton({ section }) {
     height,
     borderRadius,
     backgroundColor: activeBg,
-    width: fullWidth ? "100%" : undefined,
+    width:       fullWidth ? "100%" : undefined,
     borderWidth,
     borderColor: showBorder ? activeBorderClr : undefined,
   };
 
+  // Base text style (colour overridden per-character for gradient mode)
   const textStyle = {
     fontSize,
-    color: activeTextColor,
     fontWeight,
     fontStyle:          italic    ? "italic"    : "normal",
     letterSpacing,
     textDecorationLine: underline ? "underline" : "none",
     ...(fontFamily ? { fontFamily } : {}),
+  };
+
+  // ── Render button label ──────────────────────────────────────────────────────
+  const renderLabel = () => {
+    // Disabled state: always solid
+    if (!hasCartItems) {
+      return (
+        <Text style={[styles.label, textStyle, { color: disabledTextColor }]}>
+          {label}
+        </Text>
+      );
+    }
+
+    // Active with gradient: colour each character across the gradient stops
+    if (textGradient) {
+      const chars = [...label];
+      return (
+        <View style={styles.gradientRow}>
+          {chars.map((char, i) => {
+            const ratio = chars.length <= 1 ? 0.5 : i / (chars.length - 1);
+            const color = interpolateGradientColor(textGradient, ratio);
+            return (
+              <Text key={i} style={[styles.label, textStyle, { color }]}>
+                {char}
+              </Text>
+            );
+          })}
+        </View>
+      );
+    }
+
+    // Active with solid colour
+    return (
+      <Text style={[styles.label, textStyle, { color: activeTextColor }]}>
+        {label}
+      </Text>
+    );
   };
 
   return (
@@ -226,7 +317,7 @@ export default function CheckoutButton({ section }) {
         accessibilityRole="button"
         accessibilityLabel={label}
       >
-        <Text style={[styles.label, textStyle]}>{label}</Text>
+        {renderLabel()}
       </TouchableOpacity>
 
       <Snackbar
@@ -250,6 +341,10 @@ const styles = StyleSheet.create({
     alignItems:     "center",
     justifyContent: "center",
     width:          "100%",
+  },
+  gradientRow: {
+    flexDirection: "row",
+    alignItems:    "center",
   },
   label: {},
 });

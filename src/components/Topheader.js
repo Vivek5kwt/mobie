@@ -5,7 +5,6 @@ import { StackActions, useNavigation } from "@react-navigation/native";
 import Icon from "react-native-vector-icons/FontAwesome6";
 import { useSelector } from "react-redux";
 import { useSideMenu } from "../services/SideMenuContext";
-import bottomNavigationStyle1Section from "../data/bottomNavigationStyle1";
 import { convertStyles } from "../utils/convertStyles";
 import { getAppLogoSync } from "../utils/appInfo";
 import { getHeaderDefault } from "../services/headerDefaultService";
@@ -130,7 +129,7 @@ export default function Header({ section, showBack, showNotification }) {
   const logoImageStyle = { ...normalizedLayout.logoImage };
   if (logoImageStyle.width === "auto") delete logoImageStyle.width;
   if (logoImageStyle.height === "auto") delete logoImageStyle.height;
-  const bottomNavSection = section?.bottomNavSection || bottomNavigationStyle1Section;
+  const bottomNavSection = section?.bottomNavSection || null;
 
   // -----------------------------------------
 

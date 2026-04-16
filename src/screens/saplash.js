@@ -267,7 +267,7 @@ export default function SplashScreen() {
         <Animated.Text
           style={[styles.appName, { opacity: titleOpacity, transform: [{ translateY: titleY }] }]}
           numberOfLines={1}
-        >c;ls
+        >
           {displayName}
         </Animated.Text>
 
