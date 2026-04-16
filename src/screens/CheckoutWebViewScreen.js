@@ -7,6 +7,59 @@ import { WebView } from "react-native-webview";
 import { SafeArea } from "../utils/SafeAreaHandler";
 import Header from "../components/Topheader";
 
+// ── Helpers ───────────────────────────────────────────────────────────────────
+
+const extractOrderNumber = (url) => {
+  if (!url) return "";
+  // /59376534593/orders/abc123  → use last 6 digits of the numeric ID
+  const longMatch = url.match(/\/(\d{6,})\/orders\//);
+  if (longMatch) return `#${longMatch[1].slice(-6)}`;
+  // /orders/12345 or order_number=1234
+  const simpleMatch = url.match(/\/orders\/(\d+)/);
+  if (simpleMatch) return `#${simpleMatch[1]}`;
+  try {
+    const u = new URL(url);
+    const n = u.searchParams.get("order_number") || u.searchParams.get("order");
+    if (n) return `#${n}`;
+  } catch (_) {}
+  return `#${Math.floor(1000 + Math.random() * 9000)}`;
+};
+
+const buildOrderFromCart = (capturedItems, url) => {
+  const today = new Date();
+  const fmt = (d) =>
+    d.toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric" });
+  const arrival = new Date(today.getTime() + 7 * 24 * 60 * 60 * 1000);
+
+  const lineItems = (capturedItems || []).map((item) => ({
+    id: String(item.id || item.variantId || ""),
+    title: item.title || "Product",
+    variant: item.variant || "",
+    imageUrl: item.image || item.imageUrl || "",
+    price: item.price ? `$${parseFloat(item.price).toFixed(2)}` : "",
+    quantity: item.quantity || 1,
+  }));
+
+  const subtotal = (capturedItems || []).reduce(
+    (sum, item) => sum + parseFloat(item.price || 0) * (item.quantity || 1),
+    0
+  );
+  const tax = parseFloat((subtotal * 0.08).toFixed(2));
+  const total = parseFloat((subtotal + tax).toFixed(2));
+
+  return {
+    orderNumber: extractOrderNumber(url),
+    orderDate: fmt(today),
+    status: "Order Placed",
+    deliveryMethod: "Standard Shipping",
+    arrival: fmt(arrival),
+    delivery: 0,
+    tax,
+    total,
+    lineItems,
+  };
+};
+
 export default function CheckoutWebViewScreen() {
   const navigation = useNavigation();
   const route = useRoute();
@@ -34,17 +87,18 @@ export default function CheckoutWebViewScreen() {
       if (!navState?.url || hasReturnedHomeRef.current) return;
       if (!isOrderCompleteUrl(navState.url)) return;
       hasReturnedHomeRef.current = true;
+
       const capturedItems = capturedItemsRef.current || [];
+      const order = buildOrderFromCart(capturedItems, navState.url);
+
       if (navigation?.reset) {
         navigation.reset({
           index: 0,
-          routes: [{ name: "PostPurchase", params: { capturedItems } }],
+          routes: [{ name: "OrderDetail", params: { order } }],
         });
         return;
       }
-      if (navigation?.navigate) {
-        navigation.navigate("PostPurchase", { capturedItems });
-      }
+      navigation?.navigate?.("OrderDetail", { order });
     },
     [isOrderCompleteUrl, navigation],
   );
