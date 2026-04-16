@@ -2,6 +2,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import client from '../apollo/client';
 import CREATE_USER_MUTATION from '../graphql/mutations/createUserMutation';
 import LOGIN_USER_MUTATION from '../graphql/mutations/loginUserMutation';
+import { resolveAppId } from '../utils/appId';
 
 type UserProfile = {
   id?: number;
@@ -24,7 +25,6 @@ export type AuthSession = {
 
 const TOKEN_KEY = '@auth_jwt_token';
 const USER_KEY = '@auth_user_profile';
-const DEFAULT_APP_ID = 41;
 const DEFAULT_USER_TYPE = 'mobile';
 const DEFAULT_STATUS = 'active';
 const DEFAULT_SHOPIFY_DOMAIN = '5kwebtech-test.myshopify.com';
@@ -41,6 +41,24 @@ const saveSession = async (session: AuthSession) => {
 type CreateUserResponse = {
   createUser?: {
     message?: string;
+    store?: {
+      user_id?: number;
+      updated_at?: string;
+      timezone?: string;
+      status?: string;
+    };
+    user?: {
+      id?: string;
+      app_id?: number;
+      email?: string;
+      name?: string;
+      shopify_domain?: string;
+      status?: string;
+      timezone?: string;
+      user_type?: string;
+      created_at?: string;
+      updated_at?: string;
+    };
   };
 };
 
@@ -86,13 +104,6 @@ export const clearSession = async () => {
   await AsyncStorage.removeItem(USER_KEY);
 };  
 
-const buildSession = (email: string, name?: string): AuthSession => ({
-  token: generateToken(),
-  user: {
-    email,
-    name: name || email.split('@')[0],
-  },
-});
 
 export const login = async (email: string, password: string): Promise<AuthSession> => {
   if (!email || !password) {
@@ -160,22 +171,47 @@ export const signup = async (
         name,
         email,
         password,
-        status: DEFAULT_STATUS,
-        appId: DEFAULT_APP_ID,
-        userType: DEFAULT_USER_TYPE,
-        shopifyDomain: DEFAULT_SHOPIFY_DOMAIN,
+        status:         DEFAULT_STATUS,
+        appId:          resolveAppId(),   // resolved from app.json / env / default
+        userType:       DEFAULT_USER_TYPE,
+        shopifyDomain:  DEFAULT_SHOPIFY_DOMAIN,
       },
     });
 
     const payload = data?.createUser;
 
+    // Mutation must return a success message and a user with an id
     if (!payload?.message) {
-      throw new Error(payload?.message || 'Unable to create account.');
+      throw new Error('Unable to create account.');
+    }
+    if (!payload?.user?.id) {
+      throw new Error('Registration succeeded but no user ID was returned.');
     }
 
-    const session = buildSession(email, name);
+    const returnedUser = payload.user;
+
+    const session: AuthSession = {
+      token: generateToken(),
+      user: {
+        id:             Number(returnedUser.id),
+        email:          returnedUser.email  || email,
+        name:           returnedUser.name   || name,
+        appId:          returnedUser.app_id ?? resolveAppId(),
+        userType:       returnedUser.user_type,
+        shopifyDomain:  returnedUser.shopify_domain,
+        status:         returnedUser.status,
+        timezone:       returnedUser.timezone,
+        createdAt:      returnedUser.created_at,
+        updatedAt:      returnedUser.updated_at,
+      },
+    };
 
     await saveSession(session);
+
+    console.log(
+      `✅ User created — id: ${session.user.id}, email: ${session.user.email}, appId: ${session.user.appId}`,
+    );
+
     return session;
   } catch (error) {
     if (error instanceof Error) {
