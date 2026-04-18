@@ -20,6 +20,24 @@ const CREATE_USER_MUTATION = gql`
       user_type: $userType
     ) {
       message
+      store {
+        user_id
+        updated_at
+        timezone
+        status
+      }
+      user {
+        id
+        app_id
+        email
+        name
+        shopify_domain
+        status
+        timezone
+        user_type
+        created_at
+        updated_at
+      }
     }
   }
 `;

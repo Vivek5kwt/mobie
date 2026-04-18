@@ -209,10 +209,10 @@ export default function TrendingSearches({ section }) {
   const borderSide           = unwrapValue(rp("borderSide"), "");
 
   const padding = {
-    paddingTop:    toNumber(rp("pt"), 16),
-    paddingRight:  toNumber(rp("pr"), 16),
-    paddingBottom: toNumber(rp("pb"), 16),
-    paddingLeft:   toNumber(rp("pl"), 16),
+    paddingTop:    toNumber(rp("pt"), 0),
+    paddingRight:  toNumber(rp("pr"), 0),
+    paddingBottom: toNumber(rp("pb"), 0),
+    paddingLeft:   toNumber(rp("pl"), 0),
   };
 
   // ── Navigation ────────────────────────────────────────────────────────────

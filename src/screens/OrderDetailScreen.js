@@ -17,6 +17,8 @@ import { fetchDSL } from "../engine/dslHandler";
 import { resolveAppId } from "../utils/appId";
 import { clearCart } from "../store/slices/cartSlice";
 import FontAwesome from "react-native-vector-icons/FontAwesome";
+import { useAuth } from "../services/AuthContext";
+import { triggerOrderNotification, ORDER_EVENTS } from "../services/notificationService";
 
 // ─── DSL helpers ─────────────────────────────────────────────────────────────
 
@@ -79,8 +81,10 @@ export default function OrderDetailScreen() {
   const navigation = useNavigation();
   const route = useRoute();
   const dispatch = useDispatch();
+  const { session } = useAuth();
   const { order } = route.params || {};
   const appId = resolveAppId();
+  const userId = session?.user?.id ?? null;
 
   const [sections, setSections] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -187,6 +191,8 @@ export default function OrderDetailScreen() {
                 section={cancelOrderSection}
                 navigation={navigation}
                 order={order}
+                appId={appId}
+                userId={userId}
               />
             )}
 
@@ -327,7 +333,7 @@ function PriceInfoSection({ section, order }) {
 
 // ─── Cancel Order Section ─────────────────────────────────────────────────────
 
-function CancelOrderSection({ section, navigation, order }) {
+function CancelOrderSection({ section, navigation, order, appId, userId }) {
   const propsNode = getProps(section);
   const raw = unwrap(propsNode?.raw, {}) || {};
 
@@ -352,7 +358,15 @@ function CancelOrderSection({ section, navigation, order }) {
           text: "Cancel Order",
           style: "destructive",
           onPress: () => {
-            // TODO: call cancel order API with order.id
+            // Notify backend → backend pushes FCM cancellation notification
+            triggerOrderNotification({
+              type: ORDER_EVENTS.ORDER_CANCELED,
+              orderNumber: order?.orderNumber || '',
+              orderId: order?.id ? String(order.id) : null,
+              appId,
+              userId,
+            }).catch(() => {});
+
             navigation.goBack();
           },
         },

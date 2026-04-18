@@ -387,13 +387,19 @@ export default function ProductGrid({ section, limit = 8, title = "Products" }) 
 
     return [];
   }, [rawProps]);
+  // Outer container spacing — fully DSL-driven (pt/pb/pl/pr from JSON)
+  const pt = resolveFirstNumber([rawProps?.pt, rawProps?.paddingTop],  0);
+  const pb = resolveFirstNumber([rawProps?.pb, rawProps?.paddingBottom], 0);
+  const pl = resolveFirstNumber([rawProps?.pl, rawProps?.paddingLeft],  0);
+  const pr = resolveFirstNumber([rawProps?.pr, rawProps?.paddingRight], 0);
+
   const gridGap = 16;
-  const horizontalPadding = 24;
+  const horizontalPadding = pl + pr;
   const screenWidth = Dimensions.get("window").width;
   const totalGap = gridGap * (resolvedColumns - 1);
   const cardWidth = Math.max(
     0,
-    (screenWidth - horizontalPadding * 2 - totalGap) / resolvedColumns
+    (screenWidth - horizontalPadding - totalGap) / resolvedColumns
   );
   const imageCorner = resolvedImageCorner ?? Math.min(cardWidth, resolvedImageHeight) / 2;
 
@@ -439,7 +445,7 @@ export default function ProductGrid({ section, limit = 8, title = "Products" }) 
   }, [resolvedLimit, shopifyDomain, shopifyToken]);
 
   return (
-    <View style={[styles.wrapper, resolvedBgColor ? { backgroundColor: resolvedBgColor } : null]}>
+    <View style={[styles.wrapper, resolvedBgColor ? { backgroundColor: resolvedBgColor } : null, { paddingTop: pt, paddingBottom: pb, paddingLeft: pl, paddingRight: pr }]}>
       {(resolvedShowTitle || hasMore) && (
         <View style={styles.headerRow}>
           {resolvedShowTitle && (
@@ -684,8 +690,6 @@ export function ProductGridExample() {
 const styles = StyleSheet.create({
   wrapper: {
     width: "100%",
-    paddingHorizontal: 24,
-    paddingVertical: 20,
   },
   headerRow: {
     flexDirection: "row",

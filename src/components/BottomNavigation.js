@@ -576,6 +576,8 @@ function BottomNavigation({ section, activeIndexOverride }) {
         // ── Home tab ──────────────────────────────────────────────────────────
         // popToTop() instantly returns to the existing LayoutScreen root without
         // remounting it — no blank screen, no reload.
+        // Only dispatch popToTop when the stack has more than one route; when the
+        // stack is flat (single route) popToTop is unhandled and logs a warning.
         if (isGoingToHome) {
           if (currentRoute?.name === "LayoutScreen") {
             if (BOTTOM_NAV_DEBUG) {
@@ -583,7 +585,11 @@ function BottomNavigation({ section, activeIndexOverride }) {
             }
             return;
           }
-          navigation.dispatch(StackActions.popToTop());
+          if (routes.length > 1) {
+            navigation.dispatch(StackActions.popToTop());
+          } else {
+            navigation.navigate("LayoutScreen", { pageName: "home", activeIndex: 0 });
+          }
           return;
         }
 
