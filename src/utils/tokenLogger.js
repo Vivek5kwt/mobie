@@ -54,8 +54,15 @@ class TokenLogger {
   async _getFirebaseToken() {
     try {
       const messaging = require('@react-native-firebase/messaging').default;
-      return await messaging().getToken();
-    } catch (_) {
+      const token = await messaging().getToken();
+      if (token) {
+        console.log(`[FCM] Firebase token obtained (last 12): ...${token.slice(-12)}`);
+      } else {
+        console.warn('[FCM] messaging().getToken() returned null/empty');
+      }
+      return token;
+    } catch (e) {
+      console.error('[FCM] ✖ Failed to get Firebase token:', e?.message || String(e));
       return null;
     }
   }
@@ -65,15 +72,13 @@ class TokenLogger {
   /**
    * STEP 1 — called from App.tsx on every launch (after permission granted).
    *
-   * • Gets the FCM token from Firebase.
-   * • If the token is the same as last time AND we already have a backend record
-   *   id, registration is skipped (idempotent — avoids duplicate rows).
-   * • Otherwise calls createFcmToken immediately — userid is null at this point.
-   *   The record id from the response is saved to AsyncStorage so Step 2 can
-   *   update the same row instead of creating a second one.
+   * Gets the FCM token from Firebase and stores it locally.
+   * Does NOT call the backend — the backend requires a non-null userid
+   * (Prisma NOT NULL constraint), so registration is deferred until
+   * updateTokenForUser is called after login.
    *
-   * @param {number|null} appid  — pass resolveAppId() from App.tsx
-   * @returns {Promise<object|null>}
+   * @param {number|null} appid  — pass resolveAppId() from App.tsx (kept for API compat)
+   * @returns {Promise<string|null>}  the raw FCM token string, or null if unavailable
    */
   async captureToken(appid = null) {
     await this._init();
@@ -85,45 +90,13 @@ class TokenLogger {
       return null;
     }
 
-    // ── 2. Load previously stored token + record id ────────────────────────
-    const savedToken    = await this._load(STORAGE_FCM_TOKEN_KEY);
-    const savedRecordId = await this._load(STORAGE_FCM_RECORD_ID_KEY);
-
+    // ── 2. Store token locally for use after login ─────────────────────────
     this.token = firebaseToken;
     await this._save(STORAGE_FCM_TOKEN_KEY, firebaseToken);
+    console.log(`✅ FCM token captured locally (last 12): ...${firebaseToken.slice(-12)}`);
+    console.log('ℹ️ Backend registration deferred — will register after login with userid');
 
-    // ── 3. Skip backend call if already registered with the same token ─────
-    if (firebaseToken === savedToken && savedRecordId) {
-      this.recordId = savedRecordId;
-      console.log(`✅ FCM token already registered (record id: ${savedRecordId}) — skipping re-registration`);
-      return { id: savedRecordId, token: firebaseToken };
-    }
-
-    // ── 4. Register on backend — userid unknown at launch time ────────────
-    const resolvedAppId = resolveAppId(appid);
-    console.log(`📡 createFcmToken → token: ...${firebaseToken.slice(-8)}, userid: null, appid: ${resolvedAppId}`);
-
-    try {
-      const result = await createFcmToken({
-        token:  firebaseToken,
-        userid: null,         // will be filled in by updateTokenForUser after login
-        appid:  resolvedAppId,
-      });
-
-      if (result?.id) {
-        this.recordId = String(result.id);
-        await this._save(STORAGE_FCM_RECORD_ID_KEY, this.recordId);
-        console.log(`✅ FCM token registered on backend — id: ${result.id}, appid: ${resolvedAppId}`);
-        console.log(`   Response: ${JSON.stringify(result)}`);
-      } else {
-        console.log('⚠️ createFcmToken: response contained no id');
-      }
-
-      return result ?? null;
-    } catch (err) {
-      console.log('❌ captureToken: backend registration failed:', err?.message);
-      return null;
-    }
+    return firebaseToken;
   }
 
   /**
@@ -138,6 +111,12 @@ class TokenLogger {
    */
   async updateTokenForUser(userid, appid) {
     await this._init();
+
+    const resolvedUserIdCheck = userid ? Number(userid) : null;
+    if (!resolvedUserIdCheck) {
+      console.log('⚠️ updateTokenForUser: userid is required — skipping (backend requires non-null userid)');
+      return null;
+    }
 
     // ── Ensure we have a token ─────────────────────────────────────────────
     if (!this.token) this.token = await this._load(STORAGE_FCM_TOKEN_KEY);
@@ -154,7 +133,7 @@ class TokenLogger {
     if (!this.recordId) this.recordId = await this._load(STORAGE_FCM_RECORD_ID_KEY);
 
     const resolvedAppId  = resolveAppId(appid);
-    const resolvedUserId = userid ? Number(userid) : null;
+    const resolvedUserId = resolvedUserIdCheck;   // already validated non-null above
 
     if (this.recordId) {
       // ── Update existing record with userid ───────────────────────────────
@@ -199,11 +178,12 @@ class TokenLogger {
   /**
    * Called when Firebase rotates the FCM token (onTokenRefresh).
    *
-   * The old record id is discarded and a fresh createFcmToken call is made
-   * so the new token is always registered, even mid-session.
+   * Stores the new token locally. If a userid is already known (user is
+   * logged in), immediately re-registers on the backend. Otherwise defers
+   * registration until the next updateTokenForUser call after login.
    *
    * @param {string}      newToken
-   * @param {number|null} userid   — pass current user id if logged in
+   * @param {number|null} userid   — pass current user id if logged in, or null
    * @param {number|null} appid
    */
   async refreshToken(newToken, userid = null, appid = null) {
@@ -215,10 +195,17 @@ class TokenLogger {
     this.recordId = null;
     await this._save(STORAGE_FCM_TOKEN_KEY, newToken);
     await this._remove(STORAGE_FCM_RECORD_ID_KEY);
-    console.log('🔄 FCM token rotated — registering new token on backend');
 
-    const resolvedAppId  = resolveAppId(appid);
     const resolvedUserId = userid ? Number(userid) : null;
+
+    // If user is not logged in, just store the token for later registration
+    if (!resolvedUserId) {
+      console.log('🔄 FCM token rotated — stored locally, will register after login');
+      return null;
+    }
+
+    console.log('🔄 FCM token rotated — re-registering on backend');
+    const resolvedAppId = resolveAppId(appid);
 
     try {
       const result = await createFcmToken({

@@ -136,6 +136,16 @@ export default function TextBlock({ section }) {
   const alignmentCfg  = rawProps?.alignmentAndPadding?.properties || rawProps?.alignmentAndPadding || {};
   const paddingRaw    = alignmentCfg?.paddingRaw?.properties || alignmentCfg?.paddingRaw || {};
 
+  // Global text alignment — read from alignmentAndPadding first, then rawProps, then CSS
+  const globalAlign = asStr(
+    alignmentCfg?.textAlign ??
+    alignmentCfg?.align ??
+    rawProps?.textAlign ??
+    rawProps?.align ??
+    rawProps?.headtextAlign,
+    ""
+  ).toLowerCase();
+
   // ── Visibility ─────────────────────────────────────────────────────────────
   const showHeadline  = asBoolean(rawProps?.showHeadline, true);
   const showSubtext   = asBoolean(rawProps?.showSubtext,  true);
@@ -175,12 +185,21 @@ export default function TextBlock({ section }) {
     border: _b, backgroundColor: _bg, ...safeContainerStyle
   } = rawContainerStyle;
 
+  // Derive alignItems for the container from global alignment
+  const containerAlignItems =
+    globalAlign === "center" ? "center" :
+    globalAlign === "right"  ? "flex-end" :
+    globalAlign === "left"   ? "flex-start" :
+    safeContainerStyle?.alignItems ?? "flex-start";
+
   const containerStyle = {
     ...safeContainerStyle,
-    paddingTop:    asNumber(paddingRaw?.pt, safeContainerStyle.paddingTop),
-    paddingRight:  asNumber(paddingRaw?.pr, safeContainerStyle.paddingRight),
-    paddingBottom: asNumber(paddingRaw?.pb, safeContainerStyle.paddingBottom),
-    paddingLeft:   asNumber(paddingRaw?.pl, safeContainerStyle.paddingLeft),
+    paddingTop:    asNumber(paddingRaw?.pt,    safeContainerStyle.paddingTop    ?? 0),
+    paddingRight:  asNumber(paddingRaw?.pr,    safeContainerStyle.paddingRight  ?? 0),
+    paddingBottom: asNumber(paddingRaw?.pb,    safeContainerStyle.paddingBottom ?? 0),
+    paddingLeft:   asNumber(paddingRaw?.pl,    safeContainerStyle.paddingLeft   ?? 0),
+    // Override alignItems from global alignment so content centers/aligns correctly
+    ...(globalAlign ? { alignItems: containerAlignItems } : {}),
   };
 
   const overrideBgColor = asStr(styleCfg?.bgColor, "");
@@ -214,8 +233,17 @@ export default function TextBlock({ section }) {
     subtextStyle.fontFamily = typography.subtextFontFamily;
   }
 
-  const headtextAlign     = asStr(rawProps?.headtextAlign, "");
-  const subtextAlign      = asStr(rawProps?.subtextAlign,  "");
+  // Per-element alignment — fall back to globalAlign so setting one place controls both
+  const headtextAlign = (
+    asStr(rawProps?.headtextAlign ?? rawProps?.headlineAlign ?? rawProps?.headAlign, "") ||
+    (headlineStyle?.textAlign ? String(headlineStyle.textAlign) : "") ||
+    globalAlign
+  ).toLowerCase();
+  const subtextAlign = (
+    asStr(rawProps?.subtextAlign ?? rawProps?.bodyAlign ?? rawProps?.subtextTextAlign, "") ||
+    (subtextStyle?.textAlign ? String(subtextStyle.textAlign) : "") ||
+    globalAlign
+  ).toLowerCase();
   // Only use as numberOfLines when the DSL sends a whole positive integer.
   // Fractional values like 1.2 or 4.1 are builder-internal metrics, not line counts —
   // using them would floor to 1 and wrongly truncate multi-line headline text.
@@ -226,8 +254,13 @@ export default function TextBlock({ section }) {
   const subtextLines   = (resolvedSLines != null && Number.isInteger(resolvedSLines) && resolvedSLines >= 1)
     ? resolvedSLines : undefined;
 
+  // When icon is present, switch to row layout so icon sits beside text
+  const layoutStyle = hasIcon
+    ? { flexDirection: "row", alignItems: "center", gap: 12 }
+    : {};
+
   return (
-    <View style={[styles.container, containerStyle, overrideStyle]}>
+    <View style={[styles.container, containerStyle, overrideStyle, layoutStyle]}>
 
       {/* ── Icon: FontAwesome only — emoji characters are never rendered ─── */}
       {hasIcon && (
@@ -253,7 +286,7 @@ export default function TextBlock({ section }) {
       )}
 
       {/* ── Text ──────────────────────────────────────────────────────────── */}
-      <View style={styles.textContainer}>
+      <View style={[styles.textContainer, hasIcon ? { flex: 1 } : { width: "100%" }]}>
         {hasHeadline && (
           <Text
             numberOfLines={headlineLines}
@@ -288,11 +321,9 @@ export default function TextBlock({ section }) {
 
 const styles = StyleSheet.create({
   container: {
-    flexDirection:  "row",
-    alignItems:     "center",
-    paddingHorizontal: 16,
-    paddingVertical:   12,
-    gap: 12,
+    flexDirection:  "column",
+    alignItems:     "flex-start",
+    width:          "100%",
   },
   iconWrap: {
     justifyContent: "center",
@@ -300,7 +331,6 @@ const styles = StyleSheet.create({
     flexShrink:     0,
   },
   textContainer: {
-    flex:          1,
     flexDirection: "column",
     gap:           4,
   },

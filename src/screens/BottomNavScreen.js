@@ -21,6 +21,8 @@ import { resolveAppId } from "../utils/appId";
 import { useAuth } from "../services/AuthContext";
 import { SideMenuProvider } from "../services/SideMenuContext";
 import { setHeaderDefault, getHeaderDefault } from "../services/headerDefaultService";
+import NotificationList from "../components/NotificationList";
+import { fetchNotifications } from "../services/notificationFetchService";
 
 // Slugs that should redirect to the Auth screen instead of rendering empty DSL content
 const SIGNIN_SLUGS = new Set(["signin", "sign-in", "login", "log-in", "auth"]);
@@ -66,6 +68,9 @@ export default function BottomNavScreen() {
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState(null);
   const [refreshing, setRefreshing] = useState(false);
+  // Notification-page data
+  const [notifications, setNotifications]           = useState([]);
+  const [notificationsLoading, setNotificationsLoading] = useState(false);
   const [homeHeaderSections, setHomeHeaderSections] = useState([]);
   const [headerDefaultConfig, setHeaderDefaultConfig] = useState(() => getHeaderDefault());
   // Mirror state in a ref so callbacks always read the latest value (no stale closures)
@@ -494,17 +499,43 @@ export default function BottomNavScreen() {
 
   const onRefresh = async () => {
     setRefreshing(true);
+    if (isNotificationPage) {
+      await loadNotifications();
+    }
     await refreshDSL();
     setRefreshing(false);
   };
+
+  // ── Notification fetch ────────────────────────────────────────────────────
+  const loadNotifications = useCallback(async () => {
+    if (!isNotificationPage || !appId) return;
+    setNotificationsLoading(true);
+    try {
+      const userId = session?.user?.id ?? session?.user?.userId ?? null;
+      const items = await fetchNotifications({ appId, userId });
+      setNotifications(items);
+    } catch (_) {
+      // Errors already logged in service — just show empty list
+      setNotifications([]);
+    } finally {
+      setNotificationsLoading(false);
+    }
+  }, [appId, isNotificationPage, session]);
 
   useFocusEffect(
     useCallback(() => {
       if (!isAutoRefreshPage) return undefined;
       refreshDSL();
+      if (isNotificationPage) loadNotifications();
       return undefined;
-    }, [isAutoRefreshPage, refreshDSL])
+    }, [isAutoRefreshPage, isNotificationPage, loadNotifications, refreshDSL])
   );
+
+  // Load notifications once on mount when this is the notification page
+  useEffect(() => {
+    if (isNotificationPage) loadNotifications();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isNotificationPage, appId]);
 
   useEffect(() => {
     // Check for bottom navigation updates on mount
@@ -585,7 +616,32 @@ export default function BottomNavScreen() {
             <Text style={styles.error}>Error loading: {err}</Text>
             <Text style={styles.linkText}>Please try again.</Text>
           </View>
+        ) : isNotificationPage ? (
+          /* ── Notification tab: shows real notification records from backend ── */
+          <View style={{ flex: 1 }}>
+            {isHeaderDefaultEnabled && !hideBottomNav && (
+              <HeaderDefault
+                config={headerDefaultConfig}
+                bottomNavSection={resolvedBottomNavSection}
+              />
+            )}
+            <ScrollView
+              style={{ flex: 1 }}
+              contentContainerStyle={{ flexGrow: 1 }}
+              showsVerticalScrollIndicator={false}
+              refreshControl={
+                <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+              }
+            >
+              <NotificationList
+                notifications={notifications}
+                loading={notificationsLoading}
+                bottomPad={resolvedBottomNavSection && !hideBottomNav ? bottomNavHeight : 0}
+              />
+            </ScrollView>
+          </View>
         ) : (
+          /* ── All other tabs: DSL-driven content ────────────────────────────── */
           <ScrollView
             contentInsetAdjustmentBehavior="automatic"
             style={{ flex: 1 }}
@@ -616,14 +672,8 @@ export default function BottomNavScreen() {
               ))
             ) : (
               <View style={styles.content}>
-                <Text style={styles.subtitleText}>
-                  {isNotificationPage ? "You're all caught up!" : "No content available yet."}
-                </Text>
-                <Text style={styles.linkText}>
-                  {isNotificationPage
-                    ? "No new notifications right now. We'll let you know when something arrives."
-                    : "Please check back soon."}
-                </Text>
+                <Text style={styles.subtitleText}>No content available yet.</Text>
+                <Text style={styles.linkText}>Please check back soon.</Text>
               </View>
             )}
           </ScrollView>

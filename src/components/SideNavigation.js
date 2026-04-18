@@ -204,9 +204,14 @@ export default function SideNavigation({ section }) {
       }
 
       // ── All other DSL pages ───────────────────────────────────────────────
-      navigation.navigate("BottomNavScreen", {
+      // Use push() — not navigate() — so a NEW stack entry is always created.
+      // This guarantees the back button in BottomNavScreen works, even when
+      // BottomNavScreen is already the current screen (side menu opened there).
+      // hideBottomNav:true shows the back-button header row in BottomNavScreen.
+      navigation.push("BottomNavScreen", {
         pageName: slug,
         title: String(item?.label || item?.title || slug),
+        hideBottomNav: true,
       });
     },
     [logout, navigation]
