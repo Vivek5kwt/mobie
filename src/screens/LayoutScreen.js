@@ -736,6 +736,7 @@ const styles = StyleSheet.create({
     marginBottom: 0,
     paddingTop: 0,
     paddingBottom: 0,
+    backgroundColor: "transparent",
   },
   sideMenuOverlay: {
     backgroundColor: "rgba(0,0,0,0.3)",

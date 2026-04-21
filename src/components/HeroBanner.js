@@ -1,5 +1,5 @@
 import React from "react";
-import { Image, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { Dimensions, Image, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import LinearGradient from "react-native-linear-gradient";
 import { useNavigation } from "@react-navigation/native";
 import { applyMetricsPositioning, convertStyles } from "../utils/convertStyles";
@@ -512,8 +512,9 @@ export default function HeroBanner({ section }) {
     subtextPositionStyle?.position === "absolute" ||
     buttonPositionStyle?.position === "absolute";
 
-  const hasVisibleContent =
-    (showHeadline && headline) || (showSubtext && subtext) || (showButton && buttonLabel) || imageSrc;
+  const hasTextContent =
+    (showHeadline && headline) || (showSubtext && subtext) || (showButton && buttonLabel);
+  const hasVisibleContent = hasTextContent || imageSrc;
   if (!hasVisibleContent) return null;
 
   // Calculate container height:
@@ -526,19 +527,22 @@ export default function HeroBanner({ section }) {
     ? toNumber(metricElements.container.height, undefined)
     : undefined;
 
+  // With both image and content overlay being position:absolute, the container
+  // has zero natural height from children — it needs an explicit height.
+  const SCREEN_WIDTH = Dimensions.get("window").width;
+  const DEFAULT_BANNER_HEIGHT = Math.round(SCREEN_WIDTH * 0.55); // ~55% of screen width
+
   const containerHeightStyle = numericContainerHeight
     ? { height: numericContainerHeight }
-    : {}; // No fixed height; container grows with content, and image fills it
+    : imageAspectRatio
+    ? {} // aspectRatio handles height below
+    : { height: imageSrc ? DEFAULT_BANNER_HEIGHT : undefined };
 
   const innerContainerStyle = [
     styles.container,
     {
       borderRadius: containerBorderRadius,
-      // Use image aspect ratio for correct banner height (e.g. 2:3 portrait fill).
-      // Fall back to minHeight when no ratio is provided.
-      ...(imageAspectRatio
-        ? { aspectRatio: imageAspectRatio }
-        : { minHeight: imageSrc ? 320 : undefined }),
+      ...(imageAspectRatio ? { aspectRatio: imageAspectRatio } : {}),
       ...containerHeightStyle,
     },
     containerStyle,
@@ -574,12 +578,14 @@ export default function HeroBanner({ section }) {
           styles.content,
           {
             alignItems: alignSettingsEnabled ? alignItems : "center",
-            paddingTop: alignSettingsEnabled
-              ? paddingTop > 0 ? paddingTop : (numericContainerHeight ? 0 : 40)
-              : 40,
-            paddingRight: alignSettingsEnabled ? paddingRight : 30,
-            paddingBottom: alignSettingsEnabled ? paddingBottom : 50,
-            paddingLeft: alignSettingsEnabled ? paddingLeft : 30,
+            paddingTop: hasTextContent
+              ? (alignSettingsEnabled
+                  ? paddingTop > 0 ? paddingTop : (numericContainerHeight ? 0 : 40)
+                  : 40)
+              : 0,
+            paddingRight: hasTextContent ? (alignSettingsEnabled ? paddingRight : 30) : 0,
+            paddingBottom: hasTextContent ? (alignSettingsEnabled ? paddingBottom : 50) : 0,
+            paddingLeft: hasTextContent ? (alignSettingsEnabled ? paddingLeft : 30) : 0,
           },
         ]}
       >
@@ -650,7 +656,7 @@ export default function HeroBanner({ section }) {
 const styles = StyleSheet.create({
   outerCard: {
     width: "100%",
-    // No padding, margin, or border radius by default — purely a passthrough wrapper
+    overflow: "hidden",
   },
   container: {
     position: "relative",
@@ -665,9 +671,8 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     bottom: 0,
-    // No explicit width/height: top+left+right+bottom=0 fills the full padding box correctly.
-    // Adding width/height:100% would resolve against the content area (excl. padding) in RN/Yoga,
-    // causing the image to be clipped by the container's padding on all sides.
+    width: "100%",
+    height: "100%",
     zIndex: 0,
   },
   overlay: {
@@ -681,13 +686,14 @@ const styles = StyleSheet.create({
     zIndex: 1, // Above image, below content
   },
   content: {
-    position: "relative",
-    flex: 1,
-    width: "100%",
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
     justifyContent: "center",
     alignItems: "center",
     zIndex: 2,
-    // No minHeight here — container minHeight handles image banners
   },
   absoluteContentLayer: {
     position: "absolute",
