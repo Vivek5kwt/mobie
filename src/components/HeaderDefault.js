@@ -58,10 +58,23 @@ export default function HeaderDefault({ config, bottomNavSection }) {
   const multiTab = resolveVal(config.multiTab) === true || resolveVal(config.multiTab) === "true";
   const showTabs = multiTab && tabs.length > 0;
 
-  // Tab bar sits on bgColor (same as appbar), so use activeTextColor / inactiveTextColor
-  // directly — no comparison against tabBgColor (which was for the old white tab bar).
-  const activeTabColor   = resolveVal(config.activeTextColor)   || "#FFFFFF";
-  const inactiveTabColor = resolveVal(config.inactiveTextColor) || "rgba(255,255,255,0.55)";
+  // Determine whether the header background is "light" so we can pick readable defaults.
+  const _isLightBg = (() => {
+    const hex = (bgColor || "").replace("#", "");
+    if (hex.length < 6) return true;
+    const r = parseInt(hex.slice(0, 2), 16);
+    const g = parseInt(hex.slice(2, 4), 16);
+    const b = parseInt(hex.slice(4, 6), 16);
+    return (0.299 * r + 0.587 * g + 0.114 * b) > 140;
+  })();
+
+  const _darkFallback  = textColor;                      // use header textColor for active (always readable)
+  const _mutedFallback = _isLightBg ? "rgba(0,0,0,0.38)" : "rgba(255,255,255,0.55)";
+
+  const activeTabColor   = resolveVal(config.activeTextColor)   || _darkFallback;
+  const inactiveTabColor = resolveVal(config.inactiveTextColor) || _mutedFallback;
+  // Underline indicator color — separate from text color so it can be an accent
+  const activeIndicatorColor = resolveVal(config.activeIndicatorColor) || resolveVal(config.activeBorderColor) || activeTabColor;
 
   // ── Nav helpers ───────────────────────────────────────────────────────────
   const resolveNavItems = (rawSection) => {
@@ -99,7 +112,7 @@ export default function HeaderDefault({ config, bottomNavSection }) {
   // Tab bar uses the same bgColor as the appbar. Active/inactive colors come
   // directly from DSL activeTextColor / inactiveTextColor.
   const tabBar = showTabs ? (
-    <View style={{ flexDirection: "row", backgroundColor: bgColor }}>
+    <View style={{ flexDirection: "row", backgroundColor: bgColor, borderBottomWidth: 1, borderBottomColor: _isLightBg ? "rgba(0,0,0,0.08)" : "rgba(255,255,255,0.12)" }}>
       {tabs.map((tab, idx) => {
         const isActive = idx === activeTabIdx;
         const label = resolveVal(tab.label) || resolveVal(tab.title) || resolveVal(tab.text) || `Tab ${idx + 1}`;
@@ -111,7 +124,7 @@ export default function HeaderDefault({ config, bottomNavSection }) {
               alignItems: "center",
               paddingVertical: 10,
               borderBottomWidth: 3,
-              borderBottomColor: isActive ? activeTabColor : "transparent",
+              borderBottomColor: isActive ? activeIndicatorColor : "transparent",
             }}
             activeOpacity={0.75}
             onPress={() => setActiveTabIdx(idx)}

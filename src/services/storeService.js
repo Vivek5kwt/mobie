@@ -2,6 +2,9 @@ import { resolveAppId } from '../utils/appId';
 
 const GRAPHQL_ENDPOINT = 'https://app.mobidrag.com/graphql';
 
+// Fallback storeId used when layouts query can't resolve one
+const FALLBACK_STORE_ID = 40;
+
 // ── Queries ────────────────────────────────────────────────────────────────
 
 // Step 1: resolve storeId from the layouts for this appId
@@ -88,13 +91,15 @@ export async function fetchStoreConfig() {
       }
 
       const layouts = layoutsJson?.data?.layouts;
-      const storeId = Array.isArray(layouts) && layouts.length > 0
+      const resolvedFromLayouts = Array.isArray(layouts) && layouts.length > 0
         ? Number(layouts[0]?.store_id)
         : null;
+      const storeId = (resolvedFromLayouts && Number.isFinite(resolvedFromLayouts) && resolvedFromLayouts > 0)
+        ? resolvedFromLayouts
+        : FALLBACK_STORE_ID;
 
-      if (!storeId || !Number.isFinite(storeId)) {
-        console.warn(`⚠️ Could not resolve storeId from layouts for appId ${appId}`);
-        return null;
+      if (resolvedFromLayouts !== storeId) {
+        console.warn(`⚠️ Could not resolve storeId from layouts for appId ${appId} — using fallback storeId ${storeId}`);
       }
 
       console.log(`🏪 Resolved storeId: ${storeId} — fetching store config...`);

@@ -603,8 +603,8 @@ export default function LayoutScreen({ route }) {
                 : null;
               const collapseHeaderGap =
                 componentName === "header" && nextComponentName === "header_2";
-              const isBannerSlider = componentName === "banner_slider";
-              const nextIsBannerSlider = nextComponentName === "banner_slider";
+              const isBannerSlider = componentName === "banner_slider" || componentName === "hero_banner";
+              const nextIsBannerSlider = nextComponentName === "banner_slider" || nextComponentName === "hero_banner";
               const collapseBannerGap = isBannerSlider || nextIsBannerSlider;
               const shouldAttachBottomNav =
                 componentName === "header" ||

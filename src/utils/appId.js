@@ -29,7 +29,7 @@ export const resolveAppId = (appId) => {
     if (isValidId(n)) {
       console.log(`📱 Using REACT_APP_APP_ID from env: ${n}`);
       return n;
-    }
+    } 
   }
 
   // 4. Fallback
