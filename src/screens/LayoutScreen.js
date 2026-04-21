@@ -501,18 +501,22 @@ export default function LayoutScreen({ route }) {
       } catch (e) {
         console.log("❌ Auto-refresh error:", e);
       }
-    }, 3000);
+    }, 30000); // 30s — aggressive 3s polling caused infinite re-render loop
 
     return () => clearInterval(intervalId);
   }, [appId, pageName, isHomePage, ensureHeaderSections, homeHeaderSections]);
 
+  // Keep a ref to the latest refreshDSL so useFocusEffect doesn't re-subscribe on every render
+  const refreshDSLRef = useRef(null);
+  refreshDSLRef.current = refreshDSL;
+
   useFocusEffect(
     useCallback(() => {
       // Auto-refresh layout when screen gains focus (e.g. after saving on web)
-      refreshDSL(false);
+      refreshDSLRef.current?.(false);
       // Do not forcibly close side menu here; let user control it
       return undefined;
-    }, [refreshDSL])
+    }, []) // Empty deps — only re-runs when screen gains focus, not on every render
   );
 
   const closeSideMenu = () => {

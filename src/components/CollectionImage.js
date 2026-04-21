@@ -169,7 +169,7 @@ export default function CollectionImage({ section }) {
   const sliderCfg        = layoutCss?.slider || {};
   const gapPx            = asNumber(sliderCfg?.gapPx ?? sliderCfg?.gap, 12);
   const autoScrollEnabled = asBoolean(behavior?.autoScroll ?? sliderCfg?.autoScroll, true);
-  const showIndicators   = asBoolean(behavior?.showIndicators ?? sliderCfg?.showIndicators, true);
+  const showIndicators   = asBoolean(behavior?.showIndicators ?? sliderCfg?.showIndicators, false);
   const scrollSpeedSec   = Math.max(asNumber(behavior?.scrollSpeed, 3), 1);
 
   // Each card width from DSL; constrain so at least partial next card peeks
