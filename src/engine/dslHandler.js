@@ -283,8 +283,16 @@ export async function fetchLiveDSL(appId, pageName) {
     if (finalDsl?.sections) {
       const components = finalDsl.sections
         .filter(Boolean)
-        .map((s) => s?.component || s?.properties?.component);
-      console.log(`🔍 Components found:`, components);
+        .map((s) => {
+          const c = s?.component || s?.properties?.component;
+          return typeof c === "object" ? (c?.const || c?.value || JSON.stringify(c)) : c;
+        });
+      console.log(`🔍 Components found: ${components.join(" | ")}`);
+    }
+
+    if (finalDsl?.headerdefault) {
+      const hd = finalDsl.headerdefault;
+      console.log(`🎨 HeaderDefault: bg=${hd.backgroundColor||hd.bgColor} text=${hd.textColor} activeText=${hd.activeTextColor} inactiveText=${hd.inactiveTextColor} multiTab=${hd.multiTab} tabs=${JSON.stringify(hd.tabs)}`);
     }
 
     return { dsl: finalDsl, versionNumber };

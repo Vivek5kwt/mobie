@@ -174,21 +174,31 @@ export default function HeroBanner({ section }) {
   const buttonCssStyle = convertStyles(layoutCss?.button || {});
   const imageCssStyleRaw = convertStyles(layoutCss?.image || {});
 
-  // Strip padding from containerStyle: the image must fill edge-to-edge (padding offsets break
-  // absolute-positioned children in RN since % dimensions resolve to content size, not padding box).
-  // The content layer already applies its own padding via paddingRaw.
+  // Strip padding, margin, and explicit sizing from containerStyle.
+  // Height is managed by containerHeightStyle + aspectRatio/minHeight below.
   const {
     padding: _cP, paddingTop: _cPt, paddingBottom: _cPb,
     paddingLeft: _cPl, paddingRight: _cPr,
     paddingHorizontal: _cPh, paddingVertical: _cPv,
+    margin: _cM, marginTop: _cMt, marginBottom: _cMb,
+    marginLeft: _cMl, marginRight: _cMr,
+    marginHorizontal: _cMh, marginVertical: _cMv,
+    height: _cH, minHeight: _cMinH, maxHeight: _cMaxH,
     ...containerStyle
   } = containerStyleRaw;
 
-  // Strip width/height/min* from imageCssStyle: rely on top/left/right/bottom=0 for full-bleed fill.
-  // In React Native, width/height percentages resolve against the content area (excluding padding),
-  // so an absolute image with width:"100%" + parent paddingLeft:30 would be 30px short on each side.
+  // Strip positioning, sizing, and spacing from imageCssStyle so DSL cannot push
+  // the image away from the container edges (the base style pins top/left/right/bottom to 0).
   const {
-    width: _iW, height: _iH, minWidth: _iMW, minHeight: _iMH,
+    position: _iPos,
+    width: _iW, height: _iH, minWidth: _iMW, minHeight: _iMH, maxWidth: _iMaxW, maxHeight: _iMaxH,
+    top: _iT, left: _iL, right: _iR, bottom: _iB,
+    margin: _iM, marginTop: _iMt, marginBottom: _iMb,
+    marginLeft: _iMl, marginRight: _iMr,
+    marginHorizontal: _iMh, marginVertical: _iMv,
+    padding: _iPad, paddingTop: _iPt, paddingBottom: _iPb,
+    paddingLeft: _iPl, paddingRight: _iPr,
+    paddingHorizontal: _iPh, paddingVertical: _iPv,
     ...imageCssStyle
   } = imageCssStyleRaw;
 
@@ -253,7 +263,7 @@ export default function HeroBanner({ section }) {
   // Image attributes and settings
   const imageAttributes = rawProps?.imageAttributes?.properties || rawProps?.imageAttributes || {};
   const imageSettingsEnabled = toBoolean(rawProps?.imageSettingsEnabled, true);
-  const imageScale = toString(imageAttributes?.scale, "Fit").toLowerCase();
+  const imageScale = toString(imageAttributes?.scale, "Cover").toLowerCase();
   // Default to 0 — no rounded corners unless DSL explicitly sets a radius
   const imageCornerRadius = toNumber(imageAttributes?.imageCorner, 0);
   
@@ -281,7 +291,7 @@ export default function HeroBanner({ section }) {
   
   // Map image scale to React Native resizeMode
   // CSS objectFit: cover -> cover, fill/stretch -> stretch, contain/fit -> contain
-  const cssObjectFit = toString(layoutCss?.image?.objectFit, "contain").toLowerCase();
+  const cssObjectFit = toString(layoutCss?.image?.objectFit, "cover").toLowerCase();
   const resizeMode =
     cssObjectFit === "cover" || imageScale === "cover" || imageScale === "fill"
       ? "cover"
@@ -540,10 +550,8 @@ export default function HeroBanner({ section }) {
         <Image
           source={{ uri: imageSrc }}
           style={[
-            styles.image,
-            // Image clips to container's border radius — no separate image corner radius
-            // unless DSL explicitly configured one; container overflow:hidden handles the rest
             imageCssStyle,
+            styles.image, // base style last so position/top/left/right/bottom always win
           ]}
           resizeMode={resizeMode}
         />
@@ -622,9 +630,13 @@ export default function HeroBanner({ section }) {
           style={[
             ...innerContainerStyle,
             {
-              backgroundColor: bgSettingsEnabled
-                ? withColorOpacity(backgroundColor, backgroundOpacity)
-                : "transparent",
+              // When an image is present it covers the container entirely; keep bg transparent
+              // so no colour bleeds out if the container is ever taller than the image.
+              backgroundColor: imageSrc
+                ? "transparent"
+                : bgSettingsEnabled
+                  ? withColorOpacity(backgroundColor, backgroundOpacity)
+                  : "transparent",
             },
           ]}
         >
