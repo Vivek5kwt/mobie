@@ -555,53 +555,94 @@ export async function createShopifyCartCheckout({ items = [], options = {} }) {
     }))
     .filter((line) => line.merchandiseId);
 
-  if (!lines.length) {
+  // Build numeric variant IDs for direct cart URL fallback (no API needed)
+  const directCartLines = (items || [])
+    .map((item) => {
+      const raw = String(item?.variantId || item?.id || "");
+      const match = raw.match(/ProductVariant\/(\d+)/) || (!raw.includes("gid://") && raw.match(/^(\d+)$/));
+      if (!match) return null;
+      return `${match[1]}:${Math.max(1, Number(item?.quantity) || 1)}`;
+    })
+    .filter(Boolean);
+
+  if (!lines.length && !directCartLines.length) {
     throw new Error("No valid cart items for checkout.");
   }
 
-  const mutation = `
-    mutation CreateCart($input: CartInput!) {
-      cartCreate(input: $input) {
-        cart {
-          checkoutUrl
-        }
-        userErrors {
-          field
-          message
+  // ── Attempt 1: cartCreate mutation (Storefront API 2021-07+) ──────────────
+  if (lines.length) {
+    const cartCreateMutation = `
+      mutation CreateCart($input: CartInput!) {
+        cartCreate(input: $input) {
+          cart { checkoutUrl }
+          userErrors { field message }
         }
       }
+    `;
+    try {
+      const json = await directStorefrontGraphQL({
+        shop, token, storeId,
+        query: cartCreateMutation,
+        variables: { input: { lines } },
+      });
+      if (!json?.errors?.length) {
+        const payload = json?.data?.cartCreate;
+        if (!payload?.userErrors?.length) {
+          const url = payload?.cart?.checkoutUrl;
+          if (url) {
+            console.log("✅ Checkout via cartCreate:", url);
+            return url;
+          }
+        }
+      }
+      console.warn("⚠️ cartCreate failed, trying checkoutCreate...");
+    } catch (e) {
+      console.warn("⚠️ cartCreate error:", e.message);
     }
-  `;
 
-  const json = await directStorefrontGraphQL({
-    shop,
-    token,
-    storeId,
-    query: mutation,
-    variables: {
-      input: {
-        lines,
-      },
-    },
-  });
-
-  if (json?.errors?.length) {
-    throw new Error(json.errors.map((error) => error.message).join(" "));
+    // ── Attempt 2: checkoutCreate mutation (older Storefront API) ────────────
+    const checkoutCreateMutation = `
+      mutation CheckoutCreate($input: CheckoutCreateInput!) {
+        checkoutCreate(input: $input) {
+          checkout { webUrl }
+          checkoutUserErrors { field message }
+        }
+      }
+    `;
+    try {
+      const lineItems = lines.map((line) => ({
+        variantId: line.merchandiseId,
+        quantity: line.quantity,
+      }));
+      const json = await directStorefrontGraphQL({
+        shop, token, storeId,
+        query: checkoutCreateMutation,
+        variables: { input: { lineItems } },
+      });
+      if (!json?.errors?.length) {
+        const payload = json?.data?.checkoutCreate;
+        if (!payload?.checkoutUserErrors?.length) {
+          const url = payload?.checkout?.webUrl;
+          if (url) {
+            console.log("✅ Checkout via checkoutCreate:", url);
+            return url;
+          }
+        }
+      }
+      console.warn("⚠️ checkoutCreate failed, falling back to direct cart URL...");
+    } catch (e) {
+      console.warn("⚠️ checkoutCreate error:", e.message);
+    }
   }
 
-  const payload = json?.data?.cartCreate;
-  const errors = payload?.userErrors || [];
-
-  if (errors.length) {
-    throw new Error(errors.map((error) => error.message).join(" "));
+  // ── Attempt 3: direct Shopify cart URL (no API call needed) ─────────────
+  if (directCartLines.length) {
+    const url = `https://${shop}/cart/${directCartLines.join(",")}`;
+    console.log("✅ Checkout via direct cart URL:", url);
+    return url;
   }
 
-  const checkoutUrl = payload?.cart?.checkoutUrl ?? payload?.cart?.checckoutUrl;
-  if (!checkoutUrl) {
-    throw new Error("Checkout URL not returned.");
-  }
-
-  return checkoutUrl;
+  throw new Error("Checkout URL not returned. Please try again.");
 }
 
 // ----------------------
