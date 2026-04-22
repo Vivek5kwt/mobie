@@ -124,9 +124,9 @@ export default function ProductCarousel({ section }) {
 
   // Background padding
   const bgPadT = toNumber(raw?.bgPadT, 8);
-  const bgPadR = toNumber(raw?.bgPadR, 8);
+  const bgPadR = toNumber(raw?.bgPadR, 12);
   const bgPadB = toNumber(raw?.bgPadB, 8);
-  const bgPadL = toNumber(raw?.bgPadL, 8);
+  const bgPadL = toNumber(raw?.bgPadL, 12);
   const bgColor = toString(raw?.bgColor, "#FFFFFF");
   const backgroundActive = toBoolean(raw?.backgroundActive, true);
 
@@ -699,6 +699,7 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     alignItems: "center",
     marginBottom: 16,
+    paddingHorizontal: 8,
   },
   headerText: {
     flex: 1,

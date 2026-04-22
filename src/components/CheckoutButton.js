@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from "react";
-import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { ActivityIndicator, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { useNavigation } from "@react-navigation/native";
 import { useSelector } from "react-redux";
 import { createShopifyCartCheckout } from "../services/shopify";
@@ -219,19 +219,28 @@ export default function CheckoutButton({ section }) {
   );
 
   const [emptySnackbar, setEmptySnackbar] = useState(false);
+  const [errorSnackbar, setErrorSnackbar] = useState(false);
+  const [loading, setLoading] = useState(false);
 
   const handleCheckout = async () => {
     if (!hasCartItems) {
       setEmptySnackbar(true);
       return;
     }
+    if (loading) return;
+    setLoading(true);
     try {
       const checkoutUrl = await createShopifyCartCheckout({ items: checkoutLines });
       if (checkoutUrl && navigation?.navigate) {
         navigation.navigate("CheckoutWebView", { url: checkoutUrl, title: "Checkout" });
+      } else {
+        setErrorSnackbar(true);
       }
     } catch (error) {
       console.log("Checkout error:", error);
+      setErrorSnackbar(true);
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -261,6 +270,11 @@ export default function CheckoutButton({ section }) {
 
   // ── Render button label ──────────────────────────────────────────────────────
   const renderLabel = () => {
+    // Loading state
+    if (loading) {
+      return <ActivityIndicator color={activeTextColor} size="small" />;
+    }
+
     // Disabled state: always solid
     if (!hasCartItems) {
       return (
@@ -328,6 +342,15 @@ export default function CheckoutButton({ section }) {
         onDismiss={() => setEmptySnackbar(false)}
         duration={3000}
         type="info"
+      />
+      <Snackbar
+        visible={errorSnackbar}
+        message="Checkout failed. Please try again."
+        actionLabel="Dismiss"
+        onAction={() => setErrorSnackbar(false)}
+        onDismiss={() => setErrorSnackbar(false)}
+        duration={4000}
+        type="error"
       />
     </View>
   );
