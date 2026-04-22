@@ -1,5 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from "react";
-import {
+import React, { useEffect, useMemo, useRef, useState } from "react";import {
   Animated,
   Dimensions,
   Image,
@@ -16,6 +15,7 @@ import { useDispatch, useSelector } from "react-redux";
 import { PinchGestureHandler, State } from "react-native-gesture-handler";
 import FontAwesome from "react-native-vector-icons/FontAwesome";
 import { toggleWishlist } from "../store/slices/wishlistSlice";
+import Snackbar from "./Snackbar";
 
 const unwrapValue = (value, fallback = undefined) => {
   if (value === undefined || value === null) return fallback;
@@ -66,7 +66,9 @@ export default function ProductLibrary({ section }) {
   const dispatch = useDispatch();
   const wishlistItems = useSelector((state) => state.wishlist?.items || []);
   const [isFullscreenVisible, setIsFullscreenVisible] = useState(false);
-  const [currentIdx, setCurrentIdx] = useState(0);
+  const [currentIdx,          setCurrentIdx]          = useState(0);
+  const [snackVisible,        setSnackVisible]        = useState(false);
+  const [snackMessage,        setSnackMessage]        = useState("");
   const galleryRef = useRef(null);
 
   // Pinch-to-zoom state for fullscreen
@@ -122,6 +124,7 @@ export default function ProductLibrary({ section }) {
     : false;
 
   const handleToggleFavourite = () => {
+    const adding = !isFavourite;
     dispatch(
       toggleWishlist({
         product: {
@@ -136,6 +139,8 @@ export default function ProductLibrary({ section }) {
         },
       })
     );
+    setSnackMessage(adding ? "Product added to wishlist successfully." : "Product removed from wishlist successfully.");
+    setSnackVisible(true);
   };
 
   useEffect(() => {
@@ -432,6 +437,14 @@ export default function ProductLibrary({ section }) {
           </Pressable>
         </Pressable>
       </Modal>
+
+      <Snackbar
+        visible={snackVisible}
+        message={snackMessage}
+        onDismiss={() => setSnackVisible(false)}
+        duration={2500}
+        type="success"
+      />
     </View>
   );
 }

@@ -28,6 +28,7 @@ import OrderDetailScreen from './src/screens/OrderDetailScreen';
 import SettingsScreen from './src/screens/SettingsScreen';
 import PostPurchaseScreen from './src/screens/PostPurchaseScreen';
 import ProductDetailScreen from './src/screens/ProductDetailScreen';
+import WishlistScreen from './src/screens/WishlistScreen';
 import SplashScreen from './src/screens/saplash';
 import AuthScreen from './src/screens/AuthScreen';
 import AuthProvider from './src/services/AuthContext';
@@ -232,6 +233,12 @@ export default function App() {
                       name="PostPurchase"
                       component={PostPurchaseScreen}
                       options={{ animation: 'fade', gestureEnabled: false }}
+                    />
+
+                    <Stack.Screen
+                      name="Wishlist"
+                      component={WishlistScreen}
+                      options={{ animation: 'slide_from_right' }}
                     />
                   </Stack.Navigator>
                 </NavigationContainer>

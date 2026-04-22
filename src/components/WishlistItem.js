@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState } from "react";
 import {
   Image,
   ScrollView,
@@ -11,6 +11,7 @@ import { useNavigation } from "@react-navigation/native";
 import { useDispatch, useSelector } from "react-redux";
 import FontAwesome from "react-native-vector-icons/FontAwesome";
 import { toggleWishlist } from "../store/slices/wishlistSlice";
+import Snackbar from "./Snackbar";
 
 const unwrapValue = (value, fallback = undefined) => {
   if (value === undefined || value === null) return fallback;
@@ -48,6 +49,7 @@ export default function WishlistItem({ section }) {
   const navigation = useNavigation();
   const dispatch = useDispatch();
   const wishlistItems = useSelector((state) => state.wishlist?.items || []);
+  const [snackVisible, setSnackVisible] = useState(false);
 
   const rawProps =
     section?.props ||
@@ -108,6 +110,7 @@ export default function WishlistItem({ section }) {
   }
 
   return (
+    <View style={{ flex: 1 }}>
     <ScrollView
       contentContainerStyle={[styles.grid, { paddingHorizontal: 12, paddingVertical: 12 }]}
       showsVerticalScrollIndicator={false}
@@ -173,7 +176,10 @@ export default function WishlistItem({ section }) {
                 {/* Heart icon overlay */}
                 <TouchableOpacity
                   style={styles.heartBtn}
-                  onPress={() => dispatch(toggleWishlist({ product }))}
+                  onPress={() => {
+                    dispatch(toggleWishlist({ product }));
+                    setSnackVisible(true);
+                  }}
                   hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
                   activeOpacity={0.8}
                 >
@@ -233,6 +239,14 @@ export default function WishlistItem({ section }) {
         })}
       </View>
     </ScrollView>
+    <Snackbar
+      visible={snackVisible}
+      message="Product removed from wishlist successfully."
+      onDismiss={() => setSnackVisible(false)}
+      duration={2500}
+      type="info"
+    />
+    </View>
   );
 }
 

@@ -619,13 +619,34 @@ export default function BottomNavScreen() {
         ) : isNotificationPage ? (
           /* ── Notification tab: shows real notification records from backend ── */
           <View style={{ flex: 1 }}>
-            {isHeaderDefaultEnabled && !hideBottomNav && (
-              <HeaderDefault
-                config={headerDefaultConfig}
-                bottomNavSection={resolvedBottomNavSection}
-                hideTabs={isCartPage || isProfilePage || isNotificationPage || isSearchPage}
-              />
-            )}
+            {/* Notification page header — always shows back button + title */}
+            <View style={styles.notifHeader}>
+              <TouchableOpacity
+                style={styles.notifBackBtn}
+                activeOpacity={0.7}
+                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                onPress={() => {
+                  if (navigation.canGoBack()) {
+                    navigation.goBack();
+                  } else {
+                    navigation.navigate("BottomNavScreen", {
+                      title: "Home",
+                      link: "home",
+                      activeIndex: 0,
+                      bottomNavSection: resolvedBottomNavSection,
+                    });
+                  }
+                }}
+              >
+                <FontAwesome name="angle-left" size={24} color="#111827" />
+              </TouchableOpacity>
+              <Text style={styles.notifHeaderTitle} numberOfLines={1}>
+                Notifications
+              </Text>
+              {/* Spacer to keep title centred */}
+              <View style={styles.notifBackBtn} />
+            </View>
+
             <ScrollView
               style={{ flex: 1 }}
               contentContainerStyle={{ flexGrow: 1 }}
@@ -738,6 +759,27 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     color: "#111827",
     flex: 1,
+  },
+  notifHeader: {
+    flexDirection:     "row",
+    alignItems:        "center",
+    justifyContent:    "space-between",
+    paddingHorizontal: 16,
+    paddingVertical:   12,
+    backgroundColor:   "#FFFFFF",
+    borderBottomWidth: 1,
+    borderBottomColor: "#F3F4F6",
+  },
+  notifBackBtn: {
+    width:      36,
+    alignItems: "center",
+  },
+  notifHeaderTitle: {
+    flex:       1,
+    textAlign:  "center",
+    fontSize:   17,
+    fontWeight: "700",
+    color:      "#111827",
   },
   scrollContent: {
     flexGrow: 1,

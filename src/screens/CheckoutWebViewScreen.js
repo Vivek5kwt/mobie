@@ -1,5 +1,12 @@
-import React, { useCallback, useMemo, useRef, useState } from "react";
-import { ActivityIndicator, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  ActivityIndicator,
+  BackHandler,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
+} from "react-native";
 import { useNavigation, useRoute } from "@react-navigation/native";
 import { useSelector } from "react-redux";
 import FontAwesome from "react-native-vector-icons/FontAwesome";
@@ -14,10 +21,8 @@ import { triggerOrderNotification, ORDER_EVENTS } from "../services/notification
 
 const extractOrderNumber = (url) => {
   if (!url) return "";
-  // /59376534593/orders/abc123  → use last 6 digits of the numeric ID
   const longMatch = url.match(/\/(\d{6,})\/orders\//);
   if (longMatch) return `#${longMatch[1].slice(-6)}`;
-  // /orders/12345 or order_number=1234
   const simpleMatch = url.match(/\/orders\/(\d+)/);
   if (simpleMatch) return `#${simpleMatch[1]}`;
   try {
@@ -29,17 +34,16 @@ const extractOrderNumber = (url) => {
 };
 
 const buildOrderFromCart = (capturedItems, url) => {
-  const today = new Date();
-  const fmt = (d) =>
-    d.toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric" });
+  const today   = new Date();
+  const fmt     = (d) => d.toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric" });
   const arrival = new Date(today.getTime() + 7 * 24 * 60 * 60 * 1000);
 
   const lineItems = (capturedItems || []).map((item) => ({
-    id: String(item.id || item.variantId || ""),
-    title: item.title || "Product",
-    variant: item.variant || "",
+    id:       String(item.id || item.variantId || ""),
+    title:    item.title || "Product",
+    variant:  item.variant || "",
     imageUrl: item.image || item.imageUrl || "",
-    price: item.price ? `$${parseFloat(item.price).toFixed(2)}` : "",
+    price:    item.price ? `$${parseFloat(item.price).toFixed(2)}` : "",
     quantity: item.quantity || 1,
   }));
 
@@ -47,108 +51,196 @@ const buildOrderFromCart = (capturedItems, url) => {
     (sum, item) => sum + parseFloat(item.price || 0) * (item.quantity || 1),
     0
   );
-  const tax = parseFloat((subtotal * 0.08).toFixed(2));
+  const tax   = parseFloat((subtotal * 0.08).toFixed(2));
   const total = parseFloat((subtotal + tax).toFixed(2));
 
   return {
-    orderNumber: extractOrderNumber(url),
-    orderDate: fmt(today),
-    status: "Order Placed",
+    orderNumber:    extractOrderNumber(url),
+    orderDate:      fmt(today),
+    status:         "Order Placed",
     deliveryMethod: "Standard Shipping",
-    arrival: fmt(arrival),
-    delivery: 0,
+    arrival:        fmt(arrival),
+    delivery:       0,
     tax,
     total,
     lineItems,
   };
 };
 
+// Returns true only on the final Shopify thank-you / order-status page.
+// Must NOT match intermediate checkout steps like /checkouts/.../contact etc.
+const isOrderCompleteUrl = (url) => {
+  if (!url) return false;
+  const lower = url.toLowerCase();
+  return (
+    lower.includes("thank_you") ||
+    lower.includes("thankyou") ||
+    lower.includes("order_status") ||
+    // Shopify thank-you path pattern: /orders/<id>/authenticate or /orders/<id> at the end
+    /\/orders\/[a-z0-9]+(\?|$)/.test(lower)
+  );
+};
+
+// ── Component ─────────────────────────────────────────────────────────────────
+
 export default function CheckoutWebViewScreen() {
-  const navigation = useNavigation();
-  const route = useRoute();
-  const { session } = useAuth();
-  const cartItems = useSelector((state) => state.cart?.items || []);
+  const navigation        = useNavigation();
+  const route             = useRoute();
+  const { session }       = useAuth();
+  const cartItems         = useSelector((state) => state.cart?.items || []);
+
   const checkoutUrl = route?.params?.url;
-  const headerTitle = route?.params?.title || "Web View";
-  const [isLoading, setIsLoading] = useState(true);
-  const hasReturnedHomeRef = useRef(false);
-  // Capture cart snapshot at mount time (before cart gets cleared)
-  const capturedItemsRef = useRef(cartItems);
+  const headerTitle = route?.params?.title || "Checkout";
+
+  const [isLoading,  setIsLoading]  = useState(true);
+  const [loadError,  setLoadError]  = useState(false);
+  const [canGoBack,  setCanGoBack]  = useState(false);
+
+  const webViewRef           = useRef(null);
+  const hasCompletedOrderRef = useRef(false);
+  const capturedItemsRef     = useRef(cartItems);
 
   const resolvedAppId = useMemo(
     () => resolveAppId(route?.params?.appId ?? session?.user?.appId ?? session?.user?.app_id),
-    [route?.params?.appId, session?.user?.appId, session?.user?.app_id],
+    [route?.params?.appId, session?.user?.appId, session?.user?.app_id]
   );
   const userId = session?.user?.id ?? null;
 
-  const isOrderCompleteUrl = useCallback((url) => {
-    if (!url) return false;
-    const normalized = url.toLowerCase();
-    return (
-      normalized.includes("thank_you") ||
-      normalized.includes("thankyou") ||
-      normalized.includes("order_status") ||
-      normalized.includes("/orders/")
-    );
-  }, []);
+  // ── Back handling ─────────────────────────────────────────────────────────
+  // Priority: 1) navigate back inside WebView  2) go back in nav stack
+  const handleBack = useCallback(() => {
+    if (canGoBack && webViewRef.current) {
+      webViewRef.current.goBack();
+      return true; // consumed — don't propagate to nav
+    }
+    navigation.goBack();
+    return true;
+  }, [canGoBack, navigation]);
 
+  // Android hardware back button
+  useEffect(() => {
+    const sub = BackHandler.addEventListener("hardwareBackPress", handleBack);
+    return () => sub.remove();
+  }, [handleBack]);
+
+  // ── Order complete detection ───────────────────────────────────────────────
   const handleNavigationStateChange = useCallback(
     (navState) => {
-      if (!navState?.url || hasReturnedHomeRef.current) return;
+      // Track WebView back-history so our back button knows what to do
+      setCanGoBack(!!navState?.canGoBack);
+
+      if (!navState?.url || hasCompletedOrderRef.current) return;
       if (!isOrderCompleteUrl(navState.url)) return;
-      hasReturnedHomeRef.current = true;
+
+      hasCompletedOrderRef.current = true;
 
       const capturedItems = capturedItemsRef.current || [];
-      const order = buildOrderFromCart(capturedItems, navState.url);
+      const order         = buildOrderFromCart(capturedItems, navState.url);
 
-      // Notify backend → backend pushes FCM notification to device
       triggerOrderNotification({
-        type: ORDER_EVENTS.ORDER_PLACED,
+        type:        ORDER_EVENTS.ORDER_PLACED,
         orderNumber: order.orderNumber,
-        appId: resolvedAppId,
+        appId:       resolvedAppId,
         userId,
       }).catch(() => {});
 
-      if (navigation?.reset) {
+      // Small delay so WebView finishes rendering the thank-you page visually
+      // before we replace the stack with OrderDetail
+      setTimeout(() => {
         navigation.reset({
-          index: 0,
+          index:  0,
           routes: [{ name: "OrderDetail", params: { order } }],
         });
-        return;
-      }
-      navigation?.navigate?.("OrderDetail", { order });
+      }, 600);
     },
-    [isOrderCompleteUrl, navigation, resolvedAppId, userId],
+    [navigation, resolvedAppId, userId]
   );
 
+  // ── WebView loading states ────────────────────────────────────────────────
+  const handleLoadStart = useCallback(() => {
+    setIsLoading(true);
+    setLoadError(false);
+  }, []);
+
+  const handleLoadEnd = useCallback(() => {
+    setIsLoading(false);
+  }, []);
+
+  const handleError = useCallback(() => {
+    setIsLoading(false);
+    setLoadError(true);
+  }, []);
+
+  const handleRetry = useCallback(() => {
+    setLoadError(false);
+    setIsLoading(true);
+    webViewRef.current?.reload();
+  }, []);
+
+  // ── Render ────────────────────────────────────────────────────────────────
   return (
     <SafeArea>
       <View style={styles.container}>
         <Header showBack={false} />
+
+        {/* Custom header with smart back button */}
         <View style={styles.header}>
-          <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
+          <TouchableOpacity
+            onPress={handleBack}
+            style={styles.backButton}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+          >
             <FontAwesome name="angle-left" size={24} color="#111827" />
           </TouchableOpacity>
-          <Text style={styles.title}>{headerTitle}</Text>
+          <Text style={styles.title} numberOfLines={1}>
+            {headerTitle}
+          </Text>
+          {/* Placeholder to keep title centred */}
+          <View style={styles.backButton} />
         </View>
+
         {!checkoutUrl ? (
-          <View style={styles.errorContainer}>
+          <View style={styles.centreWrap}>
+            <FontAwesome name="exclamation-circle" size={40} color="#EF4444" />
             <Text style={styles.errorText}>Checkout link unavailable.</Text>
+            <TouchableOpacity style={styles.retryBtn} onPress={() => navigation.goBack()}>
+              <Text style={styles.retryBtnText}>Go Back</Text>
+            </TouchableOpacity>
+          </View>
+        ) : loadError ? (
+          <View style={styles.centreWrap}>
+            <FontAwesome name="wifi" size={40} color="#9CA3AF" />
+            <Text style={styles.errorText}>Failed to load checkout page.</Text>
+            <TouchableOpacity style={styles.retryBtn} onPress={handleRetry}>
+              <Text style={styles.retryBtnText}>Retry</Text>
+            </TouchableOpacity>
           </View>
         ) : (
           <View style={styles.webViewContainer}>
+            <WebView
+              ref={webViewRef}
+              source={{ uri: checkoutUrl }}
+              onLoadStart={handleLoadStart}
+              onLoadEnd={handleLoadEnd}
+              onError={handleError}
+              onHttpError={handleError}
+              onNavigationStateChange={handleNavigationStateChange}
+              startInLoadingState={false}
+              javaScriptEnabled
+              domStorageEnabled
+              thirdPartyCookiesEnabled
+              sharedCookiesEnabled
+              allowsBackForwardNavigationGestures
+              style={styles.webView}
+            />
+
+            {/* Loading overlay — shown between Shopify checkout steps */}
             {isLoading && (
               <View style={styles.loadingOverlay}>
                 <ActivityIndicator color="#0EA5E9" size="large" />
-                <Text style={styles.helperText}>Loading checkout…</Text>
+                <Text style={styles.loadingText}>Loading…</Text>
               </View>
             )}
-            <WebView
-              source={{ uri: checkoutUrl }}
-              onLoadEnd={() => setIsLoading(false)}
-              onNavigationStateChange={handleNavigationStateChange}
-              startInLoadingState
-            />
           </View>
         )}
       </View>
@@ -158,54 +250,70 @@ export default function CheckoutWebViewScreen() {
 
 const styles = StyleSheet.create({
   container: {
-    flex: 1,
+    flex:            1,
     backgroundColor: "#ffffff",
   },
   header: {
-    flexDirection: "row",
-    alignItems: "center",
+    flexDirection:    "row",
+    alignItems:       "center",
+    justifyContent:   "space-between",
     paddingHorizontal: 16,
-    paddingVertical: 12,
+    paddingVertical:  12,
     borderBottomWidth: 1,
     borderBottomColor: "#E5E7EB",
   },
   backButton: {
-    paddingRight: 12,
-    paddingVertical: 4,
+    width:      36,
+    alignItems: "center",
   },
   title: {
-    fontSize: 16,
+    flex:       1,
+    textAlign:  "center",
+    fontSize:   16,
     fontWeight: "600",
-    color: "#111827",
+    color:      "#111827",
   },
   webViewContainer: {
-    flex: 1,
+    flex:            1,
     backgroundColor: "#ffffff",
   },
-  helperText: {
-    textAlign: "center",
-    color: "#374151",
-    fontSize: 15,
+  webView: {
+    flex: 1,
   },
   loadingOverlay: {
-    position: "absolute",
-    zIndex: 2,
-    top: 0,
-    right: 0,
-    bottom: 0,
-    left: 0,
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 12,
-    backgroundColor: "rgba(255, 255, 255, 0.9)",
+    ...StyleSheet.absoluteFillObject,
+    zIndex:          10,
+    alignItems:      "center",
+    justifyContent:  "center",
+    gap:             12,
+    backgroundColor: "rgba(255,255,255,0.92)",
   },
-  errorContainer: {
-    flex: 1,
-    alignItems: "center",
+  loadingText: {
+    textAlign: "center",
+    color:     "#374151",
+    fontSize:  15,
+  },
+  centreWrap: {
+    flex:           1,
+    alignItems:     "center",
     justifyContent: "center",
-    paddingHorizontal: 16,
+    paddingHorizontal: 32,
+    gap:            16,
   },
   errorText: {
-    color: "#b91c1c",
+    color:     "#374151",
+    fontSize:  15,
+    textAlign: "center",
+  },
+  retryBtn: {
+    paddingVertical:   10,
+    paddingHorizontal: 28,
+    borderRadius:      8,
+    backgroundColor:   "#111827",
+  },
+  retryBtnText: {
+    color:      "#FFFFFF",
+    fontWeight: "600",
+    fontSize:   14,
   },
 });
