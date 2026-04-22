@@ -353,7 +353,7 @@ export default function BannerSlider({ section }) {
               style={[
                 styles.slideContent,
                 {
-                  height: bannerHeight,
+                  flex: 1,
                   paddingTop: slidePt,
                   paddingBottom: slidePb,
                   paddingLeft: slidePl,
@@ -369,6 +369,7 @@ export default function BannerSlider({ section }) {
                     {
                       color: headingColor,
                       fontSize: headingSize,
+                      lineHeight: Math.round(headingSize * 1.25),
                       fontWeight: headingWeight,
                       textAlign: headingAlign,
                       fontStyle: headingItalic ? "italic" : "normal",
@@ -391,6 +392,7 @@ export default function BannerSlider({ section }) {
                     {
                       color: subheadingColor,
                       fontSize: subheadingSize,
+                      lineHeight: Math.round(subheadingSize * 1.4),
                       fontWeight: subheadingWeight,
                       textAlign: subheadingAlign,
                       width: "100%",
@@ -502,12 +504,10 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: "700",
     color: "#FFFFFF",
-    lineHeight: 24,
   },
   subheading: {
     fontSize: 12,
     color: "#E5E7EB",
-    lineHeight: 18,
   },
   button: {
     alignItems: "center",
