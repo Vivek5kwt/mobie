@@ -664,6 +664,38 @@ export default function BottomNavScreen() {
           </View>
         ) : (
           /* ── All other tabs: DSL-driven content ────────────────────────────── */
+          <View style={{ flex: 1 }}>
+
+            {/* Cart page: fixed header with back button (sits above the scroll area) */}
+            {isCartPage && (
+              <View style={styles.notifHeader}>
+                <TouchableOpacity
+                  style={styles.notifBackBtn}
+                  activeOpacity={0.7}
+                  hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                  onPress={() => {
+                    if (navigation.canGoBack()) {
+                      navigation.goBack();
+                    } else {
+                      navigation.navigate("BottomNavScreen", {
+                        title: "Home",
+                        link: "home",
+                        activeIndex: 0,
+                        bottomNavSection: resolvedBottomNavSection,
+                      });
+                    }
+                  }}
+                >
+                  <FontAwesome name="angle-left" size={24} color="#111827" />
+                </TouchableOpacity>
+                <Text style={styles.notifHeaderTitle} numberOfLines={1}>
+                  {title || "Cart"}
+                </Text>
+                {/* Spacer to keep title centred */}
+                <View style={styles.notifBackBtn} />
+              </View>
+            )}
+
           <ScrollView
             contentInsetAdjustmentBehavior="automatic"
             style={{ flex: 1 }}
@@ -677,11 +709,12 @@ export default function BottomNavScreen() {
               <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
             }
           >
-            {isHeaderDefaultEnabled && !hideBottomNav && (
+            {/* Cart page has its own header above; suppress HeaderDefault for it */}
+            {isHeaderDefaultEnabled && !hideBottomNav && !isCartPage && (
               <HeaderDefault
                 config={headerDefaultConfig}
                 bottomNavSection={resolvedBottomNavSection}
-                hideTabs={isCartPage || isProfilePage || isNotificationPage || isSearchPage}
+                hideTabs={isProfilePage || isNotificationPage || isSearchPage}
               />
             )}
             {visibleSections.length ? (
@@ -700,6 +733,7 @@ export default function BottomNavScreen() {
               </View>
             )}
           </ScrollView>
+          </View>
         )}
 
         {showOverlay && (

@@ -134,8 +134,15 @@ export default function AddToCart({ section }) {
 
   const addToCartConfig = deepUnwrap(raw?.addToCart) || deepUnwrap(css?.addToCart) || {};
   const quantityConfig  = deepUnwrap(raw?.quantityPicker) || deepUnwrap(css?.quantityPicker) || {};
-  const buyNowConfig    = deepUnwrap(raw?.buyNow)         || deepUnwrap(css?.buyNow)         || {};
-  const visibility      = deepUnwrap(raw?.visibility) || deepUnwrap(css?.visibility) || {};
+
+  // buyNowConfig: only exists when DSL actually sends a buyNow object
+  const buyNowConfigRaw = deepUnwrap(raw?.buyNow) || deepUnwrap(css?.buyNow) || null;
+  const buyNowConfig    = buyNowConfigRaw || {};
+
+  // Visibility: read from rawWrapped (the actual DSL data sub-object) so that
+  // stale propsNode-level visibility flags from the builder don't bleed through.
+  const rawWrappedVis = (rawWrapped && typeof rawWrapped === "object") ? rawWrapped : {};
+  const visibility    = deepUnwrap(rawWrappedVis?.visibility) || deepUnwrap(css?.visibility) || {};
 
   const showAddToCart      = toBoolean(deepUnwrap(visibility?.addToCart),           true);
   const showAddToCartIcon  = toBoolean(deepUnwrap(visibility?.addToCartIcon),       false);
@@ -143,7 +150,8 @@ export default function AddToCart({ section }) {
   const showQuantityPicker = toBoolean(deepUnwrap(visibility?.quantityPicker),      true);
   const showQuantityText   = toBoolean(deepUnwrap(visibility?.quantityPickerText),  true);
   const showQuantityIcons  = toBoolean(deepUnwrap(visibility?.quantityPickerIcons), true);
-  const showBuyNow         = toBoolean(deepUnwrap(visibility?.buyNow),              false);
+  // Buy Now: needs BOTH a buyNow config object in DSL AND visibility.buyNow === true
+  const showBuyNow         = !!buyNowConfigRaw && toBoolean(deepUnwrap(visibility?.buyNow), false);
   const showBuyNowIcon     = toBoolean(deepUnwrap(visibility?.buyNowIcon),          false);
   const showBuyNowText     = toBoolean(deepUnwrap(visibility?.buyNowText),          true);
 
