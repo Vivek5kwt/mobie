@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   Dimensions,
   Image,
@@ -8,7 +8,7 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
-import { useNavigation } from "@react-navigation/native";
+import { useFocusEffect, useNavigation } from "@react-navigation/native";
 import { useDispatch } from "react-redux";
 import FontAwesome from "react-native-vector-icons/FontAwesome";
 import {
@@ -124,9 +124,9 @@ export default function ProductCarousel({ section }) {
 
   // Background padding
   const bgPadT = toNumber(raw?.bgPadT, 8);
-  const bgPadR = toNumber(raw?.bgPadR, 8);
+  const bgPadR = toNumber(raw?.bgPadR, 12);
   const bgPadB = toNumber(raw?.bgPadB, 8);
-  const bgPadL = toNumber(raw?.bgPadL, 8);
+  const bgPadL = toNumber(raw?.bgPadL, 12);
   const bgColor = toString(raw?.bgColor, "#FFFFFF");
   const backgroundActive = toBoolean(raw?.backgroundActive, true);
 
@@ -137,6 +137,9 @@ export default function ProductCarousel({ section }) {
   // Header configuration
   const headerGroupActive = toBoolean(raw?.headerGroupActive, true);
   const header = unwrapValue(raw?.header, "");
+  const headerText = Array.isArray(header)
+    ? header.map((h) => unwrapValue(h)).join(" ")
+    : toString(header, "");
   const headerSize = toNumber(raw?.headerSize, 14);
   const headerColor = toString(raw?.headerColor, "#000000");
   const headerFamily = toString(raw?.headerFamily, "Inter");
@@ -251,49 +254,56 @@ export default function ProductCarousel({ section }) {
   const horizontalPadding = bgPadL + bgPadR;
   const cardWidth = Math.floor((screenWidth - horizontalPadding - colGap) / 2.3);
 
-  // Fetch products
+  const isMountedRef = useRef(true);
   useEffect(() => {
-    let isMounted = true;
+    isMountedRef.current = true;
+    return () => { isMountedRef.current = false; };
+  }, []);
 
-    const loadProducts = async () => {
-      setLoading(true);
-      setError("");
-
-      try {
-        let result;
-        if (dataSourceMode === "collection" && collectionHandle) {
-          result = await fetchShopifyCollectionProducts({
-            handle: collectionHandle,
-            first: itemsShown,
-          });
-        } else {
-          result = await fetchShopifyProductsPage({
-            first: itemsShown,
-          });
-        }
-
-        const nextProducts = result?.products || [];
-
-        if (isMounted) {
-          setProducts(nextProducts);
-        }
-      } catch (err) {
-        if (isMounted) {
-          setError("Unable to load products right now. Please try again later.");
-        }
-      } finally {
-        if (isMounted) {
-          setLoading(false);
-        }
+  const loadProducts = useCallback(async () => {
+    setLoading(true);
+    setError("");
+    try {
+      let result;
+      if (dataSourceMode === "collection" && collectionHandle) {
+        result = await fetchShopifyCollectionProducts({
+          handle: collectionHandle,
+          first: itemsShown,
+        });
+      } else {
+        result = await fetchShopifyProductsPage({ first: itemsShown });
       }
-    };
-
-    loadProducts();
-
-    return () => {
-      isMounted = false;
-    };
+      if (isMountedRef.current) {
+        setProducts(result?.products || []);
+      }
+    } catch (err) {
+      if (isMountedRef.current) {
+        setError("Unable to load products right now. Please try again later.");
+      }
+    } finally {
+      if (isMountedRef.current) {
+        setLoading(false);
+      }
+    }
   }, [dataSourceMode, collectionHandle, itemsShown]);
+
+  // Initial load and reload whenever data-source params change
+  useEffect(() => {
+    loadProducts();
+  }, [loadProducts]);
+
+  // Refresh when the screen comes back into focus
+  useFocusEffect(
+    useCallback(() => {
+      loadProducts();
+    }, [loadProducts])
+  );
+
+  // Background polling every 60 s to pick up new products
+  useEffect(() => {
+    const id = setInterval(loadProducts, 60000);
+    return () => clearInterval(id);
+  }, [loadProducts]);
 
   const toggleFavorite = (productId) => {
     setFavorites((prev) => {
@@ -340,13 +350,21 @@ export default function ProductCarousel({ section }) {
     });
   };
 
+  const resolveScreenName = (href) => {
+    if (!href) return null;
+    const clean = href.replace(/^\//, "").trim().toLowerCase();
+    const MAP = {
+      "all-products": "AllProducts",
+      "allproducts":  "AllProducts",
+      "products":     "AllProducts",
+      "shop":         "AllProducts",
+      "collection":   "AllProducts",
+    };
+    return MAP[clean] || href.replace(/^\//, "");
+  };
+
   const renderHeader = () => {
     if (!headerGroupActive || !gridTitleActive) return null;
-
-    const headerText = Array.isArray(header)
-      ? header.map((h) => unwrapValue(h)).join(" ")
-      : toString(header, "");
-
     if (!headerText) return null;
 
     const headerStyle = {
@@ -363,14 +381,11 @@ export default function ProductCarousel({ section }) {
     );
 
     if (headerLinkHref) {
+      const screen = resolveScreenName(headerLinkHref) || "AllProducts";
       return (
         <TouchableOpacity
-          onPress={() => {
-            // Handle header link navigation
-            if (headerLinkHref.startsWith("/")) {
-              navigation.navigate(headerLinkHref);
-            }
-          }}
+          activeOpacity={0.7}
+          onPress={() => navigation.navigate(screen, { title: headerText })}
         >
           {headerContent}
         </TouchableOpacity>
@@ -414,21 +429,20 @@ export default function ProductCarousel({ section }) {
       </View>
     );
 
-    if (viewAllLinkHref) {
-      return (
-        <TouchableOpacity
-          onPress={() => {
-            if (viewAllLinkHref.startsWith("/")) {
-              navigation.navigate(viewAllLinkHref);
-            }
-          }}
-        >
-          {viewAllContent}
-        </TouchableOpacity>
-      );
-    }
+    const handleViewAllPress = () => {
+      const screen = viewAllLinkHref
+        ? resolveScreenName(viewAllLinkHref)
+        : "AllProducts";
+      if (screen) {
+        navigation.navigate(screen, { title: headerText });
+      }
+    };
 
-    return viewAllContent;
+    return (
+      <TouchableOpacity activeOpacity={0.7} onPress={handleViewAllPress}>
+        {viewAllContent}
+      </TouchableOpacity>
+    );
   };
 
   const renderFavorite = (product, isFavorite) => {
@@ -699,6 +713,7 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     alignItems: "center",
     marginBottom: 16,
+    paddingHorizontal: 8,
   },
   headerText: {
     flex: 1,

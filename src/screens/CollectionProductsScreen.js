@@ -11,7 +11,7 @@ import {
 } from "react-native";
 import { useNavigation, useRoute } from "@react-navigation/native";
 import { useDispatch } from "react-redux";
-import { fetchShopifyCollectionProducts } from "../services/shopify";
+import { fetchShopifyCollectionProducts, fetchShopifyProductsPage } from "../services/shopify";
 import { SafeArea } from "../utils/SafeAreaHandler";
 import { addItem } from "../store/slices/cartSlice";
 import Header from "../components/Topheader";
@@ -42,11 +42,12 @@ export default function CollectionProductsScreen() {
   const dispatch = useDispatch();
   const { collectionHandle, collectionTitle } = route?.params || {};
 
-  const [products, setProducts]     = useState([]);
-  const [pageInfo, setPageInfo]     = useState({ hasNextPage: false, endCursor: null });
-  const [loading, setLoading]       = useState(false);
+  const [products, setProducts]       = useState([]);
+  const [pageInfo, setPageInfo]       = useState({ hasNextPage: false, endCursor: null });
+  const [loading, setLoading]         = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
-  const [error, setError]           = useState("");
+  const [error, setError]             = useState("");
+  const [isFallback, setIsFallback]   = useState(false);
   const [favorites, setFavorites]   = useState({});
 
   // FilterSortHeader state
@@ -61,23 +62,39 @@ export default function CollectionProductsScreen() {
 
   const loadProducts = useCallback(
     async ({ after = null, append = false } = {}) => {
-      if (!collectionHandle) {
-        setError("Collection not available.");
-        return;
-      }
       if (append) setLoadingMore(true);
       else setLoading(true);
       setError("");
+
       try {
-        const payload = await fetchShopifyCollectionProducts({
-          handle: collectionHandle,
-          first: PAGE_SIZE,
-          after,
-        });
-        const next     = payload?.products || [];
-        const nextPage = payload?.pageInfo || { hasNextPage: false, endCursor: null };
-        setProducts((prev) => (append ? [...prev, ...next] : next));
-        setPageInfo(nextPage);
+        // Try collection-specific products first
+        if (collectionHandle) {
+          const payload = await fetchShopifyCollectionProducts({
+            handle: collectionHandle,
+            first: PAGE_SIZE,
+            after,
+          });
+          const next     = payload?.products || [];
+          const nextPage = payload?.pageInfo || { hasNextPage: false, endCursor: null };
+
+          if (next.length > 0 || after) {
+            // Has real collection data (or paginating through it)
+            setIsFallback(false);
+            setProducts((prev) => (append ? [...prev, ...next] : next));
+            setPageInfo(nextPage);
+            return;
+          }
+        }
+
+        // Collection empty or handle missing — fall back to all products
+        if (!append) {
+          setIsFallback(true);
+          const fallback = await fetchShopifyProductsPage({ first: PAGE_SIZE });
+          const next     = fallback?.products || [];
+          const nextPage = fallback?.pageInfo || { hasNextPage: false, endCursor: null };
+          setProducts(next);
+          setPageInfo(nextPage);
+        }
       } catch (_) {
         setError("Unable to load products right now.");
       } finally {
@@ -194,9 +211,16 @@ export default function CollectionProductsScreen() {
 
         {/* Section title row */}
         <View style={styles.sectionRow}>
-          <Text style={styles.sectionTitle}>
-            {collectionTitle || "Products"}
-          </Text>
+          <View style={styles.titleColumn}>
+            <Text style={styles.sectionTitle}>
+              {collectionTitle || "Products"}
+            </Text>
+            {isFallback && (
+              <Text style={styles.fallbackNote}>
+                Showing all products
+              </Text>
+            )}
+          </View>
           {pageInfo.hasNextPage && (
             <TouchableOpacity
               onPress={() => loadProducts({ after: pageInfo.endCursor, append: true })}
@@ -269,10 +293,18 @@ const styles = StyleSheet.create({
     paddingTop: 14,
     paddingBottom: 8,
   },
+  titleColumn: {
+    flex: 1,
+  },
   sectionTitle: {
     fontSize: 16,
     fontWeight: "700",
     color: "#016D77",
+  },
+  fallbackNote: {
+    fontSize: 11,
+    color: "#9CA3AF",
+    marginTop: 2,
   },
   viewAll: {
     fontSize: 13,

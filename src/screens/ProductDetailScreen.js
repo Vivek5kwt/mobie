@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { ScrollView, StyleSheet, Text, View } from "react-native";
+import { ActivityIndicator, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useFocusEffect, useRoute } from "@react-navigation/native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import DynamicRenderer from "../engine/DynamicRenderer";
@@ -134,9 +134,11 @@ export default function ProductDetailScreen() {
       resolveAppId(route?.params?.appId ?? session?.user?.appId ?? session?.user?.app_id),
     [route?.params?.appId, session?.user?.appId, session?.user?.app_id]
   );
-  const [detailProduct, setDetailProduct] = useState(product);
+  const [detailProduct, setDetailProduct] = useState(null);
   const [dslSections, setDslSections] = useState([]);
   const [dslLoading, setDslLoading] = useState(false);
+  // productReady: true only after the Shopify API returns real data
+  const [productReady, setProductReady] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const isMountedRef = useRef(true);
@@ -161,9 +163,9 @@ export default function ProductDetailScreen() {
 
     if (!isMountedRef.current) return;
     if (details) {
-      setDetailProduct((prev) => ({ ...prev, ...baseProduct, ...details }));
+      setDetailProduct({ ...baseProduct, ...details });
+      setProductReady(true);
     } else {
-      setDetailProduct(baseProduct);
       setError("Unable to load product details right now.");
     }
     setLoading(false);
@@ -175,7 +177,8 @@ export default function ProductDetailScreen() {
 
   useEffect(() => {
     productRef.current = product;
-    setDetailProduct(product);
+    setDetailProduct(null);
+    setProductReady(false);
     loadProductDetails(product);
   }, [loadProductDetails, product]);
 
@@ -247,62 +250,15 @@ export default function ProductDetailScreen() {
     [dslSections]
   );
 
-  // Helper to check if product has actual data (not just empty object)
-  const hasProductData = (product) => {
-    if (!product || typeof product !== "object") return false;
-    return !!(
-      product.title ||
-      product.imageUrl ||
-      product.description ||
-      product.priceAmount ||
-      product.vendor ||
-      product.handle ||
-      product.id
-    );
-  };
-
-  // Minimal fallback — ONLY used when the builder has configured zero sections for this page.
-  // This prevents a completely blank screen when no product detail layout has been designed yet.
-  // As soon as the builder adds any section, this is bypassed entirely.
-  const fallbackSections = useMemo(() => {
-    if (!hasProductData(detailProduct)) return [];
-    const defaults = buildProductDefaults(detailProduct);
-    const sections = [];
-
-    if (defaults.imageUrl) {
-      sections.push({
-        id: "fallback-image",
-        component: "product_library",
-        props: { raw: { imageUrl: defaults.imageUrl } },
-      });
-    }
-    if (defaults.titleText || defaults.salePrice) {
-      sections.push({
-        id: "fallback-info",
-        component: "product_info",
-        props: { raw: defaults },
-      });
-    }
-    // Note: description is intentionally NOT included in the fallback.
-    // It must be explicitly added by the user in the builder.
-    return sections;
-  }, [detailProduct]);
-
+  // Only render sections once the Shopify API has returned real product data.
+  // Never show DSL placeholder/default values before real data arrives.
   const renderSections = useMemo(() => {
-    if (!hasProductData(detailProduct)) return [];
-
-    // DSL has sections the builder configured → render ONLY those.
-    // Never auto-inject sections the user did not add in the builder.
-    if (sectionsToRender.length > 0) {
-      return sectionsToRender.map((section) =>
-        mergeSectionWithProduct(section, detailProduct)
-      );
-    }
-
-    // No DSL sections at all (page not designed yet) → show minimal fallback
-    // so the screen isn't completely blank.
-    return fallbackSections;
-  }, [detailProduct, fallbackSections, sectionsToRender]);
+    if (!productReady || !detailProduct) return [];
+    if (sectionsToRender.length === 0) return [];
+    return sectionsToRender.map((section) =>
+      mergeSectionWithProduct(section, detailProduct)
+    );
+  }, [productReady, detailProduct, sectionsToRender]);
 
   return (
     <SafeAreaView style={styles.safeArea} edges={["left", "right", "bottom"]}>
@@ -311,19 +267,20 @@ export default function ProductDetailScreen() {
           <Header showNotification={false} />
         </View>
         <ScrollView contentContainerStyle={styles.scrollContent}>
-          {dslLoading && <Text style={styles.status}>Loading product layout...</Text>}
-          {loading && <Text style={styles.status}>Loading product details...</Text>}
-          {!!error && <Text style={styles.error}>{error}</Text>}
-          {renderSections.length > 0 ? (
+          {(loading || dslLoading) && !productReady ? (
+            <View style={styles.loadingState}>
+              <ActivityIndicator size="large" color="#6b7280" />
+            </View>
+          ) : !!error ? (
+            <View style={styles.emptyState}>
+              <Text style={styles.error}>{error}</Text>
+            </View>
+          ) : renderSections.length > 0 ? (
             renderSections.map((section, index) => (
               <View key={section?.id || section?.component || index} style={styles.section}>
                 <DynamicRenderer section={section} />
               </View>
             ))
-          ) : !loading && !dslLoading && !error ? (
-            <View style={styles.emptyState}>
-              <Text style={styles.emptyText}>No product data available</Text>
-            </View>
           ) : null}
         </ScrollView>
       </View>
@@ -369,16 +326,17 @@ const styles = StyleSheet.create({
     textAlign: "center",
     color: "#b91c1c",
   },
+  loadingState: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    paddingVertical: 80,
+  },
   emptyState: {
     flex: 1,
     justifyContent: "center",
     alignItems: "center",
     paddingVertical: 48,
     paddingHorizontal: 24,
-  },
-  emptyText: {
-    fontSize: 16,
-    color: "#6b7280",
-    textAlign: "center",
   },
 });

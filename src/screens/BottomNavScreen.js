@@ -623,6 +623,7 @@ export default function BottomNavScreen() {
               <HeaderDefault
                 config={headerDefaultConfig}
                 bottomNavSection={resolvedBottomNavSection}
+                hideTabs={isCartPage || isProfilePage || isNotificationPage || isSearchPage}
               />
             )}
             <ScrollView
@@ -659,6 +660,7 @@ export default function BottomNavScreen() {
               <HeaderDefault
                 config={headerDefaultConfig}
                 bottomNavSection={resolvedBottomNavSection}
+                hideTabs={isCartPage || isProfilePage || isNotificationPage || isSearchPage}
               />
             )}
             {visibleSections.length ? (

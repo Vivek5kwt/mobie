@@ -24,7 +24,7 @@ const resolveArray = (v) => {
   return Array.isArray(u) ? u : [];
 };
 
-export default function HeaderDefault({ config, bottomNavSection }) {
+export default function HeaderDefault({ config, bottomNavSection, hideTabs = false }) {
   const navigation = useNavigation();
   const navSection = bottomNavSection || bottomNavigationStyle1Section;
 
@@ -56,7 +56,7 @@ export default function HeaderDefault({ config, bottomNavSection }) {
   // ── Tab bar tokens ────────────────────────────────────────────────────────
   const tabs     = resolveArray(config.tabs);
   const multiTab = resolveVal(config.multiTab) === true || resolveVal(config.multiTab) === "true";
-  const showTabs = multiTab && tabs.length > 0;
+  const showTabs = multiTab && tabs.length > 0 && !hideTabs;
 
   // Determine whether the header background is "light" so we can pick readable defaults.
   const _isLightBg = (() => {

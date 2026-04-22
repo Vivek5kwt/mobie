@@ -128,7 +128,7 @@ export default function AllProductsScreen() {
     <SafeArea>
       <View style={styles.container}>
         <Header showBack={false} />
-        <View style={styles.content}>
+        <View style={styles.headerSection}>
           <View style={styles.headerRow}>
             <TouchableOpacity
               style={styles.backButton}
@@ -190,7 +190,7 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: "#ffffff",
   },
-  content: {
+  headerSection: {
     paddingHorizontal: 16,
     paddingTop: 16,
   },

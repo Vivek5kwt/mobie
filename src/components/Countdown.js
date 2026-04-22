@@ -398,6 +398,11 @@ class Countdown extends PureComponent {
     const titleText = unwrapValue(rawProps?.title, "");
     const subtextText = unwrapValue(rawProps?.subtext, "");
 
+    const stripFaPrefix = (name) => {
+      if (!name || typeof name !== "string") return "";
+      return name.replace(/^fa-/, "").trim();
+    };
+
     const buttonAttributes = rawProps?.buttonAttributes?.properties || rawProps?.buttonAttributes || {};
     const buttonLabel = unwrapValue(buttonAttributes?.label, "");
     const buttonBgColor = unwrapValue(buttonAttributes?.bgColor, buttonStyle.backgroundColor);
@@ -416,6 +421,22 @@ class Countdown extends PureComponent {
       typeof buttonFontWeightRaw === "number"
         ? String(buttonFontWeightRaw)
         : buttonFontWeightRaw || undefined;
+
+    // Button icon
+    const buttonIconName = stripFaPrefix(
+      unwrapValue(buttonAttributes?.iconName ?? buttonAttributes?.icon, "")
+    );
+    const buttonIconSize  = asNumber(buttonAttributes?.iconSize, 14);
+    const buttonIconColor = unwrapValue(buttonAttributes?.iconColor, buttonTextColor ?? "#FFFFFF");
+
+    // Button alignment (left / center / right)
+    const buttonAlignRaw = unwrapValue(buttonAttributes?.align, "Center");
+    const buttonAlignSelf = (() => {
+      const a = String(buttonAlignRaw || "").trim().toLowerCase();
+      if (a === "left")  return "flex-start";
+      if (a === "right") return "flex-end";
+      return "center";
+    })();
 
     const timerAttributes = rawProps?.timerAttributes?.properties || rawProps?.timerAttributes || {};
     const timerLabelColor = unwrapValue(timerAttributes?.labelColor ?? rawProps?.timerLabelColor, "#6B7280");
@@ -453,8 +474,8 @@ class Countdown extends PureComponent {
         : timerFontWeightRaw;
 
     const iconAttributes = rawProps?.iconAttributes?.properties || rawProps?.iconAttributes || {};
-    // Default iconName to "" — no icon unless DSL explicitly configures one
-    const iconName = unwrapValue(iconAttributes?.iconName, "");
+    // Strip "fa-" prefix — FontAwesome expects "bolt" not "fa-bolt"
+    const iconName = stripFaPrefix(unwrapValue(iconAttributes?.iconName, ""));
     const iconColor = unwrapValue(iconAttributes?.iconColor, iconStyle.color || "#111827");
     const iconBgColor = unwrapValue(iconAttributes?.iconBgColor, iconStyle.backgroundColor);
 
@@ -578,30 +599,42 @@ class Countdown extends PureComponent {
               buttonBorderRadius != null ? { borderRadius: buttonBorderRadius } : null,
               buttonPaddingX != null ? { paddingHorizontal: buttonPaddingX } : null,
               buttonPaddingY != null ? { paddingVertical: buttonPaddingY } : null,
+              { alignSelf: buttonAlignSelf },
+              buttonIconName ? styles.buttonRow : null,
             ]}
           >
-            <Text
-              style={[
-                styles.buttonText,
-                { color: buttonTextColor },
-                buttonFontSize != null ? { fontSize: buttonFontSize } : null,
-                buttonFontWeight ? { fontWeight: buttonFontWeight } : null,
-                buttonBold === true ? { fontWeight: "700" } : null,
-                buttonItalic === true ? { fontStyle: "italic" } : null,
-                buttonUnderline || buttonStrikethrough
-                  ? {
-                      textDecorationLine:
-                        buttonUnderline && buttonStrikethrough
-                          ? "underline line-through"
-                          : buttonUnderline
-                            ? "underline"
-                            : "line-through",
-                    }
-                  : null,
-              ]}
-            >
-              {buttonLabel}
-            </Text>
+            {!!buttonIconName && (
+              <FontAwesome
+                name={buttonIconName}
+                size={buttonIconSize}
+                color={buttonIconColor}
+                style={buttonLabel ? styles.buttonIconGap : null}
+              />
+            )}
+            {!!buttonLabel && (
+              <Text
+                style={[
+                  styles.buttonText,
+                  { color: buttonTextColor },
+                  buttonFontSize != null ? { fontSize: buttonFontSize } : null,
+                  buttonFontWeight ? { fontWeight: buttonFontWeight } : null,
+                  buttonBold === true ? { fontWeight: "700" } : null,
+                  buttonItalic === true ? { fontStyle: "italic" } : null,
+                  buttonUnderline || buttonStrikethrough
+                    ? {
+                        textDecorationLine:
+                          buttonUnderline && buttonStrikethrough
+                            ? "underline line-through"
+                            : buttonUnderline
+                              ? "underline"
+                              : "line-through",
+                      }
+                    : null,
+                ]}
+              >
+                {buttonLabel}
+              </Text>
+            )}
           </TouchableOpacity>
         )}
       </>
@@ -742,6 +775,13 @@ const styles = StyleSheet.create({
     backgroundColor: "#111111",
     borderRadius: 999,
     alignSelf: "center",
+  },
+  buttonRow: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  buttonIconGap: {
+    marginRight: 6,
   },
   buttonText: {
     color: "#FFFFFF",
