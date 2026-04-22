@@ -170,8 +170,10 @@ export default function TextBlock({ section }) {
   const iconFaSize   = asNumber(iconCfg?.iconSize ?? iconCfg?.faSize, 11);
   const iconRadius   = asNumber(iconCfg?.borderRadius ?? iconCfg?.corner, 999);
 
-  // Only render icon when: DSL says show + a valid FA name exists (no emoji fallback)
-  const hasIcon      = showIconDsl && !!faIconName;
+  // Only render icon when: DSL says show + name exists in FontAwesome's glyph map.
+  // Unknown names cause FontAwesome to render "?" — this prevents that entirely.
+  const isValidFaIcon = !!faIconName && Object.prototype.hasOwnProperty.call(FontAwesome.glyphMap || {}, faIconName);
+  const hasIcon       = showIconDsl && isValidFaIcon;
   const hasHeadline  = showHeadline && !!headline;
   const hasSubtext   = showSubtext  && !!subtext;
 
