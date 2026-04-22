@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { Text, TouchableOpacity, View } from "react-native";
-import { StackActions, useNavigation } from "@react-navigation/native";
+import { useNavigation } from "@react-navigation/native";
 import Icon from "react-native-vector-icons/FontAwesome6";
 import { useSelector } from "react-redux";
 import bottomNavigationStyle1Section from "../data/bottomNavigationStyle1";
@@ -34,6 +34,8 @@ export default function HeaderDefault({ config, bottomNavSection, hideTabs = fal
       return sum + (Number.isFinite(qty) ? qty : 1);
     }, 0)
   );
+
+  const wishlistCount = useSelector((state) => (state?.wishlist?.items || []).length);
 
   // Tabs active index — must be a hook (called before any early returns)
   const [activeTabIdx, setActiveTabIdx] = useState(
@@ -103,9 +105,7 @@ export default function HeaderDefault({ config, bottomNavSection, hideTabs = fal
     const title = item?.label || item?.title || item?.name || (target === "cart" ? "Cart" : "Notifications");
     const rawLink = item?.link ?? item?.href ?? item?.url ?? "";
     const link = typeof rawLink === "string" ? rawLink.replace(/^\//, "") : "";
-    navigation.dispatch(
-      StackActions.replace("BottomNavScreen", { title, link, activeIndex: idx, bottomNavSection: navSection })
-    );
+    navigation.navigate("BottomNavScreen", { title, link, activeIndex: idx, bottomNavSection: navSection });
   };
 
   // ── Tab bar (shared between flat and array mode) ──────────────────────────
@@ -154,8 +154,23 @@ export default function HeaderDefault({ config, bottomNavSection, hideTabs = fal
 
   if (useFlatMode) {
     // ── FLAT MODE: render title on left, icons on right ───────────────────────
-    const showBell = resolveVal(config.showBell) === true || resolveVal(config.showBell) === "true";
-    const showCart = resolveVal(config.showCart) === true || resolveVal(config.showCart) === "true" || resolveVal(config.showCart) === undefined;
+    const showBell     = resolveVal(config.showBell)     === true || resolveVal(config.showBell)     === "true";
+    const showCart     = resolveVal(config.showCart)     === true || resolveVal(config.showCart)     === "true" || resolveVal(config.showCart) === undefined;
+    const showWishlist = resolveVal(config.showWishlist) === true || resolveVal(config.showWishlist) === "true";
+
+    const badgeStyle = {
+      position: "absolute",
+      top: -5,
+      right: -7,
+      backgroundColor: "#EF4444",
+      borderRadius: 8,
+      minWidth: 16,
+      height: 16,
+      alignItems: "center",
+      justifyContent: "center",
+      paddingHorizontal: 3,
+    };
+    const badgeText = { color: "#FFFFFF", fontSize: 9, fontWeight: "700" };
 
     return (
       <View>
@@ -170,26 +185,38 @@ export default function HeaderDefault({ config, bottomNavSection, hideTabs = fal
             minHeight: 48,
           }}
         >
-          {/* Brand title */}
-          <Text
-            style={{
-              fontSize: 18,
-              fontWeight: "700",
-              color: textColor,
-              flex: 1,
-            }}
-            numberOfLines={1}
+          {/* Brand title — taps navigate to home */}
+          <TouchableOpacity
+            activeOpacity={0.75}
+            onPress={() => navigation.navigate("LayoutScreen")}
+            style={{ flex: 1 }}
           >
-            {titleText}
-          </Text>
+            <Text
+              style={{ fontSize: 18, fontWeight: "700", color: textColor }}
+              numberOfLines={1}
+            >
+              {titleText}
+            </Text>
+          </TouchableOpacity>
 
           {/* Right icons */}
           <View style={{ flexDirection: "row", alignItems: "center", gap: 16 }}>
-            {showBell && (
+            {showWishlist && (
               <TouchableOpacity
                 activeOpacity={0.7}
-                onPress={() => openNavTarget("notification")}
+                onPress={() => navigation.navigate("Wishlist")}
+                style={{ position: "relative" }}
               >
+                <Icon name="heart" size={20} color={iconColor} />
+                {wishlistCount > 0 && (
+                  <View style={badgeStyle}>
+                    <Text style={badgeText}>{wishlistCount > 99 ? "99+" : String(wishlistCount)}</Text>
+                  </View>
+                )}
+              </TouchableOpacity>
+            )}
+            {showBell && (
+              <TouchableOpacity activeOpacity={0.7} onPress={() => openNavTarget("notification")}>
                 <Icon name="bell" size={20} color={iconColor} />
               </TouchableOpacity>
             )}
@@ -201,23 +228,8 @@ export default function HeaderDefault({ config, bottomNavSection, hideTabs = fal
               >
                 <Icon name="cart-shopping" size={20} color={iconColor} />
                 {cartCount > 0 && (
-                  <View
-                    style={{
-                      position: "absolute",
-                      top: -5,
-                      right: -7,
-                      backgroundColor: "#EF4444",
-                      borderRadius: 8,
-                      minWidth: 16,
-                      height: 16,
-                      alignItems: "center",
-                      justifyContent: "center",
-                      paddingHorizontal: 3,
-                    }}
-                  >
-                    <Text style={{ color: "#FFFFFF", fontSize: 9, fontWeight: "700" }}>
-                      {cartCount > 99 ? "99+" : String(cartCount)}
-                    </Text>
+                  <View style={badgeStyle}>
+                    <Text style={badgeText}>{cartCount > 99 ? "99+" : String(cartCount)}</Text>
                   </View>
                 )}
               </TouchableOpacity>
@@ -251,10 +263,12 @@ export default function HeaderDefault({ config, bottomNavSection, hideTabs = fal
     else if (item.textUnderline)                       itemTextDecoration = "underline";
     else if (item.textStrikethrough)                   itemTextDecoration = "line-through";
 
-    const isCart  = itemIconName.includes("cart");
-    const isBell  = itemIconName.includes("bell");
-    const showBadge   = isCart && cartCount > 0;
-    const isInteractive = isCart || isBell;
+    const isCart      = itemIconName.includes("cart");
+    const isBell      = itemIconName.includes("bell");
+    const isWishlist  = itemIconName.includes("heart") || itemIconName.includes("bookmark");
+    const showBadge   = (isCart && cartCount > 0) || (isWishlist && wishlistCount > 0);
+    const badgeCount  = isCart ? cartCount : isWishlist ? wishlistCount : 0;
+    const isInteractive = isCart || isBell || isWishlist;
 
     const showIcon  = !!itemIconName;
     // Show title for any type except pure "icon" type
@@ -281,7 +295,7 @@ export default function HeaderDefault({ config, bottomNavSection, hideTabs = fal
             }}
           >
             <Text style={{ color: "#FFFFFF", fontSize: 9, fontWeight: "700" }}>
-              {cartCount > 99 ? "99+" : String(cartCount)}
+              {badgeCount > 99 ? "99+" : String(badgeCount)}
             </Text>
           </View>
         )}
@@ -318,8 +332,9 @@ export default function HeaderDefault({ config, bottomNavSection, hideTabs = fal
           activeOpacity={0.7}
           style={{ flexDirection: "row", alignItems: "center", gap: 4 }}
           onPress={() => {
-            if (isCart) openNavTarget("cart");
+            if (isCart)     openNavTarget("cart");
             else if (isBell) openNavTarget("notification");
+            else if (isWishlist) navigation.navigate("Wishlist");
           }}
         >
           {inner}

@@ -41,7 +41,8 @@ const toBool = (value, fallback = false) => {
   return fallback;
 };
 
-const pick = (candidates, fallback) => {
+// First non-empty string wins
+const pickStr = (candidates, fallback) => {
   for (const c of candidates) {
     const v = toStr(c, "");
     if (v) return v;
@@ -49,6 +50,7 @@ const pick = (candidates, fallback) => {
   return fallback;
 };
 
+// First valid number wins
 const pickNum = (candidates, fallback) => {
   for (const c of candidates) {
     const raw = deepUnwrap(c);
@@ -73,7 +75,6 @@ const toFontWeight = (value, fallback = "600") => {
 
 // ── Gradient text helpers ──────────────────────────────────────────────────────
 
-// Default rainbow gradient matching the design shown in the image
 const DEFAULT_TEXT_GRADIENT = ["#60A5FA", "#A78BFA", "#F472B6", "#FBBF24", "#34D399"];
 
 const hexToRgb = (hex) => {
@@ -86,26 +87,22 @@ const hexToRgb = (hex) => {
   };
 };
 
-// Smoothly interpolates a colour at `ratio` (0–1) across an array of hex stops
 const interpolateGradientColor = (colors, ratio) => {
   if (!colors || colors.length === 0) return "#FFFFFF";
   if (colors.length === 1) return colors[0];
   const scaled = Math.max(0, Math.min(1, ratio)) * (colors.length - 1);
-  const idx = Math.min(Math.floor(scaled), colors.length - 2);
-  const t = scaled - idx;
-  const c1 = hexToRgb(colors[idx]);
-  const c2 = hexToRgb(colors[idx + 1]);
-  const r = Math.round(c1.r + (c2.r - c1.r) * t);
-  const g = Math.round(c1.g + (c2.g - c1.g) * t);
-  const b = Math.round(c1.b + (c2.b - c1.b) * t);
-  return `rgb(${r},${g},${b})`;
+  const idx    = Math.min(Math.floor(scaled), colors.length - 2);
+  const t      = scaled - idx;
+  const c1     = hexToRgb(colors[idx]);
+  const c2     = hexToRgb(colors[idx + 1]);
+  return `rgb(${Math.round(c1.r + (c2.r - c1.r) * t)},${Math.round(c1.g + (c2.g - c1.g) * t)},${Math.round(c1.b + (c2.b - c1.b) * t)})`;
 };
 
 // ── Component ──────────────────────────────────────────────────────────────────
 
 export default function CheckoutButton({ section }) {
   const navigation = useNavigation();
-  const cartItems = useSelector((state) => state?.cart?.items || []);
+  const cartItems  = useSelector((state) => state?.cart?.items || []);
   const hasCartItems = cartItems.length > 0;
 
   // ── Resolve props node ───────────────────────────────────────────────────────
@@ -122,34 +119,39 @@ export default function CheckoutButton({ section }) {
   const btnCss   = deepUnwrap(pressCss?.button ?? pressCss?.checkout) || {};
 
   // ── Label ────────────────────────────────────────────────────────────────────
-  const label = pick([raw?.label, raw?.text, raw?.buttonText, propsNode?.label], "Checkout");
+  // buttonShowText controls visibility; label/buttonText is the text
+  const buttonShowText = toBool(raw?.buttonShowText, true);
+  const label = buttonShowText
+    ? pickStr([raw?.label, raw?.buttonText, raw?.text, raw?.buttonLabel, propsNode?.label], "Checkout")
+    : "";
 
-  // ── Background colour ────────────────────────────────────────────────────────
-  // NOTE: btnCss.backgroundColor intentionally excluded — DSL's presentation CSS
-  // may carry a legacy/builder colour that differs from raw. raw props are the
-  // single source of truth for the button background.
-  const bgColor = pick(
-    [raw?.backgroundColor, raw?.bgColor, raw?.background, raw?.buttonBg, raw?.btn_bg],
-    "#111827"
+  // ── Button variant: "filled" | "outlined" | "ghost" ──────────────────────────
+  const buttonVariant = toStr(raw?.buttonVariant ?? raw?.variant, "filled").toLowerCase();
+  const isOutlined    = buttonVariant === "outlined";
+  const isGhost       = buttonVariant === "ghost";
+
+  // ── Background colour ─────────────────────────────────────────────────────────
+  // buttonBgColor is the primary DSL field for the button background
+  const bgColor = pickStr(
+    [raw?.buttonBgColor, raw?.btnBgColor, raw?.backgroundColor, raw?.bgColor, raw?.background, raw?.buttonBg, raw?.btn_bg],
+    isOutlined || isGhost ? "transparent" : "#111827"
   );
 
-  // ── Solid text colour (used when gradient is disabled) ───────────────────────
-  // NOTE: btnCss.color excluded for the same reason — only raw props disable the
-  // default rainbow gradient.
+  // ── Text colour ───────────────────────────────────────────────────────────────
+  // buttonTextColor is the primary DSL field
   const hasExplicitTextColor = !!(
-    deepUnwrap(raw?.textColor) ||
-    deepUnwrap(raw?.labelColor) ||
-    deepUnwrap(raw?.color) ||
+    deepUnwrap(raw?.buttonTextColor) ||
+    deepUnwrap(raw?.textColor)       ||
+    deepUnwrap(raw?.labelColor)      ||
+    deepUnwrap(raw?.color)           ||
     deepUnwrap(raw?.text_color)
   );
-  const textColor = pick(
-    [raw?.textColor, raw?.labelColor, raw?.color, raw?.text_color],
+  const textColor = pickStr(
+    [raw?.buttonTextColor, raw?.textColor, raw?.labelColor, raw?.color, raw?.text_color],
     "#FFFFFF"
   );
 
-  // ── Gradient text colours ────────────────────────────────────────────────────
-  // DSL can supply: gradientColors (array or comma-separated string)
-  // When no explicit solid textColor is set → falls back to DEFAULT_TEXT_GRADIENT
+  // ── Gradient text colours ─────────────────────────────────────────────────────
   const gradientColorsRaw = deepUnwrap(
     raw?.gradientColors ?? raw?.textGradient ?? raw?.labelGradient ?? raw?.textGradientColors
   );
@@ -165,50 +167,77 @@ export default function CheckoutButton({ section }) {
     return null;
   }, [gradientColorsRaw]);
 
-  // Effective gradient: explicit DSL gradient > default (when no solid override) > null (solid)
   const textGradient = dslGradient ?? (hasExplicitTextColor ? null : DEFAULT_TEXT_GRADIENT);
 
-  // ── Border ───────────────────────────────────────────────────────────────────
-  const borderColorVal = pick(
-    [raw?.borderColor, raw?.border_color, raw?.strokeColor, btnCss?.borderColor],
-    ""
+  // ── Border ────────────────────────────────────────────────────────────────────
+  // buttonBorderColor is primary; for "outlined" variant always show border
+  const borderColorVal = pickStr(
+    [raw?.buttonBorderColor, raw?.borderColor, raw?.border_color, raw?.strokeColor, btnCss?.borderColor],
+    isOutlined ? textColor : ""
   );
-  const borderWidthVal = pickNum(
-    [raw?.borderWidth, raw?.borderSize, raw?.border_width, btnCss?.borderWidth],
+  const borderWidthRaw = pickNum(
+    [raw?.buttonBorderWidth, raw?.borderWidth, raw?.borderSize, raw?.border_width, btnCss?.borderWidth],
     0
   );
-  const showBorder  = !!borderColorVal || borderWidthVal > 0;
-  const borderWidth = showBorder ? (borderWidthVal > 0 ? borderWidthVal : 1) : 0;
+  const showBorder  = isOutlined || !!borderColorVal || borderWidthRaw > 0;
+  const borderWidth = showBorder ? (borderWidthRaw > 0 ? borderWidthRaw : 1) : 0;
 
-  // ── Dimensions & shape ───────────────────────────────────────────────────────
-  const height       = pickNum([raw?.height, raw?.btnHeight, raw?.buttonHeight, btnCss?.height], 52);
-  const borderRadius = pickNum([raw?.borderRadius, raw?.cornerRadius, raw?.corner, raw?.rounded, btnCss?.borderRadius], 10);
-  const fullWidth    = toBool(raw?.fullWidth ?? raw?.isFullWidth, true);
+  // ── Dimensions & shape ────────────────────────────────────────────────────────
+  // buttonRadius is the primary DSL field for corner radius
+  const height = pickNum(
+    [raw?.height, raw?.btnHeight, raw?.buttonHeight, btnCss?.height],
+    52
+  );
+  const borderRadius = pickNum(
+    [raw?.buttonRadius, raw?.borderRadius, raw?.cornerRadius, raw?.corner, raw?.rounded, btnCss?.borderRadius],
+    10
+  );
+  const fullWidth = toBool(raw?.fullWidth ?? raw?.isFullWidth, true);
 
-  // ── Typography ───────────────────────────────────────────────────────────────
-  const fontSize      = pickNum([raw?.fontSize, raw?.textSize, raw?.labelSize, btnCss?.fontSize], 16);
-  const fontWeight    = toFontWeight(raw?.fontWeight ?? raw?.textWeight ?? raw?.labelWeight ?? btnCss?.fontWeight, "600");
-  const fontFamily    = toStr(raw?.fontFamily ?? raw?.labelFamily ?? btnCss?.fontFamily, "");
-  const italic        = toBool(raw?.italic, false);
-  const underline     = toBool(raw?.underline, false);
+  // ── Typography ────────────────────────────────────────────────────────────────
+  // buttonFontSize / buttonFontWeight / buttonFontFamily are primary DSL fields
+  const fontSize   = pickNum(
+    [raw?.buttonFontSize, raw?.fontSize, raw?.textSize, raw?.labelSize, btnCss?.fontSize],
+    16
+  );
+  const isBold     = toBool(raw?.buttonBold ?? raw?.bold, false);
+  const fontWeight = toFontWeight(
+    isBold ? "700" : (raw?.buttonFontWeight ?? raw?.fontWeight ?? raw?.textWeight ?? raw?.labelWeight ?? btnCss?.fontWeight),
+    "600"
+  );
+  const fontFamily    = toStr(raw?.buttonFontFamily ?? raw?.fontFamily ?? raw?.labelFamily ?? btnCss?.fontFamily, "");
+  const italic        = toBool(raw?.buttonItalic   ?? raw?.italic,    false);
+  const underline     = toBool(raw?.buttonUnderline ?? raw?.underline, false);
+  const strikethrough = toBool(raw?.buttonStrikethrough ?? raw?.strikethrough, false);
   const letterSpacing = pickNum([raw?.letterSpacing, btnCss?.letterSpacing], 0.3);
 
-  // ── Outer container ──────────────────────────────────────────────────────────
-  const padT = pickNum([raw?.paddingTop,    raw?.padT, raw?.pt, btnCss?.paddingTop],    12);
-  const padB = pickNum([raw?.paddingBottom, raw?.padB, raw?.pb, btnCss?.paddingBottom], 12);
-  const padL = pickNum([raw?.paddingLeft,   raw?.padL, raw?.pl, btnCss?.paddingLeft],   16);
-  const padR = pickNum([raw?.paddingRight,  raw?.padR, raw?.pr, btnCss?.paddingRight],  16);
-  const gap  = pickNum([raw?.gap, raw?.marginTop, raw?.mt], 0);
-  const containerBg = pick(
-    [raw?.containerBg, raw?.outerBg, raw?.wrapperBg, raw?.sectionBg],
+  const textDecorationLine = (() => {
+    if (underline && strikethrough) return "underline line-through";
+    if (underline)                   return "underline";
+    if (strikethrough)               return "line-through";
+    return "none";
+  })();
+
+  // ── Button padding (buttonPadding* fields take priority) ──────────────────────
+  const padT = pickNum([raw?.buttonPaddingTop,    raw?.paddingTop,    raw?.padT, raw?.pt, btnCss?.paddingTop],    12);
+  const padB = pickNum([raw?.buttonPaddingBottom, raw?.paddingBottom, raw?.padB, raw?.pb, btnCss?.paddingBottom], 12);
+  const padL = pickNum([raw?.buttonPaddingLeft,   raw?.paddingLeft,   raw?.padL, raw?.pl, btnCss?.paddingLeft],   16);
+  const padR = pickNum([raw?.buttonPaddingRight,  raw?.paddingRight,  raw?.padR, raw?.pr, btnCss?.paddingRight],  16);
+
+  // ── Outer container ───────────────────────────────────────────────────────────
+  // backgroundColor (DSL) is the section/wrapper background
+  const showBgPadding = toBool(raw?.buttonShowBackgroundPadding, true);
+  const containerBg   = pickStr(
+    [raw?.containerBg, raw?.outerBg, raw?.wrapperBg, raw?.sectionBg, raw?.backgroundColor],
     "#FFFFFF"
   );
+  const gap = pickNum([raw?.gap, raw?.marginTop, raw?.mt], 0);
 
-  // ── Disabled state ───────────────────────────────────────────────────────────
-  const disabledBg        = pick([raw?.disabledBg,        raw?.disabledBackground], "#9CA3AF");
-  const disabledTextColor = pick([raw?.disabledTextColor, raw?.disabledColor],      "#E5E7EB");
+  // ── Disabled state ────────────────────────────────────────────────────────────
+  const disabledBg        = pickStr([raw?.disabledBg,        raw?.disabledBackground], "#9CA3AF");
+  const disabledTextColor = pickStr([raw?.disabledTextColor, raw?.disabledColor],      "#E5E7EB");
 
-  // ── Checkout lines ───────────────────────────────────────────────────────────
+  // ── Checkout lines ────────────────────────────────────────────────────────────
   const checkoutLines = useMemo(
     () => cartItems.map((item) => ({
       id:        item?.id,
@@ -220,13 +249,10 @@ export default function CheckoutButton({ section }) {
 
   const [emptySnackbar, setEmptySnackbar] = useState(false);
   const [errorSnackbar, setErrorSnackbar] = useState(false);
-  const [loading, setLoading] = useState(false);
+  const [loading,       setLoading]       = useState(false);
 
   const handleCheckout = async () => {
-    if (!hasCartItems) {
-      setEmptySnackbar(true);
-      return;
-    }
+    if (!hasCartItems) { setEmptySnackbar(true); return; }
     if (loading) return;
     setLoading(true);
     try {
@@ -236,15 +262,14 @@ export default function CheckoutButton({ section }) {
       } else {
         setErrorSnackbar(true);
       }
-    } catch (error) {
-      console.log("Checkout error:", error);
+    } catch {
       setErrorSnackbar(true);
     } finally {
       setLoading(false);
     }
   };
 
-  // ── Computed styles ──────────────────────────────────────────────────────────
+  // ── Computed active / disabled values ────────────────────────────────────────
   const activeBg        = hasCartItems ? bgColor       : disabledBg;
   const activeTextColor = hasCartItems ? textColor      : disabledTextColor;
   const activeBorderClr = hasCartItems ? borderColorVal : disabledBg;
@@ -253,47 +278,42 @@ export default function CheckoutButton({ section }) {
     height,
     borderRadius,
     backgroundColor: activeBg,
-    width:       fullWidth ? "100%" : undefined,
+    width:           fullWidth ? "100%" : undefined,
     borderWidth,
-    borderColor: showBorder ? activeBorderClr : undefined,
+    borderColor:     showBorder ? activeBorderClr : undefined,
+    minHeight:       height,
   };
 
-  // Base text style (colour overridden per-character for gradient mode)
-  const textStyle = {
+  const baseTextStyle = {
     fontSize,
     fontWeight,
-    fontStyle:          italic    ? "italic"    : "normal",
+    fontStyle:          italic        ? "italic"    : "normal",
     letterSpacing,
-    textDecorationLine: underline ? "underline" : "none",
+    textDecorationLine,
     ...(fontFamily ? { fontFamily } : {}),
   };
 
-  // ── Render button label ──────────────────────────────────────────────────────
+  // ── Render label ──────────────────────────────────────────────────────────────
   const renderLabel = () => {
-    // Loading state
     if (loading) {
       return <ActivityIndicator color={activeTextColor} size="small" />;
     }
-
-    // Disabled state: always solid
     if (!hasCartItems) {
       return (
-        <Text style={[styles.label, textStyle, { color: disabledTextColor }]}>
+        <Text style={[styles.label, baseTextStyle, { color: disabledTextColor }]}>
           {label}
         </Text>
       );
     }
-
-    // Active with gradient: colour each character across the gradient stops
-    if (textGradient) {
+    // Gradient mode
+    if (textGradient && label) {
       const chars = [...label];
       return (
         <View style={styles.gradientRow}>
           {chars.map((char, i) => {
             const ratio = chars.length <= 1 ? 0.5 : i / (chars.length - 1);
-            const color = interpolateGradientColor(textGradient, ratio);
             return (
-              <Text key={i} style={[styles.label, textStyle, { color }]}>
+              <Text key={i} style={[styles.label, baseTextStyle, { color: interpolateGradientColor(textGradient, ratio) }]}>
                 {char}
               </Text>
             );
@@ -301,27 +321,25 @@ export default function CheckoutButton({ section }) {
         </View>
       );
     }
-
-    // Active with solid colour
+    // Solid colour
     return (
-      <Text style={[styles.label, textStyle, { color: activeTextColor }]}>
+      <Text style={[styles.label, baseTextStyle, { color: activeTextColor }]}>
         {label}
       </Text>
     );
   };
 
+  // ── Outer container padding ───────────────────────────────────────────────────
+  const containerPadding = showBgPadding
+    ? { paddingTop: padT, paddingBottom: padB, paddingLeft: padL, paddingRight: padR }
+    : { paddingTop: 0,   paddingBottom: 0,    paddingLeft: 0,    paddingRight: 0 };
+
   return (
     <View
       style={[
         styles.container,
-        {
-          backgroundColor: containerBg,
-          paddingTop:    padT,
-          paddingBottom: padB,
-          paddingLeft:   padL,
-          paddingRight:  padR,
-          marginTop:     gap,
-        },
+        { backgroundColor: containerBg, marginTop: gap },
+        containerPadding,
       ]}
     >
       <TouchableOpacity

@@ -1,7 +1,7 @@
 import React, { useMemo, useState } from "react";
 import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import FontAwesome from "react-native-vector-icons/FontAwesome";
-import { StackActions, useNavigation } from "@react-navigation/native";
+import { useNavigation } from "@react-navigation/native";
 import { useDispatch } from "react-redux";
 import { addItem } from "../store/slices/cartSlice";
 import Snackbar from "./Snackbar";
@@ -134,6 +134,7 @@ export default function AddToCart({ section }) {
 
   const addToCartConfig = deepUnwrap(raw?.addToCart) || deepUnwrap(css?.addToCart) || {};
   const quantityConfig  = deepUnwrap(raw?.quantityPicker) || deepUnwrap(css?.quantityPicker) || {};
+  const buyNowConfig    = deepUnwrap(raw?.buyNow)         || deepUnwrap(css?.buyNow)         || {};
   const visibility      = deepUnwrap(raw?.visibility) || deepUnwrap(css?.visibility) || {};
 
   const showAddToCart      = toBoolean(deepUnwrap(visibility?.addToCart),           true);
@@ -142,8 +143,12 @@ export default function AddToCart({ section }) {
   const showQuantityPicker = toBoolean(deepUnwrap(visibility?.quantityPicker),      true);
   const showQuantityText   = toBoolean(deepUnwrap(visibility?.quantityPickerText),  true);
   const showQuantityIcons  = toBoolean(deepUnwrap(visibility?.quantityPickerIcons), true);
+  const showBuyNow         = toBoolean(deepUnwrap(visibility?.buyNow),              false);
+  const showBuyNowIcon     = toBoolean(deepUnwrap(visibility?.buyNowIcon),          false);
+  const showBuyNowText     = toBoolean(deepUnwrap(visibility?.buyNowText),          true);
 
   const addToCartText = toString(raw?.buttonText ?? addToCartConfig?.text, "Add to Cart");
+  const buyNowText    = toString(buyNowConfig?.text ?? raw?.buyNowText, "Buy Now");
   const quantityLabel = toString(raw?.quantityLabel ?? quantityConfig?.label, "Quantity");
   const shopifyDomain = toString(raw?.shopifyDomain, getShopifyDomain());
   const productHandle = toString(raw?.handle, "");
@@ -162,6 +167,7 @@ export default function AddToCart({ section }) {
   const [snackbarVisible, setSnackbarVisible] = useState(false);
 
   const addToCartButtonStyle = useMemo(() => buildButtonStyles(addToCartConfig, "#1F2937"), [addToCartConfig]);
+  const buyNowButtonStyle    = useMemo(() => buildButtonStyles(buyNowConfig,    "#FFFFFF"), [buyNowConfig]);
   const addToCartUrl = useMemo(
     () =>
       buildCheckoutUrl({
@@ -175,7 +181,6 @@ export default function AddToCart({ section }) {
 
   const addToCartBg = toString(addToCartConfig?.bgColor, "#1F2937");
   const addToCartFgRaw = toString(addToCartConfig?.textColor, "");
-  // If text color is same as bg (invisible), fall back to contrasting white/black
   const addToCartFg = addToCartFgRaw && addToCartFgRaw !== addToCartBg
     ? addToCartFgRaw
     : addToCartBg.toLowerCase() === "#ffffff" || addToCartBg.toLowerCase() === "#fff" ? "#111827" : "#ffffff";
@@ -188,12 +193,28 @@ export default function AddToCart({ section }) {
     marginLeft: showAddToCartIcon ? 6 : 0,
   };
 
+  const buyNowBg     = toString(buyNowConfig?.bgColor, "#FFFFFF");
+  const buyNowFgRaw  = toString(buyNowConfig?.textColor, "");
+  const buyNowFg     = buyNowFgRaw && buyNowFgRaw !== buyNowBg
+    ? buyNowFgRaw
+    : buyNowBg.toLowerCase() === "#ffffff" || buyNowBg.toLowerCase() === "#fff" ? "#111827" : "#ffffff";
+
+  const buyNowTextStyle = {
+    color:      buyNowFg,
+    fontSize:   toNumber(buyNowConfig?.textSize,   15),
+    fontWeight: toString(buyNowConfig?.textWeight, "600"),
+    fontFamily: toString(buyNowConfig?.textFamily ?? buyNowConfig?.fontFamily, undefined) || undefined,
+    marginLeft: showBuyNowIcon ? 6 : 0,
+  };
+
+  const buyNowIconName = resolveIconName(buyNowConfig?.icon);
+
   const quantityContainerStyle = {
     ...buildPadding(quantityConfig),
-    backgroundColor: toString(quantityConfig?.bgColor, "#ffffff"),
-    borderColor: toString(quantityConfig?.borderColor, "#E5E7EB"),
-    borderWidth: quantityConfig?.borderLine || quantityConfig?.borderColor ? 1 : 0,
-    borderRadius: toNumber(quantityConfig?.borderRadius, 6),
+    backgroundColor: toString(quantityConfig?.bgColor,     "#FFFFFF"),
+    borderColor:     toString(quantityConfig?.borderColor, "#E5E7EB"),
+    borderWidth:     toNumber(quantityConfig?.borderWidth, 1),
+    borderRadius:    toNumber(quantityConfig?.borderRadius, 6),
   };
 
   const quantityTextStyle = {
@@ -237,8 +258,6 @@ export default function AddToCart({ section }) {
   };
 
   const openCartScreen = () => {
-    // Only use the real DSL-provided bottom nav — never fall back to hardcoded defaults.
-    // If the app has no bottom navigation, the cart page should not show one either.
     const navSection = section?.bottomNavSection || null;
     const items = resolveBottomNavItems(navSection);
     const resolvedIndex = resolveBottomNavIndex(items, "cart");
@@ -253,7 +272,7 @@ export default function AddToCart({ section }) {
       activeIndex,
       ...(navSection ? { bottomNavSection: navSection } : {}),
     };
-    navigation.dispatch(StackActions.replace("BottomNavScreen", params));
+    navigation.navigate("BottomNavScreen", params);
   };
 
   const canAddLocally =
@@ -282,6 +301,11 @@ export default function AddToCart({ section }) {
     setSnackbarVisible(true);
   };
 
+  const handleBuyNow = () => {
+    if (!addToCartUrl) return;
+    navigation.navigate("CheckoutWebView", { url: addToCartUrl, title: "Checkout" });
+  };
+
   const containerBg = toString(
     raw?.bgColor ?? css?.bgColor ?? propsNode?.backgroundAndPadding?.bgColor,
     "#FFFFFF"
@@ -291,9 +315,20 @@ export default function AddToCart({ section }) {
   const containerPL = toNumber(raw?.pl ?? css?.pl ?? propsNode?.backgroundAndPadding?.paddingLeft, 16);
   const containerPR = toNumber(raw?.pr ?? css?.pr ?? propsNode?.backgroundAndPadding?.paddingRight, 16);
 
-  const quantityLabelColor  = toString(quantityConfig?.labelColor, "#111827");
-  const quantityLabelSize   = toNumber(quantityConfig?.labelFontSize, 14);
-  const quantityLabelWeight = toString(quantityConfig?.labelFontWeight, "500");
+  // "Quantity" label — DSL may use a `label` sub-object or top-level label* fields
+  const quantityLabelSub    = deepUnwrap(quantityConfig?.label) || {};
+  const quantityLabelColor  = toString(
+    quantityLabelSub?.textColor  ?? quantityConfig?.labelTextColor  ?? raw?.quantityLabelColor,
+    "#111827"
+  );
+  const quantityLabelSize   = toNumber(
+    quantityLabelSub?.textSize   ?? quantityConfig?.labelTextSize   ?? raw?.quantityLabelSize,
+    14
+  );
+  const quantityLabelWeight = toString(
+    quantityLabelSub?.textWeight ?? quantityConfig?.labelTextWeight ?? raw?.quantityLabelWeight,
+    "500"
+  );
 
   return (
     <View style={[
@@ -376,6 +411,31 @@ export default function AddToCart({ section }) {
         </TouchableOpacity>
       )}
 
+      {/* ── Buy Now button ── */}
+      {showBuyNow && (
+        <TouchableOpacity
+          style={[
+            styles.fullButton,
+            buyNowButtonStyle,
+            { marginTop: toNumber(raw?.buttonGap ?? raw?.gap, 10) },
+          ]}
+          onPress={handleBuyNow}
+          activeOpacity={0.8}
+        >
+          {showBuyNowIcon && !!buyNowIconName && (
+            <FontAwesome
+              name={buyNowIconName}
+              size={toNumber(buyNowConfig?.iconSize, 14)}
+              color={toString(buyNowConfig?.iconColor, buyNowTextStyle.color)}
+              style={{ marginRight: 6 }}
+            />
+          )}
+          {showBuyNowText && (
+            <Text style={buyNowTextStyle}>{buyNowText}</Text>
+          )}
+        </TouchableOpacity>
+      )}
+
       {/* ── Add to Cart snackbar ── */}
       <Snackbar
         visible={snackbarVisible}
@@ -405,9 +465,6 @@ const styles = StyleSheet.create({
   quantityControls: {
     flexDirection: "row",
     alignItems: "center",
-    borderWidth: 1,
-    borderColor: "#E5E7EB",
-    borderRadius: 6,
     paddingHorizontal: 4,
     gap: 4,
   },

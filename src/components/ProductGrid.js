@@ -5,6 +5,7 @@ import { useDispatch, useSelector } from "react-redux";
 import { addItem } from "../store/slices/cartSlice";
 import { toggleWishlist } from "../store/slices/wishlistSlice";
 import { fetchShopifyProductsPage } from "../services/shopify";
+import Snackbar from "./Snackbar";
 
 // ── DSL helpers ───────────────────────────────────────────────────────────────
 
@@ -97,10 +98,12 @@ export default function ProductGrid({ section, limit = 8, title = "Products" }) 
   const navigation = useNavigation();
   const dispatch   = useDispatch();
   const wishlistItems = useSelector((state) => state.wishlist?.items || []);
-  const [products, setProducts] = useState([]);
-  const [loading,  setLoading]  = useState(false);
-  const [error,    setError]    = useState("");
-  const [hasMore,  setHasMore]  = useState(false);
+  const [products,     setProducts]     = useState([]);
+  const [loading,      setLoading]      = useState(false);
+  const [error,        setError]        = useState("");
+  const [hasMore,      setHasMore]      = useState(false);
+  const [snackVisible, setSnackVisible] = useState(false);
+  const [snackMessage, setSnackMessage] = useState("");
 
   // ── Merge raw sub-object ──────────────────────────────────────────────────
   const rawProps = getRawProps(section);
@@ -482,6 +485,7 @@ export default function ProductGrid({ section, limit = 8, title = "Products" }) 
                     activeOpacity={0.8}
                     onPress={(e) => {
                       e.stopPropagation?.();
+                      const adding = !isInWishlist;
                       dispatch(toggleWishlist({
                         product: {
                           id:             prodId,
@@ -494,6 +498,8 @@ export default function ProductGrid({ section, limit = 8, title = "Products" }) 
                           vendor:         product?.vendor || "",
                         },
                       }));
+                      setSnackMessage(adding ? "Product added to wishlist successfully." : "Product removed from wishlist successfully.");
+                      setSnackVisible(true);
                     }}
                   >
                     <Text
@@ -625,6 +631,14 @@ export default function ProductGrid({ section, limit = 8, title = "Products" }) 
           })}
         </View>
       )}
+
+      <Snackbar
+        visible={snackVisible}
+        message={snackMessage}
+        onDismiss={() => setSnackVisible(false)}
+        duration={2500}
+        type="success"
+      />
     </View>
   );
 }
