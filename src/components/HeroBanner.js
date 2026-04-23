@@ -1,6 +1,7 @@
 import React from "react";
 import { Dimensions, Image, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import LinearGradient from "react-native-linear-gradient";
+import FontAwesome from "react-native-vector-icons/FontAwesome";
 import { useNavigation } from "@react-navigation/native";
 import { applyMetricsPositioning, convertStyles } from "../utils/convertStyles";
 
@@ -174,7 +175,8 @@ export default function HeroBanner({ section }) {
   const buttonCssStyle = convertStyles(layoutCss?.button || {});
   const imageCssStyleRaw = convertStyles(layoutCss?.image || {});
 
-  // Strip padding, margin, and explicit sizing from containerStyle.
+  // Strip padding, margin, sizing, and borderRadius from containerStyle.
+  // borderRadius is stripped here so it cannot override the computed containerBorderRadius below.
   // Height is managed by containerHeightStyle + aspectRatio/minHeight below.
   const {
     padding: _cP, paddingTop: _cPt, paddingBottom: _cPb,
@@ -184,6 +186,7 @@ export default function HeroBanner({ section }) {
     marginLeft: _cMl, marginRight: _cMr,
     marginHorizontal: _cMh, marginVertical: _cMv,
     height: _cH, minHeight: _cMinH, maxHeight: _cMaxH,
+    borderRadius: _cBrFromCss,
     ...containerStyle
   } = containerStyleRaw;
 
@@ -322,25 +325,64 @@ export default function HeroBanner({ section }) {
 
   // Button configuration
   const button = rawProps?.button || {};
+  // buttonAttributes — dedicated DSL node sent by the builder with more specific button config
+  // keys: bgColor, textColor, fontFamily, fontWeight, fontSize, letterSpacing,
+  //       icon, iconSize, iconColor, borderRadius, borderColor, borderSide, pt/pb/pl/pr
+  const buttonAttrs = rawProps?.buttonAttributes?.properties || rawProps?.buttonAttributes || {};
+
   const buttonEnabled = button?.properties?.enabled || button?.enabled;
   const showButtonFromEnabled = buttonEnabled === "yes" || buttonEnabled === true || toBoolean(buttonEnabled, false);
   const showButton = flatPropsNode?.showButton !== undefined
     ? toBoolean(flatPropsNode.showButton, showButtonFromEnabled)
     : showButtonFromEnabled;
-  const buttonLabel = unwrapValue(button?.properties?.label || button?.label, "Shop Now");
+
+  // Label — check button.label, flatProps.buttonText
+  const buttonLabel =
+    unwrapValue(button?.properties?.label || button?.label, "") ||
+    toString(flatPropsNode?.buttonText, "Button");
+
   const buttonLink = unwrapValue(button?.properties?.link || button?.link, "/products");
   const buttonNavigateRef = unwrapValue(button?.properties?.navigateRef || button?.navigateRef, "");
   const buttonNavigateType = unwrapValue(button?.properties?.navigateType || button?.navigateType, "");
-  
+
   // Button style tokens - default to white background as per schema
   const buttonTokens = button?.properties?.style?.properties || button?.style?.properties || {};
-  const buttonBgColor = unwrapValue(buttonTokens?.backgroundColor, undefined) || 
-                        toString(layoutCss?.button?.backgroundColor, "#FFFFFF");
-  const buttonTextColor = unwrapValue(buttonTokens?.color, undefined) || 
-                          toString(layoutCss?.button?.color, "#111827");
+
+  // Background color — buttonAttrs.bgColor > flatProps.buttonBgColor > tokenStyle > CSS
+  const buttonBgColor =
+    toString(buttonAttrs?.bgColor, "") ||
+    toString(flatPropsNode?.buttonBgColor, "") ||
+    unwrapValue(buttonTokens?.backgroundColor, undefined) ||
+    toString(layoutCss?.button?.backgroundColor, "#111111");
+
+  // Text color — buttonAttrs.textColor > flatProps.buttonTextColor > tokenStyle.color > CSS
+  const buttonTextColor =
+    toString(buttonAttrs?.textColor, "") ||
+    toString(flatPropsNode?.buttonTextColor, "") ||
+    unwrapValue(buttonTokens?.color, undefined) ||
+    toString(layoutCss?.button?.color, "#FFFFFF");
+
   const buttonBorder = unwrapValue(buttonTokens?.border, "none");
-  const buttonPadding = unwrapValue(buttonTokens?.padding, "8px 14px");
-  const buttonBorderRadius = unwrapValue(buttonTokens?.borderRadius, "7px");
+
+  // Padding — per-side from buttonAttrs first, then tokenStyle string, then CSS
+  const hasBtnAttrPad = buttonAttrs?.pt !== undefined || buttonAttrs?.pb !== undefined ||
+                        buttonAttrs?.pl !== undefined || buttonAttrs?.pr !== undefined;
+  const buttonPadding = hasBtnAttrPad ? null : (unwrapValue(buttonTokens?.padding, null) || toString(layoutCss?.button?.padding, "8px 14px"));
+
+  // Border radius — priority: buttonAttrs > flatProps > tokenStyle > button prop > CSS > default 7
+  const buttonBorderRadius = (() => {
+    const fromAttrs = toNumber(buttonAttrs?.borderRadius, undefined);
+    if (fromAttrs !== undefined) return fromAttrs;
+    const fromFlat = toNumber(flatPropsNode?.buttonBorderRadius, undefined);
+    if (fromFlat !== undefined) return fromFlat;
+    const fromToken = unwrapValue(buttonTokens?.borderRadius, undefined);
+    if (fromToken !== undefined && fromToken !== null && fromToken !== "") return toNumber(fromToken, 0);
+    const fromProp = unwrapValue(button?.properties?.borderRadius ?? button?.borderRadius, undefined);
+    if (fromProp !== undefined && fromProp !== null && fromProp !== "") return toNumber(fromProp, 0);
+    const fromCss = buttonCssStyle?.borderRadius;
+    if (fromCss !== undefined && fromCss !== null) return typeof fromCss === "number" ? fromCss : toNumber(fromCss, 0);
+    return 7;
+  })();
   
   // Parse padding string (e.g., "8px 14px" or "8px 14px 8px 14px")
   const parsePadding = (paddingStr) => {
@@ -356,36 +398,142 @@ export default function HeroBanner({ section }) {
     return {};
   };
   
-  const buttonPaddingStyle = parsePadding(buttonPadding);
+  const buttonPaddingStyle = hasBtnAttrPad
+    ? {
+        paddingTop:    toNumber(buttonAttrs?.pt, 8),
+        paddingBottom: toNumber(buttonAttrs?.pb, 8),
+        paddingLeft:   toNumber(buttonAttrs?.pl, 14),
+        paddingRight:  toNumber(buttonAttrs?.pr, 14),
+      }
+    : parsePadding(buttonPadding || "8px 14px");
   
   // Extract button text style properties
-  const buttonWeight = unwrapValue(button?.properties?.weight || button?.weight, undefined);
+  // buttonAttrs takes priority over button.properties (dedicated attributes node from builder)
+  const buttonWeight =
+    unwrapValue(buttonAttrs?.fontWeight, undefined) ||
+    toString(flatPropsNode?.buttonFontWeight, "") ||
+    unwrapValue(button?.properties?.weight || button?.weight, undefined);
   const buttonBold = toBoolean(button?.properties?.bold || button?.bold, false);
   const buttonItalic = toBoolean(button?.properties?.italic || button?.italic, false);
   const buttonUnderline = toBoolean(button?.properties?.underline || button?.underline, false);
+
+  // Button typography — fontFamily, fontSize, letterSpacing
+  // Priority: buttonAttrs > flatProps > button.properties > tokenStyle > layoutCSS
+  const buttonFontFamily =
+    toString(buttonAttrs?.fontFamily, "") ||
+    toString(flatPropsNode?.buttonFontFamily, "") ||
+    toString(
+      button?.properties?.fontFamily ??
+      button?.properties?.font ??
+      button?.fontFamily ??
+      button?.font ??
+      buttonTokens?.fontFamily,
+      ""
+    ) ||
+    toString(layoutCss?.button?.fontFamily, "");
+
+  const buttonFontSize =
+    toNumber(buttonAttrs?.fontSize, undefined) ??
+    toNumber(flatPropsNode?.buttonFontSize, undefined) ??
+    toNumber(
+      button?.properties?.size ??
+      button?.properties?.fontSize ??
+      button?.size ??
+      button?.fontSize ??
+      buttonTokens?.fontSize,
+      undefined
+    ) ??
+    toNumber(layoutCss?.button?.fontSize, undefined);
+
+  const buttonLetterSpacing =
+    toNumber(buttonAttrs?.letterSpacing, undefined) ??
+    toNumber(flatPropsNode?.buttonLetterSpacing, undefined) ??
+    toNumber(
+      button?.properties?.letterSpacing ??
+      button?.letterSpacing ??
+      buttonTokens?.letterSpacing,
+      undefined
+    ) ??
+    toNumber(layoutCss?.button?.letterSpacing, undefined);
   
   // Build dynamic button style - prioritize CSS, then button tokens, then defaults
   const dynamicButtonStyle = {
     ...buttonCssStyle,
     color: buttonTextColor,
     backgroundColor: buttonBgColor,
-    borderRadius: toNumber(buttonBorderRadius, 7),
+    borderRadius: buttonBorderRadius,
     ...buttonPaddingStyle,
     fontWeight: toFontWeight(
       buttonWeight || layoutCss?.button?.fontWeight,
       buttonBold
     ) || "400",
-    fontStyle: buttonItalic ? "italic" : 
+    fontStyle: buttonItalic ? "italic" :
                (layoutCss?.button?.fontStyle || "normal"),
     textDecorationLine: buttonUnderline
       ? "underline"
       : (layoutCss?.button?.textDecoration || "none"),
-    ...(buttonBorder && buttonBorder !== "none" ? { 
-      borderWidth: 1, 
-      borderColor: buttonBorder 
+    ...(buttonFontFamily        ? { fontFamily:     buttonFontFamily }        : {}),
+    ...(buttonFontSize    != null ? { fontSize:       buttonFontSize }         : {}),
+    ...(buttonLetterSpacing != null ? { letterSpacing: buttonLetterSpacing }   : {}),
+    ...(buttonBorder && buttonBorder !== "none" ? {
+      borderWidth: 1,
+      borderColor: buttonBorder
     } : {}),
   };
   
+  // Button icon — only valid FontAwesome names render; emoji or unknown names are silently dropped
+  // Priority: buttonAttrs.icon > flatProps.buttonIcon > button.properties.icon
+  const rawBtnIcon =
+    toString(buttonAttrs?.icon, "") ||
+    toString(flatPropsNode?.buttonIcon, "") ||
+    unwrapValue(
+      button?.properties?.icon ??
+      button?.properties?.iconName ??
+      button?.icon ??
+      button?.iconName,
+      ""
+    );
+  const normBtnIcon = rawBtnIcon
+    ? String(rawBtnIcon).trim().replace(/^fa-/, "").toLowerCase()
+    : "";
+  const hasValidBtnIcon =
+    !!normBtnIcon &&
+    Object.prototype.hasOwnProperty.call(FontAwesome.glyphMap || {}, normBtnIcon);
+  const buttonIconName     = hasValidBtnIcon ? normBtnIcon : "";
+  const buttonIconPosition = toString(
+    buttonAttrs?.iconPosition ?? button?.properties?.iconPosition ?? button?.iconPosition,
+    "left"
+  ).toLowerCase();
+  const buttonIconSize  = toNumber(buttonAttrs?.iconSize ?? button?.properties?.iconSize ?? button?.iconSize, 14);
+  const buttonIconColor =
+    toString(buttonAttrs?.iconColor, "") ||
+    toString(button?.properties?.iconColor ?? button?.iconColor, "") ||
+    buttonTextColor ||
+    "#FFFFFF";
+
+  // Split dynamicButtonStyle into container props (View) and text props (Text label).
+  // All text-only CSS properties must be stripped from btnViewDynStyle to avoid RN warnings.
+  const {
+    color: _dynColor,
+    fontWeight: _dynFw,
+    fontStyle: _dynFs,
+    textDecorationLine: _dynTdl,
+    textAlign: _dynTa,
+    letterSpacing: _dynLs,
+    fontFamily: _dynFontFamily,
+    fontSize: _dynFontSize,
+    ...btnViewDynStyle
+  } = dynamicButtonStyle;
+  const btnTextDynStyle = {
+    color:              dynamicButtonStyle.color,
+    fontWeight:         dynamicButtonStyle.fontWeight,
+    fontStyle:          dynamicButtonStyle.fontStyle,
+    textDecorationLine: dynamicButtonStyle.textDecorationLine,
+    ...(dynamicButtonStyle.fontFamily    ? { fontFamily:     dynamicButtonStyle.fontFamily }    : {}),
+    ...(dynamicButtonStyle.fontSize   != null ? { fontSize:       dynamicButtonStyle.fontSize }  : {}),
+    ...(dynamicButtonStyle.letterSpacing != null ? { letterSpacing: dynamicButtonStyle.letterSpacing } : {}),
+  };
+
   // Handle button navigation
   const handleButtonPress = () => {
     const ref = buttonNavigateRef?.trim();
@@ -453,6 +601,32 @@ export default function HeroBanner({ section }) {
   const textAlign = toString(alignmentAndPadding?.textAlign, "center").toLowerCase();
   const align = toString(alignmentAndPadding?.align, "Center").toLowerCase();
   const alignItems = align === "left" ? "flex-start" : align === "right" ? "flex-end" : "center";
+
+  // Per-element text alignment — reads from element attributes first, then flatProps aliases,
+  // then falls back to the global textAlign above.
+  // Builder stores the typography-panel "Alignment" control as align/textAlign inside each attributes object.
+  const headlineTextAlign = (
+    toString(headlineAttributes?.textAlign ?? headlineAttributes?.align, "") ||
+    toString(
+      flatPropsNode?.headlineTextAlign ??
+      flatPropsNode?.headlineAlign ??
+      flatPropsNode?.headAlign,
+      ""
+    ) ||
+    textAlign
+  ).toLowerCase();
+
+  const subtextTextAlign = (
+    toString(subtextAttributes?.textAlign ?? subtextAttributes?.align, "") ||
+    toString(
+      flatPropsNode?.subtextTextAlign ??
+      flatPropsNode?.subtextAlign ??
+      flatPropsNode?.bodyAlign ??
+      flatPropsNode?.subtextTextAlign,
+      ""
+    ) ||
+    textAlign
+  ).toLowerCase();
   
   // Extract padding from paddingRaw or padding string
   const paddingRaw = alignmentAndPadding?.paddingRaw?.properties || alignmentAndPadding?.paddingRaw || {};
@@ -473,11 +647,26 @@ export default function HeroBanner({ section }) {
   const containerBgGradientColor =
     toString(rawProps?.containerBgGradiantColor, "") ||
     toString(flatPropsNode?.containerBgGradiantColor, "");
-  // Default to 0 — no rounded corners unless DSL explicitly sets a radius
-  const containerBorderRadius =
-    toNumber(styleProps?.borderRadius, undefined) ??
-    toNumber(layoutCss?.container?.borderRadius, undefined) ??
-    toNumber(rawProps?.borderRadius, 0);
+  // Container border radius — fully DSL-driven, defaults to 0 (sharp corners).
+  // Priority: style prop > raw prop aliases > layout CSS > CSS post-convert > 0
+  // _cBrFromCss is stripped from containerStyle above so it cannot override this value later.
+  const containerBorderRadius = (() => {
+    const fromStyle = toNumber(styleProps?.borderRadius, undefined);
+    if (fromStyle !== undefined) return fromStyle;
+    const fromRaw = toNumber(
+      rawProps?.containerRadius ??
+      rawProps?.cornerRadius ??
+      rawProps?.borderRadius,
+      undefined
+    );
+    if (fromRaw !== undefined) return fromRaw;
+    const fromCss = toNumber(layoutCss?.container?.borderRadius, undefined);
+    if (fromCss !== undefined) return fromCss;
+    if (_cBrFromCss !== undefined && _cBrFromCss !== null) {
+      return typeof _cBrFromCss === "number" ? _cBrFromCss : toNumber(_cBrFromCss, 0);
+    }
+    return 0;
+  })();
   const containerHeight = toString(styleProps?.height || layoutCss?.container?.height, "auto");
 
   // Outer card container — transparent by default so no white box appears around the banner
@@ -590,13 +779,13 @@ export default function HeroBanner({ section }) {
         ]}
       >
         {showHeadline && headline ? (
-          <Text style={[styles.headline, headlineStyle, { textAlign: textAlign || "center" }]}>
+          <Text style={[styles.headline, headlineStyle, { textAlign: headlineTextAlign || "center" }]}>
             {headline}
           </Text>
         ) : null}
 
         {showSubtext && subtext ? (
-          <Text style={[styles.subtext, subtextStyle, { textAlign: textAlign || "center" }]}>
+          <Text style={[styles.subtext, subtextStyle, { textAlign: subtextTextAlign || "center" }]}>
             {subtext}
           </Text>
         ) : null}
@@ -604,7 +793,23 @@ export default function HeroBanner({ section }) {
         {showButton && buttonLabel ? (
           <View style={styles.buttonWrapper}>
             <TouchableOpacity onPress={handleButtonPress} activeOpacity={0.8}>
-              <Text style={[styles.button, dynamicButtonStyle]}>{buttonLabel}</Text>
+              <View style={[styles.buttonInner, btnViewDynStyle]}>
+                {!!buttonIconName && buttonIconPosition !== "right" && (
+                  <FontAwesome
+                    name={buttonIconName}
+                    size={buttonIconSize}
+                    color={buttonIconColor}
+                  />
+                )}
+                <Text style={[styles.buttonText, btnTextDynStyle]}>{buttonLabel}</Text>
+                {!!buttonIconName && buttonIconPosition === "right" && (
+                  <FontAwesome
+                    name={buttonIconName}
+                    size={buttonIconSize}
+                    color={buttonIconColor}
+                  />
+                )}
+              </View>
             </TouchableOpacity>
           </View>
         ) : null}
@@ -720,9 +925,14 @@ const styles = StyleSheet.create({
     alignItems: "center", // Center the button horizontally
     justifyContent: "center", // Center the button horizontally
   },
-  button: {
-    textAlign: "center", // Center text within button
-    alignSelf: "center", // Ensure button itself is centered
-    // All other styles (padding, borderRadius, fontWeight, backgroundColor, color) are set dynamically from config
+  buttonInner: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    alignSelf: "center",
+    gap: 6,
+  },
+  buttonText: {
+    textAlign: "center",
   },
 });
