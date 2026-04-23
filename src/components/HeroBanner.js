@@ -4,6 +4,7 @@ import LinearGradient from "react-native-linear-gradient";
 import FontAwesome from "react-native-vector-icons/FontAwesome";
 import { useNavigation } from "@react-navigation/native";
 import { applyMetricsPositioning, convertStyles } from "../utils/convertStyles";
+import { resolveFA4IconName } from "../utils/faIconAlias";
 
 const unwrapValue = (value, fallback = undefined) => {
   if (value === undefined || value === null) return fallback;
@@ -481,7 +482,7 @@ export default function HeroBanner({ section }) {
     } : {}),
   };
   
-  // Button icon — only valid FontAwesome names render; emoji or unknown names are silently dropped
+  // Button icon — resolves FA5/FA6 names to FA4 equivalents; unknown names are silently dropped
   // Priority: buttonAttrs.icon > flatProps.buttonIcon > button.properties.icon
   const rawBtnIcon =
     toString(buttonAttrs?.icon, "") ||
@@ -493,13 +494,7 @@ export default function HeroBanner({ section }) {
       button?.iconName,
       ""
     );
-  const normBtnIcon = rawBtnIcon
-    ? String(rawBtnIcon).trim().replace(/^fa-/, "").toLowerCase()
-    : "";
-  const hasValidBtnIcon =
-    !!normBtnIcon &&
-    Object.prototype.hasOwnProperty.call(FontAwesome.glyphMap || {}, normBtnIcon);
-  const buttonIconName     = hasValidBtnIcon ? normBtnIcon : "";
+  const buttonIconName = resolveFA4IconName(rawBtnIcon, FontAwesome.glyphMap || {});
   const buttonIconPosition = toString(
     buttonAttrs?.iconPosition ?? button?.properties?.iconPosition ?? button?.iconPosition,
     "left"
