@@ -10,7 +10,7 @@ import { Animated, TouchableOpacity } from "react-native";
 import FontAwesome from "react-native-vector-icons/FontAwesome";
 import { useFocusEffect, useNavigation, useRoute } from "@react-navigation/native";
 import { SafeArea } from "../utils/SafeAreaHandler";
-import BottomNavigation from "../components/BottomNavigation";
+import BottomNavigation, { BOTTOM_NAV_RESERVED_HEIGHT } from "../components/BottomNavigation";
 import SideNavigation from "../components/SideNavigation";
 import { fetchDSL } from "../engine/dslHandler";
 import { shouldRenderSectionOnMobile } from "../engine/visibility";
@@ -81,7 +81,7 @@ export default function BottomNavScreen() {
   const bottomNavSectionRef = useRef(bottomNavSectionProp);
   // Measured height of the rendered bottom nav — used to pad the scroll content
   // so the last section is never hidden behind the nav bar.
-  const [bottomNavHeight, setBottomNavHeight] = useState(70);
+  const [bottomNavHeight, setBottomNavHeight] = useState(BOTTOM_NAV_RESERVED_HEIGHT);
   // Side menu state (same pattern as LayoutScreen)
   const SIDE_MENU_WIDTH = 280;
   const [isSideMenuOpen, setIsSideMenuOpen] = useState(false);

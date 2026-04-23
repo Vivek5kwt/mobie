@@ -342,9 +342,24 @@ export default function TabProductGrid({ section }) {
 
   // ── Handlers ───────────────────────────────────────────────────────────────
   const handleProductPress = useCallback((product) => {
-    if (product.handle) {
-      navigation.navigate("ProductDetail", { handle: product.handle });
-    }
+    const handle = product?.handle || "";
+    const id = product?.id || "";
+    if (!handle && !id) return;
+
+    navigation.navigate("ProductDetail", {
+      product: {
+        id,
+        title: product?.name || product?.title || "",
+        handle,
+        imageUrl: product?.image || product?.imageUrl || "",
+        priceAmount: product?.price ?? product?.priceAmount ?? null,
+        priceCurrency: product?.currency || product?.priceCurrency || "",
+        variantId: product?.variantId || "",
+        availableForSale: product?.availableForSale ?? true,
+      },
+      handle,
+      id,
+    });
   }, [navigation]);
 
   const handleAddToCart = useCallback((product) => {

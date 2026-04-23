@@ -9,6 +9,7 @@ const PROXY_ENDPOINT = "https://app.mobidrag.com/api/shopify/preview-graphql";
 const FALLBACK_SHOP    = "mobidrag-demo.myshopify.com";
 const FALLBACK_TOKEN   = "f19ea13e90fdadc0723f8a060f1d754b";
 const FALLBACK_STORE_ID = 40;
+const DEFAULT_CHECKOUT_COUNTRY_CODE = "US";
 
 /**
  * Async: awaits the GetStore result so we always use the live credentials.
@@ -477,6 +478,17 @@ const ensureVariantGid = (value) => {
   return "";
 };
 
+const resolveBuyerCountryCode = (options = {}) => {
+  const rawCode = String(
+    options?.countryCode ??
+    options?.buyerCountryCode ??
+    options?.country ??
+    DEFAULT_CHECKOUT_COUNTRY_CODE
+  ).trim().toUpperCase();
+
+  return /^[A-Z]{2}$/.test(rawCode) ? rawCode : DEFAULT_CHECKOUT_COUNTRY_CODE;
+};
+
 export async function createShopifyCheckout({ variantId, quantity = 1, options = {} }) {
   if (!variantId) {
     throw new Error("Missing variant ID for checkout.");
@@ -487,6 +499,7 @@ export async function createShopifyCheckout({ variantId, quantity = 1, options =
   const token = options.token || creds.token;
   const storeId = options.storeId || creds.storeId;
   const merchandiseId = ensureVariantGid(variantId);
+  const buyerCountryCode = resolveBuyerCountryCode(options);
 
   if (!merchandiseId) {
     throw new Error("Invalid variant ID for checkout.");
@@ -519,6 +532,9 @@ export async function createShopifyCheckout({ variantId, quantity = 1, options =
             quantity: Math.max(1, quantity),
           },
         ],
+        buyerIdentity: {
+          countryCode: buyerCountryCode,
+        },
       },
     },
   });
@@ -547,6 +563,7 @@ export async function createShopifyCartCheckout({ items = [], options = {} }) {
   const shop = options.shop || creds.shop;
   const token = options.token || creds.token;
   const storeId = options.storeId || creds.storeId;
+  const buyerCountryCode = resolveBuyerCountryCode(options);
 
   const lines = (items || [])
     .map((item) => ({
@@ -583,7 +600,14 @@ export async function createShopifyCartCheckout({ items = [], options = {} }) {
       const json = await directStorefrontGraphQL({
         shop, token, storeId,
         query: cartCreateMutation,
-        variables: { input: { lines } },
+        variables: {
+          input: {
+            lines,
+            buyerIdentity: {
+              countryCode: buyerCountryCode,
+            },
+          },
+        },
       });
       if (!json?.errors?.length) {
         const payload = json?.data?.cartCreate;
