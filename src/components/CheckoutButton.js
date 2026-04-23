@@ -1,9 +1,11 @@
 import React, { useMemo, useState } from "react";
 import { ActivityIndicator, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import FontAwesome from "react-native-vector-icons/FontAwesome";
 import { useNavigation } from "@react-navigation/native";
 import { useSelector } from "react-redux";
 import { createShopifyCartCheckout } from "../services/shopify";
 import Snackbar from "./Snackbar";
+import { resolveFA4IconName } from "../utils/faIconAlias";
 
 // ── DSL helpers ────────────────────────────────────────────────────────────────
 
@@ -274,6 +276,31 @@ export default function CheckoutButton({ section }) {
   const activeTextColor = hasCartItems ? textColor      : disabledTextColor;
   const activeBorderClr = hasCartItems ? borderColorVal : disabledBg;
 
+  // Mirror the existing DSL button-icon pattern used by BannerSlider / HeroBanner / SignUp.
+  const rawButtonIcon = pickStr(
+    [raw?.buttonIcon, raw?.buttonIconName, raw?.iconName, raw?.iconType, raw?.icon],
+    ""
+  );
+  const buttonIconName = resolveFA4IconName(rawButtonIcon);
+  const buttonIconAlignment = pickStr(
+    [raw?.buttonIconAlignment, raw?.buttonIconPosition, raw?.buttonIconAlign, raw?.iconAlign, raw?.iconPosition],
+    "left"
+  ).toLowerCase() === "right"
+    ? "right"
+    : "left";
+  const buttonIconVisible = toBool(
+    raw?.buttonIconsVisible ??
+      raw?.buttonIconVisible ??
+      raw?.showButtonIcon ??
+      raw?.showIcon ??
+      raw?.iconActive,
+    true
+  );
+  const buttonIconSize = pickNum([raw?.buttonIconSize, raw?.iconSize], 14);
+  const buttonIconColor = pickStr([raw?.buttonIconColor, raw?.iconColor], activeTextColor);
+  const buttonIconGap = pickNum([raw?.buttonIconGap, raw?.iconGap], 6);
+  const showButtonIcon = buttonIconVisible && !!buttonIconName;
+
   const buttonStyle = {
     height,
     borderRadius,
@@ -329,6 +356,25 @@ export default function CheckoutButton({ section }) {
     );
   };
 
+  const renderButtonContent = () => {
+    const iconStyle =
+      buttonIconAlignment === "right"
+        ? { marginLeft: buttonIconGap }
+        : { marginRight: buttonIconGap };
+
+    return (
+      <View style={styles.buttonContent}>
+        {showButtonIcon && buttonIconAlignment !== "right" ? (
+          <FontAwesome name={buttonIconName} size={buttonIconSize} color={buttonIconColor} style={iconStyle} />
+        ) : null}
+        {renderLabel()}
+        {showButtonIcon && buttonIconAlignment === "right" ? (
+          <FontAwesome name={buttonIconName} size={buttonIconSize} color={buttonIconColor} style={iconStyle} />
+        ) : null}
+      </View>
+    );
+  };
+
   // ── Outer container padding ───────────────────────────────────────────────────
   const containerPadding = showBgPadding
     ? { paddingTop: padT, paddingBottom: padB, paddingLeft: padL, paddingRight: padR }
@@ -347,9 +393,9 @@ export default function CheckoutButton({ section }) {
         activeOpacity={0.8}
         onPress={handleCheckout}
         accessibilityRole="button"
-        accessibilityLabel={label}
+        accessibilityLabel={label || "Checkout"}
       >
-        {renderLabel()}
+        {renderButtonContent()}
       </TouchableOpacity>
 
       <Snackbar
@@ -382,6 +428,11 @@ const styles = StyleSheet.create({
     alignItems:     "center",
     justifyContent: "center",
     width:          "100%",
+  },
+  buttonContent: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
   },
   gradientRow: {
     flexDirection: "row",

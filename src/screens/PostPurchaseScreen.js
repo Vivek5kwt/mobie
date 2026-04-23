@@ -13,6 +13,7 @@ import { useDispatch } from "react-redux";
 import { SafeArea } from "../utils/SafeAreaHandler";
 import DynamicRenderer from "../engine/DynamicRenderer";
 import Header from "../components/Topheader";
+import Snackbar from "../components/Snackbar";
 import { fetchDSL } from "../engine/dslHandler";
 import { resolveAppId } from "../utils/appId";
 import { useAuth } from "../services/AuthContext";
@@ -143,9 +144,22 @@ export default function PostPurchaseScreen() {
   const [sections, setSections] = useState([]);
   const [loading,  setLoading]  = useState(true);
   const [error,    setError]    = useState(false);
+  const [snackbarVisible, setSnackbarVisible] = useState(true);
   const fingerprintRef = useRef(null);
   const timerRef       = useRef(null);
   const isNavigatingHomeRef = useRef(false);
+
+  const snackbarMessage = "Your order has been placed successfully.";
+
+  const snackbarNode = (
+    <Snackbar
+      visible={snackbarVisible}
+      message={snackbarMessage}
+      onDismiss={() => setSnackbarVisible(false)}
+      duration={3000}
+      type="success"
+    />
+  );
 
   const goHome = useCallback(() => {
     isNavigatingHomeRef.current = true;
@@ -224,6 +238,7 @@ export default function PostPurchaseScreen() {
             <Text style={styles.loadingText}>Loading your order…</Text>
           </View>
         </View>
+        {snackbarNode}
       </SafeArea>
     );
   }
@@ -254,6 +269,7 @@ export default function PostPurchaseScreen() {
             </TouchableOpacity>
           </View>
         </View>
+        {snackbarNode}
       </SafeArea>
     );
   }
@@ -280,10 +296,11 @@ export default function PostPurchaseScreen() {
             <Text style={styles.shopBtnText}>Continue Shopping</Text>
           </TouchableOpacity>
         </View>
-      </View>
-    </SafeArea>
-  );
-}
+        </View>
+        {snackbarNode}
+      </SafeArea>
+    );
+  }
 
 const styles = StyleSheet.create({
   container: {
@@ -299,7 +316,7 @@ const styles = StyleSheet.create({
     left: 20,
     right: 20,
     bottom: 16,
-    paddingHorizontal: 20,
+    alignItems: "center",
   },
   centreWrap: {
     flex:              1,
@@ -335,10 +352,14 @@ const styles = StyleSheet.create({
     paddingHorizontal: 32,
     borderRadius:      12,
     backgroundColor:   "#0D9488",
+    alignSelf:         "center",
+    alignItems:        "center",
+    justifyContent:    "center",
   },
   shopBtnText: {
     color:      "#FFFFFF",
     fontSize:   16,
     fontWeight: "700",
+    textAlign:  "center",
   },
 });

@@ -129,7 +129,23 @@ export default function ProductDetailScreen() {
   const route = useRoute();
   const { session } = useAuth();
   const insets = useSafeAreaInsets();
-  const product = route?.params?.product || {};
+  const routeProduct = route?.params?.product;
+  const routeHandle = route?.params?.handle;
+  const routeId = route?.params?.id;
+  const product = useMemo(() => {
+    const baseProduct = routeProduct && typeof routeProduct === "object" ? routeProduct : {};
+    const nextProduct = { ...baseProduct };
+
+    if (routeHandle && !nextProduct.handle) {
+      nextProduct.handle = routeHandle;
+    }
+
+    if (routeId && !nextProduct.id) {
+      nextProduct.id = routeId;
+    }
+
+    return nextProduct;
+  }, [routeProduct, routeHandle, routeId]);
   const detailSections = route?.params?.detailSections;
   const appId = useMemo(
     () =>
@@ -138,10 +154,10 @@ export default function ProductDetailScreen() {
   );
   const [detailProduct, setDetailProduct] = useState(null);
   const [dslSections, setDslSections] = useState([]);
-  const [dslLoading, setDslLoading] = useState(false);
+  const [dslLoading, setDslLoading] = useState(true);
   // productReady: true only after the Shopify API returns real data
   const [productReady, setProductReady] = useState(false);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const isMountedRef = useRef(true);
   const dslVersionRef = useRef(null);
@@ -149,7 +165,13 @@ export default function ProductDetailScreen() {
 
   const loadProductDetails = useCallback(async (overrideProduct) => {
     const baseProduct = overrideProduct || productRef.current || {};
-    if (!baseProduct?.handle && !baseProduct?.id) return;
+    if (!baseProduct?.handle && !baseProduct?.id) {
+      if (isMountedRef.current) {
+        setLoading(false);
+        setError("No product selected.");
+      }
+      return;
+    }
     setLoading(true);
     setError("");
 
@@ -251,6 +273,7 @@ export default function ProductDetailScreen() {
     () => resolveSections(dslSections),
     [dslSections]
   );
+  const showLoadingState = (loading || dslLoading) && !productReady;
 
   // Only render sections once the Shopify API has returned real product data.
   // Never show DSL placeholder/default values before real data arrives.
@@ -261,6 +284,7 @@ export default function ProductDetailScreen() {
       mergeSectionWithProduct(section, detailProduct)
     );
   }, [productReady, detailProduct, sectionsToRender]);
+  const showEmptyState = !showLoadingState && (!renderSections.length || !!error);
 
   return (
     <SafeAreaView style={styles.safeArea} edges={["left", "right", "bottom"]}>
@@ -269,13 +293,15 @@ export default function ProductDetailScreen() {
           <Header showNotification={false} />
         </View>
         <ScrollView contentContainerStyle={styles.scrollContent}>
-          {(loading || dslLoading) && !productReady ? (
+          {showLoadingState ? (
             <View style={styles.loadingState}>
               <ActivityIndicator size="large" color="#6b7280" />
             </View>
-          ) : !!error ? (
+          ) : showEmptyState ? (
             <View style={styles.emptyState}>
-              <Text style={styles.error}>{error}</Text>
+              <Text style={styles.error}>
+                {error || "No product details available."}
+              </Text>
             </View>
           ) : renderSections.length > 0 ? (
             renderSections.map((section, index) => (

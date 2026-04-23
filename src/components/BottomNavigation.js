@@ -8,6 +8,8 @@ const BOTTOM_NAV_DEBUG = __DEV__;
 import { convertStyles } from "../utils/convertStyles";
 import { useSideMenu } from "../services/SideMenuContext";
 
+export const BOTTOM_NAV_RESERVED_HEIGHT = 80;
+
 const unwrapValue = (value, fallback = undefined) => {
   if (value === undefined || value === null) return fallback;
   if (typeof value === "object") {
@@ -719,8 +721,10 @@ const styles = StyleSheet.create({
     width: "100%",
     borderTopWidth: StyleSheet.hairlineWidth,
     borderTopColor: "rgba(0,0,0,0.04)",
-    // Prevent layout shifts and "pop up" effects
-    minHeight: 64,
+    // Give the tab bar some breathing room above the screen edge.
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    minHeight: BOTTOM_NAV_RESERVED_HEIGHT,
   },
   row: {
     flexDirection: "row",
@@ -744,6 +748,8 @@ const styles = StyleSheet.create({
   label: {
     marginTop: 6,
     fontWeight: "600",
+    textAlign: "center",
+    lineHeight: 16,
   },
   indicator: {
     alignSelf: "center",

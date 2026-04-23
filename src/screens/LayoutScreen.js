@@ -20,7 +20,7 @@ import SideNavigation from "../components/SideNavigation";
 import { SideMenuProvider } from "../services/SideMenuContext";
 import bottomNavigationStyle1Section from "../data/bottomNavigationStyle1";
 import header2Section from "../data/header2Section";
-import BottomNavigation from "../components/BottomNavigation";
+import BottomNavigation, { BOTTOM_NAV_RESERVED_HEIGHT } from "../components/BottomNavigation";
 import { resolveAppId } from "../utils/appId";
 import { useAuth } from "../services/AuthContext";
 import { setHeaderDefault } from "../services/headerDefaultService";
@@ -586,7 +586,7 @@ export default function LayoutScreen({ route }) {
           showsVerticalScrollIndicator
           contentContainerStyle={[
             styles.scrollContent,
-            { paddingBottom: stableBottomNavSection ? 70 : 0 },
+            { paddingBottom: stableBottomNavSection ? BOTTOM_NAV_RESERVED_HEIGHT : 0 },
           ]}
           keyboardShouldPersistTaps="handled"
           refreshControl={
