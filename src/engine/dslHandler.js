@@ -26,6 +26,7 @@ const PAGE_ALIASES = {
   "create-account": ["create-account", "signup", "sign-up", "register", "createaccount", "create-an-account"],
   "signup":         ["signup", "sign-up", "create-account", "register", "create-an-account"],
   "sign-up":        ["sign-up", "signup", "create-account", "register"],
+  "post-purchase":  ["post-purchase", "post-purchase-screen", "order-confirmation", "order-confirmed", "thank-you", "thankyou", "purchase-complete", "order-complete"],
 };
 
 // Pages that should auto-show a sign-up form when DSL sections are empty

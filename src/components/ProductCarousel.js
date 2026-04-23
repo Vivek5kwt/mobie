@@ -72,6 +72,20 @@ const toFontWeight = (value, fallback) => {
   return fallback;
 };
 
+const deepUnwrap = (v) => {
+  if (v === undefined || v === null) return v;
+  if (typeof v !== "object") return v;
+  if (v.value !== undefined) return deepUnwrap(v.value);
+  if (v.const !== undefined) return deepUnwrap(v.const);
+  return v;
+};
+
+// Strip web CSS fallback fonts ("Poppins, sans-serif" → "Poppins")
+const cleanFontFamily = (family) => {
+  if (!family) return "";
+  return family.split(",")[0].trim().replace(/['"]/g, "");
+};
+
 const parseIconName = (iconId) => {
   if (!iconId || typeof iconId !== "string") return null;
   // Remove "fa-" prefix if present
@@ -107,7 +121,11 @@ export default function ProductCarousel({ section }) {
 
   const rawProps =
     section?.properties?.props?.properties || section?.properties?.props || section?.props || {};
-  const raw = rawProps?.raw || rawProps || {};
+  // Unwrap DSL envelope from raw sub-object and merge into top-level props
+  const rawUnwrapped = deepUnwrap(rawProps?.raw);
+  const raw = (rawUnwrapped && typeof rawUnwrapped === "object")
+    ? { ...rawProps, ...rawUnwrapped }
+    : (rawProps || {});
 
   // Data source configuration
   const dataSource = section?.dataSource || rawProps?.dataSource || {};
@@ -142,7 +160,7 @@ export default function ProductCarousel({ section }) {
     : toString(header, "");
   const headerSize = toNumber(raw?.headerSize, 14);
   const headerColor = toString(raw?.headerColor, "#000000");
-  const headerFamily = toString(raw?.headerFamily, "Inter");
+  const headerFamily = cleanFontFamily(toString(raw?.headerFamily, ""));
   const headerWeight = toFontWeight(raw?.headerWeight, "700");
   const headerBold = toBoolean(raw?.headerBold, false);
   const headerItalic = toBoolean(raw?.headerItalic, false);
@@ -155,7 +173,7 @@ export default function ProductCarousel({ section }) {
   const viewAllText = unwrapValue(raw?.viewAllText, "View all");
   const viewAllSize = toNumber(raw?.viewAllSize, 14);
   const viewAllColor = toString(raw?.viewAllColor, "#000000");
-  const viewAllFamily = toString(raw?.viewAllFamily, "Inter");
+  const viewAllFamily = cleanFontFamily(toString(raw?.viewAllFamily, ""));
   const viewAllWeight = toFontWeight(raw?.viewAllWeight, "700");
   const viewAllBold = toBoolean(raw?.viewAllBold, false);
   const viewAllItalic = toBoolean(raw?.viewAllItalic, false);
@@ -177,22 +195,25 @@ export default function ProductCarousel({ section }) {
   const cardTitleActive = toBoolean(raw?.cardTitleActive, true);
   const titleSize = toNumber(raw?.titleSize, 14);
   const titleColor = toString(raw?.titleColor, "#000000");
-  const titleFamily = toString(raw?.titleFamily, "Inter");
+  const titleFamily = cleanFontFamily(toString(raw?.titleFamily, ""));
   const titleWeight = toFontWeight(raw?.titleWeight, "700");
   const titleAlign = toTextAlign(raw?.titleAlign, "Left");
-  const titleWrap = toBoolean(raw?.titleWrap, true);
+  const titleWrap = toBoolean(
+    raw?.titleWrap ?? raw?.textWrap ?? raw?.productTitleWrap ?? raw?.cardTitleWrap,
+    false
+  );
 
   // Price configuration
   const cardPriceActive = toBoolean(raw?.cardPriceActive, true);
   const priceSize = toNumber(raw?.priceSize, 14);
   const priceColor = toString(raw?.priceColor, "#000000");
-  const priceFamily = toString(raw?.priceFamily, "Inter");
+  const priceFamily = cleanFontFamily(toString(raw?.priceFamily, ""));
   const priceWeight = toFontWeight(raw?.priceWeight, "700");
   const priceAlign = toTextAlign(raw?.priceAlign, "Left");
   const priceStrike = toBoolean(raw?.priceStrike, false);
   const strikeSize = toNumber(raw?.strikeSize, 14);
   const strikeColor = toString(raw?.strikeColor, "#6B7280");
-  const strikeFamily = toString(raw?.strikeFamily, "Inter");
+  const strikeFamily = cleanFontFamily(toString(raw?.strikeFamily, ""));
   const strikeWeight = toFontWeight(raw?.strikeWeight, "700");
 
   // Favorite configuration
@@ -216,12 +237,18 @@ export default function ProductCarousel({ section }) {
   const atcActive = toBoolean(raw?.atcActive, true);
   const atcAvailableText = unwrapValue(raw?.atcAvailableText, "Add To Cart");
   const atcSoldOutText = unwrapValue(raw?.atcSoldOutText, "Sold Out");
-  const atcPosition = toString(raw?.atcPosition, "below");
+  // Normalise ATC position: anything containing "above" → "above", "overlay"/"on-image" → "overlay", else "below"
+  const atcPositionRaw = toString(raw?.atcPosition, "below").toLowerCase();
+  const atcPosition = atcPositionRaw.includes("above")
+    ? "above"
+    : atcPositionRaw.includes("overlay") || atcPositionRaw.includes("on-image")
+    ? "overlay"
+    : "below";
   const atcAlign = toTextAlign(raw?.atcAlign, "Left");
   const atcSize = toNumber(raw?.atcSize, 12);
   const atcBgColor = toString(raw?.atcBgColor, "#096d70");
   const atcTextColor = toString(raw?.atcTextColor, "#FFFFFF");
-  const atcFamily = toString(raw?.atcFamily, "Inter");
+  const atcFamily = cleanFontFamily(toString(raw?.atcFamily, ""));
   const atcWeight = toFontWeight(raw?.atcWeight, "Semi Bold");
   const atcCorner = toNumber(raw?.atcCorner, 6);
   const atcPadT = toNumber(raw?.atcPadT, 6);
@@ -373,7 +400,7 @@ export default function ProductCarousel({ section }) {
       fontWeight: headerBold ? "700" : headerWeight,
       fontStyle: headerItalic ? "italic" : "normal",
       textDecorationLine: headerUnderline ? "underline" : "none",
-      ...(headerFamily && headerFamily !== "Inter" ? { fontFamily: headerFamily } : {}),
+      ...(headerFamily ? { fontFamily: headerFamily } : {}),
     };
 
     const headerContent = (
@@ -410,7 +437,7 @@ export default function ProductCarousel({ section }) {
       fontWeight: viewAllBold ? "700" : viewAllWeight,
       fontStyle: viewAllItalic ? "italic" : "normal",
       textDecorationLine: viewAllUnderline ? "underline" : "none",
-      ...(viewAllFamily && viewAllFamily !== "Inter" ? { fontFamily: viewAllFamily } : {}),
+      ...(viewAllFamily ? { fontFamily: viewAllFamily } : {}),
     };
 
     const viewAllIconName = parseIconName(viewAllIconId);
@@ -525,7 +552,7 @@ export default function ProductCarousel({ section }) {
       fontWeight: buttonBold ? "700" : atcWeight,
       fontStyle: buttonItalic ? "italic" : "normal",
       textDecorationLine: buttonUnderline ? "underline" : "none",
-      ...(atcFamily && atcFamily !== "Inter" ? { fontFamily: atcFamily } : {}),
+      ...(atcFamily ? { fontFamily: atcFamily } : {}),
     };
 
     const alignStyle = {
@@ -620,13 +647,22 @@ export default function ProductCarousel({ section }) {
                       resizeMode={imageResizeMode}
                     />
                     {renderFavorite(product, isFavorite)}
+                    {/* ATC overlaid on image */}
+                    {atcPosition === "overlay" && (
+                      <View style={styles.atcOverlay}>
+                        {renderAddToCart(product, isSoldOut)}
+                      </View>
+                    )}
                   </View>
                 )}
 
                 <View style={styles.cardContent}>
+                  {/* ATC above product info (title / price) */}
+                  {atcPosition === "above" && renderAddToCart(product, isSoldOut)}
+
                   {cardTitleActive && (
                     <Text
-                      numberOfLines={titleWrap ? 2 : undefined}
+                      numberOfLines={titleWrap ? undefined : 2}
                       style={[
                         styles.title,
                         {
@@ -634,9 +670,7 @@ export default function ProductCarousel({ section }) {
                           color: titleColor,
                           fontWeight: titleWeight,
                           textAlign: titleAlign,
-                          ...(titleFamily && titleFamily !== "Inter"
-                            ? { fontFamily: titleFamily }
-                            : {}),
+                          ...(titleFamily ? { fontFamily: titleFamily } : {}),
                         },
                       ]}
                     >
@@ -666,9 +700,7 @@ export default function ProductCarousel({ section }) {
                               fontSize: strikeSize,
                               color: strikeColor,
                               fontWeight: strikeWeight,
-                              ...(strikeFamily && strikeFamily !== "Inter"
-                                ? { fontFamily: strikeFamily }
-                                : {}),
+                              ...(strikeFamily ? { fontFamily: strikeFamily } : {}),
                             },
                           ]}
                         >
@@ -682,9 +714,7 @@ export default function ProductCarousel({ section }) {
                             fontSize: priceSize,
                             color: priceColor,
                             fontWeight: priceWeight,
-                            ...(priceFamily && priceFamily !== "Inter"
-                              ? { fontFamily: priceFamily }
-                              : {}),
+                            ...(priceFamily ? { fontFamily: priceFamily } : {}),
                           },
                         ]}
                       >
@@ -693,6 +723,7 @@ export default function ProductCarousel({ section }) {
                     </View>
                   )}
 
+                  {/* ATC below product info (default) */}
                   {atcPosition === "below" && renderAddToCart(product, isSoldOut)}
                 </View>
               </TouchableOpacity>
@@ -786,4 +817,11 @@ const styles = StyleSheet.create({
     marginTop: 4,
   },
   addToCartText: {},
+  atcOverlay: {
+    position: "absolute",
+    bottom: 0,
+    left: 0,
+    right: 0,
+    zIndex: 3,
+  },
 });

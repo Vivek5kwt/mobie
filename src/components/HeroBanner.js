@@ -494,7 +494,7 @@ export default function HeroBanner({ section }) {
       button?.iconName,
       ""
     );
-  const buttonIconName = resolveFA4IconName(rawBtnIcon, FontAwesome.glyphMap || {});
+  const buttonIconName = resolveFA4IconName(rawBtnIcon);
   const buttonIconPosition = toString(
     buttonAttrs?.iconPosition ?? button?.properties?.iconPosition ?? button?.iconPosition,
     "left"

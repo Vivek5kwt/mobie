@@ -1,10 +1,13 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
+  ActivityIndicator,
   ScrollView,
   StyleSheet,
+  Text,
+  TouchableOpacity,
   View,
 } from "react-native";
-import { useRoute } from "@react-navigation/native";
+import { useNavigation, useRoute } from "@react-navigation/native";
 import { useDispatch } from "react-redux";
 import { SafeArea } from "../utils/SafeAreaHandler";
 import DynamicRenderer from "../engine/DynamicRenderer";
@@ -39,7 +42,12 @@ const injectOrderData = (sections = [], capturedItems = [], orderNumber = "", or
     ).toLowerCase();
 
     // ── order_summary — inject purchased line items ──────────────────────────
-    if (comp === "order_summary" || comp === "price_line" || comp === "cart_summary" || comp === "cart_total") {
+    if (
+      comp === "order_summary" ||
+      comp === "price_line"    ||
+      comp === "cart_summary"  ||
+      comp === "cart_total"
+    ) {
       if (!capturedItems.length) return section;
       const cloned = JSON.parse(JSON.stringify(section));
       const propsNode =
@@ -67,8 +75,8 @@ const injectOrderData = (sections = [], capturedItems = [], orderNumber = "", or
 
     // ── confirmation_header — fill real order number ─────────────────────────
     if (
-      comp === "confirmation_header" ||
-      comp === "order_confirmation" ||
+      comp === "confirmation_header"  ||
+      comp === "order_confirmation"   ||
       comp === "confirmation-header"
     ) {
       if (!orderNumber) return section;
@@ -79,7 +87,6 @@ const injectOrderData = (sections = [], capturedItems = [], orderNumber = "", or
         cloned?.props ||
         {};
 
-      // Resolve where raw lives (DSL envelope may be raw.value or raw directly)
       let rawValue = {};
       if (propsNode?.raw?.value !== undefined) {
         rawValue = propsNode.raw.value || {};
@@ -101,7 +108,6 @@ const injectOrderData = (sections = [], capturedItems = [], orderNumber = "", or
         rawValue.showSubtext = true;
       }
 
-      // Write back
       if (propsNode?.raw?.value !== undefined) {
         propsNode.raw.value = rawValue;
       } else {
@@ -115,8 +121,9 @@ const injectOrderData = (sections = [], capturedItems = [], orderNumber = "", or
 };
 
 export default function PostPurchaseScreen() {
-  const route    = useRoute();
-  const dispatch = useDispatch();
+  const navigation = useNavigation();
+  const route      = useRoute();
+  const dispatch   = useDispatch();
   const { session } = useAuth();
 
   const capturedItems = useMemo(
@@ -134,6 +141,7 @@ export default function PostPurchaseScreen() {
 
   const [sections, setSections] = useState([]);
   const [loading,  setLoading]  = useState(true);
+  const [error,    setError]    = useState(false);
   const fingerprintRef = useRef(null);
   const timerRef       = useRef(null);
 
@@ -144,16 +152,20 @@ export default function PostPurchaseScreen() {
 
   const loadPage = async (silent = false) => {
     try {
-      if (!silent) setLoading(true);
-      const dsl      = await fetchDSL(appId, PAGE_HANDLE);
-      const incoming = dsl?.sections || [];
+      if (!silent) {
+        setLoading(true);
+        setError(false);
+      }
+      // fetchDSL returns { dsl: <page-dsl>, versionNumber } — extract sections from dsl.sections
+      const result   = await fetchDSL(appId, PAGE_HANDLE);
+      const incoming = result?.dsl?.sections || [];
       const fp       = fingerprint(incoming);
       if (fp !== fingerprintRef.current) {
         fingerprintRef.current = fp;
         setSections(incoming);
       }
     } catch (_) {
-      // ignore network errors — keep showing last good DSL
+      if (!silent) setError(true);
     } finally {
       if (!silent) setLoading(false);
     }
@@ -171,6 +183,52 @@ export default function PostPurchaseScreen() {
     [sections, capturedItems, orderNumber, orderTotal]
   );
 
+  // ── Loading state ─────────────────────────────────────────────────────────
+  if (loading) {
+    return (
+      <SafeArea>
+        <View style={styles.container}>
+          <Header showBack={false} />
+          <View style={styles.centreWrap}>
+            <ActivityIndicator size="large" color="#0D9488" />
+            <Text style={styles.loadingText}>Loading your order…</Text>
+          </View>
+        </View>
+      </SafeArea>
+    );
+  }
+
+  // ── Error / empty state ───────────────────────────────────────────────────
+  if (error || resolvedSections.length === 0) {
+    return (
+      <SafeArea>
+        <View style={styles.container}>
+          <Header showBack={false} />
+          <View style={styles.centreWrap}>
+            <Text style={styles.successIcon}>✓</Text>
+            <Text style={styles.successTitle}>Order Placed Successfully!</Text>
+            {!!orderNumber && (
+              <Text style={styles.successSubtext}>Order {orderNumber}</Text>
+            )}
+            <Text style={styles.successSubtext}>
+              Thank you for your purchase. You will receive a confirmation shortly.
+            </Text>
+            <TouchableOpacity
+              style={styles.shopBtn}
+              activeOpacity={0.85}
+              onPress={() =>
+                navigation.reset({ index: 0, routes: [{ name: "LayoutScreen" }] })
+              }
+            >
+              <Text style={styles.shopBtnText}>Continue Shopping</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </SafeArea>
+    );
+  }
+
+  // ── Normal DSL-driven render ──────────────────────────────────────────────
   return (
     <SafeArea>
       <View style={styles.container}>
@@ -196,5 +254,45 @@ const styles = StyleSheet.create({
   scroll: {
     flexGrow:      1,
     paddingBottom: 32,
+  },
+  centreWrap: {
+    flex:              1,
+    alignItems:        "center",
+    justifyContent:    "center",
+    paddingHorizontal: 32,
+    gap:               16,
+  },
+  loadingText: {
+    color:     "#374151",
+    fontSize:  15,
+    textAlign: "center",
+  },
+  successIcon: {
+    fontSize:   56,
+    color:      "#20D380",
+    fontWeight: "700",
+  },
+  successTitle: {
+    fontSize:   22,
+    fontWeight: "700",
+    color:      "#111827",
+    textAlign:  "center",
+  },
+  successSubtext: {
+    fontSize:  14,
+    color:     "#6B7280",
+    textAlign: "center",
+  },
+  shopBtn: {
+    marginTop:         8,
+    paddingVertical:   14,
+    paddingHorizontal: 32,
+    borderRadius:      12,
+    backgroundColor:   "#0D9488",
+  },
+  shopBtnText: {
+    color:      "#FFFFFF",
+    fontSize:   16,
+    fontWeight: "700",
   },
 });

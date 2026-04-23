@@ -294,9 +294,9 @@ export default function BannerSlider({ section }) {
       style={[
         styles.wrapper,
         {
-          // Vertical outer spacing only — slider is always full-bleed horizontally
           marginTop: outerMt,
           marginBottom: outerMb,
+          backgroundColor: bgColor || "transparent",
         },
       ]}
       onLayout={(e) => {
@@ -326,6 +326,7 @@ export default function BannerSlider({ section }) {
               height: bannerHeight,
               borderRadius: bannerRadius,
               overflow: "hidden",
+              backgroundColor: bgColor || "transparent",
             }}
           >
             {/* Background image */}

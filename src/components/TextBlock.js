@@ -158,9 +158,7 @@ export default function TextBlock({ section }) {
     ""
   );
   // Resolve FA5/FA6 name → FA4 equivalent; emoji/unknown names become ""
-  const faIconName   = containsEmoji(rawIconValue)
-    ? ""
-    : resolveFA4IconName(rawIconValue, FontAwesome.glyphMap || {});
+  const faIconName   = containsEmoji(rawIconValue) ? "" : resolveFA4IconName(rawIconValue);
   const iconColor    = asStr(iconCfg?.color, "#FFFFFF");
   const iconBgColor  = asStr(iconCfg?.bgColor ?? iconCfg?.backgroundColor, "#16A34A");
   const iconSize     = asNumber(iconCfg?.size ?? iconCfg?.width, 20);
