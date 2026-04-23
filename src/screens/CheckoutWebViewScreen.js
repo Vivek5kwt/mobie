@@ -145,11 +145,17 @@ export default function CheckoutWebViewScreen() {
       }).catch(() => {});
 
       // Small delay so WebView finishes rendering the thank-you page visually
-      // before we replace the stack with OrderDetail
+      // before we replace the stack with PostPurchase
       setTimeout(() => {
         navigation.reset({
           index:  0,
-          routes: [{ name: "OrderDetail", params: { order } }],
+          routes: [{
+            name: "PostPurchase",
+            params: {
+              capturedItems: capturedItemsRef.current || [],
+              appId: resolvedAppId,
+            },
+          }],
         });
       }, 600);
     },
