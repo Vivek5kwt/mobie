@@ -166,7 +166,7 @@ export default function AddToCart({ section }) {
   const productCompareAtPrice = toNumber(raw?.compareAtPrice ?? raw?.originalPrice ?? raw?.regularPrice, 0);
   const productVendor = toString(raw?.vendor ?? raw?.vendorName, "");
   const productVariantText = toString(raw?.variantText, "");
-  const productCurrency = toString(raw?.currencySymbol, "");
+  const productCurrency = toString(raw?.currency || raw?.priceCurrency || raw?.currencySymbol, "").trim();
   const { gid: productVariantGid, numeric: productVariantNumericId } = extractVariantIdentifiers(
     toString(raw?.variantId || raw?.defaultVariantId, "")
   );
