@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Dimensions,
   Image,
@@ -9,13 +9,14 @@ import {
   View,
 } from "react-native";
 import { useFocusEffect, useNavigation } from "@react-navigation/native";
-import { useDispatch } from "react-redux";
+import { useDispatch, useSelector } from "react-redux";
 import FontAwesome from "react-native-vector-icons/FontAwesome";
 import {
   fetchShopifyProductsPage,
   fetchShopifyCollectionProducts,
 } from "../services/shopify";
 import { addItem } from "../store/slices/cartSlice";
+import { toggleWishlist } from "../store/slices/wishlistSlice";
 import { resolveTextDecorationLine } from "../utils/textDecoration";
 
 const unwrapValue = (value, fallback = undefined) => {
@@ -115,10 +116,10 @@ const getImageResizeMode = (scale) => {
 export default function ProductCarousel({ section }) {
   const navigation = useNavigation();
   const dispatch = useDispatch();
+  const wishlistItems = useSelector((state) => state.wishlist?.items || []);
   const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
-  const [favorites, setFavorites] = useState(new Set());
 
   const rawProps =
     section?.properties?.props?.properties || section?.properties?.props || section?.props || {};
@@ -237,12 +238,13 @@ export default function ProductCarousel({ section }) {
   const unfavoriteIconId = toString(raw?.unfavoriteIconId, "fa-heart-o");
   const unfavoriteIconSize = toNumber(raw?.unfavoriteIconSize, 16);
   const unfavoriteIconColor = toString(raw?.unfavoriteIconColor, "#9CA3AF");
-  const favPosition = toString(raw?.favPosition, "top-right");
+  const favPosition = toString(raw?.favPosition, "top-right").toLowerCase();
   const favBubbleBgColor = toString(raw?.favBubbleBgColor, "#FFFFFF");
   const favBubblePadT = toNumber(raw?.favBubblePadT, 0);
   const favBubblePadR = toNumber(raw?.favBubblePadR, 0);
   const favBubblePadB = toNumber(raw?.favBubblePadB, 0);
   const favBubblePadL = toNumber(raw?.favBubblePadL, 0);
+  const favoriteBubbleInset = toNumber(raw?.favBubbleInset ?? raw?.favBubbleOffset, 12);
 
   // Add to Cart configuration
   const atcActive = toBoolean(raw?.atcActive, true);
@@ -339,23 +341,21 @@ export default function ProductCarousel({ section }) {
     }, [loadProducts])
   );
 
+  const wishlistIds = useMemo(
+    () =>
+      new Set(
+        wishlistItems
+          .map((item) => String(item?.id || "").trim())
+          .filter(Boolean)
+      ),
+    [wishlistItems]
+  );
+
   // Background polling every 60 s to pick up new products
   useEffect(() => {
     const id = setInterval(loadProducts, 60000);
     return () => clearInterval(id);
   }, [loadProducts]);
-
-  const toggleFavorite = (productId) => {
-    setFavorites((prev) => {
-      const next = new Set(prev);
-      if (next.has(productId)) {
-        next.delete(productId);
-      } else {
-        next.add(productId);
-      }
-      return next;
-    });
-  };
 
   const handleAddToCart = (product) => {
     // Extract variant ID from product ID if needed
@@ -487,7 +487,7 @@ export default function ProductCarousel({ section }) {
 
   const renderFavorite = (product, isFavorite) => {
     // Only show heart icon when favActive or favEnabled is true in DSL
-    if (!favActive && !favEnabled) return null;
+    if ((!favActive && !favEnabled) || !favoriteIconEnabled) return null;
 
     // Always show icon: filled heart when favorited, outline heart when not
     const iconId = isFavorite ? favoriteIconId : unfavoriteIconId;
@@ -499,17 +499,19 @@ export default function ProductCarousel({ section }) {
 
     const positionStyle = {};
     if (favPosition.includes("top")) {
-      positionStyle.top = favBubblePadT;
+      positionStyle.top = favoriteBubbleInset;
     }
     if (favPosition.includes("bottom")) {
-      positionStyle.bottom = favBubblePadB;
+      positionStyle.bottom = favoriteBubbleInset;
     }
     if (favPosition.includes("left")) {
-      positionStyle.left = favBubblePadL;
+      positionStyle.left = favoriteBubbleInset;
     }
     if (favPosition.includes("right")) {
-      positionStyle.right = favBubblePadR;
+      positionStyle.right = favoriteBubbleInset;
     }
+    const bubblePadding = Math.max(favBubblePadT, favBubblePadR, favBubblePadB, favBubblePadL, 0);
+    const bubbleSize = Math.max(30, iconSize + bubblePadding * 2);
 
     return (
       <TouchableOpacity
@@ -517,15 +519,38 @@ export default function ProductCarousel({ section }) {
           styles.favoriteButton,
           positionStyle,
           {
+            width: bubbleSize,
+            height: bubbleSize,
+            borderRadius: bubbleSize / 2,
             backgroundColor: favBubbleBgColor,
-            paddingTop: favBubblePadT,
-            paddingRight: favBubblePadR,
-            paddingBottom: favBubblePadB,
-            paddingLeft: favBubblePadL,
+            alignItems: "center",
+            justifyContent: "center",
+            padding: 0,
           },
         ]}
-        onPress={() => toggleFavorite(product.id)}
+        onPress={(e) => {
+          e?.stopPropagation?.();
+          const id = String(
+            product?.id || product?.variantId || product?.handle || product?.title || ""
+          ).trim();
+          if (!id) return;
+          dispatch(
+            toggleWishlist({
+              product: {
+                id,
+                title: product?.title || "",
+                image: product?.imageUrl || product?.image || "",
+                price: product?.priceAmount ?? product?.price ?? 0,
+                compareAtPrice: product?.compareAtPrice ?? product?.originalPrice ?? 0,
+                currency: product?.priceCurrency || product?.currency || "",
+                handle: product?.handle || "",
+                vendor: product?.vendor || "",
+              },
+            })
+          );
+        }}
         activeOpacity={0.7}
+        hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
       >
         <FontAwesome name={iconName} size={iconSize} color={iconColor} />
       </TouchableOpacity>
@@ -626,7 +651,10 @@ export default function ProductCarousel({ section }) {
           contentContainerStyle={[styles.carousel, { gap: colGap }]}
         >
           {products.slice(0, itemsShown).map((product, index) => {
-            const isFavorite = favorites.has(product.id);
+            const productId = String(
+              product?.id || product?.variantId || product?.handle || product?.title || ""
+            ).trim();
+            const isFavorite = productId ? wishlistIds.has(productId) : false;
             const isSoldOut = product.availableForSale === false;
 
             return (

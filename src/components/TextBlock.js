@@ -73,6 +73,30 @@ const containsEmoji = (str) => {
   return /[^\x00-\x7E]/.test(str);
 };
 
+const stripFaPrefix = (value) => {
+  if (!value || typeof value !== "string") return "";
+  return value.replace(/^fa[srldb]?[-_]?/i, "").trim();
+};
+
+const resolveTextBlockIconName = (value) => {
+  const raw = stripFaPrefix(String(value || "").trim());
+  if (!raw) return "";
+
+  const glyphAliases = {
+    "→": "arrow-right",
+    "➜": "arrow-right",
+    "➔": "arrow-right",
+    "➤": "arrow-right",
+    "›": "chevron-right",
+    "»": "angle-double-right",
+    "←": "arrow-left",
+    "‹": "chevron-left",
+    "«": "angle-double-left",
+  };
+
+  return resolveFA4IconName(glyphAliases[raw] || raw);
+};
+
 // Strip web-only CSS props before applying to RN Text
 const stripTextCss = (style) => {
   if (!style) return {};
@@ -137,6 +161,7 @@ export default function TextBlock({ section }) {
 
   const layoutCss     = rawProps?.layout?.properties?.css  || rawProps?.layout?.css  || {};
   const iconCfg       = rawProps?.icon?.properties         || rawProps?.icon         || {};
+  const iconStyle     = convertStyles(layoutCss.icon || {});
   const styleCfg      = rawProps?.style?.properties        || rawProps?.style        || {};
   const alignmentCfg  = rawProps?.alignmentAndPadding?.properties || rawProps?.alignmentAndPadding || {};
   const paddingRaw    = alignmentCfg?.paddingRaw?.properties || alignmentCfg?.paddingRaw || {};
