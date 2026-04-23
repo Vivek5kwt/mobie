@@ -92,6 +92,12 @@ const toFontWeight = (value, fallback) => {
   return fallback;
 };
 
+// Strip web CSS fallback fonts ("Poppins, sans-serif" → "Poppins")
+const cleanFontFamily = (family) => {
+  if (!family) return "";
+  return family.split(",")[0].trim().replace(/['"]/g, "");
+};
+
 // ── Component ─────────────────────────────────────────────────────────────────
 
 export default function ProductGrid({ section, limit = 8, title = "Products" }) {
@@ -157,7 +163,10 @@ export default function ProductGrid({ section, limit = 8, title = "Products" }) 
     rawProps?.viewAllActive ?? rawProps?.showViewAll,
     true
   );
-  const resolvedTitleWrap = toBoolean(rawProps?.titleWrap, false);
+  const resolvedTitleWrap = toBoolean(
+    rawProps?.titleWrap ?? rawProps?.textWrap ?? rawProps?.productTitleWrap ?? rawProps?.cardTitleWrap,
+    false
+  );
 
   // ── Shopify credentials ───────────────────────────────────────────────────
   const shopifyDomain = toString(rawProps?.shopifyDomain, "");
@@ -272,7 +281,7 @@ export default function ProductGrid({ section, limit = 8, title = "Products" }) 
 
   // ── Container spacing ─────────────────────────────────────────────────────
   const pt = resolveFirstNumber([rawProps?.pt, rawProps?.paddingTop],    12);
-  const pb = resolveFirstNumber([rawProps?.pb, rawProps?.paddingBottom], 12);
+  const pb = resolveFirstNumber([rawProps?.pb, rawProps?.paddingBottom],  0);
   const pl = resolveFirstNumber([rawProps?.pl, rawProps?.paddingLeft],   16);
   const pr = resolveFirstNumber([rawProps?.pr, rawProps?.paddingRight],  16);
 
@@ -460,6 +469,12 @@ export default function ProductGrid({ section, limit = 8, title = "Products" }) 
             const prodId = String(product?.id || product?.variantId || product?.handle || product?.title || "").trim();
             const isInWishlist = prodId ? wishlistItems.some((p) => String(p.id || "").trim() === prodId) : false;
 
+            // Suppress marginBottom on last-row cards so no phantom gap appears
+            // below the grid (CSS gap never applies after the last row; RN marginBottom does).
+            const totalRows  = Math.ceil(products.length / resolvedColumns);
+            const currentRow = Math.floor(index / resolvedColumns) + 1;
+            const isLastRow  = currentRow === totalRows;
+
             return (
               <TouchableOpacity
                 key={product.id}
@@ -468,7 +483,7 @@ export default function ProductGrid({ section, limit = 8, title = "Products" }) 
                   {
                     width:           cardWidth,
                     marginRight:     (index + 1) % resolvedColumns === 0 ? 0 : gridGap,
-                    marginBottom:    resolvedRowGap,
+                    marginBottom:    isLastRow ? 0 : resolvedRowGap,
                     borderRadius:    cardCorner,
                     backgroundColor: resolvedCardBgColor,
                     borderColor:     resolvedCardBorderColor,
@@ -556,7 +571,7 @@ export default function ProductGrid({ section, limit = 8, title = "Products" }) 
                 <View style={[styles.content, { paddingHorizontal: cardPadX, paddingVertical: cardPadY }]}>
                   {resolvedShowCardTitle && (
                     <Text
-                      numberOfLines={resolvedTitleWrap ? 0 : 2}
+                      numberOfLines={resolvedTitleWrap ? undefined : 2}
                       style={[
                         styles.name,
                         {

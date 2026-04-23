@@ -1,3 +1,7 @@
+// react-native-vector-icons v10 no longer exposes glyphMap on the component.
+// Import the JSON directly so we can validate names without the component.
+import FA4GlyphMap from "react-native-vector-icons/glyphmaps/FontAwesome.json";
+
 /**
  * FA5 / FA6 icon names → FontAwesome 4 equivalents.
  * react-native-vector-icons ships FA4 (786 glyphs).
@@ -200,10 +204,9 @@ const FA5_TO_FA4 = {
 /**
  * Resolve any FontAwesome icon name (FA4, FA5, or FA6, with or without "fa-" prefix)
  * to a valid FA4 name that react-native-vector-icons can render.
- *
- * Returns an empty string if the name cannot be resolved.
+ * Returns "" if the name cannot be resolved to a known FA4 glyph.
  */
-export function resolveFA4IconName(raw, glyphMap = {}) {
+export function resolveFA4IconName(raw) {
   if (!raw) return "";
 
   // Strip "fa-" / "fas-" / "far-" / "fab-" prefix and lowercase
@@ -214,12 +217,12 @@ export function resolveFA4IconName(raw, glyphMap = {}) {
 
   if (!normalised) return "";
 
-  // 1. Direct FA4 match
-  if (Object.prototype.hasOwnProperty.call(glyphMap, normalised)) return normalised;
+  // 1. Already a valid FA4 name — return as-is
+  if (Object.prototype.hasOwnProperty.call(FA4GlyphMap, normalised)) return normalised;
 
-  // 2. FA5/FA6 → FA4 alias
+  // 2. FA5/FA6 name → look up FA4 equivalent and validate it
   const aliased = FA5_TO_FA4[normalised];
-  if (aliased && Object.prototype.hasOwnProperty.call(glyphMap, aliased)) return aliased;
+  if (aliased && Object.prototype.hasOwnProperty.call(FA4GlyphMap, aliased)) return aliased;
 
   return "";
 }
