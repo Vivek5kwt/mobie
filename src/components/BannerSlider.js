@@ -9,6 +9,8 @@ import {
   View,
 } from "react-native";
 import { useNavigation } from "@react-navigation/native";
+import FontAwesome from "react-native-vector-icons/FontAwesome";
+import { resolveFA4IconName } from "../utils/faIconAlias";
 
 // ─── DSL helpers ────────────────────────────────────────────────────────────
 
@@ -133,17 +135,17 @@ export default function BannerSlider({ section }) {
   // ── Container ──
   const styleProp = rawProps?.style || {};
   const bgColor = rp?.bgColor || styleProp?.bgColor || "transparent";
-  const bannerHeight = asNumber(
+  const screenHeight = Math.max(Dimensions.get("window").height, 1);
+  const requestedBannerHeight = asNumber(
     rp?.bannerHeight ?? layoutCss?.slider?.bannerHeight,
-    200
+    screenHeight
   );
+  const bannerHeight = Math.max(requestedBannerHeight, screenHeight);
   const bannerRadius = asNumber(rp?.bannerRadius ?? rp?.imageCorner ?? layoutCss?.slider?.bannerRadius, 0);
 
-  // Outer vertical spacing — top/bottom only, applied as margin so the slider
-  // itself always fills the full component width (full-bleed horizontal).
   const paddingRaw = styleProp?.paddingRaw || {};
-  const outerMt = asNumber(rp?.pt ?? paddingRaw?.pt, 0);
-  const outerMb = asNumber(rp?.pb ?? paddingRaw?.pb, 0);
+  const outerMt = 0;
+  const outerMb = 0;
   // Horizontal padding from DSL becomes text-content inner padding (not frame).
   const outerPl = asNumber(rp?.pl ?? paddingRaw?.pl, 0);
   const outerPr = asNumber(rp?.pr ?? paddingRaw?.pr, 0);
@@ -232,14 +234,33 @@ export default function BannerSlider({ section }) {
     rawButtonAlign === "right" ? "flex-end"
     : rawButtonAlign === "center" ? "center"
     : "flex-start";
+  const rawButtonIcon = (
+    rp?.iconType ||
+    rp?.iconName ||
+    rp?.buttonIcon ||
+    rp?.icon ||
+    ""
+  );
+  const buttonIconName = resolveFA4IconName(rawButtonIcon);
+  const showButtonIcon = asBoolean(rp?.iconActive ?? rp?.showIcon, true) && !!buttonIconName;
+  const buttonIconPosition = toString(rp?.iconAlign ?? rp?.iconPosition, "left").toLowerCase();
+  const buttonIconSize = asNumber(rp?.iconSize, 14);
+  const buttonIconColor = rp?.iconColor || buttonTextColor;
+  const buttonIconGap = asNumber(rp?.iconGap ?? rp?.buttonIconGap, 6);
 
   // ── Indicators ──
   const indicatorSize = asNumber(rp?.indicatorSize, 7);
   const indicatorColor = rp?.indicatorColor || "rgba(1,109,119,0.35)";
   const indicatorSelectedColor = rp?.indicatorSelectedColor || "#FFFFFF";
   // "inside" = dots overlaid at the bottom of the banner image; "bottom" = below the banner
-  const indicatorPosition = (rp?.indicatorPosition || layoutCss?.slider?.indicatorPosition || "bottom").toLowerCase();
-  const indicatorsInside = indicatorPosition === "inside" || indicatorPosition === "inside-bottom";
+  const indicatorPosition = (
+    rp?.indicatorPosition ||
+    layoutCss?.slider?.indicatorPosition ||
+    (bannerHeight >= screenHeight ? "inside-bottom" : "bottom")
+  ).toLowerCase();
+  const indicatorsInside = bannerHeight >= screenHeight
+    || indicatorPosition === "inside"
+    || indicatorPosition === "inside-bottom";
 
   // ── Scroll state ──
   const scrollRef = useRef(null);
@@ -297,6 +318,7 @@ export default function BannerSlider({ section }) {
           marginTop: outerMt,
           marginBottom: outerMb,
           backgroundColor: bgColor || "transparent",
+          minHeight: bannerHeight,
         },
       ]}
       onLayout={(e) => {
@@ -314,7 +336,7 @@ export default function BannerSlider({ section }) {
           [{ nativeEvent: { contentOffset: { x: scrollX } } }],
           { useNativeDriver: false, listener: handleScroll }
         )}
-        style={styles.scrollView}
+        style={[styles.scrollView, { height: bannerHeight }]}
       >
         {slides.map((slide, idx) => {
           const trimmedSubtext = slide.subtext ? slide.subtext.trim() : "";
@@ -422,19 +444,39 @@ export default function BannerSlider({ section }) {
                   ]}
                   onPress={() => onSlideButtonPress(slide)}
                 >
-                  <Text
-                    style={[
-                      styles.buttonText,
-                      {
-                        color: buttonTextColor,
-                        fontSize: buttonFontSize,
-                        fontWeight: buttonFontWeight,
-                      },
-                      slide.buttonStrikethrough && styles.strikethrough,
-                    ]}
+                  <View
+                    style={styles.buttonInner}
                   >
-                    {slide.buttonLabel}
-                  </Text>
+                    {showButtonIcon && buttonIconPosition !== "right" ? (
+                      <FontAwesome
+                        name={buttonIconName}
+                        size={buttonIconSize}
+                        color={buttonIconColor}
+                        style={{ marginRight: buttonIconGap }}
+                      />
+                    ) : null}
+                    <Text
+                      style={[
+                        styles.buttonText,
+                        {
+                          color: buttonTextColor,
+                          fontSize: buttonFontSize,
+                          fontWeight: buttonFontWeight,
+                        },
+                        slide.buttonStrikethrough && styles.strikethrough,
+                      ]}
+                    >
+                      {slide.buttonLabel}
+                    </Text>
+                    {showButtonIcon && buttonIconPosition === "right" ? (
+                      <FontAwesome
+                        name={buttonIconName}
+                        size={buttonIconSize}
+                        color={buttonIconColor}
+                        style={{ marginLeft: buttonIconGap }}
+                      />
+                    ) : null}
+                  </View>
                 </TouchableOpacity>
               ) : null}
             </View>
@@ -514,6 +556,11 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     marginTop: 8,
+  },
+  buttonInner: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
   },
   buttonText: {
     fontSize: 11,
