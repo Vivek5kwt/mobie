@@ -6,6 +6,7 @@ import {
   View,
 } from "react-native";
 import { useNavigation } from "@react-navigation/native";
+import { resolveTextDecorationLine } from "../utils/textDecoration";
 
 // ─── DSL helpers ─────────────────────────────────────────────────────────────
 
@@ -187,6 +188,11 @@ export default function TrendingSearches({ section }) {
   const headingBold    = toBoolean(rp("headingBold"), true);
   const headingItalic  = toBoolean(rp("headingItalic"), false);
   const headingUnderline = toBoolean(rp("headingUnderline"), false);
+  const headingStrikethrough = toBoolean(rp("headingStrikethrough"), false);
+  const headingDecorationLine = resolveTextDecorationLine({
+    underline: headingUnderline,
+    strikethrough: headingStrikethrough,
+  });
   const headingWeight  = deriveWeight(rp("headingFontWeight"), headingBold ? "700" : "600");
   const headingPaddingBottom = toNumber(rp("headingPaddingBottom"), 10);
 
@@ -265,7 +271,7 @@ export default function TrendingSearches({ section }) {
               fontSize: headingSize,
               fontWeight: headingWeight,
               fontStyle: headingItalic ? "italic" : "normal",
-              textDecorationLine: headingUnderline ? "underline" : "none",
+              textDecorationLine: headingDecorationLine,
               paddingBottom: headingPaddingBottom,
             },
           ]}

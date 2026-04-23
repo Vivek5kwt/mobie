@@ -1,3 +1,5 @@
+import { normalizeTextDecorationLine } from "./textDecoration";
+
 export function convertStyles(styleObj = {}) {
   if (!styleObj || typeof styleObj !== "object") return {};
 
@@ -359,12 +361,8 @@ export function convertStyles(styleObj = {}) {
       continue;
     }
 
-    if (key === "textDecoration") {
-      if (val === "underline" || val === "line-through" || val === "none") {
-        out.textDecorationLine = val;
-      } else {
-        out.textDecorationLine = "none";
-      }
+    if (key === "textDecoration" || key === "textDecorationLine") {
+      out.textDecorationLine = normalizeTextDecorationLine(val, "none");
       continue;
     }
 

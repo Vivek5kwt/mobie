@@ -4,6 +4,7 @@ import LinearGradient from "react-native-linear-gradient";
 import FontAwesome from "react-native-vector-icons/FontAwesome";
 import { useNavigation } from "@react-navigation/native";
 import { applyMetricsPositioning, convertStyles } from "../utils/convertStyles";
+import { resolveTextDecorationLine } from "../utils/textDecoration";
 import { resolveFA4IconName } from "../utils/faIconAlias";
 
 const unwrapValue = (value, fallback = undefined) => {
@@ -97,7 +98,7 @@ const toFontWeight = (value, bold = false) => {
   return undefined;
 };
 
-const buildTextAttributesStyle = (attributes) => {
+const buildTextAttributesStyle = (attributes, decorationOverrides = {}) => {
   if (!attributes || typeof attributes !== "object") return null;
 
   const color = unwrapValue(attributes?.color, undefined);
@@ -105,7 +106,16 @@ const buildTextAttributesStyle = (attributes) => {
   const fontSize = toNumber(attributes?.size, undefined);
   const isBold = toBoolean(attributes?.bold, false);
   const isItalic = toBoolean(attributes?.italic, false);
-  const isUnderline = toBoolean(attributes?.underline, false);
+  const underlineSource =
+    decorationOverrides.underline !== undefined
+      ? decorationOverrides.underline
+      : attributes?.underline;
+  const strikethroughSource =
+    decorationOverrides.strikethrough !== undefined
+      ? decorationOverrides.strikethrough
+      : attributes?.strikethrough;
+  const isUnderline = toBoolean(underlineSource, false);
+  const isStrikethrough = toBoolean(strikethroughSource, false);
   const weight = unwrapValue(attributes?.weight, undefined);
   const fontWeight = toFontWeight(weight, isBold);
 
@@ -127,7 +137,13 @@ const buildTextAttributesStyle = (attributes) => {
     fontSize,
     fontWeight,
     fontStyle: isItalic ? "italic" : "normal",
-    textDecorationLine: isUnderline ? "underline" : "none",
+    textDecorationLine:
+      underlineSource !== undefined || strikethroughSource !== undefined
+        ? resolveTextDecorationLine({
+            underline: isUnderline,
+            strikethrough: isStrikethrough,
+          })
+        : undefined,
     ...(resolvedLineHeight ? { lineHeight: resolvedLineHeight } : {}),
     ...(letterSpacing !== undefined ? { letterSpacing } : {}),
   };
@@ -217,7 +233,10 @@ export default function HeroBanner({ section }) {
   const subtextLineHeightToken = toNumber(rawProps?.subtextLineHeight, undefined);
 
   // Build headline style from CSS and attributes
-  const headlineAttrStyle = buildTextAttributesStyle(headlineAttributes) || {};
+  const headlineAttrStyle = buildTextAttributesStyle(headlineAttributes, {
+    underline: rawProps?.headlineUnderline,
+    strikethrough: rawProps?.headlineStrikethrough,
+  }) || {};
 
   const headlineStyle = {
     ...headlineCssStyle,
@@ -240,7 +259,10 @@ export default function HeroBanner({ section }) {
   };
 
   // Build subtext style from CSS and attributes
-  const subtextAttrStyle = buildTextAttributesStyle(subtextAttributes) || {};
+  const subtextAttrStyle = buildTextAttributesStyle(subtextAttributes, {
+    underline: rawProps?.subtextUnderline,
+    strikethrough: rawProps?.subtextStrikethrough,
+  }) || {};
 
   const subtextStyle = {
     ...subtextCssStyle,
@@ -416,7 +438,18 @@ export default function HeroBanner({ section }) {
     unwrapValue(button?.properties?.weight || button?.weight, undefined);
   const buttonBold = toBoolean(button?.properties?.bold || button?.bold, false);
   const buttonItalic = toBoolean(button?.properties?.italic || button?.italic, false);
-  const buttonUnderline = toBoolean(button?.properties?.underline || button?.underline, false);
+  const buttonUnderlineSource =
+    button?.properties?.underline ??
+    button?.underline ??
+    flatPropsNode?.buttonUnderline ??
+    rawProps?.buttonUnderline;
+  const buttonStrikethroughSource =
+    button?.properties?.strikethrough ??
+    button?.strikethrough ??
+    flatPropsNode?.buttonStrikethrough ??
+    rawProps?.buttonStrikethrough;
+  const buttonUnderline = toBoolean(buttonUnderlineSource, false);
+  const buttonStrikethrough = toBoolean(buttonStrikethroughSource, false);
 
   // Button typography — fontFamily, fontSize, letterSpacing
   // Priority: buttonAttrs > flatProps > button.properties > tokenStyle > layoutCSS
@@ -470,9 +503,14 @@ export default function HeroBanner({ section }) {
     ) || "400",
     fontStyle: buttonItalic ? "italic" :
                (layoutCss?.button?.fontStyle || "normal"),
-    textDecorationLine: buttonUnderline
-      ? "underline"
-      : (layoutCss?.button?.textDecoration || "none"),
+    ...(buttonUnderlineSource !== undefined || buttonStrikethroughSource !== undefined
+      ? {
+          textDecorationLine: resolveTextDecorationLine({
+            underline: buttonUnderline,
+            strikethrough: buttonStrikethrough,
+          }),
+        }
+      : {}),
     ...(buttonFontFamily        ? { fontFamily:     buttonFontFamily }        : {}),
     ...(buttonFontSize    != null ? { fontSize:       buttonFontSize }         : {}),
     ...(buttonLetterSpacing != null ? { letterSpacing: buttonLetterSpacing }   : {}),

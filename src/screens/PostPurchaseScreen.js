@@ -1,6 +1,7 @@
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
+  BackHandler,
   ScrollView,
   StyleSheet,
   Text,
@@ -144,6 +145,15 @@ export default function PostPurchaseScreen() {
   const [error,    setError]    = useState(false);
   const fingerprintRef = useRef(null);
   const timerRef       = useRef(null);
+  const isNavigatingHomeRef = useRef(false);
+
+  const goHome = useCallback(() => {
+    isNavigatingHomeRef.current = true;
+    navigation.reset({
+      index: 0,
+      routes: [{ name: "LayoutScreen" }],
+    });
+  }, [navigation]);
 
   // Clear cart the moment the purchase confirmation screen mounts
   useEffect(() => {
@@ -177,6 +187,26 @@ export default function PostPurchaseScreen() {
     return () => clearInterval(timerRef.current);
   }, [appId]);
 
+  useEffect(() => {
+    const unsubscribeBeforeRemove = navigation.addListener("beforeRemove", (event) => {
+      if (isNavigatingHomeRef.current) {
+        return;
+      }
+      event.preventDefault();
+      goHome();
+    });
+
+    const backHandler = BackHandler.addEventListener("hardwareBackPress", () => {
+      goHome();
+      return true;
+    });
+
+    return () => {
+      unsubscribeBeforeRemove();
+      backHandler.remove();
+    };
+  }, [navigation, goHome]);
+
   // Merge DSL layout with real order data before rendering
   const resolvedSections = useMemo(
     () => injectOrderData(sections, capturedItems, orderNumber, orderTotal),
@@ -188,7 +218,7 @@ export default function PostPurchaseScreen() {
     return (
       <SafeArea>
         <View style={styles.container}>
-          <Header showBack={false} />
+          <Header showBack={false} onTitlePress={goHome} />
           <View style={styles.centreWrap}>
             <ActivityIndicator size="large" color="#0D9488" />
             <Text style={styles.loadingText}>Loading your order…</Text>
@@ -203,7 +233,7 @@ export default function PostPurchaseScreen() {
     return (
       <SafeArea>
         <View style={styles.container}>
-          <Header showBack={false} />
+          <Header showBack={false} onTitlePress={goHome} />
           <View style={styles.centreWrap}>
             <Text style={styles.successIcon}>✓</Text>
             <Text style={styles.successTitle}>Order Placed Successfully!</Text>
@@ -213,12 +243,12 @@ export default function PostPurchaseScreen() {
             <Text style={styles.successSubtext}>
               Thank you for your purchase. You will receive a confirmation shortly.
             </Text>
+          </View>
+          <View style={styles.footer}>
             <TouchableOpacity
               style={styles.shopBtn}
               activeOpacity={0.85}
-              onPress={() =>
-                navigation.reset({ index: 0, routes: [{ name: "LayoutScreen" }] })
-              }
+              onPress={goHome}
             >
               <Text style={styles.shopBtnText}>Continue Shopping</Text>
             </TouchableOpacity>
@@ -232,7 +262,7 @@ export default function PostPurchaseScreen() {
   return (
     <SafeArea>
       <View style={styles.container}>
-        <Header showBack={false} />
+        <Header showBack={false} onTitlePress={goHome} />
         <ScrollView
           contentContainerStyle={styles.scroll}
           showsVerticalScrollIndicator={false}
@@ -241,6 +271,15 @@ export default function PostPurchaseScreen() {
             <DynamicRenderer key={idx} section={section} />
           ))}
         </ScrollView>
+        <View style={styles.footer}>
+          <TouchableOpacity
+            style={styles.shopBtn}
+            activeOpacity={0.85}
+            onPress={goHome}
+          >
+            <Text style={styles.shopBtnText}>Continue Shopping</Text>
+          </TouchableOpacity>
+        </View>
       </View>
     </SafeArea>
   );
@@ -253,7 +292,14 @@ const styles = StyleSheet.create({
   },
   scroll: {
     flexGrow:      1,
-    paddingBottom: 32,
+    paddingBottom: 104,
+  },
+  footer: {
+    position: "absolute",
+    left: 20,
+    right: 20,
+    bottom: 16,
+    paddingHorizontal: 20,
   },
   centreWrap: {
     flex:              1,

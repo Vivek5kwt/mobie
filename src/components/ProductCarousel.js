@@ -16,6 +16,7 @@ import {
   fetchShopifyCollectionProducts,
 } from "../services/shopify";
 import { addItem } from "../store/slices/cartSlice";
+import { resolveTextDecorationLine } from "../utils/textDecoration";
 
 const unwrapValue = (value, fallback = undefined) => {
   if (value === undefined || value === null) return fallback;
@@ -165,6 +166,11 @@ export default function ProductCarousel({ section }) {
   const headerBold = toBoolean(raw?.headerBold, false);
   const headerItalic = toBoolean(raw?.headerItalic, false);
   const headerUnderline = toBoolean(raw?.headerUnderline, false);
+  const headerStrikethrough = toBoolean(raw?.headerStrikethrough, false);
+  const headerDecorationLine = resolveTextDecorationLine({
+    underline: headerUnderline,
+    strikethrough: headerStrikethrough,
+  });
   const headerLinkHref = toString(raw?.headerLinkHref, "");
   const gridTitleActive = toBoolean(raw?.gridTitleActive, true);
 
@@ -178,6 +184,11 @@ export default function ProductCarousel({ section }) {
   const viewAllBold = toBoolean(raw?.viewAllBold, false);
   const viewAllItalic = toBoolean(raw?.viewAllItalic, false);
   const viewAllUnderline = toBoolean(raw?.viewAllUnderline, false);
+  const viewAllStrikethrough = toBoolean(raw?.viewAllStrikethrough, false);
+  const viewAllDecorationLine = resolveTextDecorationLine({
+    underline: viewAllUnderline,
+    strikethrough: viewAllStrikethrough,
+  });
   const viewAllLinkHref = toString(raw?.viewAllLinkHref, "");
   const viewAllIconId = toString(raw?.viewAllIconId, "fa-chevron-right");
   const viewAllIconSize = toNumber(raw?.viewAllIconSize, 14);
@@ -260,11 +271,13 @@ export default function ProductCarousel({ section }) {
   const atcAvailableBold = toBoolean(raw?.atcAvailableBold, false);
   const atcAvailableItalic = toBoolean(raw?.atcAvailableItalic, false);
   const atcAvailableUnderline = toBoolean(raw?.atcAvailableUnderline, false);
+  const atcAvailableStrikethrough = toBoolean(raw?.atcAvailableStrikethrough, false);
   const atcSoldOutBgColor = toString(raw?.atcSoldOutBgColor, "#E5E7EB");
   const atcSoldOutTextColor = toString(raw?.atcSoldOutTextColor, "#111827");
   const atcSoldOutBold = toBoolean(raw?.atcSoldOutBold, false);
   const atcSoldOutItalic = toBoolean(raw?.atcSoldOutItalic, false);
   const atcSoldOutUnderline = toBoolean(raw?.atcSoldOutUnderline, false);
+  const atcSoldOutStrikethrough = toBoolean(raw?.atcSoldOutStrikethrough, false);
   const atcBorderLine = toString(raw?.atcBorderLine, "");
   const atcBorderColor = toString(raw?.atcBorderColor, "#E5E7EB");
 
@@ -399,7 +412,7 @@ export default function ProductCarousel({ section }) {
       color: headerColor,
       fontWeight: headerBold ? "700" : headerWeight,
       fontStyle: headerItalic ? "italic" : "normal",
-      textDecorationLine: headerUnderline ? "underline" : "none",
+      textDecorationLine: headerDecorationLine,
       ...(headerFamily ? { fontFamily: headerFamily } : {}),
     };
 
@@ -436,7 +449,7 @@ export default function ProductCarousel({ section }) {
       color: viewAllColor,
       fontWeight: viewAllBold ? "700" : viewAllWeight,
       fontStyle: viewAllItalic ? "italic" : "normal",
-      textDecorationLine: viewAllUnderline ? "underline" : "none",
+      textDecorationLine: viewAllDecorationLine,
       ...(viewAllFamily ? { fontFamily: viewAllFamily } : {}),
     };
 
@@ -529,6 +542,11 @@ export default function ProductCarousel({ section }) {
     const buttonBold = isAvailable ? atcAvailableBold : atcSoldOutBold;
     const buttonItalic = isAvailable ? atcAvailableItalic : atcSoldOutItalic;
     const buttonUnderline = isAvailable ? atcAvailableUnderline : atcSoldOutUnderline;
+    const buttonStrikethrough = isAvailable ? atcAvailableStrikethrough : atcSoldOutStrikethrough;
+    const buttonDecorationLine = resolveTextDecorationLine({
+      underline: buttonUnderline,
+      strikethrough: buttonStrikethrough,
+    });
 
     const buttonStyle = {
       backgroundColor: buttonBgColor,
@@ -551,7 +569,7 @@ export default function ProductCarousel({ section }) {
       color: buttonTextColor,
       fontWeight: buttonBold ? "700" : atcWeight,
       fontStyle: buttonItalic ? "italic" : "normal",
-      textDecorationLine: buttonUnderline ? "underline" : "none",
+      textDecorationLine: buttonDecorationLine,
       ...(atcFamily ? { fontFamily: atcFamily } : {}),
     };
 
