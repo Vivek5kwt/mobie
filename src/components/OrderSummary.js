@@ -49,8 +49,22 @@ const toFontWeight = (value, fallback = "400") => {
   return fallback;
 };
 
-const fmt = (amount, symbol) =>
-  `${symbol}${Math.abs(amount).toFixed(2)}`;
+const normalizeCurrencyLabel = (value, fallback = "") => {
+  const label = toString(value, fallback).trim();
+  if (!label) return "";
+  return /^[A-Za-z0-9]{2,}$/.test(label) ? `${label} ` : label;
+};
+
+const resolveCurrencyLabel = (...values) => {
+  for (const value of values) {
+    const label = normalizeCurrencyLabel(value);
+    if (label) return label;
+  }
+  return "";
+};
+
+const fmt = (amount, currency) =>
+  `${normalizeCurrencyLabel(currency)}${Math.abs(amount).toFixed(2)}`;
 
 export default function OrderSummary({ section }) {
   const propsNode =
@@ -102,7 +116,15 @@ export default function OrderSummary({ section }) {
   const titleWeight = toFontWeight(raw?.titleWeight, "700");
 
   // Currency
-  const currencySymbol = toString(raw?.currencySymbol ?? raw?.currency ?? raw?.symbol, "$");
+  const currencyLabel = resolveCurrencyLabel(
+    sourceItems[0]?.currency,
+    sourceItems[0]?.priceCurrency,
+    sourceItems[0]?.currencySymbol,
+    raw?.currency,
+    raw?.priceCurrency,
+    raw?.currencySymbol,
+    raw?.symbol
+  );
 
   // Row label style
   const rowLabelColor = toString(raw?.rowLabelColor ?? raw?.labelColor, "#111827");
@@ -199,6 +221,12 @@ export default function OrderSummary({ section }) {
         const itemQty = toNumber(item?.qty ?? item?.quantity, 1);
         const itemPrice = toNumber(item?.price, 0);
         const lineTotal = itemQty * itemPrice;
+        const itemCurrency = resolveCurrencyLabel(
+          item?.currency,
+          item?.priceCurrency,
+          item?.currencySymbol,
+          currencyLabel
+        );
         return (
           <View
             key={item?.id ?? idx}
@@ -237,7 +265,7 @@ export default function OrderSummary({ section }) {
 
             {/* Price */}
             <Text style={styles.itemPrice}>
-              {currencySymbol}{lineTotal.toFixed(2)}
+              {itemCurrency}{lineTotal.toFixed(2)}
             </Text>
           </View>
         );
@@ -247,7 +275,7 @@ export default function OrderSummary({ section }) {
       {showCartTotal && (
         <SummaryRow
           label={cartTotalLabel}
-          value={fmt(cartTotal, currencySymbol)}
+          value={fmt(cartTotal, currencyLabel)}
           labelColor={rowLabelColor}
           valueColor={cartTotalColor}
           labelSize={rowLabelSize}
@@ -261,7 +289,7 @@ export default function OrderSummary({ section }) {
       {showSavings && savingsAmount > 0 && (
         <SummaryRow
           label={savingsLabel}
-          value={fmt(savingsAmount, currencySymbol)}
+          value={fmt(savingsAmount, currencyLabel)}
           labelColor={rowLabelColor}
           valueColor={savingsColor}
           labelSize={rowLabelSize}
@@ -274,7 +302,7 @@ export default function OrderSummary({ section }) {
         <>
           <SummaryRow
             label={discountLabel}
-            value={fmt(totalDiscountAmount, currencySymbol)}
+            value={fmt(totalDiscountAmount, currencyLabel)}
             labelColor={rowLabelColor}
             valueColor={discountColor}
             labelSize={rowLabelSize}
@@ -307,7 +335,7 @@ export default function OrderSummary({ section }) {
       {showTax && taxAmount > 0 && (
         <SummaryRow
           label={taxLabel}
-          value={fmt(taxAmount, currencySymbol)}
+          value={fmt(taxAmount, currencyLabel)}
           labelColor={rowLabelColor}
           valueColor={taxColor}
           labelSize={rowLabelSize}
@@ -338,7 +366,7 @@ export default function OrderSummary({ section }) {
                 { color: subTotalColor, fontSize: rowValueSize, fontWeight: subTotalWeight },
               ]}
             >
-              {fmt(subTotal, currencySymbol)}
+              {fmt(subTotal, currencyLabel)}
             </Text>
             {showOriginalStrike && hasReductions && (
               <Text
@@ -347,7 +375,7 @@ export default function OrderSummary({ section }) {
                   { color: strikeColor, fontSize: rowValueSize - 1 },
                 ]}
               >
-                {fmt(cartTotal, currencySymbol)}
+                {fmt(cartTotal, currencyLabel)}
               </Text>
             )}
           </View>

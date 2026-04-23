@@ -37,6 +37,8 @@ const buildProductDefaults = (product = {}) => {
     images,
     salePrice: product?.priceAmount,
     standardPrice: product?.priceAmount,
+    priceCurrency: product?.priceCurrency,
+    currency: product?.priceCurrency,
     currencySymbol: product?.priceCurrency ? `${product.priceCurrency} ` : undefined,
     vendorText: product?.vendor,
     shop: product?.vendor,

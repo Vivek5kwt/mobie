@@ -57,8 +57,22 @@ const toFontWeight = (value, fallback = "400") => {
   return fallback;
 };
 
-const fmtPrice = (amount, symbol) =>
-  `${symbol}${Math.abs(toNumber(amount, 0)).toFixed(2)}`;
+const normalizeCurrencyLabel = (value, fallback = "") => {
+  const label = toString(value, fallback).trim();
+  if (!label) return "";
+  return /^[A-Za-z0-9]{2,}$/.test(label) ? `${label} ` : label;
+};
+
+const resolveCurrencyLabel = (...values) => {
+  for (const value of values) {
+    const label = normalizeCurrencyLabel(value);
+    if (label) return label;
+  }
+  return "";
+};
+
+const fmtPrice = (amount, currency) =>
+  `${normalizeCurrencyLabel(currency)}${Math.abs(toNumber(amount, 0)).toFixed(2)}`;
 
 export default function CartLineItems({ section }) {
   const dispatch = useDispatch();
@@ -114,7 +128,15 @@ export default function CartLineItems({ section }) {
   const priceColor = toString(raw?.priceColor, "#111827");
   const priceSize = toNumber(raw?.priceSize, 14);
   const priceWeight = toFontWeight(raw?.priceWeight, "700");
-  const currencySymbol = toString(raw?.currencySymbol ?? raw?.currency, "₹");
+  const currencyLabel = resolveCurrencyLabel(
+    cartItems[0]?.currency,
+    cartItems[0]?.priceCurrency,
+    cartItems[0]?.currencySymbol,
+    raw?.currency,
+    raw?.priceCurrency,
+    raw?.currencySymbol,
+    raw?.symbol
+  );
 
   // Compare-at (original) price
   const showCompareAt = toBoolean(raw?.showCompareAt ?? raw?.showOriginalPrice, true);
@@ -199,6 +221,12 @@ export default function CartLineItems({ section }) {
         const price = toNumber(item?.price, 0);
         const compareAt = toNumber(item?.compareAtPrice, 0);
         const savings = compareAt > price ? (compareAt - price) * quantity : 0;
+        const itemCurrency = resolveCurrencyLabel(
+          item?.currency,
+          item?.priceCurrency,
+          item?.currencySymbol,
+          currencyLabel
+        );
 
         // Parse variant string into parts for "Size: M | Color: Blue" display
         const variantText = String(item?.variant || "").trim();
@@ -279,11 +307,11 @@ export default function CartLineItems({ section }) {
                 {showPrice && (
                   <View style={styles.priceRow}>
                     <Text style={[styles.price, { color: priceColor, fontSize: priceSize, fontWeight: priceWeight }]}>
-                      {fmtPrice(price, currencySymbol)}
+                      {fmtPrice(price, itemCurrency)}
                     </Text>
                     {showCompareAt && compareAt > 0 && (
                       <Text style={[styles.compareAt, { color: compareAtColor, fontSize: compareAtSize }]}>
-                        {fmtPrice(compareAt, currencySymbol)}
+                        {fmtPrice(compareAt, itemCurrency)}
                       </Text>
                     )}
                   </View>
@@ -307,7 +335,7 @@ export default function CartLineItems({ section }) {
                         { color: savingsColor, fontSize: savingsFontSize, fontWeight: savingsFontWeight },
                       ]}
                     >
-                      {savingsLabel} : {fmtPrice(savings, currencySymbol)}
+                      {savingsLabel} : {fmtPrice(savings, itemCurrency)}
                     </Text>
                   </View>
                 )}
@@ -413,7 +441,7 @@ export default function CartLineItems({ section }) {
         <View style={styles.totalRow}>
           <Text style={[styles.totalLabel, { color: totalColor }]}>{totalLabel}</Text>
           <Text style={[styles.totalValue, { color: totalValueColor }]}>
-            {fmtPrice(total, currencySymbol)}
+            {fmtPrice(total, currencyLabel)}
           </Text>
         </View>
       )}
