@@ -3,6 +3,7 @@ import { StyleSheet, Text, View } from "react-native";
 import FontAwesome from "react-native-vector-icons/FontAwesome";
 import { convertStyles } from "../utils/convertStyles";
 import { getTypography } from "../services/typographyService";
+import { resolveFA4IconName } from "../utils/faIconAlias";
 
 // ── DSL helpers ────────────────────────────────────────────────────────────────
 
@@ -69,12 +70,6 @@ const resolveWeight = (weightStr) => {
 const containsEmoji = (str) => {
   if (!str) return false;
   return /[^\x00-\x7E]/.test(str);
-};
-
-// Normalise a FontAwesome icon name: strip "fa-" prefix and whitespace
-const normaliseFaName = (raw) => {
-  if (!raw) return "";
-  return String(raw).trim().replace(/^fa-/, "").toLowerCase();
 };
 
 // Strip web-only CSS props before applying to RN Text
@@ -162,18 +157,17 @@ export default function TextBlock({ section }) {
     iconCfg?.icon ?? iconCfg?.iconName ?? iconCfg?.name ?? iconCfg?.emoji,
     ""
   );
-  // If the value is an emoji character, discard it (no emoji on mobile)
-  const faIconName   = containsEmoji(rawIconValue) ? "" : normaliseFaName(rawIconValue);
+  // Resolve FA5/FA6 name → FA4 equivalent; emoji/unknown names become ""
+  const faIconName   = containsEmoji(rawIconValue)
+    ? ""
+    : resolveFA4IconName(rawIconValue, FontAwesome.glyphMap || {});
   const iconColor    = asStr(iconCfg?.color, "#FFFFFF");
   const iconBgColor  = asStr(iconCfg?.bgColor ?? iconCfg?.backgroundColor, "#16A34A");
   const iconSize     = asNumber(iconCfg?.size ?? iconCfg?.width, 20);
   const iconFaSize   = asNumber(iconCfg?.iconSize ?? iconCfg?.faSize, 11);
   const iconRadius   = asNumber(iconCfg?.borderRadius ?? iconCfg?.corner, 999);
 
-  // Only render icon when: DSL says show + name exists in FontAwesome's glyph map.
-  // Unknown names cause FontAwesome to render "?" — this prevents that entirely.
-  const isValidFaIcon = !!faIconName && Object.prototype.hasOwnProperty.call(FontAwesome.glyphMap || {}, faIconName);
-  const hasIcon       = showIconDsl && isValidFaIcon;
+  const hasIcon = showIconDsl && !!faIconName;
   const hasHeadline  = showHeadline && !!headline;
   const hasSubtext   = showSubtext  && !!subtext;
 

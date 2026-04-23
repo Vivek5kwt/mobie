@@ -212,6 +212,8 @@ export default function CheckoutWebViewScreen() {
             params: {
               capturedItems: capturedItemsRef.current || [],
               appId:         resolvedAppId,
+              orderNumber:   order.orderNumber,
+              orderTotal:    order.total,
             },
           }],
         });
