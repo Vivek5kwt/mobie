@@ -10,12 +10,15 @@ import {
   Image,
 } from "react-native";
 import { useNavigation } from "@react-navigation/native";
-import { useDispatch } from "react-redux";
+import { useDispatch, useSelector } from "react-redux";
+import FontAwesome from "react-native-vector-icons/FontAwesome";
 import {
   fetchShopifyCollectionProducts,
   fetchShopifyProducts,
 } from "../services/shopify";
 import { addItem } from "../store/slices/cartSlice";
+import { toggleWishlist } from "../store/slices/wishlistSlice";
+import { resolveFA4IconName } from "../utils/faIconAlias";
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -78,6 +81,16 @@ const isDark = (hex) => {
   return (0.299 * r + 0.587 * g + 0.114 * b) < 128;
 };
 
+const resolveIconName = (value, fallback) =>
+  resolveFA4IconName(toStr(value, fallback)) || fallback;
+
+const normalizeAtcPosition = (value, fallback = "below") => {
+  const resolved = toStr(value, fallback).toLowerCase();
+  if (resolved.includes("above") || resolved.includes("top")) return "above";
+  if (resolved.includes("overlay") || resolved.includes("on-image") || resolved.includes("on image")) return "overlay";
+  return "below";
+};
+
 const normalizeTabs = (rawTabs = []) => {
   if (!Array.isArray(rawTabs)) return [];
   return rawTabs
@@ -101,6 +114,7 @@ const COL_GAP = 8;
 export default function TabProductGrid({ section }) {
   const dispatch = useDispatch();
   const navigation = useNavigation();
+  const wishlistItems = useSelector((state) => state?.wishlist?.items || []);
 
   // ── Parse DSL ──────────────────────────────────────────────────────────────
   const rawProps =
@@ -111,8 +125,13 @@ export default function TabProductGrid({ section }) {
 
   // rawConfig holds all the flat builder values
   const rawConfig = rawProps?.raw?.value || rawProps?.raw || rawProps || {};
+  const layoutNode = rawProps?.layout?.properties || rawProps?.layout || {};
+  const layoutCss = layoutNode?.css?.value || layoutNode?.css?.properties || layoutNode?.css || {};
+  const layoutCardTitleCss = layoutCss?.cardTitle || layoutCss?.title || {};
+  const layoutCardPriceCss = layoutCss?.price || layoutCss?.priceText || {};
+  const layoutAddToCartCss = layoutCss?.addToCartButton || layoutCss?.addToCart || {};
 
-  const tabs = useMemo(() => normalizeTabs(rawConfig?.tabs || []), []);
+  const tabs = useMemo(() => normalizeTabs(rawConfig?.tabs || []), [rawConfig?.tabs]);
 
   const initialTabId =
     toStr(rawConfig?.activeTabId, "") || (tabs.length ? tabs[0].id : "");
@@ -120,7 +139,15 @@ export default function TabProductGrid({ section }) {
   const [activeTabId, setActiveTabId] = useState(initialTabId);
   const [productsByTab, setProductsByTab] = useState({});
   const [loadingTabId, setLoadingTabId] = useState(null);
-  const [favorited, setFavorited] = useState({});
+  const wishlistIds = useMemo(
+    () =>
+      new Set(
+        wishlistItems
+          .map((item) => String(item?.id || "").trim())
+          .filter(Boolean)
+      ),
+    [wishlistItems]
+  );
 
   const activeTab = useMemo(
     () => tabs.find((t) => t.id === activeTabId) || tabs[0],
@@ -201,21 +228,103 @@ export default function TabProductGrid({ section }) {
 
   const cardRadius     = toNum(rawConfig?.cardBorderRadius, 12);
   const imageCorner    = toNum(rawConfig?.cardImageCorner, 0);
-  const cardTitleSize  = toNum(rawConfig?.cardTitleSize, 12);
-  const cardTitleWt    = toFontWeight(rawConfig?.cardTitleWeight, "600");
-  const cardTitleFamily= toStr(rawConfig?.cardTitleFamily, undefined) || undefined;
+  const cardTitleSize  = toNum(rawConfig?.cardTitleSize ?? rawConfig?.titleSize ?? rawConfig?.headlineSize ?? layoutCardTitleCss?.fontSize, 12);
+  const cardTitleWt    = toFontWeight(rawConfig?.cardTitleWeight ?? rawConfig?.titleWeight ?? rawConfig?.headlineWeight ?? layoutCardTitleCss?.fontWeight, "600");
+  const cardTitleFamily= toStr(rawConfig?.cardTitleFamily ?? rawConfig?.titleFontFamily ?? rawConfig?.headlineFontFamily ?? layoutCardTitleCss?.fontFamily, undefined) || undefined;
+  const titleAlignRaw  = toStr(
+    rawConfig?.titleAlign ??
+      rawConfig?.cardTitleAlign ??
+      rawConfig?.productTitleAlign ??
+      rawConfig?.alignText ??
+      layoutCardTitleCss?.textAlign,
+    "Left"
+  ).toLowerCase();
+  const titleTextAlign = titleAlignRaw === "center" ? "center" : titleAlignRaw === "right" ? "right" : "left";
 
-  const showFavorite   = toBool(rawConfig?.showFavorite ?? rawConfig?.favEnabled, true);
-  const showAddToCart  = toBool(rawConfig?.showAddToCart, true);
-  const showPrice      = toBool(rawConfig?.showPrice, true);
-  const showTitleText  = toBool(rawConfig?.showTitle, true);
-  const alignText      = toStr(rawConfig?.alignText, "Left").toLowerCase();
-  const textAlign      = alignText === "center" ? "center" : alignText === "right" ? "right" : "left";
+  const showFavorite   = toBool(
+    rawConfig?.favoriteIconEnabled ??
+      rawConfig?.favActive ??
+      rawConfig?.showFavorite ??
+      rawConfig?.showFavoriteIcon ??
+      rawConfig?.favEnabled,
+    true
+  );
+  const favoriteIconName = resolveIconName(
+    rawConfig?.favoriteIconId ?? rawConfig?.favoriteIcon ?? rawConfig?.favIcon,
+    "heart"
+  );
+  const unfavoriteIconName = resolveIconName(
+    rawConfig?.unfavoriteIconId ?? rawConfig?.unfavoriteIcon ?? rawConfig?.unfavIcon,
+    "heart-o"
+  );
+  const favoriteIconSize = toNum(rawConfig?.favoriteIconSize ?? rawConfig?.favIconSize, 16);
+  const unfavoriteIconSize = toNum(rawConfig?.unfavoriteIconSize ?? rawConfig?.unfavIconSize, favoriteIconSize);
+  const favoriteIconColor = toStr(
+    rawConfig?.favoriteIconColor ?? rawConfig?.favoriteColor ?? rawConfig?.favIconColor ?? rawConfig?.favColor,
+    "#EF4444"
+  );
+  const unfavoriteIconColor = toStr(
+    rawConfig?.unfavoriteIconColor ?? rawConfig?.unfavoriteColor ?? rawConfig?.favIconInactiveColor,
+    "#9CA3AF"
+  );
+  const favoriteBadgeBgColor = toStr(
+    rawConfig?.favoriteBackgroundColor ?? rawConfig?.favoriteBgColor ?? rawConfig?.favBgColor,
+    "rgba(255,255,255,0.95)"
+  );
+  const showAddToCart  = toBool(rawConfig?.showAddToCart ?? rawConfig?.atcActive, true);
+  const showPrice      = toBool(rawConfig?.showPrice ?? rawConfig?.cardPriceActive, true);
+  const showTitleText  = toBool(rawConfig?.showTitle ?? rawConfig?.cardTitleActive, true);
+  const priceSize      = toNum(rawConfig?.priceSize ?? rawConfig?.subtextSize ?? layoutCardPriceCss?.fontSize, 12);
+  const priceWeight    = toFontWeight(rawConfig?.priceWeight ?? rawConfig?.subtextWeight ?? layoutCardPriceCss?.fontWeight, "600");
+  const priceFamily    = toStr(rawConfig?.priceFamily ?? rawConfig?.subtextFontFamily ?? layoutCardPriceCss?.fontFamily, undefined) || undefined;
+  const priceAlignRaw  = toStr(
+    rawConfig?.priceAlign ??
+      rawConfig?.cardPriceAlign ??
+      layoutCardPriceCss?.textAlign,
+    "Left"
+  ).toLowerCase();
+  const priceTextAlign = priceAlignRaw === "center" ? "center" : priceAlignRaw === "right" ? "right" : "left";
+  const atcPosition = normalizeAtcPosition(
+    rawConfig?.atcPosition ??
+      rawConfig?.addToCartPosition ??
+      rawConfig?.cartButtonPosition ??
+      rawConfig?.addToCart?.position ??
+      rawConfig?.cartButton?.position ??
+      rawConfig?.button?.position ??
+      rawConfig?.position,
+    "below"
+  );
+  const atcAlignRaw = toStr(
+    rawConfig?.atcAlign ??
+      rawConfig?.addToCart?.align ??
+      rawConfig?.cartButton?.align ??
+      rawConfig?.button?.align,
+    "Left"
+  ).toLowerCase();
+  const atcAlign = atcAlignRaw === "center" ? "center" : atcAlignRaw === "right" ? "right" : "left";
+  const atcAvailableText = toStr(rawConfig?.atcAvailableText ?? layoutAddToCartCss?.label ?? layoutAddToCartCss?.text, "Add To Cart");
+  const atcSoldOutText = toStr(rawConfig?.atcSoldOutText ?? layoutAddToCartCss?.soldOutLabel, "Sold Out");
+  const atcSize = toNum(rawConfig?.atcSize ?? layoutAddToCartCss?.fontSize, 12);
+  const atcBgColor = toStr(rawConfig?.atcBgColor ?? layoutAddToCartCss?.backgroundColor, "#096d70");
+  const atcTextColor = toStr(rawConfig?.atcTextColor ?? layoutAddToCartCss?.color, "#FFFFFF");
+  const atcSoldOutBgColor = toStr(rawConfig?.atcSoldOutBgColor, "#E5E7EB");
+  const atcSoldOutTextColor = toStr(rawConfig?.atcSoldOutTextColor, "#111827");
+  const atcFontFamily = toStr(rawConfig?.atcFamily ?? layoutAddToCartCss?.fontFamily, undefined) || undefined;
+  const atcFontWeight = toFontWeight(rawConfig?.atcWeight ?? layoutAddToCartCss?.fontWeight, "600");
+  const atcBorderRadius = toNum(rawConfig?.atcCorner ?? rawConfig?.atcBorderRadius ?? layoutAddToCartCss?.borderRadius, 6);
+  const atcPaddingTop = toNum(rawConfig?.atcPadT ?? layoutAddToCartCss?.paddingTop, undefined);
+  const atcPaddingRight = toNum(rawConfig?.atcPadR ?? layoutAddToCartCss?.paddingRight, undefined);
+  const atcPaddingBottom = toNum(rawConfig?.atcPadB ?? layoutAddToCartCss?.paddingBottom, undefined);
+  const atcPaddingLeft = toNum(rawConfig?.atcPadL ?? layoutAddToCartCss?.paddingLeft, undefined);
+  const atcPaddingX = toNum(rawConfig?.atcPadX ?? layoutAddToCartCss?.paddingHorizontal, 10);
+  const atcPaddingY = toNum(rawConfig?.atcPadY ?? layoutAddToCartCss?.paddingVertical, 6);
+  const atcBorderLine = toStr(rawConfig?.atcBorderLine ?? layoutAddToCartCss?.borderStyle, "");
+  const atcBorderColor = toStr(rawConfig?.atcBorderColor ?? layoutAddToCartCss?.borderColor, "#E5E7EB");
 
   // Auto text color based on bg brightness
   const containerDark = isDark(containerBg);
-  const cardTextColor = containerDark ? "#FFFFFF" : "#111111";
-  const priceColor    = containerDark ? "#E5E7EB" : "#374151";
+  const cardTextColor = toStr(rawConfig?.titleColor ?? rawConfig?.cardTitleColor ?? rawConfig?.headlineColor ?? layoutCardTitleCss?.color, containerDark ? "#FFFFFF" : "#111111");
+  const priceColor    = toStr(rawConfig?.priceColor ?? rawConfig?.cardPriceColor ?? rawConfig?.subtextColor ?? layoutCardPriceCss?.color, containerDark ? "#E5E7EB" : "#374151");
 
   // Card dimensions
   const availableW = SCREEN_W - paddingLeft - paddingRight;
@@ -244,7 +353,7 @@ export default function TabProductGrid({ section }) {
         item: {
           id: product.variantId || product.id,
           variantId: product.variantId || "",
-          title: product.name || "",
+          title: product.name || product.title || "",
           image: product.image || "",
           price: toNum(product.price, 0),
           variant: "",
@@ -255,11 +364,95 @@ export default function TabProductGrid({ section }) {
     );
   }, [dispatch]);
 
-  const toggleFavorite = useCallback((id) => {
-    setFavorited((prev) => ({ ...prev, [id]: !prev[id] }));
-  }, []);
+  const handleToggleFavorite = useCallback((product) => {
+    const productId = String(
+      product?.id || product?.variantId || product?.handle || product?.name || product?.title || ""
+    ).trim();
+    if (!productId) return;
+
+    dispatch(
+      toggleWishlist({
+        product: {
+          id: productId,
+          title: product?.title || product?.name || "Product",
+          image: product?.image || product?.imageUrl || "",
+          price: product?.price ?? product?.priceAmount ?? 0,
+          compareAtPrice: product?.compareAtPrice ?? product?.originalPrice ?? 0,
+          currency: product?.currency || product?.priceCurrency || "",
+          handle: product?.handle || "",
+          vendor: product?.vendor || "",
+        },
+      })
+    );
+  }, [dispatch]);
 
   // ── Render ─────────────────────────────────────────────────────────────────
+  const renderAddToCart = (product, inStock = true) => {
+    if (!showAddToCart) return null;
+
+    const isAvailable = !!inStock;
+    const buttonText = isAvailable ? atcAvailableText : atcSoldOutText;
+    const buttonBgColor = isAvailable ? atcBgColor : atcSoldOutBgColor;
+    const buttonTextColor = isAvailable ? atcTextColor : atcSoldOutTextColor;
+    const buttonPaddingTop = atcPaddingTop ?? atcPaddingY;
+    const buttonPaddingRight = atcPaddingRight ?? atcPaddingX;
+    const buttonPaddingBottom = atcPaddingBottom ?? atcPaddingY;
+    const buttonPaddingLeft = atcPaddingLeft ?? atcPaddingX;
+
+    return (
+      <TouchableOpacity
+        activeOpacity={isAvailable ? 0.8 : 1}
+        disabled={!isAvailable}
+        onPress={(e) => {
+          e?.stopPropagation?.();
+          if (isAvailable) handleAddToCart(product);
+        }}
+        style={[
+          styles.cartBtn,
+          atcPosition === "overlay" && styles.cartBtnOverlay,
+          {
+            marginTop: atcPosition === "below" ? 2 : 0,
+            alignSelf:
+              atcPosition === "overlay"
+                ? "stretch"
+                : atcAlign === "center"
+                ? "center"
+                : atcAlign === "right"
+                ? "flex-end"
+                : "flex-start",
+            backgroundColor: buttonBgColor,
+            borderRadius: atcBorderRadius,
+            paddingTop: buttonPaddingTop,
+            paddingRight: buttonPaddingRight,
+            paddingBottom: buttonPaddingBottom,
+            paddingLeft: buttonPaddingLeft,
+            ...(atcBorderLine && atcBorderLine !== "none"
+              ? {
+                  borderWidth: 1,
+                  borderColor: atcBorderColor,
+                  borderStyle: atcBorderLine,
+                }
+              : {}),
+          },
+        ]}
+      >
+        <Text
+          style={[
+            styles.cartBtnText,
+            {
+              color: buttonTextColor,
+              fontSize: atcSize,
+              fontWeight: atcFontWeight,
+              ...(atcFontFamily ? { fontFamily: atcFontFamily } : {}),
+            },
+          ]}
+        >
+          {buttonText}
+        </Text>
+      </TouchableOpacity>
+    );
+  };
+
   return (
     <View
       style={[
@@ -332,7 +525,10 @@ export default function TabProductGrid({ section }) {
               ]}
             >
               {row.map((product, colIdx) => {
-                const isFav = !!favorited[product.id];
+                const productId = String(
+                  product?.id || product?.variantId || product?.handle || product?.name || product?.title || ""
+                ).trim();
+                const isFav = productId ? wishlistIds.has(productId) : false;
                 const inStock = product.availableForSale !== false;
                 return (
                   <TouchableOpacity
@@ -375,20 +571,35 @@ export default function TabProductGrid({ section }) {
 
                       {showFavorite && (
                         <TouchableOpacity
-                          style={styles.favBtn}
+                          style={[
+                            styles.favBtn,
+                            { backgroundColor: favoriteBadgeBgColor },
+                          ]}
                           activeOpacity={0.8}
-                          onPress={() => toggleFavorite(product.id)}
+                          onPress={(e) => {
+                            e.stopPropagation?.();
+                            handleToggleFavorite(product);
+                          }}
                           hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+                          accessibilityRole="button"
+                          accessibilityLabel={isFav ? "Remove from wishlist" : "Add to wishlist"}
                         >
-                          <Text style={[styles.favIcon, isFav && styles.favIconActive]}>
-                            {isFav ? "♥" : "♡"}
-                          </Text>
+                          <FontAwesome
+                            name={isFav ? favoriteIconName : unfavoriteIconName}
+                            size={isFav ? favoriteIconSize : unfavoriteIconSize}
+                            color={isFav ? favoriteIconColor : unfavoriteIconColor}
+                            style={styles.favIcon}
+                          />
                         </TouchableOpacity>
                       )}
+
+                      {showAddToCart && atcPosition === "overlay" && renderAddToCart(product, inStock)}
                     </View>
 
                     {/* Card content */}
                     <View style={styles.cardContent}>
+                      {showAddToCart && atcPosition === "above" && renderAddToCart(product, inStock)}
+
                       {showTitleText && (
                         <Text
                           numberOfLines={2}
@@ -398,41 +609,33 @@ export default function TabProductGrid({ section }) {
                               color: cardTextColor,
                               fontSize: cardTitleSize,
                               fontWeight: cardTitleWt,
-                              textAlign,
+                              textAlign: titleTextAlign,
                               ...(cardTitleFamily ? { fontFamily: cardTitleFamily } : {}),
                             },
                           ]}
                         >
-                          {product.name}
+                          {product.name || product.title || ""}
                         </Text>
                       )}
 
                       {showPrice && product.price && (
-                        <Text style={[styles.priceText, { color: priceColor, textAlign }]}>
+                        <Text
+                          style={[
+                            styles.priceText,
+                            {
+                              color: priceColor,
+                              fontSize: priceSize,
+                              fontWeight: priceWeight,
+                              textAlign: priceTextAlign,
+                              ...(priceFamily ? { fontFamily: priceFamily } : {}),
+                            },
+                          ]}
+                        >
                           {product.currency} {parseFloat(product.price).toFixed(1)}
                         </Text>
                       )}
 
-                      {showAddToCart && (
-                        <TouchableOpacity
-                          activeOpacity={inStock ? 0.8 : 1}
-                          disabled={!inStock}
-                          onPress={() => inStock && handleAddToCart(product)}
-                          style={[
-                            styles.cartBtn,
-                            inStock ? styles.cartBtnActive : styles.cartBtnSoldOut,
-                          ]}
-                        >
-                          <Text
-                            style={[
-                              styles.cartBtnText,
-                              inStock ? styles.cartBtnTextActive : styles.cartBtnTextSoldOut,
-                            ]}
-                          >
-                            {inStock ? "Add to cart" : "Out of stock"}
-                          </Text>
-                        </TouchableOpacity>
-                      )}
+                      {showAddToCart && atcPosition === "below" && renderAddToCart(product, inStock)}
                     </View>
                   </TouchableOpacity>
                 );
@@ -499,7 +702,6 @@ const styles = StyleSheet.create({
     width: 28,
     height: 28,
     borderRadius: 14,
-    backgroundColor: "#FFFFFF",
     alignItems: "center",
     justifyContent: "center",
     shadowColor: "#000",
@@ -507,14 +709,12 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.15,
     shadowRadius: 3,
     elevation: 3,
+    zIndex: 5,
   },
   favIcon: {
-    fontSize: 14,
-    color: "#9CA3AF",
     lineHeight: 16,
-  },
-  favIconActive: {
-    color: "#EF4444",
+    textAlign: "center",
+    includeFontPadding: false,
   },
   cardContent: {
     paddingHorizontal: 8,
@@ -524,10 +724,14 @@ const styles = StyleSheet.create({
   },
   cardTitle: {
     lineHeight: 17,
+    alignSelf: "stretch",
+    width: "100%",
   },
   priceText: {
     fontSize: 12,
     fontWeight: "600",
+    alignSelf: "stretch",
+    width: "100%",
   },
   cartBtn: {
     marginTop: 2,
@@ -536,21 +740,19 @@ const styles = StyleSheet.create({
     borderRadius: 6,
     alignItems: "center",
   },
-  cartBtnActive: {
-    backgroundColor: "#111111",
-  },
-  cartBtnSoldOut: {
-    backgroundColor: "#374151",
+  cartBtnOverlay: {
+    position: "absolute",
+    left: 8,
+    right: 8,
+    bottom: 8,
+    zIndex: 6,
   },
   cartBtnText: {
     fontSize: 11,
     fontWeight: "600",
-  },
-  cartBtnTextActive: {
-    color: "#FFFFFF",
-  },
-  cartBtnTextSoldOut: {
-    color: "#9CA3AF",
+    textAlign: "center",
+    textAlignVertical: "center",
+    includeFontPadding: false,
   },
   emptyText: {
     textAlign: "center",

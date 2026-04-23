@@ -8,6 +8,7 @@ import { useSideMenu } from "../services/SideMenuContext";
 import { convertStyles } from "../utils/convertStyles";
 import { getAppLogoSync } from "../utils/appInfo";
 import { getHeaderDefault } from "../services/headerDefaultService";
+import { resolveTextDecorationLine } from "../utils/textDecoration";
 
 const LOCAL_LOGO_IMAGE = require("../assets/logo/mobidraglogo.png");
 
@@ -102,7 +103,7 @@ const resolveLogoSlotAlignmentStyle = (alignment, flexDirection = "column") => {
   return isRow ? { justifyContent: flexAlignment } : { alignItems: flexAlignment };
 };
 
-export default function Header({ section, showBack, showNotification }) {
+export default function Header({ section, showBack, showNotification, onTitlePress }) {
   const { openSideMenu, hasSideNav } = useSideMenu();
   const navigation = useNavigation();
   const canGoBack = navigation.canGoBack();
@@ -195,6 +196,11 @@ export default function Header({ section, showBack, showNotification }) {
   );
   const headerTextItalic = resolveBoolean(props?.headerTextItalic, false);
   const headerTextUnderline = resolveBoolean(props?.headerTextUnderline, false);
+  const headerTextStrikethrough = resolveBoolean(props?.headerTextStrikethrough, false);
+  const headerTextDecorationLine = resolveTextDecorationLine({
+    underline: headerTextUnderline,
+    strikethrough: headerTextStrikethrough,
+  });
   const headerTextAlign = String(
     unwrapValue(
       props?.headerTextAlign,
@@ -223,7 +229,7 @@ export default function Header({ section, showBack, showNotification }) {
     color: headerTextColor,
     fontWeight: headerTextBold ? "700" : headerFontWeight,
     fontStyle: headerTextItalic ? "italic" : "normal",
-    textDecorationLine: headerTextUnderline ? "underline" : "none",
+    textDecorationLine: headerTextDecorationLine,
     textAlign: headerTextAlign,
     fontFamily: headerFontFamily,
   };
@@ -404,9 +410,21 @@ export default function Header({ section, showBack, showNotification }) {
       {/* LOGO */}
       <View style={[styles.logoSlot, normalizedLayout.logoSlot, logoSlotAlignmentStyle]}>
         {shouldShowHeaderText ? (
-          <Text style={[styles.logoText, headerTextStyle]} numberOfLines={1}>
-            {headerTextValue}
-          </Text>
+          onTitlePress ? (
+            <TouchableOpacity
+              activeOpacity={0.8}
+              onPress={onTitlePress}
+              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+            >
+              <Text style={[styles.logoText, headerTextStyle]} numberOfLines={1}>
+                {headerTextValue}
+              </Text>
+            </TouchableOpacity>
+          ) : (
+            <Text style={[styles.logoText, headerTextStyle]} numberOfLines={1}>
+              {headerTextValue}
+            </Text>
+          )
         ) : shouldShowLogo ? (
           <Image
             source={logoSource}

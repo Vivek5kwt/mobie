@@ -4,6 +4,7 @@ import FontAwesome from "react-native-vector-icons/FontAwesome";
 import { convertStyles } from "../utils/convertStyles";
 import { getTypography } from "../services/typographyService";
 import { resolveFA4IconName } from "../utils/faIconAlias";
+import { resolveTextDecorationLine } from "../utils/textDecoration";
 
 // ── DSL helpers ────────────────────────────────────────────────────────────────
 
@@ -82,7 +83,7 @@ const stripTextCss = (style) => {
   return rest;
 };
 
-const applyTextAttributes = (baseStyle, attributes) => {
+const applyTextAttributes = (baseStyle, attributes, decorationOverrides = {}) => {
   const attrs = attributes || {};
   const next = { ...(baseStyle || {}) };
 
@@ -102,12 +103,21 @@ const applyTextAttributes = (baseStyle, attributes) => {
   const italic = asBoolean(attrs.italic, undefined);
   if (italic === true) next.fontStyle = "italic";
 
-  const underline = asBoolean(attrs.underline, undefined);
-  const strikethrough = asBoolean(attrs.strikethrough, undefined);
-  if (underline || strikethrough) {
-    if (underline && strikethrough) next.textDecorationLine = "underline line-through";
-    else if (underline) next.textDecorationLine = "underline";
-    else next.textDecorationLine = "line-through";
+  const underlineSource =
+    decorationOverrides.underline !== undefined
+      ? decorationOverrides.underline
+      : attrs.underline;
+  const strikethroughSource =
+    decorationOverrides.strikethrough !== undefined
+      ? decorationOverrides.strikethrough
+      : attrs.strikethrough;
+  const underline = asBoolean(underlineSource, undefined);
+  const strikethrough = asBoolean(strikethroughSource, undefined);
+  if (underlineSource !== undefined || strikethroughSource !== undefined) {
+    next.textDecorationLine = resolveTextDecorationLine({
+      underline: underline === true,
+      strikethrough: strikethrough === true,
+    });
   }
 
   const fontFamily = unwrapValue(attrs.fontFamily, undefined);
@@ -217,12 +227,26 @@ export default function TextBlock({ section }) {
   // font is used only when no per-element override is present.
   const typography = getTypography();
 
-  const headlineStyle = applyTextAttributes(stripTextCss(convertStyles(layoutCss.headline || {})), headlineAttributes);
+  const headlineStyle = applyTextAttributes(
+    stripTextCss(convertStyles(layoutCss.headline || {})),
+    headlineAttributes,
+    {
+      underline: rawProps?.headlineUnderline,
+      strikethrough: rawProps?.headlineStrikethrough,
+    }
+  );
   if (!headlineStyle.fontFamily && typography.headlineFontFamily) {
     headlineStyle.fontFamily = typography.headlineFontFamily;
   }
 
-  const subtextStyle  = applyTextAttributes(stripTextCss(convertStyles(layoutCss.subtext  || {})), subtextAttributes);
+  const subtextStyle  = applyTextAttributes(
+    stripTextCss(convertStyles(layoutCss.subtext || {})),
+    subtextAttributes,
+    {
+      underline: rawProps?.subtextUnderline,
+      strikethrough: rawProps?.subtextStrikethrough,
+    }
+  );
   if (!subtextStyle.fontFamily && typography.subtextFontFamily) {
     subtextStyle.fontFamily = typography.subtextFontFamily;
   }

@@ -1,16 +1,17 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
   Animated,
-  Dimensions,
   Image,
   StyleSheet,
   Text,
   TouchableOpacity,
   View,
+  useWindowDimensions,
 } from "react-native";
 import { useNavigation } from "@react-navigation/native";
 import FontAwesome from "react-native-vector-icons/FontAwesome";
 import { resolveFA4IconName } from "../utils/faIconAlias";
+import { resolveTextDecorationLine } from "../utils/textDecoration";
 
 // ─── DSL helpers ────────────────────────────────────────────────────────────
 
@@ -58,6 +59,20 @@ const parseFontWeight = (value, fallback = "700") => {
   return String(value);
 };
 
+const clamp = (value, min, max) => Math.min(Math.max(value, min), max);
+
+const parseAspectRatio = (value) => {
+  if (value === undefined || value === null) return undefined;
+  const ratio = String(value).trim().toLowerCase();
+  if (!ratio || ratio === "auto") return undefined;
+  if (ratio.includes(":")) {
+    const [w, h] = ratio.split(":").map((part) => parseFloat(part));
+    if (w > 0 && h > 0) return w / h;
+  }
+  const parsed = parseFloat(ratio);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : undefined;
+};
+
 // ─── Slide builder ───────────────────────────────────────────────────────────
 
 const buildSlides = (rawProps = {}, defaultButtonLabel = "Shop Now") => {
@@ -86,8 +101,11 @@ const buildSlides = (rawProps = {}, defaultButtonLabel = "Shop Now") => {
           ? String(btnLabel)
           : defaultButtonLabel;
       const buttonHref = props?.buttonHref ?? props?.href ?? props?.link ?? "";
+      const titleUnderline = asBoolean(props?.titleUnderline, false);
       const titleStrikethrough = asBoolean(props?.titleStrikethrough, false);
+      const subtitleUnderline = asBoolean(props?.subtitleUnderline, false);
       const subtitleStrikethrough = asBoolean(props?.subtitleStrikethrough, false);
+      const buttonUnderline = asBoolean(props?.buttonUnderline, false);
       const buttonStrikethrough = asBoolean(props?.buttonStrikethrough, false);
 
       if (!headline && !subtext && !image) return null;
@@ -98,9 +116,24 @@ const buildSlides = (rawProps = {}, defaultButtonLabel = "Shop Now") => {
         image,
         buttonLabel: String(buttonLabel),
         buttonHref: typeof buttonHref === "string" ? buttonHref : "",
+        titleUnderline,
         titleStrikethrough,
+        titleDecorationLine: resolveTextDecorationLine({
+          underline: titleUnderline,
+          strikethrough: titleStrikethrough,
+        }),
+        subtitleUnderline,
         subtitleStrikethrough,
+        subtitleDecorationLine: resolveTextDecorationLine({
+          underline: subtitleUnderline,
+          strikethrough: subtitleStrikethrough,
+        }),
+        buttonUnderline,
         buttonStrikethrough,
+        buttonDecorationLine: resolveTextDecorationLine({
+          underline: buttonUnderline,
+          strikethrough: buttonStrikethrough,
+        }),
       };
     })
     .filter(Boolean);
@@ -110,6 +143,7 @@ const buildSlides = (rawProps = {}, defaultButtonLabel = "Shop Now") => {
 
 export default function BannerSlider({ section }) {
   const navigation = useNavigation();
+  const { width: windowWidth, height: windowHeight } = useWindowDimensions();
 
   // Unwrap the full props object
   const rawProps = useMemo(() => {
@@ -135,12 +169,13 @@ export default function BannerSlider({ section }) {
   // ── Container ──
   const styleProp = rawProps?.style || {};
   const bgColor = rp?.bgColor || styleProp?.bgColor || "transparent";
-  const screenHeight = Math.max(Dimensions.get("window").height, 1);
   const requestedBannerHeight = asNumber(
-    rp?.bannerHeight ?? layoutCss?.slider?.bannerHeight,
-    screenHeight
+    rp?.bannerHeight ?? layoutCss?.slider?.bannerHeight ?? styleProp?.height,
+    undefined
   );
-  const bannerHeight = Math.max(requestedBannerHeight, screenHeight);
+  const bannerRatio = parseAspectRatio(
+    rp?.ratio ?? layoutCss?.slider?.ratio ?? styleProp?.ratio
+  );
   const bannerRadius = asNumber(rp?.bannerRadius ?? rp?.imageCorner ?? layoutCss?.slider?.bannerRadius, 0);
 
   const paddingRaw = styleProp?.paddingRaw || {};
@@ -182,8 +217,13 @@ export default function BannerSlider({ section }) {
   const headingWeight = parseFontWeight(rp?.headingWeight ?? layoutCss?.heading?.fontWeight, "700");
   const headingItalic = asBoolean(rp?.headingItalic, false);
   const headingUnderline = asBoolean(rp?.headingUnderline, false);
+  const headingStrikethrough = asBoolean(rp?.headingStrikethrough, false);
   const headingTransform = (layoutCss?.heading?.textTransform || "none").toLowerCase();
   const headingLetterSpacing = asNumber(layoutCss?.heading?.letterSpacing, 0);
+  const headingDecorationLine = resolveTextDecorationLine({
+    underline: headingUnderline,
+    strikethrough: headingStrikethrough,
+  });
 
   // ── Subheading ──
   const subheadingColor  = rp?.subheadingColor  || layoutCss?.subheading?.color  || "#E5E7EB";
@@ -247,6 +287,66 @@ export default function BannerSlider({ section }) {
   const buttonIconSize = asNumber(rp?.iconSize, 14);
   const buttonIconColor = rp?.iconColor || buttonTextColor;
   const buttonIconGap = asNumber(rp?.iconGap ?? rp?.buttonIconGap, 6);
+  const [containerWidth, setContainerWidth] = useState(Math.max(windowWidth, 1));
+
+  const bannerHeight = useMemo(() => {
+    const availableWidth = Math.max(containerWidth || windowWidth || 1, 1);
+    const textWidth = Math.max(availableWidth - slidePl - slidePr, 1);
+
+    const estimateSlideHeight = (slide) => {
+      const headlineText = String(slide?.headline || "").trim();
+      const subtextText = String(slide?.subtext || "").trim();
+      const showSlideButton = showButton && !!slide?.buttonLabel;
+
+      const headlineLines = headlineText
+        ? Math.max(1, Math.ceil((headlineText.length * headingSize * 0.55) / textWidth))
+        : 0;
+      const subheadingLines = subtextText
+        ? Math.max(1, Math.ceil((subtextText.length * subheadingSize * 0.5) / textWidth))
+        : 0;
+
+      const headlineBlock = headlineLines ? headlineLines * headingSize * 1.25 : 0;
+      const subheadingBlock = subheadingLines ? subheadingLines * subheadingSize * 1.4 : 0;
+      const buttonBlock = showSlideButton ? buttonFontSize * 1.8 + buttonPt + buttonPb + 8 : 0;
+      const gapCount = [headlineBlock, subheadingBlock, buttonBlock].filter(Boolean).length;
+      const gapSpace = gapCount > 1 ? (gapCount - 1) * 8 : 0;
+
+      return slidePt + slidePb + headlineBlock + subheadingBlock + buttonBlock + gapSpace + 24;
+    };
+
+    const estimatedContentHeight = slides.reduce(
+      (maxHeight, slide) => Math.max(maxHeight, estimateSlideHeight(slide)),
+      0
+    );
+    const responsiveHeight = bannerRatio
+      ? Math.round(availableWidth / bannerRatio)
+      : Math.round(availableWidth * 0.52);
+
+    const fallbackHeight = Math.max(estimatedContentHeight, responsiveHeight, 160);
+    const maxMobileHeight = Math.max(180, Math.round((windowHeight || 0) * 0.4));
+
+    return clamp(
+      requestedBannerHeight ?? fallbackHeight,
+      160,
+      maxMobileHeight
+    );
+  }, [
+    bannerRatio,
+    buttonFontSize,
+    buttonPb,
+    buttonPt,
+    containerWidth,
+    requestedBannerHeight,
+    showButton,
+    slidePb,
+    slidePl,
+    slidePt,
+    slides,
+    subheadingSize,
+    headingSize,
+    windowHeight,
+    windowWidth,
+  ]);
 
   // ── Indicators ──
   const indicatorSize = asNumber(rp?.indicatorSize, 7);
@@ -256,23 +356,16 @@ export default function BannerSlider({ section }) {
   const indicatorPosition = (
     rp?.indicatorPosition ||
     layoutCss?.slider?.indicatorPosition ||
-    (bannerHeight >= screenHeight ? "inside-bottom" : "bottom")
+    "bottom"
   ).toLowerCase();
-  const indicatorsInside = bannerHeight >= screenHeight
-    || indicatorPosition === "inside"
-    || indicatorPosition === "inside-bottom";
+  const indicatorsInside =
+    indicatorPosition === "inside" || indicatorPosition === "inside-bottom";
 
   // ── Scroll state ──
   const scrollRef = useRef(null);
   const indexRef = useRef(0);
   const [currentIndex, setCurrentIndex] = useState(0);
   const scrollX = useRef(new Animated.Value(0)).current;
-  // containerWidth = full layout width (no horizontal padding subtracted).
-  // The slider is always full-bleed; text inner padding uses slidePl/slidePr.
-  const [containerWidth, setContainerWidth] = useState(
-    Math.max(Dimensions.get("window").width, 1)
-  );
-
   useEffect(() => {
     indexRef.current = 0;
     setCurrentIndex(0);
@@ -396,12 +489,12 @@ export default function BannerSlider({ section }) {
                       fontWeight: headingWeight,
                       textAlign: headingAlign,
                       fontStyle: headingItalic ? "italic" : "normal",
-                      textDecorationLine: headingUnderline ? "underline" : "none",
+                      textDecorationLine: headingDecorationLine,
                       textTransform: headingTransform !== "none" ? headingTransform : undefined,
                       letterSpacing: headingLetterSpacing || undefined,
                       width: "100%",
                     },
-                    slide.titleStrikethrough && styles.strikethrough,
+                    { textDecorationLine: slide.titleDecorationLine },
                   ]}
                 >
                   {slide.headline}
@@ -420,7 +513,7 @@ export default function BannerSlider({ section }) {
                       textAlign: subheadingAlign,
                       width: "100%",
                     },
-                    slide.subtitleStrikethrough && styles.strikethrough,
+                    { textDecorationLine: slide.subtitleDecorationLine },
                   ]}
                 >
                   {trimmedSubtext}
@@ -463,7 +556,7 @@ export default function BannerSlider({ section }) {
                           fontSize: buttonFontSize,
                           fontWeight: buttonFontWeight,
                         },
-                        slide.buttonStrikethrough && styles.strikethrough,
+                        { textDecorationLine: slide.buttonDecorationLine },
                       ]}
                     >
                       {slide.buttonLabel}

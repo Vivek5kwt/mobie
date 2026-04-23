@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import FontAwesome from "react-native-vector-icons/FontAwesome";
+import { resolveTextDecorationLine } from "../utils/textDecoration";
 
 const unwrapValue = (value, fallback = undefined) => {
   if (value === undefined || value === null) return fallback;
@@ -101,6 +102,13 @@ export default function ProductDescription({ section }) {
   const titleFontSize  = toNumber(titleCss?.style?.fontSize, 14);
   const titleColor     = toString(titleCss?.style?.color, "#111827");
   const titleWeight    = toString(titleCss?.style?.fontWeight, "700");
+  const titleItalic    = toBoolean(titleCss?.style?.italic, false);
+  const titleUnderline = toBoolean(titleCss?.style?.underline, false);
+  const titleStrikethrough = toBoolean(titleCss?.style?.strikethrough, false);
+  const titleDecorationLine = resolveTextDecorationLine({
+    underline: titleUnderline,
+    strikethrough: titleStrikethrough,
+  });
 
   // ── Body style ─────────────────────────────────────────────────────────────
   const bodyFontSize  = toNumber(infoCss?.descriptionStyle?.fontSize, 12);
@@ -108,6 +116,11 @@ export default function ProductDescription({ section }) {
   const bodyWeight    = toString(infoCss?.descriptionStyle?.fontWeight, "400");
   const bodyItalic    = toBoolean(infoCss?.descriptionStyle?.italic, false);
   const bodyUnderline = toBoolean(infoCss?.descriptionStyle?.underline, false);
+  const bodyStrikethrough = toBoolean(infoCss?.descriptionStyle?.strikethrough, false);
+  const bodyDecorationLine = resolveTextDecorationLine({
+    underline: bodyUnderline,
+    strikethrough: bodyStrikethrough,
+  });
 
   // ── Arrow / chevron colour ─────────────────────────────────────────────────
   const arrowColor = (() => {
@@ -155,6 +168,8 @@ export default function ProductDescription({ section }) {
                 fontSize:   titleFontSize,
                 color:      titleColor,
                 fontWeight: String(titleWeight),
+                fontStyle:  titleItalic ? "italic" : "normal",
+                textDecorationLine: titleDecorationLine,
                 flex: 1,
               }}
             >
@@ -186,7 +201,7 @@ export default function ProductDescription({ section }) {
               color:             bodyColor,
               fontWeight:        String(bodyWeight),
               fontStyle:         bodyItalic    ? "italic"    : "normal",
-              textDecorationLine: bodyUnderline ? "underline" : "none",
+              textDecorationLine: bodyDecorationLine,
               lineHeight:        bodyFontSize * 1.6,
             }}
           >

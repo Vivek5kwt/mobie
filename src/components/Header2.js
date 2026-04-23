@@ -19,6 +19,7 @@ import { useSideMenu } from "../services/SideMenuContext";
 import bottomNavigationStyle1Section from "../data/bottomNavigationStyle1";
 import { searchShopifyProducts } from "../services/shopify";
 import { getAppLogoSync } from "../utils/appInfo";
+import { resolveTextDecorationLine } from "../utils/textDecoration";
 
 const unwrapValue = (value, fallback = undefined) => {
   if (value === undefined || value === null) return fallback;
@@ -740,6 +741,11 @@ export default function Header2({ section }) {
     const headerTextBold = resolveBooleanSetting(rawPropsNode.headerTextBold, false);
     const headerTextItalic = resolveBooleanSetting(rawPropsNode.headerTextItalic, false);
     const headerTextUnderline = resolveBooleanSetting(rawPropsNode.headerTextUnderline, false);
+    const headerTextStrikethrough = resolveBooleanSetting(rawPropsNode.headerTextStrikethrough, false);
+    const headerTextDecorationLine = resolveTextDecorationLine({
+      underline: headerTextUnderline,
+      strikethrough: headerTextStrikethrough,
+    });
     const headerTextAlign = String(resolveValue(rawPropsNode.headerTextAlign, "center")).toLowerCase();
     const headerFontFamily = resolveValue(rawPropsNode.headerFontFamily, undefined);
     const headerFontWeight = resolveFontWeight(
@@ -757,7 +763,7 @@ export default function Header2({ section }) {
       color: headerTextColor,
       fontWeight: headerTextBold ? "700" : headerFontWeight,
       fontStyle: headerTextItalic ? "italic" : "normal",
-      textDecorationLine: headerTextUnderline ? "underline" : "none",
+      textDecorationLine: headerTextDecorationLine,
       textAlign: headerTextAlign,
       fontFamily: headerFontFamily,
     };

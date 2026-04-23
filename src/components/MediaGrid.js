@@ -11,6 +11,7 @@ import {
 } from "react-native";
 import { useNavigation } from "@react-navigation/native";
 import { convertStyles } from "../utils/convertStyles";
+import { resolveTextDecorationLine } from "../utils/textDecoration";
 import { fetchShopifyProductsPage } from "../services/shopify";
 
 const unwrapValue = (value, fallback = undefined) => {
@@ -42,6 +43,31 @@ const toNumber = (value, fallback) => {
   if (typeof resolved === "number") return resolved;
   const parsed = parseFloat(resolved);
   return Number.isNaN(parsed) ? fallback : parsed;
+};
+
+const resolveRadius = (value, fallback = 0) => {
+  const candidates = Array.isArray(value) ? value : [value];
+
+  for (const candidate of candidates) {
+    const resolved = unwrapValue(candidate, undefined);
+    if (resolved === undefined || resolved === null || resolved === "") continue;
+    if (typeof resolved === "number") return resolved;
+    if (typeof resolved === "string") {
+      const trimmed = resolved.trim();
+      if (!trimmed) continue;
+      if (trimmed.includes("%") || trimmed === "999px" || trimmed === "9999px") {
+        return 9999;
+      }
+      const parsed = parseFloat(trimmed);
+      if (!Number.isNaN(parsed)) return parsed;
+      continue;
+    }
+
+    const parsed = toNumber(resolved, undefined);
+    if (parsed !== undefined) return parsed;
+  }
+
+  return fallback;
 };
 
 const toString = (value, fallback = "") => {
@@ -81,6 +107,7 @@ function MediaCard({
   cardWidth,
   fixedAspectRatio,   // null → use Image.getSize
   cardRadius,
+  imageRadius,
   showCardTitle,
   cardTitleColor,
   cardTitleSize,
@@ -121,17 +148,17 @@ function MediaCard({
       <View
         style={[
           styles.mediaContainer,
-          { width: cardWidth, height: imageHeight, borderRadius: cardRadius },
+          { width: cardWidth, height: imageHeight, borderRadius: imageRadius },
         ]}
       >
         {item.src ? (
           <Image
             source={{ uri: item.src }}
-            style={[styles.media, mediaStyle]}
+            style={[styles.media, mediaStyle, { borderRadius: imageRadius }]}
             resizeMode="cover"
           />
         ) : (
-          <View style={[styles.placeholder, mediaStyle]}>
+          <View style={[styles.placeholder, mediaStyle, { borderRadius: imageRadius }]}>
             <Text style={styles.placeholderText}>
               {item.title ? item.title.charAt(0).toUpperCase() : "?"}
             </Text>
@@ -155,7 +182,10 @@ function MediaCard({
               fontSize: cardTitleSize,
               fontWeight: toBoolean(item.titleBold, false) ? "700" : cardTitleWeight,
               fontStyle: toBoolean(item.titleItalic, false) ? "italic" : "normal",
-              textDecorationLine: toBoolean(item.titleUnderline, false) ? "underline" : "none",
+              textDecorationLine: resolveTextDecorationLine({
+                underline: toBoolean(item.titleUnderline, false),
+                strikethrough: toBoolean(item.titleStrikethrough, false),
+              }),
               textAlign: cardTitleAlign,
               padding: 8,
             },
@@ -201,6 +231,7 @@ const normalizeItems = (rawItems) => {
       const titleBold = unwrapValue(props.titleBold, false);
       const titleItalic = unwrapValue(props.titleItalic, false);
       const titleUnderline = unwrapValue(props.titleUnderline, false);
+      const titleStrikethrough = unwrapValue(props.titleStrikethrough, false);
 
       if (!title && !src && !subtitle) return null;
       return {
@@ -213,6 +244,7 @@ const normalizeItems = (rawItems) => {
         titleBold,
         titleItalic,
         titleUnderline,
+        titleStrikethrough,
       };
     })
     .filter(Boolean);
@@ -233,7 +265,6 @@ export default function MediaGrid({ section }) {
 
   const columns = Math.max(1, toNumber(rawProps?.columns, 2));
   const gap = toNumber(rawProps?.cardGap, 8);
-  const cardRadius = toNumber(rawProps?.cardRadius, 8);
   // null means "Auto" — MediaCard will call Image.getSize per item
   const cardAspectRatio = parseAspectRatio(rawProps?.cardAspectRatio);
 
@@ -247,6 +278,11 @@ export default function MediaGrid({ section }) {
   const headerBold = toBoolean(rawProps?.headerBold, false);
   const headerItalic = toBoolean(rawProps?.headerItalic, false);
   const headerUnderline = toBoolean(rawProps?.headerUnderline, false);
+  const headerStrikethrough = toBoolean(rawProps?.headerStrikethrough, false);
+  const headerDecorationLine = resolveTextDecorationLine({
+    underline: headerUnderline,
+    strikethrough: headerStrikethrough,
+  });
 
   const showButton = toBoolean(rawProps?.showButton, false);
   const buttonLabel = unwrapValue(rawProps?.buttonLabel, "View all");
@@ -257,6 +293,14 @@ export default function MediaGrid({ section }) {
   const buttonTextBold = toBoolean(rawProps?.buttonTextBold, false);
   const buttonTextItalic = toBoolean(rawProps?.buttonTextItalic, false);
   const buttonTextUnderline = toBoolean(rawProps?.buttonTextUnderline, false);
+  const buttonTextStrikethrough = toBoolean(
+    rawProps?.buttonTextStrikethrough ?? rawProps?.buttonStrikethrough,
+    false
+  );
+  const buttonTextDecorationLine = resolveTextDecorationLine({
+    underline: buttonTextUnderline,
+    strikethrough: buttonTextStrikethrough,
+  });
   const buttonPaddingTop = toNumber(rawProps?.buttonPaddingTop, 10);
   const buttonPaddingBottom = toNumber(rawProps?.buttonPaddingBottom, 10);
   const buttonPaddingLeft = toNumber(rawProps?.buttonPaddingLeft, 40);
@@ -361,6 +405,63 @@ export default function MediaGrid({ section }) {
   const horizontalPadding = (contentPadding.paddingLeft || 0) + (contentPadding.paddingRight || 0);
   const totalGap = gap * (columns - 1);
   const computedCardWidth = (screenWidth - horizontalPadding - totalGap) / columns;
+  // Corner radii stay square by default and only round when the DSL/DSR asks for it.
+  const containerBorderRadius = resolveRadius(
+    [
+      rawProps?.style?.borderRadius,
+      rawProps?.style?.radius,
+      rawProps?.style?.cornerRadius,
+      rawProps?.containerBorderRadius,
+      rawProps?.borderRadius,
+      rawProps?.radius,
+      containerStyle?.borderRadius,
+      layoutCss?.container?.borderRadius,
+    ],
+    0
+  );
+  const cardBorderRadius = resolveRadius(
+    [
+      rawProps?.style?.cardBorderRadius,
+      rawProps?.style?.cardRadius,
+      rawProps?.style?.cardCorner,
+      rawProps?.style?.cardCornerRadius,
+      rawProps?.cardRadius,
+      rawProps?.cardBorderRadius,
+      rawProps?.cardCorner,
+      rawProps?.cardCornerRadius,
+      rawProps?.cornerRadius,
+      cardStyle?.borderRadius,
+      layoutCss?.card?.borderRadius,
+    ],
+    0
+  );
+  const imageBorderRadius = resolveRadius(
+    [
+      rawProps?.style?.imageCorner,
+      rawProps?.style?.imageCornerRadius,
+      rawProps?.style?.imageRadius,
+      rawProps?.imageCorner,
+      rawProps?.imageCornerRadius,
+      rawProps?.imageRadius,
+      rawProps?.cardRadius,
+      rawProps?.cardBorderRadius,
+      rawProps?.cardCorner,
+      rawProps?.cardCornerRadius,
+      rawProps?.cornerRadius,
+      mediaStyle?.borderRadius,
+      cardStyle?.borderRadius,
+      layoutCss?.media?.borderRadius,
+      layoutCss?.image?.borderRadius,
+      layoutCss?.card?.borderRadius,
+    ],
+    cardBorderRadius
+  );
+  const {
+    backgroundColor: _containerBackgroundColor,
+    background: _containerBackground,
+    borderRadius: _containerBorderRadius,
+    ...containerStyleWithoutRadius
+  } = containerStyle;
 
   const handleItemPress = (item) => {
     const ref  = (item.navigateRef  || "").trim();
@@ -381,7 +482,8 @@ export default function MediaGrid({ section }) {
       item={item}
       cardWidth={computedCardWidth}
       fixedAspectRatio={cardAspectRatio}
-      cardRadius={cardRadius}
+      cardRadius={cardBorderRadius}
+      imageRadius={imageBorderRadius}
       showCardTitle={showCardTitle}
       cardTitleColor={cardTitleColor}
       cardTitleSize={cardTitleSize}
@@ -396,15 +498,13 @@ export default function MediaGrid({ section }) {
 
   if (!resolvedItems.length && !isLoading && !loadError) return null;
 
-  // borderRadius from CSS (e.g. "12px" → 12) wins over the default stylesheet value
-  const containerBorderRadius = containerStyle?.borderRadius ?? 12;
 
   return (
     <View
       style={[
         styles.container,
+        containerStyleWithoutRadius,
         { backgroundColor: bgColor, borderRadius: containerBorderRadius },
-        containerStyle,
         contentPadding,
       ]}
     >
@@ -418,7 +518,7 @@ export default function MediaGrid({ section }) {
               fontSize: headerSize,
               fontWeight: headerBold ? "700" : "600",
               fontStyle: headerItalic ? "italic" : "normal",
-              textDecorationLine: headerUnderline ? "underline" : "none",
+              textDecorationLine: headerDecorationLine,
             },
           ]}
         >
@@ -473,7 +573,7 @@ export default function MediaGrid({ section }) {
                 fontSize: buttonFontSize,
                 fontWeight: buttonTextBold ? "700" : "600",
                 fontStyle: buttonTextItalic ? "italic" : "normal",
-                textDecorationLine: buttonTextUnderline ? "underline" : "none",
+                textDecorationLine: buttonTextDecorationLine,
               }}
             >
               {buttonLabel}
@@ -487,7 +587,7 @@ export default function MediaGrid({ section }) {
 
 const styles = StyleSheet.create({
   container: {
-    borderRadius: 12,
+    borderRadius: 0,
   },
   header: {
     marginBottom: 12,
