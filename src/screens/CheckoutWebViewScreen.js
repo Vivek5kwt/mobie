@@ -67,19 +67,100 @@ const buildOrderFromCart = (capturedItems, url) => {
   };
 };
 
-// Returns true only on the final Shopify thank-you / order-status page.
-// Must NOT match intermediate checkout steps like /checkouts/.../contact etc.
+// ── URL-based order detection ─────────────────────────────────────────────────
+// Covers all known Shopify thank-you URL patterns across checkout versions.
 const isOrderCompleteUrl = (url) => {
   if (!url) return false;
   const lower = url.toLowerCase();
   return (
-    lower.includes("thank_you") ||
-    lower.includes("thankyou") ||
-    lower.includes("order_status") ||
-    // Shopify thank-you path pattern: /orders/<id>/authenticate or /orders/<id> at the end
-    /\/orders\/[a-z0-9]+(\?|$)/.test(lower)
+    lower.includes("thank_you")         ||
+    lower.includes("thankyou")          ||
+    lower.includes("thank-you")         ||
+    lower.includes("order_status")      ||
+    lower.includes("order-status")      ||
+    lower.includes("order_confirmed")   ||
+    lower.includes("order-confirmed")   ||
+    lower.includes("order_confirmation")||
+    lower.includes("order-confirmation")||
+    lower.includes("payment_success")   ||
+    lower.includes("payment_successful")||
+    lower.includes("checkout/success")  ||
+    lower.includes("order_placed")      ||
+    // Shopify classic: /checkouts/{token}/thank_you
+    /\/checkouts\/[^/]+\/thank_you/.test(lower) ||
+    // Shopify new checkout: /co/thankyou or /co/thank-you
+    /\/co\/thank/.test(lower)           ||
+    // Shopify order page after auth
+    /\/orders\/[a-z0-9]+(\?|$|\/)/.test(lower)
   );
 };
+
+// ── DOM-based order detection (JavaScript injected into every page) ───────────
+// Detects the Shopify confirmation screen by page content, not just URL.
+// This fires on pages that reach "Your order is confirmed" via SPA navigation
+// without a URL change — which is exactly what newer Shopify checkout does.
+const DETECT_ORDER_JS = `
+(function() {
+  function postComplete(url) {
+    try {
+      window.ReactNativeWebView && window.ReactNativeWebView.postMessage(
+        JSON.stringify({ type: 'SHOPIFY_ORDER_COMPLETE', url: url || window.location.href })
+      );
+    } catch(e) {}
+  }
+
+  function check() {
+    try {
+      var url  = window.location.href.toLowerCase();
+      var title = (document.title || '').toLowerCase();
+
+      // URL-based signals
+      var urlMatch =
+        url.includes('thank_you') || url.includes('thankyou') ||
+        url.includes('thank-you') || url.includes('order_status') ||
+        url.includes('order_confirmed') || url.includes('order_confirmation') ||
+        url.includes('payment_success') || /\\/co\\/thank/.test(url) ||
+        /\\/checkouts\\/[^\\/]+\\/thank_you/.test(url) ||
+        /\\/orders\\/[a-z0-9]+(\\?|$|\\/)/.test(url);
+
+      if (urlMatch) { postComplete(window.location.href); return; }
+
+      // Content-based signals (works when URL doesn't change)
+      var txt = document.body ? (document.body.innerText || '').toLowerCase() : '';
+      var contentMatch =
+        txt.includes('your order is confirmed') ||
+        txt.includes('thank you for your order') ||
+        txt.includes('order is confirmed')       ||
+        txt.includes('order confirmed')          ||
+        txt.includes('order has been placed')    ||
+        txt.includes('order has been received')  ||
+        txt.includes('your order has been placed') ||
+        !!document.querySelector('[data-order-number]') ||
+        !!document.querySelector('.os-header__heading') ||
+        !!document.querySelector('.os-header') ||
+        !!document.querySelector('[class*="thankYou"], [class*="thank-you"], [class*="order-confirmed"]') ||
+        (title.includes('thank you') || title.includes('order confirmed'));
+
+      if (contentMatch) { postComplete(window.location.href); }
+    } catch(e) {}
+  }
+
+  // Run immediately after page loads
+  check();
+  // Also run after short delays to catch SPA re-renders
+  setTimeout(check, 1000);
+  setTimeout(check, 2500);
+  setTimeout(check, 5000);
+
+  // Watch for DOM mutations (SPA navigation changes content without URL change)
+  try {
+    var observer = new MutationObserver(function() { check(); });
+    observer.observe(document.documentElement, { childList: true, subtree: true });
+  } catch(e) {}
+
+  true; // Required return value for RN injectedJavaScript
+})();
+`;
 
 // ── Component ─────────────────────────────────────────────────────────────────
 
@@ -106,36 +187,14 @@ export default function CheckoutWebViewScreen() {
   );
   const userId = session?.user?.id ?? null;
 
-  // ── Back handling ─────────────────────────────────────────────────────────
-  // Priority: 1) navigate back inside WebView  2) go back in nav stack
-  const handleBack = useCallback(() => {
-    if (canGoBack && webViewRef.current) {
-      webViewRef.current.goBack();
-      return true; // consumed — don't propagate to nav
-    }
-    navigation.goBack();
-    return true;
-  }, [canGoBack, navigation]);
-
-  // Android hardware back button
-  useEffect(() => {
-    const sub = BackHandler.addEventListener("hardwareBackPress", handleBack);
-    return () => sub.remove();
-  }, [handleBack]);
-
-  // ── Order complete detection ───────────────────────────────────────────────
-  const handleNavigationStateChange = useCallback(
-    (navState) => {
-      // Track WebView back-history so our back button knows what to do
-      setCanGoBack(!!navState?.canGoBack);
-
-      if (!navState?.url || hasCompletedOrderRef.current) return;
-      if (!isOrderCompleteUrl(navState.url)) return;
-
+  // ── Shared order-complete handler (used by URL detection AND JS injection) ──
+  const handleOrderComplete = useCallback(
+    (completedUrl) => {
+      if (hasCompletedOrderRef.current) return;
       hasCompletedOrderRef.current = true;
 
       const capturedItems = capturedItemsRef.current || [];
-      const order         = buildOrderFromCart(capturedItems, navState.url);
+      const order         = buildOrderFromCart(capturedItems, completedUrl || "");
 
       triggerOrderNotification({
         type:        ORDER_EVENTS.ORDER_PLACED,
@@ -144,22 +203,61 @@ export default function CheckoutWebViewScreen() {
         userId,
       }).catch(() => {});
 
-      // Small delay so WebView finishes rendering the thank-you page visually
-      // before we replace the stack with PostPurchase
+      // Small delay so the WebView finishes its last render before we leave
       setTimeout(() => {
         navigation.reset({
           index:  0,
           routes: [{
-            name: "PostPurchase",
+            name:   "PostPurchase",
             params: {
               capturedItems: capturedItemsRef.current || [],
-              appId: resolvedAppId,
+              appId:         resolvedAppId,
             },
           }],
         });
       }, 600);
     },
     [navigation, resolvedAppId, userId]
+  );
+
+  // ── Back handling ─────────────────────────────────────────────────────────
+  const handleBack = useCallback(() => {
+    if (canGoBack && webViewRef.current) {
+      webViewRef.current.goBack();
+      return true;
+    }
+    navigation.goBack();
+    return true;
+  }, [canGoBack, navigation]);
+
+  useEffect(() => {
+    const sub = BackHandler.addEventListener("hardwareBackPress", handleBack);
+    return () => sub.remove();
+  }, [handleBack]);
+
+  // ── URL-based order detection ─────────────────────────────────────────────
+  const handleNavigationStateChange = useCallback(
+    (navState) => {
+      setCanGoBack(!!navState?.canGoBack);
+      if (!navState?.url || hasCompletedOrderRef.current) return;
+      if (isOrderCompleteUrl(navState.url)) {
+        handleOrderComplete(navState.url);
+      }
+    },
+    [handleOrderComplete]
+  );
+
+  // ── DOM-based order detection (message from injected JS) ─────────────────
+  const handleWebViewMessage = useCallback(
+    (event) => {
+      try {
+        const data = JSON.parse(event.nativeEvent.data);
+        if (data?.type === "SHOPIFY_ORDER_COMPLETE") {
+          handleOrderComplete(data.url || checkoutUrl || "");
+        }
+      } catch (_) {}
+    },
+    [handleOrderComplete, checkoutUrl]
   );
 
   // ── WebView loading states ────────────────────────────────────────────────
@@ -201,7 +299,6 @@ export default function CheckoutWebViewScreen() {
           <Text style={styles.title} numberOfLines={1}>
             {headerTitle}
           </Text>
-          {/* Placeholder to keep title centred */}
           <View style={styles.backButton} />
         </View>
 
@@ -231,6 +328,8 @@ export default function CheckoutWebViewScreen() {
               onError={handleError}
               onHttpError={handleError}
               onNavigationStateChange={handleNavigationStateChange}
+              onMessage={handleWebViewMessage}
+              injectedJavaScript={DETECT_ORDER_JS}
               startInLoadingState={false}
               javaScriptEnabled
               domStorageEnabled
@@ -240,7 +339,6 @@ export default function CheckoutWebViewScreen() {
               style={styles.webView}
             />
 
-            {/* Loading overlay — shown between Shopify checkout steps */}
             {isLoading && (
               <View style={styles.loadingOverlay}>
                 <ActivityIndicator color="#0EA5E9" size="large" />
@@ -260,11 +358,11 @@ const styles = StyleSheet.create({
     backgroundColor: "#ffffff",
   },
   header: {
-    flexDirection:    "row",
-    alignItems:       "center",
-    justifyContent:   "space-between",
+    flexDirection:     "row",
+    alignItems:        "center",
+    justifyContent:    "space-between",
     paddingHorizontal: 16,
-    paddingVertical:  12,
+    paddingVertical:   12,
     borderBottomWidth: 1,
     borderBottomColor: "#E5E7EB",
   },
@@ -300,11 +398,11 @@ const styles = StyleSheet.create({
     fontSize:  15,
   },
   centreWrap: {
-    flex:           1,
-    alignItems:     "center",
-    justifyContent: "center",
+    flex:              1,
+    alignItems:        "center",
+    justifyContent:    "center",
     paddingHorizontal: 32,
-    gap:            16,
+    gap:               16,
   },
   errorText: {
     color:     "#374151",
