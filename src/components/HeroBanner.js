@@ -716,16 +716,19 @@ export default function HeroBanner({ section }) {
     ? toNumber(metricElements.container.height, undefined)
     : undefined;
 
-  // With both image and content overlay being position:absolute, the container
-  // has zero natural height from children — it needs an explicit height.
+  // When an image is present, the content View is position:absolute (overlays the image),
+  // so the container needs an explicit height — it gets no natural height from absolute children.
+  // When there is NO image, content is in normal flow and the container grows to fit the text.
   const SCREEN_WIDTH = Dimensions.get("window").width;
   const DEFAULT_BANNER_HEIGHT = Math.round(SCREEN_WIDTH * 0.55); // ~55% of screen width
 
   const containerHeightStyle = numericContainerHeight
     ? { height: numericContainerHeight }
     : imageAspectRatio
-    ? {} // aspectRatio handles height below
-    : { height: imageSrc ? DEFAULT_BANNER_HEIGHT : undefined };
+    ? {} // aspectRatio handles height
+    : imageSrc
+    ? { height: DEFAULT_BANNER_HEIGHT } // image present — need explicit height
+    : {}; // text-only banner — container grows naturally with content
 
   const innerContainerStyle = [
     styles.container,
@@ -762,19 +765,21 @@ export default function HeroBanner({ section }) {
         />
       ) : null}
 
+      {/* When image is present: content overlays it (position:absolute).
+          When no image: content is in normal flow so the container grows to fit the text. */}
       <View
         style={[
-          styles.content,
+          imageSrc ? styles.content : styles.contentInline,
           {
             alignItems: alignSettingsEnabled ? alignItems : "center",
             paddingTop: hasTextContent
               ? (alignSettingsEnabled
-                  ? paddingTop > 0 ? paddingTop : (numericContainerHeight ? 0 : 40)
-                  : 40)
+                  ? paddingTop > 0 ? paddingTop : (imageSrc ? 0 : 24)
+                  : imageSrc ? 40 : 24)
               : 0,
-            paddingRight: hasTextContent ? (alignSettingsEnabled ? paddingRight : 30) : 0,
-            paddingBottom: hasTextContent ? (alignSettingsEnabled ? paddingBottom : 50) : 0,
-            paddingLeft: hasTextContent ? (alignSettingsEnabled ? paddingLeft : 30) : 0,
+            paddingRight:  hasTextContent ? (alignSettingsEnabled ? paddingRight  : 30) : 0,
+            paddingBottom: hasTextContent ? (alignSettingsEnabled ? paddingBottom : (imageSrc ? 50 : 24)) : 0,
+            paddingLeft:   hasTextContent ? (alignSettingsEnabled ? paddingLeft   : 30) : 0,
           },
         ]}
       >
@@ -934,5 +939,12 @@ const styles = StyleSheet.create({
   },
   buttonText: {
     textAlign: "center",
+  },
+  contentInline: {
+    position: "relative",
+    width: "100%",
+    justifyContent: "center",
+    alignItems: "center",
+    zIndex: 2,
   },
 });
