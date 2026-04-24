@@ -9,6 +9,7 @@ import {
 import { useDispatch, useSelector } from "react-redux";
 import FontAwesome from "react-native-vector-icons/FontAwesome";
 import { updateQuantity, removeItem } from "../store/slices/cartSlice";
+import { resolveFA4IconName } from "../utils/faIconAlias";
 
 const unwrapValue = (value, fallback = undefined) => {
   if (value === undefined || value === null) return fallback;
@@ -177,6 +178,18 @@ export default function CartLineItems({ section }) {
   const deleteIconColor = toString(raw?.deleteIconColor, "#9CA3AF");
   const deleteIconSize = toNumber(raw?.deleteIconSize, 16);
 
+  // Item icon (e.g. vendor/profile icon from DSR brandKit — shown top-right of each card)
+  const showItemIcon   = toBoolean(raw?.showItemIcon ?? raw?.showVendorIcon ?? raw?.showCardIcon, false);
+  const rawItemIcon    = toString(
+    raw?.itemIcon ?? raw?.itemIconName ?? raw?.vendorIcon ?? raw?.cardIcon ?? raw?.iconName ?? raw?.icon,
+    ""
+  );
+  const itemIconName   = showItemIcon ? (resolveFA4IconName(rawItemIcon) || "user") : null;
+  const itemIconSize   = toNumber(raw?.itemIconSize ?? raw?.cardIconSize ?? raw?.iconSize, 18);
+  const itemIconColor  = toString(raw?.itemIconColor ?? raw?.cardIconColor ?? raw?.iconColor, "#9CA3AF");
+  const itemIconBg     = toString(raw?.itemIconBg ?? raw?.cardIconBg ?? raw?.iconBg, "transparent");
+  const itemIconRadius = toNumber(raw?.itemIconRadius ?? raw?.cardIconRadius, 20);
+
   // Divider between items
   const showDivider = toBoolean(raw?.showDivider, false);
   const dividerColor = toString(raw?.dividerColor, "#F3F4F6");
@@ -269,6 +282,19 @@ export default function CartLineItems({ section }) {
                   <View style={[styles.imagePlaceholder, { backgroundColor: imageBg }]} />
                 )}
               </View>
+
+              {/* Item icon — top-right of card, only when DSR provides it */}
+              {showItemIcon && !!itemIconName && (
+                <View
+                  style={[
+                    styles.itemIconWrap,
+                    { backgroundColor: itemIconBg, borderRadius: itemIconRadius },
+                  ]}
+                  pointerEvents="none"
+                >
+                  <FontAwesome name={itemIconName} size={itemIconSize} color={itemIconColor} />
+                </View>
+              )}
 
               {/* Right content */}
               <View style={styles.info}>
@@ -466,6 +492,17 @@ const styles = StyleSheet.create({
     padding: 12,
     gap: 12,
     overflow: "hidden",
+    position: "relative",
+  },
+  itemIconWrap: {
+    position: "absolute",
+    top: 10,
+    right: 10,
+    width: 32,
+    height: 32,
+    alignItems: "center",
+    justifyContent: "center",
+    zIndex: 2,
   },
   imageWrap: {
     overflow: "hidden",
