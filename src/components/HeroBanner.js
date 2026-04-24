@@ -700,8 +700,6 @@ export default function HeroBanner({ section }) {
     }
     return 0;
   })();
-  const containerHeight = toString(styleProps?.height || layoutCss?.container?.height, "auto");
-
   // Outer card container — transparent by default so no white box appears around the banner
   const outerBgColor = toString(rawProps?.containerBgColor, "transparent");
   const outerBorderColor = toString(rawProps?.containerBorderColor, "transparent");
@@ -739,29 +737,73 @@ export default function HeroBanner({ section }) {
   const hasVisibleContent = hasTextContent || imageSrc;
   if (!hasVisibleContent) return null;
 
-  // Calculate container height:
-  // 1. Explicit numeric height from DSL style/CSS (highest priority)
-  // 2. Metrics container height — builder-defined pixel height (use when CSS says "auto")
-  // 3. No fixed height — container grows with content
-  const numericContainerHeight = containerHeight !== "auto"
-    ? toNumber(containerHeight, undefined)
-    : metricsAvailable && metricElements?.container?.height
-    ? toNumber(metricElements.container.height, undefined)
-    : undefined;
+  // ── Dynamic height resolution ────────────────────────────────────────────
+  // Supports: plain number, "300px", "50%", "50vw", "50vh",
+  //           presets "small" | "medium" | "large" | "fullscreen"
+  const SCREEN_WIDTH  = Dimensions.get("window").width;
+  const SCREEN_HEIGHT = Dimensions.get("window").height;
+  const DEFAULT_BANNER_HEIGHT = Math.round(SCREEN_WIDTH * 0.55);
 
-  // When an image is present, the content View is position:absolute (overlays the image),
-  // so the container needs an explicit height — it gets no natural height from absolute children.
-  // When there is NO image, content is in normal flow and the container grows to fit the text.
-  const SCREEN_WIDTH = Dimensions.get("window").width;
-  const DEFAULT_BANNER_HEIGHT = Math.round(SCREEN_WIDTH * 0.55); // ~55% of screen width
+  const resolveHeightValue = (val) => {
+    if (val === undefined || val === null) return undefined;
+    if (typeof val === "number")  return val > 0 ? val : undefined;
+    if (typeof val !== "string")  return undefined;
+    const t = val.trim().toLowerCase();
+    if (!t || t === "auto" || t === "none") return undefined;
+    if (t === "small")                                  return Math.round(SCREEN_WIDTH * 0.35);
+    if (t === "medium")                                 return Math.round(SCREEN_WIDTH * 0.55);
+    if (t === "large")                                  return Math.round(SCREEN_WIDTH * 0.75);
+    if (t === "full" || t === "fullscreen" || t === "full screen") return SCREEN_HEIGHT;
+    if (t.endsWith("vh"))  { const n = parseFloat(t); return !isNaN(n) && n > 0 ? Math.round(SCREEN_HEIGHT * n / 100) : undefined; }
+    if (t.endsWith("vw"))  { const n = parseFloat(t); return !isNaN(n) && n > 0 ? Math.round(SCREEN_WIDTH  * n / 100) : undefined; }
+    if (t.endsWith("%"))   { const n = parseFloat(t); return !isNaN(n) && n > 0 ? Math.round(SCREEN_WIDTH  * n / 100) : undefined; }
+    if (t.endsWith("px"))  { const n = parseFloat(t); return !isNaN(n) && n > 0 ? n : undefined; }
+    const n = parseFloat(t); return !isNaN(n) && n > 0 ? n : undefined;
+  };
+
+  // Priority order: direct rawProps props → styleProps → layoutCss → metrics fallback
+  const heightSources = [
+    unwrapValue(rawProps?.height,           undefined),
+    unwrapValue(rawProps?.bannerHeight,     undefined),
+    unwrapValue(rawProps?.containerHeight,  undefined),
+    unwrapValue(rawProps?.componentHeight,  undefined),
+    unwrapValue(rawProps?.h,               undefined),
+    unwrapValue(styleProps?.height,         undefined),
+    unwrapValue(layoutCss?.container?.height, undefined),
+  ];
+
+  let numericContainerHeight;
+  for (const src of heightSources) {
+    const resolved = resolveHeightValue(src);
+    if (resolved !== undefined) { numericContainerHeight = resolved; break; }
+  }
+  // Metrics fallback when no explicit height prop was found
+  if (numericContainerHeight === undefined && metricsAvailable && metricElements?.container?.height) {
+    numericContainerHeight = toNumber(metricElements.container.height, undefined);
+  }
+
+  // minHeight — lets the banner grow beyond a floor while still being flexible
+  const minHeightSources = [
+    unwrapValue(rawProps?.minHeight,              undefined),
+    unwrapValue(rawProps?.bannerMinHeight,        undefined),
+    unwrapValue(styleProps?.minHeight,            undefined),
+    unwrapValue(layoutCss?.container?.minHeight,  undefined),
+  ];
+  let numericMinHeight;
+  for (const src of minHeightSources) {
+    const resolved = resolveHeightValue(src);
+    if (resolved !== undefined) { numericMinHeight = resolved; break; }
+  }
+
+  const minHeightProp = numericMinHeight ? { minHeight: numericMinHeight } : {};
 
   const containerHeightStyle = numericContainerHeight
-    ? { height: numericContainerHeight }
+    ? { height: numericContainerHeight, ...minHeightProp }
     : imageAspectRatio
-    ? {} // aspectRatio handles height
+    ? { ...minHeightProp }                              // aspectRatio drives height
     : imageSrc
-    ? { height: DEFAULT_BANNER_HEIGHT } // image present — need explicit height
-    : {}; // text-only banner — container grows naturally with content
+    ? { height: DEFAULT_BANNER_HEIGHT, ...minHeightProp } // image present — needs explicit height
+    : { ...minHeightProp };                             // text-only — grows with content
 
   const innerContainerStyle = [
     styles.container,

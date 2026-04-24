@@ -306,6 +306,10 @@ export default function MediaGrid({ section }) {
   const buttonPaddingLeft = toNumber(rawProps?.buttonPaddingLeft, 40);
   const buttonPaddingRight = toNumber(rawProps?.buttonPaddingRight, 40);
 
+  const alignRaw = (unwrapValue(rawProps?.align, "left") || "left").toLowerCase();
+  const buttonJustify =
+    alignRaw === "center" ? "center" : alignRaw === "right" ? "flex-end" : "flex-start";
+
   const showCardTitle = toBoolean(rawProps?.showCardTitle, true);
   const showGrid = toBoolean(rawProps?.showGrid, true);
   const showMediaCard = toBoolean(rawProps?.showMediaCard, true);
@@ -551,7 +555,7 @@ export default function MediaGrid({ section }) {
       )}
 
       {showButton && !!buttonLabel && (
-        <View style={[styles.buttonRow, { marginTop: 12 }, buttonRowStyle]}>
+        <View style={[styles.buttonRow, { marginTop: 12 }, buttonRowStyle, { justifyContent: buttonJustify }]}>
           <TouchableOpacity
             activeOpacity={0.85}
             style={[

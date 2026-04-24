@@ -19,6 +19,7 @@ import {
 import { addItem } from "../store/slices/cartSlice";
 import { toggleWishlist } from "../store/slices/wishlistSlice";
 import { resolveFA4IconName } from "../utils/faIconAlias";
+import { resolveTextDecorationLine } from "../utils/textDecoration";
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -130,6 +131,21 @@ export default function TabProductGrid({ section }) {
   const layoutCardTitleCss = layoutCss?.cardTitle || layoutCss?.title || {};
   const layoutCardPriceCss = layoutCss?.price || layoutCss?.priceText || {};
   const layoutAddToCartCss = layoutCss?.addToCartButton || layoutCss?.addToCart || {};
+
+  // ── Header props ──────────────────────────────────────────────────────────
+  const showHeader      = toBool(rawConfig?.showHeader, false);
+  const headerText      = toStr(rawConfig?.headerText ?? rawConfig?.title ?? rawConfig?.sectionTitle, "");
+  const headerSize      = toNum(rawConfig?.headerSize ?? rawConfig?.headerFontSize ?? rawConfig?.titleSize, 16);
+  const headerColor     = toStr(rawConfig?.headerColor ?? rawConfig?.titleColor, "#111827");
+  const headerBold      = toBool(rawConfig?.headerBold, false);
+  const headerItalic    = toBool(rawConfig?.headerItalic, false);
+  const headerUnderline = toBool(rawConfig?.headerUnderline, false);
+  const headerStrike    = toBool(rawConfig?.headerStrikethrough, false);
+  const headerFamily    = toStr(rawConfig?.headerFontFamily ?? rawConfig?.titleFontFamily, undefined) || undefined;
+  const headerWeight    = toFontWeight(rawConfig?.headerFontWeight ?? rawConfig?.headerWeight, headerBold ? "700" : "600");
+  const headerAlignRaw  = toStr(rawConfig?.headerAlign ?? rawConfig?.titleAlign, "left").toLowerCase();
+  const headerTextAlign = headerAlignRaw === "center" ? "center" : headerAlignRaw === "right" ? "right" : "left";
+  const headerDecorationLine = resolveTextDecorationLine({ underline: headerUnderline, strikethrough: headerStrike });
 
   const tabs = useMemo(() => normalizeTabs(rawConfig?.tabs || []), [rawConfig?.tabs]);
 
@@ -481,6 +497,26 @@ export default function TabProductGrid({ section }) {
         },
       ]}
     >
+      {/* ── Section Header ── */}
+      {showHeader && !!headerText && (
+        <Text
+          style={[
+            styles.sectionHeader,
+            {
+              color: headerColor,
+              fontSize: headerSize,
+              fontWeight: headerWeight,
+              fontStyle: headerItalic ? "italic" : "normal",
+              textDecorationLine: headerDecorationLine,
+              textAlign: headerTextAlign,
+              ...(headerFamily ? { fontFamily: headerFamily } : {}),
+            },
+          ]}
+        >
+          {headerText}
+        </Text>
+      )}
+
       {/* ── Tab Bar ── */}
       <View style={[styles.tabBar, { backgroundColor: tabBarBg }]}>
         <ScrollView
@@ -672,6 +708,10 @@ export default function TabProductGrid({ section }) {
 const styles = StyleSheet.create({
   container: {
     width: "100%",
+  },
+  sectionHeader: {
+    marginBottom: 10,
+    lineHeight: 22,
   },
   tabBar: {
     marginBottom: 12,
