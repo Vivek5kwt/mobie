@@ -17,7 +17,13 @@ import { getAppNameSync, getAppLogoSync } from "../utils/appInfo";
 const { width: W, height: H } = Dimensions.get("window");
 const DEFAULT_LOGO = require("../assets/logo/mobidraglogo.png");
 
-// ── Animated particles ─────────────────────────────────────────────────────
+// Minimum time the splash is visible — long enough to show the brand,
+// short enough not to annoy users. Navigation happens when BOTH this
+// flag AND auth initialisation are done (whichever takes longer).
+const MIN_SPLASH_MS = 1200;
+
+// ── Animated particles ────────────────────────────────────────────────────────
+// Reduced from 18 → 8 to cut animation overhead on cold start.
 function Particle({ delay, size, startX, startY, color }) {
   const anim = useRef(new Animated.Value(0)).current;
 
@@ -27,22 +33,22 @@ function Particle({ delay, size, startX, startY, color }) {
         Animated.delay(delay),
         Animated.timing(anim, {
           toValue: 1,
-          duration: 2800 + Math.random() * 1200,
+          duration: 2400 + Math.random() * 800,
           easing: Easing.inOut(Easing.sin),
           useNativeDriver: true,
         }),
         Animated.timing(anim, {
           toValue: 0,
-          duration: 2800 + Math.random() * 1200,
+          duration: 2400 + Math.random() * 800,
           easing: Easing.inOut(Easing.sin),
           useNativeDriver: true,
         }),
       ])
     ).start();
-  }, [anim, delay]);
+  }, []);
 
-  const translateY = anim.interpolate({ inputRange: [0, 1], outputRange: [0, -60] });
-  const opacity    = anim.interpolate({ inputRange: [0, 0.2, 0.8, 1], outputRange: [0, 0.7, 0.7, 0] });
+  const translateY = anim.interpolate({ inputRange: [0, 1], outputRange: [0, -55] });
+  const opacity    = anim.interpolate({ inputRange: [0, 0.2, 0.8, 1], outputRange: [0, 0.65, 0.65, 0] });
 
   return (
     <Animated.View
@@ -61,31 +67,41 @@ function Particle({ delay, size, startX, startY, color }) {
   );
 }
 
-// Deterministic particles so we don't re-create on every render
-const PARTICLES = Array.from({ length: 18 }, (_, i) => ({
+// Deterministic — no re-creation on re-render, only 8 particles
+const PARTICLES = Array.from({ length: 8 }, (_, i) => ({
   id: i,
-  delay:  (i * 320) % 2400,
-  size:   3 + (i % 5) * 2,
-  startX: (i * 71) % (W - 20),
-  startY: H * 0.3 + (i * 53) % (H * 0.5),
+  delay:  (i * 220) % 1600,
+  size:   4 + (i % 4) * 2,
+  startX: (i * 97) % (W - 20),
+  startY: H * 0.3 + (i * 67) % (H * 0.45),
   color: i % 3 === 0 ? "#A78BFA" : i % 3 === 1 ? "#60A5FA" : "#34D399",
 }));
 
-// ── Progress bar ───────────────────────────────────────────────────────────
+// ── Progress bar ──────────────────────────────────────────────────────────────
 function ProgressBar({ progress }) {
   return (
     <View style={styles.progressTrack}>
-      <Animated.View style={[styles.progressFill, { width: progress.interpolate({ inputRange: [0, 1], outputRange: ["0%", "100%"] }) }]} />
+      <Animated.View
+        style={[
+          styles.progressFill,
+          {
+            width: progress.interpolate({
+              inputRange: [0, 1],
+              outputRange: ["0%", "100%"],
+            }),
+          },
+        ]}
+      />
     </View>
   );
 }
 
-// ── Main splash ────────────────────────────────────────────────────────────
+// ── Main splash ───────────────────────────────────────────────────────────────
 export default function SplashScreen() {
-  const navigation   = useNavigation();
+  const navigation      = useNavigation();
   const { initializing } = useAuth();
 
-  // ── Dynamic branding from store / app.json ──────────────────────────────
+  // ── Branding ──────────────────────────────────────────────────────────────
   const [appName,    setAppName]    = useState(getAppNameSync() || "MobiDrag");
   const [shopName,   setShopName]   = useState("");
   const [logoSource, setLogoSource] = useState(() => {
@@ -93,44 +109,47 @@ export default function SplashScreen() {
     return url ? { uri: url } : DEFAULT_LOGO;
   });
 
+  // fetchStoreConfig is cosmetic only (shop name / logo) — never block navigation on it.
   useEffect(() => {
+    let cancelled = false;
+    const t = setTimeout(() => { cancelled = true; }, 3000); // hard cut-off
+
     fetchStoreConfig().then((store) => {
-      if (!store) return;
+      if (cancelled || !store) return;
       if (store.shop_name) setShopName(store.shop_name);
-      // Use app.json logo first; only fall back to store domain-based logo
       const logo = getAppLogoSync();
       if (!logo && store.shopify_domain) {
-        // Shopify stores often have a favicon we can try
         setLogoSource({ uri: `https://${store.shopify_domain}/favicon.ico` });
       }
-    });
+    }).catch(() => {});
+
+    return () => { cancelled = true; clearTimeout(t); };
   }, []);
 
-  // ── Animation values ─────────────────────────────────────────────────────
-  const bgScale     = useRef(new Animated.Value(1.15)).current;
-  const logoOpacity = useRef(new Animated.Value(0)).current;
-  const logoScale   = useRef(new Animated.Value(0.5)).current;
-  const logoGlow    = useRef(new Animated.Value(0)).current;
-  const titleY      = useRef(new Animated.Value(30)).current;
-  const titleOpacity= useRef(new Animated.Value(0)).current;
-  const subY        = useRef(new Animated.Value(20)).current;
-  const subOpacity  = useRef(new Animated.Value(0)).current;
-  const badgeOpacity= useRef(new Animated.Value(0)).current;
-  const badgeScale  = useRef(new Animated.Value(0.8)).current;
-  const progress    = useRef(new Animated.Value(0)).current;
+  // ── Animation values ──────────────────────────────────────────────────────
+  const bgScale      = useRef(new Animated.Value(1.1)).current;
+  const logoOpacity  = useRef(new Animated.Value(0)).current;
+  const logoScale    = useRef(new Animated.Value(0.55)).current;
+  const logoGlow     = useRef(new Animated.Value(0)).current;
+  const titleY       = useRef(new Animated.Value(24)).current;
+  const titleOpacity = useRef(new Animated.Value(0)).current;
+  const subY         = useRef(new Animated.Value(16)).current;
+  const subOpacity   = useRef(new Animated.Value(0)).current;
+  const badgeOpacity = useRef(new Animated.Value(0)).current;
+  const badgeScale   = useRef(new Animated.Value(0.85)).current;
+  const progress     = useRef(new Animated.Value(0)).current;
   const footerOpacity = useRef(new Animated.Value(0)).current;
 
-  // Ring pulse
-  const ring1 = useRef(new Animated.Value(0.6)).current;
-  const ring2 = useRef(new Animated.Value(0.6)).current;
+  const ring1   = useRef(new Animated.Value(0.6)).current;
+  const ring2   = useRef(new Animated.Value(0.6)).current;
   const ring1Op = useRef(new Animated.Value(0.4)).current;
   const ring2Op = useRef(new Animated.Value(0.25)).current;
 
   useEffect(() => {
-    // Background subtle zoom-in
+    // Background subtle zoom
     Animated.timing(bgScale, {
       toValue: 1,
-      duration: 3000,
+      duration: 1200,
       easing: Easing.out(Easing.quad),
       useNativeDriver: true,
     }).start();
@@ -150,79 +169,91 @@ export default function SplashScreen() {
           ]),
         ])
       ).start();
-    pulse(ring1, ring1Op, 1600, 0);
-    pulse(ring2, ring2Op, 1600, 800);
+    pulse(ring1, ring1Op, 1400, 0);
+    pulse(ring2, ring2Op, 1400, 700);
 
-    // Logo springs in at 200ms
+    // Logo springs in at 120ms
     Animated.sequence([
-      Animated.delay(200),
+      Animated.delay(120),
       Animated.parallel([
-        Animated.spring(logoScale, { toValue: 1, friction: 5, tension: 60, useNativeDriver: true }),
-        Animated.timing(logoOpacity, { toValue: 1, duration: 400, useNativeDriver: true }),
+        Animated.spring(logoScale,   { toValue: 1, friction: 5, tension: 65, useNativeDriver: true }),
+        Animated.timing(logoOpacity, { toValue: 1, duration: 320, useNativeDriver: true }),
       ]),
     ]).start();
 
     // Logo glow pulse
     Animated.loop(
       Animated.sequence([
-        Animated.timing(logoGlow, { toValue: 1, duration: 1400, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
-        Animated.timing(logoGlow, { toValue: 0, duration: 1400, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
+        Animated.timing(logoGlow, { toValue: 1, duration: 1200, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
+        Animated.timing(logoGlow, { toValue: 0, duration: 1200, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
       ])
     ).start();
 
-    // App name slides up at 550ms
+    // App name at 280ms
     Animated.sequence([
-      Animated.delay(550),
+      Animated.delay(280),
       Animated.parallel([
-        Animated.spring(titleY,   { toValue: 0, friction: 7, tension: 50, useNativeDriver: true }),
-        Animated.timing(titleOpacity, { toValue: 1, duration: 450, useNativeDriver: true }),
+        Animated.spring(titleY,       { toValue: 0, friction: 7, tension: 55, useNativeDriver: true }),
+        Animated.timing(titleOpacity, { toValue: 1, duration: 350, useNativeDriver: true }),
       ]),
     ]).start();
 
-    // Shop sub-name at 750ms
+    // Sub-name at 420ms
     Animated.sequence([
-      Animated.delay(750),
+      Animated.delay(420),
       Animated.parallel([
-        Animated.spring(subY,   { toValue: 0, friction: 7, tension: 50, useNativeDriver: true }),
-        Animated.timing(subOpacity, { toValue: 1, duration: 400, useNativeDriver: true }),
+        Animated.spring(subY,       { toValue: 0, friction: 7, tension: 55, useNativeDriver: true }),
+        Animated.timing(subOpacity, { toValue: 1, duration: 320, useNativeDriver: true }),
       ]),
     ]).start();
 
-    // "Built with Mobidrag" badge pops in at 1000ms
+    // Badge pops in at 580ms
     Animated.sequence([
-      Animated.delay(1000),
+      Animated.delay(580),
       Animated.parallel([
-        Animated.spring(badgeScale, { toValue: 1, friction: 6, tension: 55, useNativeDriver: true }),
-        Animated.timing(badgeOpacity, { toValue: 1, duration: 350, useNativeDriver: true }),
+        Animated.spring(badgeScale,   { toValue: 1, friction: 6, tension: 60, useNativeDriver: true }),
+        Animated.timing(badgeOpacity, { toValue: 1, duration: 280, useNativeDriver: true }),
       ]),
     ]).start();
 
-    // Progress bar fills over 2400ms starting at 400ms
-    Animated.sequence([
-      Animated.delay(400),
-      Animated.timing(progress, {
-        toValue: 1,
-        duration: 2400,
-        easing: Easing.out(Easing.cubic),
-        useNativeDriver: false,
-      }),
-    ]).start();
+    // Progress bar fills over MIN_SPLASH_MS starting immediately
+    // useNativeDriver:false required for width % — kept on JS thread intentionally
+    Animated.timing(progress, {
+      toValue: 1,
+      duration: MIN_SPLASH_MS - 100, // finishes just before navigate
+      easing: Easing.out(Easing.cubic),
+      useNativeDriver: false,
+    }).start();
 
-    // Footer fades in at 900ms
+    // Footer fades in at 350ms
     Animated.sequence([
-      Animated.delay(900),
-      Animated.timing(footerOpacity, { toValue: 1, duration: 600, useNativeDriver: true }),
+      Animated.delay(350),
+      Animated.timing(footerOpacity, { toValue: 1, duration: 400, useNativeDriver: true }),
     ]).start();
   }, []);
 
-  // ── Navigate when ready ──────────────────────────────────────────────────
+  // ── Dual-ready navigation gate ────────────────────────────────────────────
+  // Navigate only when BOTH conditions are true:
+  //   1. Auth initialisation finished (restoreSession from AsyncStorage)
+  //   2. Minimum brand-display time elapsed (MIN_SPLASH_MS)
+  // Whichever finishes last triggers the navigation.
+  const [authReady,    setAuthReady]    = useState(false);
+  const [minTimeReady, setMinTimeReady] = useState(false);
+
   useEffect(() => {
-    if (initializing) return;
-    const t = setTimeout(() => {
-      navigation.reset({ index: 0, routes: [{ name: "LayoutScreen" }] });
-    }, 3200);
+    if (!initializing) setAuthReady(true);
+  }, [initializing]);
+
+  useEffect(() => {
+    const t = setTimeout(() => setMinTimeReady(true), MIN_SPLASH_MS);
     return () => clearTimeout(t);
-  }, [navigation, initializing]);
+  }, []);
+
+  useEffect(() => {
+    if (authReady && minTimeReady) {
+      navigation.reset({ index: 0, routes: [{ name: "LayoutScreen" }] });
+    }
+  }, [authReady, minTimeReady, navigation]);
 
   const glowOpacity = logoGlow.interpolate({ inputRange: [0, 1], outputRange: [0.3, 0.9] });
   const displayName = shopName || appName;
@@ -231,29 +262,26 @@ export default function SplashScreen() {
     <View style={styles.container}>
       <StatusBar barStyle="light-content" backgroundColor="transparent" translucent />
 
-      {/* Background gradient-like overlay using layered views */}
+      {/* Background layers */}
       <Animated.View style={[styles.bgLayer1, { transform: [{ scale: bgScale }] }]} />
       <View style={styles.bgLayer2} />
       <View style={styles.bgLayer3} />
 
-      {/* Floating particles */}
+      {/* Floating particles (8) */}
       {PARTICLES.map((p) => (
         <Particle key={p.id} {...p} />
       ))}
 
-      {/* Pulse rings behind logo */}
+      {/* Pulse rings */}
       <View style={styles.ringContainer}>
-        <Animated.View style={[styles.ring, { transform: [{ scale: ring1 }], opacity: ring1Op }]} />
+        <Animated.View style={[styles.ring,  { transform: [{ scale: ring1 }], opacity: ring1Op }]} />
         <Animated.View style={[styles.ring, styles.ring2, { transform: [{ scale: ring2 }], opacity: ring2Op }]} />
       </View>
 
-      {/* ── Center content ──────────────────────────────────────────────── */}
+      {/* Center content */}
       <View style={styles.centerBlock}>
-
-        {/* Logo glow halo */}
         <Animated.View style={[styles.logoHalo, { opacity: glowOpacity }]} />
 
-        {/* Logo card */}
         <Animated.View style={[styles.logoCard, { opacity: logoOpacity, transform: [{ scale: logoScale }] }]}>
           <Image
             source={logoSource}
@@ -263,7 +291,6 @@ export default function SplashScreen() {
           />
         </Animated.View>
 
-        {/* App / Shop name */}
         <Animated.Text
           style={[styles.appName, { opacity: titleOpacity, transform: [{ translateY: titleY }] }]}
           numberOfLines={1}
@@ -271,23 +298,20 @@ export default function SplashScreen() {
           {displayName}
         </Animated.Text>
 
-        {/* Tagline */}
         <Animated.Text
           style={[styles.tagline, { opacity: subOpacity, transform: [{ translateY: subY }] }]}
         >
           YOUR STORE · EVERYWHERE
         </Animated.Text>
 
-        {/* "Built with Mobidrag" badge */}
         <Animated.View style={[styles.badge, { opacity: badgeOpacity, transform: [{ scale: badgeScale }] }]}>
           <View style={styles.badgeDot} />
           <Text style={styles.badgeText}>Powered by Mobidrag App Builder</Text>
         </Animated.View>
       </View>
 
-      {/* ── Bottom area ──────────────────────────────────────────────────── */}
+      {/* Bottom area */}
       <Animated.View style={[styles.bottomBlock, { opacity: footerOpacity }]}>
-        {/* Progress bar */}
         <ProgressBar progress={progress} />
         <Text style={styles.loadingLabel}>Loading your store…</Text>
       </Animated.View>
@@ -307,7 +331,6 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
 
-  // ── Background layers ─────────────────────────────────────────────────
   bgLayer1: {
     ...StyleSheet.absoluteFillObject,
     backgroundColor: "#0D0B1F",
@@ -333,7 +356,6 @@ const styles = StyleSheet.create({
     opacity: 0.5,
   },
 
-  // ── Pulse rings ───────────────────────────────────────────────────────
   ringContainer: {
     position: "absolute",
     alignItems: "center",
@@ -355,14 +377,12 @@ const styles = StyleSheet.create({
     borderColor: ACCENT2,
   },
 
-  // ── Center block ──────────────────────────────────────────────────────
   centerBlock: {
     alignItems: "center",
     justifyContent: "center",
     marginTop: -60,
   },
 
-  // Glow halo behind the logo
   logoHalo: {
     position: "absolute",
     width: 160,
@@ -376,7 +396,6 @@ const styles = StyleSheet.create({
     elevation: 0,
   },
 
-  // Logo card
   logoCard: {
     width: 104,
     height: 104,
@@ -398,7 +417,6 @@ const styles = StyleSheet.create({
     height: 68,
   },
 
-  // App name
   appName: {
     fontSize: 32,
     fontWeight: "800",
@@ -409,7 +427,6 @@ const styles = StyleSheet.create({
     maxWidth: W * 0.8,
   },
 
-  // Tagline
   tagline: {
     fontSize: 11,
     color: "rgba(167,139,250,0.85)",
@@ -419,7 +436,6 @@ const styles = StyleSheet.create({
     marginBottom: 24,
   },
 
-  // "Built with Mobidrag" badge
   badge: {
     flexDirection: "row",
     alignItems: "center",
@@ -444,7 +460,6 @@ const styles = StyleSheet.create({
     letterSpacing: 0.3,
   },
 
-  // ── Bottom block ──────────────────────────────────────────────────────
   bottomBlock: {
     position: "absolute",
     bottom: H * 0.08,
