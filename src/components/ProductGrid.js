@@ -571,7 +571,7 @@ export default function ProductGrid({ section, limit = 8, title = "Products" }) 
                 <View style={[styles.content, { paddingHorizontal: cardPadX, paddingVertical: cardPadY }]}>
                   {resolvedShowCardTitle && (
                     <Text
-                      numberOfLines={resolvedTitleWrap ? undefined : 2}
+                      numberOfLines={resolvedTitleWrap ? 1 : 2}
                       style={[
                         styles.name,
                         {

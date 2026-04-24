@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState, useCallback } from "react";
 import {
   ActivityIndicator,
   Dimensions,
+  Pressable,
   ScrollView,
   StyleSheet,
   Text,
@@ -256,6 +257,10 @@ export default function TabProductGrid({ section }) {
     "Left"
   ).toLowerCase();
   const titleTextAlign = titleAlignRaw === "center" ? "center" : titleAlignRaw === "right" ? "right" : "left";
+  const titleWrap = toBool(
+    rawConfig?.titleWrap ?? rawConfig?.textWrap ?? rawConfig?.cardTitleWrap ?? rawConfig?.productTitleWrap,
+    false
+  );
 
   const showFavorite   = toBool(
     rawConfig?.favoriteIconEnabled ??
@@ -582,12 +587,12 @@ export default function TabProductGrid({ section }) {
                 const isFav = productId ? wishlistIds.has(productId) : false;
                 const inStock = product.availableForSale !== false;
                 return (
-                  <TouchableOpacity
+                  <Pressable
                     key={product.id}
-                    activeOpacity={0.9}
                     onPress={() => handleProductPress(product)}
-                    style={[
+                    style={({ pressed }) => [
                       styles.card,
+                      pressed && { opacity: 0.9 },
                       {
                         width: cardW,
                         borderRadius: cardRadius,
@@ -627,10 +632,7 @@ export default function TabProductGrid({ section }) {
                             { backgroundColor: favoriteBadgeBgColor },
                           ]}
                           activeOpacity={0.8}
-                          onPress={(e) => {
-                            e.stopPropagation?.();
-                            handleToggleFavorite(product);
-                          }}
+                          onPress={() => handleToggleFavorite(product)}
                           hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
                           accessibilityRole="button"
                           accessibilityLabel={isFav ? "Remove from wishlist" : "Add to wishlist"}
@@ -653,7 +655,7 @@ export default function TabProductGrid({ section }) {
 
                       {showTitleText && (
                         <Text
-                          numberOfLines={2}
+                          numberOfLines={titleWrap ? 1 : 2}
                           style={[
                             styles.cardTitle,
                             {
@@ -688,7 +690,7 @@ export default function TabProductGrid({ section }) {
 
                       {showAddToCart && atcPosition === "below" && renderAddToCart(product, inStock)}
                     </View>
-                  </TouchableOpacity>
+                  </Pressable>
                 );
               })}
 
