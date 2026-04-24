@@ -1,8 +1,8 @@
 import { gql } from "@apollo/client";
 
 const LAYOUT_VERSION_QUERY = gql`
-  query Layouts($appId: Int) {
-    layouts(app_id: $appId) {
+  query Layouts($appId: Int, $storeId: Int) {
+    layouts(app_id: $appId, store_id: $storeId) {
       app_id
       layout_versions {
         dsl

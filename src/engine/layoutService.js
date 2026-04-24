@@ -1,6 +1,7 @@
 import { client } from "../apollo/client";
 import LAYOUT_VERSION_QUERY from "../graphql/queries/layoutVersionQuery";
 import { resolveAppId } from "../utils/appId";
+import { getStoreConfigSync } from "../services/storeService";
 
 export async function fetchLayoutDSL(appId) {
   try {
@@ -9,9 +10,10 @@ export async function fetchLayoutDSL(appId) {
     const appIdInt = Number.isInteger(resolvedAppId) ? resolvedAppId : Math.floor(Number(resolvedAppId));
     console.log(`🔍 fetchLayoutDSL: Using appId ${appIdInt}`);
     
+    const storeId = getStoreConfigSync()?.id ?? null;
     const response = await client.query({
       query: LAYOUT_VERSION_QUERY,
-      variables: { appId: appIdInt },
+      variables: { appId: appIdInt, ...(storeId ? { storeId } : {}) },
       fetchPolicy: "no-cache",
     });
 
