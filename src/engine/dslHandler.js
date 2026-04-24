@@ -3,7 +3,6 @@ import LAYOUT_VERSION_QUERY from "../graphql/queries/layoutVersionQuery";
 import authLayoutFallback from "../data/authLayoutFallback";
 import { resolveAppId } from "../utils/appId";
 import { setTypography } from "../services/typographyService";
-import { getStoreConfigSync } from "../services/storeService";
 
 const normalizeName = (value) =>
   value
@@ -227,10 +226,9 @@ export async function fetchLiveDSL(appId, pageName) {
     const appIdInt = Number.isInteger(resolvedAppId) ? resolvedAppId : Math.floor(Number(resolvedAppId));
     console.log(`🔍 Querying layouts with appId: ${appIdInt} (type: ${typeof appIdInt})`);
 
-    const storeId = getStoreConfigSync()?.id ?? null;
     const res = await client.query({
       query: LAYOUT_VERSION_QUERY,
-      variables: { appId: appIdInt, ...(storeId ? { storeId } : {}) },
+      variables: { appId: appIdInt },
       fetchPolicy: "no-cache",
     });
 
