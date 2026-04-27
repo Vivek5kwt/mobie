@@ -26,6 +26,12 @@ const toString = (value, fallback = "") => {
   return String(resolved);
 };
 
+const cleanFontFamily = (family) => {
+  if (!family) return undefined;
+  const cleaned = String(family).split(",")[0].trim().replace(/['"]/g, "");
+  return cleaned || undefined;
+};
+
 const toBoolean = (value, fallback = false) => {
   const resolved = unwrapValue(value, fallback);
   if (resolved === undefined || resolved === null) return fallback;
@@ -176,6 +182,11 @@ export default function OrderSummary({ section }) {
   const showDivider = toBoolean(raw?.showDivider, true);
   const dividerColor = toString(raw?.dividerColor, "#E5E7EB");
 
+  // Font families
+  const titleFontFamily = cleanFontFamily(toString(raw?.titleFontFamily ?? raw?.fontFamily, ""));
+  const rowFontFamily   = cleanFontFamily(toString(raw?.rowFontFamily   ?? raw?.fontFamily, ""));
+  const chipFontFamily  = cleanFontFamily(toString(raw?.chipFontFamily  ?? raw?.fontFamily, ""));
+
   // Sub total row
   const showSubTotal = toBoolean(raw?.showSubTotal ?? raw?.showSubtotal, true);
   const subTotalLabel = toString(raw?.subTotalLabel ?? raw?.subtotalLabel, usesDslItems ? "Total" : "Sub Total");
@@ -209,7 +220,7 @@ export default function OrderSummary({ section }) {
         <Text
           style={[
             styles.title,
-            { color: titleColor, fontSize: titleSize, fontWeight: titleWeight },
+            { color: titleColor, fontSize: titleSize, fontWeight: titleWeight, ...(titleFontFamily ? { fontFamily: titleFontFamily } : {}) },
           ]}
         >
           {titleText}
@@ -282,6 +293,7 @@ export default function OrderSummary({ section }) {
           valueSize={rowValueSize}
           labelWeight={cartTotalWeight}
           valueWeight={cartTotalWeight}
+          fontFamily={rowFontFamily}
         />
       )}
 
@@ -294,6 +306,7 @@ export default function OrderSummary({ section }) {
           valueColor={savingsColor}
           labelSize={rowLabelSize}
           valueSize={rowValueSize}
+          fontFamily={rowFontFamily}
         />
       )}
 
@@ -307,6 +320,7 @@ export default function OrderSummary({ section }) {
             valueColor={discountColor}
             labelSize={rowLabelSize}
             valueSize={rowValueSize}
+            fontFamily={rowFontFamily}
           />
           {/* Applied code chips */}
           <View style={styles.chipRow}>
@@ -322,7 +336,7 @@ export default function OrderSummary({ section }) {
                   },
                 ]}
               >
-                <Text style={[styles.chipText, { color: chipTextColor, fontSize: chipFontSize }]}>
+                <Text style={[styles.chipText, { color: chipTextColor, fontSize: chipFontSize, ...(chipFontFamily ? { fontFamily: chipFontFamily } : {}) }]}>
                   {chipPrefix}{code}
                 </Text>
               </View>
@@ -340,6 +354,7 @@ export default function OrderSummary({ section }) {
           valueColor={taxColor}
           labelSize={rowLabelSize}
           valueSize={rowValueSize}
+          fontFamily={rowFontFamily}
         />
       )}
 
@@ -354,7 +369,7 @@ export default function OrderSummary({ section }) {
           <Text
             style={[
               styles.rowLabel,
-              { color: rowLabelColor, fontSize: rowLabelSize, fontWeight: subTotalWeight },
+              { color: rowLabelColor, fontSize: rowLabelSize, fontWeight: subTotalWeight, ...(rowFontFamily ? { fontFamily: rowFontFamily } : {}) },
             ]}
           >
             {subTotalLabel}
@@ -363,7 +378,7 @@ export default function OrderSummary({ section }) {
             <Text
               style={[
                 styles.rowValue,
-                { color: subTotalColor, fontSize: rowValueSize, fontWeight: subTotalWeight },
+                { color: subTotalColor, fontSize: rowValueSize, fontWeight: subTotalWeight, ...(rowFontFamily ? { fontFamily: rowFontFamily } : {}) },
               ]}
             >
               {fmt(subTotal, currencyLabel)}
@@ -394,13 +409,15 @@ function SummaryRow({
   valueSize,
   labelWeight = "400",
   valueWeight = "400",
+  fontFamily,
 }) {
+  const ff = fontFamily ? { fontFamily } : {};
   return (
     <View style={styles.row}>
-      <Text style={[styles.rowLabel, { color: labelColor, fontSize: labelSize, fontWeight: labelWeight }]}>
+      <Text style={[styles.rowLabel, { color: labelColor, fontSize: labelSize, fontWeight: labelWeight, ...ff }]}>
         {label}
       </Text>
-      <Text style={[styles.rowValue, { color: valueColor, fontSize: valueSize, fontWeight: valueWeight }]}>
+      <Text style={[styles.rowValue, { color: valueColor, fontSize: valueSize, fontWeight: valueWeight, ...ff }]}>
         {value}
       </Text>
     </View>

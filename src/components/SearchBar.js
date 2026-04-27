@@ -191,7 +191,7 @@ export default function SearchBar({ section }) {
         color: searchTextColor,
         fontSize,
         fontWeight,
-        ...(fontFamily && fontFamily !== "Inter" ? { fontFamily } : {}),
+        ...(fontFamily ? { fontFamily } : {}),
       }),
     [searchTextColor, fontSize, fontWeight, fontFamily]
   );

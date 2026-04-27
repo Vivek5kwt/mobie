@@ -39,6 +39,12 @@ const toStr = (value, fallback = "") => {
   return r === undefined || r === null ? fallback : String(r);
 };
 
+const cleanFontFamily = (family) => {
+  if (!family) return undefined;
+  const cleaned = String(family).split(",")[0].trim().replace(/['"]/g, "");
+  return cleaned || undefined;
+};
+
 const toNum = (value, fallback) => {
   const r = unwrapValue(value, undefined);
   if (r === undefined || r === "") return fallback;
@@ -142,7 +148,7 @@ export default function TabProductGrid({ section }) {
   const headerItalic    = toBool(rawConfig?.headerItalic, false);
   const headerUnderline = toBool(rawConfig?.headerUnderline, false);
   const headerStrike    = toBool(rawConfig?.headerStrikethrough, false);
-  const headerFamily    = toStr(rawConfig?.headerFontFamily ?? rawConfig?.titleFontFamily, undefined) || undefined;
+  const headerFamily    = cleanFontFamily(toStr(rawConfig?.headerFontFamily ?? rawConfig?.titleFontFamily, ""));
   const headerWeight    = toFontWeight(rawConfig?.headerFontWeight ?? rawConfig?.headerWeight, headerBold ? "700" : "600");
   const headerAlignRaw  = toStr(rawConfig?.headerAlign ?? rawConfig?.titleAlign, "left").toLowerCase();
   const headerTextAlign = headerAlignRaw === "center" ? "center" : headerAlignRaw === "right" ? "right" : "left";
@@ -236,7 +242,7 @@ export default function TabProductGrid({ section }) {
   const activeText   = toStr(rawConfig?.tabActiveTextColor, "#FFFFFF");
   const tabFontSize  = toNum(rawConfig?.tabFontSize, 12);
   const tabFontWt    = toFontWeight(rawConfig?.tabFontWeight, "600");
-  const tabFamily    = toStr(rawConfig?.tabFontFamily, undefined) || undefined;
+  const tabFamily    = cleanFontFamily(toStr(rawConfig?.tabFontFamily, ""));
 
   const paddingTop    = toNum(rawConfig?.paddingTop,    0);
   const paddingBottom = toNum(rawConfig?.paddingBottom, 0);
@@ -247,7 +253,7 @@ export default function TabProductGrid({ section }) {
   const imageCorner    = toNum(rawConfig?.cardImageCorner, 0);
   const cardTitleSize  = toNum(rawConfig?.cardTitleSize ?? rawConfig?.titleSize ?? rawConfig?.headlineSize ?? layoutCardTitleCss?.fontSize, 12);
   const cardTitleWt    = toFontWeight(rawConfig?.cardTitleWeight ?? rawConfig?.titleWeight ?? rawConfig?.headlineWeight ?? layoutCardTitleCss?.fontWeight, "600");
-  const cardTitleFamily= toStr(rawConfig?.cardTitleFamily ?? rawConfig?.titleFontFamily ?? rawConfig?.headlineFontFamily ?? layoutCardTitleCss?.fontFamily, undefined) || undefined;
+  const cardTitleFamily= cleanFontFamily(toStr(rawConfig?.cardTitleFamily ?? rawConfig?.titleFontFamily ?? rawConfig?.headlineFontFamily ?? layoutCardTitleCss?.fontFamily, ""));
   const titleAlignRaw  = toStr(
     rawConfig?.titleAlign ??
       rawConfig?.cardTitleAlign ??
@@ -297,7 +303,7 @@ export default function TabProductGrid({ section }) {
   const showTitleText  = toBool(rawConfig?.showTitle ?? rawConfig?.cardTitleActive, true);
   const priceSize      = toNum(rawConfig?.priceSize ?? rawConfig?.subtextSize ?? layoutCardPriceCss?.fontSize, 12);
   const priceWeight    = toFontWeight(rawConfig?.priceWeight ?? rawConfig?.subtextWeight ?? layoutCardPriceCss?.fontWeight, "600");
-  const priceFamily    = toStr(rawConfig?.priceFamily ?? rawConfig?.subtextFontFamily ?? layoutCardPriceCss?.fontFamily, undefined) || undefined;
+  const priceFamily    = cleanFontFamily(toStr(rawConfig?.priceFamily ?? rawConfig?.subtextFontFamily ?? layoutCardPriceCss?.fontFamily, ""));
   const priceAlignRaw  = toStr(
     rawConfig?.priceAlign ??
       rawConfig?.cardPriceAlign ??
@@ -330,7 +336,7 @@ export default function TabProductGrid({ section }) {
   const atcTextColor = toStr(rawConfig?.atcTextColor ?? layoutAddToCartCss?.color, "#FFFFFF");
   const atcSoldOutBgColor = toStr(rawConfig?.atcSoldOutBgColor, "#E5E7EB");
   const atcSoldOutTextColor = toStr(rawConfig?.atcSoldOutTextColor, "#111827");
-  const atcFontFamily = toStr(rawConfig?.atcFamily ?? layoutAddToCartCss?.fontFamily, undefined) || undefined;
+  const atcFontFamily = cleanFontFamily(toStr(rawConfig?.atcFamily ?? layoutAddToCartCss?.fontFamily, ""));
   const atcFontWeight = toFontWeight(rawConfig?.atcWeight ?? layoutAddToCartCss?.fontWeight, "600");
   const atcBorderRadius = toNum(rawConfig?.atcCorner ?? rawConfig?.atcBorderRadius ?? layoutAddToCartCss?.borderRadius, 6);
   const atcPaddingTop = toNum(rawConfig?.atcPadT ?? layoutAddToCartCss?.paddingTop, undefined);

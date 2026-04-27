@@ -35,6 +35,12 @@ const toNumber = (value, fallback) => {
   return Number.isNaN(parsed) ? fallback : parsed;
 };
 
+const cleanFontFamily = (family) => {
+  if (!family) return undefined;
+  const cleaned = String(family).split(",")[0].trim().replace(/['"]/g, "");
+  return cleaned || undefined;
+};
+
 const deriveWeight = (value, fallback = "700") => {
   const resolved = unwrapValue(value, fallback);
   if (typeof resolved === "string") {
@@ -135,7 +141,7 @@ export default function SocialMediaIcons({ section }) {
   const titleText = unwrapValue(rawProps?.titleText, "");
   const titleColor = unwrapValue(rawProps?.titleColor, "#111111");
   const titleFontSize = toNumber(rawProps?.titleFontSize, 14);
-  const titleFontFamily = unwrapValue(rawProps?.titleFontFamily, undefined);
+  const titleFontFamily = cleanFontFamily(unwrapValue(rawProps?.titleFontFamily, undefined));
   const titleFontWeight = toBoolean(rawProps?.titleBold, false)
     ? "700"
     : deriveWeight(rawProps?.titleFontWeight, "600");

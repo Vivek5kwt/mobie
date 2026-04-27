@@ -35,6 +35,12 @@ const toString = (value, fallback = "") => {
   return String(resolved);
 };
 
+const cleanFontFamily = (family) => {
+  if (!family) return undefined;
+  const cleaned = String(family).split(",")[0].trim().replace(/['"]/g, "");
+  return cleaned || undefined;
+};
+
 const toBoolean = (value, fallback = false) => {
   const resolved = unwrapValue(value, fallback);
   if (resolved === undefined || resolved === null) return fallback;
@@ -194,6 +200,14 @@ export default function CartLineItems({ section }) {
   const showDivider = toBoolean(raw?.showDivider, false);
   const dividerColor = toString(raw?.dividerColor, "#F3F4F6");
 
+  // Font families
+  const titleFontFamily    = cleanFontFamily(toString(raw?.titleFontFamily    ?? raw?.fontFamily, ""));
+  const vendorFontFamily   = cleanFontFamily(toString(raw?.vendorFontFamily   ?? raw?.fontFamily, ""));
+  const variantFontFamily  = cleanFontFamily(toString(raw?.variantFontFamily  ?? raw?.fontFamily, ""));
+  const priceFontFamily    = cleanFontFamily(toString(raw?.priceFontFamily    ?? raw?.fontFamily, ""));
+  const savingsFontFamily  = cleanFontFamily(toString(raw?.savingsFontFamily  ?? raw?.fontFamily, ""));
+  const qtyFontFamily      = cleanFontFamily(toString(raw?.qtyFontFamily      ?? raw?.fontFamily, ""));
+
   const discountCount = appliedDiscounts.length;
 
   // Total (shown if DSL enables it)
@@ -302,7 +316,7 @@ export default function CartLineItems({ section }) {
                 {/* Variant row: Size: M | Color: Blue */}
                 {showVariant && variantParts.length > 0 && (
                   <Text
-                    style={[styles.variant, { color: variantColor, fontSize: variantSize }]}
+                    style={[styles.variant, { color: variantColor, fontSize: variantSize, ...(variantFontFamily ? { fontFamily: variantFontFamily } : {}) }]}
                     numberOfLines={1}
                   >
                     {variantParts.join(variantSeparator)}
@@ -312,7 +326,7 @@ export default function CartLineItems({ section }) {
                 {/* Vendor */}
                 {showVendor && !!item?.vendor && (
                   <Text
-                    style={[styles.vendor, { color: vendorColor, fontSize: vendorSize, fontWeight: vendorWeight }]}
+                    style={[styles.vendor, { color: vendorColor, fontSize: vendorSize, fontWeight: vendorWeight, ...(vendorFontFamily ? { fontFamily: vendorFontFamily } : {}) }]}
                     numberOfLines={1}
                   >
                     {item.vendor}
@@ -322,7 +336,7 @@ export default function CartLineItems({ section }) {
                 {/* Title */}
                 {showTitle && !!item?.title && (
                   <Text
-                    style={[styles.title, { color: titleColor, fontSize: titleSize, fontWeight: titleWeight }]}
+                    style={[styles.title, { color: titleColor, fontSize: titleSize, fontWeight: titleWeight, ...(titleFontFamily ? { fontFamily: titleFontFamily } : {}) }]}
                     numberOfLines={2}
                   >
                     {item.title}
@@ -332,11 +346,11 @@ export default function CartLineItems({ section }) {
                 {/* Price row */}
                 {showPrice && (
                   <View style={styles.priceRow}>
-                    <Text style={[styles.price, { color: priceColor, fontSize: priceSize, fontWeight: priceWeight }]}>
+                    <Text style={[styles.price, { color: priceColor, fontSize: priceSize, fontWeight: priceWeight, ...(priceFontFamily ? { fontFamily: priceFontFamily } : {}) }]}>
                       {fmtPrice(price, itemCurrency)}
                     </Text>
                     {showCompareAt && compareAt > 0 && (
-                      <Text style={[styles.compareAt, { color: compareAtColor, fontSize: compareAtSize }]}>
+                      <Text style={[styles.compareAt, { color: compareAtColor, fontSize: compareAtSize, ...(priceFontFamily ? { fontFamily: priceFontFamily } : {}) }]}>
                         {fmtPrice(compareAt, itemCurrency)}
                       </Text>
                     )}
@@ -358,7 +372,7 @@ export default function CartLineItems({ section }) {
                     <Text
                       style={[
                         styles.badgeText,
-                        { color: savingsColor, fontSize: savingsFontSize, fontWeight: savingsFontWeight },
+                        { color: savingsColor, fontSize: savingsFontSize, fontWeight: savingsFontWeight, ...(savingsFontFamily ? { fontFamily: savingsFontFamily } : {}) },
                       ]}
                     >
                       {savingsLabel} : {fmtPrice(savings, itemCurrency)}
@@ -416,7 +430,7 @@ export default function CartLineItems({ section }) {
                       </TouchableOpacity>
 
                       {/* Count */}
-                      <Text style={[styles.qtyText, { color: qtyTextColor, fontSize: qtyTextSize }]}>
+                      <Text style={[styles.qtyText, { color: qtyTextColor, fontSize: qtyTextSize, ...(qtyFontFamily ? { fontFamily: qtyFontFamily } : {}) }]}>
                         {quantity}
                       </Text>
 

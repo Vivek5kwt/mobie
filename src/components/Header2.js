@@ -63,6 +63,12 @@ const normalizeIconName = (name, fallback = "bars") => {
   return cleaned || fallback;
 };
 
+const cleanFontFamily = (family) => {
+  if (!family) return undefined;
+  const cleaned = String(family).split(",")[0].trim().replace(/['"]/g, "");
+  return cleaned || undefined;
+};
+
 const resolveFontWeight = (value, fallback = "400") => {
   const resolved = unwrapValue(value, fallback);
   if (typeof resolved === "number") return String(resolved);
@@ -747,7 +753,7 @@ export default function Header2({ section }) {
       strikethrough: headerTextStrikethrough,
     });
     const headerTextAlign = String(resolveValue(rawPropsNode.headerTextAlign, "center")).toLowerCase();
-    const headerFontFamily = resolveValue(rawPropsNode.headerFontFamily, undefined);
+    const headerFontFamily = cleanFontFamily(resolveValue(rawPropsNode.headerFontFamily, undefined));
     const headerFontWeight = resolveFontWeight(
       rawPropsNode.headerFontWeight,
       headerTextBold ? "700" : "400"

@@ -8,6 +8,7 @@ import {
 } from "react-native";
 import FontAwesome from "react-native-vector-icons/FontAwesome";
 import FontAwesome6 from "react-native-vector-icons/FontAwesome6";
+import { resolveFont } from "../services/typographyService";
 
 // ─── DSL helpers ──────────────────────────────────────────────────────────────
 
@@ -213,12 +214,12 @@ export default function VariantSelector({ section }) {
   // ── Group label ────────────────────────────────────────────────────────────
   const labelColor      = pick([raw?.titleColor],      "#111111");
   const labelFontSize   = pickNum([raw?.titleFontsize,  raw?.titleFontSize],  14);
-  const labelFontFamily = pick([raw?.titleFontfamily, raw?.titleFontFamily], "Inter");
+  const labelFontFamily = resolveFont(pick([raw?.titleFontfamily, raw?.titleFontFamily], "")) || "Inter";
   const labelFontWeight = resolveWeight(raw?.titleFontWeight ?? raw?.titleFontweight) || "600";
 
   // ── Chip (text selector) styles ────────────────────────────────────────────
   const chipFontSize   = pickNum([raw?.textFontsize, raw?.textFontSize],   12);
-  const chipFontFamily = pick([raw?.textFontfamily, raw?.textFontFamily],  "Inter");
+  const chipFontFamily = resolveFont(pick([raw?.textFontfamily, raw?.textFontFamily], "")) || "Inter";
   const chipFontWeight = resolveWeight(raw?.textFontWeight ?? raw?.textFontweight) || "500";
   const chipRadius     = pickNum([raw?.buttonRadius, raw?.boxBorderRadius], 8);
   const chipPadH       = pickNum([raw?.boxPaddingleft, raw?.boxPaddingLeft], 14);

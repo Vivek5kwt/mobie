@@ -8,6 +8,7 @@ import Snackbar from "./Snackbar";
 import {
   getShopifyDomain,
 } from "../services/shopify";
+import { resolveFont } from "../services/typographyService";
 
 const unwrapValue = (value, fallback = undefined) => {
   if (value === undefined || value === null) return fallback;
@@ -197,7 +198,7 @@ export default function AddToCart({ section }) {
     color: addToCartFg,
     fontSize: toNumber(addToCartConfig?.textSize, 15),
     fontWeight: toString(addToCartConfig?.textWeight, "600"),
-    fontFamily: toString(addToCartConfig?.textFamily ?? addToCartConfig?.fontFamily, undefined) || undefined,
+    fontFamily: resolveFont(toString(addToCartConfig?.textFamily ?? addToCartConfig?.fontFamily, "")) || undefined,
     marginLeft: showAddToCartIcon ? 6 : 0,
   };
 
@@ -211,7 +212,7 @@ export default function AddToCart({ section }) {
     color:      buyNowFg,
     fontSize:   toNumber(buyNowConfig?.textSize,   15),
     fontWeight: toString(buyNowConfig?.textWeight, "600"),
-    fontFamily: toString(buyNowConfig?.textFamily ?? buyNowConfig?.fontFamily, undefined) || undefined,
+    fontFamily: resolveFont(toString(buyNowConfig?.textFamily ?? buyNowConfig?.fontFamily, "")) || undefined,
     marginLeft: showBuyNowIcon ? 6 : 0,
   };
 

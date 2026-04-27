@@ -182,7 +182,7 @@ export default function ProductGrid({ section, limit = 8, title = "Products" }) 
   );
   const resolvedTitleColor      = toString(rawProps?.titleColor ?? headerCss?.color, "#111827");
   const resolvedTitleWeight     = toFontWeight(rawProps?.titleWeight ?? headerCss?.fontWeight, "700");
-  const resolvedTitleFontFamily = toString(rawProps?.titleFontFamily ?? rawProps?.headerFontFamily ?? headerCss?.fontFamily, "");
+  const resolvedTitleFontFamily = cleanFontFamily(toString(rawProps?.titleFontFamily ?? rawProps?.headerFontFamily ?? headerCss?.fontFamily, ""));
 
   // ── View All ──────────────────────────────────────────────────────────────
   const viewAllTypography       = unwrapValue(rawProps?.viewAllTypography ?? rawProps?.viewAllStyle ?? rawProps?.viewAllTextStyle, {});
@@ -193,7 +193,7 @@ export default function ProductGrid({ section, limit = 8, title = "Products" }) 
   );
   const resolvedViewAllColor      = toString(viewAllTypography?.color ?? rawProps?.viewAllTextColor ?? rawProps?.viewAllColor ?? viewAllCss?.color, "#111827");
   const resolvedViewAllWeight     = toFontWeight(viewAllTypography?.weightNum ?? viewAllTypography?.weight ?? rawProps?.viewAllFontWeightNum ?? rawProps?.viewAllFontWeight ?? rawProps?.viewAllWeight ?? viewAllCss?.fontWeight, "600");
-  const resolvedViewAllFontFamily = toString(viewAllTypography?.fontFamily ?? rawProps?.viewAllFontFamily ?? viewAllCss?.fontFamily, "");
+  const resolvedViewAllFontFamily = cleanFontFamily(toString(viewAllTypography?.fontFamily ?? rawProps?.viewAllFontFamily ?? viewAllCss?.fontFamily, ""));
 
   // ── Image ─────────────────────────────────────────────────────────────────
   const resolvedImageCorner = resolveFirstNumber(
@@ -235,31 +235,31 @@ export default function ProductGrid({ section, limit = 8, title = "Products" }) 
   const resolvedProductTitleSize       = resolveFirstNumber([rawProps?.productTitleSize, rawProps?.itemTitleSize, rawProps?.cardTitleSize, cardTitleCss?.fontSize], 14);
   const resolvedProductTitleColor      = toString(rawProps?.productTitleColor ?? rawProps?.itemTitleColor ?? cardTitleCss?.color, "#111827");
   const resolvedProductTitleWeight     = toFontWeight(rawProps?.productTitleWeight ?? rawProps?.itemTitleWeight ?? cardTitleCss?.fontWeight, "600");
-  const resolvedProductTitleFontFamily = toString(rawProps?.productTitleFontFamily ?? cardTitleCss?.fontFamily, "");
+  const resolvedProductTitleFontFamily = cleanFontFamily(toString(rawProps?.productTitleFontFamily ?? cardTitleCss?.fontFamily, ""));
 
   // ── Price ─────────────────────────────────────────────────────────────────
   const resolvedPriceSize       = resolveFirstNumber([rawProps?.priceSize, rawProps?.productPriceSize, rawProps?.cardPriceSize, cardPriceCss?.fontSize], 14);
   const resolvedPriceColor      = toString(rawProps?.priceColor ?? rawProps?.productPriceColor ?? cardPriceCss?.color, "#111827");
   const resolvedPriceWeight     = toFontWeight(rawProps?.priceWeight ?? rawProps?.productPriceWeight ?? cardPriceCss?.fontWeight, "600");
-  const resolvedPriceFontFamily = toString(rawProps?.priceFontFamily ?? rawProps?.productPriceFontFamily ?? cardPriceCss?.fontFamily, "");
+  const resolvedPriceFontFamily = cleanFontFamily(toString(rawProps?.priceFontFamily ?? rawProps?.productPriceFontFamily ?? cardPriceCss?.fontFamily, ""));
   const resolvedPriceMarginTop  = resolveFirstNumber([rawProps?.priceMarginTop, rawProps?.priceMt], 4);
 
   // ── Status / Error text ───────────────────────────────────────────────────
   const resolvedStatusColor      = toString(rawProps?.statusColor ?? presentationCss?.status?.color, "#6b7280");
   const resolvedStatusFontSize   = resolveFirstNumber([rawProps?.statusFontSize, rawProps?.statusSize, presentationCss?.status?.fontSize], 14);
   const resolvedStatusWeight     = toFontWeight(rawProps?.statusFontWeight ?? rawProps?.statusWeight ?? presentationCss?.status?.fontWeight, "500");
-  const resolvedStatusFontFamily = toString(rawProps?.statusFontFamily ?? presentationCss?.status?.fontFamily, "");
+  const resolvedStatusFontFamily = cleanFontFamily(toString(rawProps?.statusFontFamily ?? presentationCss?.status?.fontFamily, ""));
   const resolvedErrorColor       = toString(rawProps?.errorColor ?? presentationCss?.error?.color, "#b91c1c");
   const resolvedErrorFontSize    = resolveFirstNumber([rawProps?.errorFontSize, rawProps?.errorSize, presentationCss?.error?.fontSize], 14);
   const resolvedErrorWeight      = toFontWeight(rawProps?.errorFontWeight ?? rawProps?.errorWeight ?? presentationCss?.error?.fontWeight, "500");
-  const resolvedErrorFontFamily  = toString(rawProps?.errorFontFamily ?? presentationCss?.error?.fontFamily, "");
+  const resolvedErrorFontFamily  = cleanFontFamily(toString(rawProps?.errorFontFamily ?? presentationCss?.error?.fontFamily, ""));
 
   // ── Favorite badge ────────────────────────────────────────────────────────
   const resolvedFavBgColor        = toString(rawProps?.favoriteBackgroundColor ?? rawProps?.favoriteBgColor ?? presentationCss?.favorite?.backgroundColor, "rgba(255,255,255,0.9)");
   const resolvedFavIconColor      = toString(rawProps?.favoriteColor ?? rawProps?.favoriteIconColor ?? presentationCss?.favorite?.color, "#e11d48");
   const resolvedFavIconSize       = resolveFirstNumber([rawProps?.favoriteIconSize, rawProps?.favoriteSize, presentationCss?.favorite?.fontSize], 14);
   const resolvedFavIconWeight     = toFontWeight(rawProps?.favoriteIconWeight ?? rawProps?.favoriteWeight ?? presentationCss?.favorite?.fontWeight, "700");
-  const resolvedFavIconFontFamily = toString(rawProps?.favoriteIconFontFamily ?? presentationCss?.favorite?.fontFamily, "");
+  const resolvedFavIconFontFamily = cleanFontFamily(toString(rawProps?.favoriteIconFontFamily ?? presentationCss?.favorite?.fontFamily, ""));
 
   // ── Add-to-Cart button ────────────────────────────────────────────────────
   const cardAddToCartCss    = deepUnwrap(cardCss?.addToCart) || deepUnwrap(presentationCss?.addToCart) || deepUnwrap(presentationCss?.button) || {};
@@ -270,7 +270,7 @@ export default function ProductGrid({ section, limit = 8, title = "Products" }) 
   const addToCartBorderRadius = resolveFirstNumber([rawProps?.addToCartBorderRadius, rawProps?.cartBtnRadius, rawProps?.btnRadius, cardAddToCartCss?.borderRadius], 6);
   const addToCartFontSize   = resolveFirstNumber([rawProps?.addToCartFontSize, rawProps?.cartBtnFontSize, cardAddToCartCss?.fontSize], 13);
   const addToCartFontWeight = toFontWeight(rawProps?.addToCartFontWeight ?? rawProps?.cartBtnFontWeight ?? cardAddToCartCss?.fontWeight, "600");
-  const addToCartFontFamily = toString(rawProps?.addToCartFontFamily ?? rawProps?.cartBtnFontFamily ?? cardAddToCartCss?.fontFamily, "");
+  const addToCartFontFamily = cleanFontFamily(toString(rawProps?.addToCartFontFamily ?? rawProps?.cartBtnFontFamily ?? cardAddToCartCss?.fontFamily, ""));
   const atcPadT   = resolveFirstNumber([rawProps?.atcPadT, rawProps?.atcPadY], 6);
   const atcPadB   = resolveFirstNumber([rawProps?.atcPadB, rawProps?.atcPadY], 6);
   const atcPadL   = resolveFirstNumber([rawProps?.atcPadL, rawProps?.atcPadX], 10);

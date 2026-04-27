@@ -40,8 +40,11 @@ const FONT_NAME_MAP = {
 
 export function resolveFont(name) {
   if (!name || typeof name !== 'string') return null;
-  const key = name.trim().toLowerCase();
-  return FONT_NAME_MAP[key] ?? name.trim();
+  // Strip CSS fallback stack: "Poppins, sans-serif" → "Poppins"
+  const fontName = name.split(',')[0].trim().replace(/['"]/g, '');
+  if (!fontName) return null;
+  const key = fontName.toLowerCase();
+  return FONT_NAME_MAP[key] ?? fontName;
 }
 
 // ── Module-level cache ─────────────────────────────────────────────────────────

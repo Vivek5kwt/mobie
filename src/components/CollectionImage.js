@@ -92,6 +92,12 @@ const deriveHandle = (item) => {
 
 const SCREEN_W = Dimensions.get("window").width;
 
+const cleanFontFamily = (family) => {
+  if (!family) return undefined;
+  const cleaned = String(family).split(",")[0].trim().replace(/['"]/g, "");
+  return cleaned || undefined;
+};
+
 // ─── component ────────────────────────────────────────────────────────────────
 
 export default function CollectionImage({ section }) {
@@ -134,7 +140,9 @@ export default function CollectionImage({ section }) {
   );
   const headerSize   = asNumber(headerCfg?.headerSize, 16);
   const headerColor  = unwrapValue(headerCfg?.headerColor, "#000000");
-  const headerWeight = deriveFontWeight(headerCfg?.headerWeight, "700");
+  const headerWeight     = deriveFontWeight(headerCfg?.headerWeight, "700");
+  const headerFontFamily = cleanFontFamily(unwrapValue(headerCfg?.fontFamily ?? headerCfg?.headerFontFamily ?? rawProps?.headerFontFamily, undefined))
+    || cleanFontFamily(convertStyles(layoutCss?.header || {})?.fontFamily);
   const headerCssStyle = convertStyles(layoutCss?.header || {});
 
   // ── Card ─────────────────────────────────────────────────────────────────────
@@ -142,6 +150,8 @@ export default function CollectionImage({ section }) {
   const cardTextSize        = asNumber(cardCfg?.textSize, 12);
   const cardTextColor       = unwrapValue(cardCfg?.textColor, "#000000");
   const cardTextWeight      = deriveFontWeight(cardCfg?.textWeight, "500");
+  const cardFontFamily      = cleanFontFamily(unwrapValue(cardCfg?.fontFamily ?? cardCfg?.textFontFamily ?? rawProps?.cardFontFamily, undefined))
+    || cleanFontFamily(convertStyles(layoutCss?.card?.text || {})?.fontFamily);
   const cardImageSize       = asNumber(cardCfg?.imageSize, 68);
   const cardImageBorder     = asNumber(cardCfg?.imageBorder, 0);
   const cardImageBorderColor = unwrapValue(cardCfg?.imageBorderColor, "#A8A7AE");
@@ -351,7 +361,7 @@ export default function CollectionImage({ section }) {
           style={[
             styles.cardTitle,
             cardTextCssStyle,
-            { color: cardTextColor, fontSize: cardTextSize, fontWeight: cardTextWeight, textAlign, maxWidth: cardW },
+            { color: cardTextColor, fontSize: cardTextSize, fontWeight: cardTextWeight, textAlign, maxWidth: cardW, ...(cardFontFamily ? { fontFamily: cardFontFamily } : {}) },
           ]}
         >
           {item.title}
@@ -389,7 +399,7 @@ export default function CollectionImage({ section }) {
           style={[
             styles.header,
             headerCssStyle,
-            { color: headerColor, fontSize: headerSize, fontWeight: headerWeight },
+            { color: headerColor, fontSize: headerSize, fontWeight: headerWeight, ...(headerFontFamily ? { fontFamily: headerFontFamily } : {}) },
           ]}
         >
           {headerText}

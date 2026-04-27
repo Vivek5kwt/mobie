@@ -14,6 +14,12 @@ const unwrapValue = (value, fallback = undefined) => {
   return value;
 };
 
+const cleanFontFamily = (family) => {
+  if (!family) return undefined;
+  const cleaned = String(family).split(",")[0].trim().replace(/['"]/g, "");
+  return cleaned || undefined;
+};
+
 const asBoolean = (value, fallback = true) => {
   const resolved = unwrapValue(value, fallback);
   if (resolved === undefined || resolved === null) return fallback;
@@ -63,7 +69,7 @@ const applyTextAttributes = (baseStyle, attributes) => {
     }
   }
 
-  const fontFamily = unwrapValue(attrs.fontFamily, undefined);
+  const fontFamily = cleanFontFamily(unwrapValue(attrs.fontFamily, undefined));
   if (fontFamily) next.fontFamily = fontFamily;
 
   return next;

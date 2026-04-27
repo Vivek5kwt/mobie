@@ -12,6 +12,7 @@ import { useNavigation } from "@react-navigation/native";
 import FontAwesome from "react-native-vector-icons/FontAwesome";
 import { resolveFA4IconName } from "../utils/faIconAlias";
 import { resolveTextDecorationLine } from "../utils/textDecoration";
+import { getTypography, resolveFont } from "../services/typographyService";
 
 // ─── DSL helpers ────────────────────────────────────────────────────────────
 
@@ -208,6 +209,9 @@ export default function BannerSlider({ section }) {
   const autoScrollSpeed = asNumber(rp?.autoScrollSpeed ?? rp?.scrollSpeedSec, 4);
   const showDots = asBoolean(rp?.showIndicators ?? rp?.showDots, true);
 
+  // ── Global typography (app-wide font families from DSL) ──
+  const typography = getTypography();
+
   // ── Heading ──
   const headingColor  = rp?.headingColor  || layoutCss?.heading?.color  || "#FFFFFF";
   const headingSize   = asNumber(rp?.headingSize ?? layoutCss?.heading?.fontSize, 18);
@@ -230,6 +234,11 @@ export default function BannerSlider({ section }) {
     underline: headingUnderline,
     strikethrough: headingStrikethrough,
   });
+  const headingFontFamily = resolveFont(
+    rp?.headingFontFamily || rp?.titleFontFamily ||
+    layoutCss?.heading?.fontFamily ||
+    typography.headlineFontFamily
+  ) || undefined;
 
   // ── Subheading ──
   const subheadingColor  = rp?.subheadingColor  || layoutCss?.subheading?.color  || "#E5E7EB";
@@ -242,6 +251,12 @@ export default function BannerSlider({ section }) {
     headingAlignRaw   // inherit from heading direction
   ).toLowerCase();
   const subheadingWeight = parseFontWeight(rp?.subheadingWeight ?? layoutCss?.subheading?.fontWeight, "400");
+  const subheadingFontFamily = resolveFont(
+    rp?.subheadingFontFamily || rp?.subtitleFontFamily ||
+    layoutCss?.subheading?.fontFamily ||
+    typography.subtextFontFamily ||
+    headingFontFamily
+  ) || undefined;
 
   // ── Content container alignment (flex-start for left, center, flex-end for right) ──
   const contentAlignItems =
@@ -266,6 +281,12 @@ export default function BannerSlider({ section }) {
     rp?.buttonWeight ?? rp?.buttonFontWeight ?? layoutCss?.button?.fontWeight,
     "600"
   );
+  const buttonFontFamily = resolveFont(
+    rp?.buttonFontFamily ||
+    layoutCss?.button?.fontFamily ||
+    typography.bodyFontFamily ||
+    headingFontFamily
+  ) || undefined;
   const buttonRadius = asNumber(
     rp?.buttonRadius ?? rp?.buttonBorderRadius ?? layoutCss?.button?.borderRadius,
     999
@@ -496,6 +517,7 @@ export default function BannerSlider({ section }) {
                       textTransform: headingTransform !== "none" ? headingTransform : undefined,
                       letterSpacing: headingLetterSpacing || undefined,
                       width: "100%",
+                      ...(headingFontFamily ? { fontFamily: headingFontFamily } : {}),
                     },
                     { textDecorationLine: slide.titleDecorationLine },
                   ]}
@@ -515,6 +537,7 @@ export default function BannerSlider({ section }) {
                       fontWeight: subheadingWeight,
                       textAlign: subheadingAlign,
                       width: "100%",
+                      ...(subheadingFontFamily ? { fontFamily: subheadingFontFamily } : {}),
                     },
                     { textDecorationLine: slide.subtitleDecorationLine },
                   ]}
@@ -558,6 +581,7 @@ export default function BannerSlider({ section }) {
                           color: buttonTextColor,
                           fontSize: buttonFontSize,
                           fontWeight: buttonFontWeight,
+                          ...(buttonFontFamily ? { fontFamily: buttonFontFamily } : {}),
                         },
                         { textDecorationLine: slide.buttonDecorationLine },
                       ]}
@@ -677,7 +701,8 @@ const styles = StyleSheet.create({
   dotsRow: {
     justifyContent: "center",
     alignItems: "center",
-    paddingVertical: 8,
+    paddingVertical: 10,
+    backgroundColor: "#FFFFFF",
   },
   dotsPill: {
     flexDirection: "row",

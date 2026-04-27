@@ -2,7 +2,7 @@ import React from "react";
 import { StyleSheet, Text, View } from "react-native";
 import FontAwesome from "react-native-vector-icons/FontAwesome";
 import { convertStyles } from "../utils/convertStyles";
-import { getTypography } from "../services/typographyService";
+import { getTypography, resolveFont } from "../services/typographyService";
 import { resolveFA4IconName } from "../utils/faIconAlias";
 import { resolveTextDecorationLine } from "../utils/textDecoration";
 
@@ -144,7 +144,7 @@ const applyTextAttributes = (baseStyle, attributes, decorationOverrides = {}) =>
     });
   }
 
-  const fontFamily = unwrapValue(attrs.fontFamily, undefined);
+  const fontFamily = resolveFont(unwrapValue(attrs.fontFamily, undefined));
   if (fontFamily) next.fontFamily = fontFamily;
 
   return next;

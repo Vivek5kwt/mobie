@@ -25,6 +25,12 @@ const toString = (value, fallback = "") => {
   return r === undefined || r === null ? fallback : String(r);
 };
 
+const cleanFontFamily = (family) => {
+  if (!family) return undefined;
+  const cleaned = String(family).split(",")[0].trim().replace(/['"]/g, "");
+  return cleaned || undefined;
+};
+
 const toNumber = (value, fallback) => {
   const r = unwrapValue(value, undefined);
   if (r === undefined || r === "") return fallback;
@@ -238,6 +244,7 @@ export default function CustomerReviews({ section }) {
   const headingSize   = toNumber(headingCss?.fontSize, 17);
   const headingColor  = toString(headingCss?.color, "#111827");
   const headingWeight = toString(headingCss?.fontWeight, "700");
+  const headingFontFamily = cleanFontFamily(toString(headingCss?.fontFamily, ""));
 
   // ── Rating summary ──────────────────────────────────────────────────────────
   const ratingNumSize    = toNumber(ratingCss?.fontSize ?? ratingCss?.numberFontSize, 40);
@@ -263,6 +270,7 @@ export default function CustomerReviews({ section }) {
   const tabBorderRadius  = toNumber(tabCss?.borderRadius, 20);
   const tabFontSize      = toNumber(tabCss?.fontSize, 12);
   const tabFontWeight    = toString(tabCss?.fontWeight, "600");
+  const tabFontFamily    = cleanFontFamily(toString(tabCss?.fontFamily, ""));
 
   // ── Review card ─────────────────────────────────────────────────────────────
   const reviewTitleSize   = toNumber(reviewCss?.titleFontSize, 13);
@@ -275,6 +283,7 @@ export default function CustomerReviews({ section }) {
   const reviewStarSize    = toNumber(reviewCss?.starSize, 12);
   const reviewBorderColor = toString(reviewCss?.borderColor, "#E5E7EB");
   const avatarSize        = toNumber(reviewCss?.avatarSize, 36);
+  const reviewFontFamily  = cleanFontFamily(toString(reviewCss?.fontFamily, ""));
 
   // ── Write review button ─────────────────────────────────────────────────────
   const btnText         = toString(buttonCss?.text ?? raw?.writeButtonText, "Write a Review");
@@ -284,13 +293,14 @@ export default function CustomerReviews({ section }) {
   const btnFontWeight   = toString(buttonCss?.fontWeight, "600");
   const btnBorderRadius = toNumber(buttonCss?.borderRadius, 8);
   const btnPV           = toNumber(buttonCss?.paddingV, 13);
+  const btnFontFamily   = cleanFontFamily(toString(buttonCss?.fontFamily, ""));
 
   return (
     <View style={[styles.container, containerStyle]}>
 
       {/* ── Heading ─────────────────────────────────────────────────────────── */}
       {showHeading && (
-        <Text style={{ fontSize: headingSize, color: headingColor, fontWeight: headingWeight, marginBottom: 14 }}>
+        <Text style={{ fontSize: headingSize, color: headingColor, fontWeight: headingWeight, marginBottom: 14, ...(headingFontFamily ? { fontFamily: headingFontFamily } : {}) }}>
           {headingText}
         </Text>
       )}
@@ -373,6 +383,7 @@ export default function CustomerReviews({ section }) {
                     fontSize:   tabFontSize,
                     fontWeight: tabFontWeight,
                     color:      isActive ? tabActiveColor : tabInactiveColor,
+                    ...(tabFontFamily ? { fontFamily: tabFontFamily } : {}),
                   }}
                 >
                   {tab.label}
@@ -403,7 +414,7 @@ export default function CustomerReviews({ section }) {
               size={avatarSize}
             />
             <View style={{ marginLeft: 10, flex: 1 }}>
-              <Text style={{ fontSize: reviewAuthorSize, fontWeight: "600", color: reviewAuthorColor }}>
+              <Text style={{ fontSize: reviewAuthorSize, fontWeight: "600", color: reviewAuthorColor, ...(reviewFontFamily ? { fontFamily: reviewFontFamily } : {}) }}>
                 {review.author}
               </Text>
               {!!review.date && (
@@ -426,7 +437,7 @@ export default function CustomerReviews({ section }) {
 
           {/* Title */}
           {!!review.title && (
-            <Text style={{ fontSize: reviewTitleSize, fontWeight: "700", color: reviewTitleColor, marginTop: 6 }}>
+            <Text style={{ fontSize: reviewTitleSize, fontWeight: "700", color: reviewTitleColor, marginTop: 6, ...(reviewFontFamily ? { fontFamily: reviewFontFamily } : {}) }}>
               {review.title}
             </Text>
           )}
@@ -435,7 +446,7 @@ export default function CustomerReviews({ section }) {
           {!!review.body && (
             <Text
               numberOfLines={4}
-              style={{ fontSize: reviewBodySize, color: reviewBodyColor, marginTop: 4, lineHeight: reviewBodySize * 1.6 }}
+              style={{ fontSize: reviewBodySize, color: reviewBodyColor, marginTop: 4, lineHeight: reviewBodySize * 1.6, ...(reviewFontFamily ? { fontFamily: reviewFontFamily } : {}) }}
             >
               {review.body}
             </Text>
@@ -466,7 +477,7 @@ export default function CustomerReviews({ section }) {
           accessibilityRole="button"
           accessibilityLabel={btnText}
         >
-          <Text style={{ fontSize: btnFontSize, fontWeight: btnFontWeight, color: btnTextColor }}>
+          <Text style={{ fontSize: btnFontSize, fontWeight: btnFontWeight, color: btnTextColor, ...(btnFontFamily ? { fontFamily: btnFontFamily } : {}) }}>
             {btnText}
           </Text>
         </TouchableOpacity>

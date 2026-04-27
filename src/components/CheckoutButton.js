@@ -43,6 +43,12 @@ const toBool = (value, fallback = false) => {
   return fallback;
 };
 
+const cleanFontFamily = (family) => {
+  if (!family) return undefined;
+  const cleaned = String(family).split(",")[0].trim().replace(/['"]/g, "");
+  return cleaned || undefined;
+};
+
 // First non-empty string wins
 const pickStr = (candidates, fallback) => {
   for (const c of candidates) {
@@ -207,7 +213,7 @@ export default function CheckoutButton({ section }) {
     isBold ? "700" : (raw?.buttonFontWeight ?? raw?.fontWeight ?? raw?.textWeight ?? raw?.labelWeight ?? btnCss?.fontWeight),
     "600"
   );
-  const fontFamily    = toStr(raw?.buttonFontFamily ?? raw?.fontFamily ?? raw?.labelFamily ?? btnCss?.fontFamily, "");
+  const fontFamily    = cleanFontFamily(toStr(raw?.buttonFontFamily ?? raw?.fontFamily ?? raw?.labelFamily ?? btnCss?.fontFamily, ""));
   const italic        = toBool(raw?.buttonItalic   ?? raw?.italic,    false);
   const underline     = toBool(raw?.buttonUnderline ?? raw?.underline, false);
   const strikethrough = toBool(raw?.buttonStrikethrough ?? raw?.strikethrough, false);

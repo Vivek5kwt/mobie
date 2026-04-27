@@ -33,6 +33,12 @@ const toString = (value, fallback = "") => {
   return String(resolved);
 };
 
+const cleanFontFamily = (family) => {
+  if (!family) return undefined;
+  const cleaned = String(family).split(",")[0].trim().replace(/['"]/g, "");
+  return cleaned || undefined;
+};
+
 const toBoolean = (value, fallback = false) => {
   const resolved = unwrapValue(value, fallback);
   if (resolved === undefined || resolved === null) return fallback;
@@ -111,6 +117,12 @@ export default function DiscountCode({ section }) {
   const chipFontSize = toNumber(raw?.chipFontSize, 13);
   const removeIconColor = toString(raw?.removeIconColor ?? raw?.closeColor, "#6B7280");
 
+  // Font families
+  const titleFontFamily = cleanFontFamily(toString(raw?.titleFontFamily ?? raw?.fontFamily, ""));
+  const inputFontFamily = cleanFontFamily(toString(raw?.inputFontFamily ?? raw?.fontFamily, ""));
+  const applyFontFamily = cleanFontFamily(toString(raw?.applyFontFamily ?? raw?.buttonFontFamily ?? raw?.fontFamily, ""));
+  const chipFontFamily  = cleanFontFamily(toString(raw?.chipFontFamily ?? raw?.fontFamily, ""));
+
   if (!enabled) return null;
 
   const handleApply = () => {
@@ -146,6 +158,7 @@ export default function DiscountCode({ section }) {
               color: titleColor,
               fontSize: titleSize,
               fontWeight: titleWeight,
+              ...(titleFontFamily ? { fontFamily: titleFontFamily } : {}),
             },
           ]}
         >
@@ -164,6 +177,7 @@ export default function DiscountCode({ section }) {
               borderRadius: inputBorderRadius,
               color: inputTextColor,
               fontSize: inputTextSize,
+              ...(inputFontFamily ? { fontFamily: inputFontFamily } : {}),
             },
           ]}
           value={inputValue}
@@ -193,6 +207,7 @@ export default function DiscountCode({ section }) {
                 color: applyTextColor,
                 fontSize: applyFontSize,
                 fontWeight: applyFontWeight,
+                ...(applyFontFamily ? { fontFamily: applyFontFamily } : {}),
               },
             ]}
           >
@@ -222,6 +237,7 @@ export default function DiscountCode({ section }) {
                   {
                     color: chipTextColor,
                     fontSize: chipFontSize,
+                    ...(chipFontFamily ? { fontFamily: chipFontFamily } : {}),
                   },
                 ]}
               >
