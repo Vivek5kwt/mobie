@@ -158,14 +158,54 @@ export default function HeaderDefault({ config, bottomNavSection, hideTabs = fal
     const showCart     = resolveVal(config.showCart)     === true || resolveVal(config.showCart)     === "true" || resolveVal(config.showCart) === undefined;
     const showWishlist = resolveVal(config.showWishlist) === true || resolveVal(config.showWishlist) === "true";
 
-    // ── Title box / border styling ────────────────────────────────────────────
-    const showTitleBox      = resolveVal(config.showTitleBox) !== false && resolveVal(config.showTitleBox) !== "false";
-    const titleBorderWidth  = Number(resolveVal(config.titleBorderWidth)  ?? 1);
-    const titleBorderColor  = resolveVal(config.titleBorderColor)  || "rgba(0,0,0,0.18)";
-    const titleBorderRadius = Number(resolveVal(config.titleBorderRadius) ?? 6);
-    const titleBoxBg        = resolveVal(config.titleBoxBg) || "transparent";
-    const titleBoxPaddingH  = Number(resolveVal(config.titleBoxPaddingH)  ?? 10);
-    const titleBoxPaddingV  = Number(resolveVal(config.titleBoxPaddingV)  ?? 5);
+    // ── Title text styling (DSL-driven) ──────────────────────────────────────
+    const cleanFontFamily = (family) => {
+      if (!family) return undefined;
+      const cleaned = String(family).split(",")[0].trim().replace(/['"]/g, "");
+      return cleaned || undefined;
+    };
+    const _fsr = resolveVal(config.titleFontSize) ?? resolveVal(config.fontSize);
+    const titleFontSize   = Number.isFinite(Number(_fsr)) && Number(_fsr) > 0 ? Number(_fsr) : 18;
+    const titleFontFamily = cleanFontFamily(
+      resolveVal(config.titleFontFamily) ??
+      resolveVal(config.fontFamily) ??
+      resolveVal(config.titleFamily)
+    );
+    const _fwr = String(
+      resolveVal(config.titleFontWeight) ??
+      resolveVal(config.fontWeight) ??
+      resolveVal(config.titleWeight) ??
+      "700"
+    );
+    const _fwMap = { thin: "100", extralight: "200", light: "300", regular: "400", medium: "500", semibold: "600", bold: "700", extrabold: "800", black: "900" };
+    const titleFontWeight = _fwMap[_fwr.toLowerCase()] || _fwr;
+    const titleColor = resolveVal(config.titleColor) ?? resolveVal(config.titleTextColor) ?? textColor;
+
+    // ── Title box / border styling (wide-net key aliases) ─────────────────────
+    const titleBoxBg = resolveVal(
+      config.titleBgColor ??
+      config.titleBackgroundColor ??
+      config.titleContainerBg ??
+      config.titleBoxBg
+    ) || "";
+
+    const _borderRaw = resolveVal(
+      config.titleBorder ??
+      config.showTitleBorder ??
+      config.titleBorderEnabled ??
+      config.showBorder
+    );
+    const titleBorderEnabled =
+      _borderRaw === true ||
+      (typeof _borderRaw === "string" &&
+        _borderRaw !== "" && _borderRaw !== "false" && _borderRaw !== "0" && _borderRaw !== "none");
+
+    const titleBorderWidth  = titleBorderEnabled ? Number(resolveVal(config.titleBorderWidth) ?? 1) : 0;
+    const titleBorderColor  = resolveVal(config.titleBorderColor ?? config.titleBorderColour) || "#000000";
+    const titleBorderRadius = Number(resolveVal(config.titleBorderRadius) ?? 0);
+    const titleBoxPaddingH  = Number(resolveVal(config.titleBoxPaddingH) ?? 10);
+    const titleBoxPaddingV  = Number(resolveVal(config.titleBoxPaddingV) ?? 5);
+    const hasBox = !!titleBoxBg || titleBorderEnabled;
 
     const badgeStyle = {
       position: "absolute",
@@ -203,18 +243,23 @@ export default function HeaderDefault({ config, bottomNavSection, hideTabs = fal
             <View
               style={{
                 alignSelf: "flex-start",
-                ...(showTitleBox ? {
+                ...(hasBox ? {
                   borderWidth: titleBorderWidth,
                   borderColor: titleBorderColor,
                   borderRadius: titleBorderRadius,
-                  backgroundColor: titleBoxBg,
+                  backgroundColor: titleBoxBg || "transparent",
                   paddingHorizontal: titleBoxPaddingH,
                   paddingVertical: titleBoxPaddingV,
                 } : {}),
               }}
             >
               <Text
-                style={{ fontSize: 18, fontWeight: "700", color: textColor }}
+                style={{
+                  fontSize: titleFontSize,
+                  fontWeight: titleFontWeight,
+                  color: titleColor,
+                  ...(titleFontFamily ? { fontFamily: titleFontFamily } : {}),
+                }}
                 numberOfLines={1}
               >
                 {titleText}
