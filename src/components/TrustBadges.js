@@ -20,6 +20,12 @@ const toString = (value, fallback = "") => {
   return r === undefined || r === null ? fallback : String(r);
 };
 
+const cleanFontFamily = (family) => {
+  if (!family) return undefined;
+  const cleaned = String(family).split(",")[0].trim().replace(/['"]/g, "");
+  return cleaned || undefined;
+};
+
 const toNumber = (value, fallback) => {
   const r = unwrapValue(value, undefined);
   if (r === undefined || r === "") return fallback;
@@ -147,6 +153,7 @@ export default function TrustBadges({ section }) {
   const globalLabelFontSize   = toNumber(labelCss?.fontSize ?? badgeCss?.fontSize, 11);
   const globalLabelColor      = toString(labelCss?.color ?? badgeCss?.color, "#374151");
   const globalLabelFontWeight = toString(labelCss?.fontWeight ?? badgeCss?.fontWeight, "500");
+  const globalLabelFontFamily = cleanFontFamily(toString(labelCss?.fontFamily ?? badgeCss?.fontFamily, ""));
   const labelMT               = toNumber(labelCss?.marginTop ?? badgeCss?.labelMarginTop, 5);
 
   // ── Divider ─────────────────────────────────────────────────────────────────
@@ -172,6 +179,7 @@ export default function TrustBadges({ section }) {
                   fontWeight: globalLabelFontWeight,
                   marginTop:  labelMT,
                   textAlign:  "center",
+                  ...(globalLabelFontFamily ? { fontFamily: globalLabelFontFamily } : {}),
                 }}
               >
                 {badge.label}

@@ -41,6 +41,12 @@ const toString = (value, fallback = "") => {
   return String(resolved);
 };
 
+const cleanFontFamily = (family) => {
+  if (!family) return undefined;
+  const cleaned = String(family).split(",")[0].trim().replace(/['"]/g, "");
+  return cleaned || undefined;
+};
+
 const toBoolean = (value, fallback = false) => {
   const resolved = unwrapValue(value, fallback);
   if (resolved === undefined || resolved === null) return fallback;
@@ -175,6 +181,10 @@ export default function ProductLibrary({ section }) {
   const shareIconSize = toNumber(shareStyles?.icon?.size, 14);
   const favouriteIconSize = toNumber(favouriteStyles?.icon?.size, 16);
   const ratingIconSize = toNumber(reviewStyles?.icon?.size, 12);
+
+  // ── Font families ─────────────────────────────────────────────────────────
+  const ratingFontFamily = cleanFontFamily(toString(reviewStyles?.rating?.fontFamily ?? reviewStyles?.fontFamily, ""));
+  const ratingCountFontFamily = cleanFontFamily(toString(reviewStyles?.count?.fontFamily ?? reviewStyles?.fontFamily, ""));
 
   // ── Container ─────────────────────────────────────────────────────────────
   const containerStyle = [
@@ -343,6 +353,7 @@ export default function ProductLibrary({ section }) {
                   fontSize: toNumber(reviewStyles?.rating?.fontSize, 12),
                   color: toString(reviewStyles?.rating?.color, "#111827"),
                   fontWeight: toString(reviewStyles?.rating?.fontWeight, "600"),
+                  ...(ratingFontFamily ? { fontFamily: ratingFontFamily } : {}),
                 }}
               >
                 {ratingText}
@@ -354,6 +365,7 @@ export default function ProductLibrary({ section }) {
                   fontSize: toNumber(reviewStyles?.count?.fontSize, 12),
                   color: toString(reviewStyles?.count?.color, "#6b7280"),
                   marginLeft: ratingTextVisible ? 4 : 0,
+                  ...(ratingCountFontFamily ? { fontFamily: ratingCountFontFamily } : {}),
                 }}
               >
                 {ratingCountText}

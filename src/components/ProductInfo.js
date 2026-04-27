@@ -18,6 +18,12 @@ const toString = (value, fallback = "") => {
   return String(resolved);
 };
 
+const cleanFontFamily = (family) => {
+  if (!family) return undefined;
+  const cleaned = String(family).split(",")[0].trim().replace(/['"]/g, "");
+  return cleaned || undefined;
+};
+
 const toNumber = (value, fallback) => {
   const resolved = unwrapValue(value, undefined);
   if (resolved === undefined || resolved === "") return fallback;
@@ -114,8 +120,15 @@ export default function ProductInfo({ section }) {
   const ratingFontSize     = toNumber(ratingCss?.fontSize ?? ratingCss?.rating?.fontSize, 13);
   const ratingColor        = toString(ratingCss?.color ?? ratingCss?.rating?.color, "#111827");
   const ratingFontWeight   = toString(ratingCss?.fontWeight ?? ratingCss?.rating?.fontWeight, "600");
+  const ratingFontFamily   = cleanFontFamily(toString(ratingCss?.fontFamily ?? ratingCss?.rating?.fontFamily, ""));
   const ratingCountColor   = toString(ratingCss?.count?.color, "#6B7280");
   const ratingCountSize    = toNumber(ratingCss?.count?.fontSize, 12);
+
+  // ── Font families ────────────────────────────────────────────────────────────
+  const titleFontFamily    = cleanFontFamily(toString(titleCss?.fontFamily, ""));
+  const vendorFontFamily   = cleanFontFamily(toString(vendorCss?.fontFamily, ""));
+  const priceFontFamily    = cleanFontFamily(toString(priceCss?.fontFamily ?? priceCss?.sale?.fontFamily, ""));
+  const variantsFontFamily = cleanFontFamily(toString(variantsCss?.fontFamily, ""));
   const ratingBorderWidth  = ratingCss?.borderLine ? 1 : 0;
   const ratingBorderColor  = toString(ratingCss?.borderColor, "#e5e7eb");
   const showRatingIcon     = toBoolean(visibility?.reviewsIcon ?? visibility?.ratingIcon, true);
@@ -151,6 +164,7 @@ export default function ProductInfo({ section }) {
                   fontSize:   toNumber(titleCss?.fontSize, 18),
                   color:      toString(titleCss?.color, "#111827"),
                   fontWeight: toString(titleCss?.fontWeight, "700"),
+                  ...(titleFontFamily ? { fontFamily: titleFontFamily } : {}),
                 },
               ]}
               numberOfLines={2}
@@ -186,6 +200,7 @@ export default function ProductInfo({ section }) {
                   fontSize:   ratingFontSize,
                   color:      ratingColor,
                   fontWeight: ratingFontWeight,
+                  ...(ratingFontFamily ? { fontFamily: ratingFontFamily } : {}),
                 }}
               >
                 {ratingValue}
@@ -215,6 +230,7 @@ export default function ProductInfo({ section }) {
               fontSize:   toNumber(vendorCss?.fontSize, 13),
               color:      toString(vendorCss?.color, "#6B7280"),
               fontWeight: toString(vendorCss?.fontWeight, "400"),
+              ...(vendorFontFamily ? { fontFamily: vendorFontFamily } : {}),
             },
           ]}
         >
@@ -234,6 +250,7 @@ export default function ProductInfo({ section }) {
                     fontSize:   toNumber(priceCss?.sale?.fontSize, 18),
                     color:      toString(priceCss?.sale?.color, "#111827"),
                     fontWeight: toString(priceCss?.sale?.fontWeight, "700"),
+                    ...(priceFontFamily ? { fontFamily: priceFontFamily } : {}),
                   },
                 ]}
               >
@@ -303,6 +320,7 @@ export default function ProductInfo({ section }) {
                 fontSize:   toNumber(variantsCss?.fontSize, 14),
                 color:      toString(variantsCss?.color, "#111827"),
                 fontWeight: toString(variantsCss?.fontWeight, "600"),
+                ...(variantsFontFamily ? { fontFamily: variantsFontFamily } : {}),
               },
             ]}
           >

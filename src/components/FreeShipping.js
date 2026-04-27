@@ -26,6 +26,12 @@ const toString = (value, fallback = "") => {
   return String(resolved);
 };
 
+const cleanFontFamily = (family) => {
+  if (!family) return undefined;
+  const cleaned = String(family).split(",")[0].trim().replace(/['"]/g, "");
+  return cleaned || undefined;
+};
+
 const toBoolean = (value, fallback = false) => {
   const resolved = unwrapValue(value, fallback);
   if (resolved === undefined || resolved === null) return fallback;
@@ -101,6 +107,7 @@ export default function FreeShipping({ section }) {
   const padR = toNumber(raw?.padR ?? raw?.pr, 16);
   const padB = toNumber(raw?.padB ?? raw?.pb, 12);
   const padL = toNumber(raw?.padL ?? raw?.pl, 16);
+  const textFontFamily = cleanFontFamily(toString(raw?.fontFamily ?? raw?.textFontFamily, ""));
 
   if (!enabled) return null;
 
@@ -142,6 +149,7 @@ export default function FreeShipping({ section }) {
             color: isReached ? fillColor : textColor,
             fontSize: textSize,
             fontWeight: textWeight,
+            ...(textFontFamily ? { fontFamily: textFontFamily } : {}),
           },
         ]}
         numberOfLines={2}

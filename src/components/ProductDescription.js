@@ -19,6 +19,12 @@ const toString = (value, fallback = "") => {
   return String(resolved);
 };
 
+const cleanFontFamily = (family) => {
+  if (!family) return undefined;
+  const cleaned = String(family).split(",")[0].trim().replace(/['"]/g, "");
+  return cleaned || undefined;
+};
+
 const toNumber = (value, fallback) => {
   const resolved = unwrapValue(value, undefined);
   if (resolved === undefined || resolved === "") return fallback;
@@ -99,9 +105,10 @@ export default function ProductDescription({ section }) {
   })();
 
   // ── Title style ────────────────────────────────────────────────────────────
-  const titleFontSize  = toNumber(titleCss?.style?.fontSize, 14);
-  const titleColor     = toString(titleCss?.style?.color, "#111827");
-  const titleWeight    = toString(titleCss?.style?.fontWeight, "700");
+  const titleFontSize   = toNumber(titleCss?.style?.fontSize, 14);
+  const titleColor      = toString(titleCss?.style?.color, "#111827");
+  const titleWeight     = toString(titleCss?.style?.fontWeight, "700");
+  const titleFontFamily = cleanFontFamily(toString(titleCss?.style?.fontFamily ?? titleCss?.fontFamily, ""));
   const titleItalic    = toBoolean(titleCss?.style?.italic, false);
   const titleUnderline = toBoolean(titleCss?.style?.underline, false);
   const titleStrikethrough = toBoolean(titleCss?.style?.strikethrough, false);
@@ -111,9 +118,10 @@ export default function ProductDescription({ section }) {
   });
 
   // ── Body style ─────────────────────────────────────────────────────────────
-  const bodyFontSize  = toNumber(infoCss?.descriptionStyle?.fontSize, 12);
-  const bodyColor     = toString(infoCss?.descriptionStyle?.color, "#6B7280");
-  const bodyWeight    = toString(infoCss?.descriptionStyle?.fontWeight, "400");
+  const bodyFontSize   = toNumber(infoCss?.descriptionStyle?.fontSize, 12);
+  const bodyColor      = toString(infoCss?.descriptionStyle?.color, "#6B7280");
+  const bodyWeight     = toString(infoCss?.descriptionStyle?.fontWeight, "400");
+  const bodyFontFamily = cleanFontFamily(toString(infoCss?.descriptionStyle?.fontFamily ?? infoCss?.fontFamily, ""));
   const bodyItalic    = toBoolean(infoCss?.descriptionStyle?.italic, false);
   const bodyUnderline = toBoolean(infoCss?.descriptionStyle?.underline, false);
   const bodyStrikethrough = toBoolean(infoCss?.descriptionStyle?.strikethrough, false);
@@ -170,6 +178,7 @@ export default function ProductDescription({ section }) {
                 fontWeight: String(titleWeight),
                 fontStyle:  titleItalic ? "italic" : "normal",
                 textDecorationLine: titleDecorationLine,
+                ...(titleFontFamily ? { fontFamily: titleFontFamily } : {}),
                 flex: 1,
               }}
             >
@@ -202,6 +211,7 @@ export default function ProductDescription({ section }) {
               fontWeight:        String(bodyWeight),
               fontStyle:         bodyItalic    ? "italic"    : "normal",
               textDecorationLine: bodyDecorationLine,
+              ...(bodyFontFamily ? { fontFamily: bodyFontFamily } : {}),
               lineHeight:        bodyFontSize * 1.6,
             }}
           >

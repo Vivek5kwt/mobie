@@ -158,6 +158,15 @@ export default function HeaderDefault({ config, bottomNavSection, hideTabs = fal
     const showCart     = resolveVal(config.showCart)     === true || resolveVal(config.showCart)     === "true" || resolveVal(config.showCart) === undefined;
     const showWishlist = resolveVal(config.showWishlist) === true || resolveVal(config.showWishlist) === "true";
 
+    // ── Title box / border styling ────────────────────────────────────────────
+    const showTitleBox      = resolveVal(config.showTitleBox) !== false && resolveVal(config.showTitleBox) !== "false";
+    const titleBorderWidth  = Number(resolveVal(config.titleBorderWidth)  ?? 1);
+    const titleBorderColor  = resolveVal(config.titleBorderColor)  || "rgba(0,0,0,0.18)";
+    const titleBorderRadius = Number(resolveVal(config.titleBorderRadius) ?? 6);
+    const titleBoxBg        = resolveVal(config.titleBoxBg) || "transparent";
+    const titleBoxPaddingH  = Number(resolveVal(config.titleBoxPaddingH)  ?? 10);
+    const titleBoxPaddingV  = Number(resolveVal(config.titleBoxPaddingV)  ?? 5);
+
     const badgeStyle = {
       position: "absolute",
       top: -5,
@@ -191,12 +200,26 @@ export default function HeaderDefault({ config, bottomNavSection, hideTabs = fal
             onPress={() => navigation.navigate("LayoutScreen")}
             style={{ flex: 1 }}
           >
-            <Text
-              style={{ fontSize: 18, fontWeight: "700", color: textColor }}
-              numberOfLines={1}
+            <View
+              style={{
+                alignSelf: "flex-start",
+                ...(showTitleBox ? {
+                  borderWidth: titleBorderWidth,
+                  borderColor: titleBorderColor,
+                  borderRadius: titleBorderRadius,
+                  backgroundColor: titleBoxBg,
+                  paddingHorizontal: titleBoxPaddingH,
+                  paddingVertical: titleBoxPaddingV,
+                } : {}),
+              }}
             >
-              {titleText}
-            </Text>
+              <Text
+                style={{ fontSize: 18, fontWeight: "700", color: textColor }}
+                numberOfLines={1}
+              >
+                {titleText}
+              </Text>
+            </View>
           </TouchableOpacity>
 
           {/* Right icons */}
