@@ -351,8 +351,9 @@ export default function BannerSlider({ section }) {
 
   // ── Indicators ──
   const indicatorSize = asNumber(rp?.indicatorSize, 7);
-  const indicatorColor = rp?.indicatorColor || "rgba(1,109,119,0.35)";
+  const indicatorColor = rp?.indicatorColor || "rgba(255,255,255,0.4)";
   const indicatorSelectedColor = rp?.indicatorSelectedColor || "#FFFFFF";
+  const indicatorBgColor = rp?.indicatorBgColor || rp?.dotsBgColor || "rgba(0,0,0,0.25)";
   // "inside" = dots overlaid at the bottom of the banner image; "bottom" = below the banner
   const indicatorPosition = (
     rp?.indicatorPosition ||
@@ -579,21 +580,23 @@ export default function BannerSlider({ section }) {
             {/* Dots overlaid inside the banner (indicatorPosition: "inside") */}
             {indicatorsInside && showDots && slides.length > 1 ? (
               <View style={styles.dotsInside}>
-                {slides.map((_, dotIdx) => {
-                  const isActive = dotIdx === currentIndex;
-                  return (
-                    <View
-                      key={`dot-in-${dotIdx}`}
-                      style={{
-                        width: indicatorSize,
-                        height: indicatorSize,
-                        borderRadius: indicatorSize / 2,
-                        backgroundColor: isActive ? indicatorSelectedColor : indicatorColor,
-                        marginHorizontal: 3,
-                      }}
-                    />
-                  );
-                })}
+                <View style={[styles.dotsPill, { backgroundColor: indicatorBgColor }]}>
+                  {slides.map((_, dotIdx) => {
+                    const isActive = dotIdx === currentIndex;
+                    return (
+                      <View
+                        key={`dot-in-${dotIdx}`}
+                        style={{
+                          width: indicatorSize,
+                          height: indicatorSize,
+                          borderRadius: indicatorSize / 2,
+                          backgroundColor: isActive ? indicatorSelectedColor : indicatorColor,
+                          marginHorizontal: 3,
+                        }}
+                      />
+                    );
+                  })}
+                </View>
               </View>
             ) : null}
           </View>
@@ -604,21 +607,23 @@ export default function BannerSlider({ section }) {
       {/* Dots below the banner (indicatorPosition: "bottom" or default) */}
       {!indicatorsInside && showDots && slides.length > 1 ? (
         <View style={styles.dotsRow}>
-          {slides.map((_, idx) => {
-            const isActive = idx === currentIndex;
-            return (
-              <View
-                key={`dot-${idx}`}
-                style={{
-                  width: indicatorSize,
-                  height: indicatorSize,
-                  borderRadius: indicatorSize / 2,
-                  backgroundColor: isActive ? indicatorSelectedColor : indicatorColor,
-                  marginHorizontal: 3,
-                }}
-              />
-            );
-          })}
+          <View style={[styles.dotsPill, { backgroundColor: indicatorBgColor }]}>
+            {slides.map((_, idx) => {
+              const isActive = idx === currentIndex;
+              return (
+                <View
+                  key={`dot-${idx}`}
+                  style={{
+                    width: indicatorSize,
+                    height: indicatorSize,
+                    borderRadius: indicatorSize / 2,
+                    backgroundColor: isActive ? indicatorSelectedColor : indicatorColor,
+                    marginHorizontal: 3,
+                  }}
+                />
+              );
+            })}
+          </View>
         </View>
       ) : null}
     </View>
@@ -665,10 +670,16 @@ const styles = StyleSheet.create({
     textDecorationLine: "line-through",
   },
   dotsRow: {
-    flexDirection: "row",
     justifyContent: "center",
     alignItems: "center",
     paddingVertical: 8,
+  },
+  dotsPill: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 8,
+    paddingVertical: 5,
+    borderRadius: 999,
   },
   // Dots overlaid at the bottom-center of the banner image
   dotsInside: {
