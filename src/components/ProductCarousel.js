@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import {
   Dimensions,
   Image,
+  Pressable,
   ScrollView,
   StyleSheet,
   Text,
@@ -18,6 +19,7 @@ import {
 import { addItem } from "../store/slices/cartSlice";
 import { toggleWishlist } from "../store/slices/wishlistSlice";
 import { resolveTextDecorationLine } from "../utils/textDecoration";
+import Snackbar from "./Snackbar";
 
 const unwrapValue = (value, fallback = undefined) => {
   if (value === undefined || value === null) return fallback;
@@ -120,6 +122,8 @@ export default function ProductCarousel({ section }) {
   const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [snackVisible, setSnackVisible] = useState(false);
+  const [snackMessage, setSnackMessage] = useState("");
 
   const rawProps =
     section?.properties?.props?.properties || section?.properties?.props || section?.props || {};
@@ -528,12 +532,12 @@ export default function ProductCarousel({ section }) {
             padding: 0,
           },
         ]}
-        onPress={(e) => {
-          e?.stopPropagation?.();
+        onPress={() => {
           const id = String(
             product?.id || product?.variantId || product?.handle || product?.title || ""
           ).trim();
           if (!id) return;
+          const adding = !isFavorite;
           dispatch(
             toggleWishlist({
               product: {
@@ -548,6 +552,8 @@ export default function ProductCarousel({ section }) {
               },
             })
           );
+          setSnackMessage(adding ? "Product added to wishlist successfully." : "Product removed from wishlist successfully.");
+          setSnackVisible(true);
         }}
         activeOpacity={0.7}
         hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
@@ -658,10 +664,11 @@ export default function ProductCarousel({ section }) {
             const isSoldOut = product.availableForSale === false;
 
             return (
-              <TouchableOpacity
+              <Pressable
                 key={product.id || index}
-                style={[
+                style={({ pressed }) => [
                   styles.card,
+                  pressed && { opacity: 0.85 },
                   {
                     width: cardWidth,
                     borderRadius: outerCorners || 8,
@@ -670,7 +677,6 @@ export default function ProductCarousel({ section }) {
                   },
                 ]}
                 onPress={() => handleProductPress(product)}
-                activeOpacity={0.85}
               >
                 {cardImageActive && product.imageUrl && (
                   <View
@@ -772,11 +778,16 @@ export default function ProductCarousel({ section }) {
                   {/* ATC below product info (default) */}
                   {atcPosition === "below" && renderAddToCart(product, isSoldOut)}
                 </View>
-              </TouchableOpacity>
+              </Pressable>
             );
           })}
         </ScrollView>
       )}
+      <Snackbar
+        visible={snackVisible}
+        message={snackMessage}
+        onDismiss={() => setSnackVisible(false)}
+      />
     </View>
   );
 }
