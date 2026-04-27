@@ -197,10 +197,10 @@ export default function BannerSlider({ section }) {
   const imageActive = asBoolean(rp?.imageActive, true);
   const textActive  = asBoolean(rp?.textActive, true);
   const imageResizeMode = (() => {
-    const raw = String(rp?.imageScale ?? rp?.imageResizeMode ?? rp?.resizeMode ?? "cover").toLowerCase();
-    if (raw === "contain" || raw === "fit") return "contain";
+    const raw = String(rp?.imageScale ?? rp?.imageResizeMode ?? rp?.resizeMode ?? "contain").toLowerCase();
+    if (raw === "cover") return "cover";
     if (raw === "stretch") return "stretch";
-    return "cover";
+    return "contain";
   })();
 
   // ── Slider behavior ──
@@ -350,10 +350,11 @@ export default function BannerSlider({ section }) {
   ]);
 
   // ── Indicators ──
-  const indicatorSize = asNumber(rp?.indicatorSize, 7);
-  const indicatorColor = rp?.indicatorColor || "rgba(255,255,255,0.4)";
-  const indicatorSelectedColor = rp?.indicatorSelectedColor || "#FFFFFF";
-  const indicatorBgColor = rp?.indicatorBgColor || rp?.dotsBgColor || "rgba(0,0,0,0.25)";
+  const indicatorSize = asNumber(rp?.indicatorSize, 9);
+  const indicatorColor = rp?.indicatorColor || "#016D77";
+  const indicatorSelectedColor = rp?.indicatorSelectedColor || "#016D77";
+  const indicatorBgColor = rp?.indicatorBgColor || rp?.dotsBgColor || "transparent";
+  const indicatorBorderWidth = asNumber(rp?.indicatorBorderWidth, 1.5);
   // "inside" = dots overlaid at the bottom of the banner image; "bottom" = below the banner
   const indicatorPosition = (
     rp?.indicatorPosition ||
@@ -590,7 +591,9 @@ export default function BannerSlider({ section }) {
                           width: indicatorSize,
                           height: indicatorSize,
                           borderRadius: indicatorSize / 2,
-                          backgroundColor: isActive ? indicatorSelectedColor : indicatorColor,
+                          backgroundColor: isActive ? indicatorSelectedColor : "transparent",
+                          borderWidth: indicatorBorderWidth,
+                          borderColor: isActive ? indicatorSelectedColor : indicatorColor,
                           marginHorizontal: 3,
                         }}
                       />
@@ -617,7 +620,9 @@ export default function BannerSlider({ section }) {
                     width: indicatorSize,
                     height: indicatorSize,
                     borderRadius: indicatorSize / 2,
-                    backgroundColor: isActive ? indicatorSelectedColor : indicatorColor,
+                    backgroundColor: isActive ? indicatorSelectedColor : "transparent",
+                    borderWidth: indicatorBorderWidth,
+                    borderColor: isActive ? indicatorSelectedColor : indicatorColor,
                     marginHorizontal: 3,
                   }}
                 />
