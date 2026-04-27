@@ -233,9 +233,15 @@ export default function ProductCarousel({ section }) {
   const strikeWeight = toFontWeight(raw?.strikeWeight, "700");
 
   // Favorite configuration
-  const favActive = toBoolean(raw?.favActive, false);
-  const favEnabled = toBoolean(raw?.favEnabled, false);
-  const favoriteIconEnabled = toBoolean(raw?.favoriteIconEnabled, true);
+  // Single source of truth — first explicit DSL flag wins; default false (hidden)
+  const showFavorite = toBoolean(
+    raw?.favoriteIconEnabled ??
+    raw?.favActive ??
+    raw?.favEnabled ??
+    raw?.showFavoriteIcon ??
+    raw?.showFavorite,
+    false
+  );
   const favoriteIconId = toString(raw?.favoriteIconId, "fa-heart");
   const favoriteIconSize = toNumber(raw?.favIconSize, 16);
   const favoriteIconColor = toString(raw?.favIconColor, "#111827");
@@ -490,8 +496,7 @@ export default function ProductCarousel({ section }) {
   };
 
   const renderFavorite = (product, isFavorite) => {
-    // Only show heart icon when favActive or favEnabled is true in DSL
-    if ((!favActive && !favEnabled) || !favoriteIconEnabled) return null;
+    if (!showFavorite) return null;
 
     // Always show icon: filled heart when favorited, outline heart when not
     const iconId = isFavorite ? favoriteIconId : unfavoriteIconId;

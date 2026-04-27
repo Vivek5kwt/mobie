@@ -320,13 +320,11 @@ export default function HeroBanner({ section }) {
   // CSS objectFit: cover -> cover, fill/stretch -> stretch, contain/fit -> contain
   const cssObjectFit = toString(layoutCss?.image?.objectFit, "cover").toLowerCase();
   const resizeMode =
-    cssObjectFit === "cover" || imageScale === "cover" || imageScale === "fill"
-      ? "cover"
-      : cssObjectFit === "fill" || imageScale === "stretch"
-        ? "stretch"
-        : imageScale === "fit"
-          ? "contain"
-          : "contain";
+    cssObjectFit === "fill" || imageScale === "stretch"
+      ? "stretch"
+      : imageScale === "fit" || imageScale === "contain" || cssObjectFit === "contain"
+        ? "contain"
+        : "cover"; // default to cover — fills full width edge to edge
 
   // Text content – prefer top-level props, but fall back to flatProps snapshot
   const flatPropsNode = rawProps?.flatProps?.value || rawProps?.flatProps || {};
@@ -627,7 +625,18 @@ export default function HeroBanner({ section }) {
   const imageAlt = toString(contentProps?.alt, "");
   const overlayOpacity =
     toNumber(contentProps?.overlayOpacity, undefined) ??
-    toNumber(layoutCss?.image?.overlayOpacityPct, 40);
+    toNumber(layoutCss?.image?.overlayOpacityPct, 0);
+
+  // blurRadius scales 0-100 → 0-20 (React Native blurRadius range)
+  const imageBlurRadius = overlayOpacity > 0 ? Math.round((overlayOpacity / 100) * 20) : 0;
+
+  // Optional color overlay (separate from blur) — only applied when explicitly set
+  const overlayColor = toString(
+    contentProps?.overlayColor ??
+    rawProps?.overlayColor ??
+    layoutCss?.image?.overlayColor,
+    ""
+  );
 
   // Alignment and padding
   const alignSettingsEnabled = toBoolean(rawProps?.alignSettingsEnabled, true);
@@ -826,16 +835,18 @@ export default function HeroBanner({ section }) {
             styles.image, // base style last so position/top/left/right/bottom always win
           ]}
           resizeMode={resizeMode}
+          blurRadius={imageBlurRadius}
         />
       ) : null}
 
-      {imageSrc && contentSettingsEnabled && overlayOpacity > 0 ? (
+      {/* Color-tinted overlay — only rendered when an explicit overlayColor is set in DSL */}
+      {imageSrc && contentSettingsEnabled && !!overlayColor && overlayColor !== "transparent" ? (
         <View
           style={[
             styles.overlay,
             {
-              backgroundColor: "#000000",
-              opacity: overlayOpacity / 100,
+              backgroundColor: overlayColor,
+              opacity: overlayOpacity > 0 ? overlayOpacity / 100 : 0.4,
             },
           ]}
         />

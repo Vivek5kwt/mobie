@@ -149,16 +149,16 @@ export default function ProductGrid({ section, limit = 8, title = "Products" }) 
     true
   );
   const resolvedFavMode = toString(rawProps?.favMode, "").toLowerCase();
-  const resolvedShowFavorite =
-    resolvedFavMode === "always show" ||
-    toBoolean(
-      rawProps?.favoriteIconEnabled ??
-      rawProps?.favActive ??
-      rawProps?.showFavorite ??
-      rawProps?.showFavoriteIcon ??
-      rawProps?.favEnabled,
-      false
-    );
+  // Explicit DSL flags always win. "always show" mode is used only as the default fallback
+  // when no explicit flag is present — it cannot override an explicit false.
+  const resolvedShowFavorite = toBoolean(
+    rawProps?.favoriteIconEnabled ??
+    rawProps?.favActive ??
+    rawProps?.showFavorite ??
+    rawProps?.showFavoriteIcon ??
+    rawProps?.favEnabled,
+    resolvedFavMode === "always show" // fallback: true only when favMode="always show"
+  );
   const resolvedViewAllActive = toBoolean(
     rawProps?.viewAllActive ?? rawProps?.showViewAll,
     true
@@ -278,6 +278,16 @@ export default function ProductGrid({ section, limit = 8, title = "Products" }) 
   const atcMarginT = resolveFirstNumber([rawProps?.atcMarginT, rawProps?.atcMarginTop], 4);
   const atcMarginB = resolveFirstNumber([rawProps?.atcMarginB, rawProps?.atcMarginBottom], 8);
   const atcMarginX = resolveFirstNumber([rawProps?.atcMarginX, rawProps?.atcMarginH], 8);
+
+  // ── Add-to-Cart position ──────────────────────────────────────────────────
+  // "Above Product Details" → render ATC between image and title/price
+  // "Below Product Details" → render ATC after title/price (default)
+  const atcPositionRaw = toString(
+    rawProps?.atcPosition ?? rawProps?.addToCartPosition ?? rawProps?.cartBtnPosition ??
+    rawProps?.buttonPosition ?? rawProps?.position,
+    "below"
+  ).toLowerCase();
+  const atcAbove = atcPositionRaw.includes("above");
 
   // ── Container spacing ─────────────────────────────────────────────────────
   const pt = resolveFirstNumber([rawProps?.pt, rawProps?.paddingTop],    12);
@@ -567,7 +577,44 @@ export default function ProductGrid({ section, limit = 8, title = "Products" }) 
                   </View>
                 )}
 
-                {/* Card body */}
+                {/* Add to Cart — rendered above card body when position = "above" */}
+                {showAddToCart && atcAbove && (
+                  <TouchableOpacity
+                    activeOpacity={0.8}
+                    style={[
+                      styles.addToCartBtn,
+                      {
+                        backgroundColor: addToCartBgColor,
+                        borderRadius:    addToCartBorderRadius,
+                        paddingTop:      atcPadT,
+                        paddingBottom:   atcPadB,
+                        paddingLeft:     atcPadL,
+                        paddingRight:    atcPadR,
+                        marginTop:       atcMarginT,
+                        marginBottom:    atcMarginB,
+                        marginLeft:      atcMarginX,
+                        marginRight:     atcMarginX,
+                      },
+                    ]}
+                    onPress={(e) => handleAddToCart(product, e)}
+                  >
+                    <Text
+                      style={[
+                        styles.addToCartText,
+                        {
+                          color:      addToCartTextColor,
+                          fontSize:   addToCartFontSize,
+                          fontWeight: addToCartFontWeight,
+                          ...(addToCartFontFamily ? { fontFamily: addToCartFontFamily } : null),
+                        },
+                      ]}
+                    >
+                      {addToCartLabel}
+                    </Text>
+                  </TouchableOpacity>
+                )}
+
+                {/* Card body — title + price */}
                 <View style={[styles.content, { paddingHorizontal: cardPadX, paddingVertical: cardPadY }]}>
                   {resolvedShowCardTitle && (
                     <Text
@@ -605,8 +652,8 @@ export default function ProductGrid({ section, limit = 8, title = "Products" }) 
                   )}
                 </View>
 
-                {/* Add to Cart */}
-                {showAddToCart && (
+                {/* Add to Cart — rendered below card body when position = "below" (default) */}
+                {showAddToCart && !atcAbove && (
                   <TouchableOpacity
                     activeOpacity={0.8}
                     style={[
