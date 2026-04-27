@@ -290,9 +290,26 @@ export default function HeroBanner({ section }) {
   // Image attributes and settings
   const imageAttributes = rawProps?.imageAttributes?.properties || rawProps?.imageAttributes || {};
   const imageSettingsEnabled = toBoolean(rawProps?.imageSettingsEnabled, true);
-  const imageScale = toString(imageAttributes?.scale, "Cover").toLowerCase();
-  // Default to 0 — no rounded corners unless DSL explicitly sets a radius
-  const imageCornerRadius = toNumber(imageAttributes?.imageCorner, 0);
+  // Read scale from imageAttributes first, then top-level DSL aliases
+  const imageScale = toString(
+    imageAttributes?.scale ??
+    rawProps?.imageScale ??
+    rawProps?.scale ??
+    rawProps?.imageFit ??
+    rawProps?.imageResizeMode,
+    "Cover"
+  ).toLowerCase();
+  // Read image corner radius from imageAttributes OR top-level DSL aliases
+  const imageCornerRadius = toNumber(
+    imageAttributes?.imageCorner ??
+    imageAttributes?.cornerRadius ??
+    imageAttributes?.borderRadius ??
+    rawProps?.imageCorner ??
+    rawProps?.imageCornerRadius ??
+    rawProps?.imageRadius ??
+    rawProps?.imageRoundedCorner,
+    0
+  );
   
   // Parse image ratio
   const parseImageRatio = (value) => {
@@ -316,15 +333,22 @@ export default function HeroBanner({ section }) {
 
   const imageAspectRatio = parseImageRatio(imageAttributes?.imageRatio);
   
-  // Map image scale to React Native resizeMode
-  // CSS objectFit: cover -> cover, fill/stretch -> stretch, contain/fit -> contain
-  const cssObjectFit = toString(layoutCss?.image?.objectFit, "cover").toLowerCase();
-  const resizeMode =
-    cssObjectFit === "fill" || imageScale === "stretch"
-      ? "stretch"
-      : imageScale === "fit" || imageScale === "contain" || cssObjectFit === "contain"
-        ? "contain"
-        : "cover"; // default to cover — fills full width edge to edge
+  // Map image scale to React Native resizeMode.
+  // The user's explicit builder setting (imageScale) always wins over the
+  // presentation CSS snapshot (cssObjectFit) which reflects the web defaults.
+  const cssObjectFit = toString(layoutCss?.image?.objectFit, "").toLowerCase();
+  const resizeMode = (() => {
+    // User's builder scale setting — checked first
+    if (imageScale === "stretch" || imageScale === "fill") return "stretch";
+    if (imageScale === "contain" || imageScale === "fit") return "contain";
+    if (imageScale === "cover") return "cover";
+    // Presentation CSS fallback (web snapshot)
+    if (cssObjectFit === "fill") return "stretch";
+    if (cssObjectFit === "contain") return "contain";
+    if (cssObjectFit === "cover") return "cover";
+    // Default: cover fills full width edge to edge — no letterbox bars
+    return "cover";
+  })();
 
   // Text content – prefer top-level props, but fall back to flatProps snapshot
   const flatPropsNode = rawProps?.flatProps?.value || rawProps?.flatProps || {};
@@ -703,6 +727,8 @@ export default function HeroBanner({ section }) {
       undefined
     );
     if (fromRaw !== undefined) return fromRaw;
+    // imageCornerRadius drives the container clip when no explicit container radius is set
+    if (imageCornerRadius > 0) return imageCornerRadius;
     const fromCss = toNumber(layoutCss?.container?.borderRadius, undefined);
     if (fromCss !== undefined) return fromCss;
     if (_cBrFromCss !== undefined && _cBrFromCss !== null) {
@@ -710,11 +736,12 @@ export default function HeroBanner({ section }) {
     }
     return 0;
   })();
-  // Outer card container — transparent by default so no white box appears around the banner
+  // Outer card container — transparent by default so no white box appears around the banner.
+  // outerBorderRadius must match containerBorderRadius so overflow:hidden clips correctly on both.
   const outerBgColor = toString(rawProps?.containerBgColor, "transparent");
   const outerBorderColor = toString(rawProps?.containerBorderColor, "transparent");
   const outerBorderSide = toString(rawProps?.containerBorderSide, "none").toLowerCase();
-  const outerBorderRadius = toNumber(rawProps?.containerBorderRadius, 0);
+  const outerBorderRadius = toNumber(rawProps?.containerBorderRadius, containerBorderRadius);
 
   const outerBorderStyle =
     outerBorderSide === "none"

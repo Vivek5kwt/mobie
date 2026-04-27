@@ -12,6 +12,7 @@ import {
 import { useFocusEffect, useNavigation } from "@react-navigation/native";
 import { useDispatch, useSelector } from "react-redux";
 import FontAwesome from "react-native-vector-icons/FontAwesome";
+import { resolveFA4IconName } from "../utils/faIconAlias";
 import {
   fetchShopifyProductsPage,
   fetchShopifyCollectionProducts,
@@ -90,12 +91,6 @@ const cleanFontFamily = (family) => {
   return family.split(",")[0].trim().replace(/['"]/g, "");
 };
 
-const parseIconName = (iconId) => {
-  if (!iconId || typeof iconId !== "string") return null;
-  // Remove "fa-" prefix if present
-  const name = iconId.replace(/^fa-/, "").trim();
-  return name || null;
-};
 
 const parseAspectRatio = (ratio) => {
   if (!ratio || typeof ratio !== "string") return null;
@@ -243,10 +238,10 @@ export default function ProductCarousel({ section }) {
     false
   );
   const favoriteIconId = toString(raw?.favoriteIconId, "fa-heart");
-  const favoriteIconSize = toNumber(raw?.favIconSize, 16);
-  const favoriteIconColor = toString(raw?.favIconColor, "#111827");
+  const favoriteIconSize = toNumber(raw?.favIconSize, 18);
+  const favoriteIconColor = toString(raw?.favIconColor, "#EF4444");
   const unfavoriteIconId = toString(raw?.unfavoriteIconId, "fa-heart-o");
-  const unfavoriteIconSize = toNumber(raw?.unfavoriteIconSize, 16);
+  const unfavoriteIconSize = toNumber(raw?.unfavoriteIconSize, 18);
   const unfavoriteIconColor = toString(raw?.unfavoriteIconColor, "#9CA3AF");
   const favPosition = toString(raw?.favPosition, "top-right").toLowerCase();
   const favBubbleBgColor = toString(raw?.favBubbleBgColor, "#FFFFFF");
@@ -260,13 +255,22 @@ export default function ProductCarousel({ section }) {
   const atcActive = toBoolean(raw?.atcActive, true);
   const atcAvailableText = unwrapValue(raw?.atcAvailableText, "Add To Cart");
   const atcSoldOutText = unwrapValue(raw?.atcSoldOutText, "Sold Out");
-  // Normalise ATC position: anything containing "above" → "above", "overlay"/"on-image" → "overlay", else "below"
-  const atcPositionRaw = toString(raw?.atcPosition, "below").toLowerCase();
-  const atcPosition = atcPositionRaw.includes("above")
-    ? "above"
-    : atcPositionRaw.includes("overlay") || atcPositionRaw.includes("on-image")
-    ? "overlay"
-    : "below";
+  // Normalise ATC position: "above"/"top"/"before" → "above", "overlay"/"on-image" → "overlay", else "below"
+  const atcPositionRaw = toString(
+    raw?.atcPosition ??
+    raw?.addToCartPosition ??
+    raw?.cartBtnPosition ??
+    raw?.atcPos ??
+    raw?.buttonPosition ??
+    raw?.cartPosition,
+    "below"
+  ).toLowerCase();
+  const atcPosition =
+    atcPositionRaw.includes("above") || atcPositionRaw.includes("top") || atcPositionRaw.includes("before")
+      ? "above"
+      : atcPositionRaw.includes("overlay") || atcPositionRaw.includes("on-image") || atcPositionRaw.includes("over")
+      ? "overlay"
+      : "below";
   const atcAlign = toTextAlign(raw?.atcAlign, "Left");
   const atcSize = toNumber(raw?.atcSize, 12);
   const atcBgColor = toString(raw?.atcBgColor, "#096d70");
@@ -292,6 +296,11 @@ export default function ProductCarousel({ section }) {
   const atcSoldOutStrikethrough = toBoolean(raw?.atcSoldOutStrikethrough, false);
   const atcBorderLine = toString(raw?.atcBorderLine, "");
   const atcBorderColor = toString(raw?.atcBorderColor, "#E5E7EB");
+  // Icon shown inside ATC button — separate for available vs sold-out state
+  const atcAvailableIconId = toString(raw?.atcAvailableIconId ?? raw?.atcIconId, "");
+  const atcSoldOutIconId   = toString(raw?.atcSoldOutIconId, "");
+  const atcIconPosition    = toString(raw?.atcIconPosition, "left").toLowerCase();
+  const atcIconSize        = toNumber(raw?.atcIconSize, 14);
 
   // Card configuration
   const productCardGroupActive = toBoolean(raw?.productCardGroupActive, true);
@@ -463,7 +472,7 @@ export default function ProductCarousel({ section }) {
       ...(viewAllFamily ? { fontFamily: viewAllFamily } : {}),
     };
 
-    const viewAllIconName = parseIconName(viewAllIconId);
+    const viewAllIconName = resolveFA4IconName(viewAllIconId);
 
     const viewAllContent = (
       <View style={styles.viewAllContainer}>
@@ -498,13 +507,11 @@ export default function ProductCarousel({ section }) {
   const renderFavorite = (product, isFavorite) => {
     if (!showFavorite) return null;
 
-    // Always show icon: filled heart when favorited, outline heart when not
     const iconId = isFavorite ? favoriteIconId : unfavoriteIconId;
     const iconSize = isFavorite ? favoriteIconSize : (unfavoriteIconSize || favoriteIconSize);
     const iconColor = isFavorite ? favoriteIconColor : unfavoriteIconColor;
-    const iconName = parseIconName(iconId) || "heart-o";
-
-    if (!iconName) return null;
+    // State-aware fallback: filled heart = favorited, outline = not
+    const iconName = resolveFA4IconName(iconId) || (isFavorite ? "heart" : "heart-o");
 
     const positionStyle = {};
     if (favPosition.includes("top")) {
@@ -614,6 +621,10 @@ export default function ProductCarousel({ section }) {
       alignItems: "center",
     };
 
+    // Resolve icon for current button state
+    const rawIconId = isAvailable ? atcAvailableIconId : atcSoldOutIconId;
+    const btnIconName = resolveFA4IconName(rawIconId);
+
     return (
       <TouchableOpacity
         style={[styles.addToCartButton, buttonStyle, alignStyle]}
@@ -621,7 +632,15 @@ export default function ProductCarousel({ section }) {
         disabled={!isAvailable}
         activeOpacity={isAvailable ? 0.7 : 1}
       >
-        <Text style={[styles.addToCartText, textStyle]}>{buttonText}</Text>
+        <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6 }}>
+          {!!btnIconName && atcIconPosition !== "right" && (
+            <FontAwesome name={btnIconName} size={atcIconSize} color={buttonTextColor} />
+          )}
+          <Text style={[styles.addToCartText, textStyle]}>{buttonText}</Text>
+          {!!btnIconName && atcIconPosition === "right" && (
+            <FontAwesome name={btnIconName} size={atcIconSize} color={buttonTextColor} />
+          )}
+        </View>
       </TouchableOpacity>
     );
   };
