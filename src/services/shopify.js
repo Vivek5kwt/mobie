@@ -52,7 +52,7 @@ export const QUERY_RECENT_PRODUCTS = `
               node {
                 id
                 availableForSale
-                compareAtPrice
+                compareAtPrice { amount currencyCode }
               }
             }
           }
@@ -180,7 +180,7 @@ export async function fetchShopifyRecentProducts(limit = 10, options = {}) {
         priceAmount: price?.amount || null,
         currency: price?.currencyCode || null,
         priceCurrency: price?.currencyCode || null,
-        compareAtPrice: variant?.compareAtPrice || null,
+        compareAtPrice: variant?.compareAtPrice?.amount || null,
         variantId: variant?.id || null,
       };
     });

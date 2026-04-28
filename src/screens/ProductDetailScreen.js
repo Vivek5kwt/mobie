@@ -363,6 +363,12 @@ export default function ProductDetailScreen() {
                 <DynamicRenderer section={section} />
               </View>
             ))
+          ) : renderSections.length > 0 ? (
+            renderSections.map((section, index) => (
+              <View key={section?.id || section?.component || index} style={styles.section}>
+                <DynamicRenderer section={section} />
+              </View>
+            ))
           ) : null}
         </ScrollView>
 
