@@ -1,13 +1,13 @@
 import { fetchStoreConfig, getStoreConfigSync } from './storeService';
 
 const STOREFRONT_VERSION = "2024-10";
-// Backend proxy — handles Shopify auth server-side so the mobile app
-// never needs a valid storefront token on-device.
+// Backend proxy — handles Shopify auth server-side (builder preview only).
 const PROXY_ENDPOINT = "https://app.mobidrag.com/api/shopify/preview-graphql";
 
-// Fallback credentials — used when getStore fails
-const FALLBACK_SHOP    = "mobidrag-demo.myshopify.com";
-const FALLBACK_TOKEN   = "f19ea13e90fdadc0723f8a060f1d754b";
+// Primary store credentials — used directly for Storefront API calls.
+// These are the public storefront token (safe to embed in client apps).
+const FALLBACK_SHOP     = "newmobidrag.myshopify.com";
+const FALLBACK_TOKEN    = "52d1c86d6cdc1821fd265b5c469f8ebf";
 const FALLBACK_STORE_ID = 40;
 const DEFAULT_CHECKOUT_COUNTRY_CODE = "US";
 
@@ -16,13 +16,26 @@ const DEFAULT_CHECKOUT_COUNTRY_CODE = "US";
  * Returns { shop, token, storeId } — storeId sent to proxy for server-side auth lookup.
  */
 const getShopifyCredentials = async () => {
-  const config = await fetchStoreConfig();
-  const storeId = config?.id ? Number(config.id) : FALLBACK_STORE_ID;
-  console.log(`🛒 Shopify credentials: storeId=${storeId} shop=${config?.shopify_domain || FALLBACK_SHOP}`);
+  try {
+    const config = await fetchStoreConfig();
+    // Only use config credentials if BOTH domain and token are present
+    if (config?.shopify_domain && config?.storefront_access_token) {
+      const storeId = config.id ? Number(config.id) : FALLBACK_STORE_ID;
+      console.log(`🛒 Using store config: storeId=${storeId} shop=${config.shopify_domain}`);
+      return {
+        shop:    config.shopify_domain,
+        token:   config.storefront_access_token,
+        storeId,
+      };
+    }
+    console.warn("⚠️ Store config incomplete — using primary credentials");
+  } catch (e) {
+    console.warn("⚠️ fetchStoreConfig failed — using primary credentials:", e.message);
+  }
   return {
-    shop:    config?.shopify_domain          || FALLBACK_SHOP,
-    token:   config?.storefront_access_token || FALLBACK_TOKEN,
-    storeId,
+    shop:    FALLBACK_SHOP,
+    token:   FALLBACK_TOKEN,
+    storeId: FALLBACK_STORE_ID,
   };
 };
 
@@ -78,19 +91,47 @@ export const QUERY_COLLECTIONS = `
 `;
 
 // ─── Base GraphQL call ─────────────────────────────────────────────────────
-// Routes through the backend proxy so the server supplies valid Shopify
-// credentials. Falls back to a direct Storefront API call if the proxy
-// is unreachable (offline / dev environment).
+// Primary: Direct Shopify Storefront API call (works in production mobile app).
+// Secondary: Backend proxy (works in builder preview, may not work in mobile app).
 export async function directStorefrontGraphQL({ shop, token, storeId, query, variables }) {
+  const resolvedShop    = shop  || FALLBACK_SHOP;
+  const resolvedToken   = token || FALLBACK_TOKEN;
   const resolvedStoreId = storeId || FALLBACK_STORE_ID;
 
-  // ── 1. Try backend proxy (preferred) ──────────────────────────────────────
+  // ── 1. Direct Shopify Storefront API (primary for mobile app) ─────────────
+  console.log(`🔌 Direct Storefront call: ${resolvedShop}`);
+  const endpoint = `https://${resolvedShop}/api/${STOREFRONT_VERSION}/graphql.json`;
   try {
-    console.log(`🔌 Proxy request: storeId=${resolvedStoreId} shop=${shop}`);
+    const res = await fetch(endpoint, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-Shopify-Storefront-Access-Token": resolvedToken,
+      },
+      body: JSON.stringify({ query, variables }),
+    });
+    if (res.ok) {
+      const json = await res.json();
+      if (!json?.errors) {
+        console.log("✅ Direct Storefront success");
+        return json;
+      }
+      console.warn("⚠️ Direct Storefront GraphQL errors:", JSON.stringify(json.errors));
+      // Fall through to proxy
+    } else {
+      console.warn(`⚠️ Direct Storefront HTTP ${res.status} — trying proxy`);
+    }
+  } catch (directErr) {
+    console.warn("⚠️ Direct Storefront failed:", directErr.message, "— trying proxy");
+  }
+
+  // ── 2. Backend proxy fallback (builder preview / server-side auth) ─────────
+  try {
+    console.log(`🔌 Proxy request: storeId=${resolvedStoreId} shop=${resolvedShop}`);
     const proxyRes = await fetch(PROXY_ENDPOINT, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ storeId: resolvedStoreId, shop, query, variables }),
+      body: JSON.stringify({ storeId: resolvedStoreId, shop: resolvedShop, query, variables }),
     });
 
     if (proxyRes.ok) {
@@ -100,7 +141,6 @@ export async function directStorefrontGraphQL({ shop, token, storeId, query, var
         return json;
       }
       console.warn("⚠️ Proxy GraphQL errors:", JSON.stringify(json.errors));
-      // Fall through to direct call
     } else {
       const text = await proxyRes.text().catch(() => "");
       console.warn(`⚠️ Proxy HTTP ${proxyRes.status}: ${text}`);
@@ -109,30 +149,7 @@ export async function directStorefrontGraphQL({ shop, token, storeId, query, var
     console.warn("⚠️ Proxy unreachable:", proxyErr.message);
   }
 
-  // ── 2. Direct Storefront API fallback ──────────────────────────────────────
-  if (!token) throw new Error("No storefront token and proxy unavailable");
-
-  console.log(`🔌 Direct Storefront call: ${shop}`);
-  const endpoint = `https://${shop}/api/${STOREFRONT_VERSION}/graphql.json`;
-  const res = await fetch(endpoint, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "X-Shopify-Storefront-Access-Token": token,
-    },
-    body: JSON.stringify({ query, variables }),
-  });
-
-  let json;
-  try { json = await res.json(); } catch (e) { throw e; }
-
-  if (!res.ok) {
-    console.error("❌ Direct Storefront HTTP Error:", res.status, json);
-    throw new Error(`Storefront HTTP Error ${res.status}`);
-  }
-
-  console.log("✅ Direct Storefront success");
-  return json;
+  throw new Error("Unable to reach Shopify — both direct and proxy calls failed");
 }
 
 // ----------------------
