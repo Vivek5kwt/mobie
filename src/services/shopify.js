@@ -11,31 +11,14 @@ const FALLBACK_TOKEN    = "52d1c86d6cdc1821fd265b5c469f8ebf";
 const FALLBACK_STORE_ID = 40;
 const DEFAULT_CHECKOUT_COUNTRY_CODE = "US";
 
-/**
- * Async: awaits the GetStore result so we always use the live credentials.
- * Returns { shop, token, storeId } — storeId sent to proxy for server-side auth lookup.
- */
 const getShopifyCredentials = async () => {
-  try {
-    const config = await fetchStoreConfig();
-    // Only use config credentials if BOTH domain and token are present
-    if (config?.shopify_domain && config?.storefront_access_token) {
-      const storeId = config.id ? Number(config.id) : FALLBACK_STORE_ID;
-      console.log(`🛒 Using store config: storeId=${storeId} shop=${config.shopify_domain}`);
-      return {
-        shop:    config.shopify_domain,
-        token:   config.storefront_access_token,
-        storeId,
-      };
-    }
-    console.warn("⚠️ Store config incomplete — using primary credentials");
-  } catch (e) {
-    console.warn("⚠️ fetchStoreConfig failed — using primary credentials:", e.message);
-  }
+  const config = await fetchStoreConfig();
+  const storeId = config?.id ? Number(config.id) : FALLBACK_STORE_ID;
+  console.log(`🛒 Shopify credentials: storeId=${storeId} shop=${config?.shopify_domain || FALLBACK_SHOP}`);
   return {
-    shop:    FALLBACK_SHOP,
-    token:   FALLBACK_TOKEN,
-    storeId: FALLBACK_STORE_ID,
+    shop:    config?.shopify_domain          || FALLBACK_SHOP,
+    token:   config?.storefront_access_token || FALLBACK_TOKEN,
+    storeId,
   };
 };
 
@@ -59,7 +42,7 @@ export const QUERY_RECENT_PRODUCTS = `
           availableForSale
           featuredImage { url altText }
           images(first: 1) { edges { node { url altText } } }
-          priceRange { minVariantPrice { amount currencyCode } }
+          priceRangeV2 { minVariantPrice { amount currencyCode } }
           variants(first: 1) {
             edges {
               node {
@@ -91,112 +74,60 @@ export const QUERY_COLLECTIONS = `
 `;
 
 // ─── Base GraphQL call ─────────────────────────────────────────────────────
-// Attempt order:
-//  1. Backend proxy with FALLBACK_STORE_ID (guaranteed correct storeId)
-//  2. Direct Shopify Storefront API with FALLBACK credentials
-//  3. Direct Shopify Storefront API with caller-supplied credentials (if different)
-//  4. Backend proxy with caller-supplied storeId (if different)
+// Routes through the backend proxy so the server supplies valid Shopify
+// credentials. Falls back to a direct Storefront API call if the proxy
+// is unreachable.
 export async function directStorefrontGraphQL({ shop, token, storeId, query, variables }) {
-  const resolvedShop    = shop  || FALLBACK_SHOP;
-  const resolvedToken   = token || FALLBACK_TOKEN;
   const resolvedStoreId = storeId || FALLBACK_STORE_ID;
+  const resolvedShop    = shop    || FALLBACK_SHOP;
+  const resolvedToken   = token   || FALLBACK_TOKEN;
 
-  // ── 1. Proxy with hardcoded storeId — matches old APK behaviour ──────────
-  console.log(`🔌 Proxy (primary): storeId=${FALLBACK_STORE_ID} shop=${FALLBACK_SHOP}`);
+  // ── 1. Backend proxy (preferred — server handles Shopify auth) ─────────────
   try {
+    console.log(`🔌 Proxy request: storeId=${resolvedStoreId} shop=${resolvedShop}`);
     const proxyRes = await fetch(PROXY_ENDPOINT, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        storeId: FALLBACK_STORE_ID,
-        shop:    FALLBACK_SHOP,
-        query,
-        variables,
-      }),
+      body: JSON.stringify({ storeId: resolvedStoreId, shop: resolvedShop, query, variables }),
     });
+
     if (proxyRes.ok) {
       const json = await proxyRes.json();
-      if (!json?.errors) { console.log("✅ Proxy (primary) success"); return json; }
-      console.warn("⚠️ Proxy (primary) GraphQL errors:", JSON.stringify(json.errors));
+      if (!json?.errors) {
+        console.log("✅ Proxy success");
+        return json;
+      }
+      console.warn("⚠️ Proxy GraphQL errors:", JSON.stringify(json.errors));
     } else {
       const text = await proxyRes.text().catch(() => "");
-      console.warn(`⚠️ Proxy (primary) HTTP ${proxyRes.status}: ${text}`);
+      console.warn(`⚠️ Proxy HTTP ${proxyRes.status}: ${text}`);
     }
   } catch (proxyErr) {
-    console.warn("⚠️ Proxy (primary) unreachable:", proxyErr.message);
+    console.warn("⚠️ Proxy unreachable:", proxyErr.message);
   }
 
-  // ── 2. Direct Storefront API with hardcoded fallback credentials ──────────
-  console.log(`🔌 Direct Storefront (fallback creds): ${FALLBACK_SHOP}`);
-  const fbEndpoint = `https://${FALLBACK_SHOP}/api/${STOREFRONT_VERSION}/graphql.json`;
-  try {
-    const fbRes = await fetch(fbEndpoint, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "X-Shopify-Storefront-Access-Token": FALLBACK_TOKEN,
-      },
-      body: JSON.stringify({ query, variables }),
-    });
-    if (fbRes.ok) {
-      const fbJson = await fbRes.json();
-      if (!fbJson?.errors) { console.log("✅ Direct (fallback creds) success"); return fbJson; }
-      console.warn("⚠️ Direct (fallback creds) GraphQL errors:", JSON.stringify(fbJson.errors));
-    } else {
-      console.warn(`⚠️ Direct (fallback creds) HTTP ${fbRes.status}`);
-    }
-  } catch (fbErr) {
-    console.warn("⚠️ Direct (fallback creds) failed:", fbErr.message);
+  // ── 2. Direct Storefront API fallback ──────────────────────────────────────
+  console.log(`🔌 Direct Storefront call: ${resolvedShop}`);
+  const endpoint = `https://${resolvedShop}/api/${STOREFRONT_VERSION}/graphql.json`;
+  const res = await fetch(endpoint, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "X-Shopify-Storefront-Access-Token": resolvedToken,
+    },
+    body: JSON.stringify({ query, variables }),
+  });
+
+  let json;
+  try { json = await res.json(); } catch (e) { throw e; }
+
+  if (!res.ok) {
+    console.error("❌ Direct Storefront HTTP Error:", res.status, json);
+    throw new Error(`Storefront HTTP Error ${res.status}`);
   }
 
-  // ── 3. Direct Storefront API with caller-supplied credentials ────────────
-  if (resolvedShop !== FALLBACK_SHOP || resolvedToken !== FALLBACK_TOKEN) {
-    console.log(`🔌 Direct Storefront (config creds): ${resolvedShop}`);
-    const endpoint = `https://${resolvedShop}/api/${STOREFRONT_VERSION}/graphql.json`;
-    try {
-      const res = await fetch(endpoint, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "X-Shopify-Storefront-Access-Token": resolvedToken,
-        },
-        body: JSON.stringify({ query, variables }),
-      });
-      if (res.ok) {
-        const json = await res.json();
-        if (!json?.errors) { console.log("✅ Direct (config creds) success"); return json; }
-        console.warn("⚠️ Direct (config creds) GraphQL errors:", JSON.stringify(json.errors));
-      } else {
-        console.warn(`⚠️ Direct (config creds) HTTP ${res.status}`);
-      }
-    } catch (directErr) {
-      console.warn("⚠️ Direct (config creds) failed:", directErr.message);
-    }
-  }
-
-  // ── 4. Proxy with caller-supplied storeId (if different) ─────────────────
-  if (resolvedStoreId !== FALLBACK_STORE_ID) {
-    console.log(`🔌 Proxy (config storeId): storeId=${resolvedStoreId}`);
-    try {
-      const proxyRes2 = await fetch(PROXY_ENDPOINT, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ storeId: resolvedStoreId, shop: resolvedShop, query, variables }),
-      });
-      if (proxyRes2.ok) {
-        const json = await proxyRes2.json();
-        if (!json?.errors) { console.log("✅ Proxy (config storeId) success"); return json; }
-        console.warn("⚠️ Proxy (config storeId) GraphQL errors:", JSON.stringify(json.errors));
-      } else {
-        const text = await proxyRes2.text().catch(() => "");
-        console.warn(`⚠️ Proxy (config storeId) HTTP ${proxyRes2.status}: ${text}`);
-      }
-    } catch (e) {
-      console.warn("⚠️ Proxy (config storeId) failed:", e.message);
-    }
-  }
-
-  throw new Error("Unable to reach Shopify — all connection attempts failed");
+  console.log("✅ Direct Storefront success");
+  return json;
 }
 
 // ----------------------
@@ -231,7 +162,7 @@ export async function fetchShopifyRecentProducts(limit = 10, options = {}) {
     const edges = json?.data?.products?.edges || [];
     return edges.map(({ node }) => {
       const variant = node?.variants?.edges?.[0]?.node;
-      const price = node?.priceRange?.minVariantPrice;
+      const price = node?.priceRangeV2?.minVariantPrice;
       return {
         id: node?.id,
         name: node?.title,
@@ -317,7 +248,7 @@ export async function fetchShopifyProductsPage({
             featuredImage {
               url
             }
-            priceRange { minVariantPrice { amount currencyCode } }
+            priceRangeV2 { minVariantPrice { amount currencyCode } }
             variants(first: 1) {
               edges {
                 node {
@@ -342,9 +273,8 @@ export async function fetchShopifyProductsPage({
     });
 
     if (json.errors) {
-      const msg = json.errors.map((e) => e.message || String(e)).join("; ");
       console.error("❌ Shopify GraphQL Errors →", json.errors);
-      throw new Error(msg);
+      return { products: [], pageInfo: { hasNextPage: false, endCursor: null } };
     }
 
     const edges = json?.data?.products?.edges || [];
@@ -355,7 +285,7 @@ export async function fetchShopifyProductsPage({
 
     const products = edges.map((edge) => {
       const variant = edge?.node?.variants?.edges?.[0]?.node;
-      const price = edge?.node?.priceRange?.minVariantPrice;
+      const price = edge?.node?.priceRangeV2?.minVariantPrice;
 
       return {
         id: edge?.node?.id,
@@ -372,7 +302,7 @@ export async function fetchShopifyProductsPage({
     return { products, pageInfo };
   } catch (error) {
     console.error("❌ Shopify Product Page Fetch Error:", error);
-    throw error;
+    return { products: [], pageInfo: { hasNextPage: false, endCursor: null } };
   }
 }
 
@@ -407,7 +337,7 @@ export async function fetchShopifyProductDetails({ handle, id, options = {} }) {
           name
           values
         }
-        priceRange { minVariantPrice { amount currencyCode } }
+        priceRangeV2 { minVariantPrice { amount currencyCode } }
         variants(first: 1) {
           edges {
             node {
@@ -443,7 +373,7 @@ export async function fetchShopifyProductDetails({ handle, id, options = {} }) {
           name
           values
         }
-        priceRange { minVariantPrice { amount currencyCode } }
+        priceRangeV2 { minVariantPrice { amount currencyCode } }
         variants(first: 1) {
           edges {
             node {
@@ -481,7 +411,7 @@ export async function fetchShopifyProductDetails({ handle, id, options = {} }) {
     const product = handle ? json?.data?.productByHandle : json?.data?.product;
     if (!product) return null;
 
-    const priceNode = product?.priceRange?.minVariantPrice;
+    const priceNode = product?.priceRangeV2?.minVariantPrice;
     const variantId = product?.variants?.edges?.[0]?.node?.id;
     const variantOptions =
       product?.options?.flatMap((option) =>
@@ -761,7 +691,7 @@ export async function searchShopifyProducts(searchTerm, limit = 10, options = {}
             featuredImage {
               url
             }
-            priceRange { minVariantPrice { amount currencyCode } }
+            priceRangeV2 { minVariantPrice { amount currencyCode } }
           }
         }
       }
@@ -787,7 +717,7 @@ export async function searchShopifyProducts(searchTerm, limit = 10, options = {}
     const edges = json?.data?.products?.edges || [];
 
     return edges.map(({ node }) => {
-      const priceNode = node?.priceRange?.minVariantPrice;
+      const priceNode = node?.priceRangeV2?.minVariantPrice;
       return {
         id: node?.id,
         title: node?.title,
@@ -843,7 +773,7 @@ export async function fetchShopifyCollectionProducts({
               featuredImage {
                 url
               }
-              priceRange { minVariantPrice { amount currencyCode } }
+              priceRangeV2 { minVariantPrice { amount currencyCode } }
             }
           }
         }
@@ -861,9 +791,8 @@ export async function fetchShopifyCollectionProducts({
     });
 
     if (json.errors) {
-      const msg = json.errors.map((e) => e.message || String(e)).join("; ");
       console.error("❌ Shopify GraphQL Errors →", json.errors);
-      throw new Error(msg);
+      return { products: [], pageInfo: { hasNextPage: false, endCursor: null } };
     }
 
     const productsNode = json?.data?.collection?.products;
@@ -874,7 +803,7 @@ export async function fetchShopifyCollectionProducts({
     };
 
     const products = edges.map(({ node }) => {
-      const priceNode = node?.priceRange?.minVariantPrice;
+      const priceNode = node?.priceRangeV2?.minVariantPrice;
       return {
         id: node?.id,
         title: node?.title,
@@ -889,6 +818,6 @@ export async function fetchShopifyCollectionProducts({
     return { products, pageInfo };
   } catch (error) {
     console.error("❌ Shopify Collection Products Fetch Error:", error);
-    throw error;
+    return { products: [], pageInfo: { hasNextPage: false, endCursor: null } };
   }
 }
