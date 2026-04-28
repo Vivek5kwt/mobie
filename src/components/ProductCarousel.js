@@ -190,9 +190,12 @@ export default function ProductCarousel({ section }) {
     strikethrough: viewAllStrikethrough,
   });
   const viewAllLinkHref = toString(raw?.viewAllLinkHref, "");
-  const viewAllIconId = toString(raw?.viewAllIconId, "fa-chevron-right");
-  const viewAllIconSize = toNumber(raw?.viewAllIconSize, 14);
-  const viewAllIconColor = toString(raw?.viewAllIconColor, "#000000");
+  const viewAllIconId = toString(
+    raw?.viewAllIconId ?? raw?.viewAllIcon ?? raw?.viewAllIconName ?? raw?.viewAllIconValue,
+    "" // empty = no icon unless explicitly set in the builder
+  );
+  const viewAllIconSize  = toNumber(raw?.viewAllIconSize, 14);
+  const viewAllIconColor = toString(raw?.viewAllIconColor, viewAllColor);
 
   // Image configuration
   const cardImageActive = toBoolean(raw?.cardImageActive, true);
@@ -228,21 +231,31 @@ export default function ProductCarousel({ section }) {
   const strikeWeight = toFontWeight(raw?.strikeWeight, "700");
 
   // Favorite configuration
-  // Single source of truth — first explicit DSL flag wins; default false (hidden)
   const showFavorite = toBoolean(
     raw?.favoriteIconEnabled ??
     raw?.favActive ??
     raw?.favEnabled ??
     raw?.showFavoriteIcon ??
-    raw?.showFavorite,
+    raw?.showFavorite ??
+    raw?.favVisible ??
+    raw?.wishlistEnabled,
     false
   );
-  const favoriteIconId = toString(raw?.favoriteIconId, "fa-heart");
-  const favoriteIconSize = toNumber(raw?.favIconSize, 18);
-  const favoriteIconColor = toString(raw?.favIconColor, "#EF4444");
-  const unfavoriteIconId = toString(raw?.unfavoriteIconId, "fa-heart-o");
-  const unfavoriteIconSize = toNumber(raw?.unfavoriteIconSize, 18);
-  const unfavoriteIconColor = toString(raw?.unfavoriteIconColor, "#9CA3AF");
+  // Wide aliases — builder may send any of these key names
+  const favoriteIconId = toString(
+    raw?.favoriteIconId ?? raw?.favIconId ?? raw?.favFilledIcon ??
+    raw?.favoriteIcon   ?? raw?.favIcon   ?? raw?.heartIcon,
+    "fa-heart"
+  );
+  const favoriteIconSize  = toNumber(raw?.favIconSize  ?? raw?.favoriteIconSize  ?? raw?.favSize,  18);
+  const favoriteIconColor = toString(raw?.favIconColor ?? raw?.favoriteIconColor ?? raw?.favColor, "#EF4444");
+  const unfavoriteIconId = toString(
+    raw?.unfavoriteIconId ?? raw?.unfavIconId ?? raw?.favOutlineIcon ??
+    raw?.unfavoriteIcon   ?? raw?.unfavIcon   ?? raw?.heartOutlineIcon,
+    "fa-heart-o"
+  );
+  const unfavoriteIconSize  = toNumber(raw?.unfavoriteIconSize  ?? raw?.unfavIconSize  ?? raw?.unfavSize,  18);
+  const unfavoriteIconColor = toString(raw?.unfavoriteIconColor ?? raw?.unfavIconColor ?? raw?.unfavColor, "#9CA3AF");
   const favPosition = toString(raw?.favPosition, "top-right").toLowerCase();
   const favBubbleBgColor = toString(raw?.favBubbleBgColor, "#FFFFFF");
   const favBubblePadT = toNumber(raw?.favBubblePadT, 0);
@@ -432,6 +445,7 @@ export default function ProductCarousel({ section }) {
       fontWeight: headerBold ? "700" : headerWeight,
       fontStyle: headerItalic ? "italic" : "normal",
       textDecorationLine: headerDecorationLine,
+      textAlign: layoutAlign,
       ...(headerFamily ? { fontFamily: headerFamily } : {}),
     };
 
@@ -472,18 +486,23 @@ export default function ProductCarousel({ section }) {
       ...(viewAllFamily ? { fontFamily: viewAllFamily } : {}),
     };
 
-    const viewAllIconName = resolveFA4IconName(viewAllIconId);
+    // Strip "fa-"/"fas-" prefix to get bare FA4 name; preserve suffixes like "-o"
+    const viewAllIconBare = viewAllIconId
+      ? String(viewAllIconId).trim().replace(/^fa[srldb]?[-_]/i, "").toLowerCase()
+      : "";
 
     const viewAllContent = (
       <View style={styles.viewAllContainer}>
         <Text style={[styles.viewAllText, viewAllStyle]}>{viewAllTextStr}</Text>
-        {viewAllIconName && (
+        {viewAllIconBare ? (
           <FontAwesome
-            name={viewAllIconName}
+            name={viewAllIconBare}
             size={viewAllIconSize}
             color={viewAllIconColor}
             style={styles.viewAllIcon}
           />
+        ) : (
+          <Text style={{ color: viewAllColor, fontSize: viewAllSize }}>›</Text>
         )}
       </View>
     );
@@ -507,11 +526,15 @@ export default function ProductCarousel({ section }) {
   const renderFavorite = (product, isFavorite) => {
     if (!showFavorite) return null;
 
-    const iconId = isFavorite ? favoriteIconId : unfavoriteIconId;
-    const iconSize = isFavorite ? favoriteIconSize : (unfavoriteIconSize || favoriteIconSize);
-    const iconColor = isFavorite ? favoriteIconColor : unfavoriteIconColor;
-    // State-aware fallback: filled heart = favorited, outline = not
-    const iconName = resolveFA4IconName(iconId) || (isFavorite ? "heart" : "heart-o");
+    const iconId    = isFavorite ? favoriteIconId    : unfavoriteIconId;
+    const iconSize  = isFavorite ? favoriteIconSize  : (unfavoriteIconSize  || favoriteIconSize);
+    const iconColor = isFavorite ? favoriteIconColor : (unfavoriteIconColor || "#9CA3AF");
+
+    // Strip "fa-" / "fas-" / "far-" prefix — preserve FA4 suffixes like "-o" (heart-o, star-o)
+    // Do NOT use resolveFA4IconName here: it maps "heart-o" → "heart" (drops the -o outline variant)
+    const stripFaPrefix = (v) =>
+      v ? String(v).trim().replace(/^fa[srldb]?[-_]/i, "").toLowerCase() : "";
+    const iconName = stripFaPrefix(iconId) || (isFavorite ? "heart" : "heart-o");
 
     const positionStyle = {};
     if (favPosition.includes("top")) {
@@ -616,8 +639,10 @@ export default function ProductCarousel({ section }) {
       ...(atcFamily ? { fontFamily: atcFamily } : {}),
     };
 
+    // Alignment: left = stretch (full width), center = centered auto-width, right = right auto-width
+    const atcAlignSelf = atcAlign === "center" ? "center" : atcAlign === "right" ? "flex-end" : "stretch";
     const alignStyle = {
-      alignSelf: "stretch",
+      alignSelf:  atcAlignSelf,
       alignItems: "center",
     };
 
@@ -662,8 +687,17 @@ export default function ProductCarousel({ section }) {
     >
       {headerGroupActive && (
         <View style={styles.headerContainer}>
-          {renderHeader()}
-          {renderViewAll()}
+          {layoutAlign === "right" ? (
+            <>
+              {renderViewAll()}
+              {renderHeader()}
+            </>
+          ) : (
+            <>
+              {renderHeader()}
+              {renderViewAll()}
+            </>
+          )}
         </View>
       )}
 
@@ -723,6 +757,27 @@ export default function ProductCarousel({ section }) {
                       resizeMode={imageResizeMode}
                     />
                     {renderFavorite(product, isFavorite)}
+                    {/* Sold Out badge overlaid on image */}
+                    {isSoldOut && (
+                      <View
+                        style={{
+                          position:          "absolute",
+                          top:               8,
+                          left:              8,
+                          backgroundColor:   atcSoldOutBgColor,
+                          borderRadius:      atcCorner,
+                          paddingHorizontal: 8,
+                          paddingVertical:   3,
+                          ...(atcBorderLine && atcBorderLine !== "none"
+                            ? { borderWidth: 1, borderColor: atcBorderColor }
+                            : {}),
+                        }}
+                      >
+                        <Text style={{ color: atcSoldOutTextColor, fontSize: 11, fontWeight: "600" }}>
+                          {typeof atcSoldOutText === "string" ? atcSoldOutText : "Sold Out"}
+                        </Text>
+                      </View>
+                    )}
                     {/* ATC overlaid on image */}
                     {atcPosition === "overlay" && (
                       <View style={styles.atcOverlay}>

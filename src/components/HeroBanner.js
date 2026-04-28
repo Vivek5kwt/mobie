@@ -91,12 +91,27 @@ const toFontWeight = (value, bold = false) => {
   if (bold) return "700";
   if (!value) return undefined;
   const raw = String(value).trim().toLowerCase();
-  if (raw === "bold") return "700";
-  if (raw === "semibold" || raw === "semi bold") return "600";
-  if (raw === "medium") return "500";
-  if (raw === "regular" || raw === "normal") return "400";
+  if (raw === "thin")                                                         return "100";
+  if (raw === "extralight" || raw === "extra-light" || raw === "extra light") return "200";
+  if (raw === "light")                                                        return "300";
+  if (raw === "regular" || raw === "normal")                                  return "400";
+  if (raw === "medium")                                                       return "500";
+  if (raw === "semibold" || raw === "semi-bold" || raw === "semi bold")       return "600";
+  if (raw === "bold")                                                         return "700";
+  if (raw === "extrabold" || raw === "extra-bold" || raw === "extra bold")    return "800";
+  if (raw === "black" || raw === "heavy")                                     return "900";
   if (/^\d+$/.test(raw)) return raw;
   return undefined;
+};
+
+// Remove lineHeight ≤ 0 from a style object — lineHeight:0 makes text invisible in RN
+const stripBadLineHeight = (style) => {
+  if (!style || typeof style !== "object") return style || {};
+  if (style.lineHeight !== undefined && style.lineHeight <= 0) {
+    const { lineHeight: _lh, ...rest } = style;
+    return rest;
+  }
+  return style;
 };
 
 const buildTextAttributesStyle = (attributes, decorationOverrides = {}) => {
@@ -239,25 +254,24 @@ export default function HeroBanner({ section }) {
     strikethrough: rawProps?.headlineStrikethrough,
   }) || {};
 
-  const headlineStyle = {
-    ...headlineCssStyle,
+  const headlineFontSize = headlineCssStyle?.fontSize || headlineAttrStyle.fontSize;
+  const headlineStyle = stripBadLineHeight({
+    ...stripBadLineHeight(headlineCssStyle),
     ...headlineAttrStyle,
-    // Override with CSS if present
-    color: headlineCssStyle?.color || headlineAttrStyle.color,
-    fontSize: headlineCssStyle?.fontSize || headlineAttrStyle.fontSize,
+    color:      headlineCssStyle?.color      || headlineAttrStyle.color,
+    fontSize:   headlineFontSize,
     fontFamily: headlineCssStyle?.fontFamily || headlineAttrStyle.fontFamily,
     fontWeight: headlineCssStyle?.fontWeight || headlineAttrStyle.fontWeight,
-    // Explicit line-height token wins last
-    ...(headlineLineHeightToken && (headlineCssStyle?.fontSize || headlineAttrStyle.fontSize)
+    // Explicit line-height token wins last (only when > 0)
+    ...(headlineLineHeightToken > 0 && headlineFontSize
       ? {
           lineHeight:
-            headlineLineHeightToken > 0 && headlineLineHeightToken <= 10
-              ? (headlineCssStyle?.fontSize || headlineAttrStyle.fontSize) *
-                  headlineLineHeightToken
+            headlineLineHeightToken <= 10
+              ? headlineFontSize * headlineLineHeightToken
               : headlineLineHeightToken,
         }
       : {}),
-  };
+  });
 
   // Build subtext style from CSS and attributes
   const subtextAttrStyle = buildTextAttributesStyle(subtextAttributes, {
@@ -265,27 +279,26 @@ export default function HeroBanner({ section }) {
     strikethrough: rawProps?.subtextStrikethrough,
   }) || {};
 
-  const subtextStyle = {
-    ...subtextCssStyle,
+  const subtextFontSize = subtextCssStyle?.fontSize || subtextAttrStyle.fontSize;
+  const subtextStyle = stripBadLineHeight({
+    ...stripBadLineHeight(subtextCssStyle),
     ...subtextAttrStyle,
-    // Override with CSS if present
-    color: subtextCssStyle?.color || subtextAttrStyle.color,
-    fontSize: subtextCssStyle?.fontSize || subtextAttrStyle.fontSize,
-    fontFamily: subtextCssStyle?.fontFamily || subtextAttrStyle.fontFamily,
-    fontWeight: subtextCssStyle?.fontWeight || subtextAttrStyle.fontWeight,
-    marginTop: subtextCssStyle?.marginTop || toNumber(subtextAttributes?.marginTop, 8),
+    color:       subtextCssStyle?.color      || subtextAttrStyle.color,
+    fontSize:    subtextFontSize,
+    fontFamily:  subtextCssStyle?.fontFamily || subtextAttrStyle.fontFamily,
+    fontWeight:  subtextCssStyle?.fontWeight || subtextAttrStyle.fontWeight,
+    marginTop:    subtextCssStyle?.marginTop    || toNumber(subtextAttributes?.marginTop,    8),
     marginBottom: subtextCssStyle?.marginBottom || toNumber(subtextAttributes?.marginBottom, 12),
-    // Explicit line-height token wins last
-    ...(subtextLineHeightToken && (subtextCssStyle?.fontSize || subtextAttrStyle.fontSize)
+    // Explicit line-height token wins last (only when > 0)
+    ...(subtextLineHeightToken > 0 && subtextFontSize
       ? {
           lineHeight:
-            subtextLineHeightToken > 0 && subtextLineHeightToken <= 10
-              ? (subtextCssStyle?.fontSize || subtextAttrStyle.fontSize) *
-                  subtextLineHeightToken
+            subtextLineHeightToken <= 10
+              ? subtextFontSize * subtextLineHeightToken
               : subtextLineHeightToken,
         }
       : {}),
-  };
+  });
 
   // Image attributes and settings
   const imageAttributes = rawProps?.imageAttributes?.properties || rawProps?.imageAttributes || {};
@@ -299,17 +312,35 @@ export default function HeroBanner({ section }) {
     rawProps?.imageResizeMode,
     "Cover"
   ).toLowerCase();
-  // Read image corner radius from imageAttributes OR top-level DSL aliases
-  const imageCornerRadius = toNumber(
-    imageAttributes?.imageCorner ??
-    imageAttributes?.cornerRadius ??
-    imageAttributes?.borderRadius ??
-    rawProps?.imageCorner ??
-    rawProps?.imageCornerRadius ??
-    rawProps?.imageRadius ??
-    rawProps?.imageRoundedCorner,
-    0
-  );
+  // Read image corner radius — imageAttributes > raw keys > layout CSS image > 0
+  const imageCornerRadius = (() => {
+    const fromAttrs = toNumber(
+      imageAttributes?.imageCorner ??
+      imageAttributes?.cornerRadius ??
+      imageAttributes?.borderRadius,
+      undefined
+    );
+    if (fromAttrs !== undefined) return fromAttrs;
+    const fromRaw = toNumber(
+      rawProps?.imageCorner ??
+      rawProps?.imageCornerRadius ??
+      rawProps?.imageRadius ??
+      rawProps?.imageRoundedCorner ??
+      rawProps?.corner ??
+      rawProps?.corners,
+      undefined
+    );
+    if (fromRaw !== undefined) return fromRaw;
+    // Layout / presentation CSS image node often carries imageCorner
+    const fromCss = toNumber(
+      layoutCss?.image?.imageCorner ??
+      layoutCss?.image?.borderRadius ??
+      layoutCss?.image?.corner,
+      undefined
+    );
+    if (fromCss !== undefined) return fromCss;
+    return 0;
+  })();
   
   // Parse image ratio
   const parseImageRatio = (value) => {
@@ -739,24 +770,56 @@ export default function HeroBanner({ section }) {
   // Outer card container — transparent by default so no white box appears around the banner.
   // outerBorderRadius must match containerBorderRadius so overflow:hidden clips correctly on both.
   const outerBgColor = toString(rawProps?.containerBgColor, "transparent");
-  const outerBorderColor = toString(rawProps?.containerBorderColor, "transparent");
-  const outerBorderSide = toString(rawProps?.containerBorderSide, "none").toLowerCase();
-  const outerBorderRadius = toNumber(rawProps?.containerBorderRadius, containerBorderRadius);
 
-  const outerBorderStyle =
-    outerBorderSide === "none"
-      ? {}
-      : outerBorderSide === "all" || !outerBorderSide
-      ? { borderWidth: 1, borderColor: outerBorderColor }
-      : outerBorderSide === "bottom"
-      ? { borderBottomWidth: 1, borderColor: outerBorderColor }
-      : outerBorderSide === "top"
-      ? { borderTopWidth: 1, borderColor: outerBorderColor }
-      : outerBorderSide === "left"
-      ? { borderLeftWidth: 1, borderColor: outerBorderColor }
-      : outerBorderSide === "right"
-      ? { borderRightWidth: 1, borderColor: outerBorderColor }
-      : { borderWidth: 1, borderColor: outerBorderColor };
+  // Border Line — primary trigger: set by the "Border Line" picker in the builder.
+  // Aliases: containerBorderLine, borderLine, containerBorder, borderStyle
+  const outerBorderLine = toString(
+    rawProps?.containerBorderLine ??
+    rawProps?.borderLine ??
+    rawProps?.containerBorder ??
+    rawProps?.borderStyle,
+    ""
+  ).toLowerCase().trim();
+  const hasBorderLine = !!outerBorderLine && outerBorderLine !== "none" && outerBorderLine !== "hidden";
+
+  // Border side — which sides get the border ("all", "top", "bottom", "left", "right", "none")
+  // When hasBorderLine is true and no side is specified, default to "all".
+  const outerBorderSide = toString(
+    rawProps?.containerBorderSide ?? rawProps?.borderSide,
+    hasBorderLine ? "all" : "none"
+  ).toLowerCase();
+
+  // Border color — wide aliases; default #E5E7EB (visible) when border is active
+  const outerBorderColor = toString(
+    rawProps?.containerBorderColor ?? rawProps?.borderColor,
+    "#E5E7EB"
+  );
+
+  // Border radius on the outer card
+  const outerBorderRadius = toNumber(
+    rawProps?.containerBorderRadius ?? rawProps?.containerRadius ?? rawProps?.borderRadius,
+    containerBorderRadius
+  );
+
+  // RN borderStyle: solid / dashed / dotted
+  const rnBorderStyle = outerBorderLine === "dashed" ? "dashed"
+    : outerBorderLine === "dotted" ? "dotted"
+    : "solid";
+
+  // Show border when: borderLine is explicitly set (non-none) OR borderSide is explicitly non-none
+  const showBorder = hasBorderLine || (!!outerBorderSide && outerBorderSide !== "none");
+
+  const outerBorderStyle = !showBorder
+    ? {}
+    : outerBorderSide === "bottom"
+    ? { borderBottomWidth: 1, borderColor: outerBorderColor, borderStyle: rnBorderStyle }
+    : outerBorderSide === "top"
+    ? { borderTopWidth: 1,    borderColor: outerBorderColor, borderStyle: rnBorderStyle }
+    : outerBorderSide === "left"
+    ? { borderLeftWidth: 1,   borderColor: outerBorderColor, borderStyle: rnBorderStyle }
+    : outerBorderSide === "right"
+    ? { borderRightWidth: 1,  borderColor: outerBorderColor, borderStyle: rnBorderStyle }
+    : { borderWidth: 1,       borderColor: outerBorderColor, borderStyle: rnBorderStyle };
 
   const contentPositionStyle = applyMetricsPositioning({}, metricElements?.container);
   const headlinePositionStyle = applyMetricsPositioning({}, metricElements?.headline);
@@ -859,7 +922,9 @@ export default function HeroBanner({ section }) {
           source={{ uri: imageSrc }}
           style={[
             imageCssStyle,
-            styles.image, // base style last so position/top/left/right/bottom always win
+            styles.image,
+            // Apply borderRadius directly on the image for Android (overflow:hidden alone is unreliable)
+            containerBorderRadius > 0 ? { borderRadius: containerBorderRadius } : null,
           ]}
           resizeMode={resizeMode}
           blurRadius={imageBlurRadius}

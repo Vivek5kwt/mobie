@@ -1,8 +1,6 @@
 import React, { useMemo } from "react";
 import { StyleSheet, Text, View } from "react-native";
-import FontAwesome from "react-native-vector-icons/FontAwesome";
 import FontAwesome6 from "react-native-vector-icons/FontAwesome6";
-import { resolveFA4IconName } from "../utils/faIconAlias";
 
 // ─── DSL helpers ─────────────────────────────────────────────────────────────
 
@@ -58,30 +56,14 @@ const stripFaPrefix = (name) => {
 
 // ─── Icon component ───────────────────────────────────────────────────────────
 
-const FA4_NAMES = new Set([
-  "shield","truck","undo","refresh","lock","check","star","heart","home","user",
-  "tag","share-alt","times","arrow-left","search","bars","rotate-left",
-  "repeat","check-circle","times-circle","info-circle","exclamation-triangle",
-]);
-
 function BadgeIcon({ rawIconId, size, color }) {
   if (!rawIconId) return null;
-  const name = stripFaPrefix(rawIconId);
-  if (!name) return null;
-
-  // Try FA4 if it's a known FA4-only name, otherwise use FA6
-  const fa4Name = resolveFA4IconName(name);
-  if (fa4Name && FA4_NAMES.has(fa4Name)) {
-    return <FontAwesome name={fa4Name} size={size} color={color} />;
-  }
-
-  // Use FontAwesome6 for all modern icon names
-  try {
-    return <FontAwesome6 name={name} size={size} color={color} />;
-  } catch {
-    const fallback = fa4Name || "check";
-    return <FontAwesome name={fallback} size={size} color={color} />;
-  }
+  const bare = stripFaPrefix(rawIconId);
+  if (!bare) return null;
+  // Always use FontAwesome6 — the builder sends FA6 icon names (shield-halved,
+  // truck-fast, rotate-left, etc.) which are NOT in FA4 or map to the wrong icon.
+  // FA6 free covers all of these names correctly.
+  return <FontAwesome6 name={bare} size={size} color={color} />;
 }
 
 // ─── Visibility key normalizer ────────────────────────────────────────────────
