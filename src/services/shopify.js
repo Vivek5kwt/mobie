@@ -91,93 +91,112 @@ export const QUERY_COLLECTIONS = `
 `;
 
 // ─── Base GraphQL call ─────────────────────────────────────────────────────
-// Primary: Direct Shopify Storefront API call (works in production mobile app).
-// Secondary: Backend proxy (works in builder preview, may not work in mobile app).
+// Attempt order:
+//  1. Backend proxy with FALLBACK_STORE_ID (guaranteed correct storeId)
+//  2. Direct Shopify Storefront API with FALLBACK credentials
+//  3. Direct Shopify Storefront API with caller-supplied credentials (if different)
+//  4. Backend proxy with caller-supplied storeId (if different)
 export async function directStorefrontGraphQL({ shop, token, storeId, query, variables }) {
   const resolvedShop    = shop  || FALLBACK_SHOP;
   const resolvedToken   = token || FALLBACK_TOKEN;
   const resolvedStoreId = storeId || FALLBACK_STORE_ID;
 
-  // ── 1. Direct Shopify Storefront API (primary for mobile app) ─────────────
-  console.log(`🔌 Direct Storefront call: ${resolvedShop}`);
-  const endpoint = `https://${resolvedShop}/api/${STOREFRONT_VERSION}/graphql.json`;
+  // ── 1. Proxy with hardcoded storeId — matches old APK behaviour ──────────
+  console.log(`🔌 Proxy (primary): storeId=${FALLBACK_STORE_ID} shop=${FALLBACK_SHOP}`);
   try {
-    const res = await fetch(endpoint, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "X-Shopify-Storefront-Access-Token": resolvedToken,
-      },
-      body: JSON.stringify({ query, variables }),
-    });
-    if (res.ok) {
-      const json = await res.json();
-      if (!json?.errors) {
-        console.log("✅ Direct Storefront success");
-        return json;
-      }
-      console.warn("⚠️ Direct Storefront GraphQL errors:", JSON.stringify(json.errors));
-      // Fall through to proxy
-    } else {
-      console.warn(`⚠️ Direct Storefront HTTP ${res.status} — trying proxy`);
-    }
-  } catch (directErr) {
-    console.warn("⚠️ Direct Storefront failed:", directErr.message, "— trying proxy");
-  }
-
-  // ── 1b. Direct with hardcoded fallback credentials (if they differ from above) ──
-  if (resolvedShop !== FALLBACK_SHOP || resolvedToken !== FALLBACK_TOKEN) {
-    console.log(`🔌 Direct Storefront call (fallback creds): ${FALLBACK_SHOP}`);
-    const fbEndpoint = `https://${FALLBACK_SHOP}/api/${STOREFRONT_VERSION}/graphql.json`;
-    try {
-      const fbRes = await fetch(fbEndpoint, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "X-Shopify-Storefront-Access-Token": FALLBACK_TOKEN,
-        },
-        body: JSON.stringify({ query, variables }),
-      });
-      if (fbRes.ok) {
-        const fbJson = await fbRes.json();
-        if (!fbJson?.errors) {
-          console.log("✅ Direct Storefront (fallback creds) success");
-          return fbJson;
-        }
-        console.warn("⚠️ Direct (fallback creds) GraphQL errors:", JSON.stringify(fbJson.errors));
-      } else {
-        console.warn(`⚠️ Direct (fallback creds) HTTP ${fbRes.status} — trying proxy`);
-      }
-    } catch (fbErr) {
-      console.warn("⚠️ Direct (fallback creds) failed:", fbErr.message, "— trying proxy");
-    }
-  }
-
-  // ── 2. Backend proxy fallback (builder preview / server-side auth) ─────────
-  try {
-    console.log(`🔌 Proxy request: storeId=${resolvedStoreId} shop=${resolvedShop}`);
     const proxyRes = await fetch(PROXY_ENDPOINT, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ storeId: resolvedStoreId, shop: resolvedShop, query, variables }),
+      body: JSON.stringify({
+        storeId: FALLBACK_STORE_ID,
+        shop:    FALLBACK_SHOP,
+        query,
+        variables,
+      }),
     });
-
     if (proxyRes.ok) {
       const json = await proxyRes.json();
-      if (!json?.errors) {
-        console.log("✅ Proxy success");
-        return json;
-      }
-      console.warn("⚠️ Proxy GraphQL errors:", JSON.stringify(json.errors));
+      if (!json?.errors) { console.log("✅ Proxy (primary) success"); return json; }
+      console.warn("⚠️ Proxy (primary) GraphQL errors:", JSON.stringify(json.errors));
     } else {
       const text = await proxyRes.text().catch(() => "");
-      console.warn(`⚠️ Proxy HTTP ${proxyRes.status}: ${text}`);
+      console.warn(`⚠️ Proxy (primary) HTTP ${proxyRes.status}: ${text}`);
     }
   } catch (proxyErr) {
-    console.warn("⚠️ Proxy unreachable:", proxyErr.message);
+    console.warn("⚠️ Proxy (primary) unreachable:", proxyErr.message);
   }
 
-  throw new Error("Unable to reach Shopify — both direct and proxy calls failed");
+  // ── 2. Direct Storefront API with hardcoded fallback credentials ──────────
+  console.log(`🔌 Direct Storefront (fallback creds): ${FALLBACK_SHOP}`);
+  const fbEndpoint = `https://${FALLBACK_SHOP}/api/${STOREFRONT_VERSION}/graphql.json`;
+  try {
+    const fbRes = await fetch(fbEndpoint, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-Shopify-Storefront-Access-Token": FALLBACK_TOKEN,
+      },
+      body: JSON.stringify({ query, variables }),
+    });
+    if (fbRes.ok) {
+      const fbJson = await fbRes.json();
+      if (!fbJson?.errors) { console.log("✅ Direct (fallback creds) success"); return fbJson; }
+      console.warn("⚠️ Direct (fallback creds) GraphQL errors:", JSON.stringify(fbJson.errors));
+    } else {
+      console.warn(`⚠️ Direct (fallback creds) HTTP ${fbRes.status}`);
+    }
+  } catch (fbErr) {
+    console.warn("⚠️ Direct (fallback creds) failed:", fbErr.message);
+  }
+
+  // ── 3. Direct Storefront API with caller-supplied credentials ────────────
+  if (resolvedShop !== FALLBACK_SHOP || resolvedToken !== FALLBACK_TOKEN) {
+    console.log(`🔌 Direct Storefront (config creds): ${resolvedShop}`);
+    const endpoint = `https://${resolvedShop}/api/${STOREFRONT_VERSION}/graphql.json`;
+    try {
+      const res = await fetch(endpoint, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "X-Shopify-Storefront-Access-Token": resolvedToken,
+        },
+        body: JSON.stringify({ query, variables }),
+      });
+      if (res.ok) {
+        const json = await res.json();
+        if (!json?.errors) { console.log("✅ Direct (config creds) success"); return json; }
+        console.warn("⚠️ Direct (config creds) GraphQL errors:", JSON.stringify(json.errors));
+      } else {
+        console.warn(`⚠️ Direct (config creds) HTTP ${res.status}`);
+      }
+    } catch (directErr) {
+      console.warn("⚠️ Direct (config creds) failed:", directErr.message);
+    }
+  }
+
+  // ── 4. Proxy with caller-supplied storeId (if different) ─────────────────
+  if (resolvedStoreId !== FALLBACK_STORE_ID) {
+    console.log(`🔌 Proxy (config storeId): storeId=${resolvedStoreId}`);
+    try {
+      const proxyRes2 = await fetch(PROXY_ENDPOINT, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ storeId: resolvedStoreId, shop: resolvedShop, query, variables }),
+      });
+      if (proxyRes2.ok) {
+        const json = await proxyRes2.json();
+        if (!json?.errors) { console.log("✅ Proxy (config storeId) success"); return json; }
+        console.warn("⚠️ Proxy (config storeId) GraphQL errors:", JSON.stringify(json.errors));
+      } else {
+        const text = await proxyRes2.text().catch(() => "");
+        console.warn(`⚠️ Proxy (config storeId) HTTP ${proxyRes2.status}: ${text}`);
+      }
+    } catch (e) {
+      console.warn("⚠️ Proxy (config storeId) failed:", e.message);
+    }
+  }
+
+  throw new Error("Unable to reach Shopify — all connection attempts failed");
 }
 
 // ----------------------
