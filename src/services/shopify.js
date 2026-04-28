@@ -59,7 +59,7 @@ export const QUERY_RECENT_PRODUCTS = `
           availableForSale
           featuredImage { url altText }
           images(first: 1) { edges { node { url altText } } }
-          priceRangeV2 { minVariantPrice { amount currencyCode } }
+          priceRange { minVariantPrice { amount currencyCode } }
           variants(first: 1) {
             edges {
               node {
@@ -125,6 +125,34 @@ export async function directStorefrontGraphQL({ shop, token, storeId, query, var
     console.warn("⚠️ Direct Storefront failed:", directErr.message, "— trying proxy");
   }
 
+  // ── 1b. Direct with hardcoded fallback credentials (if they differ from above) ──
+  if (resolvedShop !== FALLBACK_SHOP || resolvedToken !== FALLBACK_TOKEN) {
+    console.log(`🔌 Direct Storefront call (fallback creds): ${FALLBACK_SHOP}`);
+    const fbEndpoint = `https://${FALLBACK_SHOP}/api/${STOREFRONT_VERSION}/graphql.json`;
+    try {
+      const fbRes = await fetch(fbEndpoint, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "X-Shopify-Storefront-Access-Token": FALLBACK_TOKEN,
+        },
+        body: JSON.stringify({ query, variables }),
+      });
+      if (fbRes.ok) {
+        const fbJson = await fbRes.json();
+        if (!fbJson?.errors) {
+          console.log("✅ Direct Storefront (fallback creds) success");
+          return fbJson;
+        }
+        console.warn("⚠️ Direct (fallback creds) GraphQL errors:", JSON.stringify(fbJson.errors));
+      } else {
+        console.warn(`⚠️ Direct (fallback creds) HTTP ${fbRes.status} — trying proxy`);
+      }
+    } catch (fbErr) {
+      console.warn("⚠️ Direct (fallback creds) failed:", fbErr.message, "— trying proxy");
+    }
+  }
+
   // ── 2. Backend proxy fallback (builder preview / server-side auth) ─────────
   try {
     console.log(`🔌 Proxy request: storeId=${resolvedStoreId} shop=${resolvedShop}`);
@@ -184,7 +212,7 @@ export async function fetchShopifyRecentProducts(limit = 10, options = {}) {
     const edges = json?.data?.products?.edges || [];
     return edges.map(({ node }) => {
       const variant = node?.variants?.edges?.[0]?.node;
-      const price = node?.priceRangeV2?.minVariantPrice;
+      const price = node?.priceRange?.minVariantPrice;
       return {
         id: node?.id,
         name: node?.title,
@@ -270,7 +298,7 @@ export async function fetchShopifyProductsPage({
             featuredImage {
               url
             }
-            priceRangeV2 { minVariantPrice { amount currencyCode } }
+            priceRange { minVariantPrice { amount currencyCode } }
             variants(first: 1) {
               edges {
                 node {
@@ -308,7 +336,7 @@ export async function fetchShopifyProductsPage({
 
     const products = edges.map((edge) => {
       const variant = edge?.node?.variants?.edges?.[0]?.node;
-      const price = edge?.node?.priceRangeV2?.minVariantPrice;
+      const price = edge?.node?.priceRange?.minVariantPrice;
 
       return {
         id: edge?.node?.id,
@@ -360,7 +388,7 @@ export async function fetchShopifyProductDetails({ handle, id, options = {} }) {
           name
           values
         }
-        priceRangeV2 { minVariantPrice { amount currencyCode } }
+        priceRange { minVariantPrice { amount currencyCode } }
         variants(first: 1) {
           edges {
             node {
@@ -396,7 +424,7 @@ export async function fetchShopifyProductDetails({ handle, id, options = {} }) {
           name
           values
         }
-        priceRangeV2 { minVariantPrice { amount currencyCode } }
+        priceRange { minVariantPrice { amount currencyCode } }
         variants(first: 1) {
           edges {
             node {
@@ -434,7 +462,7 @@ export async function fetchShopifyProductDetails({ handle, id, options = {} }) {
     const product = handle ? json?.data?.productByHandle : json?.data?.product;
     if (!product) return null;
 
-    const priceNode = product?.priceRangeV2?.minVariantPrice;
+    const priceNode = product?.priceRange?.minVariantPrice;
     const variantId = product?.variants?.edges?.[0]?.node?.id;
     const variantOptions =
       product?.options?.flatMap((option) =>
@@ -714,7 +742,7 @@ export async function searchShopifyProducts(searchTerm, limit = 10, options = {}
             featuredImage {
               url
             }
-            priceRangeV2 { minVariantPrice { amount currencyCode } }
+            priceRange { minVariantPrice { amount currencyCode } }
           }
         }
       }
@@ -740,7 +768,7 @@ export async function searchShopifyProducts(searchTerm, limit = 10, options = {}
     const edges = json?.data?.products?.edges || [];
 
     return edges.map(({ node }) => {
-      const priceNode = node?.priceRangeV2?.minVariantPrice;
+      const priceNode = node?.priceRange?.minVariantPrice;
       return {
         id: node?.id,
         title: node?.title,
@@ -796,7 +824,7 @@ export async function fetchShopifyCollectionProducts({
               featuredImage {
                 url
               }
-              priceRangeV2 { minVariantPrice { amount currencyCode } }
+              priceRange { minVariantPrice { amount currencyCode } }
             }
           }
         }
@@ -827,7 +855,7 @@ export async function fetchShopifyCollectionProducts({
     };
 
     const products = edges.map(({ node }) => {
-      const priceNode = node?.priceRangeV2?.minVariantPrice;
+      const priceNode = node?.priceRange?.minVariantPrice;
       return {
         id: node?.id,
         title: node?.title,
