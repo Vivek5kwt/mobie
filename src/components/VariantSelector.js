@@ -93,16 +93,8 @@ const COLOR_MAP = {
 const resolveColor = (value) => {
   if (!value) return null;
   const v = String(value).trim();
-  // Already a CSS color value — return as-is
   if (v.startsWith("#") || v.startsWith("rgb") || v.startsWith("hsl")) return v;
-  const lower = v.toLowerCase();
-  // Check our extended map first
-  if (COLOR_MAP[lower]) return COLOR_MAP[lower];
-  // React Native understands all CSS named colors (red, blue, green, purple, etc.)
-  // Return the lowercase name directly — RN will render it correctly
-  // Only return null for strings that are clearly NOT color names (numbers, UUIDs, etc.)
-  if (/^[a-z]/.test(lower) && lower.length > 1) return lower;
-  return null;
+  return COLOR_MAP[v.toLowerCase()] || null;
 };
 
 const isColorGroup = (name, values) => {
@@ -319,29 +311,27 @@ export default function VariantSelector({ section }) {
                           [group.name]: isSel ? null : val,
                         }))
                       }
-                      style={{
-                        width:        swatchSize + 6,
-                        height:       swatchSize + 6,
-                        borderRadius: swatchRadius,
-                        borderColor:  isSel ? selBorder : "transparent",
-                        borderWidth:  2,
-                        padding:      2,
-                        alignItems:   "center",
-                        justifyContent: "center",
-                      }}
+                      style={[
+                        styles.swatchWrap,
+                        {
+                          width:        swatchSize + 6,
+                          height:       swatchSize + 6,
+                          borderRadius: swatchRadius,
+                          borderColor:  isSel ? selBorder : "transparent",
+                          borderWidth:  isSel ? 2 : 2,
+                          padding:      2,
+                        },
+                      ]}
                       accessibilityRole="button"
                       accessibilityLabel={`Select color ${val}`}
                     >
-                      {/* Explicit width/height — flex:1 collapses to 0 when parent has alignItems:center */}
                       <View
                         style={{
-                          width:           swatchSize,
-                          height:          swatchSize,
+                          flex:            1,
                           borderRadius:    swatchRadius,
                           backgroundColor: hex,
-                          borderWidth:     String(hex).toLowerCase() === "#ffffff" ||
-                                           String(hex).toLowerCase() === "white" ? 1 : 0,
-                          borderColor:     "#C8C8C8",
+                          borderWidth: hex.toLowerCase() === "#ffffff" ? 1 : 0,
+                          borderColor: "#E5E7EB",
                         }}
                       />
                     </TouchableOpacity>
@@ -466,6 +456,10 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     flexWrap: "nowrap",
+  },
+  swatchWrap: {
+    alignItems: "center",
+    justifyContent: "center",
   },
   chip: {
     alignItems: "center",

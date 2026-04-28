@@ -222,37 +222,38 @@ export default function ProductDescription({ section }) {
         accessibilityRole="button"
         accessibilityLabel={open ? "Collapse description" : "Expand description"}
       >
-        {/* Title — left side */}
-        {showTitle && (
-          <Text
-            style={{
-              fontSize:           titleFontSize,
-              color:              titleColor,
-              fontWeight:         String(titleWeight),
-              fontStyle:          titleItalic ? "italic" : "normal",
-              textDecorationLine: titleDecorationLine,
-              flex:               1,
-              ...(titleFontFamily ? { fontFamily: titleFontFamily } : {}),
-            }}
-          >
-            {titleText}
-          </Text>
-        )}
+        <View style={styles.titleRow}>
+          {showIcon && (
+            <DescIcon
+              rawName={resolvedIconRaw}
+              size={iconSize}
+              color={iconColor}
+              style={styles.infoIcon}
+            />
+          )}
+          {showTitle && (
+            <Text
+              style={{
+                fontSize:           titleFontSize,
+                color:              titleColor,
+                fontWeight:         String(titleWeight),
+                fontStyle:          titleItalic ? "italic" : "normal",
+                textDecorationLine: titleDecorationLine,
+                flex:               1,
+                ...(titleFontFamily ? { fontFamily: titleFontFamily } : {}),
+              }}
+            >
+              {titleText}
+            </Text>
+          )}
+        </View>
 
-        {/* Right side: custom DSL icon replaces the chevron */}
-        {showIcon ? (
-          <DescIcon
-            rawName={resolvedIconRaw}
-            size={iconSize}
-            color={iconColor}
-          />
-        ) : (
-          <FontAwesome
-            name={open ? "chevron-up" : "chevron-down"}
-            size={arrowSize}
-            color={arrowColor}
-          />
-        )}
+        {/* Chevron arrow */}
+        <FontAwesome
+          name={open ? "chevron-up" : "chevron-down"}
+          size={arrowSize}
+          color={arrowColor}
+        />
       </TouchableOpacity>
 
       {/* ── Description body ──────────────────────────────────────────────── */}
@@ -287,10 +288,18 @@ export default function ProductDescription({ section }) {
 
 const styles = StyleSheet.create({
   headerRow: {
-    flexDirection:     "row",
-    alignItems:        "center",
-    justifyContent:    "space-between",
-    paddingBottom:     16,
+    flexDirection:  "row",
+    alignItems:     "center",
+    justifyContent: "space-between",
+    paddingBottom:  16,
     paddingHorizontal: 16,
+  },
+  titleRow: {
+    flexDirection: "row",
+    alignItems:    "center",
+    flex:          1,
+  },
+  infoIcon: {
+    marginRight: 8,
   },
 });
