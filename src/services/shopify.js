@@ -274,12 +274,13 @@ export async function fetchShopifyProductsPage({
       token,
       storeId,
       query,
-      variables: { first, after },
+      variables: { first: Math.max(1, first), after },
     });
 
     if (json.errors) {
+      const msg = json.errors.map((e) => e.message || String(e)).join("; ");
       console.error("❌ Shopify GraphQL Errors →", json.errors);
-      return { products: [], pageInfo: { hasNextPage: false, endCursor: null } };
+      throw new Error(msg);
     }
 
     const edges = json?.data?.products?.edges || [];
@@ -307,7 +308,7 @@ export async function fetchShopifyProductsPage({
     return { products, pageInfo };
   } catch (error) {
     console.error("❌ Shopify Product Page Fetch Error:", error);
-    return { products: [], pageInfo: { hasNextPage: false, endCursor: null } };
+    throw error;
   }
 }
 
@@ -792,12 +793,13 @@ export async function fetchShopifyCollectionProducts({
       token,
       storeId,
       query,
-      variables: { handle, first, after },
+      variables: { handle, first: Math.max(1, first), after },
     });
 
     if (json.errors) {
+      const msg = json.errors.map((e) => e.message || String(e)).join("; ");
       console.error("❌ Shopify GraphQL Errors →", json.errors);
-      return { products: [], pageInfo: { hasNextPage: false, endCursor: null } };
+      throw new Error(msg);
     }
 
     const productsNode = json?.data?.collection?.products;
@@ -823,6 +825,6 @@ export async function fetchShopifyCollectionProducts({
     return { products, pageInfo };
   } catch (error) {
     console.error("❌ Shopify Collection Products Fetch Error:", error);
-    return { products: [], pageInfo: { hasNextPage: false, endCursor: null } };
+    throw error;
   }
 }

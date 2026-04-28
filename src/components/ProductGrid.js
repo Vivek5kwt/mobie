@@ -555,8 +555,15 @@ export default function ProductGrid({ section, limit = 8, title = "Products" }) 
         </Text>
       )}
 
+      {/* Empty state */}
+      {!loading && !error && products.length === 0 && (
+        <Text style={[styles.status, { color: resolvedStatusColor, fontSize: resolvedStatusFontSize }]}>
+          No products found.
+        </Text>
+      )}
+
       {/* Product grid */}
-      {!loading && !error && (
+      {!loading && !error && products.length > 0 && (
         <View style={styles.grid}>
           {products.map((product, index) => {
             const prodId = String(product?.id || product?.variantId || product?.handle || product?.title || "").trim();
