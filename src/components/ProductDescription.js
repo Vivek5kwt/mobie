@@ -1,7 +1,11 @@
 import React, { useState } from "react";
 import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import FontAwesome from "react-native-vector-icons/FontAwesome";
+import FontAwesome6 from "react-native-vector-icons/FontAwesome6";
+import { resolveFA4IconName } from "../utils/faIconAlias";
 import { resolveTextDecorationLine } from "../utils/textDecoration";
+
+// ─── DSL helpers ──────────────────────────────────────────────────────────────
 
 const unwrapValue = (value, fallback = undefined) => {
   if (value === undefined || value === null) return fallback;
@@ -27,9 +31,9 @@ const cleanFontFamily = (family) => {
 
 const toNumber = (value, fallback) => {
   const resolved = unwrapValue(value, undefined);
-  if (resolved === undefined || resolved === "") return fallback;
+  if (resolved === undefined || resolved === null || resolved === "") return fallback;
   if (typeof resolved === "number") return resolved;
-  const parsed = parseFloat(resolved);
+  const parsed = parseFloat(String(resolved).replace("px", ""));
   return Number.isNaN(parsed) ? fallback : parsed;
 };
 
@@ -37,9 +41,31 @@ const toBoolean = (value, fallback = false) => {
   const resolved = unwrapValue(value, fallback);
   if (resolved === undefined || resolved === null) return fallback;
   if (typeof resolved === "boolean") return resolved;
-  if (typeof resolved === "string") return resolved.toLowerCase() === "true";
+  if (typeof resolved === "string") return ["true", "1", "yes", "y"].includes(resolved.trim().toLowerCase());
   return Boolean(resolved);
 };
+
+// Strip "fa-" / "fas-" / "far-" prefix, return bare icon name
+const stripFaPrefix = (v) =>
+  v ? String(v).trim().replace(/^fa[srldb]?[-_]/i, "").toLowerCase() : "";
+
+// ─── Icon renderer — FA4 first, FA6 fallback ──────────────────────────────────
+
+function DescIcon({ rawName, size, color, style }) {
+  if (!rawName) return null;
+  const bare  = stripFaPrefix(rawName);
+  const fa4   = resolveFA4IconName(bare);
+  if (fa4) {
+    return <FontAwesome name={fa4} size={size} color={color} style={style} />;
+  }
+  try {
+    return <FontAwesome6 name={bare} size={size} color={color} style={style} />;
+  } catch {
+    return <FontAwesome name="info-circle" size={size} color={color} style={style} />;
+  }
+}
+
+// ─── Component ────────────────────────────────────────────────────────────────
 
 export default function ProductDescription({ section }) {
   const propsNode =
@@ -48,110 +74,145 @@ export default function ProductDescription({ section }) {
     section?.props ||
     {};
 
-  const raw        = unwrapValue(propsNode?.raw, {});
-  const titleCss   = unwrapValue(propsNode?.title, {});
-  const infoCss    = unwrapValue(propsNode?.info, {});
-  const outerCss   = unwrapValue(propsNode?.outer, {});
-  const iconCss    = unwrapValue(propsNode?.icon, {});
-  const layoutCss  = unwrapValue(propsNode?.layout, {});
-  const visibility = unwrapValue(propsNode?.visibility, {});
+  const raw        = unwrapValue(propsNode?.raw, {}) || {};
+  const titleNode  = unwrapValue(propsNode?.title, {});
+  const infoNode   = unwrapValue(propsNode?.info, {});
+  const outerNode  = unwrapValue(propsNode?.outer, {});
+  const iconNode   = unwrapValue(propsNode?.icon, {});
+  const visNode    = unwrapValue(propsNode?.visibility, {});
+
+  // Both layout and presentation carry the same CSS snapshot — prefer layout
+  const layoutCss = (() => {
+    const l = unwrapValue(propsNode?.layout, {});
+    return l?.css || l?.properties?.css || {};
+  })();
+  const presCss = (() => {
+    const p = unwrapValue(propsNode?.presentation, {});
+    return p?.css || p?.properties?.css || {};
+  })();
 
   // ── Text content ───────────────────────────────────────────────────────────
   const titleText = toString(
-    titleCss?.text ?? raw?.title,
+    titleNode?.text ?? raw?.title,
     "Description"
   );
   const descriptionText = toString(
-    raw?.description ?? raw?.descriptionText ?? infoCss?.descriptionText,
+    raw?.description ?? raw?.descriptionText ?? infoNode?.descriptionText,
     ""
   );
 
   if (!descriptionText && !titleText) return null;
 
   // ── Visibility ─────────────────────────────────────────────────────────────
-  const showTitle       = toBoolean(visibility?.title, true);
-  const showDescription = toBoolean(visibility?.infoDescription, true);
-  const showIcon        = toBoolean(visibility?.icon, true);
+  const showTitle       = toBoolean(visNode?.title,           true);
+  const showDescription = toBoolean(visNode?.infoDescription, true);
+  const showIcon        = toBoolean(visNode?.icon,            true);
 
   // ── Icon ───────────────────────────────────────────────────────────────────
-  const iconColor = toString(iconCss?.color, "#096d70");
-  const iconSize  = toNumber(iconCss?.size, 14);
-  // DSL may say "fa-circle-info" — FontAwesome 4 uses "info-circle"
-  const rawIconName = toString(iconCss?.icon, "info-circle");
-  const iconName  = rawIconName.replace(/^fa-/, "").replace("circle-info", "info-circle");
+  // raw.dropdownIconValue is what the builder sets when the user picks an icon
+  // propsNode.icon.icon is the DSL-level default
+  // layoutCss.icon.icon / presCss.icon.icon are CSS-snapshot values
+  const rawIconVal  = toString(raw?.dropdownIconValue ?? raw?.iconId ?? raw?.icon, "");
+  const iconNodeVal = toString(iconNode?.icon,                  "");
+  const cssIconVal  = toString(layoutCss?.icon?.icon ?? presCss?.icon?.icon, "");
+  const resolvedIconRaw = rawIconVal || iconNodeVal || cssIconVal || "fa-circle-info";
 
-  // ── Container (outer) padding ──────────────────────────────────────────────
-  const outerPT = toNumber(outerCss?.paddingTop,    0);
-  const outerPB = toNumber(outerCss?.paddingBottom, 0);
-  const outerPL = toNumber(outerCss?.paddingLeft,   0);
-  const outerPR = toNumber(outerCss?.paddingRight,  0);
-  const outerBg = toString(outerCss?.backgroundColor ?? outerCss?.background, "#FFFFFF");
-
-  // ── Info box padding ───────────────────────────────────────────────────────
-  const infoPT = toNumber(infoCss?.paddingTop,    0);
-  const infoPB = toNumber(infoCss?.paddingBottom, 0);
-  const infoPL = toNumber(infoCss?.paddingLeft,   0);
-  const infoPR = toNumber(infoCss?.paddingRight,  0);
-  const infoBg = toString(infoCss?.backgroundColor ?? infoCss?.background, "#FFFFFF");
-
-  // ── Header row paddingTop (from layout.css.headerRow or default 30) ────────
-  const headerPT = (() => {
-    const css = layoutCss?.css || layoutCss;
-    const hr  = css?.headerRow;
-    if (hr?.paddingTop !== undefined) {
-      return toNumber(String(hr.paddingTop).replace("px", ""), 16);
-    }
-    return 16;
+  // Icon color — raw.dropdownIconColor overrides the node/css color
+  const iconColor = (() => {
+    const fromRaw  = toString(raw?.dropdownIconColor ?? raw?.iconColor, "");
+    const fromNode = toString(iconNode?.color, "");
+    const fromCss  = toString(layoutCss?.icon?.color ?? presCss?.icon?.color, "");
+    return fromRaw || fromNode || fromCss || "#096d70";
   })();
 
-  // ── Title style ────────────────────────────────────────────────────────────
-  const titleFontSize   = toNumber(titleCss?.style?.fontSize, 14);
-  const titleColor      = toString(titleCss?.style?.color, "#111827");
-  const titleWeight     = toString(titleCss?.style?.fontWeight, "700");
-  const titleFontFamily = cleanFontFamily(toString(titleCss?.style?.fontFamily ?? titleCss?.fontFamily, ""));
-  const titleItalic    = toBoolean(titleCss?.style?.italic, false);
-  const titleUnderline = toBoolean(titleCss?.style?.underline, false);
-  const titleStrikethrough = toBoolean(titleCss?.style?.strikethrough, false);
-  const titleDecorationLine = resolveTextDecorationLine({
-    underline: titleUnderline,
-    strikethrough: titleStrikethrough,
-  });
-
-  // ── Body style ─────────────────────────────────────────────────────────────
-  const bodyFontSize   = toNumber(infoCss?.descriptionStyle?.fontSize, 12);
-  const bodyColor      = toString(infoCss?.descriptionStyle?.color, "#6B7280");
-  const bodyWeight     = toString(infoCss?.descriptionStyle?.fontWeight, "400");
-  const bodyFontFamily = cleanFontFamily(toString(infoCss?.descriptionStyle?.fontFamily ?? infoCss?.fontFamily, ""));
-  const bodyItalic    = toBoolean(infoCss?.descriptionStyle?.italic, false);
-  const bodyUnderline = toBoolean(infoCss?.descriptionStyle?.underline, false);
-  const bodyStrikethrough = toBoolean(infoCss?.descriptionStyle?.strikethrough, false);
-  const bodyDecorationLine = resolveTextDecorationLine({
-    underline: bodyUnderline,
-    strikethrough: bodyStrikethrough,
-  });
+  // Icon size — try raw keys, then icon node, then CSS fontSize
+  const iconSize = (() => {
+    const fromRaw  = toNumber(raw?.dropdownIconSize ?? raw?.iconSize, undefined);
+    const fromNode = toNumber(iconNode?.size, undefined);
+    const fromCss  = toNumber(layoutCss?.icon?.fontSize ?? presCss?.icon?.fontSize, undefined);
+    return fromRaw ?? fromNode ?? fromCss ?? 16;
+  })();
 
   // ── Arrow / chevron colour ─────────────────────────────────────────────────
-  const arrowColor = (() => {
-    const css = layoutCss?.css || layoutCss;
-    return toString(css?.arrow?.color, "#111827");
-  })();
+  const arrowColor = toString(
+    layoutCss?.arrow?.color ?? presCss?.arrow?.color ?? raw?.arrowColor,
+    "#111827"
+  );
+  const arrowSize = toNumber(
+    layoutCss?.arrow?.fontSize ?? presCss?.arrow?.fontSize ?? raw?.arrowSize,
+    14
+  );
 
-  // ── Accordion open state ───────────────────────────────────────────────────
+  // ── Container (outer) ─────────────────────────────────────────────────────
+  const outerPT = toNumber(outerNode?.paddingTop    ?? layoutCss?.container?.paddingTop,    0);
+  const outerPB = toNumber(outerNode?.paddingBottom ?? layoutCss?.container?.paddingBottom, 0);
+  const outerPL = toNumber(outerNode?.paddingLeft   ?? layoutCss?.container?.paddingLeft,   0);
+  const outerPR = toNumber(outerNode?.paddingRight  ?? layoutCss?.container?.paddingRight,  0);
+  const outerBg = toString(
+    outerNode?.backgroundColor ?? outerNode?.background ??
+    layoutCss?.container?.background ?? layoutCss?.container?.backgroundColor,
+    "#FFFFFF"
+  );
+  const outerRadius = toNumber(outerNode?.corners ?? outerNode?.borderRadius ?? layoutCss?.container?.borderRadius, 0);
+
+  // ── Header row paddingTop ─────────────────────────────────────────────────
+  const headerPT = toNumber(
+    layoutCss?.headerRow?.paddingTop ?? presCss?.headerRow?.paddingTop,
+    16
+  );
+
+  // ── Info box ──────────────────────────────────────────────────────────────
+  const infoPT = toNumber(infoNode?.paddingTop    ?? layoutCss?.infoBox?.paddingTop,    0);
+  const infoPB = toNumber(infoNode?.paddingBottom ?? layoutCss?.infoBox?.paddingBottom, 0);
+  const infoPL = toNumber(infoNode?.paddingLeft   ?? layoutCss?.infoBox?.paddingLeft,   0);
+  const infoPR = toNumber(infoNode?.paddingRight  ?? layoutCss?.infoBox?.paddingRight,  0);
+  const infoBg = toString(
+    infoNode?.backgroundColor ?? infoNode?.background ??
+    layoutCss?.infoBox?.background ?? layoutCss?.infoBox?.backgroundColor,
+    "#FFFFFF"
+  );
+
+  // ── Title style ────────────────────────────────────────────────────────────
+  const titleStyle     = unwrapValue(titleNode?.style, {});
+  const titleFontSize  = toNumber(titleStyle?.fontSize ?? layoutCss?.title?.fontSize, 14);
+  const titleColor     = toString(titleStyle?.color    ?? layoutCss?.title?.color,    "#111827");
+  const titleWeight    = (() => {
+    const v = toString(titleStyle?.fontWeight ?? layoutCss?.title?.fontWeight, "700");
+    return v;
+  })();
+  const titleFontFamily = cleanFontFamily(toString(titleStyle?.fontFamily ?? layoutCss?.title?.fontFamily, ""));
+  const titleItalic         = toBoolean(titleStyle?.italic,        false);
+  const titleUnderline      = toBoolean(titleStyle?.underline,     false);
+  const titleStrikethrough  = toBoolean(titleStyle?.strikethrough, false);
+  const titleDecorationLine = resolveTextDecorationLine({ underline: titleUnderline, strikethrough: titleStrikethrough });
+
+  // ── Body (description) style ───────────────────────────────────────────────
+  const descStyle      = unwrapValue(infoNode?.descriptionStyle, {});
+  const bodyFontSize   = toNumber(descStyle?.fontSize ?? layoutCss?.infoText?.fontSize, 12);
+  const bodyColor      = toString(descStyle?.color    ?? layoutCss?.infoText?.color,    "#6B7280");
+  const bodyWeight     = toString(descStyle?.fontWeight ?? layoutCss?.infoText?.fontWeight, "400");
+  const bodyFontFamily = cleanFontFamily(toString(descStyle?.fontFamily ?? layoutCss?.infoText?.fontFamily, ""));
+  const bodyItalic        = toBoolean(descStyle?.italic,    false);
+  const bodyUnderline     = toBoolean(descStyle?.underline, false);
+  const bodyStrikethrough = toBoolean(descStyle?.strikethrough, false);
+  const bodyDecorationLine = resolveTextDecorationLine({ underline: bodyUnderline, strikethrough: bodyStrikethrough });
+  const bodyLineHeight    = toNumber(layoutCss?.infoText?.lineHeight, 1.5);
+
+  // ── Accordion state ────────────────────────────────────────────────────────
   const defaultOpen = toBoolean(raw?.defaultOpen, false);
   const [open, setOpen] = useState(defaultOpen);
 
   return (
     <View
-      style={[
-        styles.container,
-        {
-          backgroundColor: outerBg,
-          paddingTop:    outerPT,
-          paddingBottom: outerPB,
-          paddingLeft:   outerPL,
-          paddingRight:  outerPR,
-        },
-      ]}
+      style={{
+        width:           "100%",
+        backgroundColor: outerBg,
+        borderRadius:    outerRadius,
+        paddingTop:      outerPT,
+        paddingBottom:   outerPB,
+        paddingLeft:     outerPL,
+        paddingRight:    outerPR,
+      }}
     >
       {/* ── Accordion header ──────────────────────────────────────────────── */}
       <TouchableOpacity
@@ -163,8 +224,8 @@ export default function ProductDescription({ section }) {
       >
         <View style={styles.titleRow}>
           {showIcon && (
-            <FontAwesome
-              name={iconName}
+            <DescIcon
+              rawName={resolvedIconRaw}
               size={iconSize}
               color={iconColor}
               style={styles.infoIcon}
@@ -173,22 +234,24 @@ export default function ProductDescription({ section }) {
           {showTitle && (
             <Text
               style={{
-                fontSize:   titleFontSize,
-                color:      titleColor,
-                fontWeight: String(titleWeight),
-                fontStyle:  titleItalic ? "italic" : "normal",
+                fontSize:           titleFontSize,
+                color:              titleColor,
+                fontWeight:         String(titleWeight),
+                fontStyle:          titleItalic ? "italic" : "normal",
                 textDecorationLine: titleDecorationLine,
+                flex:               1,
                 ...(titleFontFamily ? { fontFamily: titleFontFamily } : {}),
-                flex: 1,
               }}
             >
               {titleText}
             </Text>
           )}
         </View>
+
+        {/* Chevron arrow */}
         <FontAwesome
           name={open ? "chevron-up" : "chevron-down"}
-          size={12}
+          size={arrowSize}
           color={arrowColor}
         />
       </TouchableOpacity>
@@ -198,21 +261,21 @@ export default function ProductDescription({ section }) {
         <View
           style={{
             backgroundColor: infoBg,
-            paddingTop:    infoPT || 10,
-            paddingBottom: infoPB,
-            paddingLeft:   infoPL,
-            paddingRight:  infoPR,
+            paddingTop:      infoPT || 10,
+            paddingBottom:   infoPB,
+            paddingLeft:     infoPL,
+            paddingRight:    infoPR,
           }}
         >
           <Text
             style={{
-              fontSize:          bodyFontSize,
-              color:             bodyColor,
-              fontWeight:        String(bodyWeight),
-              fontStyle:         bodyItalic    ? "italic"    : "normal",
+              fontSize:           bodyFontSize,
+              color:              bodyColor,
+              fontWeight:         String(bodyWeight),
+              fontStyle:          bodyItalic ? "italic" : "normal",
               textDecorationLine: bodyDecorationLine,
+              lineHeight:         bodyFontSize * bodyLineHeight,
               ...(bodyFontFamily ? { fontFamily: bodyFontFamily } : {}),
-              lineHeight:        bodyFontSize * 1.6,
             }}
           >
             {descriptionText}
@@ -224,20 +287,17 @@ export default function ProductDescription({ section }) {
 }
 
 const styles = StyleSheet.create({
-  container: {
-    width: "100%",
-    backgroundColor: "#FFFFFF",
-  },
   headerRow: {
     flexDirection:  "row",
     alignItems:     "center",
     justifyContent: "space-between",
     paddingBottom:  16,
+    paddingHorizontal: 16,
   },
   titleRow: {
     flexDirection: "row",
     alignItems:    "center",
-    flex: 1,
+    flex:          1,
   },
   infoIcon: {
     marginRight: 8,
