@@ -76,7 +76,7 @@ const buildButtonStyles = (config, defaultBg = "#1F2937") => {
     paddingLeft: pl,
     paddingRight: pr,
     backgroundColor: toString(config?.bgColor, defaultBg),
-    borderRadius: toNumber(config?.borderRadius, 8),
+    borderRadius: toNumber(config?.borderRadius ?? config?.corner ?? config?.radius, 999),
     borderColor: borderColor || undefined,
     borderWidth,
     flexDirection: "row",
@@ -136,12 +136,7 @@ export default function AddToCart({ section }) {
   const addToCartConfig = deepUnwrap(raw?.addToCart) || deepUnwrap(css?.addToCart) || {};
   const quantityConfig  = deepUnwrap(raw?.quantityPicker) || deepUnwrap(css?.quantityPicker) || {};
 
-  // buyNowConfig: only exists when DSL actually sends a buyNow object
-  const buyNowConfigRaw = deepUnwrap(raw?.buyNow) || deepUnwrap(css?.buyNow) || null;
-  const buyNowConfig    = buyNowConfigRaw || {};
-
-  // Visibility: read from rawWrapped (the actual DSL data sub-object) so that
-  // stale propsNode-level visibility flags from the builder don't bleed through.
+  // Visibility
   const rawWrappedVis = (rawWrapped && typeof rawWrapped === "object") ? rawWrapped : {};
   const visibility    = deepUnwrap(rawWrappedVis?.visibility) || deepUnwrap(css?.visibility) || {};
 
@@ -151,13 +146,8 @@ export default function AddToCart({ section }) {
   const showQuantityPicker = toBoolean(deepUnwrap(visibility?.quantityPicker),      true);
   const showQuantityText   = toBoolean(deepUnwrap(visibility?.quantityPickerText),  true);
   const showQuantityIcons  = toBoolean(deepUnwrap(visibility?.quantityPickerIcons), true);
-  // Buy Now: needs BOTH a buyNow config object in DSL AND visibility.buyNow === true
-  const showBuyNow         = !!buyNowConfigRaw && toBoolean(deepUnwrap(visibility?.buyNow), false);
-  const showBuyNowIcon     = toBoolean(deepUnwrap(visibility?.buyNowIcon),          false);
-  const showBuyNowText     = toBoolean(deepUnwrap(visibility?.buyNowText),          true);
 
   const addToCartText = toString(raw?.buttonText ?? addToCartConfig?.text, "Add to Cart");
-  const buyNowText    = toString(buyNowConfig?.text ?? raw?.buyNowText, "Buy Now");
   const quantityLabel = toString(raw?.quantityLabel ?? quantityConfig?.label, "Quantity");
   const shopifyDomain = toString(raw?.shopifyDomain, getShopifyDomain());
   const productHandle = toString(raw?.handle, "");
@@ -176,7 +166,6 @@ export default function AddToCart({ section }) {
   const [snackbarVisible, setSnackbarVisible] = useState(false);
 
   const addToCartButtonStyle = useMemo(() => buildButtonStyles(addToCartConfig, "#1F2937"), [addToCartConfig]);
-  const buyNowButtonStyle    = useMemo(() => buildButtonStyles(buyNowConfig,    "#FFFFFF"), [buyNowConfig]);
   const addToCartUrl = useMemo(
     () =>
       buildCheckoutUrl({
@@ -201,22 +190,6 @@ export default function AddToCart({ section }) {
     fontFamily: resolveFont(toString(addToCartConfig?.textFamily ?? addToCartConfig?.fontFamily, "")) || undefined,
     marginLeft: showAddToCartIcon ? 6 : 0,
   };
-
-  const buyNowBg     = toString(buyNowConfig?.bgColor, "#FFFFFF");
-  const buyNowFgRaw  = toString(buyNowConfig?.textColor, "");
-  const buyNowFg     = buyNowFgRaw && buyNowFgRaw !== buyNowBg
-    ? buyNowFgRaw
-    : buyNowBg.toLowerCase() === "#ffffff" || buyNowBg.toLowerCase() === "#fff" ? "#111827" : "#ffffff";
-
-  const buyNowTextStyle = {
-    color:      buyNowFg,
-    fontSize:   toNumber(buyNowConfig?.textSize,   15),
-    fontWeight: toString(buyNowConfig?.textWeight, "600"),
-    fontFamily: resolveFont(toString(buyNowConfig?.textFamily ?? buyNowConfig?.fontFamily, "")) || undefined,
-    marginLeft: showBuyNowIcon ? 6 : 0,
-  };
-
-  const buyNowIconName = resolveIconName(buyNowConfig?.icon);
 
   const quantityContainerStyle = {
     ...buildPadding(quantityConfig),
@@ -308,11 +281,6 @@ export default function AddToCart({ section }) {
     );
 
     setSnackbarVisible(true);
-  };
-
-  const handleBuyNow = () => {
-    if (!addToCartUrl) return;
-    navigation.navigate("CheckoutWebView", { url: addToCartUrl, title: "Checkout" });
   };
 
   const containerBg = toString(
@@ -416,31 +384,6 @@ export default function AddToCart({ section }) {
           )}
           {showAddToCartText && (
             <Text style={addToCartTextStyle}>{addToCartText}</Text>
-          )}
-        </TouchableOpacity>
-      )}
-
-      {/* ── Buy Now button ── */}
-      {showBuyNow && (
-        <TouchableOpacity
-          style={[
-            styles.fullButton,
-            buyNowButtonStyle,
-            { marginTop: toNumber(raw?.buttonGap ?? raw?.gap, 10) },
-          ]}
-          onPress={handleBuyNow}
-          activeOpacity={0.8}
-        >
-          {showBuyNowIcon && !!buyNowIconName && (
-            <FontAwesome
-              name={buyNowIconName}
-              size={toNumber(buyNowConfig?.iconSize, 14)}
-              color={toString(buyNowConfig?.iconColor, buyNowTextStyle.color)}
-              style={{ marginRight: 6 }}
-            />
-          )}
-          {showBuyNowText && (
-            <Text style={buyNowTextStyle}>{buyNowText}</Text>
           )}
         </TouchableOpacity>
       )}

@@ -181,30 +181,56 @@ export default function HeaderDefault({ config, bottomNavSection, hideTabs = fal
     const titleFontWeight = _fwMap[_fwr.toLowerCase()] || _fwr;
     const titleColor = resolveVal(config.titleColor) ?? resolveVal(config.titleTextColor) ?? textColor;
 
-    // ── Title box / border styling (wide-net key aliases) ─────────────────────
+    // ── Title box / border styling ─────────────────────────────────────────
+    // Check nested sub-objects in case builder stores box style there
+    const _rawSub   = resolveVal(config.raw)           || {};
+    const _titleSub = resolveVal(config.titleStyle)    || resolveVal(config.titleSettings) || resolveVal(config.titleBox) || {};
+    const _logoSub  = resolveVal(config.logoStyle)     || resolveVal(config.logoSettings)  || {};
+    const _sub = (typeof _rawSub === "object" ? _rawSub : {});
+    const _tsub = (typeof _titleSub === "object" ? _titleSub : {});
+    const _lsub = (typeof _logoSub === "object" ? _logoSub : {});
+
     const titleBoxBg = resolveVal(
       config.titleBgColor ??
       config.titleBackgroundColor ??
       config.titleContainerBg ??
-      config.titleBoxBg
+      config.titleBoxBg ??
+      config.titleBoxBgColor ??
+      config.logoBgColor ??
+      config.logoBackgroundColor ??
+      config.brandBgColor ??
+      config.nameBgColor ??
+      config.labelBgColor ??
+      config.textBoxBgColor ??
+      config.titleLabelBg ??
+      _sub.titleBgColor ?? _sub.titleBoxBg ?? _sub.logoBgColor ??
+      _tsub.bgColor ?? _tsub.backgroundColor ?? _tsub.bg ??
+      _lsub.bgColor ?? _lsub.backgroundColor
     ) || "";
 
     const _borderRaw = resolveVal(
       config.titleBorder ??
       config.showTitleBorder ??
       config.titleBorderEnabled ??
-      config.showBorder
+      config.showBorder ??
+      config.titleBoxBorder ??
+      config.logoBorder ??
+      config.titleBorderVisible ??
+      config.hasTitleBorder ??
+      _sub.titleBorder ?? _sub.showBorder ??
+      _tsub.border ?? _tsub.showBorder ?? _tsub.borderEnabled ??
+      _lsub.border ?? _lsub.borderEnabled
     );
     const titleBorderEnabled =
       _borderRaw === true ||
       (typeof _borderRaw === "string" &&
         _borderRaw !== "" && _borderRaw !== "false" && _borderRaw !== "0" && _borderRaw !== "none");
 
-    const titleBorderWidth  = titleBorderEnabled ? Number(resolveVal(config.titleBorderWidth) ?? 1) : 0;
-    const titleBorderColor  = resolveVal(config.titleBorderColor ?? config.titleBorderColour) || "#000000";
-    const titleBorderRadius = Number(resolveVal(config.titleBorderRadius) ?? 0);
-    const titleBoxPaddingH  = Number(resolveVal(config.titleBoxPaddingH) ?? 10);
-    const titleBoxPaddingV  = Number(resolveVal(config.titleBoxPaddingV) ?? 5);
+    const titleBorderWidth  = titleBorderEnabled ? Number(resolveVal(config.titleBorderWidth  ?? config.titleBorderSize ?? _tsub.borderWidth  ?? _sub.titleBorderWidth)  ?? 1) : 0;
+    const titleBorderColor  = resolveVal(config.titleBorderColor ?? config.titleBorderColour ?? _tsub.borderColor ?? _tsub.color ?? _sub.titleBorderColor) || "#000000";
+    const titleBorderRadius = Number(resolveVal(config.titleBorderRadius ?? config.titleRadius ?? config.titleCorner ?? _tsub.borderRadius ?? _tsub.radius ?? _sub.titleBorderRadius) ?? 0);
+    const titleBoxPaddingH  = Number(resolveVal(config.titleBoxPaddingH ?? config.titlePaddingH ?? config.titlePadX ?? _tsub.paddingH ?? _tsub.px) ?? 10);
+    const titleBoxPaddingV  = Number(resolveVal(config.titleBoxPaddingV ?? config.titlePaddingV ?? config.titlePadY ?? _tsub.paddingV ?? _tsub.py) ?? 5);
     const hasBox = !!titleBoxBg || titleBorderEnabled;
 
     const badgeStyle = {
@@ -320,10 +346,9 @@ export default function HeaderDefault({ config, bottomNavSection, hideTabs = fal
     const itemTitle       = item.title || item.text || "";
     const itemIconSize    = item.iconSize ? Number(item.iconSize) : 18;
     const itemIconColor   = item.iconColor || iconColor;
-    // Use item-level textColor first, then fall back to global textColor
     const itemTextColor   = item.textColor || textColor;
-    const itemFontSize    = item.textSize   ? Number(item.textSize)  : 13;
-    const itemFontWeight  = item.textBold   ? "700" : item.textWeight ? String(item.textWeight) : "600";
+    const itemFontSize    = item.textSize ? Number(item.textSize) : 13;
+    const itemFontWeight  = item.textBold ? "700" : item.textWeight ? String(item.textWeight) : "600";
     const itemFontFamily  = item.textFontFamily || undefined;
     const itemFontStyle   = item.textItalic ? "italic" : "normal";
     let itemTextDecoration = "none";
@@ -331,15 +356,44 @@ export default function HeaderDefault({ config, bottomNavSection, hideTabs = fal
     else if (item.textUnderline)                       itemTextDecoration = "underline";
     else if (item.textStrikethrough)                   itemTextDecoration = "line-through";
 
-    const isCart      = itemIconName.includes("cart");
-    const isBell      = itemIconName.includes("bell");
-    const isWishlist  = itemIconName.includes("heart") || itemIconName.includes("bookmark");
-    const showBadge   = (isCart && cartCount > 0) || (isWishlist && wishlistCount > 0);
-    const badgeCount  = isCart ? cartCount : isWishlist ? wishlistCount : 0;
+    // ── Per-item container box styling (bgColor, borderLine, borderRadius) ──
+    const itemBgColor      = item.bgColor || item.backgroundColor || "";
+    const itemBorderLine   = String(item.borderLine || item.border || "none").toLowerCase();
+    const itemBorderColor  = item.borderColor || item.borderColour || itemIconColor || "#000000";
+    const itemBorderWidth  = item.borderWidth != null ? Number(item.borderWidth) : 2;
+    const itemBorderRadius = item.borderRadius != null ? Number(item.borderRadius) : 0;
+    const hasItemBox       = !!itemBgColor || (itemBorderLine !== "none" && itemBorderLine !== "");
+
+    // Map borderLine → React Native border-side properties
+    const itemBorderStyle = (() => {
+      if (!itemBorderLine || itemBorderLine === "none") return {};
+      if (itemBorderLine === "all" || itemBorderLine === "full") {
+        return { borderWidth: itemBorderWidth, borderColor: itemBorderColor };
+      }
+      const sides = {};
+      if (itemBorderLine.includes("left"))   { sides.borderLeftWidth   = itemBorderWidth; sides.borderLeftColor   = itemBorderColor; }
+      if (itemBorderLine.includes("right"))  { sides.borderRightWidth  = itemBorderWidth; sides.borderRightColor  = itemBorderColor; }
+      if (itemBorderLine.includes("top"))    { sides.borderTopWidth    = itemBorderWidth; sides.borderTopColor    = itemBorderColor; }
+      if (itemBorderLine.includes("bottom")) { sides.borderBottomWidth = itemBorderWidth; sides.borderBottomColor = itemBorderColor; }
+      return sides;
+    })();
+
+    const itemBoxStyle = hasItemBox ? {
+      backgroundColor: itemBgColor || "transparent",
+      borderRadius: itemBorderRadius,
+      paddingHorizontal: item.paddingH != null ? Number(item.paddingH) : 8,
+      paddingVertical:   item.paddingV != null ? Number(item.paddingV) : 4,
+      ...itemBorderStyle,
+    } : {};
+
+    const isCart     = itemIconName.includes("cart");
+    const isBell     = itemIconName.includes("bell");
+    const isWishlist = itemIconName.includes("heart") || itemIconName.includes("bookmark");
+    const showBadge  = (isCart && cartCount > 0) || (isWishlist && wishlistCount > 0);
+    const badgeCount = isCart ? cartCount : isWishlist ? wishlistCount : 0;
     const isInteractive = isCart || isBell || isWishlist;
 
     const showIcon  = !!itemIconName;
-    // Show title for any type except pure "icon" type
     const showTitle = itemType !== "icon" && !!itemTitle;
 
     if (!showIcon && !showTitle) return null;
@@ -387,10 +441,10 @@ export default function HeaderDefault({ config, bottomNavSection, hideTabs = fal
     ) : null;
 
     const inner = (
-      <>
+      <View style={[{ flexDirection: "row", alignItems: "center", gap: 4 }, itemBoxStyle]}>
         {iconNode}
         {textNode}
-      </>
+      </View>
     );
 
     if (isInteractive) {
@@ -398,10 +452,9 @@ export default function HeaderDefault({ config, bottomNavSection, hideTabs = fal
         <TouchableOpacity
           key={idx}
           activeOpacity={0.7}
-          style={{ flexDirection: "row", alignItems: "center", gap: 4 }}
           onPress={() => {
-            if (isCart)     openNavTarget("cart");
-            else if (isBell) openNavTarget("notification");
+            if (isCart)          openNavTarget("cart");
+            else if (isBell)     openNavTarget("notification");
             else if (isWishlist) navigation.navigate("Wishlist");
           }}
         >
@@ -410,11 +463,7 @@ export default function HeaderDefault({ config, bottomNavSection, hideTabs = fal
       );
     }
 
-    return (
-      <View key={idx} style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
-        {inner}
-      </View>
-    );
+    return <View key={idx}>{inner}</View>;
   };
 
   return (

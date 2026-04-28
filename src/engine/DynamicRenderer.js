@@ -41,6 +41,7 @@ import AboutUs from "../components/AboutUs";
 import WishlistItem from "../components/WishlistItem";
 import ConfirmationHeader from "../components/ConfirmationHeader";
 import FilterSortHeader from "../components/FilterSortHeader";
+import RecentProducts from "../components/RecentProducts";
 
 const normalizeComponentName = (value) =>
   String(value || "")
@@ -122,6 +123,11 @@ const componentMap = {
   "filter-sort-header": FilterSortHeader,
   filter_header: FilterSortHeader,
   sort_header: FilterSortHeader,
+  recent_products: RecentProducts,
+  recently_viewed: RecentProducts,
+  recent_viewed: RecentProducts,
+  recentproducts: RecentProducts,
+  recentlyviewed: RecentProducts,
 };
 
 const componentAliases = {
