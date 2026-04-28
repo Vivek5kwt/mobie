@@ -284,6 +284,52 @@ export default function ProductDetailScreen() {
       mergeSectionWithProduct(section, detailProduct)
     );
   }, [productReady, detailProduct, sectionsToRender]);
+
+  // Split sections: sticky add_to_cart sections go below the ScrollView (pinned to bottom).
+  // All other sections (including non-sticky add_to_cart) stay inside the ScrollView.
+  const { mainSections, stickyAtcSection } = useMemo(() => {
+    let stickyAtc = null;
+    const main = [];
+    for (const section of renderSections) {
+      // Normalise component type: "add_to_cart" / "add-to-cart" / "addtocart" → "addtocart"
+      const compRaw =
+        section?.properties?.component?.const ||
+        section?.component?.const ||
+        section?.component ||
+        "";
+      const compType = String(compRaw).toLowerCase().replace(/[-_]/g, "");
+
+      if (compType === "addtocart") {
+        // Read sticky flag — builder sends it as raw.sticky (boolean or "true")
+        const propsNode =
+          section?.properties?.props?.properties ||
+          section?.properties?.props ||
+          section?.props ||
+          {};
+        const rawObj = unwrapValue(propsNode?.raw, {});
+        const rawVal = rawObj?.value !== undefined ? rawObj.value : rawObj;
+        const stickyRaw =
+          rawVal?.sticky ??
+          rawVal?.isSticky ??
+          rawVal?.stickyBottom ??
+          rawVal?.pinToBottom;
+        const isSticky =
+          stickyRaw === true ||
+          stickyRaw === 1 ||
+          String(stickyRaw).toLowerCase() === "true";
+
+        if (isSticky && !stickyAtc) {
+          stickyAtc = section; // Only the first sticky ATC goes to the bottom bar
+        } else {
+          main.push(section);
+        }
+      } else {
+        main.push(section);
+      }
+    }
+    return { mainSections: main, stickyAtcSection: stickyAtc };
+  }, [renderSections]);
+
   const showEmptyState = !showLoadingState && (!renderSections.length || !!error);
 
   return (
@@ -292,7 +338,15 @@ export default function ProductDetailScreen() {
         <View style={[styles.headerWrapper, { paddingTop: insets.top }]}>
           <Header showNotification={false} />
         </View>
-        <ScrollView contentContainerStyle={styles.scrollContent}>
+
+        {/* ScrollView grows to fill space above the sticky bar */}
+        <ScrollView
+          contentContainerStyle={[
+            styles.scrollContent,
+            // Extra bottom padding so content isn't hidden behind the sticky ATC bar
+            stickyAtcSection ? { paddingBottom: 90 } : null,
+          ]}
+        >
           {showLoadingState ? (
             <View style={styles.loadingState}>
               <ActivityIndicator size="large" color="#6b7280" />
@@ -303,14 +357,21 @@ export default function ProductDetailScreen() {
                 {error || "No product details available."}
               </Text>
             </View>
-          ) : renderSections.length > 0 ? (
-            renderSections.map((section, index) => (
+          ) : mainSections.length > 0 ? (
+            mainSections.map((section, index) => (
               <View key={section?.id || section?.component || index} style={styles.section}>
                 <DynamicRenderer section={section} />
               </View>
             ))
           ) : null}
         </ScrollView>
+
+        {/* Sticky Add to Cart bar — sits BELOW the ScrollView, always visible */}
+        {stickyAtcSection && (
+          <View style={styles.stickyAtcBar}>
+            <DynamicRenderer section={stickyAtcSection} />
+          </View>
+        )}
       </View>
     </SafeAreaView>
   );
@@ -366,5 +427,15 @@ const styles = StyleSheet.create({
     alignItems: "center",
     paddingVertical: 48,
     paddingHorizontal: 24,
+  },
+  stickyAtcBar: {
+    backgroundColor: "#FFFFFF",
+    borderTopWidth: 1,
+    borderTopColor: "#E5E7EB",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: -3 },
+    shadowOpacity: 0.08,
+    shadowRadius: 6,
+    elevation: 10,
   },
 });
