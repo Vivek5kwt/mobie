@@ -42,7 +42,7 @@ export const QUERY_RECENT_PRODUCTS = `
           availableForSale
           featuredImage { url altText }
           images(first: 1) { edges { node { url altText } } }
-          priceRangeV2 { minVariantPrice { amount currencyCode } }
+          priceRange { minVariantPrice { amount currencyCode } }
           variants(first: 1) {
             edges {
               node {
@@ -93,11 +93,12 @@ export async function directStorefrontGraphQL({ shop, token, storeId, query, var
 
     if (proxyRes.ok) {
       const json = await proxyRes.json();
-      if (!json?.errors) {
+      if (json?.data) {
+        if (json.errors) console.warn("⚠️ Proxy warnings:", JSON.stringify(json.errors));
         console.log("✅ Proxy success");
         return json;
       }
-      console.warn("⚠️ Proxy GraphQL errors:", JSON.stringify(json.errors));
+      console.warn("⚠️ Proxy no data. errors:", JSON.stringify(json?.errors));
     } else {
       const text = await proxyRes.text().catch(() => "");
       console.warn(`⚠️ Proxy HTTP ${proxyRes.status}: ${text}`);
@@ -154,15 +155,15 @@ export async function fetchShopifyRecentProducts(limit = 10, options = {}) {
       variables: { first: Math.max(1, limit) },
     });
 
-    if (json.errors) {
+    const edges = json?.data?.products?.edges || [];
+    if (!edges.length && json?.errors) {
       console.error("❌ Shopify GraphQL Errors →", json.errors);
       return [];
     }
 
-    const edges = json?.data?.products?.edges || [];
     return edges.map(({ node }) => {
       const variant = node?.variants?.edges?.[0]?.node;
-      const price = node?.priceRangeV2?.minVariantPrice;
+      const price = node?.priceRange?.minVariantPrice;
       return {
         id: node?.id,
         name: node?.title,
@@ -248,7 +249,7 @@ export async function fetchShopifyProductsPage({
             featuredImage {
               url
             }
-            priceRangeV2 { minVariantPrice { amount currencyCode } }
+            priceRange { minVariantPrice { amount currencyCode } }
             variants(first: 1) {
               edges {
                 node {
@@ -272,12 +273,12 @@ export async function fetchShopifyProductsPage({
       variables: { first: Math.max(1, first), after },
     });
 
-    if (json.errors) {
+    const edges = json?.data?.products?.edges || [];
+    if (!edges.length && json?.errors) {
       console.error("❌ Shopify GraphQL Errors →", json.errors);
       return { products: [], pageInfo: { hasNextPage: false, endCursor: null } };
     }
 
-    const edges = json?.data?.products?.edges || [];
     const pageInfo = json?.data?.products?.pageInfo || {
       hasNextPage: false,
       endCursor: null,
@@ -285,7 +286,7 @@ export async function fetchShopifyProductsPage({
 
     const products = edges.map((edge) => {
       const variant = edge?.node?.variants?.edges?.[0]?.node;
-      const price = edge?.node?.priceRangeV2?.minVariantPrice;
+      const price = edge?.node?.priceRange?.minVariantPrice;
 
       return {
         id: edge?.node?.id,
@@ -337,7 +338,7 @@ export async function fetchShopifyProductDetails({ handle, id, options = {} }) {
           name
           values
         }
-        priceRangeV2 { minVariantPrice { amount currencyCode } }
+        priceRange { minVariantPrice { amount currencyCode } }
         variants(first: 1) {
           edges {
             node {
@@ -373,7 +374,7 @@ export async function fetchShopifyProductDetails({ handle, id, options = {} }) {
           name
           values
         }
-        priceRangeV2 { minVariantPrice { amount currencyCode } }
+        priceRange { minVariantPrice { amount currencyCode } }
         variants(first: 1) {
           edges {
             node {
@@ -411,7 +412,7 @@ export async function fetchShopifyProductDetails({ handle, id, options = {} }) {
     const product = handle ? json?.data?.productByHandle : json?.data?.product;
     if (!product) return null;
 
-    const priceNode = product?.priceRangeV2?.minVariantPrice;
+    const priceNode = product?.priceRange?.minVariantPrice;
     const variantId = product?.variants?.edges?.[0]?.node?.id;
     const variantOptions =
       product?.options?.flatMap((option) =>
@@ -691,7 +692,7 @@ export async function searchShopifyProducts(searchTerm, limit = 10, options = {}
             featuredImage {
               url
             }
-            priceRangeV2 { minVariantPrice { amount currencyCode } }
+            priceRange { minVariantPrice { amount currencyCode } }
           }
         }
       }
@@ -717,7 +718,7 @@ export async function searchShopifyProducts(searchTerm, limit = 10, options = {}
     const edges = json?.data?.products?.edges || [];
 
     return edges.map(({ node }) => {
-      const priceNode = node?.priceRangeV2?.minVariantPrice;
+      const priceNode = node?.priceRange?.minVariantPrice;
       return {
         id: node?.id,
         title: node?.title,
@@ -773,7 +774,7 @@ export async function fetchShopifyCollectionProducts({
               featuredImage {
                 url
               }
-              priceRangeV2 { minVariantPrice { amount currencyCode } }
+              priceRange { minVariantPrice { amount currencyCode } }
             }
           }
         }
@@ -790,20 +791,19 @@ export async function fetchShopifyCollectionProducts({
       variables: { handle, first: Math.max(1, first), after },
     });
 
-    if (json.errors) {
+    const productsNode = json?.data?.collection?.products;
+    const edges = productsNode?.edges || [];
+    if (!edges.length && json?.errors) {
       console.error("❌ Shopify GraphQL Errors →", json.errors);
       return { products: [], pageInfo: { hasNextPage: false, endCursor: null } };
     }
-
-    const productsNode = json?.data?.collection?.products;
-    const edges = productsNode?.edges || [];
     const pageInfo = productsNode?.pageInfo || {
       hasNextPage: false,
       endCursor: null,
     };
 
     const products = edges.map(({ node }) => {
-      const priceNode = node?.priceRangeV2?.minVariantPrice;
+      const priceNode = node?.priceRange?.minVariantPrice;
       return {
         id: node?.id,
         title: node?.title,
