@@ -139,10 +139,10 @@ export default function CheckoutButton({ section }) {
   const isGhost       = buttonVariant === "ghost";
 
   // ── Background colour ─────────────────────────────────────────────────────────
-  // buttonBgColor is the primary DSL field for the button background
+  // buttonBgColor / backgroundColor are the builder's DSL keys for the button background
   const bgColor = pickStr(
     [raw?.buttonBgColor, raw?.btnBgColor, raw?.backgroundColor, raw?.bgColor, raw?.background, raw?.buttonBg, raw?.btn_bg],
-    isOutlined || isGhost ? "transparent" : "#111827"
+    isOutlined || isGhost ? "transparent" : "#000000"
   );
 
   // ── Text colour ───────────────────────────────────────────────────────────────
@@ -233,11 +233,11 @@ export default function CheckoutButton({ section }) {
   const padR = pickNum([raw?.buttonPaddingRight,  raw?.paddingRight,  raw?.padR, raw?.pr, btnCss?.paddingRight],  16);
 
   // ── Outer container ───────────────────────────────────────────────────────────
-  // backgroundColor (DSL) is the section/wrapper background
+  // Container uses its own keys — NOT backgroundColor (that belongs to the button)
   const showBgPadding = toBool(raw?.buttonShowBackgroundPadding, true);
   const containerBg   = pickStr(
-    [raw?.containerBg, raw?.outerBg, raw?.wrapperBg, raw?.sectionBg, raw?.backgroundColor],
-    "#FFFFFF"
+    [raw?.containerBg, raw?.outerBg, raw?.wrapperBg, raw?.sectionBg],
+    "transparent"
   );
   const gap = pickNum([raw?.gap, raw?.marginTop, raw?.mt], 0);
 

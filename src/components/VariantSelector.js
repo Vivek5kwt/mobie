@@ -80,6 +80,7 @@ const resolveWeight = (value) => {
 
 // ─── Color helpers ────────────────────────────────────────────────────────────
 const COLOR_MAP = {
+  // Base colors
   red: "#EF4444", blue: "#3B82F6", green: "#22C55E", yellow: "#EAB308",
   orange: "#F97316", purple: "#A855F7", pink: "#EC4899", black: "#111827",
   white: "#FFFFFF", gray: "#9CA3AF", grey: "#9CA3AF", brown: "#92400E",
@@ -88,13 +89,51 @@ const COLOR_MAP = {
   navy: "#1E3A5F", beige: "#F5F0E8", ivory: "#FFFFF0", coral: "#FF6B6B",
   gold: "#FFD700", silver: "#C0C0C0", maroon: "#800000", olive: "#808000",
   magenta: "#FF00FF", turquoise: "#40E0D0", lavender: "#E6E6FA",
+  // Fashion / textile colors
+  cream: "#FFFDD0", nude: "#E8C9A0", peach: "#FFDAB9", rust: "#B7410E",
+  mustard: "#FFDB58", sage: "#87AE73", mint: "#98FF98", burgundy: "#800020",
+  charcoal: "#36454F", chocolate: "#7B3F00", caramel: "#C68642",
+  khaki: "#C3B091", tan: "#D2B48C", taupe: "#483C32", sand: "#C2B280",
+  wheat: "#F5DEB3", stone: "#928E85", slate: "#708090", denim: "#1560BD",
+  cobalt: "#0047AB", blush: "#FFB6C1", lilac: "#C8A2C8", mauve: "#E0B0FF",
+  wine: "#722F37", plum: "#8E4585", fuchsia: "#FF00FF", lemon: "#FFF44F",
+  emerald: "#50C878", aqua: "#00FFFF", scarlet: "#FF2400", crimson: "#DC143C",
+  // Multi-word exact matches (lowercase keys)
+  "off white": "#FAF9F6", "off-white": "#FAF9F6",
+  "bottle green": "#006A4E", "forest green": "#228B22", "dark green": "#013220",
+  "olive green": "#808000", "army green": "#4B5320", "military green": "#4B5320",
+  "mint green": "#98FF98", "sea green": "#2E8B57", "light green": "#90EE90",
+  "light blue": "#ADD8E6", "sky blue": "#87CEEB", "baby blue": "#89CFF0",
+  "navy blue": "#000080", "royal blue": "#4169E1", "powder blue": "#B0E0E6",
+  "dark blue": "#00008B", "steel blue": "#4682B4", "ice blue": "#D6EAF8",
+  "hot pink": "#FF69B4", "pale pink": "#FFD1DC", "baby pink": "#F4C2C2",
+  "pastel pink": "#FFD1DC", "neon pink": "#FF10F0", "dark pink": "#E75480",
+  "light gray": "#D3D3D3", "light grey": "#D3D3D3", "dark gray": "#A9A9A9",
+  "dark grey": "#A9A9A9", "ash gray": "#B2BEB5", "ash grey": "#B2BEB5",
+  "burnt orange": "#CC5500", "dark orange": "#FF8C00", "neon orange": "#FF6700",
+  "brick red": "#CB4154", "dark red": "#8B0000", "cherry red": "#DC143C",
+  "bright red": "#FF0000", "wine red": "#722F37",
+  "dark brown": "#4A2C17", "light brown": "#C4A265",
+  "pastel yellow": "#FDFD96", "bright yellow": "#FFFF00", "golden yellow": "#FFD700",
+  "pastel purple": "#B39EB5", "dark purple": "#6A0DAD", "light purple": "#D8B4FE",
+  "pastel blue": "#AEC6CF", "pastel green": "#77DD77",
 };
 
 const resolveColor = (value) => {
   if (!value) return null;
   const v = String(value).trim();
+  // Already a valid CSS color
   if (v.startsWith("#") || v.startsWith("rgb") || v.startsWith("hsl")) return v;
-  return COLOR_MAP[v.toLowerCase()] || null;
+  const lower = v.toLowerCase();
+  // Exact match (including multi-word keys)
+  if (COLOR_MAP[lower]) return COLOR_MAP[lower];
+  // Word-by-word fallback: "Bottle Green" → try "bottle green" first (done above),
+  // then try each individual word: "bottle", "green" → picks first match
+  const words = lower.split(/[\s\/\-_,]+/).filter(Boolean);
+  for (const word of words) {
+    if (COLOR_MAP[word]) return COLOR_MAP[word];
+  }
+  return null;
 };
 
 const isColorGroup = (name, values) => {
@@ -314,8 +353,10 @@ export default function VariantSelector({ section }) {
                 contentContainerStyle={[styles.row, { gap: swatchGap }]}
               >
                 {group.values.map((val) => {
-                  const hex  = resolveColor(val) || "#E5E7EB";
-                  const isSel = selected[group.name] === val;
+                  const resolved = resolveColor(val);
+                  const hex      = resolved || "#9CA3AF";
+                  const isWhite  = resolved && resolved.toLowerCase() === "#ffffff";
+                  const isSel    = selected[group.name] === val;
                   return (
                     <TouchableOpacity
                       key={val}
@@ -326,29 +367,48 @@ export default function VariantSelector({ section }) {
                           [group.name]: isSel ? null : val,
                         }))
                       }
-                      style={[
-                        styles.swatchWrap,
-                        {
+                      style={[styles.swatchWrap, { alignItems: "center" }]}
+                      accessibilityRole="button"
+                      accessibilityLabel={`Select color ${val}`}
+                    >
+                      {/* Ring wrapper shown when selected */}
+                      <View
+                        style={{
                           width:        swatchSize + 6,
                           height:       swatchSize + 6,
                           borderRadius: swatchRadius,
                           borderColor:  isSel ? swatchSelectedRingColor : "transparent",
                           borderWidth:  swatchSelectedRingWidth,
                           padding:      2,
-                        },
-                      ]}
-                      accessibilityRole="button"
-                      accessibilityLabel={`Select color ${val}`}
-                    >
-                      <View
-                        style={{
-                          flex:            1,
-                          borderRadius:    swatchRadius,
-                          backgroundColor: hex,
-                          borderWidth:     hex.toLowerCase() === "#ffffff" ? 1 : 0,
-                          borderColor:     "#E5E7EB",
+                          alignItems:   "center",
+                          justifyContent: "center",
                         }}
-                      />
+                      >
+                        <View
+                          style={{
+                            width:           swatchSize,
+                            height:          swatchSize,
+                            borderRadius:    swatchRadius,
+                            backgroundColor: hex,
+                            borderWidth:     isWhite ? 1 : 0,
+                            borderColor:     "#E5E7EB",
+                          }}
+                        />
+                      </View>
+                      {/* Color name label below swatch */}
+                      <Text
+                        style={{
+                          fontSize:   9,
+                          color:      isSel ? labelColor : "#6B7280",
+                          fontWeight: isSel ? "600" : "400",
+                          marginTop:  3,
+                          textAlign:  "center",
+                          maxWidth:   swatchSize + 10,
+                        }}
+                        numberOfLines={1}
+                      >
+                        {val}
+                      </Text>
                     </TouchableOpacity>
                   );
                 })}
@@ -468,8 +528,8 @@ const styles = StyleSheet.create({
     flexWrap:      "nowrap",
   },
   swatchWrap: {
-    alignItems:     "center",
-    justifyContent: "center",
+    alignItems:      "center",
+    justifyContent:  "flex-start",
   },
   chip: {
     alignItems:     "center",

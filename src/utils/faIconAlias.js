@@ -209,10 +209,11 @@ const FA5_TO_FA4 = {
 export function resolveFA4IconName(raw) {
   if (!raw) return "";
 
-  // Strip "fa-" / "fas-" / "far-" / "fab-" prefix and lowercase
+  // Strip fa- / fas- / far- / fab- / fa4- / fa5- / fa6- prefixes and lowercase
   const normalised = String(raw)
     .trim()
-    .replace(/^fa[srldb]?[-_]/i, "")
+    .replace(/^(fa[srldb]|fa[0-9]+)[-_]/i, "")
+    .replace(/^fa[-_]/i, "")
     .toLowerCase();
 
   if (!normalised) return "";

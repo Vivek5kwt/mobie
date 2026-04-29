@@ -6,7 +6,7 @@ import { useNavigation } from "@react-navigation/native";
 import { useDispatch, useSelector } from "react-redux";
 import { addItem } from "../store/slices/cartSlice";
 import { toggleWishlist } from "../store/slices/wishlistSlice";
-import { fetchShopifyProductsPage } from "../services/shopify";
+import { fetchShopifyProductsPage, fetchShopifyCollectionProducts } from "../services/shopify";
 import Snackbar from "./Snackbar";
 
 // ── DSL helpers ───────────────────────────────────────────────────────────────
@@ -174,6 +174,12 @@ export default function ProductGrid({ section, limit = 8, title = "Products" }) 
   // ── Shopify credentials ───────────────────────────────────────────────────
   const shopifyDomain = toString(rawProps?.shopifyDomain, "");
   const shopifyToken  = toString(rawProps?.storefrontToken, "");
+
+  // ── Collection handle ─────────────────────────────────────────────────────
+  const collectionHandle = toString(
+    rawProps?.collectionHandle ?? rawProps?.collection ?? rawProps?.collectionId,
+    ""
+  );
 
   // ── Section header typography ─────────────────────────────────────────────
   const resolvedTitle         = toString(rawProps?.header ?? rawProps?.title, title);
@@ -412,14 +418,22 @@ export default function ProductGrid({ section, limit = 8, title = "Products" }) 
       setLoading(true);
       setError("");
       try {
-        const payload = await fetchShopifyProductsPage({
-          first: resolvedLimit,
-          after: null,
-          options: {
-            shop:  shopifyDomain || undefined,
-            token: shopifyToken  || undefined,
-          },
-        });
+        let payload;
+        if (collectionHandle) {
+          payload = await fetchShopifyCollectionProducts({
+            handle: collectionHandle,
+            first:  resolvedLimit,
+          });
+        } else {
+          payload = await fetchShopifyProductsPage({
+            first: resolvedLimit,
+            after: null,
+            options: {
+              shop:  shopifyDomain || undefined,
+              token: shopifyToken  || undefined,
+            },
+          });
+        }
         if (isMounted) {
           setProducts(payload?.products || []);
           setHasMore(Boolean(payload?.pageInfo?.hasNextPage));
@@ -432,7 +446,7 @@ export default function ProductGrid({ section, limit = 8, title = "Products" }) 
     };
     loadProducts();
     return () => { isMounted = false; };
-  }, [resolvedLimit, shopifyDomain, shopifyToken]);
+  }, [collectionHandle, resolvedLimit, shopifyDomain, shopifyToken]);
 
   // ── Render ────────────────────────────────────────────────────────────────
   return (
@@ -446,6 +460,48 @@ export default function ProductGrid({ section, limit = 8, title = "Products" }) 
       {/* Section header row */}
       {(resolvedShowGridTitle || (resolvedViewAllActive && hasMore)) && (
         <View style={[styles.headerRow, { marginBottom: headerMarginBottom }]}>
+          {resolvedTitleAlign === "right" ? (
+            <>
+              {resolvedViewAllActive && hasMore && (
+                <TouchableOpacity
+                  style={styles.viewAllInline}
+                  activeOpacity={0.8}
+                  onPress={() => navigation.navigate("AllProducts", { title: resolvedTitle, detailSections })}
+                >
+                  <Text
+                    style={[
+                      styles.viewAllText,
+                      {
+                        color:      resolvedViewAllColor,
+                        fontSize:   resolvedViewAllFontSize,
+                        fontWeight: resolvedViewAllWeight,
+                        ...(resolvedViewAllFontFamily ? { fontFamily: resolvedViewAllFontFamily } : null),
+                      },
+                    ]}
+                  >
+                    {resolvedViewAllText} ›
+                  </Text>
+                </TouchableOpacity>
+              )}
+              {resolvedShowGridTitle && (
+                <Text
+                  style={[
+                    styles.heading,
+                    {
+                      textAlign:  "right",
+                      fontSize:   resolvedTitleFontSize,
+                      color:      resolvedTitleColor,
+                      fontWeight: resolvedTitleWeight,
+                      ...(resolvedTitleFontFamily ? { fontFamily: resolvedTitleFontFamily } : null),
+                    },
+                  ]}
+                >
+                  {resolvedTitle}
+                </Text>
+              )}
+            </>
+          ) : (
+            <>
           {resolvedShowGridTitle && (
             <Text
               style={[
@@ -483,6 +539,8 @@ export default function ProductGrid({ section, limit = 8, title = "Products" }) 
                 {resolvedViewAllText} ›
               </Text>
             </TouchableOpacity>
+          )}
+            </>
           )}
         </View>
       )}

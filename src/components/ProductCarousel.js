@@ -129,8 +129,9 @@ export default function ProductCarousel({ section }) {
     : (rawProps || {});
 
   // Data source configuration
-  const dataSource = section?.dataSource || rawProps?.dataSource || {};
-  const dataSourceType = unwrapValue(dataSource?.type, "storefront");
+  // The DSL sends dataSource as a JSON Schema object; actual values live under .properties
+  const dataSourceRaw = section?.dataSource || rawProps?.dataSource || {};
+  const dataSource = dataSourceRaw?.properties || dataSourceRaw;
   const dataSourceMode = unwrapValue(dataSource?.mode, "all_products");
   const collectionHandle = toString(dataSource?.collectionHandle, "");
 
@@ -171,6 +172,10 @@ export default function ProductCarousel({ section }) {
     underline: headerUnderline,
     strikethrough: headerStrikethrough,
   });
+  const headerAlign = toTextAlign(
+    raw?.headerAlign ?? raw?.sectionTitleAlign ?? raw?.headerTextAlign ?? raw?.titleTextAlign,
+    "left"
+  );
   const headerLinkHref = toString(raw?.headerLinkHref, "");
   const gridTitleActive = toBoolean(raw?.gridTitleActive, true);
 
@@ -297,10 +302,17 @@ export default function ProductCarousel({ section }) {
   const atcBorderLine = toString(raw?.atcBorderLine, "");
   const atcBorderColor = toString(raw?.atcBorderColor, "#E5E7EB");
   // Icon shown inside ATC button — separate for available vs sold-out state
-  const atcAvailableIconId = toString(raw?.atcAvailableIconId ?? raw?.atcIconId, "");
-  const atcSoldOutIconId   = toString(raw?.atcSoldOutIconId, "");
-  const atcIconPosition    = toString(raw?.atcIconPosition, "left").toLowerCase();
-  const atcIconSize        = toNumber(raw?.atcIconSize, 14);
+  const atcAvailableIconId = toString(
+    raw?.atcAvailableIconId ?? raw?.atcIconId ?? raw?.buttonIcon ?? raw?.atcIcon ?? raw?.cartIcon,
+    ""
+  );
+  const atcSoldOutIconId = toString(
+    raw?.atcSoldOutIconId ?? raw?.soldOutIconId,
+    ""
+  );
+  const atcIconPosition = toString(raw?.atcIconPosition ?? raw?.iconPosition, "left").toLowerCase();
+  const atcIconSize     = toNumber(raw?.atcIconSize ?? raw?.iconSize, 14);
+  const atcIconColor    = toString(raw?.atcIconColor ?? raw?.iconColor, "");
 
   // Card configuration
   const productCardGroupActive = toBoolean(raw?.productCardGroupActive, true);
@@ -433,6 +445,7 @@ export default function ProductCarousel({ section }) {
       fontWeight: headerBold ? "700" : headerWeight,
       fontStyle: headerItalic ? "italic" : "normal",
       textDecorationLine: headerDecorationLine,
+      textAlign: headerAlign,
       ...(headerFamily ? { fontFamily: headerFamily } : {}),
     };
 
@@ -617,34 +630,36 @@ export default function ProductCarousel({ section }) {
       ...(atcFamily ? { fontFamily: atcFamily } : {}),
     };
 
-    const resolvedAlignSelf =
+    const wrapJustify =
       atcAlign === "center" ? "center" :
       atcAlign === "right"  ? "flex-end" :
       atcAlign === "left"   ? "flex-start" :
-      "stretch";
-    const alignStyle = { alignSelf: resolvedAlignSelf };
+      "flex-start";
+    const isStretch = !atcAlign || atcAlign === "stretch";
 
     // Resolve icon for current button state
     const rawIconId = isAvailable ? atcAvailableIconId : atcSoldOutIconId;
     const btnIconName = resolveFA4IconName(rawIconId);
 
     return (
-      <TouchableOpacity
-        style={[styles.addToCartButton, buttonStyle, alignStyle]}
-        onPress={() => (isAvailable ? handleAddToCart(product) : null)}
-        disabled={!isAvailable}
-        activeOpacity={isAvailable ? 0.7 : 1}
-      >
-        <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6 }}>
-          {!!btnIconName && atcIconPosition !== "right" && (
-            <FontAwesome name={btnIconName} size={atcIconSize} color={buttonTextColor} />
-          )}
-          <Text style={[styles.addToCartText, textStyle]}>{buttonText}</Text>
-          {!!btnIconName && atcIconPosition === "right" && (
-            <FontAwesome name={btnIconName} size={atcIconSize} color={buttonTextColor} />
-          )}
-        </View>
-      </TouchableOpacity>
+      <View style={{ flexDirection: "row", justifyContent: wrapJustify }}>
+        <TouchableOpacity
+          style={[styles.addToCartButton, buttonStyle, isStretch ? { flex: 1 } : {}]}
+          onPress={() => (isAvailable ? handleAddToCart(product) : null)}
+          disabled={!isAvailable}
+          activeOpacity={isAvailable ? 0.7 : 1}
+        >
+          <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6 }}>
+            {!!btnIconName && atcIconPosition !== "right" && (
+              <FontAwesome name={btnIconName} size={atcIconSize} color={atcIconColor || buttonTextColor} />
+            )}
+            <Text style={[styles.addToCartText, textStyle]}>{buttonText}</Text>
+            {!!btnIconName && atcIconPosition === "right" && (
+              <FontAwesome name={btnIconName} size={atcIconSize} color={atcIconColor || buttonTextColor} />
+            )}
+          </View>
+        </TouchableOpacity>
+      </View>
     );
   };
 
@@ -665,8 +680,17 @@ export default function ProductCarousel({ section }) {
     >
       {headerGroupActive && (
         <View style={styles.headerContainer}>
-          {renderHeader()}
-          {renderViewAll()}
+          {headerAlign === "right" ? (
+            <>
+              {renderViewAll()}
+              {renderHeader()}
+            </>
+          ) : (
+            <>
+              {renderHeader()}
+              {renderViewAll()}
+            </>
+          )}
         </View>
       )}
 

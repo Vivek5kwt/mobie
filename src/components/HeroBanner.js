@@ -387,9 +387,27 @@ export default function HeroBanner({ section }) {
     unwrapValue(button?.properties?.label || button?.label, "") ||
     toString(flatPropsNode?.buttonText, "Button");
 
-  const buttonLink = unwrapValue(button?.properties?.link || button?.link, "/products");
-  const buttonNavigateRef = unwrapValue(button?.properties?.navigateRef || button?.navigateRef, "");
-  const buttonNavigateType = unwrapValue(button?.properties?.navigateType || button?.navigateType, "");
+  // Each source is unwrapped to a plain string before || so a DSL schema object
+  // like { type:"string", value:"" } does NOT short-circuit to an empty value.
+  const buttonLink = (
+    toString(button?.properties?.link, "") ||
+    toString(button?.link, "") ||
+    toString(flatPropsNode?.buttonHref, "") ||
+    toString(flatPropsNode?.linkTo, "") ||
+    toString(flatPropsNode?.imageLink, "")
+  );
+  const buttonNavigateRef = (
+    toString(button?.properties?.navigateRef, "") ||
+    toString(button?.navigateRef, "") ||
+    toString(flatPropsNode?.buttonNavigateRef, "") ||
+    toString(flatPropsNode?.navigateRef, "")
+  );
+  const buttonNavigateType = (
+    toString(button?.properties?.navigateType, "") ||
+    toString(button?.navigateType, "") ||
+    toString(flatPropsNode?.buttonNavigateType, "") ||
+    toString(flatPropsNode?.navigateType, "")
+  );
 
   // Button style tokens - default to white background as per schema
   const buttonTokens = button?.properties?.style?.properties || button?.style?.properties || {};
@@ -652,33 +670,52 @@ export default function HeroBanner({ section }) {
   };
 
   // Handle button navigation
+  // Parse a web-style path into a navigation call
+  const navigateByLink = (link) => {
+    const l = (link || "").trim();
+    if (!l) return false;
+    if (l.startsWith("/collections/")) {
+      navigation.navigate("CollectionProducts", { handle: l.replace("/collections/", "") });
+      return true;
+    }
+    if (l.startsWith("/products/")) {
+      navigation.navigate("ProductDetail", { handle: l.replace("/products/", "") });
+      return true;
+    }
+    if (l === "/products" || l === "/collections") {
+      navigation.navigate("AllProducts");
+      return true;
+    }
+    return false;
+  };
+
   const handleButtonPress = () => {
-    const ref = buttonNavigateRef?.trim();
+    const ref  = (buttonNavigateRef || "").trim();
     const type = (buttonNavigateType || "").trim().toLowerCase();
 
-    if (ref && type) {
-      if (type === "collection") {
-        navigation.navigate("CollectionProducts", { handle: ref });
-      } else if (type === "product") {
-        navigation.navigate("ProductDetail", { handle: ref });
-      } else if (type === "allproducts" || type === "all_products" || type === "all-products") {
+    if (type) {
+      if (type === "collection" || type === "collections") {
+        if (ref) { navigation.navigate("CollectionProducts", { handle: ref }); return; }
+        if (navigateByLink(buttonLink)) return;
+        navigation.navigate("AllProducts");
+      } else if (type === "product" || type === "products") {
+        if (ref) { navigation.navigate("ProductDetail", { handle: ref }); return; }
+        // ref is empty — try to extract handle from linkTo / buttonLink path
+        if (navigateByLink(buttonLink)) return;
+        navigation.navigate("AllProducts");
+      } else if (
+        type === "allproducts" || type === "all_products" ||
+        type === "all-products" || type === "all products"
+      ) {
         navigation.navigate("AllProducts");
       } else if (type === "route") {
-        navigation.navigate(ref);
+        if (ref) navigation.navigate(ref);
       }
-      // "url" type opens external link — no-op in native app without Linking
-    } else if (buttonLink && typeof buttonLink === "string" && buttonLink.trim()) {
-      const link = buttonLink.trim();
-      if (!link.startsWith("/")) return;
-      // Map common web paths to native screens
-      if (link.startsWith("/collections/")) {
-        navigation.navigate("CollectionProducts", { handle: link.replace("/collections/", "") });
-      } else if (link.startsWith("/products/")) {
-        navigation.navigate("ProductDetail", { handle: link.replace("/products/", "") });
-      } else if (link === "/products") {
-        navigation.navigate("AllProducts");
-      }
+      return;
     }
+
+    // No navigateType set — fall back to linkTo / buttonLink path
+    navigateByLink(buttonLink);
   };
 
   // Content settings
