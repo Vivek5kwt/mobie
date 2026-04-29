@@ -129,11 +129,24 @@ export default function ProductCarousel({ section }) {
     : (rawProps || {});
 
   // Data source configuration
-  // The DSL sends dataSource as a JSON Schema object; actual values live under .properties
-  const dataSourceRaw = section?.dataSource || rawProps?.dataSource || {};
+  // DSL places dataSource as a sibling of props under section.properties,
+  // not at section.dataSource (top-level) or inside props.
+  const dataSourceRaw =
+    section?.properties?.dataSource ||   // ← primary: where DSL actually puts it
+    section?.dataSource ||               // ← flat / legacy schemas
+    rawProps?.dataSource ||              // ← inside props (rare)
+    {};
+  // DSL wraps values as JSON Schema objects; unwrap .properties for the actual fields
   const dataSource = dataSourceRaw?.properties || dataSourceRaw;
   const dataSourceMode = unwrapValue(dataSource?.mode, "all_products");
-  const collectionHandle = toString(dataSource?.collectionHandle, "");
+  // Normalize handle: builder may store title ("Co-ord Sets Women") or slug ("co-ord-sets-women")
+  // Convert title → slug so the Shopify API always gets a valid handle
+  const collectionHandleRaw = toString(dataSource?.collectionHandle, "");
+  const collectionHandle = collectionHandleRaw
+    .toLowerCase()
+    .trim()
+    .replace(/[^a-z0-9]+/g, "-")   // spaces/special chars → hyphens
+    .replace(/^-+|-+$/g, "");       // trim leading/trailing hyphens
 
   // Grid configuration
   // DSL nests grid sub-props under grid.properties; fall back to grid itself for flat schemas

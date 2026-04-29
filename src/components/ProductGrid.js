@@ -176,10 +176,31 @@ export default function ProductGrid({ section, limit = 8, title = "Products" }) 
   const shopifyToken  = toString(rawProps?.storefrontToken, "");
 
   // ── Collection handle ─────────────────────────────────────────────────────
-  const collectionHandle = toString(
-    rawProps?.collectionHandle ?? rawProps?.collection ?? rawProps?.collectionId,
-    ""
-  );
+  // DSL places dataSource as sibling of props under section.properties (same as ProductCarousel)
+  const gridDataSourceRaw =
+    section?.properties?.dataSource ||   // primary: builder puts it here
+    section?.dataSource ||               // flat / legacy
+    rawProps?.dataSource ||              // inside props (rare)
+    {};
+  const gridDataSource = gridDataSourceRaw?.properties || gridDataSourceRaw;
+  const gridDataSourceMode = unwrapValue(gridDataSource?.mode, "");
+  const gridDataSourceHandle = toString(gridDataSource?.collectionHandle, "");
+
+  // Merge: dataSource.collectionHandle wins, then fallback to props-level keys
+  const collectionHandleRaw =
+    gridDataSourceHandle ||
+    toString(rawProps?.collectionHandle ?? rawProps?.collection ?? rawProps?.collectionId, "");
+
+  // Normalize title → slug ("Co-ord Sets Women" → "co-ord-sets-women")
+  const collectionHandle = collectionHandleRaw
+    .toLowerCase()
+    .trim()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+
+  // Use collection fetch when: dataSource.mode = "collection" OR a handle is present
+  const useCollectionFetch =
+    gridDataSourceMode === "collection" || (!!collectionHandle && gridDataSourceMode !== "all_products");
 
   // ── Section header typography ─────────────────────────────────────────────
   const resolvedTitle         = toString(rawProps?.header ?? rawProps?.title, title);
@@ -419,7 +440,7 @@ export default function ProductGrid({ section, limit = 8, title = "Products" }) 
       setError("");
       try {
         let payload;
-        if (collectionHandle) {
+        if (useCollectionFetch && collectionHandle) {
           payload = await fetchShopifyCollectionProducts({
             handle: collectionHandle,
             first:  resolvedLimit,
@@ -446,7 +467,7 @@ export default function ProductGrid({ section, limit = 8, title = "Products" }) 
     };
     loadProducts();
     return () => { isMounted = false; };
-  }, [collectionHandle, resolvedLimit, shopifyDomain, shopifyToken]);
+  }, [useCollectionFetch, collectionHandle, resolvedLimit, shopifyDomain, shopifyToken]);
 
   // ── Render ────────────────────────────────────────────────────────────────
   return (
