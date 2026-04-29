@@ -296,6 +296,15 @@ export default function ProductGrid({ section, limit = 8, title = "Products" }) 
   const atcMarginT = resolveFirstNumber([rawProps?.atcMarginT, rawProps?.atcMarginTop], 4);
   const atcMarginB = resolveFirstNumber([rawProps?.atcMarginB, rawProps?.atcMarginBottom], 8);
   const atcMarginX = resolveFirstNumber([rawProps?.atcMarginX, rawProps?.atcMarginH], 8);
+  const atcAlignRaw = toString(
+    rawProps?.atcAlign ?? rawProps?.addToCartAlign ?? rawProps?.cartBtnAlign,
+    ""
+  ).toLowerCase();
+  const atcAlignSelf =
+    atcAlignRaw === "center" ? "center" :
+    atcAlignRaw === "right"  ? "flex-end" :
+    atcAlignRaw === "left"   ? "flex-start" :
+    "stretch";
 
   // ── Add-to-Cart icon ──────────────────────────────────────────────────────
   const atcAvailableIconId = toString(rawProps?.atcAvailableIconId ?? rawProps?.atcIconId, "");
@@ -358,6 +367,7 @@ export default function ProductGrid({ section, limit = 8, title = "Products" }) 
         item: {
           id:             variantId || product?.id,
           variantId:      String(variantId),
+          handle:         product?.handle || "",
           title:          product?.title || "",
           image:          product?.imageUrl || "",
           price:          parseFloat(product?.priceAmount) || 0,
@@ -625,8 +635,10 @@ export default function ProductGrid({ section, limit = 8, title = "Products" }) 
                           paddingRight:    atcPadR,
                           marginTop:       atcMarginT,
                           marginBottom:    atcMarginB,
-                          marginLeft:      atcMarginX,
-                          marginRight:     atcMarginX,
+                          alignSelf:       atcAlignSelf,
+                          ...(atcAlignSelf === "stretch"
+                            ? { marginLeft: atcMarginX, marginRight: atcMarginX }
+                            : {}),
                         },
                       ]}
                       onPress={(e) => handleAddToCart(product, e)}
@@ -711,8 +723,10 @@ export default function ProductGrid({ section, limit = 8, title = "Products" }) 
                           paddingRight:    atcPadR,
                           marginTop:       atcMarginT,
                           marginBottom:    atcMarginB,
-                          marginLeft:      atcMarginX,
-                          marginRight:     atcMarginX,
+                          alignSelf:       atcAlignSelf,
+                          ...(atcAlignSelf === "stretch"
+                            ? { marginLeft: atcMarginX, marginRight: atcMarginX }
+                            : {}),
                         },
                       ]}
                       onPress={(e) => handleAddToCart(product, e)}

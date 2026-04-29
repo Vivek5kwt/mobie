@@ -395,6 +395,7 @@ export default function TabProductGrid({ section }) {
         item: {
           id: product.variantId || product.id,
           variantId: product.variantId || "",
+          handle: product.handle || "",
           title: product.name || product.title || "",
           image: product.image || "",
           price: toNum(product.price, 0),

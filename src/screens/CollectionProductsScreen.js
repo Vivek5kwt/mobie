@@ -115,6 +115,7 @@ export default function CollectionProductsScreen() {
         item: {
           id: product.variantId || product.id,
           variantId: product.variantId || "",
+          handle: product.handle || "",
           title: product.title || "",
           image: product.imageUrl || "",
           price: parseFloat(product.priceAmount) || 0,

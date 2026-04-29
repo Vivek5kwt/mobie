@@ -410,6 +410,56 @@ export default function HeroBanner({ section }) {
 
   const buttonBorder = unwrapValue(buttonTokens?.border, "none");
 
+  // Button border color — priority: buttonAttrs > flatProps > rawProps > CSS > ""
+  const buttonBorderColorResolved =
+    toString(buttonAttrs?.borderColor, "") ||
+    toString(flatPropsNode?.buttonBorderColor, "") ||
+    toString(rawProps?.buttonBorderColor, "") ||
+    "";
+
+  // Button border width — priority: buttonAttrs > flatProps > rawProps > token "border" string > 0
+  const buttonBorderWidthResolved = (() => {
+    const fromAttrs = toNumber(
+      buttonAttrs?.borderWidth ?? buttonAttrs?.borderSize ?? buttonAttrs?.border,
+      undefined
+    );
+    if (fromAttrs !== undefined) return fromAttrs;
+    const fromFlat = toNumber(
+      flatPropsNode?.buttonBorderWidth ?? flatPropsNode?.buttonBorderSize,
+      undefined
+    );
+    if (fromFlat !== undefined) return fromFlat;
+    const fromRaw = toNumber(
+      rawProps?.buttonBorderWidth ?? rawProps?.buttonBorderSize,
+      undefined
+    );
+    if (fromRaw !== undefined) return fromRaw;
+    if (buttonBorder && buttonBorder !== "none") return 1;
+    return 0;
+  })();
+
+  // Button border side — "all" | "top" | "bottom" | "left" | "right" | "none"
+  const buttonBorderSideResolved = (
+    toString(buttonAttrs?.borderSide, "") ||
+    toString(flatPropsNode?.buttonBorderSide, "") ||
+    toString(rawProps?.buttonBorderSide, "") ||
+    "all"
+  ).toLowerCase();
+
+  // Build the final border style props (always explicit so CSS-sourced border can't bleed through)
+  const buttonBorderStyleProps = (() => {
+    const hasColor = !!buttonBorderColorResolved;
+    const hasWidth = buttonBorderWidthResolved > 0;
+    if (!hasColor || !hasWidth || buttonBorderSideResolved === "none") return { borderWidth: 0 };
+    const w = buttonBorderWidthResolved;
+    const c = buttonBorderColorResolved;
+    if (buttonBorderSideResolved === "top")    return { borderTopWidth: w,    borderTopColor: c,    borderWidth: 0 };
+    if (buttonBorderSideResolved === "bottom") return { borderBottomWidth: w, borderBottomColor: c, borderWidth: 0 };
+    if (buttonBorderSideResolved === "left")   return { borderLeftWidth: w,   borderLeftColor: c,   borderWidth: 0 };
+    if (buttonBorderSideResolved === "right")  return { borderRightWidth: w,  borderRightColor: c,  borderWidth: 0 };
+    return { borderWidth: w, borderColor: c };
+  })();
+
   // Padding — per-side from buttonAttrs first, then tokenStyle string, then CSS
   const hasBtnAttrPad = buttonAttrs?.pt !== undefined || buttonAttrs?.pb !== undefined ||
                         buttonAttrs?.pl !== undefined || buttonAttrs?.pr !== undefined;
@@ -513,9 +563,21 @@ export default function HeroBanner({ section }) {
     ) ??
     toNumber(layoutCss?.button?.letterSpacing, undefined);
   
+  // Strip border properties from CSS snapshot — we apply our own resolved border below
+  // to prevent the CSS snapshot's border from bleeding through.
+  const {
+    border: _btnCssBorder,
+    borderWidth: _btnCssBw, borderColor: _btnCssBc,
+    borderTopWidth: _btnCssBtw, borderTopColor: _btnCssBtc,
+    borderBottomWidth: _btnCssBbw, borderBottomColor: _btnCssBbc,
+    borderLeftWidth: _btnCssBlw, borderLeftColor: _btnCssBlc,
+    borderRightWidth: _btnCssBrw, borderRightColor: _btnCssBrc,
+    ...buttonCssStyleNoBorder
+  } = buttonCssStyle;
+
   // Build dynamic button style - prioritize CSS, then button tokens, then defaults
   const dynamicButtonStyle = {
-    ...buttonCssStyle,
+    ...buttonCssStyleNoBorder,
     color: buttonTextColor,
     backgroundColor: buttonBgColor,
     borderRadius: buttonBorderRadius,
@@ -537,10 +599,9 @@ export default function HeroBanner({ section }) {
     ...(buttonFontFamily        ? { fontFamily:     buttonFontFamily }        : {}),
     ...(buttonFontSize    != null ? { fontSize:       buttonFontSize }         : {}),
     ...(buttonLetterSpacing != null ? { letterSpacing: buttonLetterSpacing }   : {}),
-    ...(buttonBorder && buttonBorder !== "none" ? {
-      borderWidth: 1,
-      borderColor: buttonBorder
-    } : {}),
+    // Always apply resolved border (sets borderWidth:0 when no border configured,
+    // overriding any remnant CSS-sourced border values)
+    ...buttonBorderStyleProps,
   };
   
   // Button icon — resolves FA5/FA6 names to FA4 equivalents; unknown names are silently dropped

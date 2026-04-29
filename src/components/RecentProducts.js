@@ -195,6 +195,7 @@ export default function RecentProducts({ section }) {
       item: {
         id:             product.variantId || product.id,
         variantId:      String(product.variantId || ""),
+        handle:         product.handle || "",
         title:          product.title || "",
         image:          product.imageUrl || product.image || "",
         price:          parseFloat(product.priceAmount || product.price || 0),

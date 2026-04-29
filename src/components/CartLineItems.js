@@ -7,6 +7,7 @@ import {
   View,
 } from "react-native";
 import { useDispatch, useSelector } from "react-redux";
+import { useNavigation } from "@react-navigation/native";
 import FontAwesome from "react-native-vector-icons/FontAwesome";
 import { updateQuantity, removeItem } from "../store/slices/cartSlice";
 import { resolveFA4IconName } from "../utils/faIconAlias";
@@ -83,6 +84,7 @@ const fmtPrice = (amount, currency) =>
 
 export default function CartLineItems({ section }) {
   const dispatch = useDispatch();
+  const navigation = useNavigation();
   const cartItems = useSelector((state) => state?.cart?.items || []);
   const appliedDiscounts = useSelector((state) => state?.cart?.discounts || []);
 
@@ -261,9 +263,26 @@ export default function CartLineItems({ section }) {
           ? variantText.split("/").map((v) => v.trim()).filter(Boolean)
           : [];
 
+        const handleCardPress = () => {
+          if (!item?.id && !item?.handle) return;
+          navigation.navigate("ProductDetail", {
+            product: {
+              id: item.id,
+              handle: item.handle,
+              title: item.title,
+              imageUrl: item.image,
+              vendor: item.vendor,
+              priceAmount: String(item.price ?? ""),
+              priceCurrency: item.currency,
+            },
+          });
+        };
+
         return (
           <View key={String(item?.id || index)}>
-            <View
+            <TouchableOpacity
+              activeOpacity={0.85}
+              onPress={handleCardPress}
               style={[
                 styles.card,
                 {
@@ -467,7 +486,7 @@ export default function CartLineItems({ section }) {
                   </View>
                 )}
               </View>
-            </View>
+            </TouchableOpacity>
 
             {showDivider && index < cartItems.length - 1 && (
               <View style={[styles.divider, { backgroundColor: dividerColor }]} />

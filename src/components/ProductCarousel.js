@@ -385,6 +385,7 @@ export default function ProductCarousel({ section }) {
         item: {
           id: product.id || `product-${Date.now()}`,
           variantId: variantId,
+          handle: product.handle || "",
           title: product.title || "Product Name",
           image: product.imageUrl || "",
           price: parseFloat(product.priceAmount || 0),
@@ -616,10 +617,12 @@ export default function ProductCarousel({ section }) {
       ...(atcFamily ? { fontFamily: atcFamily } : {}),
     };
 
-    const alignStyle = {
-      alignSelf: "stretch",
-      alignItems: "center",
-    };
+    const resolvedAlignSelf =
+      atcAlign === "center" ? "center" :
+      atcAlign === "right"  ? "flex-end" :
+      atcAlign === "left"   ? "flex-start" :
+      "stretch";
+    const alignStyle = { alignSelf: resolvedAlignSelf };
 
     // Resolve icon for current button state
     const rawIconId = isAvailable ? atcAvailableIconId : atcSoldOutIconId;

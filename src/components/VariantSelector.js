@@ -7,8 +7,8 @@ import {
   View,
 } from "react-native";
 import FontAwesome from "react-native-vector-icons/FontAwesome";
-import FontAwesome6 from "react-native-vector-icons/FontAwesome6";
 import { resolveFont } from "../services/typographyService";
+import { resolveFA4IconName } from "../utils/faIconAlias";
 
 // ─── DSL helpers ──────────────────────────────────────────────────────────────
 
@@ -69,12 +69,12 @@ const resolveWeight = (value) => {
   const v = unwrapValue(value, undefined);
   if (!v && v !== 0) return undefined;
   const w = String(v).toLowerCase().trim();
-  if (w === "bold")                        return "700";
+  if (w === "bold")                          return "700";
   if (w === "semibold" || w === "semi bold") return "600";
-  if (w === "medium")                      return "500";
-  if (w === "regular" || w === "normal")   return "400";
-  if (w === "light")                       return "300";
-  if (/^\d+$/.test(w))                     return w;
+  if (w === "medium")                        return "500";
+  if (w === "regular" || w === "normal")     return "400";
+  if (w === "light")                         return "300";
+  if (/^\d+$/.test(w))                       return w;
   return undefined;
 };
 
@@ -105,9 +105,7 @@ const isColorGroup = (name, values) => {
   return colorCount >= Math.ceil(values.length / 2);
 };
 
-// ─── Group variant options — handles BOTH Shopify formats:
-//   Format A (options): [{ name: "Color", values: ["Red","Blue"] }]
-//   Format B (selectedOptions): [{ name: "Color", value: "Red" }, { name: "Color", value: "Blue" }]
+// ─── Group variant options — handles BOTH Shopify formats ─────────────────────
 const groupVariantOptions = (variantOptions) => {
   if (!Array.isArray(variantOptions)) return [];
   const map = new Map();
@@ -117,13 +115,11 @@ const groupVariantOptions = (variantOptions) => {
     if (!map.has(name)) map.set(name, []);
 
     if (Array.isArray(opt?.values)) {
-      // Format A — Shopify product.options: { name, values: [...] }
       for (const v of opt.values) {
         const s = toStr(v, "");
         if (s && !map.get(name).includes(s)) map.get(name).push(s);
       }
     } else {
-      // Format B — selectedOptions: { name, value }
       const s = toStr(opt?.value, "");
       if (s && !map.get(name).includes(s)) map.get(name).push(s);
     }
@@ -144,8 +140,8 @@ const normalizeFeatures = (src) => {
     : typeof src === "object" ? Object.values(src) : [];
   return arr.map((item) => {
     const p = item?.properties || item || {};
-    const icon  = toStr(p?.icon ?? p?.iconName, "");
-    const label = toStr(p?.label ?? p?.text ?? p?.title ?? p?.name, "");
+    const icon      = toStr(p?.icon ?? p?.iconName ?? p?.iconId, "");
+    const label     = toStr(p?.label ?? p?.text ?? p?.title ?? p?.name, "");
     const iconColor = toStr(p?.iconColor ?? p?.color, "");
     if (!label) return null;
     return { icon, label, iconColor };
@@ -153,10 +149,16 @@ const normalizeFeatures = (src) => {
 };
 
 const DEFAULT_FEATURES = [
-  { icon: "lock",        label: "Secured",       iconColor: "#6B7280" },
-  { icon: "truck",       label: "Free Shipping",  iconColor: "#6B7280" },
-  { icon: "rotate-left", label: "Easy Returns",   iconColor: "#6B7280" },
+  { icon: "lock",  label: "Secured",      iconColor: "#6B7280" },
+  { icon: "truck", label: "Free Shipping", iconColor: "#6B7280" },
+  { icon: "undo",  label: "Easy Returns",  iconColor: "#6B7280" },
 ];
+
+// ─── Icon renderer — FA4 only, resolveFA4IconName handles FA5/FA6 mapping ─────
+function FeatureIcon({ icon, size, color }) {
+  const name = resolveFA4IconName(icon) || "check";
+  return <FontAwesome name={name} size={size} color={color} />;
+}
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
@@ -167,10 +169,9 @@ export default function VariantSelector({ section }) {
     section?.props ||
     {};
 
-  // raw holds ALL style + data props for this component
   const raw = unwrapValue(propsNode?.raw, {}) || {};
 
-  // ── Visibility (inside raw.visibility) ────────────────────────────────────
+  // ── Visibility ─────────────────────────────────────────────────────────────
   const vis = (raw?.visibility && typeof raw.visibility === "object") ? raw.visibility : {};
   const showSelectors = toBool(vis?.selectors ?? vis?.variants ?? vis?.options, true);
   const showFeatures  = toBool(vis?.features  ?? vis?.badges,                  false);
@@ -181,7 +182,6 @@ export default function VariantSelector({ section }) {
     [raw?.variantOptions]
   );
 
-  // Hide Shopify's synthetic "Title: Default Title" placeholder — not a real variant
   const groups = useMemo(
     () => allGroups.filter(g =>
       !(g.name === "Title" && g.values.length === 1 && g.values[0] === "Default Title")
@@ -204,61 +204,73 @@ export default function VariantSelector({ section }) {
 
   if (!groups.length && !showFeatures) return null;
 
-  // ── Container / background ─────────────────────────────────────────────────
-  const containerBg  = pick([raw?.backgroundColor, raw?.bgColor], "#FFFFFF");
-  const padTop       = pickNum([raw?.paddingTop],    20);
-  const padLeft      = pickNum([raw?.paddingLeft],   20);
-  const padRight     = pickNum([raw?.paddingRight],  20);
-  const padBottom    = pickNum([raw?.paddingBottom], 20);
+  // ── Container ──────────────────────────────────────────────────────────────
+  const containerBg     = pick([raw?.backgroundColor, raw?.bgColor], "#FFFFFF");
+  const padTop          = pickNum([raw?.paddingTop,    raw?.pt], 20);
+  const padLeft         = pickNum([raw?.paddingLeft,   raw?.pl], 20);
+  const padRight        = pickNum([raw?.paddingRight,  raw?.pr], 20);
+  const padBottom       = pickNum([raw?.paddingBottom, raw?.pb], 20);
+
+  // Container border
+  const containerRadius = pickNum([raw?.borderRadius, raw?.containerRadius], 0);
+  const containerBorderColor = pick([raw?.borderColor, raw?.containerBorderColor], "transparent");
+  const containerBorderLine  = toStr(raw?.borderLine ?? raw?.containerBorderLine, "none").toLowerCase();
+  const containerBorderWidth = (containerBorderLine && containerBorderLine !== "none")
+    ? pickNum([raw?.borderWidth, raw?.containerBorderWidth], 1)
+    : 0;
 
   // ── Group label ────────────────────────────────────────────────────────────
-  const labelColor      = pick([raw?.titleColor],      "#111111");
-  const labelFontSize   = pickNum([raw?.titleFontsize,  raw?.titleFontSize],  14);
-  const labelFontFamily = resolveFont(pick([raw?.titleFontfamily, raw?.titleFontFamily], "")) || "Inter";
-  const labelFontWeight = resolveWeight(raw?.titleFontWeight ?? raw?.titleFontweight) || "600";
+  const labelColor      = pick([raw?.titleColor, raw?.labelColor], "#111111");
+  const labelFontSize   = pickNum([raw?.titleFontsize,   raw?.titleFontSize,   raw?.labelFontSize],  14);
+  const labelFontFamily = resolveFont(pick([raw?.titleFontfamily, raw?.titleFontFamily, raw?.labelFontFamily], "")) || undefined;
+  const labelFontWeight = resolveWeight(raw?.titleFontWeight ?? raw?.titleFontweight ?? raw?.labelFontWeight) || "600";
+  const labelMarginBottom = pickNum([raw?.labelGap, raw?.labelMarginBottom, raw?.labelMb], 10);
+
+  // ── Group spacing ──────────────────────────────────────────────────────────
+  const groupMarginBottom = pickNum([raw?.groupGap, raw?.groupMarginBottom, raw?.groupMb], 16);
 
   // ── Chip (text selector) styles ────────────────────────────────────────────
-  const chipFontSize   = pickNum([raw?.textFontsize, raw?.textFontSize],   12);
-  const chipFontFamily = resolveFont(pick([raw?.textFontfamily, raw?.textFontFamily], "")) || "Inter";
-  const chipFontWeight = resolveWeight(raw?.textFontWeight ?? raw?.textFontweight) || "500";
-  const chipRadius     = pickNum([raw?.buttonRadius, raw?.boxBorderRadius], 8);
-  const chipPadH       = pickNum([raw?.boxPaddingleft, raw?.boxPaddingLeft], 14);
-  const chipPadV       = pickNum([raw?.boxPaddingtop,  raw?.boxPaddingTop],  8);
+  const chipFontSize   = pickNum([raw?.textFontsize,   raw?.textFontSize,   raw?.chipFontSize],  12);
+  const chipFontFamily = resolveFont(pick([raw?.textFontfamily, raw?.textFontFamily, raw?.chipFontFamily], "")) || undefined;
+  const chipFontWeight = resolveWeight(raw?.textFontWeight ?? raw?.textFontweight ?? raw?.chipFontWeight) || "500";
+  const chipRadius     = pickNum([raw?.buttonRadius,   raw?.boxBorderRadius, raw?.chipRadius], 8);
+  const chipPadH       = pickNum([raw?.boxPaddingleft, raw?.boxPaddingLeft,  raw?.chipPadH],  14);
+  const chipPadV       = pickNum([raw?.boxPaddingtop,  raw?.boxPaddingTop,   raw?.chipPadV],   8);
+  const chipGap        = pickNum([raw?.chipGap, raw?.optionGap, raw?.textGap], 8);
+  const chipBorderWidth = pickNum([raw?.chipBorderWidth, raw?.selectorBorderWidth, raw?.borderWidth], 1);
 
-  // Selected state
+  // Selected chip
   const selBg     = pick([raw?.bgSelectedcolor,    raw?.bgSelectedColor],    "#505050");
   const selText   = pick([raw?.selectedcolor,      raw?.selectedColor],      "#FFFFFF");
-  const selBorder = pick([
-    raw?.selectorborderSelectedColor,
-    raw?.borderSelectedColor,
-  ], "#000000");
+  const selBorder = pick([raw?.selectorborderSelectedColor,  raw?.borderSelectedColor],  "#000000");
 
-  // Unselected state
+  // Unselected chip
   const unselBg     = pick([raw?.bgUnselectedColor],                                    "#FFFFFF");
-  const unselText   = pick([raw?.unselectedcolor,    raw?.unselectedColor],              "#6B7280");
-  const unselBorder = pick([
-    raw?.selectorborderUnselectedColor,
-    raw?.borderUnselectedColor,
-  ], "#C8C8C8");
+  const unselText   = pick([raw?.unselectedcolor,  raw?.unselectedColor],               "#6B7280");
+  const unselBorder = pick([raw?.selectorborderUnselectedColor, raw?.borderUnselectedColor], "#C8C8C8");
 
-  // Sold-out state
+  // Sold-out chip
   const soldOutText   = pick([raw?.soldOutColor,   raw?.soldOutcolor],   "#9CA3AF");
   const soldOutBg     = pick([raw?.bgSoldOutcolor, raw?.bgSoldOutColor], "#F3F4F6");
-  const soldOutBorder = pick([
-    raw?.selectorborderSoldOutColor,
-    raw?.borderSoldOutColor,
-  ], "#D1D5DB");
+  const soldOutBorder = pick([raw?.selectorborderSoldOutColor, raw?.borderSoldOutColor], "#D1D5DB");
 
   // ── Swatch (color selector) styles ────────────────────────────────────────
-  const swatchSize   = 30;
-  const swatchRadius = 999;  // always circular
+  const swatchSize   = pickNum([raw?.swatchSize,   raw?.colorSwatchSize],  30);
+  const swatchRadius = pickNum([raw?.swatchRadius, raw?.colorSwatchRadius], 999);
+  const swatchGap    = pickNum([raw?.swatchGap,    raw?.colorGap],          10);
+  const swatchSelectedRingColor = pick([raw?.swatchSelectedColor, raw?.swatchRingColor, raw?.colorSelectedBorder], selBorder);
+  const swatchSelectedRingWidth = pickNum([raw?.swatchRingWidth, raw?.swatchBorderWidth], 2);
 
   // ── Feature badge styles ───────────────────────────────────────────────────
-  const featureIconSize  = pickNum([raw?.iconSize],   18);
-  const featureIconColor = pick([raw?.iconColor],     "#6B7280");
-  const featureFontSize  = 11;
-  const featureFontColor = "#6B7280";
-  const dividerColor     = "#E5E7EB";
+  const featureIconSize   = pickNum([raw?.iconSize,        raw?.featureIconSize,  raw?.badgeIconSize],  18);
+  const featureIconColor  = pick([raw?.iconColor,          raw?.featureIconColor, raw?.badgeIconColor], "#6B7280");
+  const featureFontSize   = pickNum([raw?.featureFontSize, raw?.badgeFontSize,    raw?.featureTextSize], 11);
+  const featureFontColor  = pick([raw?.featureFontColor,   raw?.badgeFontColor,   raw?.featureTextColor, raw?.featureColor], "#6B7280");
+  const featureFontWeight = resolveWeight(raw?.featureFontWeight ?? raw?.badgeFontWeight) || "500";
+  const featureFontFamily = resolveFont(pick([raw?.featureFontFamily, raw?.badgeFontFamily], "")) || undefined;
+  const featurePadTop     = pickNum([raw?.featuresPadTop, raw?.featurePadTop, raw?.badgePadTop], 12);
+  const dividerColor      = pick([raw?.dividerColor, raw?.featureDividerColor], "#E5E7EB");
+  const dividerWidth      = pickNum([raw?.dividerWidth, raw?.featureDividerWidth], 1);
 
   return (
     <View
@@ -270,6 +282,9 @@ export default function VariantSelector({ section }) {
           paddingLeft:   padLeft,
           paddingRight:  padRight,
           paddingBottom: padBottom,
+          borderRadius:  containerRadius,
+          borderWidth:   containerBorderWidth,
+          borderColor:   containerBorderColor,
         },
       ]}
     >
@@ -277,15 +292,15 @@ export default function VariantSelector({ section }) {
       {showSelectors && groups.map((group) => {
         const isColor = isColorGroup(group.name, group.values);
         return (
-          <View key={group.name} style={styles.group}>
+          <View key={group.name} style={[styles.group, { marginBottom: groupMarginBottom }]}>
             {/* Group label */}
             <Text
               style={{
-                fontSize:    labelFontSize,
-                color:       labelColor,
-                fontWeight:  labelFontWeight,
-                fontFamily:  labelFontFamily || undefined,
-                marginBottom: 10,
+                fontSize:     labelFontSize,
+                color:        labelColor,
+                fontWeight:   labelFontWeight,
+                fontFamily:   labelFontFamily,
+                marginBottom: labelMarginBottom,
               }}
             >
               {group.name}
@@ -296,10 +311,10 @@ export default function VariantSelector({ section }) {
               <ScrollView
                 horizontal
                 showsHorizontalScrollIndicator={false}
-                contentContainerStyle={[styles.row, { gap: 10 }]}
+                contentContainerStyle={[styles.row, { gap: swatchGap }]}
               >
                 {group.values.map((val) => {
-                  const hex = resolveColor(val) || "#E5E7EB";
+                  const hex  = resolveColor(val) || "#E5E7EB";
                   const isSel = selected[group.name] === val;
                   return (
                     <TouchableOpacity
@@ -317,8 +332,8 @@ export default function VariantSelector({ section }) {
                           width:        swatchSize + 6,
                           height:       swatchSize + 6,
                           borderRadius: swatchRadius,
-                          borderColor:  isSel ? selBorder : "transparent",
-                          borderWidth:  isSel ? 2 : 2,
+                          borderColor:  isSel ? swatchSelectedRingColor : "transparent",
+                          borderWidth:  swatchSelectedRingWidth,
                           padding:      2,
                         },
                       ]}
@@ -330,8 +345,8 @@ export default function VariantSelector({ section }) {
                           flex:            1,
                           borderRadius:    swatchRadius,
                           backgroundColor: hex,
-                          borderWidth: hex.toLowerCase() === "#ffffff" ? 1 : 0,
-                          borderColor: "#E5E7EB",
+                          borderWidth:     hex.toLowerCase() === "#ffffff" ? 1 : 0,
+                          borderColor:     "#E5E7EB",
                         }}
                       />
                     </TouchableOpacity>
@@ -343,7 +358,7 @@ export default function VariantSelector({ section }) {
               <ScrollView
                 horizontal
                 showsHorizontalScrollIndicator={false}
-                contentContainerStyle={[styles.row, { gap: 8 }]}
+                contentContainerStyle={[styles.row, { gap: chipGap }]}
               >
                 {group.values.map((val) => {
                   const isSel = selected[group.name] === val;
@@ -363,9 +378,9 @@ export default function VariantSelector({ section }) {
                           paddingHorizontal: Math.max(chipPadH, 10),
                           paddingVertical:   Math.max(chipPadV, 7),
                           borderRadius:      chipRadius,
-                          backgroundColor:   isSel ? selBg    : unselBg,
-                          borderColor:       isSel ? selBorder : unselBorder,
-                          borderWidth:       1,
+                          backgroundColor:   isSel ? selBg     : unselBg,
+                          borderColor:       isSel ? selBorder  : unselBorder,
+                          borderWidth:       chipBorderWidth,
                         },
                       ]}
                       accessibilityRole="button"
@@ -375,7 +390,7 @@ export default function VariantSelector({ section }) {
                         style={{
                           fontSize:   chipFontSize,
                           fontWeight: chipFontWeight,
-                          fontFamily: chipFontFamily || undefined,
+                          fontFamily: chipFontFamily,
                           color:      isSel ? selText : unselText,
                         }}
                       >
@@ -397,7 +412,8 @@ export default function VariantSelector({ section }) {
             styles.featuresRow,
             {
               borderTopColor: dividerColor,
-              marginTop: showSelectors && groups.length > 0 ? 14 : 0,
+              paddingTop:     featurePadTop,
+              marginTop:      showSelectors && groups.length > 0 ? 14 : 0,
             },
           ]}
         >
@@ -411,18 +427,24 @@ export default function VariantSelector({ section }) {
                 />
                 <Text
                   style={{
-                    fontSize:  featureFontSize,
-                    color:     featureFontColor,
-                    fontWeight: "500",
-                    marginTop: 4,
-                    textAlign: "center",
+                    fontSize:   featureFontSize,
+                    color:      featureFontColor,
+                    fontWeight: featureFontWeight,
+                    marginTop:  4,
+                    textAlign:  "center",
+                    ...(featureFontFamily ? { fontFamily: featureFontFamily } : {}),
                   }}
                 >
                   {feat.label}
                 </Text>
               </View>
               {idx < features.length - 1 && (
-                <View style={[styles.featureDivider, { backgroundColor: dividerColor }]} />
+                <View
+                  style={[
+                    styles.featureDivider,
+                    { backgroundColor: dividerColor, width: dividerWidth },
+                  ]}
+                />
               )}
             </React.Fragment>
           ))}
@@ -430,18 +452,6 @@ export default function VariantSelector({ section }) {
       )}
     </View>
   );
-}
-
-// ─── Icon renderer ────────────────────────────────────────────────────────────
-function FeatureIcon({ icon, size, color }) {
-  if (!icon) return <FontAwesome6 name="circle-dot" size={size} color={color} />;
-  const fa5Icons = ["lock", "truck", "undo", "refresh", "check", "star", "heart", "shield", "home", "user", "tag"];
-  try {
-    if (fa5Icons.includes(icon)) return <FontAwesome name={icon} size={size} color={color} />;
-    return <FontAwesome6 name={icon} size={size} color={color} />;
-  } catch {
-    return <FontAwesome name="check" size={size} color={color} />;
-  }
 }
 
 const styles = StyleSheet.create({
@@ -454,33 +464,32 @@ const styles = StyleSheet.create({
   },
   row: {
     flexDirection: "row",
-    alignItems: "center",
-    flexWrap: "nowrap",
+    alignItems:    "center",
+    flexWrap:      "nowrap",
   },
   swatchWrap: {
-    alignItems: "center",
+    alignItems:     "center",
     justifyContent: "center",
   },
   chip: {
-    alignItems: "center",
+    alignItems:     "center",
     justifyContent: "center",
   },
   featuresRow: {
-    flexDirection: "row",
-    alignItems: "flex-start",
+    flexDirection:  "row",
+    alignItems:     "flex-start",
     justifyContent: "space-around",
     borderTopWidth: 1,
-    paddingTop: 12,
   },
   featureItem: {
-    flex: 1,
-    alignItems: "center",
-    justifyContent: "flex-start",
+    flex:            1,
+    alignItems:      "center",
+    justifyContent:  "flex-start",
     paddingHorizontal: 4,
   },
   featureDivider: {
-    width: 1,
-    height: 40,
+    width:     1,
+    height:    40,
     alignSelf: "center",
   },
 });

@@ -26,6 +26,7 @@ const cartSlice = createSlice({
         state.items.push({
           id,
           variantId: item.variantId || "",
+          handle: item.handle || "",
           title: item.title || "Product",
           image: item.image || "",
           price: item.price ?? 0,
