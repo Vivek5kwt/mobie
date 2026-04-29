@@ -297,14 +297,22 @@ export default function ProductGrid({ section, limit = 8, title = "Products" }) 
   const atcMarginB = resolveFirstNumber([rawProps?.atcMarginB, rawProps?.atcMarginBottom], 8);
   const atcMarginX = resolveFirstNumber([rawProps?.atcMarginX, rawProps?.atcMarginH], 8);
   const atcAlignRaw = toString(
-    rawProps?.atcAlign ?? rawProps?.addToCartAlign ?? rawProps?.cartBtnAlign,
+    rawProps?.atcAlign ??
+    rawProps?.addToCartAlign ??
+    rawProps?.cartBtnAlign ??
+    rawProps?.btnAlign ??
+    rawProps?.buttonAlign ??
+    rawProps?.alignment,
     ""
   ).toLowerCase();
-  const atcAlignSelf =
+  // justifyContent for the wrapper row-View that wraps the button
+  const atcWrapJustify =
     atcAlignRaw === "center" ? "center" :
     atcAlignRaw === "right"  ? "flex-end" :
     atcAlignRaw === "left"   ? "flex-start" :
-    "stretch";
+    "flex-start"; // stretch: button uses flex:1 inside wrapper
+  // When no explicit alignment, button fills full width via flex:1
+  const atcIsStretch = !atcAlignRaw || atcAlignRaw === "stretch";
 
   // ── Add-to-Cart icon ──────────────────────────────────────────────────────
   const atcAvailableIconId = toString(rawProps?.atcAvailableIconId ?? rawProps?.atcIconId, "");
@@ -622,49 +630,55 @@ export default function ProductGrid({ section, limit = 8, title = "Products" }) 
                 {showAddToCart && atcAbove && (() => {
                   const btnIconName = resolveFA4IconName(atcAvailableIconId);
                   return (
-                    <TouchableOpacity
-                      activeOpacity={0.8}
-                      style={[
-                        styles.addToCartBtn,
-                        {
-                          backgroundColor: addToCartBgColor,
-                          borderRadius:    addToCartBorderRadius,
-                          paddingTop:      atcPadT,
-                          paddingBottom:   atcPadB,
-                          paddingLeft:     atcPadL,
-                          paddingRight:    atcPadR,
-                          marginTop:       atcMarginT,
-                          marginBottom:    atcMarginB,
-                          alignSelf:       atcAlignSelf,
-                          ...(atcAlignSelf === "stretch"
-                            ? { marginLeft: atcMarginX, marginRight: atcMarginX }
-                            : {}),
-                        },
-                      ]}
-                      onPress={(e) => handleAddToCart(product, e)}
+                    <View
+                      style={{
+                        flexDirection:  "row",
+                        justifyContent: atcWrapJustify,
+                        marginTop:      atcMarginT,
+                        marginBottom:   atcMarginB,
+                        marginLeft:     atcMarginX,
+                        marginRight:    atcMarginX,
+                      }}
                     >
-                      <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6 }}>
-                        {!!btnIconName && atcIconPosition !== "right" && (
-                          <FontAwesome name={btnIconName} size={atcIconSize} color={addToCartTextColor} />
-                        )}
-                        <Text
-                          style={[
-                            styles.addToCartText,
-                            {
-                              color:      addToCartTextColor,
-                              fontSize:   addToCartFontSize,
-                              fontWeight: addToCartFontWeight,
-                              ...(addToCartFontFamily ? { fontFamily: addToCartFontFamily } : null),
-                            },
-                          ]}
-                        >
-                          {addToCartLabel}
-                        </Text>
-                        {!!btnIconName && atcIconPosition === "right" && (
-                          <FontAwesome name={btnIconName} size={atcIconSize} color={addToCartTextColor} />
-                        )}
-                      </View>
-                    </TouchableOpacity>
+                      <TouchableOpacity
+                        activeOpacity={0.8}
+                        style={[
+                          styles.addToCartBtn,
+                          {
+                            backgroundColor: addToCartBgColor,
+                            borderRadius:    addToCartBorderRadius,
+                            paddingTop:      atcPadT,
+                            paddingBottom:   atcPadB,
+                            paddingLeft:     atcPadL,
+                            paddingRight:    atcPadR,
+                            ...(atcIsStretch ? { flex: 1 } : {}),
+                          },
+                        ]}
+                        onPress={(e) => handleAddToCart(product, e)}
+                      >
+                        <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6 }}>
+                          {!!btnIconName && atcIconPosition !== "right" && (
+                            <FontAwesome name={btnIconName} size={atcIconSize} color={addToCartTextColor} />
+                          )}
+                          <Text
+                            style={[
+                              styles.addToCartText,
+                              {
+                                color:      addToCartTextColor,
+                                fontSize:   addToCartFontSize,
+                                fontWeight: addToCartFontWeight,
+                                ...(addToCartFontFamily ? { fontFamily: addToCartFontFamily } : null),
+                              },
+                            ]}
+                          >
+                            {addToCartLabel}
+                          </Text>
+                          {!!btnIconName && atcIconPosition === "right" && (
+                            <FontAwesome name={btnIconName} size={atcIconSize} color={addToCartTextColor} />
+                          )}
+                        </View>
+                      </TouchableOpacity>
+                    </View>
                   );
                 })()}
 
@@ -710,49 +724,55 @@ export default function ProductGrid({ section, limit = 8, title = "Products" }) 
                 {showAddToCart && !atcAbove && (() => {
                   const btnIconName = resolveFA4IconName(atcAvailableIconId);
                   return (
-                    <TouchableOpacity
-                      activeOpacity={0.8}
-                      style={[
-                        styles.addToCartBtn,
-                        {
-                          backgroundColor: addToCartBgColor,
-                          borderRadius:    addToCartBorderRadius,
-                          paddingTop:      atcPadT,
-                          paddingBottom:   atcPadB,
-                          paddingLeft:     atcPadL,
-                          paddingRight:    atcPadR,
-                          marginTop:       atcMarginT,
-                          marginBottom:    atcMarginB,
-                          alignSelf:       atcAlignSelf,
-                          ...(atcAlignSelf === "stretch"
-                            ? { marginLeft: atcMarginX, marginRight: atcMarginX }
-                            : {}),
-                        },
-                      ]}
-                      onPress={(e) => handleAddToCart(product, e)}
+                    <View
+                      style={{
+                        flexDirection:  "row",
+                        justifyContent: atcWrapJustify,
+                        marginTop:      atcMarginT,
+                        marginBottom:   atcMarginB,
+                        marginLeft:     atcMarginX,
+                        marginRight:    atcMarginX,
+                      }}
                     >
-                      <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6 }}>
-                        {!!btnIconName && atcIconPosition !== "right" && (
-                          <FontAwesome name={btnIconName} size={atcIconSize} color={addToCartTextColor} />
-                        )}
-                        <Text
-                          style={[
-                            styles.addToCartText,
-                            {
-                              color:      addToCartTextColor,
-                              fontSize:   addToCartFontSize,
-                              fontWeight: addToCartFontWeight,
-                              ...(addToCartFontFamily ? { fontFamily: addToCartFontFamily } : null),
-                            },
-                          ]}
-                        >
-                          {addToCartLabel}
-                        </Text>
-                        {!!btnIconName && atcIconPosition === "right" && (
-                          <FontAwesome name={btnIconName} size={atcIconSize} color={addToCartTextColor} />
-                        )}
-                      </View>
-                    </TouchableOpacity>
+                      <TouchableOpacity
+                        activeOpacity={0.8}
+                        style={[
+                          styles.addToCartBtn,
+                          {
+                            backgroundColor: addToCartBgColor,
+                            borderRadius:    addToCartBorderRadius,
+                            paddingTop:      atcPadT,
+                            paddingBottom:   atcPadB,
+                            paddingLeft:     atcPadL,
+                            paddingRight:    atcPadR,
+                            ...(atcIsStretch ? { flex: 1 } : {}),
+                          },
+                        ]}
+                        onPress={(e) => handleAddToCart(product, e)}
+                      >
+                        <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6 }}>
+                          {!!btnIconName && atcIconPosition !== "right" && (
+                            <FontAwesome name={btnIconName} size={atcIconSize} color={addToCartTextColor} />
+                          )}
+                          <Text
+                            style={[
+                              styles.addToCartText,
+                              {
+                                color:      addToCartTextColor,
+                                fontSize:   addToCartFontSize,
+                                fontWeight: addToCartFontWeight,
+                                ...(addToCartFontFamily ? { fontFamily: addToCartFontFamily } : null),
+                              },
+                            ]}
+                          >
+                            {addToCartLabel}
+                          </Text>
+                          {!!btnIconName && atcIconPosition === "right" && (
+                            <FontAwesome name={btnIconName} size={atcIconSize} color={addToCartTextColor} />
+                          )}
+                        </View>
+                      </TouchableOpacity>
+                    </View>
                   );
                 })()}
               </TouchableOpacity>
