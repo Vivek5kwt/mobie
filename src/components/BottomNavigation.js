@@ -157,6 +157,7 @@ const slugifyPageName = (value) =>
     .replace(/^-+|-+$/g, "");
 
 const SIGNIN_SLUGS = new Set(["signin", "sign-in", "login", "log-in", "auth"]);
+const ORDER_SLUGS  = new Set(["orders", "order", "my-orders", "myorders", "order-history", "orderhistory", "my-order"]);
 
 const resolveNavigationTarget = (item = {}) => {
   const link = resolveItemLink(item);
@@ -172,6 +173,10 @@ const resolveNavigationTarget = (item = {}) => {
     // Sign-in slugs → Auth screen
     if (SIGNIN_SLUGS.has(pageName)) {
       return { type: "stack", name: "Auth" };
+    }
+    // Orders slugs → OrderDetail screen (handles empty state + Shopify fetch)
+    if (ORDER_SLUGS.has(pageName)) {
+      return { type: "stack", name: "OrderDetail" };
     }
     return {
       type: "stack",
@@ -192,6 +197,10 @@ const resolveNavigationTarget = (item = {}) => {
   // Sign-in links → Auth screen
   if (SIGNIN_SLUGS.has(cleanedSlug)) {
     return { type: "stack", name: "Auth" };
+  }
+  // Orders links → OrderDetail screen
+  if (ORDER_SLUGS.has(cleanedSlug)) {
+    return { type: "stack", name: "OrderDetail" };
   }
 
   return {
