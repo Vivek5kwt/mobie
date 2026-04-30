@@ -370,6 +370,7 @@ export default function ProductCarousel({ section }) {
   }, []);
 
   const loadProducts = useCallback(async () => {
+    const safeFirst = Math.max(1, Number(itemsShown) || 1);
     setLoading(true);
     setError("");
     try {
@@ -377,10 +378,14 @@ export default function ProductCarousel({ section }) {
       if (useCollectionFetch) {
         result = await fetchShopifyCollectionProducts({
           handle: collectionHandle,
-          first: itemsShown,
+          first: safeFirst,
         });
+        // If selected collection is empty/invalid, show all products instead of blank UI.
+        if (!result?.products?.length) {
+          result = await fetchShopifyProductsPage({ first: safeFirst });
+        }
       } else {
-        result = await fetchShopifyProductsPage({ first: itemsShown });
+        result = await fetchShopifyProductsPage({ first: safeFirst });
       }
       if (isMountedRef.current) {
         setProducts(result?.products || []);

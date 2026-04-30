@@ -755,6 +755,7 @@ export async function fetchShopifyCollectionProducts({
   options = {},
 } = {}) {
   if (!handle) return { products: [], pageInfo: { hasNextPage: false, endCursor: null } };
+  const safeFirst = Math.max(1, Number(first) || 20);
 
   const creds = await getShopifyCredentials();
   const shop = options.shop || creds.shop;
@@ -792,7 +793,7 @@ export async function fetchShopifyCollectionProducts({
       token,
       storeId,
       query,
-      variables: { handle, first, after },
+      variables: { handle, first: safeFirst, after },
     });
 
     if (json.errors) {

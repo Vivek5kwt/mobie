@@ -182,7 +182,7 @@ export default function TabProductGrid({ section }) {
     if (!activeTabId || productsByTab[activeTabId]) return;
 
     let alive = true;
-    const limit = activeTab?.limit || toNum(rawConfig?.productsPerTab, 4);
+    const limit = Math.max(1, Number(activeTab?.limit || toNum(rawConfig?.productsPerTab, 4)) || 4);
     const handle = activeTab?.handle || "";
 
     const load = async () => {
@@ -192,13 +192,14 @@ export default function TabProductGrid({ section }) {
 
         if (handle && handle !== "all" && handle !== "frontpage") {
           const res = await fetchShopifyCollectionProducts({ handle, first: limit });
-          items = (res?.products || []).map((p) => ({
+          const sourceProducts = (res?.products?.length ? res.products : await fetchShopifyProducts(limit)) || [];
+          items = sourceProducts.map((p) => ({
             id: p.id,
             variantId: p.variantId || "",
-            name: p.title,
-            image: p.imageUrl,
-            price: p.priceAmount,
-            currency: p.priceCurrency,
+            name: p.name || p.title,
+            image: p.image || p.imageUrl,
+            price: p.price || p.priceAmount,
+            currency: p.currency || p.priceCurrency,
             handle: p.handle,
             availableForSale: p.availableForSale ?? true,
           }));
