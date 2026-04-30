@@ -8,6 +8,7 @@ import { fetchDSL } from "../engine/dslHandler";
 import { resolveAppId } from "../utils/appId";
 import { useAuth } from "../services/AuthContext";
 import Header from "../components/Topheader";
+import BottomNavigation, { BOTTOM_NAV_RESERVED_HEIGHT } from "../components/BottomNavigation";
 
 const unwrapValue = (value, fallback = undefined) => {
   if (value === undefined || value === null) return fallback;
@@ -155,10 +156,11 @@ export default function ProductDetailScreen() {
   const [detailProduct, setDetailProduct] = useState(null);
   const [dslSections, setDslSections] = useState([]);
   const [dslLoading, setDslLoading] = useState(true);
-  // productReady: true only after the Shopify API returns real data
   const [productReady, setProductReady] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [bottomNavSection, setBottomNavSection] = useState(null);
+  const [bottomNavHeight, setBottomNavHeight] = useState(BOTTOM_NAV_RESERVED_HEIGHT);
   const isMountedRef = useRef(true);
   const dslVersionRef = useRef(null);
   const productRef = useRef(product);
@@ -269,6 +271,23 @@ export default function ProductDetailScreen() {
     return () => clearInterval(intervalId);
   }, [appId, detailSections]);
 
+  // Fetch bottom nav from home DSL so it shows on the product detail screen
+  useEffect(() => {
+    let mounted = true;
+    fetchDSL(appId, "home").then((data) => {
+      if (!mounted) return;
+      const nav = (data?.dsl?.sections || []).find((s) => {
+        const c = (
+          s?.component?.const || s?.component ||
+          s?.properties?.component?.const || s?.properties?.component || ""
+        ).toLowerCase();
+        return ["bottom_navigation", "bottom_navigation_style_1", "bottom_navigation_style_2"].includes(c);
+      });
+      if (nav) setBottomNavSection(nav);
+    }).catch(() => {});
+    return () => { mounted = false; };
+  }, [appId]);
+
   const sectionsToRender = useMemo(
     () => resolveSections(dslSections),
     [dslSections]
@@ -292,7 +311,12 @@ export default function ProductDetailScreen() {
         <View style={[styles.headerWrapper, { paddingTop: insets.top }]}>
           <Header showNotification={false} />
         </View>
-        <ScrollView contentContainerStyle={styles.scrollContent}>
+        <ScrollView
+          contentContainerStyle={[
+            styles.scrollContent,
+            { paddingBottom: bottomNavSection ? bottomNavHeight + 16 : 24 },
+          ]}
+        >
           {showLoadingState ? (
             <View style={styles.loadingState}>
               <ActivityIndicator size="large" color="#6b7280" />
@@ -311,6 +335,15 @@ export default function ProductDetailScreen() {
             ))
           ) : null}
         </ScrollView>
+
+        {bottomNavSection && (
+          <View
+            style={styles.bottomNav}
+            onLayout={(e) => setBottomNavHeight(e.nativeEvent.layout.height)}
+          >
+            <BottomNavigation section={bottomNavSection} />
+          </View>
+        )}
       </View>
     </SafeAreaView>
   );
@@ -337,9 +370,14 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 2 },
   },
   scrollContent: {
-    paddingBottom: 24,
     backgroundColor: "#F7F7F7",
     minHeight: "100%",
+  },
+  bottomNav: {
+    position: "absolute",
+    left: 0,
+    right: 0,
+    bottom: 0,
   },
   section: {
     marginBottom: 10,

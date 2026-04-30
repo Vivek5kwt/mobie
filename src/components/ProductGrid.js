@@ -184,12 +184,17 @@ export default function ProductGrid({ section, limit = 8, title = "Products" }) 
     {};
   const gridDataSource = gridDataSourceRaw?.properties || gridDataSourceRaw;
   const gridDataSourceMode = unwrapValue(gridDataSource?.mode, "");
-  const gridDataSourceHandle = toString(gridDataSource?.collectionHandle, "");
 
-  // Merge: dataSource.collectionHandle wins, then fallback to props-level keys
-  const collectionHandleRaw =
-    gridDataSourceHandle ||
-    toString(rawProps?.collectionHandle ?? rawProps?.collection ?? rawProps?.collectionId, "");
+  // Builder may use "collection" OR "collectionHandle" as the DSL key — check both.
+  // Also fall back to raw-level keys (rawProps.collection / rawProps.collectionHandle).
+  const collectionHandleRaw = (
+    toString(gridDataSource?.collection, "") ||
+    toString(gridDataSource?.collectionHandle, "") ||
+    toString(gridDataSource?.collectionId, "") ||
+    toString(rawProps?.collection, "") ||
+    toString(rawProps?.collectionHandle, "") ||
+    toString(rawProps?.collectionId, "")
+  );
 
   // Normalize title → slug ("Co-ord Sets Women" → "co-ord-sets-women")
   const collectionHandle = collectionHandleRaw
@@ -198,9 +203,9 @@ export default function ProductGrid({ section, limit = 8, title = "Products" }) 
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/^-+|-+$/g, "");
 
-  // Use collection fetch when: dataSource.mode = "collection" OR a handle is present
+  // Fetch collection products when: a handle exists AND mode is not explicitly "all_products"
   const useCollectionFetch =
-    gridDataSourceMode === "collection" || (!!collectionHandle && gridDataSourceMode !== "all_products");
+    !!collectionHandle && gridDataSourceMode !== "all_products";
 
   // ── Section header typography ─────────────────────────────────────────────
   const resolvedTitle         = toString(rawProps?.header ?? rawProps?.title, title);

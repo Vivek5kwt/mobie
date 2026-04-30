@@ -120,8 +120,20 @@ export default function CheckoutButton({ section }) {
     section?.props ||
     {};
 
-  const rawUnwrapped = deepUnwrap(propsNode?.raw);
-  const raw = rawUnwrapped && typeof rawUnwrapped === "object" ? rawUnwrapped : {};
+  // Unwrap the raw sub-object — handles { value:{} }, { const:{} }, and { properties:{} } envelopes
+  const rawNode = propsNode?.raw;
+  const rawUnwrapped = (() => {
+    if (!rawNode || typeof rawNode !== "object") return rawNode;
+    if (rawNode.value      !== undefined) return rawNode.value;
+    if (rawNode.const      !== undefined) return rawNode.const;
+    if (rawNode.properties !== undefined) return rawNode.properties;
+    return rawNode;
+  })();
+  // Merge propsNode into raw so top-level DSL keys (outside the raw block) are also reachable
+  const raw = {
+    ...(typeof propsNode === "object" ? propsNode : {}),
+    ...(rawUnwrapped && typeof rawUnwrapped === "object" ? rawUnwrapped : {}),
+  };
 
   const pressCss = deepUnwrap(propsNode?.presentation)?.css || {};
   const btnCss   = deepUnwrap(pressCss?.button ?? pressCss?.checkout) || {};
@@ -139,23 +151,36 @@ export default function CheckoutButton({ section }) {
   const isGhost       = buttonVariant === "ghost";
 
   // ── Background colour ─────────────────────────────────────────────────────────
-  // buttonBgColor / backgroundColor are the builder's DSL keys for the button background
+  // buttonBgColor is the primary builder key; fall back through all known aliases.
+  // Default is black so the button is always visible before DSL loads.
   const bgColor = pickStr(
-    [raw?.buttonBgColor, raw?.btnBgColor, raw?.backgroundColor, raw?.bgColor, raw?.background, raw?.buttonBg, raw?.btn_bg],
+    [
+      raw?.buttonBgColor, raw?.btnBgColor,
+      raw?.buttonBackground, raw?.btnBackground,
+      raw?.backgroundColor, raw?.bgColor,
+      raw?.background, raw?.buttonBg, raw?.btn_bg,
+      raw?.color_bg, raw?.bgcolour,
+      btnCss?.backgroundColor, btnCss?.background,
+    ],
     isOutlined || isGhost ? "transparent" : "#000000"
   );
 
   // ── Text colour ───────────────────────────────────────────────────────────────
-  // buttonTextColor is the primary DSL field
   const hasExplicitTextColor = !!(
     deepUnwrap(raw?.buttonTextColor) ||
     deepUnwrap(raw?.textColor)       ||
     deepUnwrap(raw?.labelColor)      ||
     deepUnwrap(raw?.color)           ||
-    deepUnwrap(raw?.text_color)
+    deepUnwrap(raw?.text_color)      ||
+    deepUnwrap(btnCss?.color)
   );
   const textColor = pickStr(
-    [raw?.buttonTextColor, raw?.textColor, raw?.labelColor, raw?.color, raw?.text_color],
+    [
+      raw?.buttonTextColor, raw?.textColor,
+      raw?.labelColor, raw?.color, raw?.text_color,
+      raw?.buttonLabelColor, raw?.btnTextColor,
+      btnCss?.color,
+    ],
     "#FFFFFF"
   );
 
@@ -180,7 +205,12 @@ export default function CheckoutButton({ section }) {
   // ── Border ────────────────────────────────────────────────────────────────────
   // buttonBorderColor is primary; for "outlined" variant always show border
   const borderColorVal = pickStr(
-    [raw?.buttonBorderColor, raw?.borderColor, raw?.border_color, raw?.strokeColor, btnCss?.borderColor],
+    [
+      raw?.buttonBorderColor, raw?.borderColor,
+      raw?.border_color, raw?.strokeColor,
+      raw?.buttonStrokeColor, raw?.btnBorderColor,
+      btnCss?.borderColor, btnCss?.border,
+    ],
     isOutlined ? textColor : ""
   );
   const borderWidthRaw = pickNum(

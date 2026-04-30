@@ -16,6 +16,9 @@ import { SafeArea } from "../utils/SafeAreaHandler";
 import { addItem } from "../store/slices/cartSlice";
 import Header from "../components/Topheader";
 import FilterSortHeader from "../components/FilterSortHeader";
+import BottomNavigation, { BOTTOM_NAV_RESERVED_HEIGHT } from "../components/BottomNavigation";
+import { fetchDSL } from "../engine/dslHandler";
+import { resolveAppId } from "../utils/appId";
 
 const PAGE_SIZE = 20;
 const GAP = 12;
@@ -48,7 +51,9 @@ export default function CollectionProductsScreen() {
   const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError]             = useState("");
   const [isFallback, setIsFallback]   = useState(false);
-  const [favorites, setFavorites]   = useState({});
+  const [favorites, setFavorites]     = useState({});
+  const [bottomNavSection, setBottomNavSection] = useState(null);
+  const [bottomNavHeight, setBottomNavHeight]   = useState(BOTTOM_NAV_RESERVED_HEIGHT);
 
   // FilterSortHeader state
   const [sortKey, setSortKey]       = useState("Popular");
@@ -205,6 +210,23 @@ export default function CollectionProductsScreen() {
     );
   };
 
+  useEffect(() => {
+    const appId = resolveAppId();
+    let mounted = true;
+    fetchDSL(appId, "home").then((data) => {
+      if (!mounted) return;
+      const nav = (data?.dsl?.sections || []).find((s) => {
+        const c = (
+          s?.component?.const || s?.component ||
+          s?.properties?.component?.const || s?.properties?.component || ""
+        ).toLowerCase();
+        return ["bottom_navigation", "bottom_navigation_style_1", "bottom_navigation_style_2"].includes(c);
+      });
+      if (nav) setBottomNavSection(nav);
+    }).catch(() => {});
+    return () => { mounted = false; };
+  }, []);
+
   return (
     <SafeArea>
       <View style={styles.container}>
@@ -253,7 +275,10 @@ export default function CollectionProductsScreen() {
               numColumns={numColumns}
               columnWrapperStyle={numColumns > 1 ? { gap: GAP } : undefined}
               renderItem={renderItem}
-              contentContainerStyle={styles.list}
+              contentContainerStyle={[
+                styles.list,
+                { paddingBottom: bottomNavSection ? bottomNavHeight + 16 : 32 },
+              ]}
               showsVerticalScrollIndicator={false}
               ListEmptyComponent={
                 <Text style={styles.empty}>No products in this collection.</Text>
@@ -275,12 +300,27 @@ export default function CollectionProductsScreen() {
             />
           )}
         </View>
+
+        {bottomNavSection && (
+          <View
+            style={styles.bottomNav}
+            onLayout={(e) => setBottomNavHeight(e.nativeEvent.layout.height)}
+          >
+            <BottomNavigation section={bottomNavSection} />
+          </View>
+        )}
       </View>
     </SafeArea>
   );
 }
 
 const styles = StyleSheet.create({
+  bottomNav: {
+    position: "absolute",
+    left: 0,
+    right: 0,
+    bottom: 0,
+  },
   container: {
     flex: 1,
     backgroundColor: "#FFFFFF",

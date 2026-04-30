@@ -63,7 +63,6 @@ export default function ProductInfo({ section }) {
   const priceCss   = unwrapValue(propsNode?.price, {});
   const ratingCss  = unwrapValue(propsNode?.rating ?? propsNode?.reviews ?? propsNode?.review, {});
   const shareCss   = unwrapValue(propsNode?.share, {});
-  const variantsCss= unwrapValue(propsNode?.variants, {});
   const visibility = unwrapValue(propsNode?.visibility, {});
   const background = unwrapValue(propsNode?.backgroundAndPadding, {});
 
@@ -85,7 +84,6 @@ export default function ProductInfo({ section }) {
   const showSale      = toBoolean(visibility?.priceSale ?? visibility?.salePrice, true);
   const showStandard  = toBoolean(visibility?.priceStandard ?? visibility?.standardPrice, false);
   const showStrikethrough = toBoolean(visibility?.priceStrikethrough, false);
-  const showVariants  = toBoolean(visibility?.variants, true);
   const showRating    = toBoolean(
     visibility?.rating ?? visibility?.reviews ?? raw?.showRating,
     !!ratingValue  // show if a rating value exists in raw
@@ -128,7 +126,6 @@ export default function ProductInfo({ section }) {
   const titleFontFamily    = cleanFontFamily(toString(titleCss?.fontFamily, ""));
   const vendorFontFamily   = cleanFontFamily(toString(vendorCss?.fontFamily, ""));
   const priceFontFamily    = cleanFontFamily(toString(priceCss?.fontFamily ?? priceCss?.sale?.fontFamily, ""));
-  const variantsFontFamily = cleanFontFamily(toString(variantsCss?.fontFamily, ""));
   const ratingBorderWidth  = ratingCss?.borderLine ? 1 : 0;
   const ratingBorderColor  = toString(ratingCss?.borderColor, "#e5e7eb");
   const showRatingIcon     = toBoolean(visibility?.reviewsIcon ?? visibility?.ratingIcon, true);
@@ -310,35 +307,6 @@ export default function ProductInfo({ section }) {
         </View>
       )}
 
-      {/* ── Variants ──────────────────────────────────────────────────────── */}
-      {showVariants && Array.isArray(raw?.variantOptions) && raw.variantOptions.length > 0 && (
-        <View style={styles.variantsWrap}>
-          <Text
-            style={[
-              styles.variantsHeading,
-              {
-                fontSize:   toNumber(variantsCss?.fontSize, 14),
-                color:      toString(variantsCss?.color, "#111827"),
-                fontWeight: toString(variantsCss?.fontWeight, "600"),
-                ...(variantsFontFamily ? { fontFamily: variantsFontFamily } : {}),
-              },
-            ]}
-          >
-            Variants
-          </Text>
-          <View style={styles.variantsDots}>
-            {raw.variantOptions.map((option) => (
-              <View
-                key={option.id ?? option.value}
-                style={[
-                  styles.variantDot,
-                  { backgroundColor: toString(option?.value, "#f3f4f6") },
-                ]}
-              />
-            ))}
-          </View>
-        </View>
-      )}
     </View>
   );
 }
@@ -398,24 +366,5 @@ const styles = StyleSheet.create({
   shareButton: {
     alignItems: "center",
     justifyContent: "center",
-  },
-  // Variants
-  variantsWrap: {
-    marginTop: 12,
-  },
-  variantsHeading: {
-    marginBottom: 6,
-  },
-  variantsDots: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 8,
-  },
-  variantDot: {
-    width: 18,
-    height: 18,
-    borderRadius: 999,
-    borderWidth: 1,
-    borderColor: "#e5e7eb",
   },
 });

@@ -820,3 +820,111 @@ export async function fetchShopifyCollectionProducts({
     return { products: [], pageInfo: { hasNextPage: false, endCursor: null } };
   }
 }
+
+// ----------------------
+// FETCH CUSTOMER ORDERS
+// ----------------------
+export async function fetchCustomerOrders({ customerAccessToken, first = 10 } = {}) {
+  if (!customerAccessToken) return { orders: [] };
+
+  const creds = await getShopifyCredentials();
+  const { shop, token, storeId } = creds;
+
+  const query = `
+    query CustomerOrders($customerAccessToken: String!, $first: Int!) {
+      customer(customerAccessToken: $customerAccessToken) {
+        orders(first: $first, reverse: true) {
+          edges {
+            node {
+              id
+              name
+              orderNumber
+              processedAt
+              financialStatus
+              fulfillmentStatus
+              currentTotalPrice { amount currencyCode }
+              totalShippingPrice { amount currencyCode }
+              totalTax { amount currencyCode }
+              shippingAddress {
+                name
+                address1
+                address2
+                city
+                country
+                zip
+              }
+              lineItems(first: 20) {
+                edges {
+                  node {
+                    title
+                    quantity
+                    variant {
+                      title
+                      image { url }
+                      price { amount currencyCode }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  `;
+
+  try {
+    const json = await directStorefrontGraphQL({
+      shop, token, storeId,
+      query,
+      variables: { customerAccessToken, first },
+    });
+
+    if (json?.errors) {
+      console.error("❌ Customer Orders GraphQL errors:", json.errors);
+      return { orders: [] };
+    }
+
+    const edges = json?.data?.customer?.orders?.edges || [];
+    const orders = edges.map(({ node }) => {
+      const addr = node.shippingAddress;
+      const addressText = addr
+        ? [addr.name, addr.address1, addr.address2, addr.city, addr.country, addr.zip]
+            .filter(Boolean).join("\n")
+        : "";
+      const currency = node.currentTotalPrice?.currencyCode || "";
+      return {
+        id:             node.id,
+        orderNumber:    `#${node.orderNumber}`,
+        orderDate:      node.processedAt
+          ? new Date(node.processedAt).toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" })
+          : "",
+        status:         node.fulfillmentStatus || node.financialStatus || "",
+        deliveryMethod: "Standard",
+        address:        addressText,
+        arrival:        "",
+        billing:        "Same as delivery address",
+        payment:        "",
+        delivery:       parseFloat(node.totalShippingPrice?.amount || 0),
+        tax:            parseFloat(node.totalTax?.amount || 0),
+        total:          parseFloat(node.currentTotalPrice?.amount || 0),
+        currencySymbol: currency,
+        lineItems: (node.lineItems?.edges || []).map(({ node: li }) => ({
+          id:       li.variant?.id || li.title,
+          title:    li.title,
+          variant:  li.variant?.title || "",
+          imageUrl: li.variant?.image?.url || null,
+          price:    li.variant?.price
+            ? `${currency} ${parseFloat(li.variant.price.amount).toFixed(2)}`
+            : "",
+          quantity: li.quantity,
+        })),
+      };
+    });
+
+    return { orders };
+  } catch (err) {
+    console.error("❌ fetchCustomerOrders error:", err);
+    return { orders: [] };
+  }
+}

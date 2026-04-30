@@ -14,6 +14,9 @@ import { fetchShopifyProductsPage } from "../services/shopify";
 import { SafeArea } from "../utils/SafeAreaHandler";
 import Header from "../components/Topheader";
 import FilterSortHeader from "../components/FilterSortHeader";
+import BottomNavigation, { BOTTOM_NAV_RESERVED_HEIGHT } from "../components/BottomNavigation";
+import { fetchDSL } from "../engine/dslHandler";
+import { resolveAppId } from "../utils/appId";
 
 const GAP = 12;
 const H_PAD = 16;
@@ -47,6 +50,8 @@ export default function AllProductsScreen() {
   const [error, setError]             = useState("");
   const [sortKey, setSortKey]         = useState("Popular");
   const [viewMode, setViewMode]       = useState("grid");
+  const [bottomNavSection, setBottomNavSection] = useState(null);
+  const [bottomNavHeight, setBottomNavHeight]   = useState(BOTTOM_NAV_RESERVED_HEIGHT);
 
   const numColumns = viewMode === "list" ? 1 : 2;
   const CARD_W = viewMode === "list"
@@ -82,6 +87,23 @@ export default function AllProductsScreen() {
   useEffect(() => {
     loadProducts({ after: null, append: false });
   }, [loadProducts]);
+
+  useEffect(() => {
+    const appId = resolveAppId();
+    let mounted = true;
+    fetchDSL(appId, "home").then((data) => {
+      if (!mounted) return;
+      const nav = (data?.dsl?.sections || []).find((s) => {
+        const c = (
+          s?.component?.const || s?.component ||
+          s?.properties?.component?.const || s?.properties?.component || ""
+        ).toLowerCase();
+        return ["bottom_navigation", "bottom_navigation_style_1", "bottom_navigation_style_2"].includes(c);
+      });
+      if (nav) setBottomNavSection(nav);
+    }).catch(() => {});
+    return () => { mounted = false; };
+  }, []);
 
   const handleLoadMore = () => {
     if (loadingMore || !pageInfo?.hasNextPage) return;
@@ -161,7 +183,10 @@ export default function AllProductsScreen() {
               numColumns={numColumns}
               columnWrapperStyle={numColumns > 1 ? styles.row : undefined}
               renderItem={renderItem}
-              contentContainerStyle={styles.listContent}
+              contentContainerStyle={[
+                styles.listContent,
+                { paddingBottom: bottomNavSection ? bottomNavHeight + 16 : 24 },
+              ]}
               ListEmptyComponent={<Text style={styles.status}>No products available yet.</Text>}
               ListFooterComponent={
                 pageInfo?.hasNextPage ? (
@@ -180,12 +205,27 @@ export default function AllProductsScreen() {
             />
           )}
         </View>
+
+        {bottomNavSection && (
+          <View
+            style={styles.bottomNav}
+            onLayout={(e) => setBottomNavHeight(e.nativeEvent.layout.height)}
+          >
+            <BottomNavigation section={bottomNavSection} />
+          </View>
+        )}
       </View>
     </SafeArea>
   );
 }
 
 const styles = StyleSheet.create({
+  bottomNav: {
+    position: "absolute",
+    left: 0,
+    right: 0,
+    bottom: 0,
+  },
   container: {
     flex: 1,
     backgroundColor: "#ffffff",

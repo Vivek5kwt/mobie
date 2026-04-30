@@ -223,14 +223,6 @@ export default function ProductDescription({ section }) {
         accessibilityLabel={open ? "Collapse description" : "Expand description"}
       >
         <View style={styles.titleRow}>
-          {showIcon && (
-            <DescIcon
-              rawName={resolvedIconRaw}
-              size={iconSize}
-              color={iconColor}
-              style={styles.infoIcon}
-            />
-          )}
           {showTitle && (
             <Text
               style={{
@@ -248,12 +240,20 @@ export default function ProductDescription({ section }) {
           )}
         </View>
 
-        {/* Chevron arrow */}
-        <FontAwesome
-          name={open ? "chevron-up" : "chevron-down"}
-          size={arrowSize}
-          color={arrowColor}
-        />
+        {/* Dropdown toggle icon — custom icon replaces the default chevron */}
+        {showIcon && resolvedIconRaw ? (
+          <DescIcon
+            rawName={resolvedIconRaw}
+            size={iconSize}
+            color={iconColor}
+          />
+        ) : (
+          <FontAwesome
+            name={open ? "chevron-up" : "chevron-down"}
+            size={arrowSize}
+            color={arrowColor}
+          />
+        )}
       </TouchableOpacity>
 
       {/* ── Description body ──────────────────────────────────────────────── */}
@@ -298,8 +298,5 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems:    "center",
     flex:          1,
-  },
-  infoIcon: {
-    marginRight: 8,
   },
 });

@@ -138,15 +138,28 @@ export default function ProductCarousel({ section }) {
     {};
   // DSL wraps values as JSON Schema objects; unwrap .properties for the actual fields
   const dataSource = dataSourceRaw?.properties || dataSourceRaw;
-  const dataSourceMode = unwrapValue(dataSource?.mode, "all_products");
-  // Normalize handle: builder may store title ("Co-ord Sets Women") or slug ("co-ord-sets-women")
-  // Convert title → slug so the Shopify API always gets a valid handle
-  const collectionHandleRaw = toString(dataSource?.collectionHandle, "");
+  const dataSourceMode = unwrapValue(dataSource?.mode, "");
+
+  // Builder may use "collection" OR "collectionHandle" as the key — check both.
+  // Also fall back to raw-level keys (raw.collection / raw.collectionHandle).
+  // Normalize title → slug so the Shopify API always gets a valid handle.
+  const collectionHandleRaw = (
+    toString(dataSource?.collection, "") ||
+    toString(dataSource?.collectionHandle, "") ||
+    toString(dataSource?.collectionId, "") ||
+    toString(raw?.collection, "") ||
+    toString(raw?.collectionHandle, "") ||
+    toString(raw?.collectionId, "")
+  );
   const collectionHandle = collectionHandleRaw
     .toLowerCase()
     .trim()
-    .replace(/[^a-z0-9]+/g, "-")   // spaces/special chars → hyphens
-    .replace(/^-+|-+$/g, "");       // trim leading/trailing hyphens
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+
+  // Fetch collection products when: a handle exists AND mode is not explicitly "all_products"
+  const useCollectionFetch =
+    !!collectionHandle && dataSourceMode !== "all_products";
 
   // Grid configuration
   // DSL nests grid sub-props under grid.properties; fall back to grid itself for flat schemas
@@ -351,7 +364,7 @@ export default function ProductCarousel({ section }) {
     setError("");
     try {
       let result;
-      if (dataSourceMode === "collection" && collectionHandle) {
+      if (useCollectionFetch) {
         result = await fetchShopifyCollectionProducts({
           handle: collectionHandle,
           first: itemsShown,
@@ -371,7 +384,7 @@ export default function ProductCarousel({ section }) {
         setLoading(false);
       }
     }
-  }, [dataSourceMode, collectionHandle, itemsShown]);
+  }, [useCollectionFetch, collectionHandle, itemsShown]);
 
   // Initial load and reload whenever data-source params change
   useEffect(() => {

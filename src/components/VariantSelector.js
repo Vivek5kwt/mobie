@@ -221,12 +221,15 @@ export default function VariantSelector({ section }) {
     [raw?.variantOptions]
   );
 
-  const groups = useMemo(
-    () => allGroups.filter(g =>
+  const groups = useMemo(() => {
+    const filtered = allGroups.filter(g =>
       !(g.name === "Title" && g.values.length === 1 && g.values[0] === "Default Title")
-    ),
-    [allGroups]
-  );
+    );
+    // Color groups always rendered first, size/text groups below
+    const colorGroups = filtered.filter(g => isColorGroup(g.name, g.values));
+    const otherGroups = filtered.filter(g => !isColorGroup(g.name, g.values));
+    return [...colorGroups, ...otherGroups];
+  }, [allGroups]);
 
   const [selected, setSelected] = useState(() => {
     const init = {};
@@ -294,9 +297,9 @@ export default function VariantSelector({ section }) {
   const soldOutBorder = pick([raw?.selectorborderSoldOutColor, raw?.borderSoldOutColor], "#D1D5DB");
 
   // ── Swatch (color selector) styles ────────────────────────────────────────
-  const swatchSize   = pickNum([raw?.swatchSize,   raw?.colorSwatchSize],  30);
-  const swatchRadius = pickNum([raw?.swatchRadius, raw?.colorSwatchRadius], 999);
-  const swatchGap    = pickNum([raw?.swatchGap,    raw?.colorGap],          10);
+  const swatchSize   = pickNum([raw?.swatchSize,   raw?.colorSwatchSize],  36);
+  const swatchRadius = pickNum([raw?.swatchRadius, raw?.colorSwatchRadius],  8);
+  const swatchGap    = pickNum([raw?.swatchGap,    raw?.colorGap],           10);
   const swatchSelectedRingColor = pick([raw?.swatchSelectedColor, raw?.swatchRingColor, raw?.colorSelectedBorder], selBorder);
   const swatchSelectedRingWidth = pickNum([raw?.swatchRingWidth, raw?.swatchBorderWidth], 2);
 
@@ -374,12 +377,12 @@ export default function VariantSelector({ section }) {
                       {/* Ring wrapper shown when selected */}
                       <View
                         style={{
-                          width:        swatchSize + 6,
-                          height:       swatchSize + 6,
-                          borderRadius: swatchRadius,
+                          width:        swatchSize + 8,
+                          height:       swatchSize + 8,
+                          borderRadius: swatchRadius + 2,
                           borderColor:  isSel ? swatchSelectedRingColor : "transparent",
                           borderWidth:  swatchSelectedRingWidth,
-                          padding:      2,
+                          padding:      3,
                           alignItems:   "center",
                           justifyContent: "center",
                         }}

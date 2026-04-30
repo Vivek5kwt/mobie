@@ -428,30 +428,62 @@ export default function HeroBanner({ section }) {
 
   const buttonBorder = unwrapValue(buttonTokens?.border, "none");
 
-  // Button border color — priority: buttonAttrs > flatProps > rawProps > CSS > ""
+  // Parse CSS border shorthand "1px solid #color" → { width, color }
+  const parseBorderShorthand = (v) => {
+    if (!v || typeof v !== "string" || v.trim() === "none") return null;
+    const parts = v.trim().split(/\s+/);
+    let width, color;
+    for (const p of parts) {
+      if (/^\d/.test(p)) { const n = parseFloat(p); if (!isNaN(n)) width = n; }
+      if (p.startsWith("#") || p.startsWith("rgb") || p.startsWith("hsl")) color = p;
+    }
+    return (width !== undefined || color !== undefined) ? { width, color } : null;
+  };
+
+  const cssBorderParsed =
+    parseBorderShorthand(toString(layoutCss?.button?.border, "")) ||
+    parseBorderShorthand(toString(buttonTokens?.border !== "none" ? buttonBorder : "", ""));
+
+  // Button border color — priority: buttonAttrs > flatProps > rawProps > button.properties
+  //   > buttonTokens (CSS snapshot) > layoutCss.button > shorthand parse
   const buttonBorderColorResolved =
-    toString(buttonAttrs?.borderColor, "") ||
-    toString(flatPropsNode?.buttonBorderColor, "") ||
-    toString(rawProps?.buttonBorderColor, "") ||
+    toString(buttonAttrs?.borderColor ?? buttonAttrs?.strokeColor, "") ||
+    toString(flatPropsNode?.buttonBorderColor ?? flatPropsNode?.buttonStrokeColor, "") ||
+    toString(rawProps?.buttonBorderColor ?? rawProps?.buttonStrokeColor, "") ||
+    toString(button?.properties?.borderColor ?? button?.borderColor, "") ||
+    toString(buttonTokens?.borderColor, "") ||
+    toString(layoutCss?.button?.borderColor, "") ||
+    cssBorderParsed?.color ||
     "";
 
-  // Button border width — priority: buttonAttrs > flatProps > rawProps > token "border" string > 0
+  // Button border width — priority: buttonAttrs > flatProps > rawProps > button.properties
+  //   > buttonTokens > layoutCss.button > shorthand parse > token "border" truthy > 0
   const buttonBorderWidthResolved = (() => {
     const fromAttrs = toNumber(
-      buttonAttrs?.borderWidth ?? buttonAttrs?.borderSize ?? buttonAttrs?.border,
+      buttonAttrs?.borderWidth ?? buttonAttrs?.borderSize ?? buttonAttrs?.strokeWidth ?? buttonAttrs?.border,
       undefined
     );
     if (fromAttrs !== undefined) return fromAttrs;
     const fromFlat = toNumber(
-      flatPropsNode?.buttonBorderWidth ?? flatPropsNode?.buttonBorderSize,
+      flatPropsNode?.buttonBorderWidth ?? flatPropsNode?.buttonBorderSize ?? flatPropsNode?.buttonStrokeWidth,
       undefined
     );
     if (fromFlat !== undefined) return fromFlat;
     const fromRaw = toNumber(
-      rawProps?.buttonBorderWidth ?? rawProps?.buttonBorderSize,
+      rawProps?.buttonBorderWidth ?? rawProps?.buttonBorderSize ?? rawProps?.buttonStrokeWidth,
       undefined
     );
     if (fromRaw !== undefined) return fromRaw;
+    const fromBtnProp = toNumber(
+      button?.properties?.borderWidth ?? button?.borderWidth,
+      undefined
+    );
+    if (fromBtnProp !== undefined) return fromBtnProp;
+    const fromToken = toNumber(buttonTokens?.borderWidth ?? buttonTokens?.borderSize, undefined);
+    if (fromToken !== undefined) return fromToken;
+    const fromCss = toNumber(layoutCss?.button?.borderWidth, undefined);
+    if (fromCss !== undefined) return fromCss;
+    if (cssBorderParsed?.width !== undefined) return cssBorderParsed.width;
     if (buttonBorder && buttonBorder !== "none") return 1;
     return 0;
   })();
@@ -461,16 +493,18 @@ export default function HeroBanner({ section }) {
     toString(buttonAttrs?.borderSide, "") ||
     toString(flatPropsNode?.buttonBorderSide, "") ||
     toString(rawProps?.buttonBorderSide, "") ||
+    toString(button?.properties?.borderSide ?? button?.borderSide, "") ||
     "all"
   ).toLowerCase();
 
   // Build the final border style props (always explicit so CSS-sourced border can't bleed through)
   const buttonBorderStyleProps = (() => {
+    if (buttonBorderSideResolved === "none") return { borderWidth: 0 };
     const hasColor = !!buttonBorderColorResolved;
-    const hasWidth = buttonBorderWidthResolved > 0;
-    if (!hasColor || !hasWidth || buttonBorderSideResolved === "none") return { borderWidth: 0 };
-    const w = buttonBorderWidthResolved;
-    const c = buttonBorderColorResolved;
+    // If color is set but no explicit width, default to 1. If neither, no border.
+    const w = buttonBorderWidthResolved > 0 ? buttonBorderWidthResolved : (hasColor ? 1 : 0);
+    if (w === 0) return { borderWidth: 0 };
+    const c = buttonBorderColorResolved || "#000000";
     if (buttonBorderSideResolved === "top")    return { borderTopWidth: w,    borderTopColor: c,    borderWidth: 0 };
     if (buttonBorderSideResolved === "bottom") return { borderBottomWidth: w, borderBottomColor: c, borderWidth: 0 };
     if (buttonBorderSideResolved === "left")   return { borderLeftWidth: w,   borderLeftColor: c,   borderWidth: 0 };
