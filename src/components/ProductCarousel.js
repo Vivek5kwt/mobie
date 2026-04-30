@@ -599,7 +599,9 @@ export default function ProductCarousel({ section }) {
             padding: 0,
           },
         ]}
-        onPress={() => {
+        onPress={(e) => {
+          e?.stopPropagation?.();
+          e?.preventDefault?.();
           const id = String(
             product?.id || product?.variantId || product?.handle || product?.title || ""
           ).trim();
@@ -622,8 +624,11 @@ export default function ProductCarousel({ section }) {
           setSnackMessage(adding ? "Product added to wishlist successfully." : "Product removed from wishlist successfully.");
           setSnackVisible(true);
         }}
+        onPressIn={(e) => {
+          e?.stopPropagation?.();
+        }}
         activeOpacity={0.7}
-        hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+        hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
       >
         <FontAwesome name={iconName} size={iconSize} color={iconColor} />
       </TouchableOpacity>
@@ -799,6 +804,7 @@ export default function ProductCarousel({ section }) {
                     )}
                   </View>
                 )}
+                {(!cardImageActive || !product.imageUrl) && renderFavorite(product, isFavorite)}
 
                 <View style={styles.cardContent}>
                   {/* ATC above product info (title / price) */}
@@ -943,7 +949,8 @@ const styles = StyleSheet.create({
   },
   favoriteButton: {
     position: "absolute",
-    zIndex: 2,
+    zIndex: 10,
+    elevation: 6,
     borderRadius: 20,
   },
   cardContent: {

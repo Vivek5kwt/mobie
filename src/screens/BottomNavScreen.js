@@ -62,10 +62,6 @@ export default function BottomNavScreen() {
     normalizedPageName.includes("account") ||
     normalizedTitle.includes("profile") ||
     normalizedTitle.includes("account");
-  const ORDER_PAGE_SLUGS = new Set(["orders", "order", "my-orders", "myorders", "order-history", "orderhistory", "my-order"]);
-  const isOrdersPage =
-    ORDER_PAGE_SLUGS.has(normalizedPageName) ||
-    ORDER_PAGE_SLUGS.has(normalizedTitle.replace(/\s+/g, "-"));
   const isAutoRefreshPage = isCartPage || isNotificationPage || isSearchPage || isProfilePage;
   const isHomePage = normalizedPageName === "home";
   const [dsl, setDsl] = useState(null);
@@ -419,12 +415,6 @@ export default function BottomNavScreen() {
         if (SIGNIN_SLUGS.has(normalizedPageName)) {
           console.log(`🔑 Sign-in page detected ("${pageName}") — redirecting to Auth screen`);
           if (isMounted) navigation.navigate("Auth");
-          return;
-        }
-
-        // Step 2b: orders page → redirect to OrderDetail screen (has empty state + Shopify fetch)
-        if (isOrdersPage) {
-          if (isMounted) navigation.replace("OrderDetail");
           return;
         }
 

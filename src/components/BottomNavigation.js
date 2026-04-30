@@ -174,10 +174,7 @@ const resolveNavigationTarget = (item = {}) => {
     if (SIGNIN_SLUGS.has(pageName)) {
       return { type: "stack", name: "Auth" };
     }
-    // Orders slugs → OrderDetail screen (handles empty state + Shopify fetch)
-    if (ORDER_SLUGS.has(pageName)) {
-      return { type: "stack", name: "OrderDetail" };
-    }
+    // Orders should stay inside BottomNavScreen so the tab bar remains visible.
     return {
       type: "stack",
       name: "BottomNavScreen",
@@ -198,10 +195,7 @@ const resolveNavigationTarget = (item = {}) => {
   if (SIGNIN_SLUGS.has(cleanedSlug)) {
     return { type: "stack", name: "Auth" };
   }
-  // Orders links → OrderDetail screen
-  if (ORDER_SLUGS.has(cleanedSlug)) {
-    return { type: "stack", name: "OrderDetail" };
-  }
+  // Orders should stay inside BottomNavScreen so the tab bar remains visible.
 
   return {
     type: "stack",
