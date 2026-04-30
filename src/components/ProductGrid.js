@@ -9,6 +9,15 @@ import { toggleWishlist } from "../store/slices/wishlistSlice";
 import { fetchShopifyProductsPage, fetchShopifyCollectionProducts } from "../services/shopify";
 import Snackbar from "./Snackbar";
 
+// ── Currency symbol lookup ────────────────────────────────────────────────────
+
+const CURRENCY_SYMBOLS = {
+  USD: "$", INR: "₹", GBP: "£", EUR: "€", CAD: "CA$",
+  AUD: "A$", JPY: "¥", CNY: "¥", SGD: "S$", AED: "د.إ",
+};
+const toCurrSymbol = (code) =>
+  CURRENCY_SYMBOLS[String(code || "").toUpperCase()] || code || "";
+
 // ── DSL helpers ───────────────────────────────────────────────────────────────
 
 const unwrapValue = (value, fallback = undefined) => {
@@ -176,41 +185,52 @@ export default function ProductGrid({ section, limit = 8, title = "Products" }) 
   const shopifyToken  = toString(rawProps?.storefrontToken, "");
 
   // ── Collection handle ─────────────────────────────────────────────────────
-  // DSL places dataSource as sibling of props under section.properties (same as ProductCarousel)
-  const gridDataSourceRaw =
-    section?.properties?.dataSource ||   // primary: builder puts it here
-    section?.dataSource ||               // flat / legacy
-    rawProps?.dataSource ||              // inside props (rare)
-    {};
-  const gridDataSource = gridDataSourceRaw?.properties || gridDataSourceRaw;
-  const gridDataSourceMode = unwrapValue(gridDataSource?.mode, "");
+  const _slug = (s) =>
+    String(s || "").toLowerCase().trim().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
 
-  const slugify = (s) =>
-    s.toLowerCase().trim().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
+  // Extract collection handle from any location in the section DSL.
+  // The builder stores it as a top-level prop (collection / collectionHandle)
+  // wrapped in a JSON-Schema envelope { type, const, value }.
+  // dataSource.mode may say "all_products" even when a collection IS selected
+  // (builder bug), so we ignore mode when a handle is found at top level.
+  const collectionHandle = (() => {
+    // ── 1. Top-level props (highest priority — user's explicit dropdown choice)
+    const topLevelKeys = ["collection", "collectionHandle", "collectionId"];
+    for (const key of topLevelKeys) {
+      const v = _slug(toString(rawProps?.[key], ""));
+      if (v) {
+        console.log(`[ProductGrid] collectionHandle from rawProps.${key} =`, v);
+        return v;
+      }
+    }
 
-  // Handle from the dataSource sub-object (builder default, may have stale mode)
-  const handleFromDataSource = slugify(
-    toString(gridDataSource?.collection, "") ||
-    toString(gridDataSource?.collectionHandle, "") ||
-    toString(gridDataSource?.collectionId, "")
-  );
+    // ── 2. Inside dataSource (unwrap the const/value envelope first)
+    const dsRaw =
+      section?.properties?.dataSource ||
+      section?.dataSource ||
+      rawProps?.dataSource ||
+      null;
+    if (dsRaw) {
+      // dataSource may itself be wrapped: { type, const: {mode, collectionHandle}, value: ... }
+      const dsUnwrapped = unwrapValue(dsRaw, {}) || {};
+      const dsProp = dsUnwrapped?.properties || dsUnwrapped;
+      const mode = String(unwrapValue(dsProp?.mode, "") || "").toLowerCase();
+      if (mode !== "all_products") {
+        for (const key of topLevelKeys) {
+          const v = _slug(toString(dsProp?.[key], ""));
+          if (v) {
+            console.log(`[ProductGrid] collectionHandle from dataSource.${key} =`, v);
+            return v;
+          }
+        }
+      }
+    }
 
-  // Handle from the top-level prop (user's explicit dropdown choice — always wins)
-  const handleFromRawProps = slugify(
-    toString(rawProps?.collection, "") ||
-    toString(rawProps?.collectionHandle, "") ||
-    toString(rawProps?.collectionId, "")
-  );
+    console.log("[ProductGrid] no collectionHandle found → all products");
+    return "";
+  })();
 
-  const collectionHandle = handleFromRawProps || handleFromDataSource;
-
-  // Use collection fetch if:
-  //   • handle comes from rawProps (explicit user choice) — ignore dataSource.mode
-  //   • OR handle in dataSource AND mode is not "all_products"
-  const useCollectionFetch = !!(
-    handleFromRawProps ||
-    (handleFromDataSource && gridDataSourceMode !== "all_products")
-  );
+  const useCollectionFetch = !!collectionHandle;
 
   // ── Section header typography ─────────────────────────────────────────────
   const resolvedTitle         = toString(rawProps?.header ?? rawProps?.title, title);
@@ -356,6 +376,11 @@ export default function ProductGrid({ section, limit = 8, title = "Products" }) 
   const atcSoldOutIconId   = toString(rawProps?.atcSoldOutIconId, "");
   const atcIconPosition    = toString(rawProps?.atcIconPosition, "left").toLowerCase();
   const atcIconSize        = resolveFirstNumber([rawProps?.atcIconSize], 14);
+
+  // ── Unavailable / sold-out button ─────────────────────────────────────────
+  const unavailableLabel     = toString(rawProps?.unavailableText ?? rawProps?.soldOutText ?? rawProps?.unavailLabel, "Unavailable");
+  const unavailableBgColor   = toString(rawProps?.unavailableBgColor ?? rawProps?.soldOutBgColor, "#E5E7EB");
+  const unavailableTextColor = toString(rawProps?.unavailableColor ?? rawProps?.soldOutColor, "#6B7280");
 
   // ── Add-to-Cart position ──────────────────────────────────────────────────
   // "Above Product Details" → render ATC between image and title/price
@@ -616,6 +641,7 @@ export default function ProductGrid({ section, limit = 8, title = "Products" }) 
           {products.map((product, index) => {
             const prodId = String(product?.id || product?.variantId || product?.handle || product?.title || "").trim();
             const isInWishlist = prodId ? wishlistItems.some((p) => String(p.id || "").trim() === prodId) : false;
+            const isAvailable = product?.availableForSale !== false;
 
             // Suppress marginBottom on last-row cards so no phantom gap appears
             // below the grid (CSS gap never applies after the last row; RN marginBottom does).
@@ -717,7 +743,12 @@ export default function ProductGrid({ section, limit = 8, title = "Products" }) 
 
                 {/* Add to Cart — rendered above card body when position = "above" */}
                 {showAddToCart && atcAbove && (() => {
-                  const btnIconName = resolveFA4IconName(atcAvailableIconId);
+                  const btnIconName = isAvailable
+                    ? resolveFA4IconName(atcAvailableIconId)
+                    : resolveFA4IconName(atcSoldOutIconId);
+                  const btnBg    = isAvailable ? addToCartBgColor   : unavailableBgColor;
+                  const btnColor = isAvailable ? addToCartTextColor  : unavailableTextColor;
+                  const btnLabel = isAvailable ? addToCartLabel      : unavailableLabel;
                   return (
                     <View
                       style={{
@@ -730,11 +761,12 @@ export default function ProductGrid({ section, limit = 8, title = "Products" }) 
                       }}
                     >
                       <TouchableOpacity
-                        activeOpacity={0.8}
+                        activeOpacity={isAvailable ? 0.8 : 1}
+                        disabled={!isAvailable}
                         style={[
                           styles.addToCartBtn,
                           {
-                            backgroundColor: addToCartBgColor,
+                            backgroundColor: btnBg,
                             borderRadius:    addToCartBorderRadius,
                             paddingTop:      atcPadT,
                             paddingBottom:   atcPadB,
@@ -743,27 +775,27 @@ export default function ProductGrid({ section, limit = 8, title = "Products" }) 
                             ...(atcIsStretch ? { flex: 1 } : {}),
                           },
                         ]}
-                        onPress={(e) => handleAddToCart(product, e)}
+                        onPress={(e) => isAvailable && handleAddToCart(product, e)}
                       >
                         <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6 }}>
                           {!!btnIconName && atcIconPosition !== "right" && (
-                            <FontAwesome name={btnIconName} size={atcIconSize} color={addToCartTextColor} />
+                            <FontAwesome name={btnIconName} size={atcIconSize} color={btnColor} />
                           )}
                           <Text
                             style={[
                               styles.addToCartText,
                               {
-                                color:      addToCartTextColor,
+                                color:      btnColor,
                                 fontSize:   addToCartFontSize,
                                 fontWeight: addToCartFontWeight,
                                 ...(addToCartFontFamily ? { fontFamily: addToCartFontFamily } : null),
                               },
                             ]}
                           >
-                            {addToCartLabel}
+                            {btnLabel}
                           </Text>
                           {!!btnIconName && atcIconPosition === "right" && (
-                            <FontAwesome name={btnIconName} size={atcIconSize} color={addToCartTextColor} />
+                            <FontAwesome name={btnIconName} size={atcIconSize} color={btnColor} />
                           )}
                         </View>
                       </TouchableOpacity>
@@ -804,14 +836,19 @@ export default function ProductGrid({ section, limit = 8, title = "Products" }) 
                         },
                       ]}
                     >
-                      {product.priceCurrency} {product.priceAmount}
+                      {toCurrSymbol(product.priceCurrency)}{product.priceAmount}
                     </Text>
                   )}
                 </View>
 
                 {/* Add to Cart — rendered below card body when position = "below" (default) */}
                 {showAddToCart && !atcAbove && (() => {
-                  const btnIconName = resolveFA4IconName(atcAvailableIconId);
+                  const btnIconName = isAvailable
+                    ? resolveFA4IconName(atcAvailableIconId)
+                    : resolveFA4IconName(atcSoldOutIconId);
+                  const btnBg    = isAvailable ? addToCartBgColor   : unavailableBgColor;
+                  const btnColor = isAvailable ? addToCartTextColor  : unavailableTextColor;
+                  const btnLabel = isAvailable ? addToCartLabel      : unavailableLabel;
                   return (
                     <View
                       style={{
@@ -824,11 +861,12 @@ export default function ProductGrid({ section, limit = 8, title = "Products" }) 
                       }}
                     >
                       <TouchableOpacity
-                        activeOpacity={0.8}
+                        activeOpacity={isAvailable ? 0.8 : 1}
+                        disabled={!isAvailable}
                         style={[
                           styles.addToCartBtn,
                           {
-                            backgroundColor: addToCartBgColor,
+                            backgroundColor: btnBg,
                             borderRadius:    addToCartBorderRadius,
                             paddingTop:      atcPadT,
                             paddingBottom:   atcPadB,
@@ -837,27 +875,27 @@ export default function ProductGrid({ section, limit = 8, title = "Products" }) 
                             ...(atcIsStretch ? { flex: 1 } : {}),
                           },
                         ]}
-                        onPress={(e) => handleAddToCart(product, e)}
+                        onPress={(e) => isAvailable && handleAddToCart(product, e)}
                       >
                         <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6 }}>
                           {!!btnIconName && atcIconPosition !== "right" && (
-                            <FontAwesome name={btnIconName} size={atcIconSize} color={addToCartTextColor} />
+                            <FontAwesome name={btnIconName} size={atcIconSize} color={btnColor} />
                           )}
                           <Text
                             style={[
                               styles.addToCartText,
                               {
-                                color:      addToCartTextColor,
+                                color:      btnColor,
                                 fontSize:   addToCartFontSize,
                                 fontWeight: addToCartFontWeight,
                                 ...(addToCartFontFamily ? { fontFamily: addToCartFontFamily } : null),
                               },
                             ]}
                           >
-                            {addToCartLabel}
+                            {btnLabel}
                           </Text>
                           {!!btnIconName && atcIconPosition === "right" && (
-                            <FontAwesome name={btnIconName} size={atcIconSize} color={addToCartTextColor} />
+                            <FontAwesome name={btnIconName} size={atcIconSize} color={btnColor} />
                           )}
                         </View>
                       </TouchableOpacity>

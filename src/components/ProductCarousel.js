@@ -128,44 +128,48 @@ export default function ProductCarousel({ section }) {
     ? { ...rawProps, ...rawUnwrapped }
     : (rawProps || {});
 
-  // Data source configuration
-  // DSL places dataSource as a sibling of props under section.properties,
-  // not at section.dataSource (top-level) or inside props.
-  const dataSourceRaw =
-    section?.properties?.dataSource ||   // ← primary: where DSL actually puts it
-    section?.dataSource ||               // ← flat / legacy schemas
-    rawProps?.dataSource ||              // ← inside props (rare)
-    {};
-  // DSL wraps values as JSON Schema objects; unwrap .properties for the actual fields
-  const dataSource = dataSourceRaw?.properties || dataSourceRaw;
-  const dataSourceMode = unwrapValue(dataSource?.mode, "");
+  const _slug = (s) =>
+    String(s || "").toLowerCase().trim().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
 
-  const slugify = (s) =>
-    s.toLowerCase().trim().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
+  // Extract collection handle from any location in the section DSL.
+  const collectionHandle = (() => {
+    // ── 1. Top-level raw props (user's explicit dropdown choice)
+    const topLevelKeys = ["collection", "collectionHandle", "collectionId"];
+    for (const key of topLevelKeys) {
+      const v = _slug(toString(raw?.[key], "") || toString(rawProps?.[key], ""));
+      if (v) {
+        console.log(`[ProductCarousel] collectionHandle from props.${key} =`, v);
+        return v;
+      }
+    }
 
-  // Handle from the dataSource sub-object (builder default, may have stale mode)
-  const handleFromDataSource = slugify(
-    toString(dataSource?.collection, "") ||
-    toString(dataSource?.collectionHandle, "") ||
-    toString(dataSource?.collectionId, "")
-  );
+    // ── 2. Inside dataSource (unwrap const/value envelope)
+    const dsRaw =
+      section?.properties?.dataSource ||
+      section?.dataSource ||
+      rawProps?.dataSource ||
+      raw?.dataSource ||
+      null;
+    if (dsRaw) {
+      const dsUnwrapped = unwrapValue(dsRaw, {}) || {};
+      const dsProp = dsUnwrapped?.properties || dsUnwrapped;
+      const mode = String(unwrapValue(dsProp?.mode, "") || "").toLowerCase();
+      if (mode !== "all_products") {
+        for (const key of topLevelKeys) {
+          const v = _slug(toString(dsProp?.[key], ""));
+          if (v) {
+            console.log(`[ProductCarousel] collectionHandle from dataSource.${key} =`, v);
+            return v;
+          }
+        }
+      }
+    }
 
-  // Handle from the top-level prop (user's explicit dropdown choice — always wins)
-  const handleFromRawProps = slugify(
-    toString(raw?.collection, "") ||
-    toString(raw?.collectionHandle, "") ||
-    toString(raw?.collectionId, "")
-  );
+    console.log("[ProductCarousel] no collectionHandle found → all products");
+    return "";
+  })();
 
-  const collectionHandle = handleFromRawProps || handleFromDataSource;
-
-  // Use collection fetch if:
-  //   • handle comes from raw/top-level props (explicit user choice) — ignore dataSource.mode
-  //   • OR handle in dataSource AND mode is not "all_products"
-  const useCollectionFetch = !!(
-    handleFromRawProps ||
-    (handleFromDataSource && dataSourceMode !== "all_products")
-  );
+  const useCollectionFetch = !!collectionHandle;
 
   // Grid configuration
   // DSL nests grid sub-props under grid.properties; fall back to grid itself for flat schemas

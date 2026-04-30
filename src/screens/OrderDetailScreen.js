@@ -206,19 +206,21 @@ export default function OrderDetailScreen() {
           </View>
         ) : noOrders || !order ? (
           /* ── Empty state ──────────────────────────────────────────────── */
-          <View style={styles.emptyState}>
-            <FontAwesome name="shopping-bag" size={56} color="#D1D5DB" />
-            <Text style={styles.emptyTitle}>No Orders Placed</Text>
+          <View
+            style={[
+              styles.emptyState,
+              { paddingBottom: bottomNavSection ? bottomNavHeight + 16 : 32 },
+            ]}
+          >
+            {/* Shopping bag icon matching the screenshot */}
+            <View style={styles.emptyIconWrap}>
+              <FontAwesome name="shopping-bag" size={52} color="#4A90E2" />
+              <View style={styles.emptyTagDot} />
+            </View>
+            <Text style={styles.emptyTitle}>No orders yet</Text>
             <Text style={styles.emptySubtitle}>
-              You haven't placed any orders yet.{"\n"}Start shopping to see your orders here.
+              When you place an order it will{"\n"}appear here.
             </Text>
-            <TouchableOpacity
-              style={styles.shopNowBtn}
-              activeOpacity={0.85}
-              onPress={() => navigation.navigate("LayoutScreen")}
-            >
-              <Text style={styles.shopNowText}>Shop Now</Text>
-            </TouchableOpacity>
           </View>
         ) : (
           /* ── Order detail content ─────────────────────────────────────── */
@@ -564,35 +566,43 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   emptyState: {
-    flex:           1,
-    alignItems:     "center",
-    justifyContent: "center",
-    paddingHorizontal: 32,
-    gap: 12,
+    flex:              1,
+    alignItems:        "center",
+    justifyContent:    "center",
+    paddingHorizontal: 40,
+    gap:               10,
+    backgroundColor:   "#F8F8F8",
+  },
+  emptyIconWrap: {
+    width:           90,
+    height:          90,
+    alignItems:      "center",
+    justifyContent:  "center",
+    marginBottom:    8,
+  },
+  emptyTagDot: {
+    position:        "absolute",
+    top:             12,
+    right:           12,
+    width:           16,
+    height:          16,
+    borderRadius:    8,
+    backgroundColor: "#F59E0B",
+    borderWidth:     2,
+    borderColor:     "#FFFFFF",
   },
   emptyTitle: {
-    fontSize:   20,
+    fontSize:   18,
     fontWeight: "700",
     color:      "#111827",
-    marginTop:  8,
+    marginTop:  4,
+    textAlign:  "center",
   },
   emptySubtitle: {
-    fontSize:  14,
-    color:     "#6B7280",
-    textAlign: "center",
-    lineHeight: 22,
-  },
-  shopNowBtn: {
-    marginTop:       8,
-    paddingVertical: 14,
-    paddingHorizontal: 32,
-    borderRadius:    12,
-    backgroundColor: "#0D9488",
-  },
-  shopNowText: {
-    color:      "#FFFFFF",
-    fontSize:   16,
-    fontWeight: "700",
+    fontSize:   13,
+    color:      "#9CA3AF",
+    textAlign:  "center",
+    lineHeight: 20,
   },
 
   // ── Scroll

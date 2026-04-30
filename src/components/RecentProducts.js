@@ -57,6 +57,15 @@ const toFW = (v, fb = "400") => {
   return fwMap[String(r).trim().toLowerCase()] || String(r);
 };
 
+// ─── Currency symbol lookup ───────────────────────────────────────────────────
+
+const CURRENCY_SYMBOLS = {
+  USD: "$", INR: "₹", GBP: "£", EUR: "€", CAD: "CA$",
+  AUD: "A$", JPY: "¥", CNY: "¥", SGD: "S$", AED: "د.إ",
+};
+const toCurrSymbol = (code) =>
+  CURRENCY_SYMBOLS[String(code || "").toUpperCase()] || code || "";
+
 // ─── Component ────────────────────────────────────────────────────────────────
 
 export default function RecentProducts({ section }) {
@@ -77,7 +86,10 @@ export default function RecentProducts({ section }) {
   const css       = unwrap(layoutRaw?.css, {});
 
   // ── Settings ───────────────────────────────────────────────────────────────
-  const sectionTitle  = str(raw?.title ?? raw?.header, "Recently Viewed");
+  // Use `header` / `sectionTitle` — NOT `title`, which ProductDetailScreen merges
+  // with the current product's name via buildProductDefaults, causing the product
+  // name to appear as the section heading.
+  const sectionTitle  = str(raw?.header ?? raw?.sectionTitle, "Recently Viewed");
   const limit         = Math.max(1, num(raw?.limit ?? raw?.itemsShown, 4));
   const shopifyDomain = str(raw?.shopifyDomain, "");
   const shopifyToken  = str(raw?.storefrontToken, "");
@@ -327,7 +339,7 @@ export default function RecentProducts({ section }) {
                         ...(priceFamily ? { fontFamily: priceFamily } : {}),
                       }}
                     >
-                      {currency} {parseFloat(price || 0).toFixed(2)}
+                      {toCurrSymbol(currency)}{parseFloat(price || 0).toFixed(2)}
                     </Text>
                     {showStrike && (
                       <Text
@@ -338,7 +350,7 @@ export default function RecentProducts({ section }) {
                           marginLeft:         4,
                         }}
                       >
-                        {currency} {parseFloat(compareAt).toFixed(2)}
+                        {toCurrSymbol(currency)}{parseFloat(compareAt).toFixed(2)}
                       </Text>
                     )}
                   </View>
