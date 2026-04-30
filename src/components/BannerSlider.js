@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
   Animated,
   Image,
+  Linking,
   StyleSheet,
   Text,
   TouchableOpacity,
@@ -47,6 +48,12 @@ const asNumber = (value, fallback) => {
   if (typeof value === "number") return value;
   const parsed = parseFloat(value);
   return Number.isNaN(parsed) ? fallback : parsed;
+};
+
+const asString = (value, fallback = "") => {
+  if (value === undefined || value === null) return fallback;
+  const s = String(value).trim();
+  return s || fallback;
 };
 
 const parseFontWeight = (value, fallback = "700") => {
@@ -102,6 +109,9 @@ const buildSlides = (rawProps = {}, defaultButtonLabel = "Shop Now") => {
           ? String(btnLabel)
           : defaultButtonLabel;
       const buttonHref = props?.buttonHref ?? props?.href ?? props?.link ?? "";
+      const navigateTo = props?.navigateTo ?? "";
+      const navigateValue = props?.navigateValue ?? "";
+      const link = props?.link ?? "";
       const titleUnderline = asBoolean(props?.titleUnderline, false);
       const titleStrikethrough = asBoolean(props?.titleStrikethrough, false);
       const subtitleUnderline = asBoolean(props?.subtitleUnderline, false);
@@ -117,6 +127,9 @@ const buildSlides = (rawProps = {}, defaultButtonLabel = "Shop Now") => {
         image,
         buttonLabel: String(buttonLabel),
         buttonHref: typeof buttonHref === "string" ? buttonHref : "",
+        navigateTo: asString(navigateTo, "").toLowerCase(),
+        navigateValue: asString(navigateValue, ""),
+        link: asString(link, ""),
         titleUnderline,
         titleStrikethrough,
         titleDecorationLine: resolveTextDecorationLine({
@@ -187,20 +200,34 @@ export default function BannerSlider({ section }) {
   const outerPr = asNumber(rp?.pr ?? paddingRaw?.pr, 0);
 
   // Slide content padding (text area inside the banner).
-  // boxPl/boxPr/boxPt/boxPb take priority; fall back to DSL outer h-padding.
-  const slidePl = asNumber(rp?.boxPl, outerPl || 16);
-  const slidePr = asNumber(rp?.boxPr, outerPr || 16);
-  const slidePt = asNumber(rp?.boxPt, 16);
-  const slidePb = asNumber(rp?.boxPb, 16);
+  // When box card is active, use box paddings; otherwise use style paddings from DSL.
+  const contentPadTop = asNumber(rp?.pt ?? paddingRaw?.pt, 16);
+  const contentPadRight = asNumber(rp?.pr ?? paddingRaw?.pr, 16);
+  const contentPadBottom = asNumber(rp?.pb ?? paddingRaw?.pb, 16);
+  const contentPadLeft = asNumber(rp?.pl ?? paddingRaw?.pl, 16);
+  const boxBgActive = asBoolean(rp?.boxBgActive, false);
+  const slidePl = boxBgActive ? asNumber(rp?.boxPl, contentPadLeft) : contentPadLeft;
+  const slidePr = boxBgActive ? asNumber(rp?.boxPr, contentPadRight) : contentPadRight;
+  const slidePt = boxBgActive ? asNumber(rp?.boxPt, contentPadTop) : contentPadTop;
+  const slidePb = boxBgActive ? asNumber(rp?.boxPb, contentPadBottom) : contentPadBottom;
+  const slideBoxBgColor = boxBgActive ? asString(rp?.boxBgColor, "transparent") : "transparent";
 
   // Overlay on image
   const overlayColor = rp?.overlayColor || "rgba(0,0,0,0)";
   const imageActive = asBoolean(rp?.imageActive, true);
   const textActive  = asBoolean(rp?.textActive, true);
   const imageResizeMode = (() => {
-    const raw = String(rp?.imageScale ?? rp?.imageResizeMode ?? rp?.resizeMode ?? "contain").toLowerCase();
+    const raw = String(
+      rp?.imageScale ??
+      rp?.scale ??
+      rawProps?.scale ??
+      rp?.imageResizeMode ??
+      rp?.resizeMode ??
+      "cover"
+    ).toLowerCase();
     if (raw === "cover") return "cover";
     if (raw === "stretch") return "stretch";
+    if (raw === "fill") return "cover";
     return "contain";
   })();
 
@@ -305,12 +332,15 @@ export default function BannerSlider({ section }) {
     rp?.iconType ||
     rp?.iconName ||
     rp?.buttonIcon ||
+    rawProps?.buttonIcon ||
+    rawProps?.button?.icon ||
+    rawProps?.button?.iconName ||
     rp?.icon ||
     ""
   );
   const buttonIconName = resolveFA4IconName(rawButtonIcon);
   const showButtonIcon = asBoolean(rp?.iconActive ?? rp?.showIcon, true) && !!buttonIconName;
-  const buttonIconPosition = toString(rp?.iconAlign ?? rp?.iconPosition, "left").toLowerCase();
+  const buttonIconPosition = asString(rp?.iconAlign ?? rp?.iconPosition, "left").toLowerCase();
   const buttonIconSize = asNumber(rp?.iconSize, 14);
   const buttonIconColor = rp?.iconColor || buttonTextColor;
   const buttonIconGap = asNumber(rp?.iconGap ?? rp?.buttonIconGap, 6);
@@ -417,12 +447,58 @@ export default function BannerSlider({ section }) {
     }
   };
 
-  const onSlideButtonPress = (slide) => {
-    const href = slide?.buttonHref || "";
-    if (!href) return;
-    if (href.startsWith("/") || href.startsWith("http")) {
-      navigation.navigate("LayoutScreen", { pageName: href.replace(/^\//, "") });
+  const normalizeExternalUrl = (url = "") => {
+    const raw = String(url || "").trim();
+    if (!raw) return "";
+    if (/^https?:\/\//i.test(raw)) return raw;
+    if (/^[a-z][a-z0-9+.-]*:\/\//i.test(raw)) return raw;
+    return `https://${raw}`;
+  };
+
+  const navigateByLink = async (link = "") => {
+    const cleaned = asString(link, "");
+    if (!cleaned) return false;
+    if (/^https?:\/\//i.test(cleaned)) {
+      const externalUrl = normalizeExternalUrl(cleaned);
+      try {
+        navigation.navigate("CheckoutWebView", { url: externalUrl, title: "Banner" });
+      } catch (_e) {
+        await Linking.openURL(externalUrl);
+      }
+      return true;
     }
+    const page = cleaned.replace(/^\//, "");
+    if (!page) return false;
+    navigation.navigate("BottomNavScreen", { pageName: page, link: page, title: page });
+    return true;
+  };
+
+  const onSlideButtonPress = async (slide) => {
+    const navType = asString(slide?.navigateTo, "").toLowerCase();
+    const navValue = asString(slide?.navigateValue, "");
+    const href = asString(slide?.buttonHref || slide?.link, "");
+
+    if (navType === "product") {
+      if (navValue) {
+        navigation.navigate("ProductDetail", { handle: navValue });
+      } else {
+        navigation.navigate("AllProducts");
+      }
+      return;
+    }
+
+    if (navType === "url") {
+      const externalUrl = normalizeExternalUrl(navValue || href);
+      if (!externalUrl) return;
+      try {
+        navigation.navigate("CheckoutWebView", { url: externalUrl, title: "Banner" });
+      } catch (_e) {
+        await Linking.openURL(externalUrl);
+      }
+      return;
+    }
+
+    await navigateByLink(navValue || href);
   };
 
   if (!slides.length) return null;
@@ -499,6 +575,7 @@ export default function BannerSlider({ section }) {
                   paddingLeft: slidePl,
                   paddingRight: slidePr,
                   alignItems: contentAlignItems,
+                  backgroundColor: slideBoxBgColor,
                 },
               ]}
             >

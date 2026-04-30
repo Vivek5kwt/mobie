@@ -97,6 +97,19 @@ const resolveTextBlockIconName = (value) => {
   return resolveFA4IconName(glyphAliases[raw] || raw);
 };
 
+const resolveAlign = (value, fallback = "left") => {
+  const v = String(value || fallback).trim().toLowerCase();
+  if (v === "center" || v === "middle") return "center";
+  if (v === "right" || v === "end") return "right";
+  return "left";
+};
+
+const textAlignToJustify = (align) => {
+  if (align === "center") return "center";
+  if (align === "right") return "flex-end";
+  return "flex-start";
+};
+
 // Strip web-only CSS props before applying to RN Text
 const stripTextCss = (style) => {
   if (!style) return {};
@@ -167,14 +180,14 @@ export default function TextBlock({ section }) {
   const paddingRaw    = alignmentCfg?.paddingRaw?.properties || alignmentCfg?.paddingRaw || {};
 
   // Global text alignment — read from alignmentAndPadding first, then rawProps, then CSS
-  const globalAlign = asStr(
+  const globalAlign = resolveAlign(asStr(
     alignmentCfg?.textAlign ??
     alignmentCfg?.align ??
     rawProps?.textAlign ??
     rawProps?.align ??
     rawProps?.headtextAlign,
     ""
-  ).toLowerCase();
+  ));
 
   // ── Visibility ─────────────────────────────────────────────────────────────
   const showHeadline  = asBoolean(rawProps?.showHeadline, true);
@@ -192,15 +205,21 @@ export default function TextBlock({ section }) {
     iconCfg?.icon ?? iconCfg?.iconName ?? iconCfg?.name ?? iconCfg?.emoji,
     ""
   );
-  // Resolve FA5/FA6 name → FA4 equivalent; emoji/unknown names become ""
-  const faIconName   = containsEmoji(rawIconValue) ? "" : resolveFA4IconName(rawIconValue);
-  const iconColor    = asStr(iconCfg?.color, "#FFFFFF");
-  const iconBgColor  = asStr(iconCfg?.bgColor ?? iconCfg?.backgroundColor, "#16A34A");
-  const iconSize     = asNumber(iconCfg?.size ?? iconCfg?.width, 20);
-  const iconFaSize   = asNumber(iconCfg?.iconSize ?? iconCfg?.faSize, 11);
+  const faIconName   = containsEmoji(rawIconValue) ? "" : resolveTextBlockIconName(rawIconValue);
+  const emojiIcon    = containsEmoji(rawIconValue) ? rawIconValue : "";
+  const iconColor    = asStr(iconCfg?.color ?? iconStyle?.color, "#FFFFFF");
+  const iconBgColor  = asStr(
+    iconCfg?.bgColor ?? iconCfg?.backgroundColor ?? iconStyle?.backgroundColor,
+    "transparent"
+  );
+  const iconSize     = asNumber(iconCfg?.size ?? iconCfg?.width ?? iconStyle?.width, 20);
+  const iconFaSize   = asNumber(iconCfg?.iconSize ?? iconCfg?.faSize ?? iconStyle?.fontSize, 11);
   const iconRadius   = asNumber(iconCfg?.borderRadius ?? iconCfg?.corner, 999);
+  const iconAlign    = resolveAlign(asStr(iconCfg?.align, globalAlign));
 
-  const hasIcon = showIconDsl && !!faIconName;
+  const hasRenderableIcon = !!faIconName || !!emojiIcon;
+
+  const hasIcon = showIconDsl && hasRenderableIcon;
   const hasHeadline  = showHeadline && !!headline;
   const hasSubtext   = showSubtext  && !!subtext;
 
@@ -215,11 +234,7 @@ export default function TextBlock({ section }) {
   } = rawContainerStyle;
 
   // Derive alignItems for the container from global alignment
-  const containerAlignItems =
-    globalAlign === "center" ? "center" :
-    globalAlign === "right"  ? "flex-end" :
-    globalAlign === "left"   ? "flex-start" :
-    safeContainerStyle?.alignItems ?? "flex-start";
+  const containerAlignItems = textAlignToJustify(globalAlign);
 
   const containerStyle = {
     ...safeContainerStyle,
@@ -233,8 +248,6 @@ export default function TextBlock({ section }) {
 
   const overrideBgColor = asStr(styleCfg?.bgColor, "");
 
-  // ── No border ever on mobile TextBlock ───────────────────────────────────────
-  // Border is a web-only concept for this component; never render one on mobile.
   const overrideBorderRadius =
     parsePx(unwrapValue(styleCfg?.borderRadius)) ?? parsePx(safeContainerStyle?.borderRadius);
 
@@ -277,16 +290,16 @@ export default function TextBlock({ section }) {
   }
 
   // Per-element alignment — fall back to globalAlign so setting one place controls both
-  const headtextAlign = (
+  const headtextAlign = resolveAlign(
     asStr(rawProps?.headtextAlign ?? rawProps?.headlineAlign ?? rawProps?.headAlign, "") ||
     (headlineStyle?.textAlign ? String(headlineStyle.textAlign) : "") ||
     globalAlign
-  ).toLowerCase();
-  const subtextAlign = (
+  );
+  const subtextAlign = resolveAlign(
     asStr(rawProps?.subtextAlign ?? rawProps?.bodyAlign ?? rawProps?.subtextTextAlign, "") ||
     (subtextStyle?.textAlign ? String(subtextStyle.textAlign) : "") ||
     globalAlign
-  ).toLowerCase();
+  );
   // Only use as numberOfLines when the DSL sends a whole positive integer.
   // Fractional values like 1.2 or 4.1 are builder-internal metrics, not line counts —
   // using them would floor to 1 and wrongly truncate multi-line headline text.
@@ -299,7 +312,11 @@ export default function TextBlock({ section }) {
 
   // When icon is present, switch to row layout so icon sits beside text
   const layoutStyle = hasIcon
-    ? { flexDirection: "row", alignItems: "center", gap: 12 }
+    ? {
+        flexDirection: "row",
+        alignItems: "center",
+        justifyContent: textAlignToJustify(iconAlign),
+      }
     : {};
 
   return (
@@ -310,6 +327,7 @@ export default function TextBlock({ section }) {
         <View
           style={[
             styles.iconWrap,
+            iconStyle,
             {
               width:           iconSize,
               height:          iconSize,
@@ -317,14 +335,20 @@ export default function TextBlock({ section }) {
               minHeight:       iconSize,
               borderRadius:    iconRadius,
               backgroundColor: iconBgColor,
+              marginRight:     12,
             },
           ]}
         >
-          <FontAwesome
-            name={faIconName}
-            size={iconFaSize}
-            color={iconColor}
-          />
+          {!!faIconName && (
+            <FontAwesome
+              name={faIconName}
+              size={iconFaSize}
+              color={iconColor}
+            />
+          )}
+          {!!emojiIcon && !faIconName && (
+            <Text style={{ color: iconColor, fontSize: iconFaSize }}>{emojiIcon}</Text>
+          )}
         </View>
       )}
 

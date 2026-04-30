@@ -2,6 +2,8 @@ import React, { PureComponent } from "react";
 import { ImageBackground, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import LinearGradient from "react-native-linear-gradient";
 import FontAwesome from "react-native-vector-icons/FontAwesome";
+import { Linking } from "react-native";
+import { NavigationContext } from "@react-navigation/native";
 import { convertStyles, extractGradientInfo } from "../utils/convertStyles";
 
 const unwrapValue = (value, fallback = undefined) => {
@@ -233,6 +235,8 @@ const isSameTime = (a, b) => {
 };
 
 class Countdown extends PureComponent {
+  static contextType = NavigationContext;
+
   constructor(props) {
     super(props);
 
@@ -298,6 +302,73 @@ class Countdown extends PureComponent {
     if (this.intervalId) {
       clearInterval(this.intervalId);
       this.intervalId = null;
+    }
+  }
+
+  resolveImageResizeMode(rawProps) {
+    const rawScale = String(
+      unwrapValue(rawProps?.scale ?? rawProps?.imageScale ?? rawProps?.imageFit, "cover")
+    ).toLowerCase();
+    if (rawScale === "contain" || rawScale === "fit") return "contain";
+    if (rawScale === "stretch") return "stretch";
+    if (rawScale === "fill") return "cover";
+    return "cover";
+  }
+
+  normalizeExternalUrl(url) {
+    const raw = String(url || "").trim();
+    if (!raw) return "";
+    if (/^https?:\/\//i.test(raw)) return raw;
+    if (/^[a-z][a-z0-9+.-]*:\/\//i.test(raw)) return raw;
+    return `https://${raw}`;
+  }
+
+  handleButtonPress(rawProps, buttonAttributes = {}) {
+    const navigation = this.context;
+    const navType = String(
+      unwrapValue(rawProps?.navigateType ?? buttonAttributes?.navigateType, "")
+    ).trim().toLowerCase();
+    const navRef = String(
+      unwrapValue(rawProps?.navigateRef ?? buttonAttributes?.navigateRef, "")
+    ).trim();
+    const linkTo = String(
+      unwrapValue(rawProps?.linkTo ?? buttonAttributes?.href ?? buttonAttributes?.link, "")
+    ).trim();
+
+    const openExternal = async (url) => {
+      const externalUrl = this.normalizeExternalUrl(url);
+      if (!externalUrl) return;
+      try {
+        if (navigation?.navigate) {
+          navigation.navigate("CheckoutWebView", { url: externalUrl, title: "Countdown" });
+          return;
+        }
+      } catch (_e) {}
+      try { await Linking.openURL(externalUrl); } catch (_e) {}
+    };
+
+    if (navType === "url" || /^https?:\/\//i.test(linkTo)) {
+      openExternal(navRef || linkTo);
+      return;
+    }
+
+    if (navType === "product" || navType === "products") {
+      if (navigation?.navigate) {
+        if (navRef) navigation.navigate("ProductDetail", { handle: navRef });
+        else navigation.navigate("AllProducts");
+      }
+      return;
+    }
+
+    if (navType === "collection" && navigation?.navigate) {
+      if (navRef) navigation.navigate("CollectionProducts", { handle: navRef });
+      else navigation.navigate("AllProducts");
+      return;
+    }
+
+    if (linkTo && navigation?.navigate) {
+      const cleaned = linkTo.replace(/^\//, "");
+      if (cleaned) navigation.navigate("BottomNavScreen", { pageName: cleaned, link: cleaned, title: cleaned });
     }
   }
 
@@ -430,7 +501,13 @@ class Countdown extends PureComponent {
 
     // Button icon
     const buttonIconName = stripFaPrefix(
-      unwrapValue(buttonAttributes?.iconName ?? buttonAttributes?.icon, "")
+      unwrapValue(
+        buttonAttributes?.iconName ??
+        buttonAttributes?.icon ??
+        rawProps?.buttonIcon ??
+        rawProps?.iconType,
+        ""
+      )
     );
     const buttonIconSize  = asNumber(buttonAttributes?.iconSize, 14);
     const buttonIconColor = unwrapValue(buttonAttributes?.iconColor, buttonTextColor ?? "#FFFFFF");
@@ -491,10 +568,15 @@ class Countdown extends PureComponent {
     const showButton = asBoolean(rawProps?.showButton, true) && !!buttonLabel;
     // Default showIcon to false — only show when DSL explicitly enables it AND provides an icon name
     const showIcon = asBoolean(rawProps?.showIcon, false) && !!iconName;
-    const showImage = asBoolean(rawProps?.showImage, false);
+    const showImage = asBoolean(rawProps?.showImage, true);
     const imageUrl = showImage
       ? unwrapValue(rawProps?.image ?? rawProps?.imageUrl ?? rawProps?.backgroundImage, null)
       : null;
+    const imageResizeMode = this.resolveImageResizeMode(rawProps);
+
+    const layoutStyleRaw = String(unwrapValue(rawProps?.layoutStyle, "top")).trim().toLowerCase();
+    const isTopLayout = layoutStyleRaw === "top";
+    const isRightLayout = layoutStyleRaw === "right";
 
     const ContainerComponent = gradientInfo ? LinearGradient : View;
     const containerProps = gradientInfo
@@ -518,7 +600,14 @@ class Countdown extends PureComponent {
     // ── Inner content (header, timer, subtext, button) ────────────────────────
     const innerContent = (
       <>
-        <View style={showIcon ? styles.headerRow : styles.headerRowNoIcon}>
+        <View
+          style={[
+            showIcon
+              ? (isTopLayout ? styles.headerCol : styles.headerRow)
+              : styles.headerRowNoIcon,
+            isRightLayout ? styles.headerRowReverse : null,
+          ]}
+        >
           {showIcon && (
             <View style={[styles.iconWrap, iconStyle, iconBgColor ? { backgroundColor: iconBgColor } : null]}>
               <FontAwesome name={iconName} size={18} color={iconColor || "#111827"} />
@@ -598,6 +687,7 @@ class Countdown extends PureComponent {
         {showButton && (
           <TouchableOpacity
             activeOpacity={0.9}
+            onPress={() => this.handleButtonPress(rawProps, buttonAttributes)}
             style={[
               styles.button,
               buttonStyle,
@@ -673,7 +763,7 @@ class Countdown extends PureComponent {
           source={{ uri: imageUrl }}
           style={[styles.imageContainer, outerStyle]}
           imageStyle={{ borderRadius: imageCornerRadius }}
-          resizeMode="cover"
+          resizeMode={imageResizeMode}
         >
           <View style={[contentPadding, { width: "100%" }]}>
             {innerContent}
@@ -710,6 +800,14 @@ const styles = StyleSheet.create({
   },
   headerRow: {
     flexDirection: "row",
+    alignItems: "center",
+    marginBottom: 12,
+  },
+  headerRowReverse: {
+    flexDirection: "row-reverse",
+  },
+  headerCol: {
+    flexDirection: "column",
     alignItems: "center",
     marginBottom: 12,
   },

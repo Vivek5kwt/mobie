@@ -146,6 +146,7 @@ export default function SearchBar({ section }) {
   const searchLimit = getNum("searchLimit", 10);
 
   const [value, setValue] = useState("");
+  const [isFocused, setIsFocused] = useState(false);
   const [results, setResults] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -196,11 +197,26 @@ export default function SearchBar({ section }) {
     [searchTextColor, fontSize, fontWeight, fontFamily]
   );
 
-  const placeholderTextStyle = {
-    fontWeight: placeholderBold ? "700" : "400",
-    fontStyle: placeholderItalic ? "italic" : "normal",
-    textDecorationLine,
-  };
+  const placeholderTextStyle = useMemo(
+    () =>
+      convertStyles({
+        color: placeholderColor,
+        fontSize,
+        fontWeight: placeholderBold ? "700" : fontWeight || "400",
+        fontStyle: placeholderItalic ? "italic" : "normal",
+        textDecorationLine,
+        ...(fontFamily ? { fontFamily } : {}),
+      }),
+    [
+      placeholderColor,
+      fontSize,
+      placeholderBold,
+      placeholderItalic,
+      textDecorationLine,
+      fontFamily,
+      fontWeight,
+    ]
+  );
 
   const runSearch = useCallback(
     async (term) => {
@@ -307,15 +323,23 @@ export default function SearchBar({ section }) {
       <View style={[styles.inputWrapper, inputWrapperStyle, borderStyle]}>
         <FontAwesome name="search" size={searchIconSize} color={searchIconColor} />
         {showInput && (
-          <TextInput
-            value={value}
-            onChangeText={setValue}
-            placeholder={searchPlaceholder}
-            placeholderTextColor={placeholderColor}
-            style={[styles.input, inputTextStyle, placeholderTextStyle]}
-            underlineColorAndroid="transparent"
-            editable={!isListening}
-          />
+          <View style={styles.inputShell}>
+            <TextInput
+              value={value}
+              onChangeText={setValue}
+              placeholder=""
+              style={[styles.input, inputTextStyle]}
+              underlineColorAndroid="transparent"
+              editable={!isListening}
+              onFocus={() => setIsFocused(true)}
+              onBlur={() => setIsFocused(false)}
+            />
+            {!value && !isFocused && (
+              <Text numberOfLines={1} style={[styles.placeholderOverlay, placeholderTextStyle]}>
+                {searchPlaceholder}
+              </Text>
+            )}
+          </View>
         )}
         {showClear && value.length > 0 && !isListening && (
           <TouchableOpacity onPress={() => setValue("")} style={styles.iconButton}>
@@ -404,9 +428,20 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
   },
   input: {
+    width: "100%",
+    paddingVertical: 8,
+  },
+  inputShell: {
     flex: 1,
     minWidth: 0,
-    paddingVertical: 8,
+    position: "relative",
+    justifyContent: "center",
+  },
+  placeholderOverlay: {
+    position: "absolute",
+    left: 0,
+    right: 0,
+    includeFontPadding: false,
   },
   iconButton: {
     padding: 6,

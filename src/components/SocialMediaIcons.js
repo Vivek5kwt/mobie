@@ -112,6 +112,13 @@ const parseBorderShorthand = (borderStr) => {
 
 const brandIconNames = new Set(Object.values(iconNameMap));
 const isHttpUrl = (url = "") => /^https?:\/\//i.test(String(url));
+const normalizeExternalUrl = (url = "") => {
+  const raw = String(url || "").trim();
+  if (!raw) return "";
+  if (isHttpUrl(raw)) return raw;
+  if (/^[a-z][a-z0-9+.-]*:\/\//i.test(raw)) return raw;
+  return `https://${raw}`;
+};
 
 export default function SocialMediaIcons({ section }) {
   const navigation = useNavigation();
@@ -181,15 +188,23 @@ export default function SocialMediaIcons({ section }) {
   const alignment = align === "center" ? "center" : align === "right" ? "flex-end" : "flex-start";
 
   const openLink = async (url) => {
-    if (!url) return;
+    const resolvedUrl = normalizeExternalUrl(url);
+    if (!resolvedUrl) return;
     try {
-      if (navigation?.navigate && isHttpUrl(url)) {
-        navigation.navigate("CheckoutWebView", { url, title: "Social" });
-        return;
+      if (navigation?.navigate && isHttpUrl(resolvedUrl)) {
+        try {
+          navigation.navigate("CheckoutWebView", { url: resolvedUrl, title: "Social" });
+          return;
+        } catch (_navErr) {
+          // Fallback to external browser when this route is unavailable in preview context.
+        }
       }
-      await Linking.openURL(url);
+      const supported = await Linking.canOpenURL(resolvedUrl);
+      if (supported) {
+        await Linking.openURL(resolvedUrl);
+      }
     } catch (err) {
-      console.log("❌ Failed to open URL", url, err);
+      console.log("❌ Failed to open URL", resolvedUrl, err);
     }
   };
 
@@ -240,12 +255,18 @@ export default function SocialMediaIcons({ section }) {
           const isBrandIcon = brandIconNames.has(resolvedIconName);
           const accessibilityLabel = `Open ${normalizedId || "social"} link`;
           const iconFgColor = useBrand ? "#FFFFFF" : (iconStyle.color || iconColor);
+          const iconBgColor = unwrapValue(
+            platform?.iconBgColor ?? platform?.backgroundColor,
+            iconBoxStyle.backgroundColor || iconBoxCss?.backgroundColor || "#016D77"
+          );
+          const platformUrl = normalizeExternalUrl(platform.url);
 
           return (
             <TouchableOpacity
               key={key}
               activeOpacity={0.75}
-              onPress={() => openLink(platform.url)}
+              onPress={() => openLink(platformUrl)}
+              disabled={!platformUrl}
               style={{ marginRight: idx === platforms.length - 1 ? 0 : iconsRowGap }}
               accessibilityRole="button"
               accessibilityLabel={accessibilityLabel}
@@ -255,7 +276,8 @@ export default function SocialMediaIcons({ section }) {
                   styles.iconBox,
                   iconBoxStyle,
                   {
-                    backgroundColor: brandColor || iconBoxStyle.backgroundColor || "#016D77",
+                    backgroundColor: iconBgColor,
+                    ...(useBrand && brandColor ? { borderColor: brandColor } : {}),
                     borderRadius: iconBorderRadius,
                     ...(iconBoxWidth ? { width: iconBoxWidth, height: iconBoxHeight || iconBoxWidth } : {}),
                     ...(iconBoxBorder || {}),

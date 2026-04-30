@@ -4,6 +4,7 @@ import {
   Dimensions,
   FlatList,
   Image,
+  Linking,
   StyleSheet,
   Text,
   TouchableOpacity,
@@ -85,6 +86,19 @@ const deriveWeight = (value, fallback = "700") => {
     if (lowered === "regular") return "400";
   }
   return String(resolved);
+};
+
+const normalizeWeight = (value, fallback = "400") => {
+  const resolved = unwrapValue(value, fallback);
+  if (resolved === undefined || resolved === null || resolved === "") return fallback;
+  if (typeof resolved === "number") return String(resolved);
+  const raw = String(resolved).trim().toLowerCase();
+  if (/^\d+$/.test(raw)) return raw;
+  if (raw.includes("500") || raw === "medium") return "500";
+  if (raw.includes("600") || raw === "semi bold" || raw === "semibold") return "600";
+  if (raw.includes("700") || raw === "bold") return "700";
+  if (raw.includes("400") || raw === "regular" || raw === "normal") return "400";
+  return fallback;
 };
 
 // Returns null for "Auto" (caller should use Image.getSize instead)
@@ -232,6 +246,11 @@ const normalizeItems = (rawItems) => {
       const titleItalic = unwrapValue(props.titleItalic, false);
       const titleUnderline = unwrapValue(props.titleUnderline, false);
       const titleStrikethrough = unwrapValue(props.titleStrikethrough, false);
+      const href = unwrapValue(props.href, "");
+      const linkTo = unwrapValue(props.linkTo, "");
+      const navigateType = unwrapValue(props.navigateType, "");
+      const navigateRef = unwrapValue(props.navigateRef, "");
+      const handle = unwrapValue(props.handle, "");
 
       if (!title && !src && !subtitle) return null;
       return {
@@ -245,6 +264,11 @@ const normalizeItems = (rawItems) => {
         titleItalic,
         titleUnderline,
         titleStrikethrough,
+        href,
+        linkTo,
+        navigateType,
+        navigateRef,
+        handle,
       };
     })
     .filter(Boolean);
@@ -397,6 +421,10 @@ export default function MediaGrid({ section }) {
   const buttonStyle = convertStyles(layoutCss?.button || {});
   const cardTitleStyle = convertStyles(layoutCss?.cardTitle || {});
   const buttonRowStyle = convertStyles(layoutCss?.buttonRow || {});
+  const headerFontWeight = normalizeWeight(
+    rawProps?.headerFontWeight ?? headerStyle?.fontWeight ?? layoutCss?.header?.fontWeight,
+    headerBold ? "700" : "600"
+  );
 
   const contentPadding = {
     paddingTop: toNumber(rawProps?.pt, 0),
@@ -418,8 +446,6 @@ export default function MediaGrid({ section }) {
       rawProps?.containerBorderRadius,
       rawProps?.borderRadius,
       rawProps?.radius,
-      containerStyle?.borderRadius,
-      layoutCss?.container?.borderRadius,
     ],
     0
   );
@@ -434,8 +460,6 @@ export default function MediaGrid({ section }) {
       rawProps?.cardCorner,
       rawProps?.cardCornerRadius,
       rawProps?.cornerRadius,
-      cardStyle?.borderRadius,
-      layoutCss?.card?.borderRadius,
     ],
     0
   );
@@ -452,11 +476,6 @@ export default function MediaGrid({ section }) {
       rawProps?.cardCorner,
       rawProps?.cardCornerRadius,
       rawProps?.cornerRadius,
-      mediaStyle?.borderRadius,
-      cardStyle?.borderRadius,
-      layoutCss?.media?.borderRadius,
-      layoutCss?.image?.borderRadius,
-      layoutCss?.card?.borderRadius,
     ],
     cardBorderRadius
   );
@@ -467,18 +486,69 @@ export default function MediaGrid({ section }) {
     ...containerStyleWithoutRadius
   } = containerStyle;
 
-  const handleItemPress = (item) => {
-    const ref  = (item.navigateRef  || "").trim();
-    const type = (item.navigateType || "").trim().toLowerCase();
-    if (ref && type) {
-      if (type === "collection") navigation.navigate("CollectionProducts", { handle: ref });
-      else if (type === "product") navigation.navigate("ProductDetail", { handle: ref });
-      else if (type === "allproducts" || type === "all_products") navigation.navigate("AllProducts");
-      else if (type === "route") navigation.navigate(ref);
-    } else if (item.handle) {
-      navigation.navigate("ProductDetail", { handle: item.handle });
+  const openExternalUrl = async (url) => {
+    const raw = String(url || "").trim();
+    if (!raw) return false;
+    const normalized = /^https?:\/\//i.test(raw) ? raw : `https://${raw}`;
+    try {
+      navigation.navigate("CheckoutWebView", { url: normalized, title: "Media Grid" });
+      return true;
+    } catch (_e) {}
+    try {
+      await Linking.openURL(normalized);
+      return true;
+    } catch (_e) {
+      return false;
     }
-    // href / linkTo links → no-op in native (no browser)
+  };
+
+  const navigateByInternalLink = (link) => {
+    const cleaned = String(link || "").trim().replace(/^\//, "");
+    if (!cleaned) return false;
+    navigation.navigate("BottomNavScreen", { pageName: cleaned, link: cleaned, title: cleaned });
+    return true;
+  };
+
+  const handleItemPress = async (item) => {
+    const ref = (item.navigateRef || "").trim();
+    const type = (item.navigateType || "").trim().toLowerCase();
+    if (type) {
+      if (type === "collection") {
+        if (ref) navigation.navigate("CollectionProducts", { handle: ref });
+        else navigation.navigate("AllProducts");
+      } else if (type === "product") {
+        if (ref) navigation.navigate("ProductDetail", { handle: ref });
+        else navigation.navigate("AllProducts");
+      } else if (type === "allproducts" || type === "all_products" || type === "all-products") {
+        navigation.navigate("AllProducts");
+      } else if (type === "url") {
+        await openExternalUrl(ref || item.linkTo || item.href);
+      } else if (type === "screen" || type === "route") {
+        if (ref) navigation.navigate(ref);
+        else if (item.linkTo) navigateByInternalLink(item.linkTo);
+        else if (item.href) navigateByInternalLink(item.href);
+      }
+      return;
+    }
+    if (item.handle) {
+      navigation.navigate("ProductDetail", { handle: item.handle });
+      return;
+    }
+    if (item.href && /^https?:\/\//i.test(String(item.href).trim())) {
+      await openExternalUrl(item.href);
+      return;
+    }
+    if (item.linkTo && /^https?:\/\//i.test(String(item.linkTo).trim())) {
+      await openExternalUrl(item.linkTo);
+      return;
+    }
+    if (item.linkTo) {
+      navigateByInternalLink(item.linkTo);
+      return;
+    }
+    if (item.href) {
+      navigateByInternalLink(item.href);
+    }
   };
 
   const renderItem = ({ item }) => (
@@ -520,7 +590,7 @@ export default function MediaGrid({ section }) {
             {
               color: headerColor,
               fontSize: headerSize,
-              fontWeight: headerBold ? "700" : "600",
+              fontWeight: headerBold ? "700" : headerFontWeight,
               fontStyle: headerItalic ? "italic" : "normal",
               textDecorationLine: headerDecorationLine,
             },
@@ -558,6 +628,51 @@ export default function MediaGrid({ section }) {
         <View style={[styles.buttonRow, { marginTop: 12 }, buttonRowStyle, { justifyContent: buttonJustify }]}>
           <TouchableOpacity
             activeOpacity={0.85}
+            onPress={async () => {
+              const navType = toString(rawProps?.buttonNavigateType, "").trim().toLowerCase();
+              const navRef = toString(rawProps?.buttonNavigateRef, "").trim();
+              const href = toString(rawProps?.buttonHref, "").trim();
+              const linkTo = toString(rawProps?.buttonLinkTo, "").trim();
+
+              if (navType === "url") {
+                await openExternalUrl(navRef || href || linkTo);
+                return;
+              }
+              if (navType === "screen" || navType === "route") {
+                if (navRef) navigation.navigate(navRef);
+                else if (linkTo) navigateByInternalLink(linkTo);
+                else if (href) navigateByInternalLink(href);
+                return;
+              }
+              if (navType === "product") {
+                if (navRef) navigation.navigate("ProductDetail", { handle: navRef });
+                else navigation.navigate("AllProducts");
+                return;
+              }
+              if (navType === "collection") {
+                if (navRef) navigation.navigate("CollectionProducts", { handle: navRef });
+                return;
+              }
+              if (navType === "allproducts" || navType === "all_products" || navType === "all-products") {
+                navigation.navigate("AllProducts");
+                return;
+              }
+              if (href && /^https?:\/\//i.test(href)) {
+                await openExternalUrl(href);
+                return;
+              }
+              if (linkTo && /^https?:\/\//i.test(linkTo)) {
+                await openExternalUrl(linkTo);
+                return;
+              }
+              if (linkTo) {
+                navigateByInternalLink(linkTo);
+                return;
+              }
+              if (href) {
+                navigateByInternalLink(href);
+              }
+            }}
             style={[
               styles.button,
               buttonStyle,
@@ -664,3 +779,5 @@ const styles = StyleSheet.create({
     color: "#DC2626",
   },
 });
+
+

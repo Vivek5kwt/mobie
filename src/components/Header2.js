@@ -328,6 +328,7 @@ export default function Header2({ section }) {
     searchIconColor: resolveValue(searchAndIconsNode.searchIconColor, "#4B5563"),
     searchTextColor: resolveValue(searchAndIconsNode.searchTextColor, "#131b28"),
     showNotification: resolveBooleanSetting(searchAndIconsNode.showNotification, false),
+    notificationIcon: resolveValue(searchAndIconsNode.notificationIcon, "bell"),
     sideMenuIconColor: resolveValue(searchAndIconsNode.sideMenuIconColor, "#FFFFFF"),
     sideMenuIconWidth: resolveValue(searchAndIconsNode.sideMenuIconWidth, 16),
     sideMenuIconHeight: resolveValue(searchAndIconsNode.sideMenuIconHeight, 16),
@@ -437,7 +438,13 @@ export default function Header2({ section }) {
       resolveBooleanSetting(notificationNode.visible, searchAndIcons.showNotification) &&
       resolveBooleanSetting(rawPropsNode?.notificationSettingsEnabled, false),
     iconId: normalizeIconName(
-      resolveValue(notificationNode.iconId ?? notificationNode.iconName, "bell")
+      resolveValue(
+        notificationNode.iconId ??
+        notificationNode.iconName ??
+        searchAndIconsNode.notificationIcon ??
+        searchAndIcons.notificationIcon,
+        "bell"
+      )
     ),
     size: Math.min(
       parseSize(resolveValue(notificationNode.width, undefined)) ||
@@ -785,7 +792,13 @@ export default function Header2({ section }) {
     const notificationProps = rawPropsNode.notification?.properties || rawPropsNode.notification || {};
     const notificationVisible = resolveBooleanSetting(notificationProps.visible, false);
     const notificationIconName = normalizeIconName(
-      resolveValue(notificationProps.iconId, "bell")
+      resolveValue(
+        notificationProps.iconId ??
+        notificationProps.iconName ??
+        searchAndIconsNode.notificationIcon ??
+        searchAndIcons.notificationIcon,
+        "bell"
+      )
     );
     const notificationIconSize = resolveValue(notificationProps.width, 18);
     const notificationIconColor = resolveValue(notificationProps.color, "#016D77");
