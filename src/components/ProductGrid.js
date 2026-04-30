@@ -185,27 +185,32 @@ export default function ProductGrid({ section, limit = 8, title = "Products" }) 
   const gridDataSource = gridDataSourceRaw?.properties || gridDataSourceRaw;
   const gridDataSourceMode = unwrapValue(gridDataSource?.mode, "");
 
-  // Builder may use "collection" OR "collectionHandle" as the DSL key — check both.
-  // Also fall back to raw-level keys (rawProps.collection / rawProps.collectionHandle).
-  const collectionHandleRaw = (
+  const slugify = (s) =>
+    s.toLowerCase().trim().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
+
+  // Handle from the dataSource sub-object (builder default, may have stale mode)
+  const handleFromDataSource = slugify(
     toString(gridDataSource?.collection, "") ||
     toString(gridDataSource?.collectionHandle, "") ||
-    toString(gridDataSource?.collectionId, "") ||
+    toString(gridDataSource?.collectionId, "")
+  );
+
+  // Handle from the top-level prop (user's explicit dropdown choice — always wins)
+  const handleFromRawProps = slugify(
     toString(rawProps?.collection, "") ||
     toString(rawProps?.collectionHandle, "") ||
     toString(rawProps?.collectionId, "")
   );
 
-  // Normalize title → slug ("Co-ord Sets Women" → "co-ord-sets-women")
-  const collectionHandle = collectionHandleRaw
-    .toLowerCase()
-    .trim()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "");
+  const collectionHandle = handleFromRawProps || handleFromDataSource;
 
-  // Fetch collection products when: a handle exists AND mode is not explicitly "all_products"
-  const useCollectionFetch =
-    !!collectionHandle && gridDataSourceMode !== "all_products";
+  // Use collection fetch if:
+  //   • handle comes from rawProps (explicit user choice) — ignore dataSource.mode
+  //   • OR handle in dataSource AND mode is not "all_products"
+  const useCollectionFetch = !!(
+    handleFromRawProps ||
+    (handleFromDataSource && gridDataSourceMode !== "all_products")
+  );
 
   // ── Section header typography ─────────────────────────────────────────────
   const resolvedTitle         = toString(rawProps?.header ?? rawProps?.title, title);

@@ -140,26 +140,32 @@ export default function ProductCarousel({ section }) {
   const dataSource = dataSourceRaw?.properties || dataSourceRaw;
   const dataSourceMode = unwrapValue(dataSource?.mode, "");
 
-  // Builder may use "collection" OR "collectionHandle" as the key — check both.
-  // Also fall back to raw-level keys (raw.collection / raw.collectionHandle).
-  // Normalize title → slug so the Shopify API always gets a valid handle.
-  const collectionHandleRaw = (
+  const slugify = (s) =>
+    s.toLowerCase().trim().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
+
+  // Handle from the dataSource sub-object (builder default, may have stale mode)
+  const handleFromDataSource = slugify(
     toString(dataSource?.collection, "") ||
     toString(dataSource?.collectionHandle, "") ||
-    toString(dataSource?.collectionId, "") ||
+    toString(dataSource?.collectionId, "")
+  );
+
+  // Handle from the top-level prop (user's explicit dropdown choice — always wins)
+  const handleFromRawProps = slugify(
     toString(raw?.collection, "") ||
     toString(raw?.collectionHandle, "") ||
     toString(raw?.collectionId, "")
   );
-  const collectionHandle = collectionHandleRaw
-    .toLowerCase()
-    .trim()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "");
 
-  // Fetch collection products when: a handle exists AND mode is not explicitly "all_products"
-  const useCollectionFetch =
-    !!collectionHandle && dataSourceMode !== "all_products";
+  const collectionHandle = handleFromRawProps || handleFromDataSource;
+
+  // Use collection fetch if:
+  //   • handle comes from raw/top-level props (explicit user choice) — ignore dataSource.mode
+  //   • OR handle in dataSource AND mode is not "all_products"
+  const useCollectionFetch = !!(
+    handleFromRawProps ||
+    (handleFromDataSource && dataSourceMode !== "all_products")
+  );
 
   // Grid configuration
   // DSL nests grid sub-props under grid.properties; fall back to grid itself for flat schemas
