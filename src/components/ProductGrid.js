@@ -1,8 +1,8 @@
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Dimensions, Image, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import FontAwesome from "react-native-vector-icons/FontAwesome";
 import { resolveFA4IconName } from "../utils/faIconAlias";
-import { useNavigation } from "@react-navigation/native";
+import { useFocusEffect, useNavigation } from "@react-navigation/native";
 import { useDispatch, useSelector } from "react-redux";
 import { addItem } from "../store/slices/cartSlice";
 import { toggleWishlist } from "../store/slices/wishlistSlice";
@@ -122,6 +122,7 @@ export default function ProductGrid({ section, limit = 8, title = "Products" }) 
   const [hasMore,      setHasMore]      = useState(false);
   const [snackVisible, setSnackVisible] = useState(false);
   const [snackMessage, setSnackMessage] = useState("");
+  const isMountedRef = useRef(true);
 
   // ── Merge raw sub-object ──────────────────────────────────────────────────
   const rawProps = getRawProps(section);
@@ -469,20 +470,29 @@ export default function ProductGrid({ section, limit = 8, title = "Products" }) 
 
   // ── Data fetch ────────────────────────────────────────────────────────────
   useEffect(() => {
-    let isMounted = true;
-    const loadProducts = async () => {
-      setLoading(true);
-      setError("");
-      try {
-        let payload;
-        if (useCollectionFetch && collectionHandle) {
-          payload = await fetchShopifyCollectionProducts({
-            handle: collectionHandle,
-            first:  resolvedLimit,
-          });
-        } else {
+    isMountedRef.current = true;
+    return () => { isMountedRef.current = false; };
+  }, []);
+
+  const loadProducts = useCallback(async () => {
+    const safeFirst = Math.max(1, resolvedLimit || 8);
+    setLoading(true);
+    setError("");
+    try {
+      let payload;
+      if (useCollectionFetch && collectionHandle) {
+        payload = await fetchShopifyCollectionProducts({
+          handle: collectionHandle,
+          first:  safeFirst,
+          options: {
+            shop:  shopifyDomain || undefined,
+            token: shopifyToken  || undefined,
+          },
+        });
+        // If collection returned nothing, fall back to all products
+        if (!payload?.products?.length) {
           payload = await fetchShopifyProductsPage({
-            first: resolvedLimit,
+            first: safeFirst,
             after: null,
             options: {
               shop:  shopifyDomain || undefined,
@@ -490,19 +500,38 @@ export default function ProductGrid({ section, limit = 8, title = "Products" }) 
             },
           });
         }
-        if (isMounted) {
-          setProducts(payload?.products || []);
-          setHasMore(Boolean(payload?.pageInfo?.hasNextPage));
-        }
-      } catch {
-        if (isMounted) setError("Unable to load products right now. Please try again later.");
-      } finally {
-        if (isMounted) setLoading(false);
+      } else {
+        payload = await fetchShopifyProductsPage({
+          first: safeFirst,
+          after: null,
+          options: {
+            shop:  shopifyDomain || undefined,
+            token: shopifyToken  || undefined,
+          },
+        });
       }
-    };
-    loadProducts();
-    return () => { isMounted = false; };
+      if (isMountedRef.current) {
+        setProducts(payload?.products || []);
+        setHasMore(Boolean(payload?.pageInfo?.hasNextPage));
+      }
+    } catch {
+      if (isMountedRef.current) setError("Unable to load products right now. Please try again later.");
+    } finally {
+      if (isMountedRef.current) setLoading(false);
+    }
   }, [useCollectionFetch, collectionHandle, resolvedLimit, shopifyDomain, shopifyToken]);
+
+  // Initial load and reload when inputs change
+  useEffect(() => {
+    loadProducts();
+  }, [loadProducts]);
+
+  // Refresh when screen is focused, matching carousel behavior
+  useFocusEffect(
+    useCallback(() => {
+      loadProducts();
+    }, [loadProducts])
+  );
 
   // ── Render ────────────────────────────────────────────────────────────────
   return (

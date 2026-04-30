@@ -138,13 +138,16 @@ const buildTextAttributesStyle = (attributes, decorationOverrides = {}) => {
     fontSize,
     fontWeight,
     fontStyle: isItalic ? "italic" : "normal",
-    textDecorationLine:
-      underlineSource !== undefined || strikethroughSource !== undefined
-        ? resolveTextDecorationLine({
+    // Only include textDecorationLine when a source is present — omitting it (rather than
+    // setting it to undefined) prevents this spread from wiping a CSS-snapshot value.
+    ...(underlineSource !== undefined || strikethroughSource !== undefined
+      ? {
+          textDecorationLine: resolveTextDecorationLine({
             underline: isUnderline,
             strikethrough: isStrikethrough,
-          })
-        : undefined,
+          }),
+        }
+      : {}),
     ...(resolvedLineHeight ? { lineHeight: resolvedLineHeight } : {}),
     ...(letterSpacing !== undefined ? { letterSpacing } : {}),
   };
@@ -564,11 +567,13 @@ export default function HeroBanner({ section }) {
   const buttonBold = toBoolean(button?.properties?.bold || button?.bold, false);
   const buttonItalic = toBoolean(button?.properties?.italic || button?.italic, false);
   const buttonUnderlineSource =
+    buttonAttrs?.underline ??
     button?.properties?.underline ??
     button?.underline ??
     flatPropsNode?.buttonUnderline ??
     rawProps?.buttonUnderline;
   const buttonStrikethroughSource =
+    buttonAttrs?.strikethrough ??
     button?.properties?.strikethrough ??
     button?.strikethrough ??
     flatPropsNode?.buttonStrikethrough ??
@@ -801,6 +806,22 @@ export default function HeroBanner({ section }) {
   const align = toString(alignmentAndPadding?.align, "Center").toLowerCase();
   const alignItems = align === "left" ? "flex-start" : align === "right" ? "flex-end" : "center";
 
+  // Vertical alignment — maps builder "Top / Center / Bottom" to React Native justifyContent
+  const verticalAlignRaw = toString(
+    alignmentAndPadding?.verticalAlignment ??
+    alignmentAndPadding?.verticalAlign ??
+    alignmentAndPadding?.vAlign ??
+    rawProps?.verticalAlignment ??
+    rawProps?.verticalAlign ??
+    rawProps?.vAlign ??
+    rawProps?.contentVerticalAlign,
+    "center"
+  ).toLowerCase();
+  const justifyContent =
+    verticalAlignRaw === "top"    || verticalAlignRaw === "flex-start" ? "flex-start" :
+    verticalAlignRaw === "bottom" || verticalAlignRaw === "flex-end"   ? "flex-end"   :
+    "center";
+
   // Per-element text alignment — reads from element attributes first, then flatProps aliases,
   // then falls back to the global textAlign above.
   // Builder stores the typography-panel "Alignment" control as align/textAlign inside each attributes object.
@@ -1018,6 +1039,7 @@ export default function HeroBanner({ section }) {
           imageSrc ? styles.content : styles.contentInline,
           {
             alignItems: alignSettingsEnabled ? alignItems : "center",
+            justifyContent: alignSettingsEnabled ? justifyContent : "center",
             paddingTop: hasTextContent
               ? (alignSettingsEnabled
                   ? paddingTop > 0 ? paddingTop : (imageSrc ? 0 : 24)

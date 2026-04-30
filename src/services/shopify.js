@@ -779,14 +779,6 @@ export async function fetchShopifyCollectionProducts({
                 url
               }
               priceRangeV2 { minVariantPrice { amount currencyCode } }
-              variants(first: 1) {
-                edges {
-                  node {
-                    id
-                    availableForSale
-                  }
-                }
-              }
             }
           }
         }
@@ -816,14 +808,12 @@ export async function fetchShopifyCollectionProducts({
     };
 
     const products = edges.map(({ node }) => {
-      const variant = node?.variants?.edges?.[0]?.node;
       const priceNode = node?.priceRangeV2?.minVariantPrice;
       return {
         id: node?.id,
         title: node?.title,
         handle: node?.handle,
         availableForSale: node?.availableForSale ?? true,
-        variantId: variant?.id || null,
         imageUrl: node?.featuredImage?.url || null,
         priceAmount: priceNode?.amount || null,
         priceCurrency: priceNode?.currencyCode || null,

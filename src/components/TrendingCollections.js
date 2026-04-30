@@ -1,4 +1,4 @@
-import React, { useMemo } from "react";
+import React, { useMemo, useState } from "react";
 import {
   Image,
   ScrollView,
@@ -9,7 +9,50 @@ import {
 } from "react-native";
 import { useNavigation } from "@react-navigation/native";
 import Icon from "react-native-vector-icons/FontAwesome6";
+import { WebView } from "react-native-webview";
 import { resolveTextDecorationLine } from "../utils/textDecoration";
+
+const isSvgUrl = (url) => {
+  if (!url || typeof url !== "string") return false;
+  const lower = url.toLowerCase().split("?")[0];
+  return lower.endsWith(".svg") || lower.includes(".svg");
+};
+
+function CollectionImage({ uri, size, borderRadius, iconName, iconSize, iconColor }) {
+  const [errored, setErrored] = useState(false);
+
+  if (!uri || errored) {
+    return (
+      <Icon name={iconName} size={iconSize} color={iconColor} />
+    );
+  }
+
+  if (isSvgUrl(uri)) {
+    const html = `<!DOCTYPE html><html><head><meta name="viewport" content="width=device-width,initial-scale=1"><style>*{margin:0;padding:0;box-sizing:border-box}body{background:transparent}img{width:100%;height:100%;object-fit:cover;display:block}</style></head><body><img src="${uri}" onerror="document.body.innerHTML=''" /></body></html>`;
+    return (
+      <WebView
+        source={{ html }}
+        style={{ width: size, height: size, borderRadius, backgroundColor: "transparent" }}
+        scrollEnabled={false}
+        pointerEvents="none"
+        originWhitelist={["*"]}
+        androidLayerType="hardware"
+      />
+    );
+  }
+
+  return (
+    <Image
+      source={{ uri }}
+      style={[
+        styles.circleImage,
+        { width: size, height: size, borderRadius },
+      ]}
+      resizeMode="cover"
+      onError={() => setErrored(true)}
+    />
+  );
+}
 
 // ─── Deep-unwrap a DSL node ───────────────────────────────────────────────────
 const deepUnwrap = (value) => {
@@ -294,26 +337,14 @@ export default function TrendingCollections({ section }) {
                 },
               ]}
             >
-              {item.image ? (
-                <Image
-                  source={{ uri: item.image }}
-                  style={[
-                    styles.circleImage,
-                    {
-                      width: circleSize,
-                      height: circleSize,
-                      borderRadius: circleSize / 2,
-                    },
-                  ]}
-                  resizeMode="cover"
-                />
-              ) : (
-                <Icon
-                  name={item.iconName || defaultPlaceholderIcon}
-                  size={circleIconSize}
-                  color={circleIconColor}
-                />
-              )}
+              <CollectionImage
+                uri={item.image}
+                size={circleSize}
+                borderRadius={circleSize / 2}
+                iconName={item.iconName || defaultPlaceholderIcon}
+                iconSize={circleIconSize}
+                iconColor={circleIconColor}
+              />
             </View>
 
             {/* Label */}
