@@ -206,7 +206,6 @@ export default function TextBlock({ section }) {
     ""
   );
   const faIconName   = containsEmoji(rawIconValue) ? "" : resolveTextBlockIconName(rawIconValue);
-  const emojiIcon    = containsEmoji(rawIconValue) ? rawIconValue : "";
   const iconColor    = asStr(iconCfg?.color ?? iconStyle?.color, "#FFFFFF");
   const iconBgColor  = asStr(
     iconCfg?.bgColor ?? iconCfg?.backgroundColor ?? iconStyle?.backgroundColor,
@@ -217,7 +216,7 @@ export default function TextBlock({ section }) {
   const iconRadius   = asNumber(iconCfg?.borderRadius ?? iconCfg?.corner, 999);
   const iconAlign    = resolveAlign(asStr(iconCfg?.align, globalAlign));
 
-  const hasRenderableIcon = !!faIconName || !!emojiIcon;
+  const hasRenderableIcon = !!faIconName;
 
   const hasIcon = showIconDsl && hasRenderableIcon;
   const hasHeadline  = showHeadline && !!headline;
@@ -345,9 +344,6 @@ export default function TextBlock({ section }) {
               size={iconFaSize}
               color={iconColor}
             />
-          )}
-          {!!emojiIcon && !faIconName && (
-            <Text style={{ color: iconColor, fontSize: iconFaSize }}>{emojiIcon}</Text>
           )}
         </View>
       )}

@@ -123,7 +123,7 @@ export default function SearchBar({ section }) {
   const searchBgColor   = get("searchBgColor", "#F3F4F6");
   const borderColor     = get("borderColor", "#E5E7EB");
   const searchTextColor = get("searchTextColor", "#111827");
-  const placeholderColor = get("placeholderColor", "#9CA3AF");
+  const placeholderColor = get("placeholderColor", searchTextColor);
   const clearIconColor  = get("clearIconColor", "#6B7280");
   const voiceIconColor  = get("voiceIconColor", "#6B7280");
   const searchIconColor = get("searchIconColor", "#9CA3AF");
