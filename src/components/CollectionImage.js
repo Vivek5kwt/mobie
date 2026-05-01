@@ -10,6 +10,7 @@ import {
   View,
 } from "react-native";
 import { useNavigation } from "@react-navigation/native";
+import { WebView } from "react-native-webview";
 import { fetchShopifyCollections, getShopifyDomain } from "../services/shopify";
 import { convertStyles } from "../utils/convertStyles";
 
@@ -115,6 +116,12 @@ const parseRatio = (value, fallback = 1) => {
   }
   const n = parseFloat(v);
   return Number.isFinite(n) && n > 0 ? n : fallback;
+};
+
+const isSvgUrl = (url) => {
+  if (!url || typeof url !== "string") return false;
+  const lower = url.toLowerCase().split("?")[0];
+  return lower.endsWith(".svg") || lower.includes(".svg");
 };
 
 // ─── component ────────────────────────────────────────────────────────────────
@@ -364,16 +371,33 @@ export default function CollectionImage({ section }) {
           ]}
         >
           {item.image ? (
-            <Image
-              source={{ uri: item.image }}
-              style={{
-                width: cardW - cardImageBorder * 2,
-                height: cardMediaHeight - cardImageBorder * 2,
-                borderRadius: mediaRadius,
-                backgroundColor: cardImageCssStyle?.backgroundColor || "#e0f2f1",
-              }}
-              resizeMode={mediaResizeMode}
-            />
+            isSvgUrl(item.image) ? (
+              <WebView
+                source={{
+                  html: `<!DOCTYPE html><html><head><meta name="viewport" content="width=device-width,initial-scale=1"><style>*{margin:0;padding:0;box-sizing:border-box}body{background:transparent}img{width:100%;height:100%;object-fit:contain;display:block}</style></head><body><img src="${item.image}" /></body></html>`,
+                }}
+                style={{
+                  width: cardW - cardImageBorder * 2,
+                  height: cardMediaHeight - cardImageBorder * 2,
+                  borderRadius: mediaRadius,
+                  backgroundColor: "transparent",
+                }}
+                scrollEnabled={false}
+                pointerEvents="none"
+                originWhitelist={["*"]}
+              />
+            ) : (
+              <Image
+                source={{ uri: item.image }}
+                style={{
+                  width: cardW - cardImageBorder * 2,
+                  height: cardMediaHeight - cardImageBorder * 2,
+                  borderRadius: mediaRadius,
+                  backgroundColor: cardImageCssStyle?.backgroundColor || "#e0f2f1",
+                }}
+                resizeMode={mediaResizeMode}
+              />
+            )
           ) : (
             <View
               style={{

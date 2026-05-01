@@ -7,6 +7,7 @@ import {
   View,
 } from "react-native";
 import FontAwesome from "react-native-vector-icons/FontAwesome";
+import { useNavigation } from "@react-navigation/native";
 
 // ─── DSL helpers ──────────────────────────────────────────────────────────────
 
@@ -169,6 +170,7 @@ const DEFAULT_TABS = [
 // ─── Component ────────────────────────────────────────────────────────────────
 
 export default function CustomerReviews({ section }) {
+  const navigation = useNavigation();
   const propsNode =
     section?.properties?.props?.properties ||
     section?.properties?.props ||
@@ -482,6 +484,7 @@ export default function CustomerReviews({ section }) {
       {showWriteBtn && (
         <TouchableOpacity
           activeOpacity={0.8}
+          onPress={() => navigation.navigate("WriteReview", { section })}
           style={[
             styles.writeBtn,
             {

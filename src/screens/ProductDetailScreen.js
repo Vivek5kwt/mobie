@@ -126,6 +126,47 @@ const mergeSectionWithProduct = (section, product) => {
   };
 };
 
+const getSectionPropsNode = (section) =>
+  section?.properties?.props?.properties || section?.properties?.props || section?.props || {};
+
+const isTruthySticky = (value) => {
+  if (value === undefined || value === null) return false;
+  if (typeof value === "boolean") return value;
+  const s = String(value).trim().toLowerCase();
+  return ["true", "1", "yes", "y", "sticky", "fixed", "bottom"].includes(s);
+};
+
+const isAddToCartStickySection = (section) => {
+  const componentName = (
+    section?.component?.const ||
+    section?.component ||
+    section?.properties?.component?.const ||
+    section?.properties?.component ||
+    ""
+  ).toLowerCase();
+  if (componentName !== "add_to_cart" && componentName !== "addtocart" && componentName !== "add-to-cart") {
+    return false;
+  }
+
+  const propsNode = getSectionPropsNode(section);
+  const raw = unwrapValue(propsNode?.raw, {}) || {};
+  const presentation = unwrapValue(propsNode?.presentation, {}) || {};
+  const css = unwrapValue(presentation?.css, {}) || {};
+  const visibility = unwrapValue(raw?.visibility, {}) || unwrapValue(css?.visibility, {}) || {};
+
+  return (
+    isTruthySticky(raw?.sticky) ||
+    isTruthySticky(raw?.isSticky) ||
+    isTruthySticky(raw?.stickey) ||
+    isTruthySticky(raw?.fixed) ||
+    isTruthySticky(raw?.pinToBottom) ||
+    isTruthySticky(raw?.position === "sticky" ? "sticky" : raw?.position) ||
+    isTruthySticky(css?.sticky) ||
+    isTruthySticky(css?.isSticky) ||
+    isTruthySticky(visibility?.sticky)
+  );
+};
+
 export default function ProductDetailScreen() {
   const route = useRoute();
   const { session } = useAuth();
@@ -303,6 +344,15 @@ export default function ProductDetailScreen() {
       mergeSectionWithProduct(section, detailProduct)
     );
   }, [productReady, detailProduct, sectionsToRender]);
+  const stickyAddToCartSections = useMemo(
+    () => renderSections.filter((section) => isAddToCartStickySection(section)),
+    [renderSections]
+  );
+  const scrollSections = useMemo(
+    () => renderSections.filter((section) => !isAddToCartStickySection(section)),
+    [renderSections]
+  );
+  const stickyAtcReservedSpace = stickyAddToCartSections.length > 0 ? 110 : 0;
   const showEmptyState = !showLoadingState && (!renderSections.length || !!error);
 
   return (
@@ -314,7 +364,9 @@ export default function ProductDetailScreen() {
         <ScrollView
           contentContainerStyle={[
             styles.scrollContent,
-            { paddingBottom: bottomNavSection ? bottomNavHeight + 16 : 24 },
+            {
+              paddingBottom: (bottomNavSection ? bottomNavHeight + 16 : 24) + stickyAtcReservedSpace,
+            },
           ]}
         >
           {showLoadingState ? (
@@ -327,14 +379,29 @@ export default function ProductDetailScreen() {
                 {error || "No product details available."}
               </Text>
             </View>
-          ) : renderSections.length > 0 ? (
-            renderSections.map((section, index) => (
+          ) : scrollSections.length > 0 ? (
+            scrollSections.map((section, index) => (
               <View key={section?.id || section?.component || index} style={styles.section}>
                 <DynamicRenderer section={section} />
               </View>
             ))
           ) : null}
         </ScrollView>
+
+        {stickyAddToCartSections.length > 0 && (
+          <View
+            style={[
+              styles.stickyAddToCartDock,
+              { bottom: bottomNavSection ? bottomNavHeight : 0 },
+            ]}
+          >
+            {stickyAddToCartSections.map((section, index) => (
+              <View key={section?.id || section?.component || `sticky-atc-${index}`} style={styles.stickySectionItem}>
+                <DynamicRenderer section={section} />
+              </View>
+            ))}
+          </View>
+        )}
 
         {bottomNavSection && (
           <View
@@ -378,6 +445,16 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     bottom: 0,
+  },
+  stickyAddToCartDock: {
+    position: "absolute",
+    left: 0,
+    right: 0,
+    zIndex: 3,
+    elevation: 6,
+  },
+  stickySectionItem: {
+    width: "100%",
   },
   section: {
     marginBottom: 10,

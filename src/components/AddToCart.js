@@ -11,6 +11,7 @@ import {
   getShopifyDomain,
 } from "../services/shopify";
 import { resolveFont } from "../services/typographyService";
+import { resolveFA4IconName } from "../utils/faIconAlias";
 
 const unwrapValue = (value, fallback = undefined) => {
   if (value === undefined || value === null) return fallback;
@@ -89,8 +90,7 @@ const buildButtonStyles = (config, defaultBg = "#1F2937") => {
 
 const resolveIconName = (iconName) => {
   if (!iconName) return "";
-  const trimmed = iconName.trim();
-  return trimmed.startsWith("fa-") ? trimmed.slice(3) : trimmed;
+  return resolveFA4IconName(iconName);
 };
 
 const extractVariantIdentifiers = (value) => {
@@ -206,6 +206,9 @@ export default function AddToCart({ section }) {
     color: toString(quantityConfig?.textColor, "#111827"),
     fontSize: toNumber(quantityConfig?.textSize, 12),
     fontWeight: toString(quantityConfig?.textWeight, "700"),
+    fontFamily: resolveFont(
+      toString(quantityConfig?.textFamily ?? quantityConfig?.fontFamily, "")
+    ) || undefined,
   };
 
   const decrement = () => setQuantity((prev) => Math.max(1, prev - 1));

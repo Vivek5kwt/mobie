@@ -88,20 +88,40 @@ export default function TrustBadges({ section }) {
 
   const presentationRaw = unwrap(propsNode?.presentation, {});
   const pressCss        = unwrap(presentationRaw?.css, {});
+  const presIcons       = unwrap(pressCss?.icons, {});
 
   // ── Badge items ─────────────────────────────────────────────────────────────
   const dslItems = useMemo(() => {
+    const presentationItems =
+      presIcons && typeof presIcons === "object"
+        ? Object.entries(presIcons)
+            .map(([key, cfg]) => ({
+              id: key,
+              icon: str(cfg?.icon ?? cfg?.iconId, ""),
+              label: str(cfg?.label ?? cfg?.text ?? cfg?.title, ""),
+            }))
+            .filter((item) => item.icon || item.label)
+        : [];
+    if (presentationItems.length > 0) return presentationItems;
+
     const src = raw?.items ?? raw?.badges ?? raw?.trustBadges ?? propsNode?.items ?? [];
-    const arr = Array.isArray(src) ? src : (src && typeof src === "object" ? Object.values(src) : []);
-    return arr.map((item) => {
-      if (!item || typeof item !== "object") return null;
-      const id    = str(item.id    ?? item.key,  "");
-      const icon  = str(item.icon  ?? item.iconId ?? item.fa ?? item.iconName, "");
-      const label = str(item.label ?? item.text  ?? item.title, "");
-      if (!icon && !label) return null;
-      return { id, icon, label };
-    }).filter(Boolean);
-  }, [raw, propsNode]);
+    const arr = Array.isArray(src)
+      ? src
+      : src && typeof src === "object"
+      ? Object.entries(src).map(([key, value]) => ({ id: key, ...(value || {}) }))
+      : [];
+
+    return arr
+      .map((item) => {
+        if (!item || typeof item !== "object") return null;
+        const id = str(item.id ?? item.key, "");
+        const icon = str(item.icon ?? item.iconId ?? item.fa ?? item.iconName, "");
+        const label = str(item.label ?? item.text ?? item.title, "");
+        if (!icon && !label) return null;
+        return { id, icon, label };
+      })
+      .filter(Boolean);
+  }, [presIcons, raw, propsNode]);
 
   const DEFAULT_BADGES = [
     { id: "secure",        icon: "shield",   label: "Secured"       },
@@ -122,7 +142,6 @@ export default function TrustBadges({ section }) {
   const badges = visibleBadges.length > 0 ? visibleBadges : badgeItems;
 
   // ── Per-badge icon config from presentation.css.icons ──────────────────────
-  const presIcons = unwrap(pressCss?.icons, {});
   const getBadgeIconConfig = (item) => {
     const camel  = toCamelCase(item.id);
     return presIcons[camel] ?? presIcons[item.id] ?? {};
