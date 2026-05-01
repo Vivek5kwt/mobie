@@ -86,6 +86,7 @@ const componentMap = {
   customer_reviews: CustomerReviews,
   product_reviews: CustomerReviews,
   reviews: CustomerReviews,
+  review: CustomerReviews,
   free_shipping: FreeShipping,
   free_shipping_bar: FreeShipping,
   free_shipping_banner: FreeShipping,

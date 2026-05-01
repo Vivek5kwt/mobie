@@ -99,6 +99,7 @@ export default function DiscountCode({ section }) {
   const inputBorderRadius = toNumber(raw?.inputBorderRadius, 8);
   const inputTextColor = toString(raw?.inputTextColor ?? raw?.inputColor, "#111827");
   const inputTextSize = toNumber(raw?.inputTextSize ?? raw?.inputFontSize, 14);
+  const inputHeight = toNumber(raw?.inputHeight, 44);
   const placeholderColor = toString(raw?.placeholderColor, "#9CA3AF");
 
   // Apply button
@@ -108,6 +109,7 @@ export default function DiscountCode({ section }) {
   const applyBorderRadius = toNumber(raw?.applyBorderRadius ?? raw?.btnRadius, 8);
   const applyFontSize = toNumber(raw?.applyFontSize ?? raw?.buttonFontSize, 14);
   const applyFontWeight = toFontWeight(raw?.applyFontWeight ?? raw?.buttonFontWeight, "600");
+  const applyHeight = toNumber(raw?.buttonHeight ?? raw?.applyHeight, 44);
 
   // Applied code chips
   const chipBg = toString(raw?.chipBg ?? raw?.codeBg, "#F3F4F6");
@@ -177,6 +179,7 @@ export default function DiscountCode({ section }) {
               borderRadius: inputBorderRadius,
               color: inputTextColor,
               fontSize: inputTextSize,
+              height: inputHeight,
               ...(inputFontFamily ? { fontFamily: inputFontFamily } : {}),
             },
           ]}
@@ -195,6 +198,7 @@ export default function DiscountCode({ section }) {
             {
               backgroundColor: applyBg,
               borderRadius: applyBorderRadius,
+              height: applyHeight,
             },
           ]}
           onPress={handleApply}
@@ -249,7 +253,7 @@ export default function DiscountCode({ section }) {
                 hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
               >
                 <Text style={[styles.chipRemoveText, { color: removeIconColor }]}>
-                  ×
+                  x
                 </Text>
               </TouchableOpacity>
             </View>
@@ -275,13 +279,11 @@ const styles = StyleSheet.create({
   },
   input: {
     flex: 1,
-    height: 44,
     borderWidth: 1,
     paddingHorizontal: 12,
     paddingVertical: 0,
   },
   applyButton: {
-    height: 44,
     paddingHorizontal: 18,
     alignItems: "center",
     justifyContent: "center",

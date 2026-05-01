@@ -112,8 +112,12 @@ export default function FreeShipping({ section }) {
   if (!enabled) return null;
 
   // Progress calculation
-  const remaining = Math.max(0, threshold - cartTotal);
-  const progress = threshold > 0 ? Math.min(1, cartTotal / threshold) : 1;
+  const dslAmountLeft = toNumber(raw?.amountLeft, NaN);
+  const dslProgressPct = toNumber(raw?.progress, NaN);
+  const remaining = Number.isFinite(dslAmountLeft) ? Math.max(0, dslAmountLeft) : Math.max(0, threshold - cartTotal);
+  const progress = Number.isFinite(dslProgressPct)
+    ? Math.max(0, Math.min(1, dslProgressPct / 100))
+    : (threshold > 0 ? Math.min(1, cartTotal / threshold) : 1);
   const isReached = remaining === 0;
 
   // Build message

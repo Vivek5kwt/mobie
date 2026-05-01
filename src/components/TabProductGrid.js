@@ -116,6 +116,21 @@ const normalizeTabs = (rawTabs = []) => {
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
+const isProductAvailable = (product) => {
+  if (!product || typeof product !== "object") return true;
+  if (product.availableForSale === false) return false;
+  const inventory =
+    product.inventoryQuantity ??
+    product.totalInventory ??
+    product.stockQuantity ??
+    product.quantityAvailable;
+  if (typeof inventory === "number" && inventory <= 0) return false;
+  if (Array.isArray(product.variants) && product.variants.length > 0) {
+    const anyVariantAvailable = product.variants.some((variant) => variant?.availableForSale !== false);
+    if (!anyVariantAvailable) return false;
+  }
+  return true;
+};
 const { width: SCREEN_W } = Dimensions.get("window");
 const COL_GAP = 8;
 
@@ -331,12 +346,12 @@ export default function TabProductGrid({ section }) {
   ).toLowerCase();
   const atcAlign = atcAlignRaw === "center" ? "center" : atcAlignRaw === "right" ? "right" : "left";
   const atcAvailableText = toStr(rawConfig?.atcAvailableText ?? layoutAddToCartCss?.label ?? layoutAddToCartCss?.text, "Add To Cart");
-  const atcSoldOutText = toStr(rawConfig?.atcSoldOutText ?? layoutAddToCartCss?.soldOutLabel, "Sold Out");
+  const atcSoldOutText = toStr(rawConfig?.atcSoldOutText ?? rawConfig?.unavailableText ?? layoutAddToCartCss?.soldOutLabel, "Unavailable");
   const atcSize = toNum(rawConfig?.atcSize ?? layoutAddToCartCss?.fontSize, 12);
   const atcBgColor = toStr(rawConfig?.atcBgColor ?? layoutAddToCartCss?.backgroundColor, "#096d70");
   const atcTextColor = toStr(rawConfig?.atcTextColor ?? layoutAddToCartCss?.color, "#FFFFFF");
-  const atcSoldOutBgColor = toStr(rawConfig?.atcSoldOutBgColor, "#E5E7EB");
-  const atcSoldOutTextColor = toStr(rawConfig?.atcSoldOutTextColor, "#111827");
+  const atcSoldOutBgColor = toStr(rawConfig?.atcSoldOutBgColor ?? rawConfig?.unavailableBgColor, "#7A7A7A");
+  const atcSoldOutTextColor = toStr(rawConfig?.atcSoldOutTextColor ?? rawConfig?.unavailableTextColor, "#FFFFFF");
   const atcFontFamily = cleanFontFamily(toStr(rawConfig?.atcFamily ?? layoutAddToCartCss?.fontFamily, ""));
   const atcFontWeight = toFontWeight(rawConfig?.atcWeight ?? layoutAddToCartCss?.fontWeight, "600");
   const atcBorderRadius = toNum(rawConfig?.atcCorner ?? rawConfig?.atcBorderRadius ?? layoutAddToCartCss?.borderRadius, 6);
@@ -593,7 +608,7 @@ export default function TabProductGrid({ section }) {
                   product?.id || product?.variantId || product?.handle || product?.name || product?.title || ""
                 ).trim();
                 const isFav = productId ? wishlistIds.has(productId) : false;
-                const inStock = product.availableForSale !== false;
+                const inStock = isProductAvailable(product);
                 return (
                   <Pressable
                     key={product.id}
@@ -825,3 +840,4 @@ const styles = StyleSheet.create({
     fontSize: 13,
   },
 });
+

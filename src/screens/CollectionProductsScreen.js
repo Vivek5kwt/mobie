@@ -39,6 +39,22 @@ function sortProducts(products, sortKey) {
   }
 }
 
+function isProductAvailable(product) {
+  if (!product || typeof product !== "object") return true;
+  if (product.availableForSale === false) return false;
+  const inventory =
+    product.inventoryQuantity ??
+    product.totalInventory ??
+    product.stockQuantity ??
+    product.quantityAvailable;
+  if (typeof inventory === "number" && inventory <= 0) return false;
+  if (Array.isArray(product.variants) && product.variants.length > 0) {
+    const anyVariantAvailable = product.variants.some((variant) => variant?.availableForSale !== false);
+    if (!anyVariantAvailable) return false;
+  }
+  return true;
+}
+
 export default function CollectionProductsScreen() {
   const navigation = useNavigation();
   const route = useRoute();
@@ -147,7 +163,7 @@ export default function CollectionProductsScreen() {
   }, [products, sortKey, activeFilter]);
 
   const renderItem = ({ item }) => {
-    const inStock = item.availableForSale !== false;
+    const inStock = isProductAvailable(item);
     const isFav   = !!favorites[item.id];
     const isListMode = viewMode === "list";
 
@@ -202,7 +218,7 @@ export default function CollectionProductsScreen() {
             onPress={() => inStock && handleAddToCart(item)}
           >
             <Text style={inStock ? styles.cartBtnTextActive : styles.cartBtnTextSoldOut}>
-              {inStock ? "Add To Cart" : "Sold Out"}
+              {inStock ? "Add To Cart" : "Unavailable"}
             </Text>
           </TouchableOpacity>
         </View>
@@ -448,13 +464,11 @@ const styles = StyleSheet.create({
   },
   cartBtnSoldOut: {
     marginTop: 4,
-    backgroundColor: "#EFF6FF",
+    backgroundColor: "#7A7A7A",
     borderRadius: 6,
     paddingVertical: 7,
     paddingHorizontal: 8,
     alignItems: "center",
-    borderWidth: 1,
-    borderColor: "#BFDBFE",
   },
   cartBtnTextActive: {
     fontSize: 11,
@@ -463,8 +477,8 @@ const styles = StyleSheet.create({
   },
   cartBtnTextSoldOut: {
     fontSize: 11,
-    fontWeight: "600",
-    color: "#016D77",
+    fontWeight: "700",
+    color: "#FFFFFF",
   },
 
   loader: { marginTop: 32 },

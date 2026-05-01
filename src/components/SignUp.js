@@ -104,7 +104,9 @@ export default function SignUp({ section }) {
   }, [section]);
 
   const raw = useMemo(() => {
-    return unwrapValue(rawProps?.raw, {});
+    const rawNode = unwrapValue(rawProps?.raw, {});
+    if (rawNode && typeof rawNode === "object") return { ...rawProps, ...rawNode };
+    return rawProps || {};
   }, [rawProps]);
 
   const layoutCss = useMemo(() => {
@@ -189,25 +191,25 @@ export default function SignUp({ section }) {
     const footerBgColor = toString(raw.footerBgColor, "#FFFFFF");
     const signInLinkBgColor = toString(raw.signInLinkBgColor, "#FFFFFF");
 
-    // Font sizes — cap to sensible mobile maximums so DSL large values don't break layout
-    const capFs = (val, def) => Math.min(toNumber(val, def), 22);
-    const headerTitleFontSize = capFs(raw.headerTitleFontSize, 18);
-    const buttonFontSize = capFs(raw.buttonFontSize, 16);
+    // Font sizes (DSL-driven, no hard clamps)
+    const fs = (val, def) => toNumber(val, def);
+    const headerTitleFontSize = fs(raw.headerTitleFontSize, 18);
+    const buttonFontSize = fs(raw.buttonFontSize, 16);
     const buttonIconSize = toNumber(raw.buttonIconSize, 16);
-    const footerTextFontSize = capFs(raw.footerTextFontSize, 13);
-    const footerLinkFontSize = capFs(raw.footerLinkFontSize, 14);
-    const firstNameLabelFontSize = capFs(raw.firstNameLabelFontSize, 14);
-    const lastNameLabelFontSize = capFs(raw.lastNameLabelFontSize, 14);
-    const emailLabelFontSize = capFs(raw.emailLabelFontSize, 14);
-    const passwordLabelFontSize = capFs(raw.passwordLabelFontSize, 14);
-    const firstNameInputTextFontSize = capFs(raw.firstNameInputTextFontSize, 15);
-    const lastNameInputTextFontSize = capFs(raw.lastNameInputTextFontSize, 15);
-    const emailInputTextFontSize = capFs(raw.emailInputTextFontSize, 15);
-    const passwordInputTextFontSize = capFs(raw.passwordInputTextFontSize, 15);
-    const firstNamePlaceholderFontSize = capFs(raw.firstNamePlaceholderFontSize, 15);
-    const lastNamePlaceholderFontSize = capFs(raw.lastNamePlaceholderFontSize, 15);
-    const emailPlaceholderFontSize = capFs(raw.emailPlaceholderFontSize, 15);
-    const passwordPlaceholderFontSize = capFs(raw.passwordPlaceholderFontSize, 15);
+    const footerTextFontSize = fs(raw.footerTextFontSize, 13);
+    const footerLinkFontSize = fs(raw.footerLinkFontSize, 14);
+    const firstNameLabelFontSize = fs(raw.firstNameLabelFontSize, 14);
+    const lastNameLabelFontSize = fs(raw.lastNameLabelFontSize, 14);
+    const emailLabelFontSize = fs(raw.emailLabelFontSize, 14);
+    const passwordLabelFontSize = fs(raw.passwordLabelFontSize, 14);
+    const firstNameInputTextFontSize = fs(raw.firstNameInputTextFontSize, 15);
+    const lastNameInputTextFontSize = fs(raw.lastNameInputTextFontSize, 15);
+    const emailInputTextFontSize = fs(raw.emailInputTextFontSize, 15);
+    const passwordInputTextFontSize = fs(raw.passwordInputTextFontSize, 15);
+    const firstNamePlaceholderFontSize = fs(raw.firstNamePlaceholderFontSize, 15);
+    const lastNamePlaceholderFontSize = fs(raw.lastNamePlaceholderFontSize, 15);
+    const emailPlaceholderFontSize = fs(raw.emailPlaceholderFontSize, 15);
+    const passwordPlaceholderFontSize = fs(raw.passwordPlaceholderFontSize, 15);
 
     // Font families
     const headerTitleFontFamily = toString(raw.headerTitleFontFamily, "Inter, sans-serif");
@@ -257,7 +259,7 @@ export default function SignUp({ section }) {
 
     // Button properties
     const buttonWidth = toNumber(raw.buttonWidth, 100);
-    const buttonHeight = Math.min(toNumber(raw.buttonHeight, 50), 60);
+    const buttonHeight = toNumber(raw.buttonHeight, 50);
     const buttonBgColor = parseGradient(toString(raw.buttonBgColor, "#FFFFFF")) || "#FFFFFF";
     const buttonBorderColor = toString(raw.buttonBorderColor, "#0c9297");
     const buttonAutoUppercase = toBoolean(raw.buttonAutoUppercase, false);
@@ -265,8 +267,7 @@ export default function SignUp({ section }) {
 
     // Profile picture — cap to 30% of screen width so it doesn't overflow on small screens
     const profilePictureUrl = toString(raw.profilePictureUrl, "");
-    const profilePictureSizeRaw = toNumber(raw.profilePictureSize, 90);
-    const profilePictureSize = Math.min(profilePictureSizeRaw, Math.round(screenWidth * 0.3));
+    const profilePictureSize = toNumber(raw.profilePictureSize, 90);
 
     // Navigation
     const navigateTo = toString(raw.navigateTo, "screen");
@@ -509,10 +510,10 @@ export default function SignUp({ section }) {
           {
             backgroundColor: cardBgColor,
             borderRadius,
-            paddingTop: Math.min(pt, 40),
-            paddingBottom: Math.min(pb, 40),
-            paddingLeft: Math.min(pl, 24),
-            paddingRight: Math.min(pr, 24),
+            paddingTop: bgPadVisible ? pt : 0,
+            paddingBottom: bgPadVisible ? pb : 0,
+            paddingLeft: bgPadVisible ? pl : 0,
+            paddingRight: bgPadVisible ? pr : 0,
             borderColor: cardBorderColor,
             borderWidth: cardBorderColor ? 1 : 0,
           },
@@ -529,7 +530,7 @@ export default function SignUp({ section }) {
         )}
 
         {/* Logo/Profile Picture */}
-        {showProfilePicture && (
+        {logoVisible && showProfilePicture && (
           <View
             style={[
               styles.profilePictureContainer,
@@ -579,6 +580,9 @@ export default function SignUp({ section }) {
               styles.authTitle,
               {
                 color: titleColor,
+                fontSize: toNumber(raw.headlineSize, 20),
+                fontWeight: toFontWeight(raw.headlineWeight) || "700",
+                fontFamily: toString(raw.headlineFontFamily, "Inter"),
               },
             ]}
           >
@@ -589,6 +593,11 @@ export default function SignUp({ section }) {
         {/* First Name Field */}
         {firstNameVisible && (
           <View style={[styles.fieldContainer, { alignItems: firstNameAlignment }]}>
+            {firstNameLabelVisible && (
+              <Text style={[styles.label, { color: firstNameLabelColor, fontSize: firstNameLabelFontSize, fontFamily: firstNameLabelFontFamily, fontWeight: firstNameLabelFontWeight }]}>
+                {firstNameLabelText}
+              </Text>
+            )}
             <TextInput
               style={[
                 styles.input,
@@ -615,6 +624,11 @@ export default function SignUp({ section }) {
         {/* Last Name Field */}
         {lastNameVisible && (
           <View style={[styles.fieldContainer, { alignItems: lastNameAlignment }]}>
+            {lastNameLabelVisible && (
+              <Text style={[styles.label, { color: lastNameLabelColor, fontSize: lastNameLabelFontSize, fontFamily: lastNameLabelFontFamily, fontWeight: lastNameLabelFontWeight }]}>
+                {lastNameLabelText}
+              </Text>
+            )}
             <TextInput
               style={[
                 styles.input,
@@ -641,6 +655,11 @@ export default function SignUp({ section }) {
         {/* Email Field */}
         {emailInputVisible && (
           <View style={[styles.fieldContainer, { alignItems: emailAlignment }]}>
+            {emailLabelVisible && (
+              <Text style={[styles.label, { color: emailLabelColor, fontSize: emailLabelFontSize, fontFamily: emailLabelFontFamily, fontWeight: emailLabelFontWeight }]}>
+                {emailLabelText}
+              </Text>
+            )}
             <TextInput
               style={[
                 styles.input,
@@ -669,6 +688,11 @@ export default function SignUp({ section }) {
         {/* Password Field */}
         {passwordInputVisible && (
           <View style={[styles.fieldContainer, { alignItems: passwordAlignment }]}>
+            {passwordLabelVisible && (
+              <Text style={[styles.label, { color: passwordLabelColor, fontSize: passwordLabelFontSize, fontFamily: passwordLabelFontFamily, fontWeight: passwordLabelFontWeight }]}>
+                {passwordLabelText}
+              </Text>
+            )}
             <TextInput
               style={[
                 styles.input,
@@ -762,6 +786,8 @@ export default function SignUp({ section }) {
                 {
                   color: footerTextColor,
                   fontSize: footerTextFontSize,
+                  fontFamily: toString(raw.subtextFontFamily, "Inter"),
+                  fontWeight: toFontWeight(raw.subtextWeight) || "400",
                 },
               ]}
             >
@@ -778,6 +804,7 @@ export default function SignUp({ section }) {
                     paddingLeft: signInLinkPl || 4,
                     paddingRight: signInLinkPr || 4,
                     borderRadius: signInLinkBorderRadius,
+                    alignSelf: footerLinkAlignment,
                   },
                 ]}
                 onPress={handleSignInLink}

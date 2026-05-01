@@ -57,6 +57,21 @@ const toFW = (v, fb = "400") => {
   return fwMap[String(r).trim().toLowerCase()] || String(r);
 };
 
+const isProductAvailable = (product) => {
+  if (!product || typeof product !== "object") return true;
+  if (product.availableForSale === false) return false;
+  const inventory =
+    product.inventoryQuantity ??
+    product.totalInventory ??
+    product.stockQuantity ??
+    product.quantityAvailable;
+  if (typeof inventory === "number" && inventory <= 0) return false;
+  if (Array.isArray(product.variants) && product.variants.length > 0) {
+    const anyVariantAvailable = product.variants.some((variant) => variant?.availableForSale !== false);
+    if (!anyVariantAvailable) return false;
+  }
+  return true;
+};
 // ─── Currency symbol lookup ───────────────────────────────────────────────────
 
 const CURRENCY_SYMBOLS = {
@@ -172,8 +187,8 @@ export default function RecentProducts({ section }) {
 
   // ── Unavailable button ────────────────────────────────────────────────────
   const unavailCss    = unwrap(css?.atcUnavailable, {});
-  const unavailBg     = str(unavailCss?.backgroundColor, "#E5E7EB");
-  const unavailColor  = str(unavailCss?.color, "#111827");
+  const unavailBg     = str(unavailCss?.backgroundColor, "#7A7A7A");
+  const unavailColor  = str(unavailCss?.color, "#FFFFFF");
   const unavailText   = str(raw?.unavailableText ?? raw?.soldOutText, "Unavailable");
 
   // ── Card width ─────────────────────────────────────────────────────────────
@@ -260,7 +275,7 @@ export default function RecentProducts({ section }) {
       {!loading && (
         <View style={styles.grid}>
           {products.slice(0, limit).map((product, idx) => {
-            const isAvailable = product.availableForSale !== false;
+            const isAvailable = isProductAvailable(product);
             const price       = product.priceAmount ?? product.price;
             const compareAt   = product.compareAtPrice;
             const currency    = product.priceCurrency ?? product.currency ?? "";
@@ -413,3 +428,4 @@ const styles = StyleSheet.create({
     flexWrap:      "wrap",
   },
 });
+

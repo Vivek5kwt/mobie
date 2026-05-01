@@ -86,12 +86,16 @@ export default function AccountMenu({ section }) {
   const cssLabel     = useMemo(() => convertStyles(css?.label     || {}), [css]);
   const cssChevron   = useMemo(() => convertStyles(css?.chevron   || {}), [css]);
   const cssContainer = useMemo(() => convertStyles(css?.container || {}), [css]);
+  const visibility = useMemo(
+    () => ({ ...(deepUnwrap(css?.visibility) || {}), ...(deepUnwrap(rawProps?.visibility) || {}) }),
+    [css, rawProps]
+  );
 
   // ── container / row background ───────────────────────────────────────────
   // Priority: rawProps.containerBgColor → CSS container.background → white
   // NOTE: rawProps.bgColor in DSL is often the icon bg accent, NOT the row bg
   const containerBg = str(
-    rawProps?.containerBgColor ?? rawProps?.rowBgColor,
+    rawProps?.containerBgColor ?? rawProps?.rowBgColor ?? rawProps?.bgColor,
     cssContainer?.backgroundColor || cssRow?.backgroundColor || "#FFFFFF"
   );
 
@@ -115,6 +119,7 @@ export default function AccountMenu({ section }) {
   const rowPl = num(rawProps?.pl ?? rawProps?.rowPl ?? rawProps?.itemPl, parsePx(css?.row?.paddingLeft,   14));
   const rowPr = num(rawProps?.pr ?? rawProps?.rowPr ?? rawProps?.itemPr, parsePx(css?.row?.paddingRight,  14));
   const rowGap = num(rawProps?.gap ?? rawProps?.rowGap, parsePx(css?.row?.gap, 12));
+  const showBgPadding = bool(visibility?.bgPadding, true);
 
   // ── icon circle ───────────────────────────────────────────────────────────
   // CSS iconWrap provides size + bg; raw iconBgColor / iconColor override
@@ -142,6 +147,11 @@ export default function AccountMenu({ section }) {
     return raw;
   })();
   const labelBold   = bool(rawProps?.textBold, false);
+  const labelItalic = bool(rawProps?.textItalic, false);
+  const labelUnderline = bool(rawProps?.textUnderline, false);
+  const labelStrikethrough = bool(rawProps?.textStrikethrough, false);
+  const labelUppercase = bool(rawProps?.textUppercase, false);
+  const labelFontFamily = str(rawProps?.textFontFamily, "");
 
   // ── chevron ───────────────────────────────────────────────────────────────
   const showChevron  = bool(rawProps?.showChevron ?? rawProps?.showArrow, true);
@@ -151,6 +161,9 @@ export default function AccountMenu({ section }) {
   // ── divider ───────────────────────────────────────────────────────────────
   const showDivider  = bool(rawProps?.showDivider,  true);
   const dividerColor = str(rawProps?.dividerColor, "#F3F4F6");
+  const showIcons = bool(visibility?.icons, true);
+  const showHeader = bool(visibility?.header, true);
+  const showIconBgPadding = bool(visibility?.iconBgPadding, true);
 
   // ── items array ──────────────────────────────────────────────────────────
   const items = useMemo(() => {
@@ -175,7 +188,7 @@ export default function AccountMenu({ section }) {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [rawProps]);
 
-  if (!items.length) return null;
+  if (!items.length || !showHeader) return null;
 
   const handlePress = (item) => {
     const link = str(item?.link ?? item?.href ?? item?.url ?? item?.page ?? item?.navigateTo, "");
@@ -205,6 +218,10 @@ export default function AccountMenu({ section }) {
         navigation.navigate("LayoutScreen");
         return;
       }
+      if (normalized === "my-account" || normalized === "myaccount" || normalized === "account") {
+        navigation.navigate("BottomNavScreen", { pageName: "my-account", title: "My Account" });
+        return;
+      }
 
       // All other internal page slugs → BottomNavScreen
       navigation.navigate("BottomNavScreen", {
@@ -224,6 +241,7 @@ export default function AccountMenu({ section }) {
         const itemIconColor   = str(rawItem?.iconColor, defIconColor);
         const itemIconSize    = num(rawItem?.iconSize, defIconSize);
         const itemShowChevron = bool(rawItem?.showChevron ?? rawItem?.showArrow, showChevron);
+        const itemIconAlign = str(rawItem?.iconAlign ?? rawProps?.iconAlign, "left").toLowerCase();
         const iconName        = parseIconName(itemIconClass) || "user";
         const isLast          = index === items.length - 1;
 
@@ -238,29 +256,31 @@ export default function AccountMenu({ section }) {
                   borderWidth,
                   borderColor,
                   borderRadius,
-                  paddingTop:    rowPt,
-                  paddingBottom: rowPb,
-                  paddingLeft:   rowPl,
-                  paddingRight:  rowPr,
+                  paddingTop:    showBgPadding ? rowPt : 0,
+                  paddingBottom: showBgPadding ? rowPb : 0,
+                  paddingLeft:   showBgPadding ? rowPl : 0,
+                  paddingRight:  showBgPadding ? rowPr : 0,
                   gap:           rowGap,
                 },
               ]}
               onPress={() => handlePress(rawItem)}
             >
               {/* Left icon circle */}
-              <View
-                style={[
-                  styles.iconCircle,
-                  {
-                    width:           iconCircleSize,
-                    height:          iconCircleSize,
-                    borderRadius:    iconCircleRadius,
-                    backgroundColor: itemIconBg,
-                  },
-                ]}
-              >
-                <FontAwesome name={iconName} size={itemIconSize} color={itemIconColor} />
-              </View>
+              {showIcons && itemIconAlign !== "right" && (
+                <View
+                  style={[
+                    styles.iconCircle,
+                    {
+                      width:           iconCircleSize,
+                      height:          iconCircleSize,
+                      borderRadius:    iconCircleRadius,
+                      backgroundColor: showIconBgPadding ? itemIconBg : "transparent",
+                    },
+                  ]}
+                >
+                  <FontAwesome name={iconName} size={itemIconSize} color={itemIconColor} />
+                </View>
+              )}
 
               {/* Label */}
               <Text
@@ -271,11 +291,38 @@ export default function AccountMenu({ section }) {
                     color:      labelColor,
                     fontSize:   labelSize,
                     fontWeight: labelBold ? "700" : labelWeight,
+                    fontStyle: labelItalic ? "italic" : "normal",
+                    textTransform: labelUppercase ? "uppercase" : "none",
+                    textDecorationLine:
+                      labelUnderline && labelStrikethrough
+                        ? "underline line-through"
+                        : labelUnderline
+                          ? "underline"
+                          : labelStrikethrough
+                            ? "line-through"
+                            : "none",
+                    ...(labelFontFamily ? { fontFamily: labelFontFamily } : {}),
                   },
                 ]}
               >
                 {itemLabel}
               </Text>
+
+              {showIcons && itemIconAlign === "right" && (
+                <View
+                  style={[
+                    styles.iconCircle,
+                    {
+                      width:           iconCircleSize,
+                      height:          iconCircleSize,
+                      borderRadius:    iconCircleRadius,
+                      backgroundColor: showIconBgPadding ? itemIconBg : "transparent",
+                    },
+                  ]}
+                >
+                  <FontAwesome name={iconName} size={itemIconSize} color={itemIconColor} />
+                </View>
+              )}
 
               {/* Chevron */}
               {itemShowChevron && (

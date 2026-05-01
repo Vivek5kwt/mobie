@@ -548,6 +548,10 @@ class Countdown extends PureComponent {
       height: timerStyleHeight,
       ...timerContainerStyle
     } = timerStyle;
+    const resolvedTimerBoxRadius = asNumber(
+      timerAttributes?.borderRadius ?? rawProps?.timerBorderRadius ?? timerBoxRadius,
+      0
+    );
 
     const timerFontSize = asNumber(timerAttributes?.fontSize, undefined);
     const timerFontWeightRaw = unwrapValue(timerAttributes?.fontWeight, undefined);
@@ -558,7 +562,15 @@ class Countdown extends PureComponent {
 
     const iconAttributes = rawProps?.iconAttributes?.properties || rawProps?.iconAttributes || {};
     // Strip "fa-" prefix — FontAwesome expects "bolt" not "fa-bolt"
-    const iconName = stripFaPrefix(unwrapValue(iconAttributes?.iconName, ""));
+    const iconName = stripFaPrefix(
+      unwrapValue(
+        iconAttributes?.iconName ??
+        iconAttributes?.icon ??
+        rawProps?.iconName ??
+        rawProps?.icon,
+        ""
+      )
+    );
     const iconColor = unwrapValue(iconAttributes?.iconColor, iconStyle.color || "#111827");
     const iconBgColor = unwrapValue(iconAttributes?.iconBgColor, iconStyle.backgroundColor);
 
@@ -567,7 +579,10 @@ class Countdown extends PureComponent {
     const showTimer = asBoolean(rawProps?.showTimer, true);
     const showButton = asBoolean(rawProps?.showButton, true) && !!buttonLabel;
     // Default showIcon to false — only show when DSL explicitly enables it AND provides an icon name
-    const showIcon = asBoolean(rawProps?.showIcon, false) && !!iconName;
+    const showIcon = asBoolean(
+      rawProps?.showIcon ?? iconAttributes?.showIcon ?? iconAttributes?.visible,
+      false
+    ) && !!iconName;
     const showImage = asBoolean(rawProps?.showImage, true);
     const imageUrl = showImage
       ? unwrapValue(rawProps?.image ?? rawProps?.imageUrl ?? rawProps?.backgroundImage, null)
@@ -645,7 +660,7 @@ class Countdown extends PureComponent {
                       borderColor: timerBorderColor,
                       borderWidth: timerBorderWidth,
                     },
-                    timerBoxRadius ? { borderRadius: timerBoxRadius } : null,
+                    { borderRadius: resolvedTimerBoxRadius },
                     timerHeight
                       ? { height: timerHeight, minHeight: timerHeight }
                       : timerStyleHeight

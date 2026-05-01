@@ -94,6 +94,9 @@ export default function CartLineItems({ section }) {
     section?.props ||
     {};
   const raw = unwrapValue(propsNode?.raw, null) || propsNode || {};
+  const dslItems = Array.isArray(raw?.items) ? raw.items : [];
+  const sourceItems = cartItems.length > 0 ? cartItems : dslItems;
+  const usesDslItems = cartItems.length === 0 && dslItems.length > 0;
 
   // Container
   const bgColor = toString(raw?.bgColor ?? raw?.backgroundColor, "#FFFFFF");
@@ -138,9 +141,9 @@ export default function CartLineItems({ section }) {
   const priceSize = toNumber(raw?.priceSize, 14);
   const priceWeight = toFontWeight(raw?.priceWeight, "700");
   const currencyLabel = resolveCurrencyLabel(
-    cartItems[0]?.currency,
-    cartItems[0]?.priceCurrency,
-    cartItems[0]?.currencySymbol,
+    sourceItems[0]?.currency,
+    sourceItems[0]?.priceCurrency,
+    sourceItems[0]?.currencySymbol,
     raw?.currency,
     raw?.priceCurrency,
     raw?.currencySymbol,
@@ -219,11 +222,11 @@ export default function CartLineItems({ section }) {
   const totalValueColor = toString(raw?.totalValueColor, "#111827");
 
   const total = useMemo(
-    () => cartItems.reduce((sum, item) => sum + toNumber(item?.price, 0) * toNumber(item?.quantity, 1), 0),
-    [cartItems]
+    () => sourceItems.reduce((sum, item) => sum + toNumber(item?.price, 0) * toNumber(item?.quantity, 1), 0),
+    [sourceItems]
   );
 
-  if (cartItems.length === 0) {
+  if (sourceItems.length === 0) {
     return (
       <View style={[styles.emptyContainer, { backgroundColor: bgColor, paddingHorizontal: padL }]}>
         <Text style={styles.emptyText}>Your cart is empty</Text>
@@ -245,7 +248,7 @@ export default function CartLineItems({ section }) {
         },
       ]}
     >
-      {cartItems.map((item, index) => {
+      {sourceItems.map((item, index) => {
         const quantity = toNumber(item?.quantity, 1);
         const price = toNumber(item?.price, 0);
         const compareAt = toNumber(item?.compareAtPrice, 0);
@@ -440,9 +443,10 @@ export default function CartLineItems({ section }) {
                             borderColor: qtyBorderColor,
                           },
                         ]}
-                        onPress={() =>
-                          dispatch(updateQuantity({ id: item?.id, quantity: quantity - 1 }))
-                        }
+                        onPress={() => {
+                          if (usesDslItems) return;
+                          dispatch(updateQuantity({ id: item?.id, quantity: quantity - 1 }));
+                        }}
                         hitSlop={{ top: 4, bottom: 4, left: 4, right: 4 }}
                       >
                         <FontAwesome name="minus" size={qtyIconSize} color={qtyIconColor} />
@@ -464,9 +468,10 @@ export default function CartLineItems({ section }) {
                             borderColor: qtyBorderColor,
                           },
                         ]}
-                        onPress={() =>
-                          dispatch(updateQuantity({ id: item?.id, quantity: quantity + 1 }))
-                        }
+                        onPress={() => {
+                          if (usesDslItems) return;
+                          dispatch(updateQuantity({ id: item?.id, quantity: quantity + 1 }));
+                        }}
                         hitSlop={{ top: 4, bottom: 4, left: 4, right: 4 }}
                       >
                         <FontAwesome name="plus" size={qtyIconSize} color={qtyIconColor} />
@@ -477,7 +482,10 @@ export default function CartLineItems({ section }) {
                     {showDelete && (
                       <TouchableOpacity
                         style={styles.deleteBtn}
-                        onPress={() => dispatch(removeItem({ id: item?.id }))}
+                        onPress={() => {
+                          if (usesDslItems) return;
+                          dispatch(removeItem({ id: item?.id }));
+                        }}
                         hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
                       >
                         <FontAwesome name="trash-o" size={deleteIconSize} color={deleteIconColor} />
@@ -488,7 +496,7 @@ export default function CartLineItems({ section }) {
               </View>
             </TouchableOpacity>
 
-            {showDivider && index < cartItems.length - 1 && (
+            {showDivider && index < sourceItems.length - 1 && (
               <View style={[styles.divider, { backgroundColor: dividerColor }]} />
             )}
           </View>
@@ -496,7 +504,7 @@ export default function CartLineItems({ section }) {
       })}
 
       {/* Cart total */}
-      {showTotal && cartItems.length > 0 && (
+      {showTotal && sourceItems.length > 0 && (
         <View style={styles.totalRow}>
           <Text style={[styles.totalLabel, { color: totalColor }]}>{totalLabel}</Text>
           <Text style={[styles.totalValue, { color: totalValueColor }]}>

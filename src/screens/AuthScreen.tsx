@@ -45,6 +45,40 @@ type SignInTokens = {
   footerLinkText: string;
   emailPlaceholder: string;
   passwordPlaceholder: string;
+  emailLabelText: string;
+  passwordLabelText: string;
+  emailLabelVisible: boolean;
+  passwordLabelVisible: boolean;
+  emailLabelColor: string;
+  passwordLabelColor: string;
+  emailLabelFontSize: number;
+  passwordLabelFontSize: number;
+  emailLabelFontFamily: string;
+  passwordLabelFontFamily: string;
+  emailLabelFontWeight: string;
+  passwordLabelFontWeight: string;
+  emailInputTextColor: string;
+  passwordInputTextColor: string;
+  emailInputTextFontSize: number;
+  passwordInputTextFontSize: number;
+  emailInputTextFontFamily: string;
+  passwordInputTextFontFamily: string;
+  emailInputTextFontWeight: string;
+  passwordInputTextFontWeight: string;
+  emailPlaceholderColor: string;
+  passwordPlaceholderColor: string;
+  buttonFontSize: number;
+  buttonFontFamily: string;
+  buttonFontWeight: string;
+  buttonHeight: number;
+  buttonWidth: number;
+  footerTextFontSize: number;
+  footerLinkFontSize: number;
+  footerLinkFontFamily: string;
+  footerLinkFontWeight: string;
+  footerVisible: boolean;
+  forgotPasswordVisible: boolean;
+  authVisible: boolean;
 };
 
 type SignUpTokens = SignInTokens & {
@@ -218,6 +252,40 @@ const defaultSignInTokens: SignInTokens = {
   footerLinkText: 'Create an Account',
   emailPlaceholder: 'Enter email',
   passwordPlaceholder: 'Enter password',
+  emailLabelText: 'Email',
+  passwordLabelText: 'Password',
+  emailLabelVisible: true,
+  passwordLabelVisible: true,
+  emailLabelColor: '#065F63',
+  passwordLabelColor: '#065F63',
+  emailLabelFontSize: 14,
+  passwordLabelFontSize: 14,
+  emailLabelFontFamily: 'Inter, sans-serif',
+  passwordLabelFontFamily: 'Inter, sans-serif',
+  emailLabelFontWeight: '600',
+  passwordLabelFontWeight: '600',
+  emailInputTextColor: '#0a0a0a',
+  passwordInputTextColor: '#0a0a0a',
+  emailInputTextFontSize: 15,
+  passwordInputTextFontSize: 15,
+  emailInputTextFontFamily: 'Inter, sans-serif',
+  passwordInputTextFontFamily: 'Inter, sans-serif',
+  emailInputTextFontWeight: '400',
+  passwordInputTextFontWeight: '400',
+  emailPlaceholderColor: '#A0AEC0',
+  passwordPlaceholderColor: '#A0AEC0',
+  buttonFontSize: 16,
+  buttonFontFamily: 'Inter, sans-serif',
+  buttonFontWeight: '700',
+  buttonHeight: 50,
+  buttonWidth: 100,
+  footerTextFontSize: 14,
+  footerLinkFontSize: 14,
+  footerLinkFontFamily: 'Inter, sans-serif',
+  footerLinkFontWeight: '700',
+  footerVisible: true,
+  forgotPasswordVisible: true,
+  authVisible: true,
 };
 
 const defaultForgotPasswordTokens: ForgotPasswordTokens = {
@@ -418,6 +486,81 @@ const buildSignInTokens = (rawProps: Record<string, unknown>): SignInTokens => (
   emailPlaceholder: (rawProps?.emailPlaceholder as string) ?? defaultSignInTokens.emailPlaceholder,
   passwordPlaceholder:
     (rawProps?.passwordPlaceholder as string) ?? defaultSignInTokens.passwordPlaceholder,
+  emailLabelText: (rawProps?.emailLabelText as string) ?? defaultSignInTokens.emailLabelText,
+  passwordLabelText:
+    (rawProps?.passwordLabelText as string) ?? defaultSignInTokens.passwordLabelText,
+  emailLabelVisible:
+    (rawProps?.emailLabelVisible as boolean) ?? defaultSignInTokens.emailLabelVisible,
+  passwordLabelVisible:
+    (rawProps?.passwordLabelVisible as boolean) ?? defaultSignInTokens.passwordLabelVisible,
+  emailLabelColor: (rawProps?.emailLabelColor as string) ?? defaultSignInTokens.emailLabelColor,
+  passwordLabelColor:
+    (rawProps?.passwordLabelColor as string) ?? defaultSignInTokens.passwordLabelColor,
+  emailLabelFontSize: toNumber(rawProps?.emailLabelFontSize, defaultSignInTokens.emailLabelFontSize),
+  passwordLabelFontSize: toNumber(
+    rawProps?.passwordLabelFontSize,
+    defaultSignInTokens.passwordLabelFontSize
+  ),
+  emailLabelFontFamily:
+    (rawProps?.emailLabelFontFamily as string) ?? defaultSignInTokens.emailLabelFontFamily,
+  passwordLabelFontFamily:
+    (rawProps?.passwordLabelFontFamily as string) ?? defaultSignInTokens.passwordLabelFontFamily,
+  emailLabelFontWeight: toFontWeight(
+    rawProps?.emailLabelFontWeight,
+    defaultSignInTokens.emailLabelFontWeight
+  ),
+  passwordLabelFontWeight: toFontWeight(
+    rawProps?.passwordLabelFontWeight,
+    defaultSignInTokens.passwordLabelFontWeight
+  ),
+  emailInputTextColor:
+    (rawProps?.emailInputTextColor as string) ?? defaultSignInTokens.emailInputTextColor,
+  passwordInputTextColor:
+    (rawProps?.passwordInputTextColor as string) ?? defaultSignInTokens.passwordInputTextColor,
+  emailInputTextFontSize: toNumber(
+    rawProps?.emailInputTextFontSize,
+    defaultSignInTokens.emailInputTextFontSize
+  ),
+  passwordInputTextFontSize: toNumber(
+    rawProps?.passwordInputTextFontSize,
+    defaultSignInTokens.passwordInputTextFontSize
+  ),
+  emailInputTextFontFamily:
+    (rawProps?.emailInputTextFontFamily as string) ?? defaultSignInTokens.emailInputTextFontFamily,
+  passwordInputTextFontFamily:
+    (rawProps?.passwordInputTextFontFamily as string) ??
+    defaultSignInTokens.passwordInputTextFontFamily,
+  emailInputTextFontWeight: toFontWeight(
+    rawProps?.emailInputTextFontWeight,
+    defaultSignInTokens.emailInputTextFontWeight
+  ),
+  passwordInputTextFontWeight: toFontWeight(
+    rawProps?.passwordInputTextFontWeight,
+    defaultSignInTokens.passwordInputTextFontWeight
+  ),
+  emailPlaceholderColor:
+    (rawProps?.emailPlaceholderColor as string) ?? defaultSignInTokens.emailPlaceholderColor,
+  passwordPlaceholderColor:
+    (rawProps?.passwordPlaceholderColor as string) ??
+    defaultSignInTokens.passwordPlaceholderColor,
+  buttonFontSize: toNumber(rawProps?.buttonFontSize, defaultSignInTokens.buttonFontSize),
+  buttonFontFamily:
+    (rawProps?.buttonFontFamily as string) ?? defaultSignInTokens.buttonFontFamily,
+  buttonFontWeight: toFontWeight(rawProps?.buttonFontWeight, defaultSignInTokens.buttonFontWeight),
+  buttonHeight: toNumber(rawProps?.buttonHeight, defaultSignInTokens.buttonHeight),
+  buttonWidth: toNumber(rawProps?.buttonWidth, defaultSignInTokens.buttonWidth),
+  footerTextFontSize: toNumber(rawProps?.footerTextFontSize, defaultSignInTokens.footerTextFontSize),
+  footerLinkFontSize: toNumber(rawProps?.footerLinkFontSize, defaultSignInTokens.footerLinkFontSize),
+  footerLinkFontFamily:
+    (rawProps?.footerLinkFontFamily as string) ?? defaultSignInTokens.footerLinkFontFamily,
+  footerLinkFontWeight: toFontWeight(
+    rawProps?.footerLinkFontWeight,
+    defaultSignInTokens.footerLinkFontWeight
+  ),
+  footerVisible: (rawProps?.footerVisible as boolean) ?? defaultSignInTokens.footerVisible,
+  forgotPasswordVisible:
+    (rawProps?.forgotPasswordVisible as boolean) ?? defaultSignInTokens.forgotPasswordVisible,
+  authVisible: (rawProps?.authVisible as boolean) ?? defaultSignInTokens.authVisible,
 });
 
 const buildForgotPasswordTokens = (rawProps: Record<string, unknown>): ForgotPasswordTokens => ({
@@ -1037,18 +1180,21 @@ const AuthScreen = () => {
           marginTop: 6,
           borderWidth: 1,
           borderColor: activeTokens.buttonBorderColor,
-          height: mode === 'signup' ? signUpTokens.buttonHeight : undefined,
+          height: mode === 'signup' ? signUpTokens.buttonHeight : signInTokens.buttonHeight,
           width:
-            mode === 'signup' && signUpTokens.buttonWidth <= 100
-              ? `${signUpTokens.buttonWidth}%`
-              : undefined,
-          alignSelf: mode === 'signup' && signUpTokens.buttonWidth <= 100 ? 'center' : undefined,
+            mode === 'signup'
+              ? (signUpTokens.buttonWidth <= 100 ? `${signUpTokens.buttonWidth}%` : undefined)
+              : (signInTokens.buttonWidth <= 100 ? `${signInTokens.buttonWidth}%` : undefined),
+          alignSelf:
+            mode === 'signup'
+              ? (signUpTokens.buttonWidth <= 100 ? 'center' : undefined)
+              : (signInTokens.buttonWidth <= 100 ? 'center' : undefined),
         },
         submitText: {
           color: activeTokens.buttonTextColor,
-          fontWeight: mode === 'signup' ? signUpTokens.buttonFontWeight : '700',
-          fontSize: mode === 'signup' ? signUpTokens.buttonFontSize : 16,
-          fontFamily: mode === 'signup' ? signUpTokens.buttonFontFamily : undefined,
+          fontWeight: mode === 'signup' ? signUpTokens.buttonFontWeight : signInTokens.buttonFontWeight,
+          fontSize: mode === 'signup' ? signUpTokens.buttonFontSize : signInTokens.buttonFontSize,
+          fontFamily: mode === 'signup' ? signUpTokens.buttonFontFamily : signInTokens.buttonFontFamily,
         },
         switcher: {
           marginTop: 16,
@@ -1057,14 +1203,14 @@ const AuthScreen = () => {
         switcherText: {
           color: activeTokens.footerTextColor,
           fontWeight: '600',
-          fontSize: mode === 'signup' ? signUpTokens.footerTextFontSize : 14,
+          fontSize: mode === 'signup' ? signUpTokens.footerTextFontSize : signInTokens.footerTextFontSize,
         },
         switcherLinkText: {
           color: activeTokens.footerLinkColor,
-          fontWeight: mode === 'signup' ? signUpTokens.footerLinkFontWeight : '700',
+          fontWeight: mode === 'signup' ? signUpTokens.footerLinkFontWeight : signInTokens.footerLinkFontWeight,
           marginTop: 6,
-          fontSize: mode === 'signup' ? signUpTokens.footerLinkFontSize : 14,
-          fontFamily: mode === 'signup' ? signUpTokens.footerLinkFontFamily : undefined,
+          fontSize: mode === 'signup' ? signUpTokens.footerLinkFontSize : signInTokens.footerLinkFontSize,
+          fontFamily: mode === 'signup' ? signUpTokens.footerLinkFontFamily : signInTokens.footerLinkFontFamily,
           textAlign:
             mode === 'signup'
               ? toTextAlign(signUpTokens.footerLinkAlignment, 'center')
@@ -1171,11 +1317,13 @@ const AuthScreen = () => {
             <RefreshControl refreshing={refreshing} onRefresh={() => loadAuthLayout(true)} />
           }
         >
-          <View style={styles.header}>
-            <Text style={styles.title}>{subtitle}</Text>
-            <Text style={styles.headline}>{headline}</Text>
-            <Text style={styles.description}>{description}</Text>
-          </View>
+          {(mode !== 'login' || signInTokens.authVisible) && (
+            <View style={styles.header}>
+              <Text style={styles.title}>{subtitle}</Text>
+              {mode !== 'login' ? <Text style={styles.headline}>{headline}</Text> : null}
+              {mode !== 'login' ? <Text style={styles.description}>{description}</Text> : null}
+            </View>
+          )}
 
           <View style={styles.card}>
             {mode === 'signup' && signUpTokens.showProfilePicture ? (
@@ -1268,7 +1416,21 @@ const AuthScreen = () => {
             {mode === 'login' || signUpTokens.emailInputVisible ? (
               <View style={styles.fieldGroup}>
                 {mode === 'login' ? (
-                  <Text style={styles.label}>Email</Text>
+                  signInTokens.emailLabelVisible ? (
+                    <Text
+                      style={[
+                        styles.label,
+                        {
+                          color: signInTokens.emailLabelColor,
+                          fontSize: signInTokens.emailLabelFontSize,
+                          fontFamily: signInTokens.emailLabelFontFamily,
+                          fontWeight: signInTokens.emailLabelFontWeight,
+                        },
+                      ]}
+                    >
+                      {signInTokens.emailLabelText}
+                    </Text>
+                  ) : null
                 ) : signUpTokens.emailLabelVisible ? (
                   <Text
                     style={[
@@ -1290,7 +1452,7 @@ const AuthScreen = () => {
                     mode === 'login' ? signInTokens.emailPlaceholder : signUpTokens.emailPlaceholder
                   }
                   placeholderTextColor={
-                    mode === 'login' ? '#A0AEC0' : signUpTokens.emailPlaceholderColor
+                    mode === 'login' ? signInTokens.emailPlaceholderColor : signUpTokens.emailPlaceholderColor
                   }
                   value={email}
                   onChangeText={setEmail}
@@ -1304,7 +1466,12 @@ const AuthScreen = () => {
                           fontWeight: signUpTokens.emailInputTextFontWeight,
                           textAlign: toTextAlign(signUpTokens.emailInputTextAlignment),
                         }
-                      : null,
+                      : {
+                          color: signInTokens.emailInputTextColor,
+                          fontSize: signInTokens.emailInputTextFontSize,
+                          fontFamily: signInTokens.emailInputTextFontFamily,
+                          fontWeight: signInTokens.emailInputTextFontWeight,
+                        },
                   ]}
                   keyboardType="email-address"
                   autoCapitalize="none"
@@ -1316,7 +1483,21 @@ const AuthScreen = () => {
             {mode === 'login' || signUpTokens.passwordInputVisible ? (
               <View style={styles.fieldGroup}>
                 {mode === 'login' ? (
-                  <Text style={styles.label}>Password</Text>
+                  signInTokens.passwordLabelVisible ? (
+                    <Text
+                      style={[
+                        styles.label,
+                        {
+                          color: signInTokens.passwordLabelColor,
+                          fontSize: signInTokens.passwordLabelFontSize,
+                          fontFamily: signInTokens.passwordLabelFontFamily,
+                          fontWeight: signInTokens.passwordLabelFontWeight,
+                        },
+                      ]}
+                    >
+                      {signInTokens.passwordLabelText}
+                    </Text>
+                  ) : null
                 ) : signUpTokens.passwordLabelVisible ? (
                   <Text
                     style={[
@@ -1341,7 +1522,7 @@ const AuthScreen = () => {
                         : signUpTokens.passwordPlaceholder
                     }
                     placeholderTextColor={
-                      mode === 'login' ? '#A0AEC0' : signUpTokens.passwordPlaceholderColor
+                      mode === 'login' ? signInTokens.passwordPlaceholderColor : signUpTokens.passwordPlaceholderColor
                     }
                     value={password}
                     onChangeText={setPassword}
@@ -1357,7 +1538,12 @@ const AuthScreen = () => {
                             fontWeight: signUpTokens.passwordInputTextFontWeight,
                             textAlign: toTextAlign(signUpTokens.passwordInputTextAlignment),
                           }
-                        : null,
+                        : {
+                            color: signInTokens.passwordInputTextColor,
+                            fontSize: signInTokens.passwordInputTextFontSize,
+                            fontFamily: signInTokens.passwordInputTextFontFamily,
+                            fontWeight: signInTokens.passwordInputTextFontWeight,
+                          },
                     ]}
                   />
                   <TouchableOpacity
@@ -1366,9 +1552,9 @@ const AuthScreen = () => {
                     accessibilityRole="button"
                     accessibilityLabel={passwordVisible ? 'Hide password' : 'Show password'}
                   >
-                    <Text style={styles.visibilityText}>{passwordVisible ? 'Hide' : 'Show'}</Text>
-                  </TouchableOpacity>
-                </View>
+                  <Text style={styles.visibilityText}>{passwordVisible ? 'Hide' : 'Show'}</Text>
+                </TouchableOpacity>
+              </View>
                 {mode === 'signup' ? (
                   <Text style={styles.helperText}>
                     Use at least 8 characters with a number and uppercase letter.
@@ -1381,7 +1567,16 @@ const AuthScreen = () => {
 
             {mode === 'login' || signUpTokens.buttonVisible ? (
               <TouchableOpacity
-                style={styles.submitButton}
+                style={[
+                  styles.submitButton,
+                  mode === 'login'
+                    ? {
+                        height: signInTokens.buttonHeight,
+                        width: signInTokens.buttonWidth <= 100 ? `${signInTokens.buttonWidth}%` : undefined,
+                        alignSelf: signInTokens.buttonWidth <= 100 ? 'center' : undefined,
+                      }
+                    : null,
+                ]}
                 onPress={handleSubmit}
                 disabled={loading || initializing}
               >
@@ -1392,12 +1587,25 @@ const AuthScreen = () => {
                     }
                   />
                 ) : (
-                  <Text style={styles.submitText}>{buttonLabel}</Text>
+                  <Text
+                    style={[
+                      styles.submitText,
+                      mode === 'login'
+                        ? {
+                            fontSize: signInTokens.buttonFontSize,
+                            fontFamily: signInTokens.buttonFontFamily,
+                            fontWeight: signInTokens.buttonFontWeight,
+                          }
+                        : null,
+                    ]}
+                  >
+                    {buttonLabel}
+                  </Text>
                 )}
               </TouchableOpacity>
             ) : null}
 
-            {mode === 'login' || signUpTokens.footerVisible ? (
+            {(mode === 'login' ? signInTokens.footerVisible : signUpTokens.footerVisible) ? (
               <View style={styles.switcher}>
                 <Text style={styles.switcherText}>
                   {mode === 'login' ? signInTokens.footerText : signUpTokens.footerText}
@@ -1417,7 +1625,7 @@ const AuthScreen = () => {
             ) : null}
           </View>
 
-          {mode === 'login' ? (
+          {mode === 'login' && signInTokens.forgotPasswordVisible ? (
             <View style={styles.forgotCard}>
               <Text style={styles.forgotHeadline}>{forgotPasswordTokens.headlineText}</Text>
               <Text style={styles.forgotSubtitle}>{forgotPasswordTokens.resetPasswordTitle}</Text>

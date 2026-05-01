@@ -163,6 +163,7 @@ const DEFAULT_TABS = [
   { label: "All",    key: "all" },
   { label: "Newest", key: "newest" },
   { label: "Photos", key: "photos" },
+  { label: "Verified", key: "verified" },
 ];
 
 // ─── Component ────────────────────────────────────────────────────────────────
@@ -174,7 +175,8 @@ export default function CustomerReviews({ section }) {
     section?.props ||
     {};
 
-  const raw         = unwrapValue(propsNode?.raw, {});
+  const rawValue    = unwrapValue(propsNode?.raw, {});
+  const raw         = { ...(propsNode || {}), ...(rawValue || {}) };
   const bgCss       = unwrapValue(propsNode?.backgroundAndPadding ?? propsNode?.background, {});
   const headingCss  = unwrapValue(propsNode?.heading ?? propsNode?.title, {});
   const ratingCss   = unwrapValue(propsNode?.ratingStyle ?? propsNode?.rating, {});
@@ -211,7 +213,8 @@ export default function CustomerReviews({ section }) {
   const tabs      = dslTabs.length > 0 ? dslTabs : DEFAULT_TABS;
 
   // ── Active tab ──────────────────────────────────────────────────────────────
-  const [activeTab, setActiveTab] = useState(tabs[0]?.key ?? "all");
+  const initialTabIndex = Math.max(0, Math.floor(toNumber(raw?.tabIndex, 0)));
+  const [activeTab, setActiveTab] = useState(tabs[initialTabIndex]?.key ?? tabs[0]?.key ?? "all");
 
   const visibleReviews = useMemo(() => {
     if (activeTab === "all" || !activeTab) return reviews;
@@ -221,38 +224,40 @@ export default function CustomerReviews({ section }) {
   // ── Visibility ──────────────────────────────────────────────────────────────
   const showHeading    = toBoolean(visibility?.heading ?? visibility?.title, true);
   const showSummary    = toBoolean(visibility?.summary ?? visibility?.ratingBreakdown, true);
-  const showTabs       = toBoolean(visibility?.tabs ?? visibility?.filters, true);
+  const showTabs       = toBoolean(visibility?.tabs ?? visibility?.filters ?? raw?.showTabs, true);
   const showReviews    = toBoolean(visibility?.reviews ?? visibility?.list, true);
   const showWriteBtn   = toBoolean(visibility?.writeButton ?? visibility?.cta, true);
+  const showRatingBars = toBoolean(raw?.showRatingBars, true);
+  const showReviewCount = toBoolean(raw?.showReviewCount, true);
 
   // ── Container ───────────────────────────────────────────────────────────────
-  const resolvedPL = (() => { const v = toNumber(bgCss?.paddingLeft, 16); return v === 0 ? 16 : v; })();
-  const resolvedPR = (() => { const v = toNumber(bgCss?.paddingRight, 16); return v === 0 ? 16 : v; })();
+  const resolvedPL = (() => { const v = toNumber(bgCss?.paddingLeft ?? raw?.pl, 16); return v === 0 ? 16 : v; })();
+  const resolvedPR = (() => { const v = toNumber(bgCss?.paddingRight ?? raw?.pr, 16); return v === 0 ? 16 : v; })();
   const containerStyle = {
-    paddingTop:      toNumber(bgCss?.paddingTop, 16),
-    paddingBottom:   toNumber(bgCss?.paddingBottom, 20),
+    paddingTop:      toNumber(bgCss?.paddingTop ?? raw?.pt, 16),
+    paddingBottom:   toNumber(bgCss?.paddingBottom ?? raw?.pb, 20),
     paddingLeft:     resolvedPL,
     paddingRight:    resolvedPR,
-    backgroundColor: toString(bgCss?.bgColor, "#FFFFFF"),
-    borderRadius:    toNumber(bgCss?.cornerRadius, 0),
+    backgroundColor: toString(bgCss?.bgColor ?? raw?.backgroundColor, "#FFFFFF"),
+    borderRadius:    toNumber(bgCss?.cornerRadius ?? raw?.borderRadius, 0),
     borderWidth:     bgCss?.borderLine ? 1 : 0,
-    borderColor:     toString(bgCss?.borderColor, "#E5E7EB"),
+    borderColor:     toString(bgCss?.borderColor ?? raw?.borderColor, "#E5E7EB"),
   };
 
   // ── Heading ─────────────────────────────────────────────────────────────────
-  const headingText   = toString(headingCss?.text ?? raw?.headingText, "Customer Reviews");
-  const headingSize   = toNumber(headingCss?.fontSize, 17);
+  const headingText   = toString(headingCss?.text ?? raw?.title ?? raw?.headingText, "Customer Reviews");
+  const headingSize   = toNumber(headingCss?.fontSize ?? raw?.headlineSize, 17);
   const headingColor  = toString(headingCss?.color, "#111827");
-  const headingWeight = toString(headingCss?.fontWeight, "700");
-  const headingFontFamily = cleanFontFamily(toString(headingCss?.fontFamily, ""));
+  const headingWeight = toString(headingCss?.fontWeight ?? raw?.headlineWeight, "700");
+  const headingFontFamily = cleanFontFamily(toString(headingCss?.fontFamily ?? raw?.headlineFontFamily ?? raw?.fontFamily, ""));
 
   // ── Rating summary ──────────────────────────────────────────────────────────
-  const ratingNumSize    = toNumber(ratingCss?.fontSize ?? ratingCss?.numberFontSize, 40);
+  const ratingNumSize    = toNumber(ratingCss?.fontSize ?? ratingCss?.numberFontSize ?? raw?.subtextSize, 40);
   const ratingNumColor   = toString(ratingCss?.color ?? ratingCss?.numberColor, "#111827");
   const ratingCountColor = toString(ratingCss?.countColor, "#6B7280");
-  const starColor        = toString(ratingCss?.starColor, "#F59E0B");
+  const starColor        = toString(ratingCss?.starColor ?? raw?.iconColor, "#F59E0B");
   const starEmptyColor   = toString(ratingCss?.starEmptyColor, "#D1D5DB");
-  const starSize         = toNumber(ratingCss?.starSize, 14);
+  const starSize         = toNumber(ratingCss?.starSize ?? raw?.iconSize, 14);
 
   // ── Bar ─────────────────────────────────────────────────────────────────────
   const barFillColor  = toString(barCss?.fillColor ?? barCss?.color, "#0D9488");
@@ -263,14 +268,14 @@ export default function CustomerReviews({ section }) {
   const barPctColor   = toString(barCss?.percentColor, "#6B7280");
 
   // ── Tab ─────────────────────────────────────────────────────────────────────
-  const tabActiveBg      = toString(tabCss?.activeBg, "#0D9488");
+  const tabActiveBg      = toString(tabCss?.activeBg ?? raw?.borderColor, "#0D9488");
   const tabActiveColor   = toString(tabCss?.activeColor, "#FFFFFF");
-  const tabInactiveBg    = toString(tabCss?.inactiveBg, "#F3F4F6");
+  const tabInactiveBg    = toString(tabCss?.inactiveBg, "#BDBDBD");
   const tabInactiveColor = toString(tabCss?.inactiveColor, "#6B7280");
-  const tabBorderRadius  = toNumber(tabCss?.borderRadius, 20);
-  const tabFontSize      = toNumber(tabCss?.fontSize, 12);
-  const tabFontWeight    = toString(tabCss?.fontWeight, "600");
-  const tabFontFamily    = cleanFontFamily(toString(tabCss?.fontFamily, ""));
+  const tabBorderRadius  = toNumber(tabCss?.borderRadius ?? raw?.buttonRadius, 8);
+  const tabFontSize      = toNumber(tabCss?.fontSize ?? raw?.fontSize, 12);
+  const tabFontWeight    = toString(tabCss?.fontWeight ?? raw?.fontWeight, "600");
+  const tabFontFamily    = cleanFontFamily(toString(tabCss?.fontFamily ?? raw?.fontFamily, ""));
 
   // ── Review card ─────────────────────────────────────────────────────────────
   const reviewTitleSize   = toNumber(reviewCss?.titleFontSize, 13);
@@ -286,14 +291,23 @@ export default function CustomerReviews({ section }) {
   const reviewFontFamily  = cleanFontFamily(toString(reviewCss?.fontFamily, ""));
 
   // ── Write review button ─────────────────────────────────────────────────────
-  const btnText         = toString(buttonCss?.text ?? raw?.writeButtonText, "Write a Review");
-  const btnBg           = toString(buttonCss?.bgColor ?? buttonCss?.bg, "#111827");
-  const btnTextColor    = toString(buttonCss?.textColor ?? buttonCss?.color, "#FFFFFF");
+  const btnText         = toString(buttonCss?.text ?? raw?.writeButtonText, "Write a Reviews");
+  const btnBg           = toString(buttonCss?.bgColor ?? buttonCss?.bg ?? raw?.borderColor, "#111827");
+  const btnTextColor    = toString(buttonCss?.textColor ?? buttonCss?.color ?? raw?.iconColor, "#FFFFFF");
   const btnFontSize     = toNumber(buttonCss?.fontSize, 14);
   const btnFontWeight   = toString(buttonCss?.fontWeight, "600");
-  const btnBorderRadius = toNumber(buttonCss?.borderRadius, 8);
+  const btnBorderRadius = toNumber(buttonCss?.borderRadius ?? raw?.buttonRadius, 8);
   const btnPV           = toNumber(buttonCss?.paddingV, 13);
-  const btnFontFamily   = cleanFontFamily(toString(buttonCss?.fontFamily, ""));
+  const btnFontFamily   = cleanFontFamily(toString(buttonCss?.fontFamily ?? raw?.fontFamily, ""));
+  const emptyTitle      = toString(raw?.emptyTitle, "No Reviews Yet");
+  const emptySubtitle   = toString(raw?.emptySubtitle, "Be the first to review this product");
+  const emptyIconColor  = toString(raw?.emptyIconColor ?? raw?.iconColor, "#F59E0B");
+
+  const ratingBreakdownRows = useMemo(() => {
+    if (!showRatingBars) return [];
+    if (breakdown.length > 0) return breakdown;
+    return [5, 4, 3, 2, 1].map((stars) => ({ stars, pct: 0 }));
+  }, [showRatingBars, breakdown]);
 
   return (
     <View style={[styles.container, containerStyle]}>
@@ -321,17 +335,17 @@ export default function CustomerReviews({ section }) {
               color={starColor}
               emptyColor={starEmptyColor}
             />
-            {!!reviewCountText && (
+            {showReviewCount && !!reviewCountText && (
               <Text style={{ fontSize: 11, color: ratingCountColor, marginTop: 3 }}>
                 {reviewCountText}
               </Text>
             )}
           </View>
 
-          {/* Right: bar chart — only shown when DSL provides breakdown data */}
-          {breakdown.length > 0 && (
+          {/* Right: bar chart */}
+          {ratingBreakdownRows.length > 0 && (
             <View style={styles.summaryRight}>
-              {breakdown.map((row) => (
+              {ratingBreakdownRows.map((row) => (
                 <View key={row.stars} style={styles.barRow}>
                   <Text style={{ fontSize: 11, color: barLabelColor, width: 8, marginRight: 6 }}>
                     {row.stars}
@@ -455,11 +469,13 @@ export default function CustomerReviews({ section }) {
       ))}
 
       {showReviews && visibleReviews.length === 0 && (
-        <Text style={styles.noReviews}>
-          {activeTab === "all"
-            ? "Be the first to review this product"
-            : `No ${activeTab} reviews yet`}
-        </Text>
+        <View style={styles.emptyStateWrap}>
+          <View style={styles.emptyIconBox}>
+            <FontAwesome name="star" size={18} color={emptyIconColor} />
+          </View>
+          <Text style={styles.emptyTitle}>{emptyTitle}</Text>
+          <Text style={styles.noReviews}>{emptySubtitle}</Text>
+        </View>
       )}
 
       {/* ── Write a Review button ─────────────────────────────────────────── */}
@@ -534,9 +550,29 @@ const styles = StyleSheet.create({
   },
   noReviews: {
     textAlign:    "center",
-    color:        "#9CA3AF",
+    color:        "#111827",
     fontSize:     13,
-    paddingVertical: 16,
+    paddingVertical: 4,
+  },
+  emptyStateWrap: {
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 14,
+  },
+  emptyIconBox: {
+    width: 88,
+    height: 88,
+    borderRadius: 8,
+    backgroundColor: "#B3B3B3",
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 10,
+  },
+  emptyTitle: {
+    fontSize: 28,
+    fontWeight: "700",
+    color: "#111827",
+    textAlign: "center",
   },
   // ── Write button ──────────────────────────────────────────────────────────
   writeBtn: {

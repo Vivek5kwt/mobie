@@ -103,6 +103,22 @@ const toFontWeight = (value, fallback) => {
   return fallback;
 };
 
+const isProductAvailable = (product) => {
+  if (!product || typeof product !== "object") return true;
+  if (product.availableForSale === false) return false;
+  const inventory =
+    product.inventoryQuantity ??
+    product.totalInventory ??
+    product.stockQuantity ??
+    product.quantityAvailable;
+  if (typeof inventory === "number" && inventory <= 0) return false;
+  if (Array.isArray(product.variants) && product.variants.length > 0) {
+    const anyVariantAvailable = product.variants.some((variant) => variant?.availableForSale !== false);
+    if (!anyVariantAvailable) return false;
+  }
+  return true;
+};
+
 // Strip web CSS fallback fonts ("Poppins, sans-serif" → "Poppins")
 const cleanFontFamily = (family) => {
   if (!family) return "";
@@ -380,8 +396,8 @@ export default function ProductGrid({ section, limit = 8, title = "Products" }) 
 
   // ── Unavailable / sold-out button ─────────────────────────────────────────
   const unavailableLabel     = toString(rawProps?.unavailableText ?? rawProps?.soldOutText ?? rawProps?.unavailLabel, "Unavailable");
-  const unavailableBgColor   = toString(rawProps?.unavailableBgColor ?? rawProps?.soldOutBgColor, "#E5E7EB");
-  const unavailableTextColor = toString(rawProps?.unavailableColor ?? rawProps?.soldOutColor, "#6B7280");
+  const unavailableBgColor   = toString(rawProps?.unavailableBgColor ?? rawProps?.soldOutBgColor, "#7A7A7A");
+  const unavailableTextColor = toString(rawProps?.unavailableColor ?? rawProps?.soldOutColor, "#FFFFFF");
 
   // ── Add-to-Cart position ──────────────────────────────────────────────────
   // "Above Product Details" → render ATC between image and title/price
@@ -670,7 +686,7 @@ export default function ProductGrid({ section, limit = 8, title = "Products" }) 
           {products.map((product, index) => {
             const prodId = String(product?.id || product?.variantId || product?.handle || product?.title || "").trim();
             const isInWishlist = prodId ? wishlistItems.some((p) => String(p.id || "").trim() === prodId) : false;
-            const isAvailable = product?.availableForSale !== false;
+            const isAvailable = isProductAvailable(product);
 
             // Suppress marginBottom on last-row cards so no phantom gap appears
             // below the grid (CSS gap never applies after the last row; RN marginBottom does).

@@ -92,6 +92,21 @@ const cleanFontFamily = (family) => {
 };
 
 
+const isProductAvailable = (product) => {
+  if (!product || typeof product !== "object") return true;
+  if (product.availableForSale === false) return false;
+  const inventory =
+    product.inventoryQuantity ??
+    product.totalInventory ??
+    product.stockQuantity ??
+    product.quantityAvailable;
+  if (typeof inventory === "number" && inventory <= 0) return false;
+  if (Array.isArray(product.variants) && product.variants.length > 0) {
+    const anyVariantAvailable = product.variants.some((variant) => variant?.availableForSale !== false);
+    if (!anyVariantAvailable) return false;
+  }
+  return true;
+};
 const parseAspectRatio = (ratio) => {
   if (!ratio || typeof ratio !== "string") return null;
   const match = ratio.match(/(\d+):(\d+)/);
@@ -295,7 +310,7 @@ export default function ProductCarousel({ section }) {
   // Add to Cart configuration
   const atcActive = toBoolean(raw?.atcActive, true);
   const atcAvailableText = unwrapValue(raw?.atcAvailableText, "Add To Cart");
-  const atcSoldOutText = unwrapValue(raw?.atcSoldOutText, "Sold Out");
+  const atcSoldOutText = unwrapValue(raw?.atcSoldOutText ?? raw?.unavailableText, "Unavailable");
   // Normalise ATC position: "above"/"top"/"before" → "above", "overlay"/"on-image" → "overlay", else "below"
   const atcPositionRaw = toString(
     raw?.atcPosition ??
@@ -329,8 +344,8 @@ export default function ProductCarousel({ section }) {
   const atcAvailableItalic = toBoolean(raw?.atcAvailableItalic, false);
   const atcAvailableUnderline = toBoolean(raw?.atcAvailableUnderline, false);
   const atcAvailableStrikethrough = toBoolean(raw?.atcAvailableStrikethrough, false);
-  const atcSoldOutBgColor = toString(raw?.atcSoldOutBgColor, "#E5E7EB");
-  const atcSoldOutTextColor = toString(raw?.atcSoldOutTextColor, "#111827");
+  const atcSoldOutBgColor = toString(raw?.atcSoldOutBgColor ?? raw?.unavailableBgColor, "#7A7A7A");
+  const atcSoldOutTextColor = toString(raw?.atcSoldOutTextColor ?? raw?.unavailableTextColor, "#FFFFFF");
   const atcSoldOutBold = toBoolean(raw?.atcSoldOutBold, false);
   const atcSoldOutItalic = toBoolean(raw?.atcSoldOutItalic, false);
   const atcSoldOutUnderline = toBoolean(raw?.atcSoldOutUnderline, false);
@@ -758,7 +773,7 @@ export default function ProductCarousel({ section }) {
               product?.id || product?.variantId || product?.handle || product?.title || ""
             ).trim();
             const isFavorite = productId ? wishlistIds.has(productId) : false;
-            const isSoldOut = product.availableForSale === false;
+            const isSoldOut = !isProductAvailable(product);
 
             return (
               <Pressable
@@ -981,3 +996,4 @@ const styles = StyleSheet.create({
     zIndex: 3,
   },
 });
+

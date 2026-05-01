@@ -36,6 +36,25 @@ const resolveBoolean = (input, fallback = true) => {
   return fallback;
 };
 
+const resolveFontWeight = (value, fallback = "400") => {
+  const resolved = resolveValue(value, fallback);
+  if (typeof resolved === "number") return String(resolved);
+  const normalized = String(resolved || "").trim().toLowerCase();
+  if (!normalized) return fallback;
+  if (/^\d+$/.test(normalized)) return normalized;
+  if (normalized === "bold") return "700";
+  if (normalized === "semibold" || normalized === "semi bold") return "600";
+  if (normalized === "medium") return "500";
+  if (normalized === "regular" || normalized === "normal") return "400";
+  return fallback;
+};
+
+const cleanFontFamily = (family) => {
+  if (!family) return undefined;
+  const cleaned = String(family).split(",")[0].trim().replace(/['"]/g, "");
+  return cleaned || undefined;
+};
+
 const parseIconName = (iconClass) => {
   if (!iconClass || typeof iconClass !== "string") return "user";
   const tokens = iconClass.split(" ").filter(Boolean);
@@ -90,7 +109,7 @@ export default function AccountProfile({ section }) {
   const nameStyle = convertStyles(css?.name || {});
   const emailStyle = convertStyles(css?.email || {});
   const avatarStyle = css?.avatar || {};
-  const visibility = css?.visibility || {};
+  const visibility = { ...(css?.visibility || {}), ...(resolveObject(rawProps?.visibility, {}) || {}) };
   const placeholder = css?.placeholder || {};
 
   const showName = resolveBoolean(visibility?.profileName, true);
@@ -109,16 +128,22 @@ export default function AccountProfile({ section }) {
     ...resolveBorderStyle(borderLine, borderColor),
   };
 
+  const nameFontFamily = cleanFontFamily(resolveValue(rawProps?.headlineFontFamily ?? rawProps?.nameFontFamily ?? rawProps?.fontFamily, ""));
+  const emailFontFamily = cleanFontFamily(resolveValue(rawProps?.subtextFontFamily ?? rawProps?.emailFontFamily ?? rawProps?.fontFamily, ""));
   const resolvedNameStyle = {
     ...nameStyle,
     color: resolveValue(rawProps?.nameColor, nameStyle?.color),
-    fontSize: resolveValue(rawProps?.nameFontSize, nameStyle?.fontSize),
+    fontSize: resolveValue(rawProps?.nameFontSize ?? rawProps?.headlineSize ?? rawProps?.fontSize, nameStyle?.fontSize),
+    fontWeight: resolveFontWeight(rawProps?.nameFontWeight ?? rawProps?.headlineWeight ?? rawProps?.fontWeight, nameStyle?.fontWeight || "700"),
+    ...(nameFontFamily ? { fontFamily: nameFontFamily } : {}),
   };
 
   const resolvedEmailStyle = {
     ...emailStyle,
     color: resolveValue(rawProps?.emailColor, emailStyle?.color),
-    fontSize: resolveValue(rawProps?.emailFontSize, emailStyle?.fontSize),
+    fontSize: resolveValue(rawProps?.emailFontSize ?? rawProps?.subtextSize, emailStyle?.fontSize),
+    fontWeight: resolveFontWeight(rawProps?.emailFontWeight ?? rawProps?.subtextWeight ?? rawProps?.fontWeight, emailStyle?.fontWeight || "400"),
+    ...(emailFontFamily ? { fontFamily: emailFontFamily } : {}),
   };
 
   const avatarSize = resolveValue(avatarStyle?.baseSize, 56);
@@ -128,7 +153,7 @@ export default function AccountProfile({ section }) {
 
   const placeholderIcon = parseIconName(placeholder?.iconClass);
   const placeholderIconSize = resolveValue(placeholder?.iconSize, 22);
-  const placeholderColor = resolveValue(placeholder?.iconColor, "#016D77");
+  const placeholderColor = resolveValue(rawProps?.iconColor, resolveValue(placeholder?.iconColor, "#016D77"));
   const placeholderBg = resolveValue(placeholder?.background, "#D9F0F2");
 
   if (!showName && !showEmail && !showAvatar) {

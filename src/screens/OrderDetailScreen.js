@@ -45,6 +45,32 @@ const toStr = (v, fb = "") => {
   const s = String(r).trim();
   return s && s !== "undefined" && s !== "null" ? s : fb;
 };
+const cleanFontFamily = (family) => {
+  if (!family) return undefined;
+  const cleaned = String(family).split(",")[0].trim().replace(/['"]/g, "");
+  return cleaned || undefined;
+};
+const toBool = (v, fb = false) => {
+  const r = unwrap(v, fb);
+  if (typeof r === "boolean") return r;
+  if (typeof r === "number") return r !== 0;
+  const s = String(r || "").trim().toLowerCase();
+  if (["true", "1", "yes", "y"].includes(s)) return true;
+  if (["false", "0", "no", "n"].includes(s)) return false;
+  return fb;
+};
+const toFontWeight = (v, fb = "400") => {
+  const r = unwrap(v, fb);
+  if (typeof r === "number") return String(r);
+  const s = String(r || "").trim().toLowerCase();
+  if (!s) return fb;
+  if (/^\d+$/.test(s)) return s;
+  if (s === "bold") return "700";
+  if (s === "semibold" || s === "semi bold") return "600";
+  if (s === "medium") return "500";
+  if (s === "regular" || s === "normal") return "400";
+  return fb;
+};
 
 const dslBorder = (propsNode, defaultWidth = 1) => {
   const color = toStr(propsNode?.borderColor ?? propsNode?.strokeColor, "");
@@ -283,6 +309,13 @@ function OrderInfoSection({ section, order }) {
   const valueColor      = toStr(propsNode?.valueColor ?? propsNode?.textColor, "#111827");
   const labelSize       = toNum(propsNode?.labelFontSize ?? propsNode?.fontSize, 13);
   const valueSize       = toNum(propsNode?.valueFontSize ?? propsNode?.fontSize, 13);
+  const labelWeight     = toFontWeight(propsNode?.labelFontWeight, "400");
+  const valueWeight     = toFontWeight(propsNode?.valueFontWeight, "500");
+  const textFontFamily  = cleanFontFamily(toStr(propsNode?.fontFamily, ""));
+  const rowPt           = toNum(propsNode?.rowPaddingTop ?? propsNode?.paddingTop, 12);
+  const rowPb           = toNum(propsNode?.rowPaddingBottom ?? propsNode?.paddingBottom, 12);
+  const rowPl           = toNum(propsNode?.rowPaddingLeft ?? propsNode?.paddingLeft, 16);
+  const rowPr           = toNum(propsNode?.rowPaddingRight ?? propsNode?.paddingRight, 16);
 
   const info = {
     orderDate:      order?.orderDate      || toStr(dslInfo.orderDate,      ""),
@@ -317,13 +350,19 @@ function OrderInfoSection({ section, order }) {
           key={i}
           style={[
             styles.infoRow,
+            {
+              paddingTop: rowPt,
+              paddingBottom: rowPb,
+              paddingLeft: rowPl,
+              paddingRight: rowPr,
+            },
             i < rows.length - 1 && { borderBottomWidth: 1, borderBottomColor: rowDividerColor },
           ]}
         >
-          <Text style={[styles.infoLabel, { color: labelColor, fontSize: labelSize }]}>
+          <Text style={[styles.infoLabel, { color: labelColor, fontSize: labelSize, fontWeight: labelWeight, ...(textFontFamily ? { fontFamily: textFontFamily } : {}) }]}>
             {row.label}
           </Text>
-          <Text style={[styles.infoValue, { color: valueColor, fontSize: valueSize }]}>
+          <Text style={[styles.infoValue, { color: valueColor, fontSize: valueSize, fontWeight: valueWeight, ...(textFontFamily ? { fontFamily: textFontFamily } : {}) }]}>
             {row.value}
           </Text>
         </View>
@@ -346,16 +385,26 @@ function PriceInfoSection({ section, order }) {
   const rowFontSize  = toNum(propsNode?.fontSize, 14);
   const totalSize    = toNum(propsNode?.totalFontSize ?? propsNode?.boldFontSize, 15);
   const currSymbol   = toStr(propsNode?.currencySymbol ?? propsNode?.currency, order?.currencySymbol || "$");
+  const rowFontFamily = cleanFontFamily(toStr(propsNode?.fontFamily, ""));
+  const labelWeight = toFontWeight(propsNode?.labelFontWeight, "400");
+  const valueWeight = toFontWeight(propsNode?.valueFontWeight, "400");
+  const totalWeight = toFontWeight(propsNode?.totalFontWeight ?? propsNode?.boldFontWeight, "700");
+  const showSubtotal = toBool(propsNode?.showSubtotal ?? propsNode?.showSubTotal, true);
+  const showDelivery = toBool(propsNode?.showDelivery, true);
+  const showTax = toBool(propsNode?.showTax, true);
+  const showTotal = toBool(propsNode?.showTotal, true);
 
   const delivery = order?.delivery !== undefined ? order.delivery : toNum(propsNode?.delivery, 0);
   const tax      = order?.tax      !== undefined ? order.tax      : toNum(propsNode?.tax,      0);
   const total    = order?.total    !== undefined ? order.total    : toNum(propsNode?.total,     0);
+  const subtotal = order?.subtotal !== undefined ? order.subtotal : toNum(propsNode?.subtotal, total);
 
   const rows = [
-    { label: "Delivery", value: fmt(delivery, currSymbol), bold: false },
-    { label: "Tax",      value: fmt(tax,      currSymbol), bold: false },
-    { label: "Total",    value: fmt(total,    currSymbol), bold: true  },
-  ];
+    showSubtotal ? { label: toStr(propsNode?.subtotalLabel ?? propsNode?.subTotalLabel, "Subtotal"), value: fmt(subtotal, currSymbol), bold: false } : null,
+    showDelivery ? { label: toStr(propsNode?.deliveryLabel, "Delivery"), value: fmt(delivery, currSymbol), bold: false } : null,
+    showTax ? { label: toStr(propsNode?.taxLabel, "Tax"), value: fmt(tax, currSymbol), bold: false } : null,
+    showTotal ? { label: toStr(propsNode?.totalLabel, "Total"), value: fmt(total, currSymbol), bold: true } : null,
+  ].filter(Boolean);
 
   const border = dslBorder(propsNode);
 
@@ -372,14 +421,16 @@ function PriceInfoSection({ section, order }) {
           <Text style={[
             styles.priceLabel,
             { color: row.bold ? totalColor : labelColor, fontSize: row.bold ? totalSize : rowFontSize },
-            row.bold && { fontWeight: "700" },
+            { fontWeight: row.bold ? totalWeight : labelWeight },
+            rowFontFamily ? { fontFamily: rowFontFamily } : null,
           ]}>
             {row.label}
           </Text>
           <Text style={[
             styles.priceValue,
             { color: row.bold ? totalColor : valueColor, fontSize: row.bold ? totalSize : rowFontSize },
-            row.bold && { fontWeight: "700" },
+            { fontWeight: row.bold ? totalWeight : valueWeight },
+            rowFontFamily ? { fontFamily: rowFontFamily } : null,
           ]}>
             {row.value}
           </Text>
@@ -396,15 +447,24 @@ function CancelOrderSection({ section, navigation, order, appId, userId }) {
   const raw       = unwrap(propsNode?.raw, {}) || {};
 
   const label      = toStr(raw.label,                    "Cancel order");
-  const textStyle  = raw.textStyle || {};
-  const bg         = raw.backgroundPadding || {};
+  const visibility = raw.visibility || {};
+  const textStyle  = (toBool(visibility?.textStyle, true) ? raw.textStyle : {}) || {};
+  const bg         = (toBool(visibility?.backgroundPadding, true) ? raw.backgroundPadding : {}) || {};
+  const boxBg      = (toBool(visibility?.boxBackgroundPadding, true) ? raw.boxBackgroundPadding : {}) || {};
 
   const textColor    = toStr(textStyle.color,       "#FFFFFF");
-  const fontSize     = Math.min(toNum(textStyle.fontSize, 14), 18);
-  const fontWeight   = toStr(textStyle.fontWeight,  "600");
+  const fontSize     = toNum(textStyle.fontSize ?? raw?.fontSize, 14);
+  const fontWeight   = toFontWeight(textStyle.fontWeight ?? raw?.fontWeight, "600");
+  const fontFamily   = cleanFontFamily(toStr(raw?.fontFamily, ""));
   const bgColor      = toStr(bg.backgroundColor,   "#0D9488");
   const borderColor  = toStr(bg.borderColor,        "");
-  const borderRadius = Math.max(toNum(bg.borderRadius, 2) * 4, 8);
+  const borderRadius = Math.max(toNum(raw?.buttonRadius ?? bg.borderRadius, 8), 0);
+  const outerBgColor = toStr(boxBg.backgroundColor, "transparent");
+  const outerRadius = Math.max(toNum(boxBg.borderRadius, 0), 0);
+  const outerPt = toNum(boxBg.paddingTop, 0);
+  const outerPb = toNum(boxBg.paddingBottom, 0);
+  const outerPl = toNum(boxBg.paddingLeft, 0);
+  const outerPr = toNum(boxBg.paddingRight, 0);
 
   const handleCancel = () => {
     Alert.alert(
@@ -432,7 +492,7 @@ function CancelOrderSection({ section, navigation, order, appId, userId }) {
   };
 
   return (
-    <View style={styles.cancelContainer}>
+    <View style={[styles.cancelContainer, { backgroundColor: outerBgColor, borderRadius: outerRadius, paddingTop: outerPt, paddingBottom: outerPb, paddingLeft: outerPl, paddingRight: outerPr }]}>
       <TouchableOpacity
         style={[
           styles.cancelButton,
@@ -445,7 +505,7 @@ function CancelOrderSection({ section, navigation, order, appId, userId }) {
         onPress={handleCancel}
         activeOpacity={0.85}
       >
-        <Text style={{ color: textColor, fontSize, fontWeight }}>{label}</Text>
+        <Text style={{ color: textColor, fontSize, fontWeight, ...(fontFamily ? { fontFamily } : {}) }}>{label}</Text>
       </TouchableOpacity>
     </View>
   );
@@ -461,10 +521,16 @@ function OrderItemsSection({ section, items }) {
   const radius         = toNum(propsNode?.radius ?? propsNode?.borderRadius ?? propsNode?.cornerRadius, 14);
   const titleColor     = toStr(propsNode?.titleColor, "#000000");
   const priceColor     = toStr(propsNode?.priceColor, "#000000");
-  const titleFontSize  = Math.min(toNum(propsNode?.titleFontSize, 14), 18);
-  const priceFontSize  = Math.min(toNum(propsNode?.priceFontSize, 13), 16);
-  const titleFontWeight = toStr(propsNode?.titleFontWeight, "600");
-  const priceFontWeight = toStr(propsNode?.priceFontWeight, "500");
+  const titleFontSize  = toNum(propsNode?.titleFontSize, 14);
+  const priceFontSize  = toNum(propsNode?.priceFontSize, 13);
+  const titleFontWeight = toFontWeight(propsNode?.titleFontWeight, "600");
+  const priceFontWeight = toFontWeight(propsNode?.priceFontWeight, "500");
+  const titleUppercase = toBool(propsNode?.titleUppercase, false);
+  const priceAlign = toStr(propsNode?.priceAlign, "left").toLowerCase();
+  const titleFontFamily = cleanFontFamily(toStr(propsNode?.titleFontFamily, ""));
+  const priceFontFamily = cleanFontFamily(toStr(propsNode?.priceFontFamily ?? propsNode?.titleFontFamily, ""));
+  const metaColor = toStr(propsNode?.metaColor, "#6B7280");
+  const metaFontSize = toNum(propsNode?.metaFontSize, 12);
   const padTop    = toNum(propsNode?.paddingTop,    12);
   const padLeft   = toNum(propsNode?.paddingLeft,   12);
   const padRight  = toNum(propsNode?.paddingRight,  12);
@@ -502,22 +568,22 @@ function OrderItemsSection({ section, items }) {
           )}
           <View style={styles.itemInfo}>
             <Text
-              style={[styles.itemTitle, { color: titleColor, fontSize: titleFontSize, fontWeight: titleFontWeight }]}
+              style={[styles.itemTitle, { color: titleColor, fontSize: titleFontSize, fontWeight: titleFontWeight, textTransform: titleUppercase ? "uppercase" : "none", ...(titleFontFamily ? { fontFamily: titleFontFamily } : {}) }]}
               numberOfLines={3}
             >
               {item.title}
             </Text>
             {item.variant ? (
-              <Text style={styles.itemMeta}>Variant: {item.variant}</Text>
+              <Text style={[styles.itemMeta, { color: metaColor, fontSize: metaFontSize }]}>Variant: {item.variant}</Text>
             ) : null}
             {item.quantity ? (
-              <Text style={styles.itemMeta}>Qty: {item.quantity}</Text>
+              <Text style={[styles.itemMeta, { color: metaColor, fontSize: metaFontSize }]}>Qty: {item.quantity}</Text>
             ) : null}
             {item.deliveryDate ? (
-              <Text style={styles.itemMeta}>Delivery Date: {item.deliveryDate}</Text>
+              <Text style={[styles.itemMeta, { color: metaColor, fontSize: metaFontSize }]}>Delivery Date: {item.deliveryDate}</Text>
             ) : null}
             {item.price ? (
-              <Text style={[styles.itemPrice, { color: priceColor, fontSize: priceFontSize, fontWeight: priceFontWeight }]}>
+              <Text style={[styles.itemPrice, { color: priceColor, fontSize: priceFontSize, fontWeight: priceFontWeight, textAlign: priceAlign, ...(priceFontFamily ? { fontFamily: priceFontFamily } : {}) }]}>
                 Price: {item.price}
               </Text>
             ) : null}

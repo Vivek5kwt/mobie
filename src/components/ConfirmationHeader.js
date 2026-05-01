@@ -56,10 +56,15 @@ const normalizeIconName = (name) => {
 
 const buildRawProps = (rawProps = {}) => {
   const rawBlock = unwrapValue(rawProps.raw, {});
-  if (rawBlock && typeof rawBlock === "object" && rawBlock.value !== undefined) {
-    return rawBlock.value;
-  }
-  return rawBlock || {};
+  const resolvedRaw =
+    rawBlock && typeof rawBlock === "object" && rawBlock.value !== undefined
+      ? rawBlock.value
+      : (rawBlock || {});
+  // Merge top-level props + raw block so both DSL shapes are supported.
+  return {
+    ...(rawProps || {}),
+    ...(resolvedRaw && typeof resolvedRaw === "object" ? resolvedRaw : {}),
+  };
 };
 
 export default function ConfirmationHeader({ section }) {
@@ -95,14 +100,17 @@ export default function ConfirmationHeader({ section }) {
   const showTitle = toBoolean(raw?.showTitle, true);
   const titleText = toString(raw?.title ?? raw?.titleText, "Thank You For Your Order");
   const titleColor = toString(raw?.titleColor, "#000000");
-  const titleSize = Math.min(toNumber(raw?.titleSize, 28), 32);
+  const titleSize = toNumber(raw?.titleSize ?? raw?.headlineSize, 28);
   const titleWeight = toFontWeight(raw?.titleFontWeight ?? raw?.titleWeight, "700");
+  const titleFontFamily = toString(raw?.headlineFontFamily ?? raw?.titleFontFamily ?? raw?.fontFamily, "");
 
   // Subtext
   const showSubtext = toBoolean(raw?.showSubtext, true);
   const subtextText = toString(raw?.subtext ?? raw?.subtextText, "");
   const subtextColor = toString(raw?.subtextColor, "#6B7280");
   const subtextSize = toNumber(raw?.subtextSize, 14);
+  const subtextWeight = toFontWeight(raw?.subtextWeight ?? raw?.fontWeight, "400");
+  const subtextFontFamily = toString(raw?.subtextFontFamily ?? raw?.fontFamily, "");
 
   return (
     <View
@@ -146,6 +154,7 @@ export default function ConfirmationHeader({ section }) {
               fontSize: titleSize,
               fontWeight: titleWeight,
               textAlign,
+              ...(titleFontFamily ? { fontFamily: titleFontFamily } : {}),
             },
           ]}
         >
@@ -161,7 +170,9 @@ export default function ConfirmationHeader({ section }) {
             {
               color: subtextColor,
               fontSize: subtextSize,
+              fontWeight: subtextWeight,
               textAlign,
+              ...(subtextFontFamily ? { fontFamily: subtextFontFamily } : {}),
             },
           ]}
         >

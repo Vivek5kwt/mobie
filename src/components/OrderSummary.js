@@ -97,7 +97,7 @@ export default function OrderSummary({ section }) {
   const cardBorderColor = toString(raw?.borderColor, "#E5E7EB");
 
   // Cart total from items
-  const cartTotal = useMemo(
+  const computedCartTotal = useMemo(
     () =>
       sourceItems.reduce(
         (sum, item) =>
@@ -106,6 +106,8 @@ export default function OrderSummary({ section }) {
       ),
     [sourceItems]
   );
+  const dslCartTotal = raw?.cartTotal != null ? toNumber(raw?.cartTotal, 0) : null;
+  const cartTotal = dslCartTotal != null ? dslCartTotal : computedCartTotal;
 
   // DSL — container
   const bgColor = toString(raw?.bgColor ?? raw?.backgroundColor, "#FFFFFF");
@@ -144,11 +146,14 @@ export default function OrderSummary({ section }) {
   const cartTotalWeight = toFontWeight(raw?.cartTotalWeight, "700");
 
   // Savings row
-  const showSavings = toBoolean(raw?.showSavings, false);
+  const dslSavings = raw?.savings != null ? toNumber(raw?.savings, 0) : null;
+  const showSavings = toBoolean(raw?.showSavings, dslSavings != null);
   const savingsLabel = toString(raw?.savingsLabel, "Your Savings");
   const savingsColor = toString(raw?.savingsColor, "#EF4444");
   // Fixed amount OR percentage of cart total
-  const savingsAmount = raw?.savingsAmount != null
+  const savingsAmount = dslSavings != null
+    ? dslSavings
+    : raw?.savingsAmount != null
     ? toNumber(raw.savingsAmount, 0)
     : (toNumber(raw?.savingsPercent, 0) / 100) * cartTotal;
 
@@ -171,7 +176,7 @@ export default function OrderSummary({ section }) {
   const chipPrefix = toString(raw?.chipPrefix, "Discount - ");
 
   // Tax row
-  const showTax = toBoolean(raw?.showTax, false);
+  const showTax = toBoolean(raw?.showTax, raw?.taxAmount != null || raw?.taxPercent != null);
   const taxLabel = toString(raw?.taxLabel, "Sales Tax");
   const taxColor = toString(raw?.taxColor, "#EF4444");
   const taxAmount = raw?.taxAmount != null
@@ -188,7 +193,7 @@ export default function OrderSummary({ section }) {
   const chipFontFamily  = cleanFontFamily(toString(raw?.chipFontFamily  ?? raw?.fontFamily, ""));
 
   // Sub total row
-  const showSubTotal = toBoolean(raw?.showSubTotal ?? raw?.showSubtotal, true);
+  const showSubTotal = toBoolean(raw?.showSubTotal ?? raw?.showSubtotal, raw?.subTotal != null || true);
   const subTotalLabel = toString(raw?.subTotalLabel ?? raw?.subtotalLabel, usesDslItems ? "Total" : "Sub Total");
   const subTotalColor = toString(raw?.subTotalColor, "#EF4444");
   const subTotalWeight = toFontWeight(raw?.subTotalWeight, "700");
@@ -196,7 +201,8 @@ export default function OrderSummary({ section }) {
   const strikeColor = toString(raw?.strikeColor, "#9CA3AF");
 
   // Calculate sub total
-  const subTotal = cartTotal - savingsAmount - totalDiscountAmount + taxAmount;
+  const computedSubTotal = cartTotal - savingsAmount - totalDiscountAmount + taxAmount;
+  const subTotal = raw?.subTotal != null ? toNumber(raw?.subTotal, 0) : computedSubTotal;
 
   const hasReductions = savingsAmount > 0 || totalDiscountAmount > 0;
 

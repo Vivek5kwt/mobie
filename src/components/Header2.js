@@ -545,6 +545,16 @@ export default function Header2({ section }) {
   const shouldShowTopRow = hasGreeting || (profileEnabled && profile?.show);
   const searchLimit = resolveValue(searchAndIcons?.searchLimit, 10);
   const detailSections = useMemo(() => extractDetailSections(rawPropsNode), [rawPropsNode]);
+  const topRowAlign = String(
+    resolveValue(
+      alignmentNode?.align ??
+      alignmentNode?.horizontalAlign ??
+      rawPropsNode?.topRowAlign,
+      "left"
+    )
+  ).trim().toLowerCase();
+  const isTopRowRightAligned = ["right", "end", "flex-end"].includes(topRowAlign);
+  const isTopRowCenterAligned = ["center"].includes(topRowAlign);
 
   const handleOpenSideMenu = useCallback(() => {
     if (!hasSideNav) return;
@@ -978,19 +988,41 @@ export default function Header2({ section }) {
         <View
           style={[
             styles.topRowLayout,
+            isTopRowRightAligned ? styles.topRowLayoutRight : null,
+            isTopRowCenterAligned ? styles.topRowLayoutCenter : null,
             { gap: normalizedTopRowStyle.gap ?? 12 },
             normalizedTopRowStyle,
           ]}
         >
           {hasGreeting && (
-            <View style={{ flex: 1, minWidth: 0 }}>
+            <View
+              style={[
+                { flex: 1, minWidth: 0 },
+                isTopRowRightAligned ? { alignItems: "flex-end" } : null,
+                isTopRowCenterAligned ? { alignItems: "center" } : null,
+              ]}
+            >
               {greeting?.title && (
-                <Text style={[convertStyles(greetingTitleStyle), greetingTextStyle]}>
+                <Text
+                  style={[
+                    convertStyles(greetingTitleStyle),
+                    greetingTextStyle,
+                    isTopRowRightAligned ? { textAlign: "right" } : null,
+                    isTopRowCenterAligned ? { textAlign: "center" } : null,
+                  ]}
+                >
                   {greeting.title}
                 </Text>
               )}
               {greeting?.name && (
-                <Text style={[convertStyles(greetingNameStyle), greetingTextStyle]}>
+                <Text
+                  style={[
+                    convertStyles(greetingNameStyle),
+                    greetingTextStyle,
+                    isTopRowRightAligned ? { textAlign: "right" } : null,
+                    isTopRowCenterAligned ? { textAlign: "center" } : null,
+                  ]}
+                >
                   {greeting.name}
                 </Text>
               )}
@@ -1208,6 +1240,12 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "space-between",
     width: "100%",
+  },
+  topRowLayoutRight: {
+    flexDirection: "row-reverse",
+  },
+  topRowLayoutCenter: {
+    justifyContent: "center",
   },
   profileWrapper: {
     overflow: "hidden",

@@ -66,11 +66,43 @@ const injectOrderData = (sections = [], capturedItems = [], orderNumber = "", or
         title:   item.title || "Product",
         variant: item.variant || "",
       }));
+      const derivedCurrency =
+        capturedItems[0]?.currency ||
+        capturedItems[0]?.priceCurrency ||
+        capturedItems[0]?.currencySymbol ||
+        "$";
+      const computedTotal = mapped.reduce(
+        (sum, line) => sum + (Number(line.price) || 0) * (Number(line.qty) || 1),
+        0
+      );
+      const resolvedOrderTotal = Number(orderTotal) > 0 ? Number(orderTotal) : computedTotal;
 
       if (propsNode?.raw?.value !== undefined) {
-        propsNode.raw.value = { ...(propsNode.raw.value || {}), items: mapped };
+        propsNode.raw.value = {
+          ...(propsNode.raw.value || {}),
+          items: mapped,
+          currency: propsNode.raw.value?.currency || derivedCurrency,
+          cartTotal: resolvedOrderTotal,
+          subTotal: resolvedOrderTotal,
+          showCartTotal: true,
+          showSubTotal: true,
+          showSavings: propsNode.raw.value?.showSavings ?? false,
+          showTax: propsNode.raw.value?.showTax ?? false,
+          showDiscount: propsNode.raw.value?.showDiscount ?? false,
+        };
       } else if (propsNode?.raw !== undefined) {
-        propsNode.raw = { ...(propsNode.raw || {}), items: mapped };
+        propsNode.raw = {
+          ...(propsNode.raw || {}),
+          items: mapped,
+          currency: propsNode.raw?.currency || derivedCurrency,
+          cartTotal: resolvedOrderTotal,
+          subTotal: resolvedOrderTotal,
+          showCartTotal: true,
+          showSubTotal: true,
+          showSavings: propsNode.raw?.showSavings ?? false,
+          showTax: propsNode.raw?.showTax ?? false,
+          showDiscount: propsNode.raw?.showDiscount ?? false,
+        };
       }
       return cloned;
     }
