@@ -20,6 +20,7 @@ import bottomNavigationStyle1Section from "../data/bottomNavigationStyle1";
 import { searchShopifyProducts } from "../services/shopify";
 import { getAppLogoSync } from "../utils/appInfo";
 import { resolveTextDecorationLine } from "../utils/textDecoration";
+import { resolveFA4IconName } from "../utils/faIconAlias";
 
 const unwrapValue = (value, fallback = undefined) => {
   if (value === undefined || value === null) return fallback;
@@ -156,6 +157,13 @@ const resolveSideMenuIcon = (variant) => {
   if (["hamburger", "menu", "bars"].includes(normalized)) return "bars";
   if (["dots", "ellipsis"].includes(normalized)) return "ellipsis-h";
   return normalized;
+};
+
+const normalizeFa6Variant = (value, fallback = "solid") => {
+  const v = String(resolveValue(value, fallback) || fallback).trim().toLowerCase();
+  if (["solid", "regular", "light", "thin", "duotone", "brands"].includes(v)) return v;
+  if (v === "brand") return "brands";
+  return fallback;
 };
 
 export default function Header2({ section }) {
@@ -445,6 +453,9 @@ export default function Header2({ section }) {
         searchAndIcons.notificationIcon,
         "bell"
       )
+    ),
+    iconVariant: normalizeFa6Variant(
+      resolveValue(notificationNode.iconVariant, searchAndIcons.notificationIconVariant)
     ),
     size: Math.min(
       parseSize(resolveValue(notificationNode.width, undefined)) ||
@@ -789,9 +800,9 @@ export default function Header2({ section }) {
     const cartShowBadge = resolveBooleanSetting(cartProps.showBadge, true);
     const shouldShowCartBadge = cartCount > 0 || cartShowBadge;
 
-    const notificationProps = rawPropsNode.notification?.properties || rawPropsNode.notification || {};
-    const notificationVisible = resolveBooleanSetting(notificationProps.visible, false);
-    const notificationIconName = normalizeIconName(
+  const notificationProps = rawPropsNode.notification?.properties || rawPropsNode.notification || {};
+  const notificationVisible = resolveBooleanSetting(notificationProps.visible, false);
+  const notificationIconName = normalizeIconName(
       resolveValue(
         notificationProps.iconId ??
         notificationProps.iconName ??
@@ -799,6 +810,9 @@ export default function Header2({ section }) {
         searchAndIcons.notificationIcon,
         "bell"
       )
+    );
+    const notificationIconVariant = normalizeFa6Variant(
+      resolveValue(notificationProps.iconVariant, searchAndIcons.notificationIconVariant)
     );
     const notificationIconSize = resolveValue(notificationProps.width, 18);
     const notificationIconColor = resolveValue(notificationProps.color, "#016D77");
@@ -897,6 +911,7 @@ export default function Header2({ section }) {
                 name={notificationIconName}
                 size={notificationIconSize}
                 color={notificationIconColor}
+                iconStyle={notificationIconVariant}
               />
               {notificationShowBadge && (
                 <View
@@ -1091,10 +1106,11 @@ export default function Header2({ section }) {
               onPress={() => openBottomNavTarget("notification")}
             >
               <View>
-                <FontAwesome
+                <Icon
                   name={notificationBell.iconId}
                   size={notificationBell.size}
                   color={notificationBell.color}
+                  iconStyle={notificationBell.iconVariant}
                 />
                 {notificationBell.showBadge && (
                   <View
@@ -1106,6 +1122,13 @@ export default function Header2({ section }) {
                   />
                 )}
               </View>
+              {!notificationBell.iconId && (
+                <FontAwesome
+                  name={resolveFA4IconName("bell") || "bell"}
+                  size={notificationBell.size}
+                  color={notificationBell.color}
+                />
+              )}
             </TouchableOpacity>
           )}
         </View>

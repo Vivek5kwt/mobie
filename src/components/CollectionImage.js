@@ -98,6 +98,25 @@ const cleanFontFamily = (family) => {
   return cleaned || undefined;
 };
 
+const toArray = (value) => {
+  const resolved = unwrapValue(value, value);
+  if (Array.isArray(resolved)) return resolved;
+  if (Array.isArray(resolved?.value)) return resolved.value;
+  if (Array.isArray(resolved?.items)) return resolved.items;
+  return [];
+};
+
+const parseRatio = (value, fallback = 1) => {
+  const v = String(unwrapValue(value, fallback) || fallback).trim().toLowerCase();
+  if (!v || v === "auto") return fallback;
+  if (v.includes(":")) {
+    const [w, h] = v.split(":").map((x) => parseFloat(x.trim()));
+    if (w > 0 && h > 0) return w / h;
+  }
+  const n = parseFloat(v);
+  return Number.isFinite(n) && n > 0 ? n : fallback;
+};
+
 // ─── component ────────────────────────────────────────────────────────────────
 
 export default function CollectionImage({ section }) {
@@ -113,13 +132,23 @@ export default function CollectionImage({ section }) {
   );
 
   const layoutCss    = rawProps?.layout?.properties?.css || rawProps?.layout?.css || {};
+  const rawSnapshot  = unwrapValue(rawProps?.raw, {});
+  const generalNode  = unwrapValue(rawProps?.general, {});
+  const titleNode    = unwrapValue(rawProps?.title, {});
+  const imageNode    = unwrapValue(rawProps?.image, {});
   const behavior     = rawProps?.behavior?.properties    || rawProps?.behavior    || {};
   const headerCfg    = rawProps?.header?.properties      || rawProps?.header      || {};
   const cardCfg      = rawProps?.card?.properties        || rawProps?.card        || {};
   const containerCfg = rawProps?.container?.properties   || rawProps?.container   || {};
 
   // ── Collections ──────────────────────────────────────────────────────────────
-  const dslCollections = useMemo(() => buildCollections(rawProps?.collections || {}), [rawProps]);
+  const dslCollections = useMemo(() => {
+    const fromItems = buildCollections(toArray(rawProps?.items));
+    if (fromItems.length) return fromItems;
+    const fromRawItems = buildCollections(toArray(rawSnapshot?.items));
+    if (fromRawItems.length) return fromRawItems;
+    return buildCollections(rawProps?.collections || {});
+  }, [rawProps, rawSnapshot]);
   const [shopifyCollections, setShopifyCollections] = useState([]);
   const collectionsLimit = asNumber(rawProps?.collectionsLimit, 12);
   const items = dslCollections.length ? dslCollections : shopifyCollections;
@@ -147,23 +176,20 @@ export default function CollectionImage({ section }) {
 
   // ── Card ─────────────────────────────────────────────────────────────────────
   const showCardImage       = asBoolean(rawProps?.showCardImage, true);
-  const cardTextSize        = asNumber(cardCfg?.textSize, 12);
-  const cardTextColor       = unwrapValue(cardCfg?.textColor, "#000000");
-  const cardTextWeight      = deriveFontWeight(cardCfg?.textWeight, "500");
-  const cardFontFamily      = cleanFontFamily(unwrapValue(cardCfg?.fontFamily ?? cardCfg?.textFontFamily ?? rawProps?.cardFontFamily, undefined))
+  const cardTextSize        = asNumber(titleNode?.fontSize ?? rawSnapshot?.titleFontSize ?? cardCfg?.textSize, 12);
+  const cardTextColor       = unwrapValue(titleNode?.color ?? rawSnapshot?.titleColor ?? cardCfg?.textColor, "#000000");
+  const cardTextWeight      = deriveFontWeight(titleNode?.fontWeight ?? rawSnapshot?.titleFontWeight ?? cardCfg?.textWeight, "500");
+  const cardFontFamily      = cleanFontFamily(unwrapValue(titleNode?.fontFamily ?? rawSnapshot?.titleFontFamily ?? cardCfg?.fontFamily ?? cardCfg?.textFontFamily ?? rawProps?.cardFontFamily, undefined))
     || cleanFontFamily(convertStyles(layoutCss?.card?.text || {})?.fontFamily);
   const cardImageSize       = asNumber(cardCfg?.imageSize, 68);
   const cardImageBorder     = asNumber(cardCfg?.imageBorder, 0);
   const cardImageBorderColor = unwrapValue(cardCfg?.imageBorderColor, "#A8A7AE");
-  const textAlign  = (unwrapValue(cardCfg?.textAlign, "center") || "center").toLowerCase();
+  const textAlign  = (unwrapValue(titleNode?.align ?? rawSnapshot?.titleAlign ?? cardCfg?.textAlign, "center") || "center").toLowerCase();
   const imageShape = (unwrapValue(cardCfg?.imageShape, "circle") || "circle").toLowerCase();
 
   const imageRadius = imageShape === "square" ? 0
     : imageShape === "circle" ? cardImageSize / 2
     : Math.max(8, Math.round(cardImageSize * 0.2));
-  const imageWrapRadius = imageShape === "square" ? 0
-    : imageShape === "circle" ? (cardImageSize + cardImageBorder * 2) / 2
-    : imageRadius + cardImageBorder;
 
   const cardCssStyle = useMemo(() => {
     const raw = layoutCss?.card || {};
@@ -177,17 +203,29 @@ export default function CollectionImage({ section }) {
 
   // ── Slider ───────────────────────────────────────────────────────────────────
   const sliderCfg        = layoutCss?.slider || {};
-  const gapPx            = asNumber(sliderCfg?.gapPx ?? sliderCfg?.gap, 12);
+  const hGap             = asNumber(generalNode?.hGap ?? rawSnapshot?.hGap, 12);
+  const vGap             = asNumber(generalNode?.vGap ?? rawSnapshot?.vGap, 12);
+  const columns          = Math.max(1, asNumber(generalNode?.columns ?? rawSnapshot?.columns, 1));
+  const gapPx            = asNumber(sliderCfg?.gapPx ?? sliderCfg?.gap, hGap);
   const autoScrollEnabled = asBoolean(behavior?.autoScroll ?? sliderCfg?.autoScroll, true);
   const showIndicators   = asBoolean(behavior?.showIndicators ?? sliderCfg?.showIndicators, false);
   const scrollSpeedSec   = Math.max(asNumber(behavior?.scrollSpeed, 3), 1);
 
   // Each card width from DSL; constrain so at least partial next card peeks
-  const rawCardW = asNumber(layoutCss?.card?.width, 80);
+  const availableW = SCREEN_W - containerPl - containerPr;
+  const rawCardW = asNumber(
+    layoutCss?.card?.width,
+    columns > 1 ? (availableW - hGap * (columns - 1)) / columns : 80
+  );
   // ITEM SIZE = card width. STEP SIZE = cardW + gap (right margin per item)
   // No left/right padding on the list — margins live on the items themselves.
-  const cardW  = Math.max(40, Math.min(rawCardW, SCREEN_W - containerPl - containerPr - gapPx * 3));
+  const cardW  = Math.max(40, Math.min(rawCardW, availableW));
   const stepSize = cardW + gapPx; // exact distance between snap points
+  const mediaAspectRatio = parseRatio(imageNode?.ratio ?? rawSnapshot?.imageRatio, 1);
+  const mediaScale = String(unwrapValue(imageNode?.scale ?? rawSnapshot?.imageScale, "cover")).toLowerCase();
+  const mediaResizeMode = mediaScale === "fit" || mediaScale === "contain" ? "contain" : mediaScale === "stretch" ? "stretch" : "cover";
+  const mediaRadius = asNumber(imageNode?.radius ?? rawSnapshot?.imageRadius, imageRadius);
+  const cardMediaHeight = Math.round(cardW / mediaAspectRatio);
 
   // ── Dots ─────────────────────────────────────────────────────────────────────
   const dotActiveBg   = unwrapValue(behavior?.dotActiveColor   ?? sliderCfg?.dotActiveColor,   "#016D77");
@@ -233,7 +271,7 @@ export default function CollectionImage({ section }) {
 
   // ── Auto-scroll ───────────────────────────────────────────────────────────────
   useEffect(() => {
-    if (!autoScrollEnabled || items.length < 2) return;
+    if (columns > 1 || !autoScrollEnabled || items.length < 2) return;
 
     const timer = setInterval(() => {
       const next = (indexRef.current + 1) % items.length;
@@ -245,7 +283,7 @@ export default function CollectionImage({ section }) {
     }, scrollSpeedSec * 1000);
 
     return () => clearInterval(timer);
-  }, [autoScrollEnabled, items.length, scrollSpeedSec, animateDots]);
+  }, [columns, autoScrollEnabled, items.length, scrollSpeedSec, animateDots]);
 
   // ── Shopify fallback ──────────────────────────────────────────────────────────
   useEffect(() => {
@@ -305,7 +343,7 @@ export default function CollectionImage({ section }) {
       style={[
         styles.card,
         cardCssStyle,
-        { width: cardW, marginRight: gapPx },
+        { width: cardW, marginRight: columns > 1 ? 0 : gapPx },
       ]}
       activeOpacity={0.82}
       onPress={() => onItemPress(item)}
@@ -316,9 +354,9 @@ export default function CollectionImage({ section }) {
           style={[
             styles.imageWrap,
             {
-              width: cardImageSize + cardImageBorder * 2,
-              height: cardImageSize + cardImageBorder * 2,
-              borderRadius: imageWrapRadius,
+              width: cardW,
+              height: cardMediaHeight,
+              borderRadius: mediaRadius,
               borderWidth: cardImageBorder,
               borderColor: cardImageBorderColor,
             },
@@ -329,19 +367,19 @@ export default function CollectionImage({ section }) {
             <Image
               source={{ uri: item.image }}
               style={{
-                width: cardImageSize,
-                height: cardImageSize,
-                borderRadius: imageRadius,
+                width: cardW - cardImageBorder * 2,
+                height: cardMediaHeight - cardImageBorder * 2,
+                borderRadius: mediaRadius,
                 backgroundColor: cardImageCssStyle?.backgroundColor || "#e0f2f1",
               }}
-              resizeMode="cover"
+              resizeMode={mediaResizeMode}
             />
           ) : (
             <View
               style={{
-                width: cardImageSize,
-                height: cardImageSize,
-                borderRadius: imageRadius,
+                width: cardW - cardImageBorder * 2,
+                height: cardMediaHeight - cardImageBorder * 2,
+                borderRadius: mediaRadius,
                 alignItems: "center",
                 justifyContent: "center",
                 backgroundColor: "#e0f2f1",
@@ -369,9 +407,9 @@ export default function CollectionImage({ section }) {
       )}
     </TouchableOpacity>
   ), [
-    cardCssStyle, cardW, gapPx, onItemPress,
-    showCardImage, cardImageSize, cardImageBorder, imageWrapRadius,
-    cardImageBorderColor, cardImageCssStyle, imageRadius,
+    cardCssStyle, cardW, gapPx, onItemPress, columns,
+    showCardImage, cardImageBorder,
+    cardImageBorderColor, cardImageCssStyle, mediaRadius, cardMediaHeight, mediaResizeMode,
     cardCfg, cardTextCssStyle, cardTextColor, cardTextSize, cardTextWeight, textAlign,
   ]);
 
@@ -412,23 +450,25 @@ export default function CollectionImage({ section }) {
         data={items}
         keyExtractor={(item, idx) => `${item.title}-${idx}`}
         renderItem={renderItem}
-        horizontal
+        horizontal={columns <= 1}
+        numColumns={columns > 1 ? columns : 1}
         showsHorizontalScrollIndicator={false}
-        scrollEnabled={isScrollable}
+        scrollEnabled={columns <= 1 ? isScrollable : false}
         // Snap: each step is exactly cardW + gapPx (the marginRight)
-        snapToInterval={stepSize}
-        snapToAlignment="start"
-        decelerationRate="fast"
-        disableIntervalMomentum
+        snapToInterval={columns <= 1 ? stepSize : undefined}
+        snapToAlignment={columns <= 1 ? "start" : undefined}
+        decelerationRate={columns <= 1 ? "fast" : "normal"}
+        disableIntervalMomentum={columns <= 1}
         // getItemLayout makes scrollToIndex pixel-perfect
-        getItemLayout={getItemLayout}
-        onMomentumScrollEnd={onMomentumScrollEnd}
+        getItemLayout={columns <= 1 ? getItemLayout : undefined}
+        onMomentumScrollEnd={columns <= 1 ? onMomentumScrollEnd : undefined}
         scrollEventThrottle={32}
-        contentContainerStyle={{ paddingLeft: containerPl > 0 ? 0 : 0 }}
+        columnWrapperStyle={columns > 1 ? { columnGap: hGap, marginBottom: vGap } : undefined}
+        contentContainerStyle={{ rowGap: columns > 1 ? vGap : 0 }}
       />
 
       {/* Dot indicators — tappable, animated width */}
-      {showIndicators && items.length > 1 && (
+      {columns <= 1 && showIndicators && items.length > 1 && (
         <View style={styles.dotsRow}>
           {items.map((_, idx) => {
             const isActive = idx === activeIndex;

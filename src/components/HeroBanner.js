@@ -713,6 +713,10 @@ export default function HeroBanner({ section }) {
   const navigateByLink = (link) => {
     const l = (link || "").trim();
     if (!l) return false;
+    if (/^https?:\/\//i.test(l)) {
+      navigation.navigate("CheckoutWebView", { url: l, title: "Hero Banner" });
+      return true;
+    }
     if (l.startsWith("/collections/")) {
       navigation.navigate("CollectionProducts", { handle: l.replace("/collections/", "") });
       return true;
@@ -723,6 +727,15 @@ export default function HeroBanner({ section }) {
     }
     if (l === "/products" || l === "/collections") {
       navigation.navigate("AllProducts");
+      return true;
+    }
+    // Plain internal page/screen labels from builder (e.g. "Address Book")
+    if (!l.startsWith("/")) {
+      navigation.navigate("BottomNavScreen", {
+        title: l,
+        link: l,
+        pageName: l,
+      });
       return true;
     }
     return false;
@@ -747,8 +760,9 @@ export default function HeroBanner({ section }) {
         type === "all-products" || type === "all products"
       ) {
         navigation.navigate("AllProducts");
-      } else if (type === "route") {
+      } else if (type === "route" || type === "screen") {
         if (ref) navigation.navigate(ref);
+        else if (navigateByLink(buttonLink)) return;
       }
       return;
     }
