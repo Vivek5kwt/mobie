@@ -7,6 +7,8 @@ import Icon from "react-native-vector-icons/FontAwesome6";
 const BOTTOM_NAV_DEBUG = __DEV__;
 import { convertStyles } from "../utils/convertStyles";
 import { useSideMenu } from "../services/SideMenuContext";
+import { useAuth } from "../services/AuthContext";
+import { requireLoginForAction } from "../utils/authGate";
 
 export const BOTTOM_NAV_RESERVED_HEIGHT = 80;
 
@@ -207,6 +209,7 @@ const resolveNavigationTarget = (item = {}) => {
 function BottomNavigation({ section, activeIndexOverride }) {
   const navigation = useNavigation();
   const route = useRoute();
+  const { session } = useAuth();
   const { closeSideMenu, isOpen: isSideMenuOpen } = useSideMenu();
   const componentName =
     section?.component || section?.properties?.component?.const || section?.properties?.component;
@@ -502,6 +505,20 @@ function BottomNavigation({ section, activeIndexOverride }) {
     setActiveIndex(index);
 
     const target = resolveNavigationTarget(item);
+    const itemSlug = slugifyPageName(item?.id || resolveItemLabel(item) || resolveItemLink(item) || "");
+    const targetPageSlug = slugifyPageName(target?.params?.pageName || "");
+    const isProtectedTarget =
+      itemSlug === "my-account" ||
+      itemSlug === "profile" ||
+      itemSlug === "cart" ||
+      targetPageSlug === "my-account" ||
+      targetPageSlug === "profile" ||
+      targetPageSlug === "cart";
+
+    if (isProtectedTarget) {
+      const blocked = await requireLoginForAction({ session, navigation });
+      if (blocked) return;
+    }
 
     if (!target) return;
 

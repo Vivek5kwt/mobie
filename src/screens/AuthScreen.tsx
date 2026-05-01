@@ -13,7 +13,7 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
-import { useFocusEffect, useNavigation } from '@react-navigation/native';
+import { useFocusEffect, useNavigation, useRoute } from '@react-navigation/native';
 import { useAuth } from '../services/AuthContext';
 import { fetchDSL } from '../engine/dslHandler';
 import authLayoutFallback from '../data/authLayoutFallback';
@@ -884,6 +884,7 @@ const buildSignUpTokens = (rawProps: Record<string, unknown>): SignUpTokens => (
 
 const AuthScreen = () => {
   const navigation = useNavigation();
+  const route = useRoute();
   const { login, signup, session, initializing } = useAuth();
   const [mode, setMode] = useState<'login' | 'signup'>('login');
   const [email, setEmail] = useState('');
@@ -1011,6 +1012,13 @@ const AuthScreen = () => {
     setMode((prev) => (prev === 'login' ? 'signup' : 'login'));
     setError('');
   };
+
+  useEffect(() => {
+    const initialMode = (route?.params as { initialMode?: string } | undefined)?.initialMode;
+    if (initialMode === 'signup' || initialMode === 'login') {
+      setMode(initialMode);
+    }
+  }, [route?.params]);
 
   const validateForm = () => {
     const trimmedEmail = email.trim();

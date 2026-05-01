@@ -13,6 +13,8 @@ import FontAwesome from "react-native-vector-icons/FontAwesome";
 import { resolveFA4IconName } from "../utils/faIconAlias";
 import { addItem } from "../store/slices/cartSlice";
 import { fetchShopifyRecentProducts } from "../services/shopify";
+import { useAuth } from "../services/AuthContext";
+import { requireLoginForAction } from "../utils/authGate";
 
 // ─── DSL helpers ─────────────────────────────────────────────────────────────
 
@@ -86,6 +88,7 @@ const toCurrSymbol = (code) =>
 export default function RecentProducts({ section }) {
   const navigation = useNavigation();
   const dispatch   = useDispatch();
+  const { session } = useAuth();
 
   // ── DSL extraction ─────────────────────────────────────────────────────────
   const propsNode =
@@ -217,7 +220,9 @@ export default function RecentProducts({ section }) {
   useEffect(() => { loadProducts(); }, [loadProducts]);
 
   // ── Handlers ──────────────────────────────────────────────────────────────
-  const handleAddToCart = (product) => {
+  const handleAddToCart = async (product) => {
+    const blocked = await requireLoginForAction({ session, navigation });
+    if (blocked) return;
     dispatch(addItem({
       item: {
         id:             product.variantId || product.id,

@@ -16,6 +16,8 @@ import { PinchGestureHandler, State } from "react-native-gesture-handler";
 import FontAwesome from "react-native-vector-icons/FontAwesome";
 import { toggleWishlist } from "../store/slices/wishlistSlice";
 import Snackbar from "./Snackbar";
+import { useAuth } from "../services/AuthContext";
+import { requireLoginForAction } from "../utils/authGate";
 
 const unwrapValue = (value, fallback = undefined) => {
   if (value === undefined || value === null) return fallback;
@@ -70,6 +72,7 @@ export default function ProductLibrary({ section }) {
   const navigation = useNavigation();
   const route = useRoute();
   const dispatch = useDispatch();
+  const { session } = useAuth();
   const wishlistItems = useSelector((state) => state.wishlist?.items || []);
   const [isFullscreenVisible, setIsFullscreenVisible] = useState(false);
   const [currentIdx,          setCurrentIdx]          = useState(0);
@@ -129,7 +132,9 @@ export default function ProductLibrary({ section }) {
     ? wishlistItems.some((p) => String(p.id || "").trim() === productId)
     : false;
 
-  const handleToggleFavourite = () => {
+  const handleToggleFavourite = async () => {
+    const blocked = await requireLoginForAction({ session, navigation });
+    if (blocked) return;
     const adding = !isFavourite;
     dispatch(
       toggleWishlist({

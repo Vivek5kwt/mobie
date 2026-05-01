@@ -5,6 +5,8 @@ import { useNavigation } from "@react-navigation/native";
 import { useDispatch } from "react-redux";
 import { addItem } from "../store/slices/cartSlice";
 import Snackbar from "./Snackbar";
+import { useAuth } from "../services/AuthContext";
+import { requireLoginForAction } from "../utils/authGate";
 import {
   getShopifyDomain,
 } from "../services/shopify";
@@ -123,6 +125,7 @@ const buildCheckoutUrl = ({ shopifyDomain, variantNumericId, quantity, handle })
 export default function AddToCart({ section }) {
   const navigation = useNavigation();
   const dispatch = useDispatch();
+  const { session } = useAuth();
   const propsNode =
     section?.properties?.props?.properties || section?.properties?.props || section?.props || {};
 
@@ -261,6 +264,8 @@ export default function AddToCart({ section }) {
     productTitle || productHandle || productVariantGid || productVariantNumericId;
 
   const handleAddToCart = async () => {
+    const blocked = await requireLoginForAction({ session, navigation });
+    if (blocked) return;
     if (!addToCartUrl && !productVariantGid && !canAddLocally) return;
 
     dispatch(

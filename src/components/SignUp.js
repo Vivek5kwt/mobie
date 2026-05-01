@@ -134,8 +134,8 @@ export default function SignUp({ section }) {
     const buttonVisible = toBoolean(raw.buttonVisible, true);
     const footerVisible = toBoolean(raw.footerVisible, true);
     const signInLinkVisible = toBoolean(raw.signInLinkVisible, true);
-    const showMenuIcon = toBoolean(raw.showMenuIcon, true);
-    const showProfilePicture = toBoolean(raw.showProfilePicture, true);
+    const showMenuIcon = toBoolean(raw.showMenuIcon, false);
+    const showProfilePicture = toBoolean(raw.showProfilePicture, false);
     const firstNameVisible = toBoolean(raw.firstNameVisible, true);
     const lastNameVisible = toBoolean(raw.lastNameVisible, true);
     const emailInputVisible = toBoolean(raw.emailInputVisible, true);
@@ -260,6 +260,7 @@ export default function SignUp({ section }) {
     // Button properties
     const buttonWidth = toNumber(raw.buttonWidth, 100);
     const buttonHeight = toNumber(raw.buttonHeight, 50);
+    const buttonRadius = toNumber(raw.buttonRadius, 8);
     const buttonBgColor = parseGradient(toString(raw.buttonBgColor, "#FFFFFF")) || "#FFFFFF";
     const buttonBorderColor = toString(raw.buttonBorderColor, "#0c9297");
     const buttonAutoUppercase = toBoolean(raw.buttonAutoUppercase, false);
@@ -331,7 +332,7 @@ export default function SignUp({ section }) {
       firstNameAlignment, lastNameAlignment, emailAlignment, passwordAlignment,
       firstNameInputTextAlignment, lastNameInputTextAlignment, emailInputTextAlignment,
       passwordInputTextAlignment, footerLinkAlignment, buttonIconAlignment,
-      buttonWidth, buttonHeight, buttonBgColor, buttonBorderColor, buttonAutoUppercase, buttonIcon,
+      buttonWidth, buttonHeight, buttonRadius, buttonBgColor, buttonBorderColor, buttonAutoUppercase, buttonIcon,
       profilePictureUrl, profilePictureSize, navigateTo, selectScreen,
       footerPt, footerPb, footerPl, footerPr, signInLinkPt, signInLinkPb,
       signInLinkPl, signInLinkPr, footerBorderRadius, signInLinkBorderRadius,
@@ -377,7 +378,7 @@ export default function SignUp({ section }) {
     firstNameAlignment, lastNameAlignment, emailAlignment, passwordAlignment,
     firstNameInputTextAlignment, lastNameInputTextAlignment, emailInputTextAlignment,
     passwordInputTextAlignment, footerLinkAlignment, buttonIconAlignment,
-    buttonWidth, buttonHeight, buttonBgColor, buttonBorderColor, buttonAutoUppercase, buttonIcon,
+    buttonWidth, buttonHeight, buttonRadius, buttonBgColor, buttonBorderColor, buttonAutoUppercase, buttonIcon,
     profilePictureUrl, profilePictureSize, navigateTo, selectScreen,
     footerPt, footerPb, footerPl, footerPr, signInLinkPt, signInLinkPb,
     signInLinkPl, signInLinkPr, footerBorderRadius, signInLinkBorderRadius,
@@ -491,6 +492,9 @@ export default function SignUp({ section }) {
 
   const displayButtonText = buttonAutoUppercase ? buttonText.toUpperCase() : buttonText;
   const displayFooterLinkText = footerLinkAutoUppercase ? footerLinkText.toUpperCase() : footerLinkText;
+  const shouldShowProfilePicture =
+    logoVisible && showProfilePicture && Boolean(String(profilePictureUrl || "").trim());
+  const shouldShowHeaderTitle = Boolean(String(headerTitle || "").trim()) && !authTitle;
 
   return (
     <KeyboardAvoidingView
@@ -530,7 +534,7 @@ export default function SignUp({ section }) {
         )}
 
         {/* Logo/Profile Picture */}
-        {logoVisible && showProfilePicture && (
+        {shouldShowProfilePicture && (
           <View
             style={[
               styles.profilePictureContainer,
@@ -544,20 +548,16 @@ export default function SignUp({ section }) {
               },
             ]}
           >
-            {profilePictureUrl ? (
-              <Image
-                source={{ uri: profilePictureUrl }}
-                style={styles.profilePicture}
-                resizeMode="cover"
-              />
-            ) : (
-              <Icon name="user" size={profilePictureSize * 0.5} color={profilePictureBorderColor} />
-            )}
+            <Image
+              source={{ uri: profilePictureUrl }}
+              style={styles.profilePicture}
+              resizeMode="cover"
+            />
           </View>
         )}
 
         {/* Header Title */}
-        {headerTitle && (
+        {shouldShowHeaderTitle && (
           <Text
             style={[
               styles.headerTitle,
@@ -580,9 +580,9 @@ export default function SignUp({ section }) {
               styles.authTitle,
               {
                 color: titleColor,
-                fontSize: toNumber(raw.headlineSize, 20),
+                fontSize: headerTitleFontSize,
                 fontWeight: toFontWeight(raw.headlineWeight) || "700",
-                fontFamily: toString(raw.headlineFontFamily, "Inter"),
+                fontFamily: toString(raw.headlineFontFamily, headerTitleFontFamily || "Inter"),
               },
             ]}
           >
@@ -731,7 +731,7 @@ export default function SignUp({ section }) {
                 borderWidth: buttonBorderColor ? 1 : 0,
                 width: `${buttonWidth}%`,
                 height: buttonHeight,
-                borderRadius: borderRadius,
+                borderRadius: buttonRadius,
               },
             ]}
             onPress={handleSubmit}
@@ -937,6 +937,6 @@ const styles = StyleSheet.create({
     marginLeft: 4,
   },
   signInLinkText: {
-    textDecorationLine: "underline",
+    textDecorationLine: "none",
   },
 });

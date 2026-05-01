@@ -21,6 +21,8 @@ import { addItem } from "../store/slices/cartSlice";
 import { toggleWishlist } from "../store/slices/wishlistSlice";
 import { resolveFA4IconName } from "../utils/faIconAlias";
 import { resolveTextDecorationLine } from "../utils/textDecoration";
+import { useAuth } from "../services/AuthContext";
+import { requireLoginForAction } from "../utils/authGate";
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -137,6 +139,7 @@ const COL_GAP = 8;
 export default function TabProductGrid({ section }) {
   const dispatch = useDispatch();
   const navigation = useNavigation();
+  const { session } = useAuth();
   const wishlistItems = useSelector((state) => state?.wishlist?.items || []);
 
   // ── Parse DSL ──────────────────────────────────────────────────────────────
@@ -405,7 +408,9 @@ export default function TabProductGrid({ section }) {
     });
   }, [navigation]);
 
-  const handleAddToCart = useCallback((product) => {
+  const handleAddToCart = useCallback(async (product) => {
+    const blocked = await requireLoginForAction({ session, navigation });
+    if (blocked) return;
     dispatch(
       addItem({
         item: {
@@ -421,9 +426,11 @@ export default function TabProductGrid({ section }) {
         },
       })
     );
-  }, [dispatch]);
+  }, [dispatch, navigation, session]);
 
-  const handleToggleFavorite = useCallback((product) => {
+  const handleToggleFavorite = useCallback(async (product) => {
+    const blocked = await requireLoginForAction({ session, navigation });
+    if (blocked) return;
     const productId = String(
       product?.id || product?.variantId || product?.handle || product?.name || product?.title || ""
     ).trim();
@@ -443,7 +450,7 @@ export default function TabProductGrid({ section }) {
         },
       })
     );
-  }, [dispatch]);
+  }, [dispatch, navigation, session]);
 
   // ── Render ─────────────────────────────────────────────────────────────────
   const renderAddToCart = (product, inStock = true) => {

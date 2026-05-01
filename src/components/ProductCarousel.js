@@ -21,6 +21,8 @@ import { addItem } from "../store/slices/cartSlice";
 import { toggleWishlist } from "../store/slices/wishlistSlice";
 import { resolveTextDecorationLine } from "../utils/textDecoration";
 import Snackbar from "./Snackbar";
+import { useAuth } from "../services/AuthContext";
+import { requireLoginForAction } from "../utils/authGate";
 
 const unwrapValue = (value, fallback = undefined) => {
   if (value === undefined || value === null) return fallback;
@@ -128,12 +130,14 @@ const getImageResizeMode = (scale) => {
 export default function ProductCarousel({ section }) {
   const navigation = useNavigation();
   const dispatch = useDispatch();
+  const { session } = useAuth();
   const wishlistItems = useSelector((state) => state.wishlist?.items || []);
   const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [snackVisible, setSnackVisible] = useState(false);
   const [snackMessage, setSnackMessage] = useState("");
+  const favoriteTapRef = useRef(false);
 
   const rawProps =
     section?.properties?.props?.properties || section?.properties?.props || section?.props || {};
@@ -306,6 +310,12 @@ export default function ProductCarousel({ section }) {
   const favBubblePadB = toNumber(raw?.favBubblePadB, 0);
   const favBubblePadL = toNumber(raw?.favBubblePadL, 0);
   const favoriteBubbleInset = toNumber(raw?.favBubbleInset ?? raw?.favBubbleOffset, 12);
+  const favoriteOnIconName = resolveFA4IconName(favoriteIconId) || "heart";
+  const favoriteOffResolved = resolveFA4IconName(unfavoriteIconId);
+  const favoriteOffIconName =
+    favoriteOffResolved && favoriteOffResolved !== favoriteOnIconName
+      ? favoriteOffResolved
+      : "heart-o";
 
   // Add to Cart configuration
   const atcActive = toBoolean(raw?.atcActive, true);
@@ -444,7 +454,9 @@ export default function ProductCarousel({ section }) {
     return () => clearInterval(id);
   }, [loadProducts]);
 
-  const handleAddToCart = (product) => {
+  const handleAddToCart = async (product) => {
+    const blocked = await requireLoginForAction({ session, navigation });
+    if (blocked) return;
     // Extract variant ID from product ID if needed
     const variantId = product.variantId || product.id || "";
     
@@ -577,11 +589,9 @@ export default function ProductCarousel({ section }) {
   const renderFavorite = (product, isFavorite) => {
     if (!showFavorite) return null;
 
-    const iconId = isFavorite ? favoriteIconId : unfavoriteIconId;
     const iconSize = isFavorite ? favoriteIconSize : (unfavoriteIconSize || favoriteIconSize);
     const iconColor = isFavorite ? favoriteIconColor : unfavoriteIconColor;
-    // State-aware fallback: filled heart = favorited, outline = not
-    const iconName = resolveFA4IconName(iconId) || (isFavorite ? "heart" : "heart-o");
+    const iconName = isFavorite ? favoriteOnIconName : favoriteOffIconName;
 
     const positionStyle = {};
     if (favPosition.includes("top")) {
@@ -614,9 +624,15 @@ export default function ProductCarousel({ section }) {
             padding: 0,
           },
         ]}
-        onPress={(e) => {
+        onPress={async (e) => {
           e?.stopPropagation?.();
           e?.preventDefault?.();
+          const blocked = await requireLoginForAction({ session, navigation });
+          if (blocked) return;
+          favoriteTapRef.current = true;
+          setTimeout(() => {
+            favoriteTapRef.current = false;
+          }, 0);
           const id = String(
             product?.id || product?.variantId || product?.handle || product?.title || ""
           ).trim();
@@ -788,7 +804,13 @@ export default function ProductCarousel({ section }) {
                     borderColor: borderColor,
                   },
                 ]}
-                onPress={() => handleProductPress(product)}
+                onPress={() => {
+                  if (favoriteTapRef.current) {
+                    favoriteTapRef.current = false;
+                    return;
+                  }
+                  handleProductPress(product);
+                }}
               >
                 {cardImageActive && product.imageUrl && (
                   <View

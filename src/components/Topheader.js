@@ -9,6 +9,8 @@ import { convertStyles } from "../utils/convertStyles";
 import { getAppLogoSync } from "../utils/appInfo";
 import { getHeaderDefault } from "../services/headerDefaultService";
 import { resolveTextDecorationLine } from "../utils/textDecoration";
+import { useAuth } from "../services/AuthContext";
+import { requireLoginForAction } from "../utils/authGate";
 
 const LOCAL_LOGO_IMAGE = require("../assets/logo/mobidraglogo.png");
 
@@ -106,6 +108,7 @@ const resolveLogoSlotAlignmentStyle = (alignment, flexDirection = "column") => {
 export default function Header({ section, showBack, showNotification, onTitlePress }) {
   const { openSideMenu, hasSideNav } = useSideMenu();
   const navigation = useNavigation();
+  const { session } = useAuth();
   const canGoBack = navigation.canGoBack();
   const cartCount = useSelector((state) =>
     (state?.cart?.items || []).reduce((sum, item) => {
@@ -321,7 +324,11 @@ export default function Header({ section, showBack, showNotification, onTitlePre
     });
   };
 
-  const openBottomNavTarget = (target) => {
+  const openBottomNavTarget = async (target) => {
+    if (target === "cart") {
+      const blocked = await requireLoginForAction({ session, navigation });
+      if (blocked) return;
+    }
     const items = resolveBottomNavItems(bottomNavSection);
     const fallbackIndex = target === "cart" ? 1 : 2;
     const resolvedIndex = resolveBottomNavIndex(items, target);

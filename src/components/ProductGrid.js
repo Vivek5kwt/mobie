@@ -8,6 +8,8 @@ import { addItem } from "../store/slices/cartSlice";
 import { toggleWishlist } from "../store/slices/wishlistSlice";
 import { fetchShopifyProductsPage, fetchShopifyCollectionProducts } from "../services/shopify";
 import Snackbar from "./Snackbar";
+import { useAuth } from "../services/AuthContext";
+import { requireLoginForAction } from "../utils/authGate";
 
 // ── Currency symbol lookup ────────────────────────────────────────────────────
 
@@ -131,6 +133,7 @@ const cleanFontFamily = (family) => {
 export default function ProductGrid({ section, limit = 8, title = "Products" }) {
   const navigation = useNavigation();
   const dispatch   = useDispatch();
+  const { session } = useAuth();
   const wishlistItems = useSelector((state) => state.wishlist?.items || []);
   const [products,     setProducts]     = useState([]);
   const [loading,      setLoading]      = useState(false);
@@ -441,8 +444,10 @@ export default function ProductGrid({ section, limit = 8, title = "Products" }) 
   const resolvedBgColor = toString(rawProps?.bgColor ?? presentationCss?.container?.backgroundColor, "");
 
   // ── Handlers ─────────────────────────────────────────────────────────────
-  const handleAddToCart = useCallback((product, e) => {
+  const handleAddToCart = useCallback(async (product, e) => {
     if (e?.stopPropagation) e.stopPropagation();
+    const blocked = await requireLoginForAction({ session, navigation });
+    if (blocked) return;
     const variantId =
       product?.variantId ||
       product?.variants?.[0]?.id ||
@@ -466,7 +471,7 @@ export default function ProductGrid({ section, limit = 8, title = "Products" }) 
         },
       })
     );
-  }, [dispatch]);
+  }, [dispatch, navigation, session]);
 
   const detailSections = useMemo(() => {
     const candidates = [
@@ -717,8 +722,10 @@ export default function ProductGrid({ section, limit = 8, title = "Products" }) 
                   <TouchableOpacity
                     style={[styles.favoriteBadge, { backgroundColor: resolvedFavBgColor }]}
                     activeOpacity={0.8}
-                    onPress={(e) => {
+                    onPress={async (e) => {
                       e.stopPropagation?.();
+                      const blocked = await requireLoginForAction({ session, navigation });
+                      if (blocked) return;
                       const adding = !isInWishlist;
                       dispatch(toggleWishlist({
                         product: {
