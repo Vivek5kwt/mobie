@@ -207,6 +207,15 @@ export default function OrderDetailScreen() {
   const priceInfoSection   = findSection("price_info");
   const cancelOrderSection = findSection("cancel_order");
   const itemsSection       = findSection("order_detail_page");
+  const emptyStateSection  = orderInfoSection || sections[0] || null;
+  const emptyProps         = emptyStateSection ? getProps(emptyStateSection) : {};
+  const emptyTitleText     = toStr(emptyProps?.emptyTitle ?? emptyProps?.noOrderTitle, "No orders yet");
+  const emptySubtitleText  = toStr(
+    emptyProps?.emptySubtitle ?? emptyProps?.noOrderSubtitle,
+    "When you place an order it will\nappear here."
+  );
+  const emptyIconColor     = toStr(emptyProps?.emptyIconColor, "#4A90E2");
+  const emptyTagColor      = toStr(emptyProps?.emptyTagColor, "#F59E0B");
 
   const isLoading = dslLoading || fetchingOrders;
 
@@ -240,13 +249,11 @@ export default function OrderDetailScreen() {
           >
             {/* Shopping bag icon matching the screenshot */}
             <View style={styles.emptyIconWrap}>
-              <FontAwesome name="shopping-bag" size={52} color="#4A90E2" />
-              <View style={styles.emptyTagDot} />
+              <FontAwesome name="shopping-bag" size={52} color={emptyIconColor} />
+              <View style={[styles.emptyTagDot, { backgroundColor: emptyTagColor }]} />
             </View>
-            <Text style={styles.emptyTitle}>No orders yet</Text>
-            <Text style={styles.emptySubtitle}>
-              When you place an order it will{"\n"}appear here.
-            </Text>
+            <Text style={styles.emptyTitle}>{emptyTitleText}</Text>
+            <Text style={styles.emptySubtitle}>{emptySubtitleText}</Text>
           </View>
         ) : (
           /* ── Order detail content ─────────────────────────────────────── */

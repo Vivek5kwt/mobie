@@ -593,7 +593,7 @@ export default function BottomNavScreen() {
           closeSideMenu,
         }}
       >
-        <View style={styles.container}>
+        <View style={[styles.container, isCartPage ? styles.cartContainer : null]}>
           {/* Back-button row shown when screen is opened from Settings (no bottom nav) */}
           {hideBottomNav && (
             <View style={styles.backRow}>
@@ -666,8 +666,8 @@ export default function BottomNavScreen() {
           /* ── All other tabs: DSL-driven content ────────────────────────────── */
           <View style={{ flex: 1 }}>
 
-            {/* Cart page: fixed header with back button (sits above the scroll area) */}
-            {isCartPage && (
+            {/* Cart page: show back-header only for standalone flow (bottom nav hidden) */}
+            {isCartPage && hideBottomNav && (
               <View style={styles.notifHeader}>
                 <TouchableOpacity
                   style={styles.notifBackBtn}
@@ -702,6 +702,7 @@ export default function BottomNavScreen() {
             showsVerticalScrollIndicator
             contentContainerStyle={[
               styles.scrollContent,
+              isCartPage ? styles.cartScrollContent : null,
               { paddingBottom: resolvedBottomNavSection && !hideBottomNav ? bottomNavHeight : 0 },
             ]}
             keyboardShouldPersistTaps="handled"
@@ -775,6 +776,9 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: "#F7F7F7",
   },
+  cartContainer: {
+    backgroundColor: "#FFFFFF",
+  },
   backRow: {
     flexDirection: "row",
     alignItems: "center",
@@ -819,6 +823,9 @@ const styles = StyleSheet.create({
     flexGrow: 1,
     paddingHorizontal: 0,
     paddingBottom: 24,
+  },
+  cartScrollContent: {
+    backgroundColor: "#FFFFFF",
   },
   content: {
     flex: 1,

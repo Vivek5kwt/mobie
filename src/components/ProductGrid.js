@@ -199,6 +199,11 @@ export default function ProductGrid({ section, limit = 8, title = "Products" }) 
     rawProps?.titleWrap ?? rawProps?.textWrap ?? rawProps?.productTitleWrap ?? rawProps?.cardTitleWrap,
     false
   );
+  const visibilityNode = deepUnwrap(rawProps?.visibility) || {};
+  const showBgPadding = toBoolean(
+    visibilityNode?.bgPadding ?? visibilityNode?.padding,
+    true
+  );
 
   // ── Shopify credentials ───────────────────────────────────────────────────
   const shopifyDomain = toString(rawProps?.shopifyDomain, "");
@@ -420,10 +425,18 @@ export default function ProductGrid({ section, limit = 8, title = "Products" }) 
     atcPositionRaw.includes("before");
 
   // ── Container spacing ─────────────────────────────────────────────────────
-  const pt = resolveFirstNumber([rawProps?.pt, rawProps?.paddingTop],    12);
-  const pb = resolveFirstNumber([rawProps?.pb, rawProps?.paddingBottom],  0);
-  const pl = resolveFirstNumber([rawProps?.pl, rawProps?.paddingLeft],   16);
-  const pr = resolveFirstNumber([rawProps?.pr, rawProps?.paddingRight],  16);
+  const pt = showBgPadding
+    ? resolveFirstNumber([rawProps?.pt, rawProps?.paddingTop, presentationCss?.container?.paddingTop], 0)
+    : 0;
+  const pb = showBgPadding
+    ? resolveFirstNumber([rawProps?.pb, rawProps?.paddingBottom, presentationCss?.container?.paddingBottom], 0)
+    : 0;
+  const pl = showBgPadding
+    ? resolveFirstNumber([rawProps?.pl, rawProps?.paddingLeft, presentationCss?.container?.paddingLeft], 16)
+    : 0;
+  const pr = showBgPadding
+    ? resolveFirstNumber([rawProps?.pr, rawProps?.paddingRight, presentationCss?.container?.paddingRight], 16)
+    : 0;
 
   // ── Grid gaps + card width ────────────────────────────────────────────────
   const resolvedColGap = resolveFirstNumber([rawProps?.colGap, rawProps?.columnGap, rawProps?.gapX, rawProps?.gridGap, gridObj?.gap], 8);

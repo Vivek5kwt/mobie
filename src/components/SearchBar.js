@@ -3,6 +3,9 @@ import {
   ActivityIndicator,
   Alert,
   Image,
+  Linking,
+  PermissionsAndroid,
+  Platform,
   StyleSheet,
   Text,
   TextInput,
@@ -153,6 +156,25 @@ export default function SearchBar({ section }) {
   const [isListening, setIsListening] = useState(false);
   const voiceDestroyRef = useRef(false);
 
+  const requestMicrophonePermission = useCallback(async () => {
+    if (Platform.OS !== "android") return true;
+    try {
+      const status = await PermissionsAndroid.request(
+        PermissionsAndroid.PERMISSIONS.RECORD_AUDIO,
+        {
+          title: "Microphone permission",
+          message: "Allow microphone access to search products using your voice.",
+          buttonPositive: "Allow",
+          buttonNegative: "Deny",
+          buttonNeutral: "Ask me later",
+        }
+      );
+      return status === PermissionsAndroid.RESULTS.GRANTED;
+    } catch (_) {
+      return false;
+    }
+  }, []);
+
   // detailSections may live one level up (on the section itself) when rawProps is already flat
   const detailSections = useMemo(
     () => extractDetailSections(rawProps) || extractDetailSections(section?.properties?.props ?? {}),
@@ -254,7 +276,7 @@ export default function SearchBar({ section }) {
     return () => clearTimeout(t);
   }, [value, runSearch]);
 
-  const startVoiceSearch = useCallback(() => {
+  const startVoiceSearch = useCallback(async () => {
     if (!VoiceModule) {
       Alert.alert(
         "Voice search",
@@ -262,6 +284,22 @@ export default function SearchBar({ section }) {
       );
       return;
     }
+
+    const hasPermission = await requestMicrophonePermission();
+    if (!hasPermission) {
+      setIsListening(false);
+      setError("Microphone access is needed for voice search.");
+      Alert.alert(
+        "Microphone permission needed",
+        "Please enable microphone permission to use voice search.",
+        [
+          { text: "Cancel", style: "cancel" },
+          { text: "Open Settings", onPress: () => Linking.openSettings?.() },
+        ]
+      );
+      return;
+    }
+
     voiceDestroyRef.current = false;
     setIsListening(true);
     setError("");
@@ -296,10 +334,10 @@ export default function SearchBar({ section }) {
       .catch((err) => {
         if (!voiceDestroyRef.current) {
           setIsListening(false);
-          setError("Could not start microphone. Check permissions.");
+          setError("Could not start microphone. Please try again.");
         }
       });
-  }, []);
+  }, [requestMicrophonePermission]);
 
   const stopVoiceSearch = useCallback(() => {
     voiceDestroyRef.current = true;

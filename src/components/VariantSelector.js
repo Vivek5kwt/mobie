@@ -209,11 +209,23 @@ export default function VariantSelector({ section }) {
     {};
 
   const raw = unwrapValue(propsNode?.raw, {}) || {};
+  const presentationCss =
+    unwrapValue(propsNode?.presentation?.properties?.css?.value, undefined) ||
+    unwrapValue(propsNode?.presentation?.css?.value, undefined) ||
+    unwrapValue(propsNode?.presentation?.properties?.css, undefined) ||
+    unwrapValue(propsNode?.presentation?.css, {}) ||
+    {};
 
   // ── Visibility ─────────────────────────────────────────────────────────────
-  const vis = (raw?.visibility && typeof raw.visibility === "object") ? raw.visibility : {};
+  const visRaw =
+    (raw?.visibility && typeof raw.visibility === "object") ? raw.visibility :
+    (presentationCss?.visibility && typeof presentationCss.visibility === "object") ? presentationCss.visibility :
+    {};
+  const vis = unwrapValue(visRaw, visRaw) || {};
   const showSelectors = toBool(vis?.selectors ?? vis?.variants ?? vis?.options, true);
   const showFeatures  = toBool(vis?.features  ?? vis?.badges,                  false);
+  const showTitle     = toBool(vis?.title, true);
+  const showBgPadding = toBool(vis?.bgPadding ?? vis?.padding, true);
 
   // ── Variant groups ─────────────────────────────────────────────────────────
   const allGroups = useMemo(
@@ -247,7 +259,16 @@ export default function VariantSelector({ section }) {
   if (!groups.length && !showFeatures) return null;
 
   // ── Container ──────────────────────────────────────────────────────────────
-  const containerBg     = pick([raw?.backgroundColor, raw?.bgColor], "#FFFFFF");
+  const containerBg     = pick(
+    [
+      raw?.backgroundColor,
+      raw?.bgColor,
+      presentationCss?.container?.background,
+      presentationCss?.backgroundColor,
+      presentationCss?.bgColor,
+    ],
+    "#FFFFFF"
+  );
   const padTop          = pickNum([raw?.paddingTop,    raw?.pt], 20);
   const padLeft         = pickNum([raw?.paddingLeft,   raw?.pl], 20);
   const padRight        = pickNum([raw?.paddingRight,  raw?.pr], 20);
@@ -275,7 +296,7 @@ export default function VariantSelector({ section }) {
   const chipFontSize   = pickNum([raw?.textFontsize,   raw?.textFontSize,   raw?.chipFontSize],  12);
   const chipFontFamily = resolveFont(pick([raw?.textFontfamily, raw?.textFontFamily, raw?.chipFontFamily], "")) || undefined;
   const chipFontWeight = resolveWeight(raw?.textFontWeight ?? raw?.textFontweight ?? raw?.chipFontWeight) || "500";
-  const chipRadius     = pickNum([raw?.buttonRadius,   raw?.boxBorderRadius, raw?.chipRadius], 8);
+  const chipRadius     = pickNum([raw?.buttonRadius,   raw?.boxBorderRadius, raw?.chipRadius], 10);
   const chipPadH       = pickNum([raw?.boxPaddingleft, raw?.boxPaddingLeft,  raw?.chipPadH],  14);
   const chipPadV       = pickNum([raw?.boxPaddingtop,  raw?.boxPaddingTop,   raw?.chipPadV],   8);
   const chipGap        = pickNum([raw?.chipGap, raw?.optionGap, raw?.textGap], 8);
@@ -320,10 +341,10 @@ export default function VariantSelector({ section }) {
         styles.container,
         {
           backgroundColor: containerBg,
-          paddingTop:    padTop,
-          paddingLeft:   padLeft,
-          paddingRight:  padRight,
-          paddingBottom: padBottom,
+          paddingTop:    showBgPadding ? padTop : 0,
+          paddingLeft:   showBgPadding ? padLeft : 0,
+          paddingRight:  showBgPadding ? padRight : 0,
+          paddingBottom: showBgPadding ? padBottom : 0,
           borderRadius:  containerRadius,
           borderWidth:   containerBorderWidth,
           borderColor:   containerBorderColor,
@@ -336,17 +357,19 @@ export default function VariantSelector({ section }) {
         return (
           <View key={group.name} style={[styles.group, { marginBottom: groupMarginBottom }]}>
             {/* Group label */}
-            <Text
-              style={{
-                fontSize:     labelFontSize,
-                color:        labelColor,
-                fontWeight:   labelFontWeight,
-                fontFamily:   labelFontFamily,
-                marginBottom: labelMarginBottom,
-              }}
-            >
-              {group.name}
-            </Text>
+            {showTitle && (
+              <Text
+                style={{
+                  fontSize:     labelFontSize,
+                  color:        labelColor,
+                  fontWeight:   labelFontWeight,
+                  fontFamily:   labelFontFamily,
+                  marginBottom: labelMarginBottom,
+                }}
+              >
+                {group.name}
+              </Text>
+            )}
 
             {isColor ? (
               /* ── Color swatches ─────────────────────────────────────────── */
@@ -438,8 +461,8 @@ export default function VariantSelector({ section }) {
                       style={[
                         styles.chip,
                         {
-                          paddingHorizontal: Math.max(chipPadH, 10),
-                          paddingVertical:   Math.max(chipPadV, 7),
+                          paddingHorizontal: Math.max(chipPadH, 8),
+                          paddingVertical:   Math.max(chipPadV, 5),
                           borderRadius:      chipRadius,
                           backgroundColor:   isSel ? selBg     : unselBg,
                           borderColor:       isSel ? selBorder  : unselBorder,

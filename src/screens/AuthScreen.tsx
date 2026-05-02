@@ -901,6 +901,7 @@ const AuthScreen = () => {
     defaultForgotPasswordTokens
   );
   const isMountedRef = useRef(true);
+  const loginToastPendingRef = useRef(false);
 
   useEffect(() => {
     return () => {
@@ -970,7 +971,28 @@ const AuthScreen = () => {
 
   useEffect(() => {
     if (session) {
-      navigation.reset({ index: 0, routes: [{ name: 'LayoutScreen' as never }] });
+      const displayName =
+        session?.user?.name?.trim() ||
+        session?.user?.email?.split('@')?.[0] ||
+        session?.user?.email ||
+        'User';
+      const loginSuccessToast = loginToastPendingRef.current
+        ? {
+            message: `Successfully logged in, ${displayName}`,
+            key: `${Date.now()}-${displayName}`,
+          }
+        : undefined;
+      loginToastPendingRef.current = false;
+
+      navigation.reset({
+        index: 0,
+        routes: [
+          {
+            name: 'LayoutScreen' as never,
+            params: loginSuccessToast ? ({ loginSuccessToast } as never) : undefined,
+          },
+        ],
+      });
     }
   }, [session, navigation]);
 
@@ -1296,8 +1318,10 @@ const AuthScreen = () => {
     try {
       setLoading(true);
       if (mode === 'login') {
+        loginToastPendingRef.current = true;
         await login(email.trim(), password.trim());
       } else {
+        loginToastPendingRef.current = false;
         const fullName = [firstName.trim(), lastName.trim()].filter(Boolean).join(' ').trim();
         await signup(email.trim(), password.trim(), fullName);
       }

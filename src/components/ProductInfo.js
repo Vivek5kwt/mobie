@@ -58,6 +58,13 @@ export default function ProductInfo({ section }) {
     {};
 
   const raw        = unwrapValue(propsNode?.raw, {});
+  const layoutCss  =
+    unwrapValue(raw?.layout?.css, undefined) ||
+    unwrapValue(propsNode?.layout?.value?.css, undefined) ||
+    unwrapValue(propsNode?.layout?.css, undefined) ||
+    unwrapValue(section?.layout?.cssSnapshot, undefined) ||
+    unwrapValue(section?.presentation?.cssSnapshot, {}) ||
+    {};
   const titleCss   = unwrapValue(propsNode?.title, {});
   const vendorCss  = unwrapValue(propsNode?.vendor, {});
   const priceCss   = unwrapValue(propsNode?.price, {});
@@ -76,6 +83,42 @@ export default function ProductInfo({ section }) {
   // ── Rating ──────────────────────────────────────────────────────────────────
   const ratingValue     = toString(raw?.ratingText ?? raw?.rating, toString(ratingCss?.value, ""));
   const ratingCountText = toString(raw?.ratingCountText ?? raw?.ratingCount, toString(ratingCss?.count, ""));
+
+  const titleStyleCss = unwrapValue(layoutCss?.title, {}) || {};
+  const vendorStyleCss = unwrapValue(layoutCss?.vendor, {}) || {};
+
+  const titleAlign = toString(
+    titleCss?.align ?? raw?.titleAlignment ?? raw?.titleAttributes?.align ?? titleStyleCss?.textAlign,
+    "left"
+  ).toLowerCase();
+  const vendorAlign = toString(
+    vendorCss?.align ?? raw?.vendorAlignment ?? raw?.vendorAttributes?.align ?? vendorStyleCss?.textAlign,
+    "left"
+  ).toLowerCase();
+  const normalizeTextAlign = (align) => (["left", "center", "right"].includes(align) ? align : "left");
+
+  const titleFontSizeResolved = toNumber(
+    titleCss?.fontSize ??
+      raw?.titleFontSize ??
+      raw?.titleSize ??
+      raw?.titleAttributes?.size ??
+      titleStyleCss?.fontSize,
+    18
+  );
+  const titleLineHeightResolved = toNumber(
+    titleCss?.lineHeight ??
+      raw?.titleLineHeight ??
+      raw?.titleAttributes?.lineHeight ??
+      titleStyleCss?.lineHeight,
+    undefined
+  );
+  const titleLetterSpacingResolved = toNumber(
+    titleCss?.letterSpacing ??
+      raw?.titleLetterSpacing ??
+      raw?.titleAttributes?.letterSpacing ??
+      titleStyleCss?.letterSpacing,
+    undefined
+  );
 
   // ── Visibility ──────────────────────────────────────────────────────────────
   const showTitle     = toBoolean(visibility?.productTitle ?? visibility?.title, true);
@@ -123,8 +166,8 @@ export default function ProductInfo({ section }) {
   const ratingCountSize    = toNumber(ratingCss?.count?.fontSize, 12);
 
   // ── Font families ────────────────────────────────────────────────────────────
-  const titleFontFamily    = cleanFontFamily(toString(titleCss?.fontFamily, ""));
-  const vendorFontFamily   = cleanFontFamily(toString(vendorCss?.fontFamily, ""));
+  const titleFontFamily    = cleanFontFamily(toString(titleCss?.fontFamily ?? raw?.titleFontFamily ?? titleStyleCss?.fontFamily, ""));
+  const vendorFontFamily   = cleanFontFamily(toString(vendorCss?.fontFamily ?? raw?.vendorFontFamily ?? vendorStyleCss?.fontFamily, ""));
   const priceFontFamily    = cleanFontFamily(toString(priceCss?.fontFamily ?? priceCss?.sale?.fontFamily, ""));
   const ratingBorderWidth  = ratingCss?.borderLine ? 1 : 0;
   const ratingBorderColor  = toString(ratingCss?.borderColor, "#e5e7eb");
@@ -158,9 +201,12 @@ export default function ProductInfo({ section }) {
               style={[
                 styles.title,
                 {
-                  fontSize:   toNumber(titleCss?.fontSize, 18),
-                  color:      toString(titleCss?.color, "#111827"),
-                  fontWeight: toString(titleCss?.fontWeight, "700"),
+                  fontSize:   titleFontSizeResolved,
+                  color:      toString(titleCss?.color ?? raw?.titleColor ?? raw?.titleAttributes?.color ?? titleStyleCss?.color, "#111827"),
+                  fontWeight: toString(titleCss?.fontWeight ?? raw?.titleFontWeight ?? raw?.titleAttributes?.weight ?? titleStyleCss?.fontWeight, "700"),
+                  textAlign:  normalizeTextAlign(titleAlign),
+                  ...(titleLineHeightResolved !== undefined ? { lineHeight: titleLineHeightResolved } : {}),
+                  ...(titleLetterSpacingResolved !== undefined ? { letterSpacing: titleLetterSpacingResolved } : {}),
                   ...(titleFontFamily ? { fontFamily: titleFontFamily } : {}),
                 },
               ]}
@@ -224,9 +270,10 @@ export default function ProductInfo({ section }) {
           style={[
             styles.vendor,
             {
-              fontSize:   toNumber(vendorCss?.fontSize, 13),
-              color:      toString(vendorCss?.color, "#6B7280"),
-              fontWeight: toString(vendorCss?.fontWeight, "400"),
+              fontSize:   toNumber(vendorCss?.fontSize ?? raw?.vendorFontSize ?? raw?.vendorSize ?? raw?.vendorAttributes?.size ?? vendorStyleCss?.fontSize, 13),
+              color:      toString(vendorCss?.color ?? raw?.vendorColor ?? raw?.vendorAttributes?.color ?? vendorStyleCss?.color, "#6B7280"),
+              fontWeight: toString(vendorCss?.fontWeight ?? raw?.vendorFontWeight ?? raw?.vendorAttributes?.weight ?? vendorStyleCss?.fontWeight, "400"),
+              textAlign:  normalizeTextAlign(vendorAlign),
               ...(vendorFontFamily ? { fontFamily: vendorFontFamily } : {}),
             },
           ]}

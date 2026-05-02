@@ -100,9 +100,9 @@ export default function AccountProfile({ section }) {
   );
   const css = resolveObject(presentation?.css, {});
 
-  // Session is the primary source; DSL props serve as override/fallback
-  const name  = resolveValue(rawProps?.name,  "") || resolveValue(session?.user?.name,  "");
-  const email = resolveValue(rawProps?.email, "") || resolveValue(session?.user?.email, "");
+  // Logged-in session must win; DSL values are fallback placeholders only.
+  const name  = resolveValue(session?.user?.name,  "") || resolveValue(rawProps?.name,  "");
+  const email = resolveValue(session?.user?.email, "") || resolveValue(rawProps?.email, "");
   const avatarUrl = resolveValue(rawProps?.avatarUrl, "");
 
   const containerStyle = convertStyles(css?.container || {});

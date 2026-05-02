@@ -160,6 +160,7 @@ const slugifyPageName = (value) =>
 
 const SIGNIN_SLUGS = new Set(["signin", "sign-in", "login", "log-in", "auth"]);
 const ORDER_SLUGS  = new Set(["orders", "order", "my-orders", "myorders", "order-history", "orderhistory", "my-order"]);
+const PROFILE_SLUGS = new Set(["profile", "account", "my-account", "myaccount"]);
 
 const resolveNavigationTarget = (item = {}) => {
   const link = resolveItemLink(item);
@@ -175,6 +176,16 @@ const resolveNavigationTarget = (item = {}) => {
     // Sign-in slugs → Auth screen
     if (SIGNIN_SLUGS.has(pageName)) {
       return { type: "stack", name: "Auth" };
+    }
+    if (PROFILE_SLUGS.has(pageName)) {
+      return {
+        type: "stack",
+        name: "BottomNavScreen",
+        params: { title: "My Account", pageName: "my-account", link: "my-account" },
+      };
+    }
+    if (ORDER_SLUGS.has(pageName)) {
+      return { type: "stack", name: "OrderDetail", params: { title: "Orders" } };
     }
     // Orders should stay inside BottomNavScreen so the tab bar remains visible.
     return {
@@ -196,6 +207,16 @@ const resolveNavigationTarget = (item = {}) => {
   // Sign-in links → Auth screen
   if (SIGNIN_SLUGS.has(cleanedSlug)) {
     return { type: "stack", name: "Auth" };
+  }
+  if (PROFILE_SLUGS.has(cleanedSlug)) {
+    return {
+      type: "stack",
+      name: "BottomNavScreen",
+      params: { title: "My Account", pageName: "my-account", link: "my-account" },
+    };
+  }
+  if (ORDER_SLUGS.has(cleanedSlug)) {
+    return { type: "stack", name: "OrderDetail", params: { title: "Orders" } };
   }
   // Orders should stay inside BottomNavScreen so the tab bar remains visible.
 
@@ -510,9 +531,11 @@ function BottomNavigation({ section, activeIndexOverride }) {
     const isProtectedTarget =
       itemSlug === "my-account" ||
       itemSlug === "profile" ||
+      ORDER_SLUGS.has(itemSlug) ||
       itemSlug === "cart" ||
       targetPageSlug === "my-account" ||
       targetPageSlug === "profile" ||
+      ORDER_SLUGS.has(targetPageSlug) ||
       targetPageSlug === "cart";
 
     if (isProtectedTarget) {

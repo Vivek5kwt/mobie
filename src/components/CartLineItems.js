@@ -95,8 +95,12 @@ export default function CartLineItems({ section }) {
     {};
   const raw = unwrapValue(propsNode?.raw, null) || propsNode || {};
   const dslItems = Array.isArray(raw?.items) ? raw.items : [];
-  const sourceItems = cartItems.length > 0 ? cartItems : dslItems;
-  const usesDslItems = cartItems.length === 0 && dslItems.length > 0;
+  const allowDslItemsFallback = toBoolean(
+    raw?.useDslItemsFallback ?? raw?.allowDslItemsFallback ?? raw?.showSampleItems,
+    false
+  );
+  const usesDslItems = cartItems.length === 0 && allowDslItemsFallback && dslItems.length > 0;
+  const sourceItems = cartItems.length > 0 ? cartItems : (usesDslItems ? dslItems : []);
 
   // Container
   const bgColor = toString(raw?.bgColor ?? raw?.backgroundColor, "#FFFFFF");

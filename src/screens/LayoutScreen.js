@@ -37,7 +37,7 @@ function _cacheKey(appId, pageName) {
 }
 // ─────────────────────────────────────────────────────────────────────────────
 
-export default function LayoutScreen({ route }) {
+export default function LayoutScreen({ route, navigation }) {
   const { session } = useAuth();
   const pageName = route?.params?.pageName || "home";
   const normalizedPageName =
@@ -72,6 +72,7 @@ export default function LayoutScreen({ route }) {
   const [isSideMenuOpen, setIsSideMenuOpen] = useState(false);
   const versionRef = useRef(null);
   const snackbarTimer = useRef(null);
+  const lastLoginToastKeyRef = useRef(null);
   const SIDE_MENU_WIDTH = 280;
   const sideMenuTranslateX = useRef(new Animated.Value(-SIDE_MENU_WIDTH)).current;
   // Store bottom navigation section separately to prevent it from refreshing
@@ -242,6 +243,28 @@ export default function LayoutScreen({ route }) {
       setSnackbar((prev) => ({ ...prev, visible: false }));
     }, 3200);
   };
+
+  useEffect(() => {
+    const payload = route?.params?.loginSuccessToast;
+    if (!payload) return;
+
+    const message =
+      (typeof payload === "string" ? payload : payload?.message) || "";
+    const key =
+      (typeof payload === "object" && payload?.key) ||
+      message;
+    if (!message || !key) return;
+    if (lastLoginToastKeyRef.current === key) return;
+
+    lastLoginToastKeyRef.current = key;
+    showSnackbar(message, "success");
+
+    if (navigation?.setParams) {
+      try {
+        navigation.setParams({ loginSuccessToast: undefined });
+      } catch (_) {}
+    }
+  }, [route?.params?.loginSuccessToast, navigation]);
 
   // Keep DSL exactly as returned from the server.
   // Do NOT inject a local default bottom navigation; the bar should only come from live JSON.

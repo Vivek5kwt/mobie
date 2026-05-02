@@ -45,6 +45,14 @@ const toBoolean = (value, fallback = false) => {
   return Boolean(resolved);
 };
 
+const hasVisibleBorder = (line, width, color) => {
+  const l = toString(line, "").trim().toLowerCase();
+  if (l === "none" || l === "false" || l === "0") return false;
+  if (width > 0) return true;
+  const c = toString(color, "").trim().toLowerCase();
+  return !!c && c !== "transparent";
+};
+
 // Strip "fa-" / "fas-" / "far-" prefix, return bare icon name
 const stripFaPrefix = (v) =>
   v ? String(v).trim().replace(/^fa[srldb]?[-_]/i, "").toLowerCase() : "";
@@ -84,11 +92,11 @@ export default function ProductDescription({ section }) {
   // Both layout and presentation carry the same CSS snapshot — prefer layout
   const layoutCss = (() => {
     const l = unwrapValue(propsNode?.layout, {});
-    return l?.css || l?.properties?.css || {};
+    return unwrapValue(l?.css, l?.css) || unwrapValue(l?.properties?.css, l?.properties?.css) || {};
   })();
   const presCss = (() => {
     const p = unwrapValue(propsNode?.presentation, {});
-    return p?.css || p?.properties?.css || {};
+    return unwrapValue(p?.css, p?.css) || unwrapValue(p?.properties?.css, p?.properties?.css) || {};
   })();
 
   // ── Text content ───────────────────────────────────────────────────────────
@@ -112,14 +120,17 @@ export default function ProductDescription({ section }) {
   // raw.dropdownIconValue is what the builder sets when the user picks an icon
   // propsNode.icon.icon is the DSL-level default
   // layoutCss.icon.icon / presCss.icon.icon are CSS-snapshot values
-  const rawIconVal  = toString(raw?.dropdownIconValue ?? raw?.iconId ?? raw?.icon, "");
-  const iconNodeVal = toString(iconNode?.icon,                  "");
+  const rawIconVal  = toString(
+    raw?.dropdownIconValue ?? raw?.iconId ?? raw?.icon ?? raw?.iconStyle?.icon,
+    ""
+  );
+  const iconNodeVal = toString(iconNode?.icon ?? iconNode?.value, "");
   const cssIconVal  = toString(layoutCss?.icon?.icon ?? presCss?.icon?.icon, "");
   const resolvedIconRaw = rawIconVal || iconNodeVal || cssIconVal || "fa-circle-info";
 
   // Icon color — raw.dropdownIconColor overrides the node/css color
   const iconColor = (() => {
-    const fromRaw  = toString(raw?.dropdownIconColor ?? raw?.iconColor, "");
+    const fromRaw  = toString(raw?.dropdownIconColor ?? raw?.iconColor ?? raw?.iconStyle?.color, "");
     const fromNode = toString(iconNode?.color, "");
     const fromCss  = toString(layoutCss?.icon?.color ?? presCss?.icon?.color, "");
     return fromRaw || fromNode || fromCss || "#096d70";
@@ -127,7 +138,7 @@ export default function ProductDescription({ section }) {
 
   // Icon size — try raw keys, then icon node, then CSS fontSize
   const iconSize = (() => {
-    const fromRaw  = toNumber(raw?.dropdownIconSize ?? raw?.iconSize, undefined);
+    const fromRaw  = toNumber(raw?.dropdownIconSize ?? raw?.iconSize ?? raw?.iconStyle?.size, undefined);
     const fromNode = toNumber(iconNode?.size, undefined);
     const fromCss  = toNumber(layoutCss?.icon?.fontSize ?? presCss?.icon?.fontSize, undefined);
     return fromRaw ?? fromNode ?? fromCss ?? 16;
@@ -144,21 +155,38 @@ export default function ProductDescription({ section }) {
   );
 
   // ── Container (outer) ─────────────────────────────────────────────────────
-  const outerPT = toNumber(outerNode?.paddingTop    ?? layoutCss?.container?.paddingTop,    0);
-  const outerPB = toNumber(outerNode?.paddingBottom ?? layoutCss?.container?.paddingBottom, 0);
-  const outerPL = toNumber(outerNode?.paddingLeft   ?? layoutCss?.container?.paddingLeft,   0);
-  const outerPR = toNumber(outerNode?.paddingRight  ?? layoutCss?.container?.paddingRight,  0);
+  const outerPT = toNumber(raw?.paddingTop    ?? outerNode?.paddingTop    ?? layoutCss?.container?.paddingTop,    0);
+  const outerPB = toNumber(raw?.paddingBottom ?? outerNode?.paddingBottom ?? layoutCss?.container?.paddingBottom, 0);
+  const outerPL = toNumber(raw?.paddingLeft   ?? outerNode?.paddingLeft   ?? layoutCss?.container?.paddingLeft,   0);
+  const outerPR = toNumber(raw?.paddingRight  ?? outerNode?.paddingRight  ?? layoutCss?.container?.paddingRight,  0);
   const outerBg = toString(
+    raw?.backgroundColor ??
     outerNode?.backgroundColor ?? outerNode?.background ??
     layoutCss?.container?.background ?? layoutCss?.container?.backgroundColor,
     "#FFFFFF"
   );
-  const outerRadius = toNumber(outerNode?.corners ?? outerNode?.borderRadius ?? layoutCss?.container?.borderRadius, 0);
+  const outerRadius = toNumber(
+    raw?.corners ?? outerNode?.corners ?? outerNode?.borderRadius ?? layoutCss?.container?.borderRadius,
+    0
+  );
+  const outerBorderColor = toString(
+    raw?.borderColor ?? outerNode?.borderColor ?? layoutCss?.container?.borderColor,
+    "#E5E7EB"
+  );
+  const outerBorderWidth = toNumber(
+    raw?.borderWidth ?? outerNode?.borderWidth ?? layoutCss?.container?.borderWidth,
+    1
+  );
+  const outerBorderLine = toString(
+    raw?.borderLine ?? outerNode?.borderLine ?? layoutCss?.container?.borderLine,
+    ""
+  );
+  const outerShouldBorder = hasVisibleBorder(outerBorderLine, outerBorderWidth, outerBorderColor);
 
   // ── Header row paddingTop ─────────────────────────────────────────────────
   const headerPT = toNumber(
-    layoutCss?.headerRow?.paddingTop ?? presCss?.headerRow?.paddingTop,
-    16
+    raw?.paddingTop ?? outerNode?.paddingTop ?? layoutCss?.headerRow?.paddingTop ?? presCss?.headerRow?.paddingTop,
+    0
   );
 
   // ── Info box ──────────────────────────────────────────────────────────────
@@ -208,6 +236,8 @@ export default function ProductDescription({ section }) {
         width:           "100%",
         backgroundColor: outerBg,
         borderRadius:    outerRadius,
+        borderWidth:     outerShouldBorder ? outerBorderWidth : 0,
+        borderColor:     outerBorderColor,
         paddingTop:      outerPT,
         paddingBottom:   outerPB,
         paddingLeft:     outerPL,

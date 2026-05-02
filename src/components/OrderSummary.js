@@ -86,7 +86,11 @@ export default function OrderSummary({ section }) {
 
   // DSL items (post-purchase / injected items override Redux cart)
   const dslItems = Array.isArray(raw?.items) ? raw.items : [];
-  const usesDslItems = dslItems.length > 0;
+  const allowDslItemsFallback = toBoolean(
+    raw?.useDslItemsFallback ?? raw?.allowDslItemsFallback ?? raw?.showSampleItems,
+    false
+  );
+  const usesDslItems = allowDslItemsFallback && dslItems.length > 0;
 
   // Source items — DSL items take priority (post-purchase), else Redux cart
   const sourceItems = usesDslItems ? dslItems : cartItems;

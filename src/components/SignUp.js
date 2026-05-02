@@ -18,6 +18,7 @@ import { convertStyles } from "../utils/convertStyles";
 import { registerCustomer } from "../services/customerService";
 import { resolveAppId } from "../utils/appId";
 import { fetchStoreConfig } from "../services/storeService";
+import { resolveFA4IconName } from "../utils/faIconAlias";
 import Icon from "react-native-vector-icons/FontAwesome6";
 
 const unwrapValue = (value, fallback = undefined) => {
@@ -93,6 +94,8 @@ const getTextAlign = (align) => {
   if (normalized === "right") return "right";
   return "center";
 };
+
+const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
 
 export default function SignUp({ section }) {
   const navigation = useNavigation();
@@ -492,6 +495,23 @@ export default function SignUp({ section }) {
 
   const displayButtonText = buttonAutoUppercase ? buttonText.toUpperCase() : buttonText;
   const displayFooterLinkText = footerLinkAutoUppercase ? footerLinkText.toUpperCase() : footerLinkText;
+  const compactScale = screenWidth < 380 ? 0.94 : 1;
+  const contentWidth = Math.max(280, screenWidth - 32);
+  const mobileProfilePictureSize = clamp(
+    profilePictureSize * compactScale,
+    52,
+    Math.min(Math.round(contentWidth * 0.45), 140)
+  );
+  const mobileButtonWidthPct = clamp(buttonWidth, 72, 100);
+  const mobileButtonHeight = clamp(buttonHeight * compactScale, 44, 52);
+  const mobileButtonFontSize = clamp(buttonFontSize * compactScale, 14, 18);
+  const mobileTitleFontSize = clamp(headerTitleFontSize * compactScale, 18, 30);
+  const mobileFieldFontSize = (size) => clamp(size * compactScale, 14, 17);
+  const mobileCardPaddingTop = bgPadVisible ? clamp(pt * compactScale, 10, 28) : 0;
+  const mobileCardPaddingBottom = bgPadVisible ? clamp(pb * compactScale, 12, 28) : 0;
+  const mobileCardPaddingLeft = bgPadVisible ? clamp(pl * compactScale, 12, 20) : 0;
+  const mobileCardPaddingRight = bgPadVisible ? clamp(pr * compactScale, 12, 20) : 0;
+  const resolvedButtonIcon = resolveFA4IconName(buttonIcon);
   const shouldShowProfilePicture =
     logoVisible && showProfilePicture && Boolean(String(profilePictureUrl || "").trim());
   const shouldShowHeaderTitle = Boolean(String(headerTitle || "").trim()) && !authTitle;
@@ -514,10 +534,10 @@ export default function SignUp({ section }) {
           {
             backgroundColor: cardBgColor,
             borderRadius,
-            paddingTop: bgPadVisible ? pt : 0,
-            paddingBottom: bgPadVisible ? pb : 0,
-            paddingLeft: bgPadVisible ? pl : 0,
-            paddingRight: bgPadVisible ? pr : 0,
+            paddingTop: mobileCardPaddingTop,
+            paddingBottom: mobileCardPaddingBottom,
+            paddingLeft: mobileCardPaddingLeft,
+            paddingRight: mobileCardPaddingRight,
             borderColor: cardBorderColor,
             borderWidth: cardBorderColor ? 1 : 0,
           },
@@ -539,9 +559,9 @@ export default function SignUp({ section }) {
             style={[
               styles.profilePictureContainer,
               {
-                width: profilePictureSize,
-                height: profilePictureSize,
-                borderRadius: profilePictureSize / 2,
+                width: mobileProfilePictureSize,
+                height: mobileProfilePictureSize,
+                borderRadius: mobileProfilePictureSize / 2,
                 backgroundColor: profilePictureBgColor,
                 borderColor: profilePictureBorderColor,
                 borderWidth: 2,
@@ -580,7 +600,7 @@ export default function SignUp({ section }) {
               styles.authTitle,
               {
                 color: titleColor,
-                fontSize: headerTitleFontSize,
+                fontSize: mobileTitleFontSize,
                 fontWeight: toFontWeight(raw.headlineWeight) || "700",
                 fontFamily: toString(raw.headlineFontFamily, headerTitleFontFamily || "Inter"),
               },
@@ -604,7 +624,7 @@ export default function SignUp({ section }) {
                 {
                   borderColor: inputBorderColor,
                   color: firstNameInputTextColor,
-                  fontSize: firstNameInputTextFontSize,
+                  fontSize: mobileFieldFontSize(firstNameInputTextFontSize),
                   fontFamily: firstNameInputTextFontFamily,
                   fontWeight: firstNameInputTextFontWeight,
                   textAlign: firstNameInputTextAlignment,
@@ -635,7 +655,7 @@ export default function SignUp({ section }) {
                 {
                   borderColor: inputBorderColor,
                   color: lastNameInputTextColor,
-                  fontSize: lastNameInputTextFontSize,
+                  fontSize: mobileFieldFontSize(lastNameInputTextFontSize),
                   fontFamily: lastNameInputTextFontFamily,
                   fontWeight: lastNameInputTextFontWeight,
                   textAlign: lastNameInputTextAlignment,
@@ -666,7 +686,7 @@ export default function SignUp({ section }) {
                 {
                   borderColor: inputBorderColor,
                   color: emailInputTextColor,
-                  fontSize: emailInputTextFontSize,
+                  fontSize: mobileFieldFontSize(emailInputTextFontSize),
                   fontFamily: emailInputTextFontFamily,
                   fontWeight: emailInputTextFontWeight,
                   textAlign: emailInputTextAlignment,
@@ -699,7 +719,7 @@ export default function SignUp({ section }) {
                 {
                   borderColor: inputBorderColor,
                   color: passwordInputTextColor,
-                  fontSize: passwordInputTextFontSize,
+                  fontSize: mobileFieldFontSize(passwordInputTextFontSize),
                   fontFamily: passwordInputTextFontFamily,
                   fontWeight: passwordInputTextFontWeight,
                   textAlign: passwordInputTextAlignment,
@@ -729,8 +749,8 @@ export default function SignUp({ section }) {
                 backgroundColor: buttonBgColor,
                 borderColor: buttonBorderColor,
                 borderWidth: buttonBorderColor ? 1 : 0,
-                width: `${buttonWidth}%`,
-                height: buttonHeight,
+                width: `${mobileButtonWidthPct}%`,
+                height: mobileButtonHeight,
                 borderRadius: buttonRadius,
               },
             ]}
@@ -741,15 +761,15 @@ export default function SignUp({ section }) {
               <ActivityIndicator color={buttonTextColor} />
             ) : (
               <View style={styles.buttonContent}>
-                {buttonIconsVisible && buttonIcon && buttonIconAlignment === "left" && (
-                  <Icon name={buttonIcon} size={buttonIconSize} color={buttonIconColor} style={styles.buttonIcon} />
+                {buttonIconsVisible && resolvedButtonIcon && buttonIconAlignment === "left" && (
+                  <Icon name={resolvedButtonIcon} size={buttonIconSize} color={buttonIconColor} style={styles.buttonIcon} />
                 )}
                 <Text
                   style={[
                     styles.buttonText,
                     {
                       color: buttonTextColor,
-                      fontSize: buttonFontSize,
+                      fontSize: mobileButtonFontSize,
                       fontFamily: buttonFontFamily,
                       fontWeight: buttonFontWeight,
                     },
@@ -757,8 +777,8 @@ export default function SignUp({ section }) {
                 >
                   {displayButtonText}
                 </Text>
-                {buttonIconsVisible && buttonIcon && buttonIconAlignment === "right" && (
-                  <Icon name={buttonIcon} size={buttonIconSize} color={buttonIconColor} style={styles.buttonIcon} />
+                {buttonIconsVisible && resolvedButtonIcon && buttonIconAlignment === "right" && (
+                  <Icon name={resolvedButtonIcon} size={buttonIconSize} color={buttonIconColor} style={styles.buttonIcon} />
                 )}
               </View>
             )}
