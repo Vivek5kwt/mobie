@@ -185,7 +185,11 @@ const resolveNavigationTarget = (item = {}) => {
       };
     }
     if (ORDER_SLUGS.has(pageName)) {
-      return { type: "stack", name: "OrderDetail", params: { title: "Orders" } };
+      return {
+        type: "stack",
+        name: "BottomNavScreen",
+        params: { title: "Orders", pageName: "orders", link: "orders" },
+      };
     }
     // Orders should stay inside BottomNavScreen so the tab bar remains visible.
     return {
@@ -216,7 +220,11 @@ const resolveNavigationTarget = (item = {}) => {
     };
   }
   if (ORDER_SLUGS.has(cleanedSlug)) {
-    return { type: "stack", name: "OrderDetail", params: { title: "Orders" } };
+    return {
+      type: "stack",
+      name: "BottomNavScreen",
+      params: { title: "Orders", pageName: "orders", link: "orders" },
+    };
   }
   // Orders should stay inside BottomNavScreen so the tab bar remains visible.
 
@@ -518,14 +526,21 @@ function BottomNavigation({ section, activeIndexOverride }) {
       closeSideMenu();
     }
 
-    // Tap on the tab that is already active = do nothing (no navigation, no refresh)
-    if (index === displayActiveIndex) {
+    const target = resolveNavigationTarget(item);
+    const currentRoute = navigation.getState?.()?.routes?.[navigation.getState?.()?.index ?? 0];
+    const currentPage = (currentRoute?.params?.pageName ?? "home").toString().trim().toLowerCase();
+    const targetPage = (target?.params?.pageName ?? "home").toString().trim().toLowerCase();
+    const alreadyOnTarget =
+      currentRoute?.name === (target?.name || currentRoute?.name) &&
+      currentPage === targetPage;
+
+    // Skip only when the tapped tab is active AND we are already on the exact target page.
+    if (index === displayActiveIndex && alreadyOnTarget) {
       return;
     }
 
     setActiveIndex(index);
 
-    const target = resolveNavigationTarget(item);
     const itemSlug = slugifyPageName(item?.id || resolveItemLabel(item) || resolveItemLink(item) || "");
     const targetPageSlug = slugifyPageName(target?.params?.pageName || "");
     const isProtectedTarget =
