@@ -157,8 +157,17 @@ export default function SearchBar({ section }) {
   const voiceDestroyRef = useRef(false);
 
   const requestMicrophonePermission = useCallback(async () => {
-    if (Platform.OS !== "android") return true;
+    if (Platform.OS !== "android") {
+      return { granted: true, blocked: false };
+    }
     try {
+      const alreadyGranted = await PermissionsAndroid.check(
+        PermissionsAndroid.PERMISSIONS.RECORD_AUDIO
+      );
+      if (alreadyGranted) {
+        return { granted: true, blocked: false };
+      }
+
       const status = await PermissionsAndroid.request(
         PermissionsAndroid.PERMISSIONS.RECORD_AUDIO,
         {
@@ -169,9 +178,12 @@ export default function SearchBar({ section }) {
           buttonNeutral: "Ask me later",
         }
       );
-      return status === PermissionsAndroid.RESULTS.GRANTED;
+      return {
+        granted: status === PermissionsAndroid.RESULTS.GRANTED,
+        blocked: status === PermissionsAndroid.RESULTS.NEVER_ASK_AGAIN,
+      };
     } catch (_) {
-      return false;
+      return { granted: false, blocked: false };
     }
   }, []);
 
@@ -285,13 +297,15 @@ export default function SearchBar({ section }) {
       return;
     }
 
-    const hasPermission = await requestMicrophonePermission();
-    if (!hasPermission) {
+    const { granted, blocked } = await requestMicrophonePermission();
+    if (!granted) {
       setIsListening(false);
       setError("Microphone access is needed for voice search.");
       Alert.alert(
         "Microphone permission needed",
-        "Please enable microphone permission to use voice search.",
+        blocked
+          ? "Microphone permission is blocked. Please enable it from app settings."
+          : "Please allow microphone permission to use voice search.",
         [
           { text: "Cancel", style: "cancel" },
           { text: "Open Settings", onPress: () => Linking.openSettings?.() },
@@ -316,7 +330,12 @@ export default function SearchBar({ section }) {
     const onError = (e) => {
       if (voiceDestroyRef.current) return;
       setIsListening(false);
-      if (e?.error?.code !== "no-speech" && e?.error?.message) {
+      const code = String(e?.error?.code || "").toLowerCase();
+      const message = String(e?.error?.message || "").toLowerCase();
+      if (code === "no-speech" || message.includes("no speech")) return;
+      if (message.includes("permission") || code.includes("permission")) {
+        setError("Microphone permission denied. Please allow it in settings.");
+      } else if (e?.error?.message) {
         setError("Could not hear you. Try again.");
       }
     };
@@ -329,14 +348,20 @@ export default function SearchBar({ section }) {
     VoiceModule.onSpeechError = onError;
     VoiceModule.onSpeechEnd = onEnd;
 
-    VoiceModule.start("en-US")
-      .then(() => {})
-      .catch((err) => {
-        if (!voiceDestroyRef.current) {
-          setIsListening(false);
+    try {
+      await VoiceModule.destroy().catch(() => {});
+      await VoiceModule.start("en-US");
+    } catch (err) {
+      if (!voiceDestroyRef.current) {
+        setIsListening(false);
+        const message = String(err?.message || "").toLowerCase();
+        if (message.includes("permission")) {
+          setError("Microphone permission denied. Please allow it in settings.");
+        } else {
           setError("Could not start microphone. Please try again.");
         }
-      });
+      }
+    }
   }, [requestMicrophonePermission]);
 
   const stopVoiceSearch = useCallback(() => {

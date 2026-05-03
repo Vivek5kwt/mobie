@@ -1,5 +1,5 @@
 import React, { PropsWithChildren, useCallback, useEffect } from 'react';
-import { Alert } from 'react-native';
+import { Alert, PermissionsAndroid, Platform } from 'react-native';
 import { ApolloProvider } from '@apollo/client/react';
 import { NavigationContainer, useNavigationContainerRef } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
@@ -56,6 +56,18 @@ const ORDER_NOTIFICATION_TYPES = new Set([
 
 export default function App() {
   const navigationRef = useNavigationContainerRef();
+  const requestAndroidNotificationPermission = useCallback(async () => {
+    if (Platform.OS !== 'android' || Platform.Version < 33) return true;
+    try {
+      const result = await PermissionsAndroid.request(
+        PermissionsAndroid.PERMISSIONS.POST_NOTIFICATIONS,
+      );
+      return result === PermissionsAndroid.RESULTS.GRANTED;
+    } catch (error: any) {
+      console.log('Android notification permission request failed:', error?.message);
+      return false;
+    }
+  }, []);
 
   // ── In-app toast / alert for foreground notifications ─────────────────────
   const showInAppMessage = useCallback((title: string, body: string) => {
@@ -100,7 +112,14 @@ export default function App() {
           return;
         }
 
-        // 1. Request notification permission (required on iOS)
+        // 1. Request Android runtime notification permission on Android 13+
+        const androidGranted = await requestAndroidNotificationPermission();
+        if (!androidGranted) {
+          console.log('FCM permission denied by user on Android');
+          return;
+        }
+
+        // 2. Request notification permission (required on iOS)
         const authStatus = await messaging().requestPermission();
         const granted =
           authStatus === messaging.AuthorizationStatus?.AUTHORIZED ||
@@ -149,7 +168,7 @@ export default function App() {
     let cleanup: (() => void) | undefined;
     setupFCM().then((unsub) => { cleanup = unsub; });
     return () => { cleanup?.(); };
-  }, [showInAppMessage, handleNotificationNavigation]);
+  }, [showInAppMessage, handleNotificationNavigation, requestAndroidNotificationPermission]);
 
   return (
     <GestureRootView style={{ flex: 1 }}>
