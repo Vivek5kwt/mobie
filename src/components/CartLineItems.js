@@ -94,6 +94,23 @@ export default function CartLineItems({ section }) {
     section?.props ||
     {};
   const raw = unwrapValue(propsNode?.raw, null) || propsNode || {};
+  const presentationCss =
+    unwrapValue(propsNode?.presentation?.properties?.css?.value, undefined) ||
+    unwrapValue(propsNode?.presentation?.css?.value, undefined) ||
+    unwrapValue(propsNode?.presentation?.properties?.css, undefined) ||
+    unwrapValue(propsNode?.presentation?.css, {}) ||
+    {};
+  const layoutCss =
+    unwrapValue(propsNode?.layout?.properties?.css?.value, undefined) ||
+    unwrapValue(propsNode?.layout?.css?.value, undefined) ||
+    unwrapValue(propsNode?.layout?.properties?.css, undefined) ||
+    unwrapValue(propsNode?.layout?.css, {}) ||
+    {};
+  const visibility = {
+    ...(unwrapValue(raw?.visibility, {}) || {}),
+    ...(unwrapValue(presentationCss?.visibility, {}) || {}),
+    ...(unwrapValue(layoutCss?.visibility, {}) || {}),
+  };
   const dslItems = Array.isArray(raw?.items) ? raw.items : [];
   const allowDslItemsFallback = toBoolean(
     raw?.useDslItemsFallback ?? raw?.allowDslItemsFallback ?? raw?.showSampleItems,
@@ -179,8 +196,13 @@ export default function CartLineItems({ section }) {
   const discountBadgeSuffix = toString(raw?.discountBadgeSuffix, "DISCOUNTS APPLIED");
 
   // Quantity controls
-  const showQuantityControls = toBoolean(raw?.showQuantityControls, true);
+  const showQuantityControls = toBoolean(
+    visibility?.quantityControls ?? visibility?.quantityPicker ?? raw?.showQuantityControls,
+    true
+  );
   const qtyBorderColor = toString(raw?.qtyBorderColor, "#E5E7EB");
+  const qtyBtnBgColor = toString(raw?.qtyBtnBgColor ?? raw?.quantityButtonBgColor, "#FFFFFF");
+  const qtyWrapBgColor = toString(raw?.qtyWrapBgColor ?? raw?.quantityWrapBgColor, "transparent");
   const qtyBtnSize = toNumber(raw?.qtyBtnSize, 32);
   const qtyBtnRadius = toNumber(raw?.qtyBtnRadius, 8);
   const qtyTextColor = toString(raw?.qtyTextColor, "#111827");
@@ -435,7 +457,7 @@ export default function CartLineItems({ section }) {
                 {/* Quantity + Delete row */}
                 {showQuantityControls && (
                   <View style={styles.qtyRow}>
-                    <View style={styles.qtyControls}>
+                    <View style={[styles.qtyControls, { backgroundColor: qtyWrapBgColor }]}>
                       {/* Minus */}
                       <TouchableOpacity
                         style={[
@@ -445,6 +467,7 @@ export default function CartLineItems({ section }) {
                             height: qtyBtnSize,
                             borderRadius: qtyBtnRadius,
                             borderColor: qtyBorderColor,
+                            backgroundColor: qtyBtnBgColor,
                           },
                         ]}
                         onPress={() => {
@@ -470,6 +493,7 @@ export default function CartLineItems({ section }) {
                             height: qtyBtnSize,
                             borderRadius: qtyBtnRadius,
                             borderColor: qtyBorderColor,
+                            backgroundColor: qtyBtnBgColor,
                           },
                         ]}
                         onPress={() => {

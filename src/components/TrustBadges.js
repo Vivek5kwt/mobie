@@ -66,13 +66,17 @@ const toFontWeight = (v, fallback = "400") => {
 function BadgeIcon({ rawIconId, size, color }) {
   if (!rawIconId) return null;
   // resolveFA4IconName handles: FA4 names, FA5/FA6 names, "fa-" prefixes
-  const name = resolveFA4IconName(rawIconId) || "check";
+  const name = resolveFA4IconName(rawIconId);
+  if (!name) return null;
   return <FontAwesome name={name} size={size} color={color} />;
 }
 
 // ─── Visibility key normalizer ────────────────────────────────────────────────
 const toCamelCase = (id) =>
   String(id || "").replace(/_([a-z])/g, (_, c) => c.toUpperCase());
+
+const normalizeBadgeId = (id) =>
+  String(id || "").trim().toLowerCase().replace(/[^a-z0-9]/g, "");
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
@@ -92,43 +96,61 @@ export default function TrustBadges({ section }) {
 
   // ── Badge items ─────────────────────────────────────────────────────────────
   const dslItems = useMemo(() => {
+    const toBadgeItem = (id, cfg) => {
+      const node = unwrap(cfg, cfg);
+      if (node === undefined || node === null) return null;
+
+      if (typeof node === "string" || typeof node === "number") {
+        const icon = str(node, "");
+        if (!icon) return null;
+        return { id: str(id, ""), icon, label: "" };
+      }
+
+      if (typeof node !== "object") return null;
+
+      const icon = str(
+        node?.icon ??
+          node?.iconId ??
+          node?.iconName ??
+          node?.fa ??
+          node?.name,
+        ""
+      );
+      const label = str(node?.label ?? node?.text ?? node?.title, "");
+      const iconColor = str(node?.color ?? node?.iconColor, "");
+      const iconSize = num(node?.size ?? node?.iconSize, undefined);
+      const resolvedId = str(node?.id ?? node?.key ?? id, "");
+
+      if (!icon && !label) return null;
+      return {
+        id: resolvedId,
+        icon,
+        label,
+        iconColor: iconColor || undefined,
+        iconSize,
+      };
+    };
+
     const presentationItems =
       presIcons && typeof presIcons === "object"
         ? Object.entries(presIcons)
-            .map(([key, cfg]) => ({
-              id: key,
-              icon: str(cfg?.icon ?? cfg?.iconId, ""),
-              label: str(cfg?.label ?? cfg?.text ?? cfg?.title, ""),
-            }))
-            .filter((item) => item.icon || item.label)
+            .map(([key, cfg]) => toBadgeItem(key, cfg))
+            .filter(Boolean)
         : [];
     if (presentationItems.length > 0) return presentationItems;
 
     const src = raw?.items ?? raw?.badges ?? raw?.trustBadges ?? propsNode?.items ?? [];
     const arr = Array.isArray(src)
-      ? src
+      ? src.map((item, index) => ({ id: item?.id ?? item?.key ?? `badge-${index}`, value: item }))
       : src && typeof src === "object"
-      ? Object.entries(src).map(([key, value]) => ({ id: key, ...(value || {}) }))
+      ? Object.entries(src).map(([key, value]) => ({ id: key, value }))
       : [];
 
     return arr
-      .map((item) => {
-        if (!item || typeof item !== "object") return null;
-        const id = str(item.id ?? item.key, "");
-        const icon = str(item.icon ?? item.iconId ?? item.fa ?? item.iconName, "");
-        const label = str(item.label ?? item.text ?? item.title, "");
-        if (!icon && !label) return null;
-        return { id, icon, label };
-      })
+      .map(({ id, value }) => toBadgeItem(id, value))
       .filter(Boolean);
   }, [presIcons, raw, propsNode]);
-
-  const DEFAULT_BADGES = [
-    { id: "secure",        icon: "shield",   label: "Secured"       },
-    { id: "free_shipping", icon: "truck",    label: "Free Shipping" },
-    { id: "returns",       icon: "undo",     label: "Easy Returns"  },
-  ];
-  const badgeItems = dslItems.length > 0 ? dslItems : DEFAULT_BADGES;
+  const badgeItems = dslItems;
 
   // ── Visibility ──────────────────────────────────────────────────────────────
   const visibilityMap = Object.assign({}, unwrap(pressCss?.visibility, {}), unwrap(raw?.visibility, {}));
@@ -138,13 +160,34 @@ export default function TrustBadges({ section }) {
     if (visibilityMap[camel] === false || visibilityMap[direct] === false) return false;
     return true;
   };
-  const visibleBadges = badgeItems.filter(isBadgeVisible);
-  const badges = visibleBadges.length > 0 ? visibleBadges : badgeItems;
+  const badges = badgeItems.filter(isBadgeVisible);
+  if (!badges.length) return null;
 
   // ── Per-badge icon config from presentation.css.icons ──────────────────────
+  const normalizedPresIcons = useMemo(() => {
+    const map = {};
+    if (!presIcons || typeof presIcons !== "object") return map;
+    Object.entries(presIcons).forEach(([key, cfg]) => {
+      const node = unwrap(cfg, cfg);
+      const normalizedKey = normalizeBadgeId(key);
+      if (normalizedKey) map[normalizedKey] = node;
+      const camelKey = normalizeBadgeId(toCamelCase(key));
+      if (camelKey) map[camelKey] = node;
+    });
+    return map;
+  }, [presIcons]);
+
   const getBadgeIconConfig = (item) => {
-    const camel  = toCamelCase(item.id);
-    return presIcons[camel] ?? presIcons[item.id] ?? {};
+    const id = normalizeBadgeId(item?.id);
+    if (!id) return {};
+    if (normalizedPresIcons[id]) return normalizedPresIcons[id];
+    if (id === "secure" && normalizedPresIcons.secured) return normalizedPresIcons.secured;
+    if (id === "secured" && normalizedPresIcons.secure) return normalizedPresIcons.secure;
+    if ((id === "freeshipping" || id === "shipping") && normalizedPresIcons.freeshipping) {
+      return normalizedPresIcons.freeshipping;
+    }
+    if (id === "return" && normalizedPresIcons.returns) return normalizedPresIcons.returns;
+    return {};
   };
 
   // ── Container styling ───────────────────────────────────────────────────────
@@ -218,10 +261,10 @@ export default function TrustBadges({ section }) {
     >
       {badges.map((badge, idx) => {
         const iconCfg       = getBadgeIconConfig(badge);
-        const resolvedIcon  = str(iconCfg?.icon ?? iconCfg?.iconId ?? badge.icon, "check");
-        const resolvedSize  = num(iconCfg?.size  ?? iconCfg?.iconSize  ?? globalIconSize,  24);
-        const resolvedColor = str(iconCfg?.color ?? iconCfg?.iconColor ?? globalIconColor, "#111111");
-        const resolvedLabel = str(iconCfg?.label ?? badge.label, "");
+        const resolvedIcon  = str(iconCfg?.icon ?? iconCfg?.iconId ?? iconCfg?.iconName ?? badge.icon, "");
+        const resolvedSize  = num(iconCfg?.size  ?? iconCfg?.iconSize ?? badge.iconSize ?? globalIconSize, globalIconSize);
+        const resolvedColor = str(iconCfg?.color ?? iconCfg?.iconColor ?? badge.iconColor ?? globalIconColor, globalIconColor);
+        const resolvedLabel = str(iconCfg?.label ?? iconCfg?.text ?? iconCfg?.title ?? badge.label, "");
 
         return (
           <React.Fragment key={`badge-${badge.id || idx}`}>

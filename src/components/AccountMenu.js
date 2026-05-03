@@ -1,5 +1,6 @@
 import React, { useMemo } from "react";
 import {
+  Alert,
   StyleSheet,
   Text,
   TouchableOpacity,
@@ -8,6 +9,7 @@ import {
 import FontAwesome from "react-native-vector-icons/FontAwesome";
 import { useNavigation } from "@react-navigation/native";
 import { convertStyles } from "../utils/convertStyles";
+import { useAuth } from "../services/AuthContext";
 
 // ── helpers ────────────────────────────────────────────────────────────────
 
@@ -54,6 +56,8 @@ const parsePx = (val, fb) => {
 
 export default function AccountMenu({ section }) {
   const navigation = useNavigation();
+  const { session, logout } = useAuth();
+  const isLoggedIn = !!session?.user;
 
   // ── props root ───────────────────────────────────────────────────────────
   const propsRoot = useMemo(() => (
@@ -188,9 +192,63 @@ export default function AccountMenu({ section }) {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [rawProps]);
 
+  const isLogoutEntry = (item = {}) => {
+    const label = str(item?.label ?? item?.text ?? item?.title, "").trim().toLowerCase();
+    const link = str(item?.link ?? item?.href ?? item?.url ?? item?.page ?? item?.navigateTo, "")
+      .trim()
+      .toLowerCase();
+    return label === "logout" || label === "log out" || link === "logout" || link === "log-out";
+  };
+
+  const isLoginEntry = (item = {}) => {
+    const label = str(item?.label ?? item?.text ?? item?.title, "").trim().toLowerCase();
+    const link = str(item?.link ?? item?.href ?? item?.url ?? item?.page ?? item?.navigateTo, "")
+      .trim()
+      .toLowerCase();
+    return (
+      label === "login" ||
+      label === "log in" ||
+      label === "signin" ||
+      label === "sign in" ||
+      link === "login" ||
+      link === "signin" ||
+      link === "sign-in"
+    );
+  };
+
   if (!items.length || !showHeader) return null;
 
   const handlePress = (item) => {
+    if (isLogoutEntry(item)) {
+      if (!isLoggedIn) {
+        navigation.navigate("Auth");
+        return;
+      }
+
+      Alert.alert(
+        "Log Out",
+        "Are you sure you want to log out?",
+        [
+          { text: "Cancel", style: "cancel" },
+          {
+            text: "Log Out",
+            style: "destructive",
+            onPress: async () => {
+              await logout();
+              navigation.reset({ index: 0, routes: [{ name: "Auth" }] });
+            },
+          },
+        ],
+        { cancelable: true }
+      );
+      return;
+    }
+
+    if (isLoginEntry(item) && isLoggedIn) {
+      navigation.navigate("BottomNavScreen", { pageName: "my-account", title: "My Account" });
+      return;
+    }
+
     const link = str(item?.link ?? item?.href ?? item?.url ?? item?.page ?? item?.navigateTo, "");
     if (!link) return;
 
@@ -235,7 +293,10 @@ export default function AccountMenu({ section }) {
     <View style={[styles.container, { backgroundColor: containerBg }]}>
       {items.map((item, index) => {
         const rawItem  = deepUnwrap(item) || item || {};
-        const itemLabel       = str(rawItem?.label ?? rawItem?.text ?? rawItem?.title, "");
+        const baseItemLabel   = str(rawItem?.label ?? rawItem?.text ?? rawItem?.title, "");
+        const itemLabel       = isLogoutEntry(rawItem)
+          ? (isLoggedIn ? "Logout" : "Login")
+          : baseItemLabel;
         const itemIconClass   = str(rawItem?.iconClass ?? rawItem?.icon ?? rawItem?.iconName, "fa-user");
         const itemIconBg      = str(rawItem?.iconBg ?? rawItem?.iconBgColor, defIconBg);
         const itemIconColor   = str(rawItem?.iconColor, defIconColor);

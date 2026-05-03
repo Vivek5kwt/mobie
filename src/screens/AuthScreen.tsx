@@ -984,17 +984,29 @@ const AuthScreen = () => {
         : undefined;
       loginToastPendingRef.current = false;
 
+      const postLoginTarget = (route?.params as { postLoginTarget?: { name?: string; params?: Record<string, unknown> } } | undefined)?.postLoginTarget;
+      const hasPostLoginTarget = Boolean(postLoginTarget?.name);
+      const targetName = hasPostLoginTarget ? (postLoginTarget?.name as string) : "LayoutScreen";
+      const targetParams =
+        hasPostLoginTarget
+          ? (postLoginTarget?.params as Record<string, unknown> | undefined)
+          : undefined;
+      const mergedParams =
+        loginSuccessToast
+          ? { ...(targetParams || {}), loginSuccessToast }
+          : targetParams;
+
       navigation.reset({
         index: 0,
         routes: [
           {
-            name: 'LayoutScreen' as never,
-            params: loginSuccessToast ? ({ loginSuccessToast } as never) : undefined,
+            name: targetName as never,
+            params: mergedParams as never,
           },
         ],
       });
     }
-  }, [session, navigation]);
+  }, [session, navigation, route?.params]);
 
   useEffect(() => {
     loadAuthLayout();

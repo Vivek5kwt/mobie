@@ -10,6 +10,47 @@ const FALLBACK_SHOP    = "mobidrag-demo.myshopify.com";
 const FALLBACK_TOKEN   = "f19ea13e90fdadc0723f8a060f1d754b";
 const FALLBACK_STORE_ID = 40;
 const DEFAULT_CHECKOUT_COUNTRY_CODE = "US";
+const REQUEST_CACHE_TTL_MS = 30000;
+const _requestCache = new Map();
+const _inflightRequests = new Map();
+
+const buildCacheKey = (scope, payload = {}) => `${scope}:${JSON.stringify(payload)}`;
+
+const getCached = (key) => {
+  const hit = _requestCache.get(key);
+  if (!hit) return null;
+  if (Date.now() - hit.at > REQUEST_CACHE_TTL_MS) {
+    _requestCache.delete(key);
+    return null;
+  }
+  return hit.value;
+};
+
+const setCached = (key, value) => {
+  _requestCache.set(key, { at: Date.now(), value });
+};
+
+const withRequestCache = async (key, producer) => {
+  const cached = getCached(key);
+  if (cached !== null) return cached;
+
+  if (_inflightRequests.has(key)) {
+    return _inflightRequests.get(key);
+  }
+
+  const task = (async () => {
+    try {
+      const value = await producer();
+      setCached(key, value);
+      return value;
+    } finally {
+      _inflightRequests.delete(key);
+    }
+  })();
+
+  _inflightRequests.set(key, task);
+  return task;
+};
 
 /**
  * Async: awaits the GetStore result so we always use the live credentials.
@@ -145,6 +186,13 @@ export async function fetchShopifyProducts(limit = 10, options = {}) {
 // FETCH RECENT PRODUCTS (richer query via proxy)
 // ----------------------
 export async function fetchShopifyRecentProducts(limit = 10, options = {}) {
+  const cacheKey = buildCacheKey("recentProducts", {
+    limit: Math.max(1, Number(limit) || 10),
+    shop: options.shop || "",
+    storeId: options.storeId || "",
+  });
+
+  return withRequestCache(cacheKey, async () => {
   const creds = await getShopifyCredentials();
   const shop = options.shop || creds.shop;
   const token = options.token || creds.token;
@@ -186,6 +234,7 @@ export async function fetchShopifyRecentProducts(limit = 10, options = {}) {
     console.error("❌ fetchShopifyRecentProducts error:", error);
     return [];
   }
+  });
 }
 
 // ----------------------
@@ -230,6 +279,14 @@ export async function fetchShopifyProductsPage({
   after = null,
   options = {},
 } = {}) {
+  const cacheKey = buildCacheKey("productsPage", {
+    first: Math.max(1, Number(first) || 20),
+    after: after || null,
+    shop: options.shop || "",
+    storeId: options.storeId || "",
+  });
+
+  return withRequestCache(cacheKey, async () => {
   const creds = await getShopifyCredentials();
   const shop = options.shop || creds.shop;
   const token = options.token || creds.token;
@@ -305,6 +362,7 @@ export async function fetchShopifyProductsPage({
     console.error("❌ Shopify Product Page Fetch Error:", error);
     return { products: [], pageInfo: { hasNextPage: false, endCursor: null } };
   }
+  });
 }
 
 // ----------------------
@@ -752,6 +810,15 @@ export async function fetchShopifyCollectionProducts({
 } = {}) {
   if (!handle) return { products: [], pageInfo: { hasNextPage: false, endCursor: null } };
   const safeFirst = Math.max(1, Number(first) || 20);
+  const cacheKey = buildCacheKey("collectionProducts", {
+    handle: String(handle),
+    first: safeFirst,
+    after: after || null,
+    shop: options.shop || "",
+    storeId: options.storeId || "",
+  });
+
+  return withRequestCache(cacheKey, async () => {
 
   const creds = await getShopifyCredentials();
   const shop = options.shop || creds.shop;
@@ -830,6 +897,7 @@ export async function fetchShopifyCollectionProducts({
     console.error("❌ Shopify Collection Products Fetch Error:", error);
     return { products: [], pageInfo: { hasNextPage: false, endCursor: null } };
   }
+  });
 }
 
 // ----------------------

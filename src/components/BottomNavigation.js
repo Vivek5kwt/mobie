@@ -187,8 +187,8 @@ const resolveNavigationTarget = (item = {}) => {
     if (ORDER_SLUGS.has(pageName)) {
       return {
         type: "stack",
-        name: "BottomNavScreen",
-        params: { title: "Orders", pageName: "orders", link: "orders" },
+        name: "OrderDetail",
+        params: { title: "Orders", pageName: "orders", link: "orders", fromOrdersTab: true },
       };
     }
     // Orders should stay inside BottomNavScreen so the tab bar remains visible.
@@ -222,8 +222,8 @@ const resolveNavigationTarget = (item = {}) => {
   if (ORDER_SLUGS.has(cleanedSlug)) {
     return {
       type: "stack",
-      name: "BottomNavScreen",
-      params: { title: "Orders", pageName: "orders", link: "orders" },
+      name: "OrderDetail",
+      params: { title: "Orders", pageName: "orders", link: "orders", fromOrdersTab: true },
     };
   }
   // Orders should stay inside BottomNavScreen so the tab bar remains visible.
@@ -554,7 +554,21 @@ function BottomNavigation({ section, activeIndexOverride }) {
       targetPageSlug === "cart";
 
     if (isProtectedTarget) {
-      const blocked = await requireLoginForAction({ session, navigation });
+      const blocked = await requireLoginForAction({
+        session,
+        navigation,
+        postLoginTarget:
+          target?.type === "stack" && target?.name
+            ? {
+                name: target.name,
+                params: {
+                  ...target.params,
+                  activeIndex: index,
+                  bottomNavSection: section,
+                },
+              }
+            : undefined,
+      });
       if (blocked) return;
     }
 

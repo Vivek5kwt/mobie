@@ -79,6 +79,23 @@ export default function OrderSummary({ section }) {
     section?.props ||
     {};
   const raw = unwrapValue(propsNode?.raw, {}) || propsNode || {};
+  const presentationCss =
+    unwrapValue(propsNode?.presentation?.properties?.css?.value, undefined) ||
+    unwrapValue(propsNode?.presentation?.css?.value, undefined) ||
+    unwrapValue(propsNode?.presentation?.properties?.css, undefined) ||
+    unwrapValue(propsNode?.presentation?.css, {}) ||
+    {};
+  const layoutCss =
+    unwrapValue(propsNode?.layout?.properties?.css?.value, undefined) ||
+    unwrapValue(propsNode?.layout?.css?.value, undefined) ||
+    unwrapValue(propsNode?.layout?.properties?.css, undefined) ||
+    unwrapValue(propsNode?.layout?.css, {}) ||
+    {};
+  const visibility = {
+    ...(unwrapValue(raw?.visibility, {}) || {}),
+    ...(unwrapValue(presentationCss?.visibility, {}) || {}),
+    ...(unwrapValue(layoutCss?.visibility, {}) || {}),
+  };
 
   // Redux
   const cartItems = useSelector((state) => state?.cart?.items || []);
@@ -122,10 +139,22 @@ export default function OrderSummary({ section }) {
 
   // Title
   const titleText = toString(raw?.title ?? raw?.heading ?? raw?.titleText, "Order Summary");
-  const showTitle = toBoolean(raw?.showTitle ?? raw?.titleEnabled, true);
+  const showTitle = toBoolean(
+    visibility?.title ?? raw?.showTitle ?? raw?.titleEnabled,
+    true
+  );
   const titleColor = toString(raw?.titleColor, "#111827");
   const titleSize = toNumber(raw?.titleSize, 22);
   const titleWeight = toFontWeight(raw?.titleWeight, "700");
+  const titleUnderline = toBoolean(raw?.titleUnderline ?? raw?.underline, false);
+  const titleStrikethrough = toBoolean(raw?.titleStrikethrough ?? raw?.strikethrough, false);
+  const titleTextDecoration = titleUnderline && titleStrikethrough
+    ? "underline line-through"
+    : titleUnderline
+    ? "underline"
+    : titleStrikethrough
+    ? "line-through"
+    : "none";
 
   // Currency
   const currencyLabel = resolveCurrencyLabel(
@@ -230,7 +259,13 @@ export default function OrderSummary({ section }) {
         <Text
           style={[
             styles.title,
-            { color: titleColor, fontSize: titleSize, fontWeight: titleWeight, ...(titleFontFamily ? { fontFamily: titleFontFamily } : {}) },
+            {
+              color: titleColor,
+              fontSize: titleSize,
+              fontWeight: titleWeight,
+              textDecorationLine: titleTextDecoration,
+              ...(titleFontFamily ? { fontFamily: titleFontFamily } : {}),
+            },
           ]}
         >
           {titleText}

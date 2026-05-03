@@ -135,12 +135,32 @@ export default function CheckoutButton({ section }) {
     ...(rawUnwrapped && typeof rawUnwrapped === "object" ? rawUnwrapped : {}),
   };
 
-  const pressCss = deepUnwrap(propsNode?.presentation)?.css || {};
-  const btnCss   = deepUnwrap(pressCss?.button ?? pressCss?.checkout) || {};
+  const pressCss =
+    deepUnwrap(propsNode?.presentation?.properties?.css?.value) ||
+    deepUnwrap(propsNode?.presentation?.css?.value) ||
+    deepUnwrap(propsNode?.presentation?.properties?.css) ||
+    deepUnwrap(propsNode?.presentation?.css) ||
+    {};
+  const layoutCss =
+    deepUnwrap(propsNode?.layout?.properties?.css?.value) ||
+    deepUnwrap(propsNode?.layout?.css?.value) ||
+    deepUnwrap(propsNode?.layout?.properties?.css) ||
+    deepUnwrap(propsNode?.layout?.css) ||
+    {};
+  const btnCss = deepUnwrap(
+    layoutCss?.button ??
+    layoutCss?.checkout ??
+    pressCss?.button ??
+    pressCss?.checkout
+  ) || {};
+  const visibility = deepUnwrap(layoutCss?.visibility ?? pressCss?.visibility ?? raw?.visibility) || {};
 
   // ── Label ────────────────────────────────────────────────────────────────────
   // buttonShowText controls visibility; label/buttonText is the text
-  const buttonShowText = toBool(raw?.buttonShowText, true);
+  const buttonShowText = toBool(
+    visibility?.text ?? visibility?.label ?? raw?.buttonShowText,
+    true
+  );
   const label = buttonShowText
     ? pickStr([raw?.label, raw?.buttonText, raw?.text, raw?.buttonLabel, propsNode?.label], "Checkout")
     : "";
@@ -155,12 +175,13 @@ export default function CheckoutButton({ section }) {
   // Default is black so the button is always visible before DSL loads.
   const bgColor = pickStr(
     [
+      btnCss?.backgroundColor,
+      btnCss?.background,
       raw?.buttonBgColor, raw?.btnBgColor,
       raw?.buttonBackground, raw?.btnBackground,
       raw?.backgroundColor, raw?.bgColor,
       raw?.background, raw?.buttonBg, raw?.btn_bg,
       raw?.color_bg, raw?.bgcolour,
-      btnCss?.backgroundColor, btnCss?.background,
     ],
     isOutlined || isGhost ? "transparent" : "#000000"
   );
@@ -176,10 +197,10 @@ export default function CheckoutButton({ section }) {
   );
   const textColor = pickStr(
     [
+      btnCss?.color,
       raw?.buttonTextColor, raw?.textColor,
       raw?.labelColor, raw?.color, raw?.text_color,
       raw?.buttonLabelColor, raw?.btnTextColor,
-      btnCss?.color,
     ],
     "#FFFFFF"
   );
@@ -245,8 +266,14 @@ export default function CheckoutButton({ section }) {
   );
   const fontFamily    = cleanFontFamily(toStr(raw?.buttonFontFamily ?? raw?.fontFamily ?? raw?.labelFamily ?? btnCss?.fontFamily, ""));
   const italic        = toBool(raw?.buttonItalic   ?? raw?.italic,    false);
-  const underline     = toBool(raw?.buttonUnderline ?? raw?.underline, false);
-  const strikethrough = toBool(raw?.buttonStrikethrough ?? raw?.strikethrough, false);
+  const underline     = toBool(
+    raw?.buttonUnderline ?? raw?.underline ?? raw?.textUnderline ?? raw?.labelUnderline,
+    false
+  );
+  const strikethrough = toBool(
+    raw?.buttonStrikethrough ?? raw?.strikethrough ?? raw?.textStrikethrough ?? raw?.labelStrikethrough,
+    false
+  );
   const letterSpacing = pickNum([raw?.letterSpacing, btnCss?.letterSpacing], 0.3);
 
   const textDecorationLine = (() => {

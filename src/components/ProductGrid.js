@@ -74,6 +74,38 @@ const toString = (value, fallback = "") => {
   return String(resolved);
 };
 
+const extractIconCandidate = (input) => {
+  const unwrapped = deepUnwrap(input);
+  if (unwrapped === undefined || unwrapped === null) return "";
+  if (typeof unwrapped === "string" || typeof unwrapped === "number") return String(unwrapped);
+  if (typeof unwrapped !== "object") return "";
+
+  const candidates = [
+    unwrapped.icon,
+    unwrapped.iconId,
+    unwrapped.iconName,
+    unwrapped.name,
+    unwrapped.id,
+    unwrapped.value,
+    unwrapped.const,
+    unwrapped.key,
+  ];
+  for (const candidate of candidates) {
+    const resolved = deepUnwrap(candidate);
+    if (typeof resolved === "string" && resolved.trim()) return resolved.trim();
+    if (typeof resolved === "number") return String(resolved);
+  }
+  return "";
+};
+
+const resolveIconId = (...values) => {
+  for (const value of values) {
+    const candidate = extractIconCandidate(value);
+    if (candidate) return candidate;
+  }
+  return "";
+};
+
 const toBoolean = (value, fallback = false) => {
   const resolved = unwrapValue(value, fallback);
   if (resolved === undefined || resolved === null) return fallback;
@@ -142,6 +174,7 @@ export default function ProductGrid({ section, limit = 8, title = "Products" }) 
   const [snackVisible, setSnackVisible] = useState(false);
   const [snackMessage, setSnackMessage] = useState("");
   const isMountedRef = useRef(true);
+  const didInitialLoadRef = useRef(false);
 
   // ── Merge raw sub-object ──────────────────────────────────────────────────
   const rawProps = getRawProps(section);
@@ -294,6 +327,33 @@ export default function ProductGrid({ section, limit = 8, title = "Products" }) 
   const resolvedViewAllColor      = toString(viewAllTypography?.color ?? rawProps?.viewAllTextColor ?? rawProps?.viewAllColor ?? viewAllCss?.color, "#111827");
   const resolvedViewAllWeight     = toFontWeight(viewAllTypography?.weightNum ?? viewAllTypography?.weight ?? rawProps?.viewAllFontWeightNum ?? rawProps?.viewAllFontWeight ?? rawProps?.viewAllWeight ?? viewAllCss?.fontWeight, "600");
   const resolvedViewAllFontFamily = cleanFontFamily(toString(viewAllTypography?.fontFamily ?? rawProps?.viewAllFontFamily ?? viewAllCss?.fontFamily, ""));
+  const resolvedViewAllIconRaw    = resolveIconId(
+    rawProps?.viewAllIconId,
+    rawProps?.viewAllIcon,
+    rawProps?.viewAllIconName,
+    rawProps?.viewAllIconSelection,
+    rawProps?.viewAll?.icon,
+    viewAllTypography?.icon,
+    viewAllCss?.icon,
+    rawProps?.iconSelection
+  );
+  const resolvedViewAllIconName   = resolveFA4IconName(resolvedViewAllIconRaw);
+  const resolvedViewAllIconSize   = resolveFirstNumber(
+    [rawProps?.viewAllIconSize, rawProps?.viewAllIcon?.size, rawProps?.iconSize, viewAllTypography?.iconSize, viewAllCss?.iconSize],
+    resolvedViewAllFontSize
+  );
+  const resolvedViewAllIconColor  = toString(
+    rawProps?.viewAllIconColor ?? rawProps?.viewAllIcon?.color ?? rawProps?.iconColor ?? viewAllTypography?.iconColor ?? viewAllCss?.iconColor ?? resolvedViewAllColor,
+    resolvedViewAllColor
+  );
+  const resolvedViewAllIconPosition = toString(
+    rawProps?.viewAllIconPosition ?? rawProps?.iconPosition ?? viewAllTypography?.iconPosition ?? "right",
+    "right"
+  ).toLowerCase();
+  const resolvedViewAllIconGap = resolveFirstNumber(
+    [rawProps?.viewAllIconGap, rawProps?.iconGap, viewAllTypography?.iconGap, viewAllCss?.iconGap],
+    6
+  );
 
   // ── Image ─────────────────────────────────────────────────────────────────
   const resolvedImageCorner = resolveFirstNumber(
@@ -397,10 +457,26 @@ export default function ProductGrid({ section, limit = 8, title = "Products" }) 
   const atcIsStretch = !atcAlignRaw || atcAlignRaw === "stretch";
 
   // ── Add-to-Cart icon ──────────────────────────────────────────────────────
-  const atcAvailableIconId = toString(rawProps?.atcAvailableIconId ?? rawProps?.atcIconId, "");
-  const atcSoldOutIconId   = toString(rawProps?.atcSoldOutIconId, "");
-  const atcIconPosition    = toString(rawProps?.atcIconPosition, "left").toLowerCase();
-  const atcIconSize        = resolveFirstNumber([rawProps?.atcIconSize], 14);
+  const atcAvailableIconId = resolveIconId(
+    rawProps?.atcAvailableIconId,
+    rawProps?.atcIconId,
+    rawProps?.atcIcon,
+    rawProps?.buttonIcon,
+    rawProps?.cartIcon,
+    cardAddToCartCss?.icon,
+    cardAddToCartCss?.iconId,
+    cardAddToCartCss?.iconName,
+    rawProps?.iconSelection
+  );
+  const atcSoldOutIconId   = resolveIconId(
+    rawProps?.atcSoldOutIconId,
+    rawProps?.soldOutIconId,
+    rawProps?.unavailableIconId,
+    rawProps?.atcUnavailableIconId
+  );
+  const atcIconPosition    = toString(rawProps?.atcIconPosition ?? rawProps?.iconPosition, "left").toLowerCase();
+  const atcIconSize        = resolveFirstNumber([rawProps?.atcIconSize, rawProps?.iconSize], 14);
+  const atcIconColor       = toString(rawProps?.atcIconColor ?? rawProps?.iconColor, "");
 
   // ── Unavailable / sold-out button ─────────────────────────────────────────
   const unavailableLabel     = toString(rawProps?.unavailableText ?? rawProps?.soldOutText ?? rawProps?.unavailLabel, "Unavailable");
@@ -557,13 +633,16 @@ export default function ProductGrid({ section, limit = 8, title = "Products" }) 
 
   // Initial load and reload when inputs change
   useEffect(() => {
+    didInitialLoadRef.current = true;
     loadProducts();
   }, [loadProducts]);
 
   // Refresh when screen is focused, matching carousel behavior
   useFocusEffect(
     useCallback(() => {
+      if (!didInitialLoadRef.current) return undefined;
       loadProducts();
+      return undefined;
     }, [loadProducts])
   );
 
@@ -587,19 +666,37 @@ export default function ProductGrid({ section, limit = 8, title = "Products" }) 
                   activeOpacity={0.8}
                   onPress={() => navigation.navigate("AllProducts", { title: resolvedTitle, detailSections })}
                 >
-                  <Text
-                    style={[
-                      styles.viewAllText,
-                      {
-                        color:      resolvedViewAllColor,
-                        fontSize:   resolvedViewAllFontSize,
-                        fontWeight: resolvedViewAllWeight,
-                        ...(resolvedViewAllFontFamily ? { fontFamily: resolvedViewAllFontFamily } : null),
-                      },
-                    ]}
-                  >
-                    {resolvedViewAllText} ›
-                  </Text>
+                  <View style={styles.viewAllInlineContent}>
+                    {!!resolvedViewAllIconName && resolvedViewAllIconPosition !== "right" && (
+                      <FontAwesome
+                        name={resolvedViewAllIconName}
+                        size={resolvedViewAllIconSize}
+                        color={resolvedViewAllIconColor}
+                        style={{ marginRight: resolvedViewAllIconGap }}
+                      />
+                    )}
+                    <Text
+                      style={[
+                        styles.viewAllText,
+                        {
+                          color:      resolvedViewAllColor,
+                          fontSize:   resolvedViewAllFontSize,
+                          fontWeight: resolvedViewAllWeight,
+                          ...(resolvedViewAllFontFamily ? { fontFamily: resolvedViewAllFontFamily } : null),
+                        },
+                      ]}
+                    >
+                      {resolvedViewAllText}
+                    </Text>
+                    {!!resolvedViewAllIconName && resolvedViewAllIconPosition === "right" && (
+                      <FontAwesome
+                        name={resolvedViewAllIconName}
+                        size={resolvedViewAllIconSize}
+                        color={resolvedViewAllIconColor}
+                        style={{ marginLeft: resolvedViewAllIconGap }}
+                      />
+                    )}
+                  </View>
                 </TouchableOpacity>
               )}
               {resolvedShowGridTitle && (
@@ -644,19 +741,37 @@ export default function ProductGrid({ section, limit = 8, title = "Products" }) 
               activeOpacity={0.8}
               onPress={() => navigation.navigate("AllProducts", { title: resolvedTitle, detailSections })}
             >
-              <Text
-                style={[
-                  styles.viewAllText,
-                  {
-                    color:      resolvedViewAllColor,
-                    fontSize:   resolvedViewAllFontSize,
-                    fontWeight: resolvedViewAllWeight,
-                    ...(resolvedViewAllFontFamily ? { fontFamily: resolvedViewAllFontFamily } : null),
-                  },
-                ]}
-              >
-                {resolvedViewAllText} ›
-              </Text>
+              <View style={styles.viewAllInlineContent}>
+                {!!resolvedViewAllIconName && resolvedViewAllIconPosition !== "right" && (
+                  <FontAwesome
+                    name={resolvedViewAllIconName}
+                    size={resolvedViewAllIconSize}
+                    color={resolvedViewAllIconColor}
+                    style={{ marginRight: resolvedViewAllIconGap }}
+                  />
+                )}
+                <Text
+                  style={[
+                    styles.viewAllText,
+                    {
+                      color:      resolvedViewAllColor,
+                      fontSize:   resolvedViewAllFontSize,
+                      fontWeight: resolvedViewAllWeight,
+                      ...(resolvedViewAllFontFamily ? { fontFamily: resolvedViewAllFontFamily } : null),
+                    },
+                  ]}
+                >
+                  {resolvedViewAllText}
+                </Text>
+                {!!resolvedViewAllIconName && resolvedViewAllIconPosition === "right" && (
+                  <FontAwesome
+                    name={resolvedViewAllIconName}
+                    size={resolvedViewAllIconSize}
+                    color={resolvedViewAllIconColor}
+                    style={{ marginLeft: resolvedViewAllIconGap }}
+                  />
+                )}
+              </View>
             </TouchableOpacity>
           )}
             </>
@@ -844,7 +959,7 @@ export default function ProductGrid({ section, limit = 8, title = "Products" }) 
                       >
                         <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6 }}>
                           {!!btnIconName && atcIconPosition !== "right" && (
-                            <FontAwesome name={btnIconName} size={atcIconSize} color={btnColor} />
+                            <FontAwesome name={btnIconName} size={atcIconSize} color={atcIconColor || btnColor} />
                           )}
                           <Text
                             style={[
@@ -860,7 +975,7 @@ export default function ProductGrid({ section, limit = 8, title = "Products" }) 
                             {btnLabel}
                           </Text>
                           {!!btnIconName && atcIconPosition === "right" && (
-                            <FontAwesome name={btnIconName} size={atcIconSize} color={btnColor} />
+                            <FontAwesome name={btnIconName} size={atcIconSize} color={atcIconColor || btnColor} />
                           )}
                         </View>
                       </TouchableOpacity>
@@ -944,7 +1059,7 @@ export default function ProductGrid({ section, limit = 8, title = "Products" }) 
                       >
                         <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6 }}>
                           {!!btnIconName && atcIconPosition !== "right" && (
-                            <FontAwesome name={btnIconName} size={atcIconSize} color={btnColor} />
+                            <FontAwesome name={btnIconName} size={atcIconSize} color={atcIconColor || btnColor} />
                           )}
                           <Text
                             style={[
@@ -960,7 +1075,7 @@ export default function ProductGrid({ section, limit = 8, title = "Products" }) 
                             {btnLabel}
                           </Text>
                           {!!btnIconName && atcIconPosition === "right" && (
-                            <FontAwesome name={btnIconName} size={atcIconSize} color={btnColor} />
+                            <FontAwesome name={btnIconName} size={atcIconSize} color={atcIconColor || btnColor} />
                           )}
                         </View>
                       </TouchableOpacity>
@@ -1074,6 +1189,10 @@ const styles = StyleSheet.create({
   viewAllInline: {
     paddingVertical: 4,
     paddingLeft:     12,
+  },
+  viewAllInlineContent: {
+    flexDirection: "row",
+    alignItems: "center",
   },
   viewAllText: {
     color:      "#111827",

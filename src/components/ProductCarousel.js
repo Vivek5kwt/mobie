@@ -48,6 +48,38 @@ const toString = (value, fallback = "") => {
   return String(resolved);
 };
 
+const extractIconCandidate = (input) => {
+  const unwrapped = deepUnwrap(input);
+  if (unwrapped === undefined || unwrapped === null) return "";
+  if (typeof unwrapped === "string" || typeof unwrapped === "number") return String(unwrapped);
+  if (typeof unwrapped !== "object") return "";
+
+  const candidates = [
+    unwrapped.icon,
+    unwrapped.iconId,
+    unwrapped.iconName,
+    unwrapped.name,
+    unwrapped.id,
+    unwrapped.value,
+    unwrapped.const,
+    unwrapped.key,
+  ];
+  for (const candidate of candidates) {
+    const resolved = deepUnwrap(candidate);
+    if (typeof resolved === "string" && resolved.trim()) return resolved.trim();
+    if (typeof resolved === "number") return String(resolved);
+  }
+  return "";
+};
+
+const resolveIconId = (...values) => {
+  for (const value of values) {
+    const candidate = extractIconCandidate(value);
+    if (candidate) return candidate;
+  }
+  return "";
+};
+
 const toBoolean = (value, fallback = false) => {
   const resolved = unwrapValue(value, fallback);
   if (resolved === undefined || resolved === null) return fallback;
@@ -250,7 +282,14 @@ export default function ProductCarousel({ section }) {
     strikethrough: viewAllStrikethrough,
   });
   const viewAllLinkHref = toString(raw?.viewAllLinkHref, "");
-  const viewAllIconId = toString(raw?.viewAllIconId, "fa-chevron-right");
+  const viewAllIconId = resolveIconId(
+    raw?.viewAllIconId,
+    raw?.viewAllIcon,
+    raw?.viewAllIconName,
+    raw?.viewAllIconSelection,
+    raw?.viewAll?.icon,
+    raw?.iconSelection
+  ) || "fa-chevron-right";
   const viewAllIconSize = toNumber(raw?.viewAllIconSize, 14);
   const viewAllIconColor = toString(raw?.viewAllIconColor, "#000000");
 
@@ -363,13 +402,19 @@ export default function ProductCarousel({ section }) {
   const atcBorderLine = toString(raw?.atcBorderLine, "");
   const atcBorderColor = toString(raw?.atcBorderColor, "#E5E7EB");
   // Icon shown inside ATC button — separate for available vs sold-out state
-  const atcAvailableIconId = toString(
-    raw?.atcAvailableIconId ?? raw?.atcIconId ?? raw?.buttonIcon ?? raw?.atcIcon ?? raw?.cartIcon,
-    ""
+  const atcAvailableIconId = resolveIconId(
+    raw?.atcAvailableIconId,
+    raw?.atcIconId,
+    raw?.buttonIcon,
+    raw?.atcIcon,
+    raw?.cartIcon,
+    raw?.iconSelection
   );
-  const atcSoldOutIconId = toString(
-    raw?.atcSoldOutIconId ?? raw?.soldOutIconId,
-    ""
+  const atcSoldOutIconId = resolveIconId(
+    raw?.atcSoldOutIconId,
+    raw?.soldOutIconId,
+    raw?.unavailableIconId,
+    raw?.atcUnavailableIconId
   );
   const atcIconPosition = toString(raw?.atcIconPosition ?? raw?.iconPosition, "left").toLowerCase();
   const atcIconSize     = toNumber(raw?.atcIconSize ?? raw?.iconSize, 14);
@@ -389,6 +434,7 @@ export default function ProductCarousel({ section }) {
   const cardWidth = Math.floor((screenWidth - horizontalPadding - colGap) / 2.3);
 
   const isMountedRef = useRef(true);
+  const didInitialLoadRef = useRef(false);
   useEffect(() => {
     isMountedRef.current = true;
     return () => { isMountedRef.current = false; };
@@ -428,13 +474,16 @@ export default function ProductCarousel({ section }) {
 
   // Initial load and reload whenever data-source params change
   useEffect(() => {
+    didInitialLoadRef.current = true;
     loadProducts();
   }, [loadProducts]);
 
   // Refresh when the screen comes back into focus
   useFocusEffect(
     useCallback(() => {
+      if (!didInitialLoadRef.current) return undefined;
       loadProducts();
+      return undefined;
     }, [loadProducts])
   );
 

@@ -215,16 +215,28 @@ export default function VariantSelector({ section }) {
     unwrapValue(propsNode?.presentation?.properties?.css, undefined) ||
     unwrapValue(propsNode?.presentation?.css, {}) ||
     {};
+  const layoutCss =
+    unwrapValue(propsNode?.layout?.properties?.css?.value, undefined) ||
+    unwrapValue(propsNode?.layout?.css?.value, undefined) ||
+    unwrapValue(propsNode?.layout?.properties?.css, undefined) ||
+    unwrapValue(propsNode?.layout?.css, {}) ||
+    {};
 
   // ── Visibility ─────────────────────────────────────────────────────────────
-  const visRaw =
-    (raw?.visibility && typeof raw.visibility === "object") ? raw.visibility :
-    (presentationCss?.visibility && typeof presentationCss.visibility === "object") ? presentationCss.visibility :
-    {};
-  const vis = unwrapValue(visRaw, visRaw) || {};
+  const rawVis = (raw?.visibility && typeof raw.visibility === "object")
+    ? unwrapValue(raw.visibility, raw.visibility)
+    : {};
+  const presentationVis = (presentationCss?.visibility && typeof presentationCss.visibility === "object")
+    ? unwrapValue(presentationCss.visibility, presentationCss.visibility)
+    : {};
+  const layoutVis = (layoutCss?.visibility && typeof layoutCss.visibility === "object")
+    ? unwrapValue(layoutCss.visibility, layoutCss.visibility)
+    : {};
+  // Builder snapshots (layout/presentation) should override raw defaults.
+  const vis = { ...rawVis, ...presentationVis, ...layoutVis };
   const showSelectors = toBool(vis?.selectors ?? vis?.variants ?? vis?.options, true);
   const showFeatures  = toBool(vis?.features  ?? vis?.badges,                  false);
-  const showTitle     = toBool(vis?.title, true);
+  const showTitle     = toBool(vis?.title ?? vis?.text, true);
   const showBgPadding = toBool(vis?.bgPadding ?? vis?.padding, true);
 
   // ── Variant groups ─────────────────────────────────────────────────────────
@@ -261,11 +273,14 @@ export default function VariantSelector({ section }) {
   // ── Container ──────────────────────────────────────────────────────────────
   const containerBg     = pick(
     [
-      raw?.backgroundColor,
-      raw?.bgColor,
+      layoutCss?.container?.background,
+      layoutCss?.backgroundColor,
+      layoutCss?.bgColor,
       presentationCss?.container?.background,
       presentationCss?.backgroundColor,
       presentationCss?.bgColor,
+      raw?.backgroundColor,
+      raw?.bgColor,
     ],
     "#FFFFFF"
   );

@@ -59,6 +59,27 @@ const toFW = (v, fb = "400") => {
   return fwMap[String(r).trim().toLowerCase()] || String(r);
 };
 
+const bool = (v, fb = true) => {
+  const r = unwrap(v, fb);
+  if (r === undefined || r === null) return fb;
+  if (typeof r === "boolean") return r;
+  if (typeof r === "number") return r !== 0;
+  const s = String(r).trim().toLowerCase();
+  if (["true", "1", "yes", "y"].includes(s)) return true;
+  if (["false", "0", "no", "n"].includes(s)) return false;
+  return fb;
+};
+
+const toDecorationLine = (...vals) => {
+  const raw = vals.find((v) => v !== undefined && v !== null && v !== "");
+  if (raw === undefined) return "none";
+  if (typeof raw === "boolean") return raw ? "line-through" : "none";
+  const s = String(raw).trim().toLowerCase();
+  if (s.includes("line-through") || s.includes("strikethrough")) return "line-through";
+  if (s.includes("underline")) return "underline";
+  return "none";
+};
+
 const isProductAvailable = (product) => {
   if (!product || typeof product !== "object") return true;
   if (product.availableForSale === false) return false;
@@ -107,7 +128,7 @@ export default function RecentProducts({ section }) {
   // Use `header` / `sectionTitle` — NOT `title`, which ProductDetailScreen merges
   // with the current product's name via buildProductDefaults, causing the product
   // name to appear as the section heading.
-  const sectionTitle  = str(raw?.header ?? raw?.sectionTitle, "Recently Viewed");
+  const sectionTitle  = str(raw?.header ?? raw?.sectionTitle ?? raw?.title, "Recently Viewed");
   const limit         = Math.max(1, num(raw?.limit ?? raw?.itemsShown, 4));
   const shopifyDomain = str(raw?.shopifyDomain, "");
   const shopifyToken  = str(raw?.storefrontToken, "");
@@ -127,6 +148,7 @@ export default function RecentProducts({ section }) {
   const headerSize    = parsePx(raw?.headerSize ?? headerCss?.fontSize, 14);
   const headerWeight  = toFW(raw?.headerWeight ?? headerCss?.fontWeight, "700");
   const headerFamily  = cleanFamily(str(raw?.headerFamily ?? headerCss?.fontFamily, ""));
+  const headerDecoration = toDecorationLine(raw?.headerStrikethrough, headerCss?.textDecoration);
   const headerMB      = parsePx(headerCss?.marginBottom, 8);
 
   // ── Grid ──────────────────────────────────────────────────────────────────
@@ -145,11 +167,15 @@ export default function RecentProducts({ section }) {
   const imageWrapCss  = unwrap(css?.imageWrap, {});
   const imageCss      = unwrap(css?.image, {});
   const imageHeight   = parsePx(raw?.imageHeight ?? imageWrapCss?.height, 140);
+  const imageBgColor  = str(raw?.imageBgColor ?? raw?.imageBackgroundColor ?? imageWrapCss?.backgroundColor ?? imageCss?.backgroundColor, "#FFFFFF");
+  const imagePad      = parsePx(raw?.imagePad ?? raw?.imagePadding ?? imageWrapCss?.padding, 0);
   const imageResizeMode = (() => {
-    const s = str(raw?.imageScale ?? raw?.imageResizeMode ?? imageCss?.objectFit, "cover").toLowerCase();
+    const s = str(raw?.imageScale ?? raw?.imageResizeMode ?? imageCss?.objectFit, "contain").toLowerCase();
     if (s === "contain" || s === "fit") return "contain";
     if (s === "stretch") return "stretch";
-    return "cover";
+    if (s === "center") return "center";
+    if (s === "cover") return "cover";
+    return "contain";
   })();
 
   // ── Card details padding ──────────────────────────────────────────────────
@@ -163,6 +189,7 @@ export default function RecentProducts({ section }) {
   const titleWeight = toFW(raw?.titleWeight ?? titleCss?.fontWeight, "400");
   const titleFamily = cleanFamily(str(raw?.titleFontFamily ?? titleCss?.fontFamily, ""));
   const titleLines  = 1;
+  const titleDecoration = toDecorationLine(raw?.titleStrikethrough, titleCss?.textDecoration);
 
   // ── Price ─────────────────────────────────────────────────────────────────
   const priceCss      = unwrap(css?.priceStandard, {});
@@ -186,13 +213,26 @@ export default function RecentProducts({ section }) {
   const atcPadB        = parsePx(atcCss?.paddingBottom, 8);
   const atcIconRaw     = str(raw?.atcIcon ?? raw?.atcIconId, "fa-cart-shopping");
   const atcIconName    = resolveFA4IconName(atcIconRaw) || "shopping-cart";
-  const atcIconSize    = num(raw?.atcIconSize, 12);
+  const atcIconSize    = num(raw?.atcIconSize ?? raw?.iconSize, 12);
+  const atcIconColor   = str(raw?.atcIconColor ?? raw?.iconColor ?? atcColor, atcColor);
+  const atcText        = str(raw?.atcText ?? raw?.addToCartText ?? raw?.buttonText, "Add to Cart");
+  const atcDecorationAvailable = toDecorationLine(raw?.atcStrikethroughAvailable, atcCss?.textDecoration);
 
   // ── Unavailable button ────────────────────────────────────────────────────
   const unavailCss    = unwrap(css?.atcUnavailable, {});
   const unavailBg     = str(unavailCss?.backgroundColor, "#7A7A7A");
   const unavailColor  = str(unavailCss?.color, "#FFFFFF");
   const unavailText   = str(raw?.unavailableText ?? raw?.soldOutText, "Unavailable");
+  const atcDecorationUnavailable = toDecorationLine(raw?.atcStrikethroughUnavailable, unavailCss?.textDecoration);
+
+  // Visibility / eye toggles
+  const visibility = unwrap(raw?.visibility, {});
+  const showHeader = bool(visibility?.header ?? raw?.headerActive ?? raw?.showHeader ?? raw?.headerVisible, true);
+  const showImage = bool(visibility?.image ?? raw?.imageActive ?? raw?.showImage ?? raw?.cardImageActive, true);
+  const showTitle = bool(visibility?.title ?? raw?.titleActive ?? raw?.showTitle ?? raw?.cardTitleActive, true);
+  const showPrice = bool(visibility?.price ?? raw?.priceActive ?? raw?.showPrice ?? raw?.cardPriceActive, true);
+  const showAtc = bool(visibility?.atc ?? visibility?.button ?? raw?.atcActive ?? raw?.showAtc ?? raw?.showButton, true);
+  const showAtcIcon = bool(visibility?.icon ?? raw?.iconActive ?? raw?.atcIconActive ?? raw?.showIcon, true);
 
   // ── Card width ─────────────────────────────────────────────────────────────
   const screenWidth = Dimensions.get("window").width;
@@ -257,17 +297,20 @@ export default function RecentProducts({ section }) {
       }}
     >
       {/* Section header */}
-      <Text
-        style={{
-          color:      headerColor,
-          fontSize:   headerSize,
-          fontWeight: headerWeight,
-          marginBottom: headerMB,
-          ...(headerFamily ? { fontFamily: headerFamily } : {}),
-        }}
-      >
-        {sectionTitle}
-      </Text>
+      {showHeader && (
+        <Text
+          style={{
+            color:      headerColor,
+            fontSize:   headerSize,
+            fontWeight: headerWeight,
+            textDecorationLine: headerDecoration,
+            marginBottom: headerMB,
+            ...(headerFamily ? { fontFamily: headerFamily } : {}),
+          }}
+        >
+          {sectionTitle}
+        </Text>
+      )}
 
       {/* Loading placeholder */}
       {loading && (
@@ -304,18 +347,29 @@ export default function RecentProducts({ section }) {
                 onPress={() => handleProductPress(product)}
               >
                 {/* Image */}
-                {product.imageUrl || product.image ? (
-                  <Image
-                    source={{ uri: product.imageUrl || product.image }}
+                {showImage && (product.imageUrl || product.image) ? (
+                  <View
                     style={{
-                      width:        "100%",
-                      height:       imageHeight,
-                      borderTopLeftRadius:  cardRadius,
+                      width: "100%",
+                      height: imageHeight,
+                      backgroundColor: imageBgColor,
+                      padding: imagePad,
+                      borderTopLeftRadius: cardRadius,
                       borderTopRightRadius: cardRadius,
                     }}
-                    resizeMode={imageResizeMode}
-                  />
-                ) : (
+                  >
+                    <Image
+                      source={{ uri: product.imageUrl || product.image }}
+                      style={{
+                        width: "100%",
+                        height: "100%",
+                        borderTopLeftRadius: Math.max(0, cardRadius - imagePad),
+                        borderTopRightRadius: Math.max(0, cardRadius - imagePad),
+                      }}
+                      resizeMode={imageResizeMode}
+                    />
+                  </View>
+                ) : showImage ? (
                   <View
                     style={{
                       width:        "100%",
@@ -331,84 +385,92 @@ export default function RecentProducts({ section }) {
                       {(product.title || "?").charAt(0).toUpperCase()}
                     </Text>
                   </View>
-                )}
+                ) : null}
 
                 {/* Details */}
                 <View style={{ padding: detailsPad }}>
-                  <Text
-                    numberOfLines={titleLines}
-                    style={{
-                      color:      titleColor,
-                      fontSize:   titleSize,
-                      fontWeight: titleWeight,
-                      marginBottom: 4,
-                      ...(titleFamily ? { fontFamily: titleFamily } : {}),
-                    }}
-                  >
-                    {product.title}
-                  </Text>
+                  {showTitle && (
+                    <Text
+                      numberOfLines={titleLines}
+                      style={{
+                        color:      titleColor,
+                        fontSize:   titleSize,
+                        fontWeight: titleWeight,
+                        textDecorationLine: titleDecoration,
+                        marginBottom: 4,
+                        ...(titleFamily ? { fontFamily: titleFamily } : {}),
+                      }}
+                    >
+                      {product.title}
+                    </Text>
+                  )}
 
                   {/* Price row */}
-                  <View style={styles.priceRow}>
-                    <Text
-                      style={{
-                        color:      priceColor,
-                        fontSize:   priceSize,
-                        fontWeight: priceWeight,
-                        marginBottom: 6,
-                        ...(priceFamily ? { fontFamily: priceFamily } : {}),
-                      }}
-                    >
-                      {toCurrSymbol(currency)}{parseFloat(price || 0).toFixed(2)}
-                    </Text>
-                    {showStrike && (
+                  {showPrice && (
+                    <View style={styles.priceRow}>
                       <Text
                         style={{
-                          color:              strikesColor,
-                          fontSize:           strikesSize,
-                          textDecorationLine: "line-through",
-                          marginLeft:         4,
+                          color:      priceColor,
+                          fontSize:   priceSize,
+                          fontWeight: priceWeight,
+                          marginBottom: 6,
+                          ...(priceFamily ? { fontFamily: priceFamily } : {}),
                         }}
                       >
-                        {toCurrSymbol(currency)}{parseFloat(compareAt).toFixed(2)}
+                        {toCurrSymbol(currency)}{parseFloat(price || 0).toFixed(2)}
                       </Text>
-                    )}
-                  </View>
+                      {showStrike && (
+                        <Text
+                          style={{
+                            color:              strikesColor,
+                            fontSize:           strikesSize,
+                            textDecorationLine: "line-through",
+                            marginLeft:         4,
+                          }}
+                        >
+                          {toCurrSymbol(currency)}{parseFloat(compareAt).toFixed(2)}
+                        </Text>
+                      )}
+                    </View>
+                  )}
 
                   {/* ATC / Unavailable */}
-                  <TouchableOpacity
-                    style={{
-                      backgroundColor: isAvailable ? atcBg : unavailBg,
-                      borderRadius:    atcRadius,
-                      paddingTop:      atcPadT,
-                      paddingBottom:   atcPadB,
-                      alignItems:      "center",
-                      justifyContent:  "center",
-                      flexDirection:   "row",
-                      gap:             6,
-                    }}
-                    activeOpacity={isAvailable ? 0.8 : 1}
-                    disabled={!isAvailable}
-                    onPress={() => isAvailable && handleAddToCart(product)}
-                  >
-                    {isAvailable && (
-                      <FontAwesome
-                        name={atcIconName}
-                        size={atcIconSize}
-                        color={atcColor}
-                      />
-                    )}
-                    <Text
+                  {showAtc && (
+                    <TouchableOpacity
                       style={{
-                        color:      isAvailable ? atcColor : unavailColor,
-                        fontSize:   atcSize,
-                        fontWeight: atcWeight,
-                        ...(atcFamily ? { fontFamily: atcFamily } : {}),
+                        backgroundColor: isAvailable ? atcBg : unavailBg,
+                        borderRadius:    atcRadius,
+                        paddingTop:      atcPadT,
+                        paddingBottom:   atcPadB,
+                        alignItems:      "center",
+                        justifyContent:  "center",
+                        flexDirection:   "row",
+                        gap:             6,
                       }}
+                      activeOpacity={isAvailable ? 0.8 : 1}
+                      disabled={!isAvailable}
+                      onPress={() => isAvailable && handleAddToCart(product)}
                     >
-                      {isAvailable ? "Add to Cart" : unavailText}
-                    </Text>
-                  </TouchableOpacity>
+                      {isAvailable && showAtcIcon && (
+                        <FontAwesome
+                          name={atcIconName}
+                          size={atcIconSize}
+                          color={atcIconColor}
+                        />
+                      )}
+                      <Text
+                        style={{
+                          color:      isAvailable ? atcColor : unavailColor,
+                          fontSize:   atcSize,
+                          fontWeight: atcWeight,
+                          textDecorationLine: isAvailable ? atcDecorationAvailable : atcDecorationUnavailable,
+                          ...(atcFamily ? { fontFamily: atcFamily } : {}),
+                        }}
+                      >
+                        {isAvailable ? atcText : unavailText}
+                      </Text>
+                    </TouchableOpacity>
+                  )}
                 </View>
               </TouchableOpacity>
             );

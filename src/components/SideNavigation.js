@@ -80,7 +80,8 @@ const extractPresentation = (section = {}) => {
 
 export default function SideNavigation({ section }) {
   const navigation = useNavigation();
-  const { logout } = useAuth();
+  const { logout, session } = useAuth();
+  const isLoggedIn = !!session?.user;
   const rawProps =
     section?.props || section?.properties?.props?.properties || section?.properties?.props || {};
 
@@ -131,20 +132,31 @@ export default function SideNavigation({ section }) {
 
   const DrawerWrapper = backgroundImage ? ImageBackground : View;
   const items = useMemo(
-    () =>
-      [
-        ...itemsArray,
-        !itemsArray.some((item) => isLogoutItem(item))
+    () => {
+      const hasAuthToggle = itemsArray.some((item) => {
+        const label = String(item?.label || item?.title || "").trim().toLowerCase();
+        return ["logout", "log out", "login", "log in", "signin", "sign in"].includes(label);
+      });
+
+      const authToggle = hasAuthToggle
+        ? null
+        : isLoggedIn
           ? { id: "logout", label: "Logout", icon: "right-from-bracket" }
-          : null,
-      ].filter(Boolean),
-    [itemsArray]
+          : { id: "login", label: "Login", icon: "right-to-bracket", link: "signin" };
+
+      return [...itemsArray, authToggle].filter(Boolean);
+    },
+    [itemsArray, isLoggedIn]
   );
 
   const handleItemPress = useCallback(
     (item) => {
       // ── Logout ───────────────────────────────────────────────────────────
       if (isLogoutItem(item)) {
+        if (!isLoggedIn) {
+          navigation.navigate("Auth");
+          return;
+        }
         Alert.alert(
           "Log Out",
           "Are you sure you want to log out?",
@@ -214,7 +226,7 @@ export default function SideNavigation({ section }) {
         hideBottomNav: true,
       });
     },
-    [logout, navigation]
+    [logout, navigation, isLoggedIn]
   );
 
   return (
@@ -262,7 +274,7 @@ export default function SideNavigation({ section }) {
                   style={[styles.itemText, presentation.itemText, { color: itemTextColor }]}
                   numberOfLines={1}
                 >
-                  {item.label || item.title}
+                  {isLogoutItem(item) && !isLoggedIn ? "Login" : (item.label || item.title)}
                 </Text>
               )}
             </TouchableOpacity>
