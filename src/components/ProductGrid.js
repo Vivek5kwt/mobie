@@ -361,14 +361,17 @@ export default function ProductGrid({ section, limit = 8, title = "Products" }) 
     undefined
   );
   const resolvedImageHeight    = resolveFirstNumber([rawProps?.imageHeight, rawProps?.productImageHeight], 180);
-  const resolvedImageRatioStr  = toString(rawProps?.imageRatio ?? rawProps?.ratio, "");
-  const imageAspectMultiplier  = (() => {
+  const resolvedImageRatioStr = toString(rawProps?.imageRatio ?? rawProps?.ratio, "");
+  // Parse "W:H" → w/h (React Native aspectRatio format). "Auto" or empty → null (use fixed height)
+  const imageAspectRatio = (() => {
     if (!resolvedImageRatioStr) return null;
+    const normalized = resolvedImageRatioStr.trim().toLowerCase();
+    if (normalized === "auto" || !normalized) return null;
     const parts = resolvedImageRatioStr.split(":");
     if (parts.length === 2) {
       const w = parseFloat(parts[0]);
       const h = parseFloat(parts[1]);
-      if (w > 0 && h > 0) return h / w;
+      if (w > 0 && h > 0) return w / h;
     }
     return null;
   })();
@@ -522,8 +525,8 @@ export default function ProductGrid({ section, limit = 8, title = "Products" }) 
   const totalGap       = gridGap * (resolvedColumns - 1);
   const cardWidth      = Math.max(0, (screenWidth - pl - pr - totalGap) / resolvedColumns);
 
-  // ── Final image height (from ratio or explicit height) ────────────────────
-  const imageHeight = imageAspectMultiplier ? cardWidth * imageAspectMultiplier : resolvedImageHeight;
+  // ── Image height — only used when ratio is "Auto" / unset ────────────────
+  const imageHeight = resolvedImageHeight;
   const imageCorner = resolvedImageCorner ?? 0;
 
   // ── Header row bottom margin ──────────────────────────────────────────────
@@ -535,8 +538,6 @@ export default function ProductGrid({ section, limit = 8, title = "Products" }) 
   // ── Handlers ─────────────────────────────────────────────────────────────
   const handleAddToCart = useCallback(async (product, e) => {
     if (e?.stopPropagation) e.stopPropagation();
-    const blocked = await requireLoginForAction({ session, navigation });
-    if (blocked) return;
     const variantId =
       product?.variantId ||
       product?.variants?.[0]?.id ||
@@ -893,13 +894,19 @@ export default function ProductGrid({ section, limit = 8, title = "Products" }) 
 
                 {/* Product image */}
                 {product.imageUrl ? (
-                  <View style={[styles.imageWrapper, { padding: imagePad }]}>
+                  <View
+                    style={[
+                      styles.imageWrapper,
+                      { padding: imagePad },
+                      imageAspectRatio ? { aspectRatio: imageAspectRatio } : null,
+                    ]}
+                  >
                     <Image
                       source={{ uri: product.imageUrl }}
                       style={[
                         styles.image,
                         {
-                          height:          imageHeight,
+                          height:          imageAspectRatio ? "100%" : imageHeight,
                           borderRadius:    imageCorner,
                           backgroundColor: resolvedImageBgColor,
                         },
@@ -912,11 +919,12 @@ export default function ProductGrid({ section, limit = 8, title = "Products" }) 
                     style={[
                       styles.imagePlaceholder,
                       {
-                        height:          imageHeight,
+                        height:          imageAspectRatio ? undefined : imageHeight,
                         borderRadius:    imageCorner,
                         backgroundColor: resolvedImageBgColor,
                         margin:          imagePad,
                       },
+                      imageAspectRatio ? { aspectRatio: imageAspectRatio } : null,
                     ]}
                   >
                     <Text style={styles.placeholderLetter}>

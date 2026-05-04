@@ -295,11 +295,19 @@ export default function ProductCarousel({ section }) {
 
   // Image configuration
   const cardImageActive = toBoolean(raw?.cardImageActive, true);
-  const imageRatio = toString(raw?.imageRatio, "1:1");
+  const imageRatio = toString(raw?.imageRatio ?? raw?.ratio, "");
   const imageScale = toString(raw?.imageScale, "Fill");
   const imageCorner = toNumber(raw?.imageCorner, 6);
-  const imageAspectRatio = parseAspectRatio(imageRatio);
+  // Parse ratio string → aspectRatio (w/h). "Auto" or empty → null (use explicit height instead)
+  const imageAspectRatio = (() => {
+    if (!imageRatio) return null;
+    const normalized = imageRatio.trim().toLowerCase();
+    if (normalized === "auto" || !normalized) return null;
+    return parseAspectRatio(imageRatio);
+  })();
   const imageResizeMode = getImageResizeMode(imageScale);
+  // Fallback height used when ratio is "Auto" or unset
+  const imageHeight = toNumber(raw?.imageHeight ?? raw?.productImageHeight ?? raw?.imageH, 200);
 
   // Title configuration
   const cardTitleActive = toBoolean(raw?.cardTitleActive, true);
@@ -500,8 +508,6 @@ export default function ProductCarousel({ section }) {
   }, [loadProducts]);
 
   const handleAddToCart = async (product) => {
-    const blocked = await requireLoginForAction({ session, navigation });
-    if (blocked) return;
     // Extract variant ID from product ID if needed
     const variantId = product.variantId || product.id || "";
     
@@ -864,7 +870,9 @@ export default function ProductCarousel({ section }) {
                       styles.imageContainer,
                       {
                         borderRadius: imageCorner,
-                        aspectRatio: imageAspectRatio || 1,
+                        ...(imageAspectRatio
+                          ? { aspectRatio: imageAspectRatio }
+                          : { height: imageHeight }),
                       },
                     ]}
                   >

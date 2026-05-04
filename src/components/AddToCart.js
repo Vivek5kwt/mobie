@@ -5,8 +5,6 @@ import { useNavigation } from "@react-navigation/native";
 import { useDispatch } from "react-redux";
 import { addItem } from "../store/slices/cartSlice";
 import Snackbar from "./Snackbar";
-import { useAuth } from "../services/AuthContext";
-import { requireLoginForAction } from "../utils/authGate";
 import {
   getShopifyDomain,
 } from "../services/shopify";
@@ -66,12 +64,15 @@ const buildButtonStyles = (config, defaultBg = "#1F2937") => {
   const borderColor = toString(config?.borderColor, "");
   const borderWidth = config?.borderLine || borderColor ? 1 : 0;
 
-  // Use DSL padding if > 0, otherwise fall back to sensible defaults
-  // (zero padding from builder means "not explicitly set", not intentional zero)
   const pt = toNumber(config?.pt, 0) || 12;
   const pb = toNumber(config?.pb, 0) || 12;
   const pl = toNumber(config?.pl, 0) || 16;
   const pr = toNumber(config?.pr, 0) || 16;
+
+  const alignRaw = toString(config?.textAlign ?? config?.align ?? config?.contentAlign, "center").toLowerCase();
+  const justifyContent =
+    alignRaw === "left"  ? "flex-start" :
+    alignRaw === "right" ? "flex-end"   : "center";
 
   return {
     paddingTop: pt,
@@ -84,7 +85,7 @@ const buildButtonStyles = (config, defaultBg = "#1F2937") => {
     borderWidth,
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "center",
+    justifyContent,
   };
 };
 
@@ -125,7 +126,6 @@ const buildCheckoutUrl = ({ shopifyDomain, variantNumericId, quantity, handle })
 export default function AddToCart({ section }) {
   const navigation = useNavigation();
   const dispatch = useDispatch();
-  const { session } = useAuth();
   const propsNode =
     section?.properties?.props?.properties || section?.properties?.props || section?.props || {};
 
@@ -186,11 +186,21 @@ export default function AddToCart({ section }) {
     ? addToCartFgRaw
     : addToCartBg.toLowerCase() === "#ffffff" || addToCartBg.toLowerCase() === "#fff" ? "#111827" : "#ffffff";
 
+  const atcTextAlignRaw = toString(
+    addToCartConfig?.textAlign ?? addToCartConfig?.align ?? addToCartConfig?.contentAlign ??
+    raw?.atcTextAlign ?? raw?.buttonTextAlign,
+    "center"
+  ).toLowerCase();
+  const atcTextAlign =
+    atcTextAlignRaw === "left"  ? "left"  :
+    atcTextAlignRaw === "right" ? "right" : "center";
+
   const addToCartTextStyle = {
     color: addToCartFg,
     fontSize: toNumber(addToCartConfig?.textSize, 15),
     fontWeight: toString(addToCartConfig?.textWeight, "600"),
     fontFamily: resolveFont(toString(addToCartConfig?.textFamily ?? addToCartConfig?.fontFamily, "")) || undefined,
+    textAlign: atcTextAlign,
     marginLeft: showAddToCartIcon ? 6 : 0,
   };
 
@@ -267,8 +277,6 @@ export default function AddToCart({ section }) {
     productTitle || productHandle || productVariantGid || productVariantNumericId;
 
   const handleAddToCart = async () => {
-    const blocked = await requireLoginForAction({ session, navigation });
-    if (blocked) return;
     if (!addToCartUrl && !productVariantGid && !canAddLocally) return;
 
     dispatch(

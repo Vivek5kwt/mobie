@@ -18,7 +18,7 @@ import { useAuth } from '../services/AuthContext';
 import { fetchDSL } from '../engine/dslHandler';
 import authLayoutFallback from '../data/authLayoutFallback';
 import { getShopifyDomain } from '../services/shopify';
-import Header from '../components/Topheader';
+import HeaderDefaultComponent from '../components/HeaderDefault';
 
 type SignInTokens = {
   bgColor: string;
@@ -79,6 +79,14 @@ type SignInTokens = {
   footerVisible: boolean;
   forgotPasswordVisible: boolean;
   authVisible: boolean;
+  buttonRadius: number;
+  inputBorderRadius: number;
+  headlineSize: number;
+  headlineWeight: string;
+  headlineFontFamily: string;
+  subtextSize: number;
+  subtextWeight: string;
+  subtextFontFamily: string;
 };
 
 type SignUpTokens = SignInTokens & {
@@ -286,6 +294,14 @@ const defaultSignInTokens: SignInTokens = {
   footerVisible: true,
   forgotPasswordVisible: true,
   authVisible: true,
+  buttonRadius: 12,
+  inputBorderRadius: 10,
+  headlineSize: 18,
+  headlineWeight: '700',
+  headlineFontFamily: 'Inter',
+  subtextSize: 16,
+  subtextWeight: '600',
+  subtextFontFamily: 'Inter',
 };
 
 const defaultForgotPasswordTokens: ForgotPasswordTokens = {
@@ -561,6 +577,14 @@ const buildSignInTokens = (rawProps: Record<string, unknown>): SignInTokens => (
   forgotPasswordVisible:
     (rawProps?.forgotPasswordVisible as boolean) ?? defaultSignInTokens.forgotPasswordVisible,
   authVisible: (rawProps?.authVisible as boolean) ?? defaultSignInTokens.authVisible,
+  buttonRadius: toNumber(rawProps?.buttonRadius ?? rawProps?.buttonBorderRadius, defaultSignInTokens.buttonRadius),
+  inputBorderRadius: toNumber(rawProps?.borderRadius ?? rawProps?.inputRadius ?? rawProps?.inputBorderRadius, defaultSignInTokens.inputBorderRadius),
+  headlineSize: toNumber(rawProps?.headlineSize, defaultSignInTokens.headlineSize),
+  headlineWeight: toFontWeight(rawProps?.headlineWeight, defaultSignInTokens.headlineWeight),
+  headlineFontFamily: (rawProps?.headlineFontFamily as string) ?? defaultSignInTokens.headlineFontFamily,
+  subtextSize: toNumber(rawProps?.subtextSize, defaultSignInTokens.subtextSize),
+  subtextWeight: toFontWeight(rawProps?.subtextWeight, defaultSignInTokens.subtextWeight),
+  subtextFontFamily: (rawProps?.subtextFontFamily as string) ?? defaultSignInTokens.subtextFontFamily,
 });
 
 const buildForgotPasswordTokens = (rawProps: Record<string, unknown>): ForgotPasswordTokens => ({
@@ -880,6 +904,14 @@ const buildSignUpTokens = (rawProps: Record<string, unknown>): SignUpTokens => (
   profilePictureBorderColor:
     (rawProps?.profilePictureBorderColor as string) ??
     defaultSignUpTokens.profilePictureBorderColor,
+  buttonRadius: toNumber(rawProps?.buttonRadius ?? rawProps?.buttonBorderRadius, defaultSignUpTokens.buttonRadius),
+  inputBorderRadius: toNumber(rawProps?.borderRadius ?? rawProps?.inputRadius ?? rawProps?.inputBorderRadius, defaultSignUpTokens.inputBorderRadius),
+  headlineSize: toNumber(rawProps?.headlineSize, defaultSignUpTokens.headlineSize),
+  headlineWeight: toFontWeight(rawProps?.headlineWeight, defaultSignUpTokens.headlineWeight),
+  headlineFontFamily: (rawProps?.headlineFontFamily as string) ?? defaultSignUpTokens.headlineFontFamily,
+  subtextSize: toNumber(rawProps?.subtextSize, defaultSignUpTokens.subtextSize),
+  subtextWeight: toFontWeight(rawProps?.subtextWeight, defaultSignUpTokens.subtextWeight),
+  subtextFontFamily: (rawProps?.subtextFontFamily as string) ?? defaultSignUpTokens.subtextFontFamily,
 });
 
 const AuthScreen = () => {
@@ -900,6 +932,8 @@ const AuthScreen = () => {
   const [forgotPasswordTokens, setForgotPasswordTokens] = useState<ForgotPasswordTokens>(
     defaultForgotPasswordTokens
   );
+  const [signInHeaderConfig, setSignInHeaderConfig] = useState<Record<string, unknown> | null>(null);
+  const [signUpHeaderConfig, setSignUpHeaderConfig] = useState<Record<string, unknown> | null>(null);
   const isMountedRef = useRef(true);
   const loginToastPendingRef = useRef(false);
 
@@ -961,6 +995,14 @@ const AuthScreen = () => {
 
       if (signUpSection) {
         setSignUpTokens(buildSignUpTokens(getSectionRawProps(signUpSection)));
+      }
+
+      // Load headerdefault config from each page's DSL
+      if (signInDsl?.dsl?.headerdefault) {
+        setSignInHeaderConfig(signInDsl.dsl.headerdefault as Record<string, unknown>);
+      }
+      if (signUpDsl?.dsl?.headerdefault) {
+        setSignUpHeaderConfig(signUpDsl.dsl.headerdefault as Record<string, unknown>);
       }
     } finally {
       if (isMountedRef.current) {
@@ -1031,16 +1073,10 @@ const AuthScreen = () => {
     [mode, signInTokens.authTitle, signUpTokens.authTitle]
   );
   const headline = useMemo(
-    () => (mode === 'login' ? 'Welcome back' : signUpTokens.headerTitle),
-    [mode, signUpTokens.headerTitle]
+    () => (mode === 'login' ? signInTokens.authTitle : signUpTokens.headerTitle),
+    [mode, signInTokens.authTitle, signUpTokens.headerTitle]
   );
-  const description = useMemo(
-    () =>
-      mode === 'login'
-        ? 'Sign in to continue shopping, track orders, and manage your saved items.'
-        : 'Join Mobidrag to unlock faster checkout, order tracking, and personalized picks.',
-    [mode]
-  );
+  const activeHeaderConfig = mode === 'login' ? signInHeaderConfig : signUpHeaderConfig;
 
   const toggleMode = () => {
     setMode((prev) => (prev === 'login' ? 'signup' : 'login'));
@@ -1131,22 +1167,15 @@ const AuthScreen = () => {
         },
         title: {
           color: activeTokens.titleColor,
-          fontSize: 16,
-          fontWeight: '700',
-          textTransform: 'uppercase',
-          letterSpacing: 1.2,
+          fontSize: activeTokens.headlineSize,
+          fontWeight: activeTokens.headlineWeight as any,
+          fontFamily: activeTokens.headlineFontFamily || undefined,
         },
         headline: {
-          color: mode === 'signup' ? signUpTokens.headerTitleColor : '#0F172A',
-          fontSize: mode === 'signup' ? signUpTokens.headerTitleFontSize : 26,
-          fontWeight: mode === 'signup' ? signUpTokens.headerTitleFontWeight : '700',
-          fontFamily: mode === 'signup' ? signUpTokens.headerTitleFontFamily : undefined,
-          marginTop: 8,
-        },
-        description: {
-          color: '#475569',
-          fontSize: 14,
-          lineHeight: 20,
+          color: mode === 'signup' ? signUpTokens.headerTitleColor : signInTokens.titleColor,
+          fontSize: mode === 'signup' ? signUpTokens.headerTitleFontSize : signInTokens.subtextSize,
+          fontWeight: (mode === 'signup' ? signUpTokens.headerTitleFontWeight : signInTokens.subtextWeight) as any,
+          fontFamily: mode === 'signup' ? signUpTokens.headerTitleFontFamily : signInTokens.subtextFontFamily || undefined,
           marginTop: 8,
         },
         card: {
@@ -1176,8 +1205,8 @@ const AuthScreen = () => {
           fontWeight: '600',
         },
         input: {
-          backgroundColor: '#FFFFFF',
-          borderRadius: 12,
+          backgroundColor: activeTokens.cardBgColor || '#FFFFFF',
+          borderRadius: activeTokens.inputBorderRadius,
           paddingHorizontal: 14,
           paddingVertical: Platform.OS === 'ios' ? 14 : 12,
           color: '#0a0a0a',
@@ -1217,7 +1246,7 @@ const AuthScreen = () => {
           backgroundColor: activeTokens.buttonFillColor,
           paddingTop: activeTokens.buttonPaddingTop,
           paddingBottom: activeTokens.buttonPaddingBottom,
-          borderRadius: 14,
+          borderRadius: activeTokens.buttonRadius,
           alignItems: 'center',
           marginTop: 6,
           borderWidth: 1,
@@ -1347,7 +1376,9 @@ const AuthScreen = () => {
 
   return (
     <SafeAreaView style={styles.container}>
-      <Header />
+      {activeHeaderConfig ? (
+        <HeaderDefaultComponent config={activeHeaderConfig} />
+      ) : null}
       <KeyboardAvoidingView
         style={{ flex: 1 }}
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
@@ -1364,8 +1395,7 @@ const AuthScreen = () => {
           {(mode !== 'login' || signInTokens.authVisible) && (
             <View style={styles.header}>
               <Text style={styles.title}>{subtitle}</Text>
-              {mode !== 'login' ? <Text style={styles.headline}>{headline}</Text> : null}
-              {mode !== 'login' ? <Text style={styles.description}>{description}</Text> : null}
+              {<Text style={styles.headline}>{headline}</Text>}
             </View>
           )}
 

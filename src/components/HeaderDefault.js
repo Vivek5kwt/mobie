@@ -55,6 +55,29 @@ export default function HeaderDefault({ config, bottomNavSection, hideTabs = fal
   const iconColor = resolveVal(config.iconColor)       || "#000000";
   const titleText = resolveVal(config.title)           || "";
 
+  // ── Bottom divider ───────────────────────────────────────────────────────
+  const _dividerRaw = resolveVal(
+    config.showDivider ??
+    config.showBorder ??
+    config.borderBottom ??
+    config.divider ??
+    config.showBottomBorder
+  );
+  const showDivider =
+    _dividerRaw === true || _dividerRaw === "true" || _dividerRaw === 1;
+  const dividerColor = resolveVal(
+    config.dividerColor ??
+    config.borderBottomColor ??
+    config.borderColor ??
+    config.dividerColour
+  ) || "#E5E7EB";
+  const dividerThickness = Number(
+    resolveVal(config.dividerWidth ?? config.borderWidth ?? config.dividerThickness) ?? 1
+  );
+  const dividerStyle = showDivider
+    ? { borderBottomWidth: dividerThickness, borderBottomColor: dividerColor }
+    : {};
+
   // ── Tab bar tokens ────────────────────────────────────────────────────────
   const tabs     = resolveArray(config.tabs);
   const multiTab = resolveVal(config.multiTab) === true || resolveVal(config.multiTab) === "true";
@@ -263,48 +286,50 @@ export default function HeaderDefault({ config, bottomNavSection, hideTabs = fal
           style={{
             flexDirection: "row",
             alignItems: "center",
-            justifyContent: "space-between",
             backgroundColor: bgColor,
             paddingVertical: 10,
             paddingHorizontal: 16,
             minHeight: 48,
+            ...dividerStyle,
           }}
         >
-          {/* Left slot (reserved for spacing consistency) */}
+          {/* Left placeholder — fixed width matches right slot so center is visually centered */}
           <View style={{ width: balancedSideWidth, alignItems: "flex-start", justifyContent: "center" }} />
 
-          {/* Brand title — centered to keep balanced spacing */}
-          <View style={{ flex: 1, alignItems: "center", justifyContent: "center", paddingHorizontal: 8 }}>
-            <TouchableOpacity
-              activeOpacity={0.75}
-              onPress={() => navigation.navigate("LayoutScreen")}
-            >
-              <View
-                style={{
-                  alignSelf: "center",
-                  ...(hasBox ? {
-                    borderWidth: titleBorderWidth,
-                    borderColor: titleBorderColor,
-                    borderRadius: titleBorderRadius,
-                    backgroundColor: titleBoxBg || "transparent",
-                    paddingHorizontal: titleBoxPaddingH,
-                    paddingVertical: titleBoxPaddingV,
-                  } : {}),
-                }}
+          {/* Brand title — absolutely overlaid to guarantee true center regardless of icon count */}
+          <View style={{ position: "absolute", left: 0, right: 0, top: 0, bottom: 0, alignItems: "center", justifyContent: "center" }} pointerEvents="box-none">
+            <View style={{ alignItems: "center", justifyContent: "center", paddingHorizontal: balancedSideWidth + 8 }}>
+              <TouchableOpacity
+                activeOpacity={0.75}
+                onPress={() => navigation.navigate("LayoutScreen")}
               >
-                <Text
+                <View
                   style={{
-                    fontSize: titleFontSize,
-                    fontWeight: titleFontWeight,
-                    color: titleColor,
-                    ...(titleFontFamily ? { fontFamily: titleFontFamily } : {}),
+                    alignSelf: "center",
+                    ...(hasBox ? {
+                      borderWidth: titleBorderWidth,
+                      borderColor: titleBorderColor,
+                      borderRadius: titleBorderRadius,
+                      backgroundColor: titleBoxBg || "transparent",
+                      paddingHorizontal: titleBoxPaddingH,
+                      paddingVertical: titleBoxPaddingV,
+                    } : {}),
                   }}
-                  numberOfLines={1}
                 >
-                  {titleText}
-                </Text>
-              </View>
-            </TouchableOpacity>
+                  <Text
+                    style={{
+                      fontSize: titleFontSize,
+                      fontWeight: titleFontWeight,
+                      color: titleColor,
+                      ...(titleFontFamily ? { fontFamily: titleFontFamily } : {}),
+                    }}
+                    numberOfLines={1}
+                  >
+                    {titleText}
+                  </Text>
+                </View>
+              </TouchableOpacity>
+            </View>
           </View>
 
           {/* Right slot */}
@@ -426,9 +451,11 @@ export default function HeaderDefault({ config, bottomNavSection, hideTabs = fal
     const badgeCount = isCart ? cartCount : isWishlist ? wishlistCount : 0;
     const isInteractive = isCart || isBell || isWishlist;
 
-    const showIcon  = !!itemIconName;
+    // Strictly respect item type: "text" shows only text, "icon" shows only icon.
+    // When type is unspecified/empty, show whatever is available (icon + text can coexist).
     const showImage = itemType === "image" && !!itemImageUrl;
-    const showTitle = !showImage && itemType !== "icon" && !!itemTitle;
+    const showIcon  = !!itemIconName && !showImage && itemType !== "text";
+    const showTitle = !!itemTitle    && !showImage && itemType !== "icon";
 
     if (!showIcon && !showTitle && !showImage) return null;
 
@@ -517,28 +544,42 @@ export default function HeaderDefault({ config, bottomNavSection, hideTabs = fal
         style={{
           flexDirection: "row",
           alignItems: "center",
-          justifyContent: "space-between",
           backgroundColor: bgColor,
           paddingVertical: 10,
           paddingHorizontal: 16,
           minHeight: 48,
+          ...dividerStyle,
         }}
       >
-        {/* Left */}
+        {/* Left — flex:1 fills available space, pushing right slot to edge */}
         <View style={{ flexDirection: "row", alignItems: "center", gap: 8, flex: 1 }}>
-          {leftItems.map(renderItem)}
+          {leftItems.map((item, idx) => renderItem(item, idx))}
         </View>
 
-        {/* Center */}
+        {/* Center — absolutely overlaid so it is always visually centered
+            regardless of how many items are in left/right slots */}
         {centerItems.length > 0 && (
-          <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-            {centerItems.map(renderItem)}
+          <View
+            style={{
+              position: "absolute",
+              left: 0,
+              right: 0,
+              top: 0,
+              bottom: 0,
+              alignItems: "center",
+              justifyContent: "center",
+            }}
+            pointerEvents="box-none"
+          >
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+              {centerItems.map((item, idx) => renderItem(item, idx))}
+            </View>
           </View>
         )}
 
-        {/* Right */}
-        <View style={{ flexDirection: "row", alignItems: "center", gap: 12, justifyContent: "flex-end" }}>
-          {rightItems.map(renderItem)}
+        {/* Right — flex:1 with flex-end keeps it at the right edge */}
+        <View style={{ flex: 1, flexDirection: "row", alignItems: "center", gap: 12, justifyContent: "flex-end" }}>
+          {rightItems.map((item, idx) => renderItem(item, idx))}
         </View>
       </View>
 

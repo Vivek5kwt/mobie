@@ -602,6 +602,15 @@ export default function LayoutScreen({ route, navigation }) {
     // Normal content with scroll + side menu overlay
     mainContent = (
       <>
+        {/* HeaderDefault is rendered OUTSIDE the ScrollView so it stays
+            fixed at the top while the rest of the page scrolls beneath it */}
+        {isHomePage && headerDefaultConfig && (
+          <HeaderDefault
+            config={headerDefaultConfig}
+            bottomNavSection={stableBottomNavSection}
+          />
+        )}
+
         {/* RENDER SORTED DSL COMPONENTS */}
         <ScrollView
           contentInsetAdjustmentBehavior="automatic"
@@ -616,12 +625,6 @@ export default function LayoutScreen({ route, navigation }) {
             <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
           }
         >
-          {isHomePage && headerDefaultConfig && (
-            <HeaderDefault
-              config={headerDefaultConfig}
-              bottomNavSection={stableBottomNavSection}
-            />
-          )}
           {visibleSections.length ? (
             visibleSections.map((s, i) => {
               const componentName = getComponentName(s).toLowerCase();
