@@ -260,7 +260,7 @@ export default function ProductCarousel({ section }) {
     strikethrough: headerStrikethrough,
   });
   const headerAlign = toTextAlign(
-    raw?.headerAlign ?? raw?.sectionTitleAlign ?? raw?.headerTextAlign ?? raw?.titleTextAlign,
+    raw?.headerAlign ?? raw?.sectionTitleAlign ?? raw?.headerTextAlign ?? raw?.titleTextAlign ?? raw?.layoutAlign,
     "left"
   );
   const headerLinkHref = toString(raw?.headerLinkHref, "");
@@ -350,11 +350,7 @@ export default function ProductCarousel({ section }) {
   const favBubblePadL = toNumber(raw?.favBubblePadL, 0);
   const favoriteBubbleInset = toNumber(raw?.favBubbleInset ?? raw?.favBubbleOffset, 12);
   const favoriteOnIconName = resolveFA4IconName(favoriteIconId) || "heart";
-  const favoriteOffResolved = resolveFA4IconName(unfavoriteIconId);
-  const favoriteOffIconName =
-    favoriteOffResolved && favoriteOffResolved !== favoriteOnIconName
-      ? favoriteOffResolved
-      : "heart-o";
+  const favoriteOffIconName = resolveFA4IconName(unfavoriteIconId) || "heart-o";
 
   // Add to Cart configuration
   const atcActive = toBoolean(raw?.atcActive, true);

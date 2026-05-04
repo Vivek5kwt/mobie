@@ -245,17 +245,17 @@ export default function HeroBanner({ section }) {
   const headlineStyle = {
     ...headlineCssStyle,
     ...headlineAttrStyle,
-    // Override with CSS if present
-    color: headlineCssStyle?.color || headlineAttrStyle.color,
-    fontSize: headlineCssStyle?.fontSize || headlineAttrStyle.fontSize,
-    fontFamily: headlineCssStyle?.fontFamily || headlineAttrStyle.fontFamily,
-    fontWeight: headlineCssStyle?.fontWeight || headlineAttrStyle.fontWeight,
-    // Explicit line-height token wins last
-    ...(headlineLineHeightToken && (headlineCssStyle?.fontSize || headlineAttrStyle.fontSize)
+    // Live attribute values (from builder) take priority over frozen CSS snapshot
+    color: headlineAttrStyle.color || headlineCssStyle?.color,
+    fontSize: headlineAttrStyle.fontSize || headlineCssStyle?.fontSize,
+    fontFamily: headlineAttrStyle.fontFamily || headlineCssStyle?.fontFamily,
+    fontWeight: headlineAttrStyle.fontWeight || headlineCssStyle?.fontWeight,
+    // Explicit line-height token applied last, using attr fontSize as base (not CSS snapshot)
+    ...(headlineLineHeightToken
       ? {
           lineHeight:
             headlineLineHeightToken > 0 && headlineLineHeightToken <= 10
-              ? (headlineCssStyle?.fontSize || headlineAttrStyle.fontSize) *
+              ? (headlineAttrStyle.fontSize || headlineCssStyle?.fontSize || 16) *
                   headlineLineHeightToken
               : headlineLineHeightToken,
         }
@@ -271,19 +271,19 @@ export default function HeroBanner({ section }) {
   const subtextStyle = {
     ...subtextCssStyle,
     ...subtextAttrStyle,
-    // Override with CSS if present
-    color: subtextCssStyle?.color || subtextAttrStyle.color,
-    fontSize: subtextCssStyle?.fontSize || subtextAttrStyle.fontSize,
-    fontFamily: subtextCssStyle?.fontFamily || subtextAttrStyle.fontFamily,
-    fontWeight: subtextCssStyle?.fontWeight || subtextAttrStyle.fontWeight,
-    marginTop: subtextCssStyle?.marginTop || toNumber(subtextAttributes?.marginTop, 8),
-    marginBottom: subtextCssStyle?.marginBottom || toNumber(subtextAttributes?.marginBottom, 12),
-    // Explicit line-height token wins last
-    ...(subtextLineHeightToken && (subtextCssStyle?.fontSize || subtextAttrStyle.fontSize)
+    // Live attribute values (from builder) take priority over frozen CSS snapshot
+    color: subtextAttrStyle.color || subtextCssStyle?.color,
+    fontSize: subtextAttrStyle.fontSize || subtextCssStyle?.fontSize,
+    fontFamily: subtextAttrStyle.fontFamily || subtextCssStyle?.fontFamily,
+    fontWeight: subtextAttrStyle.fontWeight || subtextCssStyle?.fontWeight,
+    marginTop: toNumber(subtextAttributes?.marginTop, undefined) ?? subtextCssStyle?.marginTop ?? 8,
+    marginBottom: toNumber(subtextAttributes?.marginBottom, undefined) ?? subtextCssStyle?.marginBottom ?? 12,
+    // Explicit line-height token applied last, using attr fontSize as base (not CSS snapshot)
+    ...(subtextLineHeightToken
       ? {
           lineHeight:
             subtextLineHeightToken > 0 && subtextLineHeightToken <= 10
-              ? (subtextCssStyle?.fontSize || subtextAttrStyle.fontSize) *
+              ? (subtextAttrStyle.fontSize || subtextCssStyle?.fontSize || 16) *
                   subtextLineHeightToken
               : subtextLineHeightToken,
         }
@@ -566,18 +566,21 @@ export default function HeroBanner({ section }) {
     unwrapValue(button?.properties?.weight || button?.weight, undefined);
   const buttonBold = toBoolean(button?.properties?.bold || button?.bold, false);
   const buttonItalic = toBoolean(button?.properties?.italic || button?.italic, false);
+  // flatPropsNode is checked BEFORE button?.properties because button?.properties?.underline
+  // is always a non-null DSL schema object {type:"boolean",value:false}, which would make ??
+  // stop there and never reach the builder's live flatProps values.
   const buttonUnderlineSource =
     buttonAttrs?.underline ??
-    button?.properties?.underline ??
-    button?.underline ??
     flatPropsNode?.buttonUnderline ??
-    rawProps?.buttonUnderline;
+    rawProps?.buttonUnderline ??
+    button?.properties?.underline ??
+    button?.underline;
   const buttonStrikethroughSource =
     buttonAttrs?.strikethrough ??
-    button?.properties?.strikethrough ??
-    button?.strikethrough ??
     flatPropsNode?.buttonStrikethrough ??
-    rawProps?.buttonStrikethrough;
+    rawProps?.buttonStrikethrough ??
+    button?.properties?.strikethrough ??
+    button?.strikethrough;
   const buttonUnderline = toBoolean(buttonUnderlineSource, false);
   const buttonStrikethrough = toBoolean(buttonStrikethroughSource, false);
 
@@ -825,6 +828,8 @@ export default function HeroBanner({ section }) {
     alignmentAndPadding?.verticalAlignment ??
     alignmentAndPadding?.verticalAlign ??
     alignmentAndPadding?.vAlign ??
+    rawProps?.containerVerticalAlign ??
+    flatPropsNode?.containerVerticalAlign ??
     rawProps?.verticalAlignment ??
     rawProps?.verticalAlign ??
     rawProps?.vAlign ??
