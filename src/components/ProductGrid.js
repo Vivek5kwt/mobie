@@ -525,8 +525,10 @@ export default function ProductGrid({ section, limit = 8, title = "Products" }) 
   const totalGap       = gridGap * (resolvedColumns - 1);
   const cardWidth      = Math.max(0, (screenWidth - pl - pr - totalGap) / resolvedColumns);
 
-  // ── Image height — only used when ratio is "Auto" / unset ────────────────
-  const imageHeight = resolvedImageHeight;
+  // ── Image height: from ratio (w/h → height = cardWidth / ratio) or explicit ─
+  const imageHeight = imageAspectRatio
+    ? Math.round(cardWidth / imageAspectRatio)
+    : resolvedImageHeight;
   const imageCorner = resolvedImageCorner ?? 0;
 
   // ── Header row bottom margin ──────────────────────────────────────────────
@@ -894,19 +896,13 @@ export default function ProductGrid({ section, limit = 8, title = "Products" }) 
 
                 {/* Product image */}
                 {product.imageUrl ? (
-                  <View
-                    style={[
-                      styles.imageWrapper,
-                      { padding: imagePad },
-                      imageAspectRatio ? { aspectRatio: imageAspectRatio } : null,
-                    ]}
-                  >
+                  <View style={[styles.imageWrapper, { padding: imagePad }]}>
                     <Image
                       source={{ uri: product.imageUrl }}
                       style={[
                         styles.image,
                         {
-                          height:          imageAspectRatio ? "100%" : imageHeight,
+                          height:          imageHeight,
                           borderRadius:    imageCorner,
                           backgroundColor: resolvedImageBgColor,
                         },
@@ -919,12 +915,11 @@ export default function ProductGrid({ section, limit = 8, title = "Products" }) 
                     style={[
                       styles.imagePlaceholder,
                       {
-                        height:          imageAspectRatio ? undefined : imageHeight,
+                        height:          imageHeight,
                         borderRadius:    imageCorner,
                         backgroundColor: resolvedImageBgColor,
                         margin:          imagePad,
                       },
-                      imageAspectRatio ? { aspectRatio: imageAspectRatio } : null,
                     ]}
                   >
                     <Text style={styles.placeholderLetter}>

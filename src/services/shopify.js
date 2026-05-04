@@ -304,17 +304,19 @@ export async function fetchShopifyProductsPage({
             id
             title
             handle
-            featuredImage {
-              url
-            }
+            featuredImage { url }
+            images(first: 1) { edges { node { url } } }
             priceRangeV2 { minVariantPrice { amount currencyCode } }
             variants(first: 1) {
               edges {
                 node {
                   id
+                  compareAtPrice
+                  availableForSale
                 }
               }
             }
+            availableForSale
           }
         }
       }
@@ -349,11 +351,15 @@ export async function fetchShopifyProductsPage({
         id: edge?.node?.id,
         title: edge?.node?.title,
         handle: edge?.node?.handle,
-        availableForSale: edge?.node?.availableForSale ?? true,
+        availableForSale: edge?.node?.availableForSale ?? variant?.availableForSale ?? true,
         variantId: variant?.id || null,
-        imageUrl: edge?.node?.featuredImage?.url || null,
+        imageUrl:
+          edge?.node?.featuredImage?.url ||
+          edge?.node?.images?.edges?.[0]?.node?.url ||
+          null,
         priceAmount: price?.amount || null,
         priceCurrency: price?.currencyCode || null,
+        compareAtPrice: variant?.compareAtPrice || null,
       };
     });
 
@@ -502,14 +508,15 @@ export async function fetchShopifyProductDetails({ handle, id, options = {} }) {
       }
     } catch (_) {}
 
+    const firstImageUrl = product?.featuredImage?.url || images[0] || null;
     return {
       id: product?.id,
       title: product?.title,
       handle: product?.handle,
       vendor: product?.vendor,
       description: product?.description,
-      imageUrl: product?.featuredImage?.url,
-      images: images.length > 0 ? images : (product?.featuredImage?.url ? [product.featuredImage.url] : []),
+      imageUrl: firstImageUrl,
+      images: images.length > 0 ? images : (firstImageUrl ? [firstImageUrl] : []),
       priceAmount: priceNode?.amount,
       priceCurrency: priceNode?.currencyCode,
       variantOptions,
@@ -840,10 +847,19 @@ export async function fetchShopifyCollectionProducts({
                   id
                   title
                   handle
-                  featuredImage {
-                    url
-                  }
+                  availableForSale
+                  featuredImage { url }
+                  images(first: 1) { edges { node { url } } }
                   priceRangeV2 { minVariantPrice { amount currencyCode } }
+                  variants(first: 1) {
+                    edges {
+                      node {
+                        id
+                        compareAtPrice
+                        availableForSale
+                      }
+                    }
+                  }
                 }
               }
             }
@@ -881,14 +897,20 @@ export async function fetchShopifyCollectionProducts({
 
     const products = edges.map(({ node }) => {
       const priceNode = node?.priceRangeV2?.minVariantPrice;
+      const variant = node?.variants?.edges?.[0]?.node;
       return {
         id: node?.id,
         title: node?.title,
         handle: node?.handle,
-        availableForSale: node?.availableForSale ?? true,
-        imageUrl: node?.featuredImage?.url || null,
+        availableForSale: node?.availableForSale ?? variant?.availableForSale ?? true,
+        variantId: variant?.id || null,
+        imageUrl:
+          node?.featuredImage?.url ||
+          node?.images?.edges?.[0]?.node?.url ||
+          null,
         priceAmount: priceNode?.amount || null,
         priceCurrency: priceNode?.currencyCode || null,
+        compareAtPrice: variant?.compareAtPrice || null,
       };
     });
 
