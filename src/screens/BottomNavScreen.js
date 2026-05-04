@@ -840,7 +840,7 @@ export default function BottomNavScreen() {
                     <DynamicRenderer section={section} />
                   </View>
                 );
-              }))
+              })
             ) : isProfilePage && !loading ? (
               session ? (
                 <FallbackProfile session={session} logout={logout} navigation={navigation} />
