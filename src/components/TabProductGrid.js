@@ -101,6 +101,8 @@ const normalizeAtcPosition = (value, fallback = "below") => {
   return "below";
 };
 
+// limit is intentionally left undefined when the tab has no explicit productsToShow,
+// so the caller can fall back to the global productsPerTab setting.
 const normalizeTabs = (rawTabs = []) => {
   if (!Array.isArray(rawTabs)) return [];
   return rawTabs
@@ -109,7 +111,7 @@ const normalizeTabs = (rawTabs = []) => {
       const id = toStr(t.id, `tab-${idx + 1}`);
       const label = toStr(t.label, "Tab");
       const handle = toStr(t.collectionHandle, "");
-      const limit = toNum(t.productsToShow, 4);
+      const limit = toNum(t.productsToShow, undefined);
       if (!label) return null;
       return { id, label, handle, limit };
     })
@@ -156,6 +158,9 @@ export default function TabProductGrid({ section }) {
   const layoutCardTitleCss = layoutCss?.cardTitle || layoutCss?.title || {};
   const layoutCardPriceCss = layoutCss?.price || layoutCss?.priceText || {};
   const layoutAddToCartCss = layoutCss?.addToCartButton || layoutCss?.addToCart || {};
+  const tabButtonCss = layoutCss?.tabButton || {};
+  const carouselCss  = layoutCss?.carousel  || {};
+  const tabBarCss    = layoutCss?.tabBar    || {};
 
   // ── Header props ──────────────────────────────────────────────────────────
   const showHeader      = toBool(rawConfig?.showHeader, false);
@@ -200,7 +205,7 @@ export default function TabProductGrid({ section }) {
     if (!activeTabId || productsByTab[activeTabId]) return;
 
     let alive = true;
-    const limit = Math.max(1, Number(activeTab?.limit || toNum(rawConfig?.productsPerTab, 4)) || 4);
+    const limit = Math.max(1, Number(activeTab?.limit ?? toNum(rawConfig?.productsPerTab, 4)) || 4);
     const handle = activeTab?.handle || "";
 
     const load = async () => {
@@ -254,14 +259,21 @@ export default function TabProductGrid({ section }) {
   // ── Read styling from rawConfig ────────────────────────────────────────────
   const columns = Math.max(1, toNum(rawConfig?.columns, 2));
   const containerBg  = toStr(rawConfig?.bgColor || rawConfig?.gridBgColor, "#FFFFFF");
-  const tabBarBg     = toStr(rawConfig?.tabBarBgColor, containerBg);
+  const tabBarBg     = toStr(rawConfig?.tabBarBgColor ?? tabBarCss?.backgroundColor, containerBg);
   const tabBgColor   = toStr(rawConfig?.tabBgColor, "#E5E7EB");
   const tabTextColor = toStr(rawConfig?.tabTextColor, "#374151");
-  const activeBg     = toStr(rawConfig?.tabActiveBgColor, "#111111");
-  const activeText   = toStr(rawConfig?.tabActiveTextColor, "#FFFFFF");
-  const tabFontSize  = toNum(rawConfig?.tabFontSize, 12);
-  const tabFontWt    = toFontWeight(rawConfig?.tabFontWeight, "600");
-  const tabFamily    = cleanFontFamily(toStr(rawConfig?.tabFontFamily, ""));
+  const activeBg     = toStr(rawConfig?.tabActiveBgColor ?? tabButtonCss?.backgroundColor, "#111111");
+  const activeText   = toStr(rawConfig?.tabActiveTextColor ?? tabButtonCss?.color, "#FFFFFF");
+  const tabFontSize  = toNum(rawConfig?.tabFontSize ?? tabButtonCss?.fontSize ?? rawConfig?.fontSize, 12);
+  const tabFontWt    = toFontWeight(rawConfig?.tabFontWeight ?? tabButtonCss?.fontWeight, "600");
+  const tabFamily    = cleanFontFamily(toStr(rawConfig?.tabFontFamily ?? tabButtonCss?.fontFamily ?? rawConfig?.fontFamily, ""));
+  const tabBorderRadius = toNum(rawConfig?.tabBorderRadius ?? tabButtonCss?.borderRadius, 999);
+  const tabPadT = toNum(rawConfig?.tabPadT ?? tabButtonCss?.paddingTop, undefined);
+  const tabPadB = toNum(rawConfig?.tabPadB ?? tabButtonCss?.paddingBottom, undefined);
+  const tabPadL = toNum(rawConfig?.tabPadL ?? tabButtonCss?.paddingLeft, undefined);
+  const tabPadR = toNum(rawConfig?.tabPadR ?? tabButtonCss?.paddingRight, undefined);
+  const tabPadX = toNum(rawConfig?.tabPadX ?? tabButtonCss?.paddingHorizontal, 14);
+  const tabPadY = toNum(rawConfig?.tabPadY ?? tabButtonCss?.paddingVertical, 7);
 
   const paddingTop    = toNum(rawConfig?.paddingTop,    0);
   const paddingBottom = toNum(rawConfig?.paddingBottom, 0);
@@ -357,7 +369,7 @@ export default function TabProductGrid({ section }) {
   const atcSoldOutTextColor = toStr(rawConfig?.atcSoldOutTextColor ?? rawConfig?.unavailableTextColor, "#FFFFFF");
   const atcFontFamily = cleanFontFamily(toStr(rawConfig?.atcFamily ?? layoutAddToCartCss?.fontFamily, ""));
   const atcFontWeight = toFontWeight(rawConfig?.atcWeight ?? layoutAddToCartCss?.fontWeight, "600");
-  const atcBorderRadius = toNum(rawConfig?.atcCorner ?? rawConfig?.atcBorderRadius ?? layoutAddToCartCss?.borderRadius, 6);
+  const atcBorderRadius = toNum(rawConfig?.atcCorner ?? rawConfig?.atcBorderRadius ?? rawConfig?.buttonRadius ?? layoutAddToCartCss?.borderRadius, 6);
   const atcPaddingTop = toNum(rawConfig?.atcPadT ?? layoutAddToCartCss?.paddingTop, undefined);
   const atcPaddingRight = toNum(rawConfig?.atcPadR ?? layoutAddToCartCss?.paddingRight, undefined);
   const atcPaddingBottom = toNum(rawConfig?.atcPadB ?? layoutAddToCartCss?.paddingBottom, undefined);
@@ -371,6 +383,19 @@ export default function TabProductGrid({ section }) {
   const containerDark = isDark(containerBg);
   const cardTextColor = toStr(rawConfig?.titleColor ?? rawConfig?.cardTitleColor ?? rawConfig?.headlineColor ?? layoutCardTitleCss?.color, containerDark ? "#FFFFFF" : "#111111");
   const priceColor    = toStr(rawConfig?.priceColor ?? rawConfig?.cardPriceColor ?? rawConfig?.subtextColor ?? layoutCardPriceCss?.color, containerDark ? "#E5E7EB" : "#374151");
+
+  // Carousel mode detection
+  const sectionComponent = String(
+    section?.type || section?.component || section?.componentType || section?.sectionType || ""
+  ).toLowerCase();
+  const isCarouselMode = sectionComponent.includes("carousel");
+
+  // Carousel CSS values
+  const carouselGap        = toNum(carouselCss?.gap, 12);
+  const carouselPadLeft    = toNum(carouselCss?.paddingLeft  ?? carouselCss?.paddingHorizontal, 0);
+  const carouselPadRight   = toNum(carouselCss?.paddingRight, 0);
+  const carouselPadTop     = toNum(carouselCss?.paddingTop   ?? carouselCss?.paddingVertical, 0);
+  const carouselPadBottom  = toNum(carouselCss?.paddingBottom, 0);
 
   // Card dimensions
   const availableW = SCREEN_W - paddingLeft - paddingRight;
@@ -570,6 +595,11 @@ export default function TabProductGrid({ section }) {
                   styles.tabButton,
                   {
                     backgroundColor: isActive ? activeBg : tabBgColor,
+                    borderRadius: tabBorderRadius,
+                    paddingTop:    tabPadT ?? tabPadY,
+                    paddingBottom: tabPadB ?? tabPadY,
+                    paddingLeft:   tabPadL ?? tabPadX,
+                    paddingRight:  tabPadR ?? tabPadX,
                   },
                 ]}
               >
@@ -589,7 +619,7 @@ export default function TabProductGrid({ section }) {
         </ScrollView>
       </View>
 
-      {/* ── Product Grid ── */}
+      {/* ── Products (Grid or Carousel) ── */}
       {isLoading ? (
         <ActivityIndicator
           style={{ paddingVertical: 32 }}
@@ -600,7 +630,121 @@ export default function TabProductGrid({ section }) {
         <Text style={[styles.emptyText, { color: priceColor }]}>
           No products available
         </Text>
+      ) : isCarouselMode ? (
+        /* ── Horizontal carousel ── */
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={{
+            flexDirection: "row",
+            gap: carouselGap,
+            paddingLeft: carouselPadLeft || paddingLeft,
+            paddingRight: carouselPadRight || paddingRight,
+            paddingTop: carouselPadTop,
+            paddingBottom: carouselPadBottom,
+          }}
+        >
+          {products.map((product) => {
+            const carouselCardW = Math.floor(SCREEN_W * 0.42);
+            const productId = String(
+              product?.id || product?.variantId || product?.handle || product?.name || product?.title || ""
+            ).trim();
+            const isFav = productId ? wishlistIds.has(productId) : false;
+            const inStock = isProductAvailable(product);
+            return (
+              <Pressable
+                key={product.id}
+                onPress={() => handleProductPress(product)}
+                style={({ pressed }) => [
+                  styles.card,
+                  pressed && { opacity: 0.9 },
+                  {
+                    width: carouselCardW,
+                    borderRadius: cardRadius,
+                    backgroundColor: containerBg,
+                  },
+                ]}
+              >
+                <View
+                  style={[
+                    styles.imageWrapper,
+                    {
+                      width: carouselCardW,
+                      height: carouselCardW,
+                      borderTopLeftRadius: cardRadius,
+                      borderTopRightRadius: cardRadius,
+                      borderBottomLeftRadius: imageCorner,
+                      borderBottomRightRadius: imageCorner,
+                    },
+                  ]}
+                >
+                  {product.image ? (
+                    <Image source={{ uri: product.image }} style={styles.image} resizeMode="cover" />
+                  ) : (
+                    <View style={styles.imagePlaceholder} />
+                  )}
+                  {showFavorite && (
+                    <TouchableOpacity
+                      style={[styles.favBtn, { backgroundColor: favoriteBadgeBgColor }]}
+                      activeOpacity={0.8}
+                      onPress={() => handleToggleFavorite(product)}
+                      hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+                      accessibilityRole="button"
+                      accessibilityLabel={isFav ? "Remove from wishlist" : "Add to wishlist"}
+                    >
+                      <FontAwesome
+                        name={isFav ? favoriteIconName : unfavoriteIconName}
+                        size={isFav ? favoriteIconSize : unfavoriteIconSize}
+                        color={isFav ? favoriteIconColor : unfavoriteIconColor}
+                        style={styles.favIcon}
+                      />
+                    </TouchableOpacity>
+                  )}
+                  {showAddToCart && atcPosition === "overlay" && renderAddToCart(product, inStock)}
+                </View>
+                <View style={styles.cardContent}>
+                  {showAddToCart && atcPosition === "above" && renderAddToCart(product, inStock)}
+                  {showTitleText && (
+                    <Text
+                      numberOfLines={titleWrap ? 1 : 2}
+                      style={[
+                        styles.cardTitle,
+                        {
+                          color: cardTextColor,
+                          fontSize: cardTitleSize,
+                          fontWeight: cardTitleWt,
+                          textAlign: titleTextAlign,
+                          ...(cardTitleFamily ? { fontFamily: cardTitleFamily } : {}),
+                        },
+                      ]}
+                    >
+                      {product.name || product.title || ""}
+                    </Text>
+                  )}
+                  {showPrice && product.price && (
+                    <Text
+                      style={[
+                        styles.priceText,
+                        {
+                          color: priceColor,
+                          fontSize: priceSize,
+                          fontWeight: priceWeight,
+                          textAlign: priceTextAlign,
+                          ...(priceFamily ? { fontFamily: priceFamily } : {}),
+                        },
+                      ]}
+                    >
+                      {product.currency} {parseFloat(product.price).toFixed(1)}
+                    </Text>
+                  )}
+                  {showAddToCart && atcPosition === "below" && renderAddToCart(product, inStock)}
+                </View>
+              </Pressable>
+            );
+          })}
+        </ScrollView>
       ) : (
+        /* ── Vertical grid ── */
         <View style={styles.grid}>
           {rows.map((row, rowIdx) => (
             <View
@@ -754,9 +898,8 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
   },
   tabButton: {
-    paddingVertical: 7,
-    paddingHorizontal: 14,
-    borderRadius: 999,
+    alignItems: "center",
+    justifyContent: "center",
   },
   grid: {
     width: "100%",

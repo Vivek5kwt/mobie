@@ -549,7 +549,7 @@ class Countdown extends PureComponent {
       ...timerContainerStyle
     } = timerStyle;
     const resolvedTimerBoxRadius = asNumber(
-      timerAttributes?.borderRadius ?? rawProps?.timerBorderRadius ?? timerBoxRadius,
+      timerAttributes?.borderRadius ?? rawProps?.timerBorderRadius,
       0
     );
 
@@ -578,11 +578,7 @@ class Countdown extends PureComponent {
     const showSubtext = asBoolean(rawProps?.showSubtext, true);
     const showTimer = asBoolean(rawProps?.showTimer, true);
     const showButton = asBoolean(rawProps?.showButton, true) && !!buttonLabel;
-    // Default showIcon to false — only show when DSL explicitly enables it AND provides an icon name
-    const showIcon = asBoolean(
-      rawProps?.showIcon ?? iconAttributes?.showIcon ?? iconAttributes?.visible,
-      false
-    ) && !!iconName;
+    const showIcon = false;
     const showImage = asBoolean(rawProps?.showImage, true);
     const imageUrl = showImage
       ? unwrapValue(rawProps?.image ?? rawProps?.imageUrl ?? rawProps?.backgroundImage, null)
@@ -659,8 +655,8 @@ class Countdown extends PureComponent {
                       backgroundColor: timerBackgroundColor,
                       borderColor: timerBorderColor,
                       borderWidth: timerBorderWidth,
+                      borderRadius: resolvedTimerBoxRadius,
                     },
-                    { borderRadius: resolvedTimerBoxRadius },
                     timerHeight
                       ? { height: timerHeight, minHeight: timerHeight }
                       : timerStyleHeight
@@ -678,10 +674,10 @@ class Countdown extends PureComponent {
                   >
                     {renderTimerValue(resolvedCountdown[key])}
                   </Text>
+                  <Text style={[styles.timerLabel, { color: timerLabelColor }]}>
+                    {label}
+                  </Text>
                 </View>
-                <Text style={[styles.timerLabel, { color: timerLabelColor }]}>
-                  {label}
-                </Text>
               </View>
             ))}
           </View>
@@ -865,11 +861,10 @@ const styles = StyleSheet.create({
   },
   timerValueBox: {
     width: "100%",
-    minHeight: 48,
-    paddingVertical: 10,
+    minHeight: 56,
+    paddingVertical: 8,
     paddingHorizontal: 4,
     backgroundColor: "#FFFFFF",
-    borderRadius: 8,
     borderWidth: 1,
     borderColor: "#E5E7EB",
     alignItems: "center",
@@ -878,9 +873,10 @@ const styles = StyleSheet.create({
   timerLabel: {
     fontSize: 10,
     fontWeight: "700",
-    marginTop: 5,
+    marginTop: 2,
     letterSpacing: 0.5,
     textTransform: "uppercase",
+    textAlign: "center",
   },
   timerValue: {
     fontSize: 22,

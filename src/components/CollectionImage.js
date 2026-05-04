@@ -16,11 +16,13 @@ import { convertStyles } from "../utils/convertStyles";
 
 // ─── helpers ──────────────────────────────────────────────────────────────────
 
+// Unwraps DSL value envelopes: { value }, { const }, or { default } (used by behavior props)
 const unwrapValue = (value, fallback) => {
   if (value === undefined || value === null) return fallback;
   if (typeof value === "object") {
     if (value.value !== undefined) return value.value;
     if (value.const !== undefined) return value.const;
+    if (value.default !== undefined) return value.default;
   }
   return value;
 };
@@ -45,6 +47,12 @@ const asNumber = (value, fallback) => {
   return Number.isNaN(parsed) ? fallback : parsed;
 };
 
+const asString = (value, fallback = "") => {
+  const resolved = unwrapValue(value, fallback);
+  if (resolved === undefined || resolved === null) return fallback;
+  return String(resolved);
+};
+
 const deriveFontWeight = (input, fallback = "700") => {
   if (!input) return fallback;
   const value = unwrapValue(input, fallback);
@@ -58,16 +66,31 @@ const deriveFontWeight = (input, fallback = "700") => {
   return String(value);
 };
 
+// Parses the DSL collections block — supports:
+//   • Plain array: [{ title, image, link }, ...]
+//   • DSL schema object with collection-N keys: { "collection-1": { properties: {...} }, ... }
 const buildCollections = (block = {}) => {
-  const arr = Array.isArray(block) ? block : Object.values(block);
-  return arr
+  if (!block || typeof block !== "object") return [];
+
+  let items;
+  if (Array.isArray(block)) {
+    items = block;
+  } else {
+    // Only pick keys matching collection-N pattern so schema metadata
+    // (type, required, description) is never mistaken for a collection item.
+    items = Object.entries(block)
+      .filter(([key]) => /^collection-\d+$/i.test(key))
+      .map(([, val]) => val);
+  }
+
+  return items
     .filter(Boolean)
     .map((item) => {
-      const p = item.properties || item;
-      const title  = unwrapValue(p?.title,  "");
-      const image  = unwrapValue(p?.image,  "");
-      const link   = unwrapValue(p?.link,   "");
-      const handle = unwrapValue(p?.handle, "");
+      const p = item?.properties || item;
+      const title  = asString(unwrapValue(p?.title,  ""));
+      const image  = asString(unwrapValue(p?.image,  ""));
+      const link   = asString(unwrapValue(p?.link,   ""));
+      const handle = asString(unwrapValue(p?.handle, ""));
       if (!title && !image) return null;
       return { title, image, link, handle };
     })
@@ -82,7 +105,6 @@ const deriveHandle = (item) => {
     if (link.includes(m)) return link.split(m)[1]?.split(/[?#/]/)[0] || "";
     return link;
   }
-  // fallback: slugify title
   return String(item?.title || "")
     .toLowerCase().trim()
     .replace(/[^a-z0-9\s-]/g, "")
@@ -105,17 +127,6 @@ const toArray = (value) => {
   if (Array.isArray(resolved?.value)) return resolved.value;
   if (Array.isArray(resolved?.items)) return resolved.items;
   return [];
-};
-
-const parseRatio = (value, fallback = 1) => {
-  const v = String(unwrapValue(value, fallback) || fallback).trim().toLowerCase();
-  if (!v || v === "auto") return fallback;
-  if (v.includes(":")) {
-    const [w, h] = v.split(":").map((x) => parseFloat(x.trim()));
-    if (w > 0 && h > 0) return w / h;
-  }
-  const n = parseFloat(v);
-  return Number.isFinite(n) && n > 0 ? n : fallback;
 };
 
 const isSvgUrl = (url) => {
@@ -149,94 +160,116 @@ export default function CollectionImage({ section }) {
   const containerCfg = rawProps?.container?.properties   || rawProps?.container   || {};
 
   // ── Collections ──────────────────────────────────────────────────────────────
+  // Priority: explicit items array → rawSnapshot items → collections object (DSL schema format)
   const dslCollections = useMemo(() => {
     const fromItems = buildCollections(toArray(rawProps?.items));
     if (fromItems.length) return fromItems;
+
     const fromRawItems = buildCollections(toArray(rawSnapshot?.items));
     if (fromRawItems.length) return fromRawItems;
-    return buildCollections(rawProps?.collections || {});
+
+    // DSL sends collections as an object with collection-N keys
+    const fromCollections = buildCollections(rawProps?.collections ?? {});
+    if (fromCollections.length) return fromCollections;
+
+    return [];
   }, [rawProps, rawSnapshot]);
+
   const [shopifyCollections, setShopifyCollections] = useState([]);
   const collectionsLimit = asNumber(rawProps?.collectionsLimit, 12);
   const items = dslCollections.length ? dslCollections : shopifyCollections;
 
-  // ── Layout ───────────────────────────────────────────────────────────────────
-  const containerPt = asNumber(containerCfg?.pt, 0);
-  const containerPb = asNumber(containerCfg?.pb, 0);
+  // ── Container ────────────────────────────────────────────────────────────────
+  const containerPt = asNumber(containerCfg?.pt, 8);
+  const containerPb = asNumber(containerCfg?.pb, 8);
   const containerPl = asNumber(containerCfg?.pl, 0);
   const containerPr = asNumber(containerCfg?.pr, 0);
-  const bgColor     = unwrapValue(containerCfg?.bgColor, "#FFFFFF");
+  const bgColor     = asString(unwrapValue(containerCfg?.bgColor, "#FFFFFF"));
 
   // ── Header ───────────────────────────────────────────────────────────────────
   const showHeader   = asBoolean(rawProps?.showHeader, true);
-  const headerText   = unwrapValue(
-    headerCfg?.headerText ?? headerCfg?.title ?? headerCfg?.text ??
-    section?.properties?.title ?? section?.title,
-    "Featured Collections"
+  const headerText   = asString(
+    unwrapValue(
+      headerCfg?.headerText ?? headerCfg?.title ?? headerCfg?.text ??
+      section?.properties?.title ?? section?.title,
+      "Featured Collections"
+    )
   );
-  const headerSize   = asNumber(headerCfg?.headerSize, 16);
-  const headerColor  = unwrapValue(headerCfg?.headerColor, "#000000");
-  const headerWeight     = deriveFontWeight(headerCfg?.headerWeight, "700");
-  const headerFontFamily = cleanFontFamily(unwrapValue(headerCfg?.fontFamily ?? headerCfg?.headerFontFamily ?? rawProps?.headerFontFamily, undefined))
-    || cleanFontFamily(convertStyles(layoutCss?.header || {})?.fontFamily);
-  const headerCssStyle = convertStyles(layoutCss?.header || {});
+  const headerSize        = asNumber(headerCfg?.headerSize, 16);
+  const headerColor       = asString(unwrapValue(headerCfg?.headerColor, "#000000"));
+  const headerBold        = asBoolean(headerCfg?.headerBold, false);
+  const headerWeight      = headerBold ? "700" : deriveFontWeight(headerCfg?.headerWeight, "700");
+  const headerItalic      = asBoolean(headerCfg?.headerItalic, false);
+  const headerUnderline   = asBoolean(headerCfg?.headerUnderline, false);
+  const headerStrikethrough = asBoolean(headerCfg?.headerStrikethrough, false);
+  const headerFontFamily  = cleanFontFamily(
+    asString(unwrapValue(headerCfg?.headerFontFamily ?? headerCfg?.fontFamily ?? rawProps?.headerFontFamily, ""))
+  ) || cleanFontFamily(convertStyles(layoutCss?.header || {})?.fontFamily);
+
+  const headerDecorationLine = (() => {
+    if (headerUnderline && headerStrikethrough) return "underline line-through";
+    if (headerUnderline) return "underline";
+    if (headerStrikethrough) return "line-through";
+    return "none";
+  })();
 
   // ── Card ─────────────────────────────────────────────────────────────────────
   const showCardImage       = asBoolean(rawProps?.showCardImage, true);
+  const showCardText        = asBoolean(cardCfg?.showText, true);
   const cardTextSize        = asNumber(titleNode?.fontSize ?? rawSnapshot?.titleFontSize ?? cardCfg?.textSize, 12);
-  const cardTextColor       = unwrapValue(titleNode?.color ?? rawSnapshot?.titleColor ?? cardCfg?.textColor, "#000000");
+  const cardTextColor       = asString(unwrapValue(titleNode?.color ?? rawSnapshot?.titleColor ?? cardCfg?.textColor, "#000000"));
   const cardTextWeight      = deriveFontWeight(titleNode?.fontWeight ?? rawSnapshot?.titleFontWeight ?? cardCfg?.textWeight, "500");
-  const cardFontFamily      = cleanFontFamily(unwrapValue(titleNode?.fontFamily ?? rawSnapshot?.titleFontFamily ?? cardCfg?.fontFamily ?? cardCfg?.textFontFamily ?? rawProps?.cardFontFamily, undefined))
-    || cleanFontFamily(convertStyles(layoutCss?.card?.text || {})?.fontFamily);
+  const cardFontFamily      = cleanFontFamily(
+    asString(unwrapValue(titleNode?.fontFamily ?? rawSnapshot?.titleFontFamily ?? cardCfg?.textFontFamily ?? cardCfg?.fontFamily ?? rawProps?.cardFontFamily, ""))
+  ) || cleanFontFamily(convertStyles(layoutCss?.card?.text || {})?.fontFamily);
+  const cardTextAlign       = asString(unwrapValue(titleNode?.align ?? rawSnapshot?.titleAlign ?? cardCfg?.textAlign, "center")).toLowerCase();
+
+  // Image dimensions from card config
   const cardImageSize       = asNumber(cardCfg?.imageSize, 68);
   const cardImageBorder     = asNumber(cardCfg?.imageBorder, 0);
-  const cardImageBorderColor = unwrapValue(cardCfg?.imageBorderColor, "#A8A7AE");
-  const textAlign  = (unwrapValue(titleNode?.align ?? rawSnapshot?.titleAlign ?? cardCfg?.textAlign, "center") || "center").toLowerCase();
-  const imageShape = (unwrapValue(cardCfg?.imageShape, "circle") || "circle").toLowerCase();
-
-  const imageRadius = imageShape === "square" ? 0
+  const cardImageBorderColor = asString(unwrapValue(cardCfg?.imageBorderColor, "#A8A7AE"));
+  const imageShape          = asString(unwrapValue(cardCfg?.imageShape, "circle")).toLowerCase();
+  const imageRadius         = imageShape === "square" ? 0
     : imageShape === "circle" ? cardImageSize / 2
     : Math.max(8, Math.round(cardImageSize * 0.2));
 
-  const cardCssStyle = useMemo(() => {
-    const raw = layoutCss?.card || {};
-    const clean = {};
-    Object.entries(raw).forEach(([k, v]) => { if (k !== "text" && k !== "image") clean[k] = v; });
-    return convertStyles(clean);
-  }, [layoutCss?.card]);
+  // ── Behavior ─────────────────────────────────────────────────────────────────
+  // behavior props use "default" keys in the DSL schema — unwrapValue now handles this
+  const autoScrollEnabled = asBoolean(behavior?.autoScroll ?? layoutCss?.slider?.autoScroll, true);
+  const showIndicators    = asBoolean(behavior?.showIndicators ?? layoutCss?.slider?.showIndicators, true);
+  const scrollSpeedSec    = Math.max(asNumber(behavior?.scrollSpeed ?? layoutCss?.slider?.speedSec, 3), 1);
+  const showArrows        = asBoolean(behavior?.showArrows ?? layoutCss?.slider?.showArrows, false);
 
-  const cardTextCssStyle  = convertStyles(layoutCss?.card?.text  || {});
-  const cardImageCssStyle = convertStyles(layoutCss?.card?.image || {});
+  // layoutMode drives horizontal slider vs grid
+  const layoutMode = asString(unwrapValue(behavior?.layoutMode ?? layoutCss?.slider?.layout, "horizontal")).toLowerCase();
+  const isGrid     = layoutMode === "grid";
 
-  // ── Slider ───────────────────────────────────────────────────────────────────
-  const sliderCfg        = layoutCss?.slider || {};
-  const hGap             = asNumber(generalNode?.hGap ?? rawSnapshot?.hGap, 12);
-  const vGap             = asNumber(generalNode?.vGap ?? rawSnapshot?.vGap, 12);
-  const columns          = Math.max(1, asNumber(generalNode?.columns ?? rawSnapshot?.columns, 1));
-  const gapPx            = asNumber(sliderCfg?.gapPx ?? sliderCfg?.gap, hGap);
-  const autoScrollEnabled = asBoolean(behavior?.autoScroll ?? sliderCfg?.autoScroll, true);
-  const showIndicators   = asBoolean(behavior?.showIndicators ?? sliderCfg?.showIndicators, false);
-  const scrollSpeedSec   = Math.max(asNumber(behavior?.scrollSpeed, 3), 1);
+  // Grid columns: explicit DSL column count, or derived from layoutMode
+  const columns = isGrid
+    ? Math.max(2, asNumber(generalNode?.columns ?? rawSnapshot?.columns, 2))
+    : 1;
 
-  // Each card width from DSL; constrain so at least partial next card peeks
+  // ── Slider / Card sizing ──────────────────────────────────────────────────────
+  const sliderCfg  = layoutCss?.slider || {};
+  const hGap       = asNumber(generalNode?.hGap ?? rawSnapshot?.hGap ?? sliderCfg?.gapPx, 12);
+  const vGap       = asNumber(generalNode?.vGap ?? rawSnapshot?.vGap, 12);
+
   const availableW = SCREEN_W - containerPl - containerPr;
+
+  // Card container width: read from layout.css.card.width ("96px" → 96)
+  // Fallback: image size + text padding
   const rawCardW = asNumber(
     layoutCss?.card?.width,
-    columns > 1 ? (availableW - hGap * (columns - 1)) / columns : 80
+    isGrid
+      ? (availableW - hGap * (columns - 1)) / columns
+      : cardImageSize + 20
   );
-  // ITEM SIZE = card width. STEP SIZE = cardW + gap (right margin per item)
-  // No left/right padding on the list — margins live on the items themselves.
-  const cardW  = Math.max(40, Math.min(rawCardW, availableW));
-  const stepSize = cardW + gapPx; // exact distance between snap points
-  const mediaAspectRatio = parseRatio(imageNode?.ratio ?? rawSnapshot?.imageRatio, 1);
-  const mediaScale = String(unwrapValue(imageNode?.scale ?? rawSnapshot?.imageScale, "cover")).toLowerCase();
-  const mediaResizeMode = mediaScale === "fit" || mediaScale === "contain" ? "contain" : mediaScale === "stretch" ? "stretch" : "cover";
-  const mediaRadius = asNumber(imageNode?.radius ?? rawSnapshot?.imageRadius, imageRadius);
-  const cardMediaHeight = Math.round(cardW / mediaAspectRatio);
+  const cardW    = Math.max(40, Math.min(rawCardW, availableW));
+  const stepSize = cardW + hGap;
 
   // ── Dots ─────────────────────────────────────────────────────────────────────
-  const dotActiveBg   = unwrapValue(behavior?.dotActiveColor   ?? sliderCfg?.dotActiveColor,   "#016D77");
-  const dotInactiveBg = unwrapValue(behavior?.dotInactiveColor ?? sliderCfg?.dotInactiveColor, "#C4C4C4");
+  const dotActiveBg   = asString(unwrapValue(behavior?.dotActiveColor   ?? sliderCfg?.dotActiveColor,   "#016D77"));
+  const dotInactiveBg = asString(unwrapValue(behavior?.dotInactiveColor ?? sliderCfg?.dotInactiveColor, "#C4C4C4"));
   const dotActiveW    = asNumber(behavior?.dotActiveWidth  ?? sliderCfg?.dotActiveWidth,  20);
   const dotInactiveW  = asNumber(behavior?.dotInactiveWidth ?? sliderCfg?.dotInactiveWidth, 8);
   const dotH          = asNumber(behavior?.dotHeight ?? sliderCfg?.dotHeight, 8);
@@ -246,23 +279,18 @@ export default function CollectionImage({ section }) {
   const indexRef       = useRef(0);
   const autoScrollRef  = useRef(false);
   const [activeIndex, setActiveIndex] = useState(0);
-
-  // One Animated.Value per dot — created lazily in useEffect when item count is known
   const dotAnims = useRef([]);
 
   useEffect(() => {
-    // Re-initialise dot animations whenever the collection list changes
     dotAnims.current = items.map(
       (_, i) => new Animated.Value(i === 0 ? dotActiveW : dotInactiveW)
     );
     indexRef.current = 0;
     setActiveIndex(0);
     listRef.current?.scrollToOffset({ offset: 0, animated: false });
-  // We only want this to fire when the item list or dot sizes change
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [items.length, dotActiveW, dotInactiveW]);
 
-  // Animate all dots to reflect `newIndex`
   const animateDots = useCallback((newIndex) => {
     dotAnims.current.forEach((anim, i) => {
       Animated.spring(anim, {
@@ -278,19 +306,16 @@ export default function CollectionImage({ section }) {
 
   // ── Auto-scroll ───────────────────────────────────────────────────────────────
   useEffect(() => {
-    if (columns > 1 || !autoScrollEnabled || items.length < 2) return;
-
+    if (isGrid || !autoScrollEnabled || items.length < 2) return;
     const timer = setInterval(() => {
       const next = (indexRef.current + 1) % items.length;
       autoScrollRef.current = true;
       listRef.current?.scrollToIndex({ index: next, animated: true });
       animateDots(next);
-      // Clear flag after transition completes
       setTimeout(() => { autoScrollRef.current = false; }, 500);
     }, scrollSpeedSec * 1000);
-
     return () => clearInterval(timer);
-  }, [columns, autoScrollEnabled, items.length, scrollSpeedSec, animateDots]);
+  }, [isGrid, autoScrollEnabled, items.length, scrollSpeedSec, animateDots]);
 
   // ── Shopify fallback ──────────────────────────────────────────────────────────
   useEffect(() => {
@@ -310,23 +335,18 @@ export default function CollectionImage({ section }) {
       );
     }).catch(() => {});
     return () => { alive = false; };
-  }, [rawProps, collectionsLimit, dslCollections.length]);
+  }, [collectionsLimit, dslCollections.length]);
 
   // ── Callbacks ─────────────────────────────────────────────────────────────────
-  // FlatList getItemLayout — required for scrollToIndex to work correctly
   const getItemLayout = useCallback(
     (_, index) => ({ length: stepSize, offset: stepSize * index, index }),
     [stepSize]
   );
 
-  // Only update index when the user finishes a manual swipe
   const onMomentumScrollEnd = useCallback((e) => {
     if (autoScrollRef.current) return;
     const x = e?.nativeEvent?.contentOffset?.x ?? 0;
-    const newIndex = Math.min(
-      Math.max(Math.round(x / stepSize), 0),
-      items.length - 1
-    );
+    const newIndex = Math.min(Math.max(Math.round(x / stepSize), 0), items.length - 1);
     if (newIndex !== indexRef.current) animateDots(newIndex);
   }, [stepSize, items.length, animateDots]);
 
@@ -345,12 +365,14 @@ export default function CollectionImage({ section }) {
   }, [navigation]);
 
   // ── Render item ───────────────────────────────────────────────────────────────
+  // Image inner size excludes the border width on each side
+  const imageInnerSize = Math.max(0, cardImageSize - cardImageBorder * 2);
+
   const renderItem = useCallback(({ item }) => (
     <TouchableOpacity
       style={[
         styles.card,
-        cardCssStyle,
-        { width: cardW, marginRight: columns > 1 ? 0 : gapPx },
+        { width: cardW, marginRight: isGrid ? 0 : hGap },
       ]}
       activeOpacity={0.82}
       onPress={() => onItemPress(item)}
@@ -358,17 +380,17 @@ export default function CollectionImage({ section }) {
     >
       {showCardImage && (
         <View
-          style={[
-            styles.imageWrap,
-            {
-              width: cardW,
-              height: cardMediaHeight,
-              borderRadius: mediaRadius,
-              borderWidth: cardImageBorder,
-              borderColor: cardImageBorderColor,
-            },
-            cardImageCssStyle,
-          ]}
+          style={{
+            width: cardImageSize,
+            height: cardImageSize,
+            borderRadius: imageRadius,
+            borderWidth: cardImageBorder,
+            borderColor: cardImageBorderColor,
+            overflow: "hidden",
+            alignItems: "center",
+            justifyContent: "center",
+            backgroundColor: "#FFFFFF",
+          }}
         >
           {item.image ? (
             isSvgUrl(item.image) ? (
@@ -377,9 +399,9 @@ export default function CollectionImage({ section }) {
                   html: `<!DOCTYPE html><html><head><meta name="viewport" content="width=device-width,initial-scale=1"><style>*{margin:0;padding:0;box-sizing:border-box}body{background:transparent}img{width:100%;height:100%;object-fit:contain;display:block}</style></head><body><img src="${item.image}" /></body></html>`,
                 }}
                 style={{
-                  width: cardW - cardImageBorder * 2,
-                  height: cardMediaHeight - cardImageBorder * 2,
-                  borderRadius: mediaRadius,
+                  width: imageInnerSize,
+                  height: imageInnerSize,
+                  borderRadius: imageRadius,
                   backgroundColor: "transparent",
                 }}
                 scrollEnabled={false}
@@ -390,26 +412,25 @@ export default function CollectionImage({ section }) {
               <Image
                 source={{ uri: item.image }}
                 style={{
-                  width: cardW - cardImageBorder * 2,
-                  height: cardMediaHeight - cardImageBorder * 2,
-                  borderRadius: mediaRadius,
-                  backgroundColor: cardImageCssStyle?.backgroundColor || "#e0f2f1",
+                  width: imageInnerSize,
+                  height: imageInnerSize,
+                  borderRadius: imageRadius,
                 }}
-                resizeMode={mediaResizeMode}
+                resizeMode="cover"
               />
             )
           ) : (
             <View
               style={{
-                width: cardW - cardImageBorder * 2,
-                height: cardMediaHeight - cardImageBorder * 2,
-                borderRadius: mediaRadius,
+                width: imageInnerSize,
+                height: imageInnerSize,
+                borderRadius: imageRadius,
                 alignItems: "center",
                 justifyContent: "center",
                 backgroundColor: "#e0f2f1",
               }}
             >
-              <Text style={{ color: "#096d70", fontSize: cardImageSize * 0.4, fontWeight: "700" }}>
+              <Text style={{ color: "#096d70", fontSize: cardImageSize * 0.35, fontWeight: "700" }}>
                 {(item.title || "?").charAt(0).toUpperCase()}
               </Text>
             </View>
@@ -417,13 +438,19 @@ export default function CollectionImage({ section }) {
         </View>
       )}
 
-      {asBoolean(cardCfg?.showText, true) && (
+      {showCardText && (
         <Text
           numberOfLines={2}
           style={[
             styles.cardTitle,
-            cardTextCssStyle,
-            { color: cardTextColor, fontSize: cardTextSize, fontWeight: cardTextWeight, textAlign, maxWidth: cardW, ...(cardFontFamily ? { fontFamily: cardFontFamily } : {}) },
+            {
+              color: cardTextColor,
+              fontSize: cardTextSize,
+              fontWeight: cardTextWeight,
+              textAlign: cardTextAlign,
+              maxWidth: cardW,
+              ...(cardFontFamily ? { fontFamily: cardFontFamily } : {}),
+            },
           ]}
         >
           {item.title}
@@ -431,10 +458,9 @@ export default function CollectionImage({ section }) {
       )}
     </TouchableOpacity>
   ), [
-    cardCssStyle, cardW, gapPx, onItemPress, columns,
-    showCardImage, cardImageBorder,
-    cardImageBorderColor, cardImageCssStyle, mediaRadius, cardMediaHeight, mediaResizeMode,
-    cardCfg, cardTextCssStyle, cardTextColor, cardTextSize, cardTextWeight, textAlign,
+    cardW, hGap, isGrid, onItemPress,
+    showCardImage, cardImageSize, imageRadius, cardImageBorder, cardImageBorderColor, imageInnerSize,
+    showCardText, cardTextColor, cardTextSize, cardTextWeight, cardTextAlign, cardFontFamily,
   ]);
 
   if (!items.length) return null;
@@ -452,47 +478,50 @@ export default function CollectionImage({ section }) {
           paddingLeft: containerPl,
           paddingRight: containerPr,
         },
-        convertStyles(layoutCss?.container || {}),
       ]}
     >
       {/* Header */}
-      {showHeader && (
+      {showHeader && !!headerText && (
         <Text
           style={[
             styles.header,
-            headerCssStyle,
-            { color: headerColor, fontSize: headerSize, fontWeight: headerWeight, ...(headerFontFamily ? { fontFamily: headerFontFamily } : {}) },
+            {
+              color: headerColor,
+              fontSize: headerSize,
+              fontWeight: headerWeight,
+              fontStyle: headerItalic ? "italic" : "normal",
+              textDecorationLine: headerDecorationLine,
+              ...(headerFontFamily ? { fontFamily: headerFontFamily } : {}),
+            },
           ]}
         >
           {headerText}
         </Text>
       )}
 
-      {/* FlatList — exact snap with getItemLayout */}
+      {/* FlatList — horizontal slider or grid */}
       <FlatList
         ref={listRef}
         data={items}
         keyExtractor={(item, idx) => `${item.title}-${idx}`}
         renderItem={renderItem}
-        horizontal={columns <= 1}
-        numColumns={columns > 1 ? columns : 1}
+        horizontal={!isGrid}
+        numColumns={isGrid ? columns : 1}
         showsHorizontalScrollIndicator={false}
-        scrollEnabled={columns <= 1 ? isScrollable : false}
-        // Snap: each step is exactly cardW + gapPx (the marginRight)
-        snapToInterval={columns <= 1 ? stepSize : undefined}
-        snapToAlignment={columns <= 1 ? "start" : undefined}
-        decelerationRate={columns <= 1 ? "fast" : "normal"}
-        disableIntervalMomentum={columns <= 1}
-        // getItemLayout makes scrollToIndex pixel-perfect
-        getItemLayout={columns <= 1 ? getItemLayout : undefined}
-        onMomentumScrollEnd={columns <= 1 ? onMomentumScrollEnd : undefined}
+        scrollEnabled={!isGrid ? isScrollable : false}
+        snapToInterval={!isGrid ? stepSize : undefined}
+        snapToAlignment={!isGrid ? "start" : undefined}
+        decelerationRate={!isGrid ? "fast" : "normal"}
+        disableIntervalMomentum={!isGrid}
+        getItemLayout={!isGrid ? getItemLayout : undefined}
+        onMomentumScrollEnd={!isGrid ? onMomentumScrollEnd : undefined}
         scrollEventThrottle={32}
-        columnWrapperStyle={columns > 1 ? { columnGap: hGap, marginBottom: vGap } : undefined}
-        contentContainerStyle={{ rowGap: columns > 1 ? vGap : 0 }}
+        columnWrapperStyle={isGrid ? { columnGap: hGap, marginBottom: vGap } : undefined}
+        contentContainerStyle={isGrid ? { rowGap: vGap } : undefined}
       />
 
-      {/* Dot indicators — tappable, animated width */}
-      {columns <= 1 && showIndicators && items.length > 1 && (
+      {/* Dot indicators — shown only in horizontal mode */}
+      {!isGrid && showIndicators && items.length > 1 && (
         <View style={styles.dotsRow}>
           {items.map((_, idx) => {
             const isActive = idx === activeIndex;
@@ -535,14 +564,8 @@ const styles = StyleSheet.create({
   card: {
     alignItems: "center",
   },
-  imageWrap: {
-    alignItems: "center",
-    justifyContent: "center",
-    overflow: "hidden",
-    backgroundColor: "#FFFFFF",
-  },
   cardTitle: {
-    marginTop: 4,
+    marginTop: 6,
     textAlign: "center",
     lineHeight: 16,
   },
