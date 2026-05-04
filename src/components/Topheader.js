@@ -345,7 +345,7 @@ export default function Header({ section, showBack, showNotification, onTitlePre
       title,
       link,
       activeIndex,
-      bottomNavSection,
+      bottomNavSection: null,
     };
     navigation.dispatch(StackActions.replace("BottomNavScreen", params));
   };

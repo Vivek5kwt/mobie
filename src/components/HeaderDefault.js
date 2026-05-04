@@ -105,7 +105,7 @@ export default function HeaderDefault({ config, bottomNavSection, hideTabs = fal
     const title = item?.label || item?.title || item?.name || (target === "cart" ? "Cart" : "Notifications");
     const rawLink = item?.link ?? item?.href ?? item?.url ?? "";
     const link = typeof rawLink === "string" ? rawLink.replace(/^\//, "") : "";
-    navigation.navigate("BottomNavScreen", { title, link, activeIndex: idx, bottomNavSection: navSection });
+    navigation.navigate("BottomNavScreen", { title, link, activeIndex: idx, bottomNavSection: null });
   };
 
   // ── Tab bar (shared between flat and array mode) ──────────────────────────
