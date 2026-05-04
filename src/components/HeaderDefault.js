@@ -163,6 +163,10 @@ export default function HeaderDefault({ config, bottomNavSection, hideTabs = fal
     const cartIconSizeRaw = Number(resolveVal(cartConfig.width) ?? resolveVal(cartConfig.iconSize));
     const cartIconSize = Number.isFinite(cartIconSizeRaw) && cartIconSizeRaw > 0 ? cartIconSizeRaw : 20;
     const cartIconColor = resolveVal(cartConfig.color) || iconColor;
+    const rightIconCount = [showWishlist, showBell, cartVisible].filter(Boolean).length;
+    const balancedSideWidth = rightIconCount > 0
+      ? (rightIconCount * 24) + ((rightIconCount - 1) * 16) + 8
+      : 40;
 
     // ── Title text styling (DSL-driven) ──────────────────────────────────────
     const cleanFontFamily = (family) => {
@@ -267,7 +271,7 @@ export default function HeaderDefault({ config, bottomNavSection, hideTabs = fal
           }}
         >
           {/* Left slot (reserved for spacing consistency) */}
-          <View style={{ width: 40, alignItems: "flex-start", justifyContent: "center" }} />
+          <View style={{ width: balancedSideWidth, alignItems: "flex-start", justifyContent: "center" }} />
 
           {/* Brand title — centered to keep balanced spacing */}
           <View style={{ flex: 1, alignItems: "center", justifyContent: "center", paddingHorizontal: 8 }}>
@@ -304,7 +308,7 @@ export default function HeaderDefault({ config, bottomNavSection, hideTabs = fal
           </View>
 
           {/* Right slot */}
-          <View style={{ minWidth: 40, flexDirection: "row", alignItems: "center", justifyContent: "flex-end", gap: 16 }}>
+          <View style={{ width: balancedSideWidth, flexDirection: "row", alignItems: "center", justifyContent: "flex-end", gap: 16 }}>
             {showWishlist && (
               <TouchableOpacity
                 activeOpacity={0.7}
