@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { Text, TouchableOpacity, View } from "react-native";
+import { Image, Text, TouchableOpacity, View } from "react-native";
 import { useNavigation } from "@react-navigation/native";
 import Icon from "react-native-vector-icons/FontAwesome6";
 import { useSelector } from "react-redux";
@@ -338,33 +338,50 @@ export default function HeaderDefault({ config, bottomNavSection, hideTabs = fal
   }
 
   // ── ARRAY MODE: render left / center / right item arrays ─────────────────
-  const renderItem = (item, idx) => {
-    if (!item) return null;
+  const renderItem = (rawItem, idx) => {
+    if (!rawItem) return null;
+    // Unwrap item itself in case it's DSL-wrapped
+    const item = resolveVal(rawItem) || rawItem;
+    if (!item || typeof item !== "object") return null;
 
-    const itemType        = String(item.type || "").toLowerCase();
-    const itemIconName    = normalizeIconName(item.icon || "");
-    const itemTitle       = item.title || item.text || "";
-    const itemIconSize    = item.iconSize ? Number(item.iconSize) : 18;
-    const itemIconColor   = item.iconColor || iconColor;
-    const itemTextColor   = item.textColor || textColor;
-    const itemFontSize    = item.textSize ? Number(item.textSize) : 13;
-    const itemFontWeight  = item.textBold ? "700" : item.textWeight ? String(item.textWeight) : "600";
-    const itemFontFamily  = item.textFontFamily || undefined;
-    const itemFontStyle   = item.textItalic ? "italic" : "normal";
+    const rv = (field) => resolveVal(field);
+
+    const itemType        = String(rv(item.type) || "").toLowerCase();
+    const itemIconName    = normalizeIconName(String(rv(item.icon) || ""));
+    const itemTitle       = String(rv(item.title) || rv(item.text) || "");
+    const _iconSz         = rv(item.iconSize);
+    const itemIconSize    = _iconSz != null ? Number(_iconSz) : 18;
+    const itemIconColor   = String(rv(item.iconColor) || iconColor);
+    const itemTextColor   = String(rv(item.textColor) || textColor);
+    const _txtSz          = rv(item.textSize);
+    const itemFontSize    = _txtSz != null ? Number(_txtSz) : 13;
+    const itemFontWeight  = rv(item.textBold) ? "700" : rv(item.textWeight) ? String(rv(item.textWeight)) : "600";
+    const itemFontFamily  = rv(item.textFontFamily) || undefined;
+    const itemFontStyle   = rv(item.textItalic) ? "italic" : "normal";
     let itemTextDecoration = "none";
-    if (item.textUnderline && item.textStrikethrough) itemTextDecoration = "underline line-through";
-    else if (item.textUnderline)                       itemTextDecoration = "underline";
-    else if (item.textStrikethrough)                   itemTextDecoration = "line-through";
+    if (rv(item.textUnderline) && rv(item.textStrikethrough)) itemTextDecoration = "underline line-through";
+    else if (rv(item.textUnderline))                           itemTextDecoration = "underline";
+    else if (rv(item.textStrikethrough))                       itemTextDecoration = "line-through";
 
-    // ── Per-item container box styling (bgColor, borderLine, borderRadius) ──
-    const itemBgColor      = item.bgColor || item.backgroundColor || "";
-    const itemBorderLine   = String(item.borderLine || item.border || "none").toLowerCase();
-    const itemBorderColor  = item.borderColor || item.borderColour || itemIconColor || "#000000";
-    const itemBorderWidth  = item.borderWidth != null ? Number(item.borderWidth) : 2;
-    const itemBorderRadius = item.borderRadius != null ? Number(item.borderRadius) : 0;
+    // ── Image type properties ─────────────────────────────────────────────
+    const itemImageUrl    = String(rv(item.imageUrl) || rv(item.image) || rv(item.src) || "");
+    const _imgW           = rv(item.imageWidth)  ?? rv(item.width);
+    const _imgH           = rv(item.imageHeight) ?? rv(item.height);
+    const _imgR           = rv(item.imageRadius) ?? rv(item.borderRadius);
+    const itemImageWidth  = _imgW  != null ? Number(_imgW)  : 32;
+    const itemImageHeight = _imgH  != null ? Number(_imgH)  : 32;
+    const itemImageRadius = _imgR  != null ? Number(_imgR)  : 0;
+
+    // ── Per-item container box styling ────────────────────────────────────
+    const itemBgColor      = String(rv(item.bgColor) || rv(item.backgroundColor) || "");
+    const itemBorderLine   = String(rv(item.borderLine) || rv(item.border) || "none").toLowerCase();
+    const itemBorderColor  = String(rv(item.borderColor) || rv(item.borderColour) || itemIconColor || "#000000");
+    const _bw              = rv(item.borderWidth);
+    const itemBorderWidth  = _bw != null ? Number(_bw) : 2;
+    const _br              = rv(item.borderRadius);
+    const itemBorderRadius = _br != null ? Number(_br) : 0;
     const hasItemBox       = !!itemBgColor || (itemBorderLine !== "none" && itemBorderLine !== "");
 
-    // Map borderLine → React Native border-side properties
     const itemBorderStyle = (() => {
       if (!itemBorderLine || itemBorderLine === "none") return {};
       if (itemBorderLine === "all" || itemBorderLine === "full") {
@@ -378,11 +395,13 @@ export default function HeaderDefault({ config, bottomNavSection, hideTabs = fal
       return sides;
     })();
 
+    const _pH = rv(item.paddingH);
+    const _pV = rv(item.paddingV);
     const itemBoxStyle = hasItemBox ? {
       backgroundColor: itemBgColor || "transparent",
       borderRadius: itemBorderRadius,
-      paddingHorizontal: item.paddingH != null ? Number(item.paddingH) : 8,
-      paddingVertical:   item.paddingV != null ? Number(item.paddingV) : 4,
+      paddingHorizontal: _pH != null ? Number(_pH) : 8,
+      paddingVertical:   _pV != null ? Number(_pV) : 4,
       ...itemBorderStyle,
     } : {};
 
@@ -394,9 +413,10 @@ export default function HeaderDefault({ config, bottomNavSection, hideTabs = fal
     const isInteractive = isCart || isBell || isWishlist;
 
     const showIcon  = !!itemIconName;
-    const showTitle = itemType !== "icon" && !!itemTitle;
+    const showImage = itemType === "image" && !!itemImageUrl;
+    const showTitle = !showImage && itemType !== "icon" && !!itemTitle;
 
-    if (!showIcon && !showTitle) return null;
+    if (!showIcon && !showTitle && !showImage) return null;
 
     const iconNode = showIcon ? (
       <View key="icon" style={{ position: "relative" }}>
@@ -424,6 +444,15 @@ export default function HeaderDefault({ config, bottomNavSection, hideTabs = fal
       </View>
     ) : null;
 
+    const imageNode = showImage ? (
+      <Image
+        key="image"
+        source={{ uri: itemImageUrl }}
+        style={{ width: itemImageWidth, height: itemImageHeight, borderRadius: itemImageRadius }}
+        resizeMode="cover"
+      />
+    ) : null;
+
     const textNode = showTitle ? (
       <Text
         key="text"
@@ -442,6 +471,7 @@ export default function HeaderDefault({ config, bottomNavSection, hideTabs = fal
 
     const inner = (
       <View style={[{ flexDirection: "row", alignItems: "center", gap: 4 }, itemBoxStyle]}>
+        {imageNode}
         {iconNode}
         {textNode}
       </View>

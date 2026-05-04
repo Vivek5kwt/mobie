@@ -526,8 +526,15 @@ class Countdown extends PureComponent {
     const timerValueColor = unwrapValue(timerAttributes?.valueColor ?? rawProps?.timerValueColor, "#111111");
     const timerHeight = asNumber(timerAttributes?.height ?? rawProps?.timerHeight, timerStyle.height);
     const timerBackgroundColor = unwrapValue(
-      timerAttributes?.bgColor ?? rawProps?.timerBgColor,
-      timerStyle.backgroundColor || "#FFFFFF"
+      timerAttributes?.bgColor ??
+      timerAttributes?.backgroundColor ??
+      timerAttributes?.boxBgColor ??
+      timerAttributes?.boxColor ??
+      rawProps?.timerBgColor ??
+      rawProps?.timerBoxBgColor ??
+      rawProps?.timerBackgroundColor ??
+      rawProps?.boxBgColor,
+      timerStyle.backgroundColor || "transparent"
     );
     const timerBorderColor = unwrapValue(
       timerAttributes?.borderColor ?? rawProps?.timerBorderColor,
@@ -601,11 +608,31 @@ class Countdown extends PureComponent {
     const renderTimerValue = (value) => String(value ?? "00").padStart(2, "0");
     const resolvedCountdown = countdown || { days: 0, hours: 0, minutes: 0, seconds: 0 };
 
+    const toLabel = (val, fallback) =>
+      String(unwrapValue(val, fallback) || fallback).trim() || fallback;
+
+    const timerDayLabel = toLabel(
+      timerAttributes?.dayLabel ?? timerAttributes?.daysLabel ?? rawProps?.dayLabel ?? rawProps?.timerDayLabel,
+      "DAY"
+    );
+    const timerHrsLabel = toLabel(
+      timerAttributes?.hoursLabel ?? timerAttributes?.hrsLabel ?? timerAttributes?.hrLabel ?? rawProps?.hrsLabel ?? rawProps?.timerHrsLabel,
+      "HRS"
+    );
+    const timerMinLabel = toLabel(
+      timerAttributes?.minutesLabel ?? timerAttributes?.minLabel ?? rawProps?.minLabel ?? rawProps?.timerMinLabel,
+      "MIN"
+    );
+    const timerSecLabel = toLabel(
+      timerAttributes?.secondsLabel ?? timerAttributes?.secLabel ?? rawProps?.secLabel ?? rawProps?.timerSecLabel,
+      "SEC"
+    );
+
     const timerUnits = [
-      { key: "days", label: "DAY" },
-      { key: "hours", label: "HRS" },
-      { key: "minutes", label: "MIN" },
-      { key: "seconds", label: "SEC" },
+      { key: "days",    label: timerDayLabel },
+      { key: "hours",   label: timerHrsLabel },
+      { key: "minutes", label: timerMinLabel },
+      { key: "seconds", label: timerSecLabel },
     ];
 
     // ── Inner content (header, timer, subtext, button) ────────────────────────
@@ -864,9 +891,6 @@ const styles = StyleSheet.create({
     minHeight: 56,
     paddingVertical: 8,
     paddingHorizontal: 4,
-    backgroundColor: "#FFFFFF",
-    borderWidth: 1,
-    borderColor: "#E5E7EB",
     alignItems: "center",
     justifyContent: "center",
   },

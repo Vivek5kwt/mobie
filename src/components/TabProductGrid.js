@@ -23,6 +23,7 @@ import { resolveFA4IconName } from "../utils/faIconAlias";
 import { resolveTextDecorationLine } from "../utils/textDecoration";
 import { useAuth } from "../services/AuthContext";
 import { requireLoginForAction } from "../utils/authGate";
+import Snackbar from "./Snackbar";
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -185,6 +186,8 @@ export default function TabProductGrid({ section }) {
   const [activeTabId, setActiveTabId] = useState(initialTabId);
   const [productsByTab, setProductsByTab] = useState({});
   const [loadingTabId, setLoadingTabId] = useState(null);
+  const [snackVisible, setSnackVisible] = useState(false);
+  const [snackMessage, setSnackMessage] = useState("");
   const wishlistIds = useMemo(
     () =>
       new Set(
@@ -451,9 +454,11 @@ export default function TabProductGrid({ section }) {
         },
       })
     );
+    setSnackMessage("Product added to cart successfully.");
+    setSnackVisible(true);
   }, [dispatch, navigation, session]);
 
-  const handleToggleFavorite = useCallback(async (product) => {
+  const handleToggleFavorite = useCallback(async (product, currentlyFav) => {
     const blocked = await requireLoginForAction({ session, navigation });
     if (blocked) return;
     const productId = String(
@@ -475,6 +480,12 @@ export default function TabProductGrid({ section }) {
         },
       })
     );
+    setSnackMessage(
+      currentlyFav
+        ? "Product removed from wishlist successfully."
+        : "Product added to wishlist successfully."
+    );
+    setSnackVisible(true);
   }, [dispatch, navigation, session]);
 
   // ── Render ─────────────────────────────────────────────────────────────────
@@ -687,7 +698,8 @@ export default function TabProductGrid({ section }) {
                     <TouchableOpacity
                       style={[styles.favBtn, { backgroundColor: favoriteBadgeBgColor }]}
                       activeOpacity={0.8}
-                      onPress={() => handleToggleFavorite(product)}
+                      onPress={(e) => { e?.stopPropagation?.(); handleToggleFavorite(product, isFav); }}
+                      onPressIn={(e) => e?.stopPropagation?.()}
                       hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
                       accessibilityRole="button"
                       accessibilityLabel={isFav ? "Remove from wishlist" : "Add to wishlist"}
@@ -806,7 +818,8 @@ export default function TabProductGrid({ section }) {
                             { backgroundColor: favoriteBadgeBgColor },
                           ]}
                           activeOpacity={0.8}
-                          onPress={() => handleToggleFavorite(product)}
+                          onPress={(e) => { e?.stopPropagation?.(); handleToggleFavorite(product, isFav); }}
+                          onPressIn={(e) => e?.stopPropagation?.()}
                           hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
                           accessibilityRole="button"
                           accessibilityLabel={isFav ? "Remove from wishlist" : "Add to wishlist"}
@@ -877,6 +890,14 @@ export default function TabProductGrid({ section }) {
           ))}
         </View>
       )}
+
+      <Snackbar
+        visible={snackVisible}
+        message={snackMessage}
+        onDismiss={() => setSnackVisible(false)}
+        duration={2500}
+        type="success"
+      />
     </View>
   );
 }

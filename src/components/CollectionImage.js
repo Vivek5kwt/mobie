@@ -1,6 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
-  Animated,
   Dimensions,
   FlatList,
   Image,
@@ -236,7 +235,6 @@ export default function CollectionImage({ section }) {
   // ── Behavior ─────────────────────────────────────────────────────────────────
   // behavior props use "default" keys in the DSL schema — unwrapValue now handles this
   const autoScrollEnabled = asBoolean(behavior?.autoScroll ?? layoutCss?.slider?.autoScroll, true);
-  const showIndicators    = asBoolean(behavior?.showIndicators ?? layoutCss?.slider?.showIndicators, true);
   const scrollSpeedSec    = Math.max(asNumber(behavior?.scrollSpeed ?? layoutCss?.slider?.speedSec, 3), 1);
   const showArrows        = asBoolean(behavior?.showArrows ?? layoutCss?.slider?.showArrows, false);
 
@@ -267,42 +265,19 @@ export default function CollectionImage({ section }) {
   const cardW    = Math.max(40, Math.min(rawCardW, availableW));
   const stepSize = cardW + hGap;
 
-  // ── Dots ─────────────────────────────────────────────────────────────────────
-  const dotActiveBg   = asString(unwrapValue(behavior?.dotActiveColor   ?? sliderCfg?.dotActiveColor,   "#016D77"));
-  const dotInactiveBg = asString(unwrapValue(behavior?.dotInactiveColor ?? sliderCfg?.dotInactiveColor, "#C4C4C4"));
-  const dotActiveW    = asNumber(behavior?.dotActiveWidth  ?? sliderCfg?.dotActiveWidth,  20);
-  const dotInactiveW  = asNumber(behavior?.dotInactiveWidth ?? sliderCfg?.dotInactiveWidth, 8);
-  const dotH          = asNumber(behavior?.dotHeight ?? sliderCfg?.dotHeight, 8);
-
   // ── State ────────────────────────────────────────────────────────────────────
-  const listRef        = useRef(null);
-  const indexRef       = useRef(0);
-  const autoScrollRef  = useRef(false);
-  const [activeIndex, setActiveIndex] = useState(0);
-  const dotAnims = useRef([]);
+  const listRef       = useRef(null);
+  const indexRef      = useRef(0);
+  const autoScrollRef = useRef(false);
 
   useEffect(() => {
-    dotAnims.current = items.map(
-      (_, i) => new Animated.Value(i === 0 ? dotActiveW : dotInactiveW)
-    );
     indexRef.current = 0;
-    setActiveIndex(0);
     listRef.current?.scrollToOffset({ offset: 0, animated: false });
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [items.length, dotActiveW, dotInactiveW]);
+  }, [items.length]);
 
-  const animateDots = useCallback((newIndex) => {
-    dotAnims.current.forEach((anim, i) => {
-      Animated.spring(anim, {
-        toValue: i === newIndex ? dotActiveW : dotInactiveW,
-        useNativeDriver: false,
-        speed: 30,
-        bounciness: 0,
-      }).start();
-    });
+  const updateIndex = useCallback((newIndex) => {
     indexRef.current = newIndex;
-    setActiveIndex(newIndex);
-  }, [dotActiveW, dotInactiveW]);
+  }, []);
 
   // ── Auto-scroll ───────────────────────────────────────────────────────────────
   useEffect(() => {
@@ -311,11 +286,11 @@ export default function CollectionImage({ section }) {
       const next = (indexRef.current + 1) % items.length;
       autoScrollRef.current = true;
       listRef.current?.scrollToIndex({ index: next, animated: true });
-      animateDots(next);
+      updateIndex(next);
       setTimeout(() => { autoScrollRef.current = false; }, 500);
     }, scrollSpeedSec * 1000);
     return () => clearInterval(timer);
-  }, [isGrid, autoScrollEnabled, items.length, scrollSpeedSec, animateDots]);
+  }, [isGrid, autoScrollEnabled, items.length, scrollSpeedSec, updateIndex]);
 
   // ── Shopify fallback ──────────────────────────────────────────────────────────
   useEffect(() => {
@@ -347,13 +322,8 @@ export default function CollectionImage({ section }) {
     if (autoScrollRef.current) return;
     const x = e?.nativeEvent?.contentOffset?.x ?? 0;
     const newIndex = Math.min(Math.max(Math.round(x / stepSize), 0), items.length - 1);
-    if (newIndex !== indexRef.current) animateDots(newIndex);
-  }, [stepSize, items.length, animateDots]);
-
-  const onDotPress = useCallback((idx) => {
-    listRef.current?.scrollToIndex({ index: idx, animated: true });
-    animateDots(idx);
-  }, [animateDots]);
+    if (newIndex !== indexRef.current) updateIndex(newIndex);
+  }, [stepSize, items.length, updateIndex]);
 
   const onItemPress = useCallback((item) => {
     const handle = deriveHandle(item);
@@ -520,33 +490,6 @@ export default function CollectionImage({ section }) {
         contentContainerStyle={isGrid ? { rowGap: vGap } : undefined}
       />
 
-      {/* Dot indicators — shown only in horizontal mode */}
-      {!isGrid && showIndicators && items.length > 1 && (
-        <View style={styles.dotsRow}>
-          {items.map((_, idx) => {
-            const isActive = idx === activeIndex;
-            const animW = dotAnims.current[idx];
-            return (
-              <TouchableOpacity
-                key={`dot-${idx}`}
-                onPress={() => onDotPress(idx)}
-                hitSlop={{ top: 8, bottom: 8, left: 6, right: 6 }}
-                activeOpacity={0.7}
-              >
-                <Animated.View
-                  style={{
-                    width: animW ?? (isActive ? dotActiveW : dotInactiveW),
-                    height: dotH,
-                    borderRadius: dotH / 2,
-                    backgroundColor: isActive ? dotActiveBg : dotInactiveBg,
-                    marginHorizontal: 3,
-                  }}
-                />
-              </TouchableOpacity>
-            );
-          })}
-        </View>
-      )}
     </View>
   );
 }
@@ -568,12 +511,5 @@ const styles = StyleSheet.create({
     marginTop: 6,
     textAlign: "center",
     lineHeight: 16,
-  },
-  dotsRow: {
-    flexDirection: "row",
-    justifyContent: "center",
-    alignItems: "center",
-    marginTop: 10,
-    paddingBottom: 4,
   },
 });

@@ -1,5 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
+  Alert,
+  Image,
   RefreshControl,
   ScrollView,
   StyleSheet,
@@ -30,7 +32,7 @@ const SIGNIN_SLUGS = new Set(["signin", "sign-in", "login", "log-in", "auth"]);
 export default function BottomNavScreen() {
   const route = useRoute();
   const navigation = useNavigation();
-  const { session } = useAuth();
+  const { session, logout } = useAuth();
   const title = route?.params?.title || "Page";
   const link = route?.params?.link || "";
   const pageName = route?.params?.pageName || link || title;
@@ -727,6 +729,21 @@ export default function BottomNavScreen() {
                   <DynamicRenderer section={section} />
                 </View>
               ))
+            ) : isProfilePage && !loading ? (
+              session ? (
+                <FallbackProfile session={session} logout={logout} navigation={navigation} />
+              ) : (
+                <View style={styles.loginPromptBox}>
+                  <Text style={styles.loginPromptTitle}>Sign in to your account</Text>
+                  <Text style={styles.loginPromptSub}>View your orders, wishlist, and profile details.</Text>
+                  <TouchableOpacity
+                    style={styles.loginPromptBtn}
+                    onPress={() => navigation.navigate("Auth")}
+                  >
+                    <Text style={styles.loginPromptBtnText}>Login / Sign Up</Text>
+                  </TouchableOpacity>
+                </View>
+              )
             ) : (
               <View style={styles.content}>
                 <Text style={styles.subtitleText}>No content available yet.</Text>

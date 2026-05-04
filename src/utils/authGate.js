@@ -31,17 +31,14 @@ export const hasSigninDsl = async () => {
 
 export const requireLoginForAction = async ({ session, navigation, postLoginTarget }) => {
   if (session) return false;
-  const canOpenLogin = await hasSigninDsl();
-  if (canOpenLogin) {
-    try {
-      const authParams = { initialMode: "login", requireAuth: true };
-      if (postLoginTarget?.name) {
-        authParams.postLoginTarget = postLoginTarget;
-      }
-      navigation?.navigate?.("Auth", authParams);
-    } catch (_) {
-      // no-op
+  try {
+    const authParams = { initialMode: "login", requireAuth: true };
+    if (postLoginTarget?.name) {
+      authParams.postLoginTarget = postLoginTarget;
     }
+    navigation?.navigate?.("Auth", authParams);
+  } catch (_) {
+    // no-op
   }
   return true;
 };
