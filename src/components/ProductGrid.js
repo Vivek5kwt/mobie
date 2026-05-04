@@ -700,39 +700,43 @@ export default function ProductGrid({ section, limit = 8, title = "Products" }) 
                 </TouchableOpacity>
               )}
               {resolvedShowGridTitle && (
-                <Text
-                  style={[
-                    styles.heading,
-                    {
-                      textAlign:  "right",
-                      fontSize:   resolvedTitleFontSize,
-                      color:      resolvedTitleColor,
-                      fontWeight: resolvedTitleWeight,
-                      ...(resolvedTitleFontFamily ? { fontFamily: resolvedTitleFontFamily } : null),
-                    },
-                  ]}
-                >
-                  {resolvedTitle}
-                </Text>
+                <View style={styles.headingWrapper}>
+                  <Text
+                    style={[
+                      styles.heading,
+                      {
+                        textAlign:  resolvedTitleAlign,
+                        fontSize:   resolvedTitleFontSize,
+                        color:      resolvedTitleColor,
+                        fontWeight: resolvedTitleWeight,
+                        ...(resolvedTitleFontFamily ? { fontFamily: resolvedTitleFontFamily } : null),
+                      },
+                    ]}
+                  >
+                    {resolvedTitle}
+                  </Text>
+                </View>
               )}
             </>
           ) : (
             <>
           {resolvedShowGridTitle && (
-            <Text
-              style={[
-                styles.heading,
-                {
-                  textAlign:  resolvedTitleAlign,
-                  fontSize:   resolvedTitleFontSize,
-                  color:      resolvedTitleColor,
-                  fontWeight: resolvedTitleWeight,
-                  ...(resolvedTitleFontFamily ? { fontFamily: resolvedTitleFontFamily } : null),
-                },
-              ]}
-            >
-              {resolvedTitle}
-            </Text>
+            <View style={styles.headingWrapper}>
+              <Text
+                style={[
+                  styles.heading,
+                  {
+                    textAlign:  resolvedTitleAlign,
+                    fontSize:   resolvedTitleFontSize,
+                    color:      resolvedTitleColor,
+                    fontWeight: resolvedTitleWeight,
+                    ...(resolvedTitleFontFamily ? { fontFamily: resolvedTitleFontFamily } : null),
+                  },
+                ]}
+              >
+                {resolvedTitle}
+              </Text>
+            </View>
           )}
 
           {resolvedViewAllActive && hasMore && (
@@ -1112,11 +1116,13 @@ const styles = StyleSheet.create({
     alignItems:     "center",
     justifyContent: "space-between",
   },
+  headingWrapper: {
+    flex: 1,
+  },
   heading: {
     fontSize:   18,
     fontWeight: "700",
     color:      "#111827",
-    flex:       1,
   },
   grid: {
     flexDirection: "row",

@@ -566,23 +566,24 @@ export default function ProductCarousel({ section }) {
       ...(headerFamily ? { fontFamily: headerFamily } : {}),
     };
 
-    const headerContent = (
-      <Text style={[styles.headerText, headerStyle]}>{headerText}</Text>
-    );
-
     if (headerLinkHref) {
       const screen = resolveScreenName(headerLinkHref) || "AllProducts";
       return (
         <TouchableOpacity
+          style={styles.headerTextWrapper}
           activeOpacity={0.7}
           onPress={() => navigation.navigate(screen, { title: headerText })}
         >
-          {headerContent}
+          <Text style={[styles.headerText, headerStyle]}>{headerText}</Text>
         </TouchableOpacity>
       );
     }
 
-    return headerContent;
+    return (
+      <View style={styles.headerTextWrapper}>
+        <Text style={[styles.headerText, headerStyle]}>{headerText}</Text>
+      </View>
+    );
   };
 
   const renderViewAll = () => {
@@ -987,9 +988,10 @@ const styles = StyleSheet.create({
     marginBottom: 16,
     paddingHorizontal: 8,
   },
-  headerText: {
+  headerTextWrapper: {
     flex: 1,
   },
+  headerText: {},
   viewAllContainer: {
     flexDirection: "row",
     alignItems: "center",
