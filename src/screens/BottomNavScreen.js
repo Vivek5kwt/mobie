@@ -29,6 +29,112 @@ import { fetchNotifications } from "../services/notificationFetchService";
 // Slugs that should redirect to the Auth screen instead of rendering empty DSL content
 const SIGNIN_SLUGS = new Set(["signin", "sign-in", "login", "log-in", "auth"]);
 
+// ── Default profile menu items shown when DSL has no account_menu sections ───
+const DEFAULT_PROFILE_MENU = [
+  { id: "orders",   label: "My Orders",   icon: "📦", link: "orders" },
+  { id: "wishlist", label: "Wishlist",     icon: "🤍", link: "wishlist" },
+  { id: "settings", label: "Settings",    icon: "⚙️", link: "settings" },
+];
+
+function FallbackProfile({ session, logout, navigation }) {
+  const user = session?.user || {};
+  const name  = String(user.name  || user.email || "").trim();
+  const email = String(user.email || "").trim();
+  const avatarUrl = user.avatarUrl || user.avatar || "";
+  const initial = name ? name[0].toUpperCase() : "?";
+
+  const handleLogout = () => {
+    Alert.alert(
+      "Log Out",
+      "Are you sure you want to log out?",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Log Out",
+          style: "destructive",
+          onPress: async () => {
+            await logout();
+            navigation.reset({ index: 0, routes: [{ name: "Auth" }] });
+          },
+        },
+      ],
+      { cancelable: true }
+    );
+  };
+
+  const handleMenuPress = (item) => {
+    if (item.link === "wishlist") {
+      navigation.navigate("Wishlist");
+      return;
+    }
+    if (item.link === "settings") {
+      navigation.navigate("Settings");
+      return;
+    }
+    if (item.link === "orders") {
+      // Update the current BottomNavScreen in-place so the same nav bar is preserved.
+      navigation.setParams({ pageName: "orders", title: "My Orders", link: "orders" });
+      return;
+    }
+  };
+
+  return (
+    <View>
+      {/* Profile card */}
+      <View style={styles.profileCard}>
+        <View style={styles.profileAvatar}>
+          {avatarUrl ? (
+            <Image
+              source={{ uri: avatarUrl }}
+              style={styles.profileAvatarImage}
+              resizeMode="cover"
+            />
+          ) : (
+            <Text style={styles.profileAvatarInitial}>{initial}</Text>
+          )}
+        </View>
+        <View style={styles.profileInfo}>
+          {!!name && <Text style={styles.profileName} numberOfLines={1}>{name}</Text>}
+          {!!email && <Text style={styles.profileEmail} numberOfLines={1}>{email}</Text>}
+        </View>
+      </View>
+
+      {/* Menu items */}
+      <View style={styles.profileMenuContainer}>
+        {DEFAULT_PROFILE_MENU.map((item, idx) => (
+          <TouchableOpacity
+            key={item.id}
+            style={[
+              styles.profileMenuItem,
+              idx === DEFAULT_PROFILE_MENU.length - 1 && styles.profileMenuItemLast,
+            ]}
+            onPress={() => handleMenuPress(item)}
+            activeOpacity={0.7}
+          >
+            <View style={styles.profileMenuIcon}>
+              <Text style={{ fontSize: 16 }}>{item.icon}</Text>
+            </View>
+            <Text style={styles.profileMenuLabel}>{item.label}</Text>
+            <Text style={styles.profileMenuChevron}>›</Text>
+          </TouchableOpacity>
+        ))}
+
+        {/* Logout */}
+        <TouchableOpacity
+          style={[styles.profileMenuItem, styles.profileMenuItemLast]}
+          onPress={handleLogout}
+          activeOpacity={0.7}
+        >
+          <View style={[styles.profileMenuIcon, { backgroundColor: "#FEF2F2" }]}>
+            <Text style={{ fontSize: 16 }}>🚪</Text>
+          </View>
+          <Text style={styles.profileMenuLabelLogout}>Log Out</Text>
+        </TouchableOpacity>
+      </View>
+    </View>
+  );
+}
+
 export default function BottomNavScreen() {
   const route = useRoute();
   const navigation = useNavigation();
@@ -114,50 +220,46 @@ export default function BottomNavScreen() {
     try {
       let incomingBottomNav = null;
 
-      // Always check the current page's own DSL first
-      const currentPageDslData = await fetchDSL(appId, pageName);
-      if (currentPageDslData?.dsl) {
-        incomingBottomNav = (currentPageDslData.dsl.sections || []).find(
-          (section) => {
-            const component = getComponentName(section).toLowerCase();
-            return [
-              "bottom_navigation",
-              "bottom_navigation_style_1",
-              "bottom_navigation_style_2",
-            ].includes(component);
-          }
-        );
-      }
+      const NAV_COMPONENTS = [
+        "bottom_navigation",
+        "bottom_navigation_style_1",
+        "bottom_navigation_style_2",
+      ];
 
-      // Only fall back to home DSL when this screen was explicitly opened via a bottom nav
-      // tab (hasInitialBottomNav = true). When opened from a header icon the route param
-      // bottomNavSection is null — in that case we must NOT inherit the home nav, otherwise
-      // a bottom bar flashes on pages (e.g. cart) that have no nav of their own.
-      if (!incomingBottomNav && hasInitialBottomNav) {
+      const findNav = (dsl) =>
+        (dsl?.sections || []).find((s) =>
+          NAV_COMPONENTS.includes(getComponentName(s).toLowerCase())
+        ) || null;
+
+      if (hasInitialBottomNav) {
+        // Screen was opened via a bottom-nav tab — home DSL is the canonical nav source.
+        // Never let the current page's own DSL override the home-page nav bar, because
+        // inner pages (e.g. orders, profile) may carry a different bottom_navigation
+        // section that would cause the tab bar to visually change between tabs.
         const homeDslData = await fetchDSL(appId, "home");
         if (homeDslData?.dsl) {
-          incomingBottomNav = (homeDslData.dsl.sections || []).find(
-            (section) => {
-              const component = getComponentName(section).toLowerCase();
-              return [
-                "bottom_navigation",
-                "bottom_navigation_style_1",
-                "bottom_navigation_style_2",
-              ].includes(component);
-            }
-          );
+          incomingBottomNav = findNav(homeDslData.dsl);
+        }
+      }
+
+      // Fall back to the current page's DSL only when there is no home-sourced nav
+      // (i.e. screen was opened standalone from a header icon, not via a tab tap).
+      if (!incomingBottomNav) {
+        const currentPageDslData = await fetchDSL(appId, pageName);
+        if (currentPageDslData?.dsl) {
+          incomingBottomNav = findNav(currentPageDslData.dsl);
         }
       }
 
       if (incomingBottomNav) {
-        // DSL has a bottom nav — update state if it changed
+        // DSL has a bottom nav — update state only if it actually changed
         if (!bottomNavSectionRef.current || !deepEqual(incomingBottomNav, bottomNavSectionRef.current)) {
           bottomNavSectionRef.current = incomingBottomNav;
           setBottomNavSection(incomingBottomNav);
           console.log("🔄 Bottom navigation updated dynamically on", pageName, "page");
         }
       } else {
-        // DSL has NO bottom nav — explicitly clear so no nav is shown anywhere
+        // DSL has NO bottom nav — explicitly clear so no nav is shown
         if (bottomNavSectionRef.current !== null) {
           bottomNavSectionRef.current = null;
           setBottomNavSection(null);
@@ -891,5 +993,133 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 2 },
     shadowRadius: 8,
     elevation: 5,
+  },
+  // ── Fallback profile styles ────────────────────────────────────────────────
+  profileCard: {
+    backgroundColor: "#FFFFFF",
+    borderRadius: 12,
+    marginHorizontal: 16,
+    marginTop: 16,
+    padding: 20,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 16,
+    shadowColor: "#000",
+    shadowOpacity: 0.06,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 2 },
+    elevation: 2,
+  },
+  profileAvatar: {
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    backgroundColor: "#D9F0F2",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  profileAvatarInitial: {
+    fontSize: 24,
+    fontWeight: "700",
+    color: "#016D77",
+  },
+  profileAvatarImage: {
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+  },
+  profileInfo: {
+    flex: 1,
+  },
+  profileName: {
+    fontSize: 17,
+    fontWeight: "700",
+    color: "#111827",
+    marginBottom: 2,
+  },
+  profileEmail: {
+    fontSize: 13,
+    color: "#6B7280",
+  },
+  profileMenuContainer: {
+    backgroundColor: "#FFFFFF",
+    borderRadius: 12,
+    marginHorizontal: 16,
+    marginTop: 12,
+    overflow: "hidden",
+    shadowColor: "#000",
+    shadowOpacity: 0.04,
+    shadowRadius: 6,
+    shadowOffset: { width: 0, height: 1 },
+    elevation: 1,
+  },
+  profileMenuItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    gap: 14,
+    borderBottomWidth: 1,
+    borderBottomColor: "#F3F4F6",
+  },
+  profileMenuItemLast: {
+    borderBottomWidth: 0,
+  },
+  profileMenuIcon: {
+    width: 32,
+    height: 32,
+    borderRadius: 8,
+    backgroundColor: "#F0FDFD",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  profileMenuLabel: {
+    flex: 1,
+    fontSize: 15,
+    fontWeight: "500",
+    color: "#111827",
+  },
+  profileMenuLabelLogout: {
+    flex: 1,
+    fontSize: 15,
+    fontWeight: "500",
+    color: "#EF4444",
+  },
+  profileMenuChevron: {
+    color: "#9CA3AF",
+    fontSize: 14,
+  },
+  loginPromptBox: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 32,
+    paddingBottom: 80,
+    paddingTop: 40,
+  },
+  loginPromptTitle: {
+    fontSize: 20,
+    fontWeight: "700",
+    color: "#111827",
+    textAlign: "center",
+    marginBottom: 8,
+  },
+  loginPromptSub: {
+    fontSize: 14,
+    color: "#6B7280",
+    textAlign: "center",
+    marginBottom: 28,
+    lineHeight: 20,
+  },
+  loginPromptBtn: {
+    backgroundColor: "#016D77",
+    borderRadius: 10,
+    paddingHorizontal: 32,
+    paddingVertical: 14,
+  },
+  loginPromptBtnText: {
+    color: "#FFFFFF",
+    fontSize: 16,
+    fontWeight: "700",
   },
 });

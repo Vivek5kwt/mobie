@@ -429,11 +429,6 @@ export default function SearchBar({ section }) {
             )}
           </View>
         )}
-        {showClear && value.length > 0 && !isListening && (
-          <TouchableOpacity onPress={() => setValue("")} style={styles.iconButton}>
-            <FontAwesome name="times" size={clearIconSize} color={clearIconColor} />
-          </TouchableOpacity>
-        )}
         {showVoice && (
           <TouchableOpacity
             style={[styles.iconButton, isListening && styles.voiceActive]}
@@ -445,6 +440,11 @@ export default function SearchBar({ section }) {
             ) : (
               <FontAwesome name="microphone" size={voiceIconSize} color={voiceIconColor} />
             )}
+          </TouchableOpacity>
+        )}
+        {showClear && value.length > 0 && !isListening && (
+          <TouchableOpacity onPress={() => setValue("")} style={styles.iconButton}>
+            <FontAwesome name="times" size={clearIconSize} color={clearIconColor} />
           </TouchableOpacity>
         )}
       </View>

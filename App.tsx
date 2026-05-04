@@ -103,7 +103,33 @@ export default function App() {
     [navigationRef],
   );
 
-  // ── FCM setup: permission → token capture → all message listeners ─────────
+  // ── Request notification permission on first app open ────────────────────
+  // Runs immediately on mount, independent of Firebase availability.
+  // Without this, permission is never shown when Firebase fails to load.
+  useEffect(() => {
+    const askNotifPermission = async () => {
+      try {
+        if (Platform.OS === 'android') {
+          if (Platform.Version >= 33) {
+            const result = await PermissionsAndroid.request(
+              PermissionsAndroid.PERMISSIONS.POST_NOTIFICATIONS,
+            );
+            console.log('Android notification permission:', result);
+          }
+          // Android < 13: notifications are auto-granted at install time
+        } else if (Platform.OS === 'ios') {
+          if (messaging) {
+            await messaging().requestPermission();
+          }
+        }
+      } catch (err: any) {
+        console.log('Notification permission request failed:', err?.message);
+      }
+    };
+    askNotifPermission();
+  }, []); // empty deps — run exactly once when the app opens
+
+  // ── FCM setup: token capture + all message listeners ─────────────────────
   useEffect(() => {
     const setupFCM = async () => {
       try {
@@ -112,14 +138,14 @@ export default function App() {
           return;
         }
 
-        // 1. Request Android runtime notification permission on Android 13+
+        // Ensure Android 13+ permission is granted before proceeding
         const androidGranted = await requestAndroidNotificationPermission();
         if (!androidGranted) {
           console.log('FCM permission denied by user on Android');
           return;
         }
 
-        // 2. Request notification permission (required on iOS)
+        // iOS: check current authorization status
         const authStatus = await messaging().requestPermission();
         const granted =
           authStatus === messaging.AuthorizationStatus?.AUTHORIZED ||

@@ -387,10 +387,17 @@ export default function TabProductGrid({ section }) {
   const cardTextColor = toStr(rawConfig?.titleColor ?? rawConfig?.cardTitleColor ?? rawConfig?.headlineColor ?? layoutCardTitleCss?.color, containerDark ? "#FFFFFF" : "#111111");
   const priceColor    = toStr(rawConfig?.priceColor ?? rawConfig?.cardPriceColor ?? rawConfig?.subtextColor ?? layoutCardPriceCss?.color, containerDark ? "#E5E7EB" : "#374151");
 
-  // Carousel mode detection
+  // Carousel mode detection — unwrap DSL { const: "..." } envelope before stringifying
   const sectionComponent = String(
-    section?.type || section?.component || section?.componentType || section?.sectionType || ""
-  ).toLowerCase();
+    section?.component?.const ||
+    section?.component ||
+    section?.properties?.component?.const ||
+    section?.properties?.component ||
+    section?.type ||
+    section?.componentType ||
+    section?.sectionType ||
+    ""
+  ).toLowerCase().replace(/[\s-]+/g, "_");
   const isCarouselMode = sectionComponent.includes("carousel");
 
   // Carousel CSS values

@@ -526,12 +526,14 @@ class Countdown extends PureComponent {
       timerAttributes?.labelColor ??
       timerAttributes?.textColor ??
       timerAttributes?.color ??
+      subtextAttributes?.color ??
       rawProps?.timerLabelColor ??
       rawProps?.timerTextColor ??
       rawProps?.timerColor ??
       layoutCss?.timer?.labelColor ??
       layoutCss?.timer?.textColor ??
-      layoutCss?.timer?.color,
+      layoutCss?.timer?.color ??
+      layoutCss?.subtext?.color,
       "#6B7280"
     );
     const timerValueColor = unwrapValue(
@@ -550,6 +552,7 @@ class Countdown extends PureComponent {
       timerAttributes?.backgroundColor ??
       timerAttributes?.boxBgColor ??
       timerAttributes?.boxColor ??
+      subtextAttributes?.bgColor ??
       rawProps?.timerBgColor ??
       rawProps?.timerBoxBgColor ??
       rawProps?.timerBackgroundColor ??
