@@ -155,6 +155,10 @@ export default function RecentProducts({ section }) {
   const gridCss  = unwrap(css?.grid, {});
   const gridGap  = parsePx(raw?.gap ?? gridCss?.gap, 8);
 
+  // ── Card width (needed before imageHeight so we can use it as the default) ─
+  const screenWidth = Dimensions.get("window").width;
+  const cardWidth   = Math.max(0, (screenWidth - containerPL - containerPR - gridGap * (columns - 1)) / columns);
+
   // ── Card ──────────────────────────────────────────────────────────────────
   const cardCss    = unwrap(css?.card, {});
   const cardBg     = str(cardCss?.background ?? cardCss?.backgroundColor, "#FFFFFF");
@@ -166,16 +170,17 @@ export default function RecentProducts({ section }) {
   // ── Image ─────────────────────────────────────────────────────────────────
   const imageWrapCss  = unwrap(css?.imageWrap, {});
   const imageCss      = unwrap(css?.image, {});
-  const imageHeight   = parsePx(raw?.imageHeight ?? imageWrapCss?.height, 140);
-  const imageBgColor  = str(raw?.imageBgColor ?? raw?.imageBackgroundColor ?? imageWrapCss?.backgroundColor ?? imageCss?.backgroundColor, "#FFFFFF");
+  // Default height = cardWidth → square image area, shows full product photo
+  const imageHeight   = parsePx(raw?.imageHeight ?? imageWrapCss?.height, cardWidth);
+  const imageBgColor  = str(raw?.imageBgColor ?? raw?.imageBackgroundColor ?? imageWrapCss?.backgroundColor ?? imageCss?.backgroundColor, "#F3F4F6");
   const imagePad      = parsePx(raw?.imagePad ?? raw?.imagePadding ?? imageWrapCss?.padding, 0);
   const imageResizeMode = (() => {
-    const s = str(raw?.imageScale ?? raw?.imageResizeMode ?? imageCss?.objectFit, "contain").toLowerCase();
+    const s = str(raw?.imageScale ?? raw?.imageResizeMode ?? imageCss?.objectFit, "cover").toLowerCase();
     if (s === "contain" || s === "fit") return "contain";
     if (s === "stretch") return "stretch";
     if (s === "center") return "center";
     if (s === "cover") return "cover";
-    return "contain";
+    return "cover";
   })();
 
   // ── Card details padding ──────────────────────────────────────────────────
@@ -234,9 +239,7 @@ export default function RecentProducts({ section }) {
   const showAtc = bool(visibility?.atc ?? visibility?.button ?? raw?.atcActive ?? raw?.showAtc ?? raw?.showButton, true);
   const showAtcIcon = bool(visibility?.icon ?? raw?.iconActive ?? raw?.atcIconActive ?? raw?.showIcon, true);
 
-  // ── Card width ─────────────────────────────────────────────────────────────
-  const screenWidth = Dimensions.get("window").width;
-  const cardWidth   = Math.max(0, (screenWidth - containerPL - containerPR - gridGap * (columns - 1)) / columns);
+  // cardWidth and screenWidth are computed above (before imageHeight)
 
   // ── Data fetch ─────────────────────────────────────────────────────────────
   const [products, setProducts] = useState([]);
@@ -356,16 +359,12 @@ export default function RecentProducts({ section }) {
                       padding: imagePad,
                       borderTopLeftRadius: cardRadius,
                       borderTopRightRadius: cardRadius,
+                      overflow: "hidden",
                     }}
                   >
                     <Image
                       source={{ uri: product.imageUrl || product.image }}
-                      style={{
-                        width: "100%",
-                        height: "100%",
-                        borderTopLeftRadius: Math.max(0, cardRadius - imagePad),
-                        borderTopRightRadius: Math.max(0, cardRadius - imagePad),
-                      }}
+                      style={{ width: "100%", height: "100%" }}
                       resizeMode={imageResizeMode}
                     />
                   </View>

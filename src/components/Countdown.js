@@ -77,6 +77,17 @@ const applyTextAttributes = (baseStyle, attributes) => {
   return next;
 };
 
+// Tries each DSL source individually; returns the first that unwraps to a
+// non-empty string. Falls back to the provided default. This avoids the
+// ?? chain stopping on empty objects {} that unwrapValue can't resolve.
+const resolveColor = (sources = [], fallback = "transparent") => {
+  for (const src of sources) {
+    const v = unwrapValue(src, undefined);
+    if (v && typeof v === "string" && v.trim()) return v.trim();
+  }
+  return fallback;
+};
+
 const parseDateValue = (value) => {
   const raw = unwrapValue(value, null);
 
@@ -522,20 +533,19 @@ class Countdown extends PureComponent {
     })();
 
     const timerAttributes = rawProps?.timerAttributes?.properties || rawProps?.timerAttributes || {};
-    const timerLabelColor = unwrapValue(
-      timerAttributes?.labelColor ??
-      timerAttributes?.textColor ??
-      timerAttributes?.color ??
-      subtextAttributes?.color ??
-      rawProps?.timerLabelColor ??
-      rawProps?.timerTextColor ??
-      rawProps?.timerColor ??
-      layoutCss?.timer?.labelColor ??
-      layoutCss?.timer?.textColor ??
-      layoutCss?.timer?.color ??
+    const timerLabelColor = resolveColor([
+      subtextAttributes?.color,
+      timerAttributes?.labelColor,
+      timerAttributes?.textColor,
+      timerAttributes?.color,
+      rawProps?.timerLabelColor,
+      rawProps?.timerTextColor,
+      rawProps?.timerColor,
+      layoutCss?.timer?.labelColor,
+      layoutCss?.timer?.textColor,
+      layoutCss?.timer?.color,
       layoutCss?.subtext?.color,
-      "#6B7280"
-    );
+    ], "#6B7280");
     const timerValueColor = unwrapValue(
       timerAttributes?.valueColor ??
       timerAttributes?.numberColor ??
@@ -547,18 +557,18 @@ class Countdown extends PureComponent {
       "#111111"
     );
     const timerHeight = asNumber(timerAttributes?.height ?? rawProps?.timerHeight, timerStyle.height);
-    const timerBackgroundColor = unwrapValue(
-      timerAttributes?.bgColor ??
-      timerAttributes?.backgroundColor ??
-      timerAttributes?.boxBgColor ??
-      timerAttributes?.boxColor ??
-      subtextAttributes?.bgColor ??
-      rawProps?.timerBgColor ??
-      rawProps?.timerBoxBgColor ??
-      rawProps?.timerBackgroundColor ??
+    const timerBackgroundColor = resolveColor([
+      subtextAttributes?.bgColor,
+      timerAttributes?.bgColor,
+      timerAttributes?.backgroundColor,
+      timerAttributes?.boxBgColor,
+      timerAttributes?.boxColor,
+      rawProps?.timerBgColor,
+      rawProps?.timerBoxBgColor,
+      rawProps?.timerBackgroundColor,
       rawProps?.boxBgColor,
-      timerStyle.backgroundColor || "transparent"
-    );
+      timerStyle.backgroundColor,
+    ], "transparent");
     const timerBorderColor = unwrapValue(
       timerAttributes?.borderColor ?? rawProps?.timerBorderColor,
       "#E5E7EB"
@@ -578,9 +588,11 @@ class Countdown extends PureComponent {
       height: timerStyleHeight,
       ...timerContainerStyle
     } = timerStyle;
+    // Default to 0 — timer boxes are rectangular unless the DSL explicitly sets a radius.
+    // CSS-derived timerBoxRadius is intentionally ignored here to avoid rounded corners.
     const resolvedTimerBoxRadius = asNumber(
       timerAttributes?.borderRadius ?? rawProps?.timerBorderRadius,
-      timerBoxRadius != null ? timerBoxRadius : 0
+      0
     );
 
     const timerFontSize = asNumber(timerAttributes?.fontSize, undefined);

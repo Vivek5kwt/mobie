@@ -633,6 +633,10 @@ export default function LayoutScreen({ route, navigation }) {
               const isBannerSlider = componentName === "banner_slider" || componentName === "hero_banner";
               const nextIsBannerSlider = nextComponentName === "banner_slider" || nextComponentName === "hero_banner";
               const collapseBannerGap = isBannerSlider || nextIsBannerSlider;
+              const isProductSection = [
+                "product_grid", "product_carousel",
+                "tab_product_grid", "tab_product_carousel",
+              ].includes(componentName);
               const shouldAttachBottomNav =
                 componentName === "header" ||
                 componentName === "header_2" ||
@@ -649,6 +653,7 @@ export default function LayoutScreen({ route, navigation }) {
                     (componentName === "header_2" || collapseHeaderGap || collapseBannerGap) &&
                       styles.sectionWrapperTight,
                     isBannerSlider && styles.sectionWrapperBanner,
+                    isProductSection && styles.sectionWrapperProduct,
                   ]}
                 >
                   <DynamicRenderer section={sectionWithNav} />
@@ -753,6 +758,9 @@ const styles = StyleSheet.create({
   },
   sectionWrapperTight: {
     marginBottom: 0,
+  },
+  sectionWrapperProduct: {
+    marginBottom: 16,
   },
   sectionWrapperBanner: {
     marginTop: 0,

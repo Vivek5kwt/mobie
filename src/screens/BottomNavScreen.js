@@ -823,14 +823,24 @@ export default function BottomNavScreen() {
               />
             )}
             {visibleSections.length ? (
-              visibleSections.map((section, index) => (
-                <View
-                  key={index}
-                  style={styles.sectionWrapper}
-                >
-                  <DynamicRenderer section={section} />
-                </View>
-              ))
+              visibleSections.map((section, index) => {
+                const compName = getComponentName(section).toLowerCase();
+                const isProductSection = [
+                  "product_grid", "product_carousel",
+                  "tab_product_grid", "tab_product_carousel",
+                ].includes(compName);
+                return (
+                  <View
+                    key={index}
+                    style={[
+                      styles.sectionWrapper,
+                      isProductSection && styles.sectionWrapperProduct,
+                    ]}
+                  >
+                    <DynamicRenderer section={section} />
+                  </View>
+                );
+              }))
             ) : isProfilePage && !loading ? (
               session ? (
                 <FallbackProfile session={session} logout={logout} navigation={navigation} />
@@ -977,6 +987,9 @@ const styles = StyleSheet.create({
   },
   sectionWrapper: {
     marginBottom: 10,
+  },
+  sectionWrapperProduct: {
+    marginBottom: 20,
   },
   sectionWrapperTight: {
     marginBottom: 0,
