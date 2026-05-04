@@ -297,6 +297,17 @@ export default function SearchBar({ section }) {
       return;
     }
 
+    // Verify the speech recognition service is available on this device
+    try {
+      const available = await VoiceModule.isAvailable();
+      if (!available) {
+        Alert.alert("Voice search", "Voice recognition is not available on this device.");
+        return;
+      }
+    } catch (_) {
+      // isAvailable may not exist in older versions; continue
+    }
+
     const { granted, blocked } = await requestMicrophonePermission();
     if (!granted) {
       setIsListening(false);
@@ -320,8 +331,8 @@ export default function SearchBar({ section }) {
 
     const onResults = (e) => {
       if (voiceDestroyRef.current) return;
-      const results = e?.value ?? [];
-      const text = Array.isArray(results) && results.length > 0 ? results[0] : "";
+      const speechResults = e?.value ?? [];
+      const text = Array.isArray(speechResults) && speechResults.length > 0 ? speechResults[0] : "";
       if (text && text.trim()) {
         setValue(text.trim());
       }
@@ -330,11 +341,15 @@ export default function SearchBar({ section }) {
     const onError = (e) => {
       if (voiceDestroyRef.current) return;
       setIsListening(false);
-      const code = String(e?.error?.code || "").toLowerCase();
+      const code = String(e?.error?.code || "");
       const message = String(e?.error?.message || "").toLowerCase();
-      if (code === "no-speech" || message.includes("no speech")) return;
-      if (message.includes("permission") || code.includes("permission")) {
+      // Error code 6 = no speech detected — silently ignore
+      if (code === "6" || message.includes("no speech")) return;
+      if (message.includes("permission") || code === "9") {
         setError("Microphone permission denied. Please allow it in settings.");
+      } else if (message.includes("connect") || code === "7" || code === "8") {
+        // Android error 7 = recognizer busy / no match, 8 = recognizer busy
+        setError("Could not connect to speech service. Please try again.");
       } else if (e?.error?.message) {
         setError("Could not hear you. Try again.");
       }
@@ -349,7 +364,13 @@ export default function SearchBar({ section }) {
     VoiceModule.onSpeechEnd = onEnd;
 
     try {
+      // Stop any active session first, then destroy, before starting fresh.
+      // Skipping stop() leaves the recognizer in a busy state and causes
+      // "Could not connect" errors on subsequent invocations.
+      await VoiceModule.stop().catch(() => {});
       await VoiceModule.destroy().catch(() => {});
+      // Brief pause so the recognition service has time to disconnect cleanly.
+      await new Promise((resolve) => setTimeout(resolve, 150));
       await VoiceModule.start("en-US");
     } catch (err) {
       if (!voiceDestroyRef.current) {
@@ -357,6 +378,8 @@ export default function SearchBar({ section }) {
         const message = String(err?.message || "").toLowerCase();
         if (message.includes("permission")) {
           setError("Microphone permission denied. Please allow it in settings.");
+        } else if (message.includes("connect") || message.includes("busy") || message.includes("recognizer")) {
+          setError("Could not connect to speech service. Please try again.");
         } else {
           setError("Could not start microphone. Please try again.");
         }
@@ -367,6 +390,7 @@ export default function SearchBar({ section }) {
   const stopVoiceSearch = useCallback(() => {
     voiceDestroyRef.current = true;
     if (VoiceModule) {
+      VoiceModule.stop().catch(() => {});
       VoiceModule.destroy().catch(() => {});
     }
     setIsListening(false);
@@ -376,6 +400,7 @@ export default function SearchBar({ section }) {
     return () => {
       voiceDestroyRef.current = true;
       if (VoiceModule) {
+        VoiceModule.stop().catch(() => {});
         VoiceModule.destroy().catch(() => {});
       }
     };
