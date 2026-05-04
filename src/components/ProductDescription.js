@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useMemo, useState } from "react";
 import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import FontAwesome from "react-native-vector-icons/FontAwesome";
 import FontAwesome6 from "react-native-vector-icons/FontAwesome6";
@@ -43,6 +43,20 @@ const toBoolean = (value, fallback = false) => {
   if (typeof resolved === "boolean") return resolved;
   if (typeof resolved === "string") return ["true", "1", "yes", "y"].includes(resolved.trim().toLowerCase());
   return Boolean(resolved);
+};
+
+const stripHtml = (value) => {
+  const text = toString(value, "");
+  if (!text) return "";
+  return text
+    .replace(/<br\s*\/?>/gi, "\n")
+    .replace(/<\/p>/gi, "\n\n")
+    .replace(/<[^>]+>/g, "")
+    .replace(/&nbsp;/gi, " ")
+    .replace(/&amp;/gi, "&")
+    .replace(/&lt;/gi, "<")
+    .replace(/&gt;/gi, ">")
+    .trim();
 };
 
 const hasVisibleBorder = (line, width, color) => {
@@ -104,9 +118,8 @@ export default function ProductDescription({ section }) {
     titleNode?.text ?? raw?.title,
     "Description"
   );
-  const descriptionText = toString(
-    raw?.description ?? raw?.descriptionText ?? infoNode?.descriptionText,
-    ""
+  const descriptionText = stripHtml(
+    raw?.description ?? raw?.descriptionText ?? infoNode?.descriptionText
   );
 
   if (!descriptionText && !titleText) return null;
@@ -224,7 +237,20 @@ export default function ProductDescription({ section }) {
   const bodyUnderline     = toBoolean(descStyle?.underline, false);
   const bodyStrikethrough = toBoolean(descStyle?.strikethrough, false);
   const bodyDecorationLine = resolveTextDecorationLine({ underline: bodyUnderline, strikethrough: bodyStrikethrough });
-  const bodyLineHeight    = toNumber(layoutCss?.infoText?.lineHeight, 1.5);
+  const bodyLineHeightRaw = toNumber(layoutCss?.infoText?.lineHeight, 1.5);
+  const bodyLineHeight =
+    bodyLineHeightRaw > 0 && bodyLineHeightRaw <= 10
+      ? bodyFontSize * bodyLineHeightRaw
+      : bodyLineHeightRaw;
+
+  const descriptionParagraphs = useMemo(
+    () =>
+      descriptionText
+        .split(/\n{2,}/)
+        .map((p) => p.trim())
+        .filter(Boolean),
+    [descriptionText]
+  );
 
   // ── Accordion state ────────────────────────────────────────────────────────
   const defaultOpen = toBoolean(raw?.defaultOpen, false);
@@ -297,19 +323,24 @@ export default function ProductDescription({ section }) {
             paddingRight:    infoPR,
           }}
         >
-          <Text
-            style={{
-              fontSize:           bodyFontSize,
-              color:              bodyColor,
-              fontWeight:         String(bodyWeight),
-              fontStyle:          bodyItalic ? "italic" : "normal",
-              textDecorationLine: bodyDecorationLine,
-              lineHeight:         bodyFontSize * bodyLineHeight,
-              ...(bodyFontFamily ? { fontFamily: bodyFontFamily } : {}),
-            }}
-          >
-            {descriptionText}
-          </Text>
+          {descriptionParagraphs.map((paragraph, idx) => (
+            <Text
+              key={`desc-p-${idx}`}
+              style={{
+                fontSize:           bodyFontSize,
+                color:              bodyColor,
+                fontWeight:         String(bodyWeight),
+                fontStyle:          bodyItalic ? "italic" : "normal",
+                textDecorationLine: bodyDecorationLine,
+                lineHeight:         bodyLineHeight,
+                marginBottom:       idx < descriptionParagraphs.length - 1 ? 10 : 0,
+                flexShrink:         1,
+                ...(bodyFontFamily ? { fontFamily: bodyFontFamily } : {}),
+              }}
+            >
+              {paragraph}
+            </Text>
+          ))}
         </View>
       )}
     </View>
