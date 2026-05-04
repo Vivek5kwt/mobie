@@ -522,8 +522,28 @@ class Countdown extends PureComponent {
     })();
 
     const timerAttributes = rawProps?.timerAttributes?.properties || rawProps?.timerAttributes || {};
-    const timerLabelColor = unwrapValue(timerAttributes?.labelColor ?? rawProps?.timerLabelColor, "#6B7280");
-    const timerValueColor = unwrapValue(timerAttributes?.valueColor ?? rawProps?.timerValueColor, "#111111");
+    const timerLabelColor = unwrapValue(
+      timerAttributes?.labelColor ??
+      timerAttributes?.textColor ??
+      timerAttributes?.color ??
+      rawProps?.timerLabelColor ??
+      rawProps?.timerTextColor ??
+      rawProps?.timerColor ??
+      layoutCss?.timer?.labelColor ??
+      layoutCss?.timer?.textColor ??
+      layoutCss?.timer?.color,
+      "#6B7280"
+    );
+    const timerValueColor = unwrapValue(
+      timerAttributes?.valueColor ??
+      timerAttributes?.numberColor ??
+      rawProps?.timerValueColor ??
+      rawProps?.timerNumberColor ??
+      layoutCss?.timer?.valueColor ??
+      layoutCss?.timer?.numberColor ??
+      layoutCss?.timer?.color,
+      "#111111"
+    );
     const timerHeight = asNumber(timerAttributes?.height ?? rawProps?.timerHeight, timerStyle.height);
     const timerBackgroundColor = unwrapValue(
       timerAttributes?.bgColor ??
@@ -557,15 +577,38 @@ class Countdown extends PureComponent {
     } = timerStyle;
     const resolvedTimerBoxRadius = asNumber(
       timerAttributes?.borderRadius ?? rawProps?.timerBorderRadius,
-      0
+      timerBoxRadius != null ? timerBoxRadius : 0
     );
 
     const timerFontSize = asNumber(timerAttributes?.fontSize, undefined);
+    const timerLabelFontSize = asNumber(
+      timerAttributes?.labelFontSize ??
+      timerAttributes?.textFontSize ??
+      layoutCss?.timer?.labelFontSize,
+      undefined
+    );
+    const timerLabelFontWeightRaw = unwrapValue(
+      timerAttributes?.labelFontWeight ??
+      timerAttributes?.textFontWeight ??
+      layoutCss?.timer?.labelFontWeight,
+      undefined
+    );
+    const timerLabelFontWeight =
+      typeof timerLabelFontWeightRaw === "number"
+        ? String(timerLabelFontWeightRaw)
+        : timerLabelFontWeightRaw;
     const timerFontWeightRaw = unwrapValue(timerAttributes?.fontWeight, undefined);
     const timerFontWeight =
       typeof timerFontWeightRaw === "number"
         ? String(timerFontWeightRaw)
         : timerFontWeightRaw;
+    const timerFontFamily = cleanFontFamily(
+      unwrapValue(timerAttributes?.fontFamily ?? layoutCss?.timer?.fontFamily, undefined)
+    );
+    const timerLabelLetterSpacing = asNumber(
+      timerAttributes?.labelLetterSpacing ?? layoutCss?.timer?.labelLetterSpacing,
+      undefined
+    );
 
     const iconAttributes = rawProps?.iconAttributes?.properties || rawProps?.iconAttributes || {};
     // Strip "fa-" prefix — FontAwesome expects "bolt" not "fa-bolt"
@@ -697,11 +740,21 @@ class Countdown extends PureComponent {
                       { color: timerValueColor },
                       timerFontSize != null ? { fontSize: timerFontSize } : null,
                       timerFontWeight ? { fontWeight: timerFontWeight } : null,
+                      timerFontFamily ? { fontFamily: timerFontFamily } : null,
                     ]}
                   >
                     {renderTimerValue(resolvedCountdown[key])}
                   </Text>
-                  <Text style={[styles.timerLabel, { color: timerLabelColor }]}>
+                  <Text
+                    style={[
+                      styles.timerLabel,
+                      { color: timerLabelColor },
+                      timerLabelFontSize != null ? { fontSize: timerLabelFontSize } : null,
+                      timerLabelFontWeight ? { fontWeight: timerLabelFontWeight } : null,
+                      timerFontFamily ? { fontFamily: timerFontFamily } : null,
+                      timerLabelLetterSpacing != null ? { letterSpacing: timerLabelLetterSpacing } : null,
+                    ]}
+                  >
                     {label}
                   </Text>
                 </View>

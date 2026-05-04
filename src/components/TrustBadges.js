@@ -152,6 +152,33 @@ export default function TrustBadges({ section }) {
   }, [presIcons, raw, propsNode]);
   const badgeItems = dslItems;
 
+  // Raw badge overrides (icon1/icon2/icon3 etc.) should be able to override
+  // presentation.css.icons values dynamically.
+  const rawBadgeOverrides = useMemo(() => {
+    const src = raw?.badges;
+    if (!src || typeof src !== "object") return [];
+    return Object.entries(src)
+      .map(([key, cfg]) => {
+        const node = unwrap(cfg, cfg);
+        if (!node || typeof node !== "object") return null;
+        const icon = str(node?.icon ?? node?.iconId ?? node?.iconName ?? node?.fa ?? node?.name, "");
+        const label = str(node?.label ?? node?.text ?? node?.title, "");
+        const color = str(node?.color ?? node?.iconColor, "");
+        const size = num(node?.size ?? node?.iconSize, undefined);
+        const indexMatch = String(key).toLowerCase().match(/icon(\d+)/);
+        const index = indexMatch ? Math.max(0, Number(indexMatch[1]) - 1) : -1;
+        return {
+          normalizedKey: normalizeBadgeId(key),
+          index,
+          icon: icon || undefined,
+          label: label || undefined,
+          color: color || undefined,
+          size,
+        };
+      })
+      .filter(Boolean);
+  }, [raw]);
+
   // ── Visibility ──────────────────────────────────────────────────────────────
   const visibilityMap = Object.assign({}, unwrap(pressCss?.visibility, {}), unwrap(raw?.visibility, {}));
   const isBadgeVisible = (item) => {
@@ -260,11 +287,16 @@ export default function TrustBadges({ section }) {
       ]}
     >
       {badges.map((badge, idx) => {
+        const normalizedBadgeId = normalizeBadgeId(badge?.id);
+        const rawOverride =
+          rawBadgeOverrides.find((item) => item.index === idx) ||
+          rawBadgeOverrides.find((item) => item.normalizedKey && item.normalizedKey === normalizedBadgeId) ||
+          null;
         const iconCfg       = getBadgeIconConfig(badge);
-        const resolvedIcon  = str(iconCfg?.icon ?? iconCfg?.iconId ?? iconCfg?.iconName ?? badge.icon, "");
-        const resolvedSize  = num(iconCfg?.size  ?? iconCfg?.iconSize ?? badge.iconSize ?? globalIconSize, globalIconSize);
-        const resolvedColor = str(iconCfg?.color ?? iconCfg?.iconColor ?? badge.iconColor ?? globalIconColor, globalIconColor);
-        const resolvedLabel = str(iconCfg?.label ?? iconCfg?.text ?? iconCfg?.title ?? badge.label, "");
+        const resolvedIcon  = str(rawOverride?.icon ?? iconCfg?.icon ?? iconCfg?.iconId ?? iconCfg?.iconName ?? badge.icon, "");
+        const resolvedSize  = num(rawOverride?.size ?? iconCfg?.size  ?? iconCfg?.iconSize ?? badge.iconSize ?? globalIconSize, globalIconSize);
+        const resolvedColor = str(rawOverride?.color ?? iconCfg?.color ?? iconCfg?.iconColor ?? badge.iconColor ?? globalIconColor, globalIconColor);
+        const resolvedLabel = str(rawOverride?.label ?? iconCfg?.label ?? iconCfg?.text ?? iconCfg?.title ?? badge.label, "");
 
         return (
           <React.Fragment key={`badge-${badge.id || idx}`}>

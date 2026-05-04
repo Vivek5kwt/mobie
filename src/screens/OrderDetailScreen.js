@@ -233,7 +233,7 @@ export default function OrderDetailScreen() {
           </TouchableOpacity>
           <Text style={styles.headerTitle}>Order Details</Text>
           <View style={styles.backBtn} />
-        </View>
+        </View>c
 
         {isLoading ? (
           <View style={styles.center}>

@@ -155,8 +155,14 @@ export default function HeaderDefault({ config, bottomNavSection, hideTabs = fal
   if (useFlatMode) {
     // ── FLAT MODE: render title on left, icons on right ───────────────────────
     const showBell     = resolveVal(config.showBell)     === true || resolveVal(config.showBell)     === "true";
-    const showCart     = resolveVal(config.showCart)     === true || resolveVal(config.showCart)     === "true" || resolveVal(config.showCart) === undefined;
+    const showCart     = resolveVal(config.showCart)     === true || resolveVal(config.showCart)     === "true";
     const showWishlist = resolveVal(config.showWishlist) === true || resolveVal(config.showWishlist) === "true";
+    const cartConfig = resolveVal(config.cart) || {};
+    const cartVisible = showCart || resolveVal(cartConfig.visible) === true || resolveVal(cartConfig.visible) === "true";
+    const cartIconName = normalizeIconName(resolveVal(cartConfig.iconId) || resolveVal(cartConfig.icon) || "cart-shopping");
+    const cartIconSizeRaw = Number(resolveVal(cartConfig.width) ?? resolveVal(cartConfig.iconSize));
+    const cartIconSize = Number.isFinite(cartIconSizeRaw) && cartIconSizeRaw > 0 ? cartIconSizeRaw : 20;
+    const cartIconColor = resolveVal(cartConfig.color) || iconColor;
 
     // ── Title text styling (DSL-driven) ──────────────────────────────────────
     const cleanFontFamily = (family) => {
@@ -260,41 +266,45 @@ export default function HeaderDefault({ config, bottomNavSection, hideTabs = fal
             minHeight: 48,
           }}
         >
-          {/* Brand title — taps navigate to home */}
-          <TouchableOpacity
-            activeOpacity={0.75}
-            onPress={() => navigation.navigate("LayoutScreen")}
-            style={{ flex: 1 }}
-          >
-            <View
-              style={{
-                alignSelf: "flex-start",
-                ...(hasBox ? {
-                  borderWidth: titleBorderWidth,
-                  borderColor: titleBorderColor,
-                  borderRadius: titleBorderRadius,
-                  backgroundColor: titleBoxBg || "transparent",
-                  paddingHorizontal: titleBoxPaddingH,
-                  paddingVertical: titleBoxPaddingV,
-                } : {}),
-              }}
-            >
-              <Text
-                style={{
-                  fontSize: titleFontSize,
-                  fontWeight: titleFontWeight,
-                  color: titleColor,
-                  ...(titleFontFamily ? { fontFamily: titleFontFamily } : {}),
-                }}
-                numberOfLines={1}
-              >
-                {titleText}
-              </Text>
-            </View>
-          </TouchableOpacity>
+          {/* Left slot (reserved for spacing consistency) */}
+          <View style={{ width: 40, alignItems: "flex-start", justifyContent: "center" }} />
 
-          {/* Right icons */}
-          <View style={{ flexDirection: "row", alignItems: "center", gap: 16 }}>
+          {/* Brand title — centered to keep balanced spacing */}
+          <View style={{ flex: 1, alignItems: "center", justifyContent: "center", paddingHorizontal: 8 }}>
+            <TouchableOpacity
+              activeOpacity={0.75}
+              onPress={() => navigation.navigate("LayoutScreen")}
+            >
+              <View
+                style={{
+                  alignSelf: "center",
+                  ...(hasBox ? {
+                    borderWidth: titleBorderWidth,
+                    borderColor: titleBorderColor,
+                    borderRadius: titleBorderRadius,
+                    backgroundColor: titleBoxBg || "transparent",
+                    paddingHorizontal: titleBoxPaddingH,
+                    paddingVertical: titleBoxPaddingV,
+                  } : {}),
+                }}
+              >
+                <Text
+                  style={{
+                    fontSize: titleFontSize,
+                    fontWeight: titleFontWeight,
+                    color: titleColor,
+                    ...(titleFontFamily ? { fontFamily: titleFontFamily } : {}),
+                  }}
+                  numberOfLines={1}
+                >
+                  {titleText}
+                </Text>
+              </View>
+            </TouchableOpacity>
+          </View>
+
+          {/* Right slot */}
+          <View style={{ minWidth: 40, flexDirection: "row", alignItems: "center", justifyContent: "flex-end", gap: 16 }}>
             {showWishlist && (
               <TouchableOpacity
                 activeOpacity={0.7}
@@ -314,13 +324,13 @@ export default function HeaderDefault({ config, bottomNavSection, hideTabs = fal
                 <Icon name="bell" size={20} color={iconColor} />
               </TouchableOpacity>
             )}
-            {showCart && (
+            {cartVisible && (
               <TouchableOpacity
                 activeOpacity={0.7}
                 onPress={() => openNavTarget("cart")}
                 style={{ position: "relative" }}
               >
-                <Icon name="cart-shopping" size={20} color={iconColor} />
+                <Icon name={cartIconName} size={cartIconSize} color={cartIconColor} />
                 {cartCount > 0 && (
                   <View style={badgeStyle}>
                     <Text style={badgeText}>{cartCount > 99 ? "99+" : String(cartCount)}</Text>
