@@ -24,8 +24,9 @@ const resolveArray = (v) => {
   return Array.isArray(u) ? u : [];
 };
 
-export default function HeaderDefault({ config, bottomNavSection, hideTabs = false }) {
+export default function HeaderDefault({ config, bottomNavSection, hideTabs = false, showBack = false }) {
   const navigation = useNavigation();
+  const canGoBack = navigation.canGoBack();
   const navSection = bottomNavSection || bottomNavigationStyle1Section;
 
   const cartCount = useSelector((state) =>
@@ -293,8 +294,18 @@ export default function HeaderDefault({ config, bottomNavSection, hideTabs = fal
             ...dividerStyle,
           }}
         >
-          {/* Left placeholder — fixed width matches right slot so center is visually centered */}
-          <View style={{ width: balancedSideWidth, alignItems: "flex-start", justifyContent: "center" }} />
+          {/* Left slot — back button on detail screens, spacer elsewhere */}
+          <View style={{ width: balancedSideWidth, alignItems: "flex-start", justifyContent: "center" }}>
+            {showBack && canGoBack ? (
+              <TouchableOpacity
+                onPress={() => navigation.goBack()}
+                activeOpacity={0.7}
+                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+              >
+                <Icon name="chevron-left" size={20} color={iconColor} />
+              </TouchableOpacity>
+            ) : null}
+          </View>
 
           {/* Brand title — absolutely overlaid to guarantee true center regardless of icon count */}
           <View style={{ position: "absolute", left: 0, right: 0, top: 0, bottom: 0, alignItems: "center", justifyContent: "center" }} pointerEvents="box-none">

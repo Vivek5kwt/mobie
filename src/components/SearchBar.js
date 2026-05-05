@@ -416,7 +416,7 @@ export default function SearchBar({ section }) {
               value={value}
               onChangeText={setValue}
               placeholder=""
-              style={[styles.input, inputTextStyle]}
+              style={[styles.input, inputTextStyle, value.length > 0 && !isListening && styles.inputWithClear]}
               underlineColorAndroid="transparent"
               editable={!isListening}
               onFocus={() => setIsFocused(true)}
@@ -426,6 +426,18 @@ export default function SearchBar({ section }) {
               <Text numberOfLines={1} style={[styles.placeholderOverlay, placeholderTextStyle]}>
                 {searchPlaceholder}
               </Text>
+            )}
+            {value.length > 0 && !isListening && (
+              <TouchableOpacity
+                onPress={() => setValue("")}
+                style={styles.clearButton}
+                activeOpacity={0.7}
+                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                accessibilityLabel="Clear search"
+                accessibilityRole="button"
+              >
+                <FontAwesome name="times-circle" size={clearIconSize + 1} color={clearIconColor} />
+              </TouchableOpacity>
             )}
           </View>
         )}
@@ -440,11 +452,6 @@ export default function SearchBar({ section }) {
             ) : (
               <FontAwesome name="microphone" size={voiceIconSize} color={voiceIconColor} />
             )}
-          </TouchableOpacity>
-        )}
-        {showClear && value.length > 0 && !isListening && (
-          <TouchableOpacity onPress={() => setValue("")} style={styles.iconButton}>
-            <FontAwesome name="times" size={clearIconSize} color={clearIconColor} />
           </TouchableOpacity>
         )}
       </View>
@@ -525,11 +532,23 @@ const styles = StyleSheet.create({
     position: "relative",
     justifyContent: "center",
   },
+  inputWithClear: {
+    paddingRight: 28,
+  },
   placeholderOverlay: {
     position: "absolute",
     left: 0,
     right: 0,
     includeFontPadding: false,
+  },
+  clearButton: {
+    position: "absolute",
+    right: 0,
+    top: 0,
+    bottom: 0,
+    justifyContent: "center",
+    alignItems: "center",
+    paddingHorizontal: 4,
   },
   iconButton: {
     padding: 6,

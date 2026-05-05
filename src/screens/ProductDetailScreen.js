@@ -8,8 +8,9 @@ import { fetchShopifyProductDetails } from "../services/shopify";
 import { fetchDSL } from "../engine/dslHandler";
 import { resolveAppId } from "../utils/appId";
 import { useAuth } from "../services/AuthContext";
-import Header from "../components/Topheader";
+import HeaderDefault from "../components/HeaderDefault";
 import BottomNavigation, { BOTTOM_NAV_RESERVED_HEIGHT } from "../components/BottomNavigation";
+import { getHeaderDefault } from "../services/headerDefaultService";
 
 const unwrapValue = (value, fallback = undefined) => {
   if (value === undefined || value === null) return fallback;
@@ -202,7 +203,7 @@ export default function ProductDetailScreen() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [bottomNavSection, setBottomNavSection] = useState(null);
-  const [headerSection, setHeaderSection] = useState(null);
+  const [headerDefaultConfig, setHeaderDefaultConfig] = useState(() => getHeaderDefault());
   const [bottomNavHeight, setBottomNavHeight] = useState(BOTTOM_NAV_RESERVED_HEIGHT);
   const [stickyAtcHeight, setStickyAtcHeight] = useState(130);
   const isMountedRef = useRef(true);
@@ -315,7 +316,7 @@ export default function ProductDetailScreen() {
     return () => clearInterval(intervalId);
   }, [appId, detailSections]);
 
-  // Fetch bottom nav and header from home DSL so they match the home page
+  // Fetch bottom nav and headerdefault config from home DSL so they match the home page
   useEffect(() => {
     let mounted = true;
     fetchDSL(appId, "home").then((data) => {
@@ -330,8 +331,7 @@ export default function ProductDetailScreen() {
       );
       if (nav) setBottomNavSection(nav);
 
-      const hdr = sections.find((s) => ["header", "header_mobile"].includes(getComponent(s)));
-      if (hdr) setHeaderSection(hdr);
+      if (data?.dsl?.headerdefault) setHeaderDefaultConfig(data.dsl.headerdefault);
     }).catch(() => {});
     return () => { mounted = false; };
   }, [appId]);
@@ -366,7 +366,7 @@ export default function ProductDetailScreen() {
     <SafeAreaView style={styles.safeArea} edges={["left", "right", "bottom"]}>
       <View style={styles.container}>
         <View style={[styles.headerWrapper, { paddingTop: insets.top }]}>
-          <Header section={headerSection || undefined} showBack={true} showNotification={false} />
+          <HeaderDefault config={headerDefaultConfig} hideTabs={true} showBack={true} />
         </View>
         {showLoadingState ? (
           <SkeletonLoader />
@@ -433,10 +433,6 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   headerWrapper: {
-    backgroundColor: "#ffffff",
-    minHeight: 64,
-    paddingBottom: 8,
-    justifyContent: "center",
     zIndex: 2,
     elevation: 3,
     shadowColor: "#000000",
