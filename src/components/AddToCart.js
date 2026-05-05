@@ -201,7 +201,6 @@ export default function AddToCart({ section }) {
     fontWeight: toString(addToCartConfig?.textWeight, "600"),
     fontFamily: resolveFont(toString(addToCartConfig?.textFamily ?? addToCartConfig?.fontFamily, "")) || undefined,
     textAlign: atcTextAlign,
-    flex: 1,
   };
 
   const quantityContainerStyle = {

@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { ActivityIndicator, ScrollView, StyleSheet, Text, View } from "react-native";
+import { ScrollView, StyleSheet, Text, View } from "react-native";
+import SkeletonLoader from "../components/SkeletonLoader";
 import { useFocusEffect, useRoute } from "@react-navigation/native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import DynamicRenderer from "../engine/DynamicRenderer";
@@ -201,6 +202,7 @@ export default function ProductDetailScreen() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [bottomNavSection, setBottomNavSection] = useState(null);
+  const [headerSection, setHeaderSection] = useState(null);
   const [bottomNavHeight, setBottomNavHeight] = useState(BOTTOM_NAV_RESERVED_HEIGHT);
   const [stickyAtcHeight, setStickyAtcHeight] = useState(130);
   const isMountedRef = useRef(true);
@@ -313,19 +315,23 @@ export default function ProductDetailScreen() {
     return () => clearInterval(intervalId);
   }, [appId, detailSections]);
 
-  // Fetch bottom nav from home DSL so it shows on the product detail screen
+  // Fetch bottom nav and header from home DSL so they match the home page
   useEffect(() => {
     let mounted = true;
     fetchDSL(appId, "home").then((data) => {
       if (!mounted) return;
-      const nav = (data?.dsl?.sections || []).find((s) => {
-        const c = (
-          s?.component?.const || s?.component ||
-          s?.properties?.component?.const || s?.properties?.component || ""
-        ).toLowerCase();
-        return ["bottom_navigation", "bottom_navigation_style_1", "bottom_navigation_style_2"].includes(c);
-      });
+      const sections = data?.dsl?.sections || [];
+      const getComponent = (s) =>
+        (s?.component?.const || s?.component ||
+         s?.properties?.component?.const || s?.properties?.component || "").toLowerCase();
+
+      const nav = sections.find((s) =>
+        ["bottom_navigation", "bottom_navigation_style_1", "bottom_navigation_style_2"].includes(getComponent(s))
+      );
       if (nav) setBottomNavSection(nav);
+
+      const hdr = sections.find((s) => ["header", "header_mobile"].includes(getComponent(s)));
+      if (hdr) setHeaderSection(hdr);
     }).catch(() => {});
     return () => { mounted = false; };
   }, [appId]);
@@ -360,34 +366,34 @@ export default function ProductDetailScreen() {
     <SafeAreaView style={styles.safeArea} edges={["left", "right", "bottom"]}>
       <View style={styles.container}>
         <View style={[styles.headerWrapper, { paddingTop: insets.top }]}>
-          <Header showNotification={false} />
+          <Header section={headerSection || undefined} showBack={true} showNotification={false} />
         </View>
-        <ScrollView
-          contentContainerStyle={[
-            styles.scrollContent,
-            {
-              paddingBottom: (bottomNavSection ? bottomNavHeight + 16 : 24) + stickyAtcReservedSpace,
-            },
-          ]}
-        >
-          {showLoadingState ? (
-            <View style={styles.loadingState}>
-              <ActivityIndicator size="large" color="#6b7280" />
-            </View>
-          ) : showEmptyState ? (
-            <View style={styles.emptyState}>
-              <Text style={styles.error}>
-                {error || "No product details available."}
-              </Text>
-            </View>
-          ) : scrollSections.length > 0 ? (
-            scrollSections.map((section, index) => (
-              <View key={section?.id || section?.component || index} style={styles.section}>
-                <DynamicRenderer section={section} />
+        {showLoadingState ? (
+          <SkeletonLoader />
+        ) : (
+          <ScrollView
+            contentContainerStyle={[
+              styles.scrollContent,
+              {
+                paddingBottom: (bottomNavSection ? bottomNavHeight + 16 : 24) + stickyAtcReservedSpace,
+              },
+            ]}
+          >
+            {showEmptyState ? (
+              <View style={styles.emptyState}>
+                <Text style={styles.error}>
+                  {error || "No product details available."}
+                </Text>
               </View>
-            ))
-          ) : null}
-        </ScrollView>
+            ) : scrollSections.length > 0 ? (
+              scrollSections.map((section, index) => (
+                <View key={section?.id || section?.component || index} style={styles.section}>
+                  <DynamicRenderer section={section} />
+                </View>
+              ))
+            ) : null}
+          </ScrollView>
+        )}
 
         {stickyAddToCartSections.length > 0 && (
           <View

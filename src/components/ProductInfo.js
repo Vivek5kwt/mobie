@@ -193,7 +193,7 @@ export default function ProductInfo({ section }) {
   return (
     <View style={[styles.container, paddingStyle]}>
 
-      {/* ── Row 1: Title + Rating ──────────────────────────────────────────── */}
+      {/* ── Row 1: Title + Right actions (Rating → Share) ─────────────────── */}
       <View style={styles.topRow}>
         <View style={styles.titleWrap}>
           {showTitle && !!titleText && (
@@ -217,48 +217,73 @@ export default function ProductInfo({ section }) {
           )}
         </View>
 
-        {showRating && !!ratingValue && (
-          <View
-            style={[
-              styles.ratingBubble,
-              {
-                backgroundColor: ratingBg,
-                borderRadius:    ratingBorderRadius,
-                borderWidth:     ratingBorderWidth,
-                borderColor:     ratingBorderColor,
-              },
-            ]}
-          >
-            {showRatingIcon && (
-              <FontAwesome
-                name="star"
-                size={ratingIconSize}
-                color={ratingIconColor}
-                style={{ marginRight: showRatingText ? 3 : 0 }}
-              />
-            )}
-            {showRatingText && (
-              <Text
-                style={{
-                  fontSize:   ratingFontSize,
-                  color:      ratingColor,
-                  fontWeight: ratingFontWeight,
-                  ...(ratingFontFamily ? { fontFamily: ratingFontFamily } : {}),
-                }}
+        {/* Right-side action column: Rating bubble on top, Share below */}
+        {(showRating && !!ratingValue || showShare) && (
+          <View style={styles.rightActions}>
+            {showRating && !!ratingValue && (
+              <View
+                style={[
+                  styles.ratingBubble,
+                  {
+                    backgroundColor: ratingBg,
+                    borderRadius:    ratingBorderRadius,
+                    borderWidth:     ratingBorderWidth,
+                    borderColor:     ratingBorderColor,
+                  },
+                ]}
               >
-                {ratingValue}
-              </Text>
+                {showRatingIcon && (
+                  <FontAwesome
+                    name="star"
+                    size={ratingIconSize}
+                    color={ratingIconColor}
+                    style={{ marginRight: showRatingText ? 3 : 0 }}
+                  />
+                )}
+                {showRatingText && (
+                  <Text
+                    style={{
+                      fontSize:   ratingFontSize,
+                      color:      ratingColor,
+                      fontWeight: ratingFontWeight,
+                      ...(ratingFontFamily ? { fontFamily: ratingFontFamily } : {}),
+                    }}
+                  >
+                    {ratingValue}
+                  </Text>
+                )}
+                {showRatingCount && !!ratingCountText && (
+                  <Text
+                    style={{
+                      fontSize:   ratingCountSize,
+                      color:      ratingCountColor,
+                      marginLeft: 3,
+                    }}
+                  >
+                    {ratingCountText}
+                  </Text>
+                )}
+              </View>
             )}
-            {showRatingCount && !!ratingCountText && (
-              <Text
-                style={{
-                  fontSize:   ratingCountSize,
-                  color:      ratingCountColor,
-                  marginLeft: 3,
-                }}
+
+            {showShare && (
+              <TouchableOpacity
+                onPress={handleShare}
+                activeOpacity={0.75}
+                style={[
+                  styles.shareButton,
+                  {
+                    width:           shareSize,
+                    height:          shareSize,
+                    borderRadius:    shareCorner,
+                    backgroundColor: shareBg,
+                  },
+                ]}
+                accessibilityRole="button"
+                accessibilityLabel="Share product"
               >
-                {ratingCountText}
-              </Text>
+                <FontAwesome name="share-alt" size={shareIconSize} color={shareIconColor} />
+              </TouchableOpacity>
             )}
           </View>
         )}
@@ -332,25 +357,6 @@ export default function ProductInfo({ section }) {
             )}
           </View>
 
-          {showShare && (
-            <TouchableOpacity
-              onPress={handleShare}
-              activeOpacity={0.75}
-              style={[
-                styles.shareButton,
-                {
-                  width:           shareSize,
-                  height:          shareSize,
-                  borderRadius:    shareCorner,
-                  backgroundColor: shareBg,
-                },
-              ]}
-              accessibilityRole="button"
-              accessibilityLabel="Share product"
-            >
-              <FontAwesome name="share-alt" size={shareIconSize} color={shareIconColor} />
-            </TouchableOpacity>
-          )}
         </View>
       )}
 
@@ -370,6 +376,10 @@ const styles = StyleSheet.create({
   },
   titleWrap: {
     flex: 1,
+  },
+  rightActions: {
+    alignItems: "center",
+    gap: 8,
   },
   title: {
     marginBottom: 2,

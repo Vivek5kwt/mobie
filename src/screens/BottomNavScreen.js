@@ -795,12 +795,11 @@ export default function BottomNavScreen() {
               <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
             }
           >
-            {/* Cart page has its own header above; suppress HeaderDefault for it */}
-            {isHeaderDefaultEnabled && !hideBottomNav && !isCartPage && (
+            {isHeaderDefaultEnabled && !hideBottomNav && (
               <HeaderDefault
                 config={headerDefaultConfig}
                 bottomNavSection={resolvedBottomNavSection}
-                hideTabs={isProfilePage || isNotificationPage || isSearchPage}
+                hideTabs={isProfilePage || isNotificationPage || isSearchPage || isCartPage}
               />
             )}
             {visibleSections.length ? (
