@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Dimensions, Image, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { Dimensions, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import ProductImage from "./ProductImage";
 import FontAwesome from "react-native-vector-icons/FontAwesome";
 import { resolveFA4IconName } from "../utils/faIconAlias";
 import { useFocusEffect, useNavigation } from "@react-navigation/native";
@@ -895,38 +896,20 @@ export default function ProductGrid({ section, limit = 8, title = "Products" }) 
                 )}
 
                 {/* Product image */}
-                {product.imageUrl ? (
-                  <View style={[styles.imageWrapper, { padding: imagePad }]}>
-                    <Image
-                      source={{ uri: product.imageUrl }}
-                      style={[
-                        styles.image,
-                        {
-                          height:          imageHeight,
-                          borderRadius:    imageCorner,
-                          backgroundColor: resolvedImageBgColor,
-                        },
-                      ]}
-                      resizeMode={imageResizeMode}
-                    />
-                  </View>
-                ) : (
-                  <View
-                    style={[
-                      styles.imagePlaceholder,
-                      {
-                        height:          imageHeight,
-                        borderRadius:    imageCorner,
-                        backgroundColor: resolvedImageBgColor,
-                        margin:          imagePad,
-                      },
-                    ]}
-                  >
-                    <Text style={styles.placeholderLetter}>
-                      {(product.title || "?").charAt(0).toUpperCase()}
-                    </Text>
-                  </View>
-                )}
+                <ProductImage
+                  uri={product.imageUrl}
+                  style={{
+                    width:        "100%",
+                    height:       imageHeight,
+                    borderRadius: imageCorner,
+                    marginTop:    imagePad,
+                    marginBottom: imagePad,
+                    marginLeft:   imagePad,
+                    marginRight:  imagePad,
+                  }}
+                  resizeMode={imageResizeMode}
+                  placeholderBg={resolvedImageBgColor}
+                />
 
                 {/* Add to Cart — rendered above card body when position = "above" */}
                 {showAddToCart && atcAbove && (() => {
@@ -1152,24 +1135,6 @@ const styles = StyleSheet.create({
     color:      "#e11d48",
     fontSize:   14,
     fontWeight: "700",
-  },
-  imageWrapper: {
-    width: "100%",
-  },
-  image: {
-    width:           "100%",
-    backgroundColor: "#f3f4f6",
-  },
-  imagePlaceholder: {
-    width:           "100%",
-    alignItems:      "center",
-    justifyContent:  "center",
-    backgroundColor: "#f3f4f6",
-  },
-  placeholderLetter: {
-    fontSize:   28,
-    fontWeight: "700",
-    color:      "#9CA3AF",
   },
   content: {
     paddingHorizontal: 10,

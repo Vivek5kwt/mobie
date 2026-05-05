@@ -1,7 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Dimensions,
-  Image,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -9,6 +8,7 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
+import ProductImage from "./ProductImage";
 import { useFocusEffect, useNavigation } from "@react-navigation/native";
 import { useDispatch, useSelector } from "react-redux";
 import FontAwesome from "react-native-vector-icons/FontAwesome";
@@ -864,7 +864,7 @@ export default function ProductCarousel({ section }) {
                   handleProductPress(product);
                 }}
               >
-                {cardImageActive && product.imageUrl && (
+                {cardImageActive && (
                   <View
                     style={[
                       styles.imageContainer,
@@ -876,14 +876,9 @@ export default function ProductCarousel({ section }) {
                       },
                     ]}
                   >
-                    <Image
-                      source={{ uri: product.imageUrl }}
-                      style={[
-                        styles.image,
-                        {
-                          borderRadius: imageCorner,
-                        },
-                      ]}
+                    <ProductImage
+                      uri={product.imageUrl}
+                      style={[styles.image, { borderRadius: imageCorner }]}
                       resizeMode={imageResizeMode}
                     />
                     {renderFavorite(product, isFavorite)}
@@ -895,7 +890,7 @@ export default function ProductCarousel({ section }) {
                     )}
                   </View>
                 )}
-                {(!cardImageActive || !product.imageUrl) && renderFavorite(product, isFavorite)}
+                {!cardImageActive && renderFavorite(product, isFavorite)}
 
                 <View style={styles.cardContent}>
                   {/* ATC above product info (title / price) */}

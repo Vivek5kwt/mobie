@@ -1,4 +1,5 @@
-import React, { useEffect, useMemo, useRef, useState } from "react";import {
+import React, { useEffect, useMemo, useRef, useState } from "react";
+import {
   Animated,
   Dimensions,
   Image,
@@ -10,6 +11,7 @@ import React, { useEffect, useMemo, useRef, useState } from "react";import {
   TouchableOpacity,
   View,
 } from "react-native";
+import ProductImage from "./ProductImage";
 import { useNavigation, useRoute } from "@react-navigation/native";
 import { useDispatch, useSelector } from "react-redux";
 import { PinchGestureHandler, State } from "react-native-gesture-handler";
@@ -258,14 +260,11 @@ export default function ProductLibrary({ section }) {
               accessibilityRole="button"
               accessibilityLabel="Open product image fullscreen"
             >
-              <View style={[styles.imageCard, { width: imageWidth, height: imageHeight, borderRadius: imageCorner }]}>
-                <Image
-                  source={{ uri }}
-                  style={styles.image}
-                  resizeMode={resizeMode}
-                  accessibilityLabel="Product"
-                />
-              </View>
+              <ProductImage
+                uri={uri}
+                style={{ width: imageWidth, height: imageHeight, borderRadius: imageCorner }}
+                resizeMode={resizeMode}
+              />
             </Pressable>
           ))}
         </ScrollView>
@@ -476,21 +475,6 @@ const styles = StyleSheet.create({
     width: "100%",
     overflow: "hidden",
     position: "relative",
-  },
-  imageCard: {
-    borderRadius: 16,
-    overflow: "hidden",
-    backgroundColor: "#f8fafc",
-    shadowColor: "#111827",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.10,
-    shadowRadius: 10,
-    elevation: 4,
-  },
-  image: {
-    width: "100%",
-    height: "100%",
-    backgroundColor: "#f8fafc",
   },
   // ── Overlay bubbles ──────────────────────────────────────────────────────
   iconBubble: {
