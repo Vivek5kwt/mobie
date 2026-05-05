@@ -1163,6 +1163,12 @@ const AuthScreen = () => {
 
   const styles = useMemo(() => {
     const activeTokens = mode === 'signup' ? signUpTokens : signInTokens;
+    // pt/pb from DSL = outer screen spacing (breathing room around the card)
+    // pl/pr from DSL = horizontal margin so card doesn't touch screen edges
+    const outerPadH = activeTokens.cardPaddingLeft || 16;
+    const outerPadTop = activeTokens.cardPaddingTop || 24;
+    const outerPadBottom = activeTokens.cardPaddingBottom || 24;
+
     return StyleSheet.create({
         container: {
           flex: 1,
@@ -1170,11 +1176,11 @@ const AuthScreen = () => {
         },
         scrollContent: {
           flexGrow: 1,
-          paddingBottom: 24,
+          paddingTop: outerPadTop,
+          paddingBottom: outerPadBottom,
         },
         header: {
-          paddingHorizontal: 24,
-          paddingTop: 34,
+          paddingHorizontal: outerPadH,
           paddingBottom: 20,
         },
         title: {
@@ -1192,12 +1198,11 @@ const AuthScreen = () => {
         },
         card: {
           backgroundColor: activeTokens.cardBgColor,
-          marginHorizontal: 20,
+          marginHorizontal: outerPadH,
           marginBottom: 16,
-          paddingTop: activeTokens.cardPaddingTop,
-          paddingBottom: activeTokens.cardPaddingBottom,
-          paddingLeft: activeTokens.cardPaddingLeft,
-          paddingRight: activeTokens.cardPaddingRight,
+          paddingTop: 16,
+          paddingBottom: 16,
+          paddingHorizontal: 16,
           borderRadius: activeTokens.cardBorderRadius,
           borderWidth: 1,
           borderColor: activeTokens.cardBorderColor,
@@ -1319,11 +1324,10 @@ const AuthScreen = () => {
         },
         forgotCard: {
           backgroundColor: forgotPasswordTokens.cardBgColor,
-          marginHorizontal: 20,
-          paddingTop: forgotPasswordTokens.cardPaddingTop,
-          paddingBottom: forgotPasswordTokens.cardPaddingBottom,
-          paddingLeft: forgotPasswordTokens.cardPaddingLeft,
-          paddingRight: forgotPasswordTokens.cardPaddingRight,
+          marginHorizontal: outerPadH,
+          paddingTop: 16,
+          paddingBottom: 16,
+          paddingHorizontal: 16,
           borderRadius: forgotPasswordTokens.cardBorderRadius,
           borderWidth: 1,
           borderColor: forgotPasswordTokens.cardBorderColor,
@@ -1423,14 +1427,12 @@ const AuthScreen = () => {
           )}
 
           <View style={styles.card}>
-            {mode === 'signup' && signUpTokens.showProfilePicture ? (
+            {mode === 'signup' && signUpTokens.showProfilePicture && signUpTokens.profilePictureUrl ? (
               <View style={styles.profilePicture}>
-                {signUpTokens.profilePictureUrl ? (
-                  <Image
-                    source={{ uri: signUpTokens.profilePictureUrl }}
-                    style={styles.profileImage}
-                  />
-                ) : null}
+                <Image
+                  source={{ uri: signUpTokens.profilePictureUrl }}
+                  style={{ width: signUpTokens.profilePictureSize, height: signUpTokens.profilePictureSize }}
+                />
               </View>
             ) : null}
 
