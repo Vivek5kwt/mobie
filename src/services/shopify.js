@@ -84,7 +84,6 @@ export const QUERY_RECENT_PRODUCTS = `
           id
           title
           handle
-          availableForSale
           featuredImage { url altText }
           images(first: 1) { edges { node { url altText } } }
           priceRangeV2 { minVariantPrice { amount currencyCode } }
@@ -93,7 +92,6 @@ export const QUERY_RECENT_PRODUCTS = `
               node {
                 id
                 compareAtPrice
-                availableForSale
               }
             }
           }
@@ -194,46 +192,49 @@ export async function fetchShopifyRecentProducts(limit = 10, options = {}) {
     storeId: options.storeId || "",
   });
 
+  return withRequestCache(cacheKey, async () => {
+  const creds = await getShopifyCredentials();
+  const shop = options.shop || creds.shop;
+  const token = options.token || creds.token;
+  const storeId = options.storeId || creds.storeId;
+
   try {
-    return await withRequestCache(cacheKey, async () => {
-      const creds = await getShopifyCredentials();
-      const shop = options.shop || creds.shop;
-      const token = options.token || creds.token;
-      const storeId = options.storeId || creds.storeId;
+    const json = await directStorefrontGraphQL({
+      shop, token, storeId,
+      query: QUERY_RECENT_PRODUCTS,
+      variables: { first: Math.max(1, limit) },
+    });
 
-      const json = await directStorefrontGraphQL({
-        shop, token, storeId,
-        query: QUERY_RECENT_PRODUCTS,
-        variables: { first: Math.max(1, limit) },
-      });
+    if (json.errors) {
+      console.error("❌ Shopify GraphQL Errors →", json.errors);
+      return [];
+    }
 
-      if (json.errors) throw new Error(JSON.stringify(json.errors));
-
-      const edges = json?.data?.products?.edges || [];
-      return edges.map(({ node }) => {
-        const variant = node?.variants?.edges?.[0]?.node;
-        const price = node?.priceRangeV2?.minVariantPrice;
-        return {
-          id: node?.id,
-          name: node?.title,
-          title: node?.title,
-          handle: node?.handle,
-          availableForSale: node?.availableForSale ?? variant?.availableForSale ?? true,
-          image: node?.featuredImage?.url || node?.images?.edges?.[0]?.node?.url || null,
-          imageUrl: node?.featuredImage?.url || node?.images?.edges?.[0]?.node?.url || null,
-          price: price?.amount || null,
-          priceAmount: price?.amount || null,
-          currency: price?.currencyCode || null,
-          priceCurrency: price?.currencyCode || null,
-          compareAtPrice: variant?.compareAtPrice || null,
-          variantId: variant?.id || null,
-        };
-      });
+    const edges = json?.data?.products?.edges || [];
+    return edges.map(({ node }) => {
+      const variant = node?.variants?.edges?.[0]?.node;
+      const price = node?.priceRangeV2?.minVariantPrice;
+      return {
+        id: node?.id,
+        name: node?.title,
+        title: node?.title,
+        handle: node?.handle,
+        availableForSale: node?.availableForSale ?? true,
+        image: node?.featuredImage?.url || node?.images?.edges?.[0]?.node?.url || null,
+        imageUrl: node?.featuredImage?.url || node?.images?.edges?.[0]?.node?.url || null,
+        price: price?.amount || null,
+        priceAmount: price?.amount || null,
+        currency: price?.currencyCode || null,
+        priceCurrency: price?.currencyCode || null,
+        compareAtPrice: variant?.compareAtPrice || null,
+        variantId: variant?.id || null,
+      };
     });
   } catch (error) {
     console.error("❌ fetchShopifyRecentProducts error:", error);
     return [];
   }
+  });
 }
 
 // ----------------------
@@ -285,61 +286,89 @@ export async function fetchShopifyProductsPage({
     storeId: options.storeId || "",
   });
 
-  try {
-    return await withRequestCache(cacheKey, async () => {
-      const creds = await getShopifyCredentials();
-      const shop = options.shop || creds.shop;
-      const token = options.token || creds.token;
-      const storeId = options.storeId || creds.storeId;
+  return withRequestCache(cacheKey, async () => {
+  const creds = await getShopifyCredentials();
+  const shop = options.shop || creds.shop;
+  const token = options.token || creds.token;
+  const storeId = options.storeId || creds.storeId;
 
-      const query = `
-        query Products($first: Int!, $after: String) {
-          products(first: $first, after: $after) {
-            pageInfo { hasNextPage endCursor }
-            edges {
-              node {
-                id title handle availableForSale
-                featuredImage { url }
-                images(first: 1) { edges { node { url } } }
-                priceRangeV2 { minVariantPrice { amount currencyCode } }
-                variants(first: 1) {
-                  edges { node { id compareAtPrice availableForSale } }
+  const query = `
+    query Products($first: Int!, $after: String) {
+      products(first: $first, after: $after) {
+        pageInfo {
+          hasNextPage
+          endCursor
+        }
+        edges {
+          node {
+            id
+            title
+            handle
+            featuredImage { url }
+            images(first: 1) { edges { node { url } } }
+            priceRangeV2 { minVariantPrice { amount currencyCode } }
+            variants(first: 1) {
+              edges {
+                node {
+                  id
+                  compareAtPrice
+                  availableForSale
                 }
               }
             }
+            availableForSale
           }
         }
-      `;
+      }
+    }
+  `;
 
-      const json = await directStorefrontGraphQL({ shop, token, storeId, query, variables: { first, after } });
-      if (json.errors) throw new Error(JSON.stringify(json.errors));
-
-      const edges = json?.data?.products?.edges || [];
-      const pageInfo = json?.data?.products?.pageInfo || { hasNextPage: false, endCursor: null };
-      const products = edges.map((edge) => {
-        const variant = edge?.node?.variants?.edges?.[0]?.node;
-        const price = edge?.node?.priceRangeV2?.minVariantPrice;
-        return {
-          id: edge?.node?.id,
-          title: edge?.node?.title,
-          handle: edge?.node?.handle,
-          availableForSale: edge?.node?.availableForSale ?? variant?.availableForSale ?? true,
-          variantId: variant?.id || null,
-          compareAtPrice: variant?.compareAtPrice || null,
-          imageUrl: edge?.node?.featuredImage?.url || edge?.node?.images?.edges?.[0]?.node?.url || null,
-          image:    edge?.node?.featuredImage?.url || edge?.node?.images?.edges?.[0]?.node?.url || null,
-          priceAmount: price?.amount || null,
-          priceCurrency: price?.currencyCode || null,
-          price: price?.amount || null,
-          currency: price?.currencyCode || null,
-        };
-      });
-      return { products, pageInfo };
+  try {
+    const json = await directStorefrontGraphQL({
+      shop,
+      token,
+      storeId,
+      query,
+      variables: { first, after },
     });
+
+    if (json.errors) {
+      console.error("❌ Shopify GraphQL Errors →", json.errors);
+      return { products: [], pageInfo: { hasNextPage: false, endCursor: null } };
+    }
+
+    const edges = json?.data?.products?.edges || [];
+    const pageInfo = json?.data?.products?.pageInfo || {
+      hasNextPage: false,
+      endCursor: null,
+    };
+
+    const products = edges.map((edge) => {
+      const variant = edge?.node?.variants?.edges?.[0]?.node;
+      const price = edge?.node?.priceRangeV2?.minVariantPrice;
+
+      return {
+        id: edge?.node?.id,
+        title: edge?.node?.title,
+        handle: edge?.node?.handle,
+        availableForSale: edge?.node?.availableForSale ?? variant?.availableForSale ?? true,
+        variantId: variant?.id || null,
+        imageUrl:
+          edge?.node?.featuredImage?.url ||
+          edge?.node?.images?.edges?.[0]?.node?.url ||
+          null,
+        priceAmount: price?.amount || null,
+        priceCurrency: price?.currencyCode || null,
+        compareAtPrice: variant?.compareAtPrice || null,
+      };
+    });
+
+    return { products, pageInfo };
   } catch (error) {
     console.error("❌ Shopify Product Page Fetch Error:", error);
     return { products: [], pageInfo: { hasNextPage: false, endCursor: null } };
   }
+  });
 }
 
 // ----------------------
@@ -796,28 +825,38 @@ export async function fetchShopifyCollectionProducts({
     storeId: options.storeId || "",
   });
 
-  try {
-    return await withRequestCache(cacheKey, async () => {
-      const creds = await getShopifyCredentials();
-      const shop = options.shop || creds.shop;
-      const token = options.token || creds.token;
-      const storeId = options.storeId || creds.storeId;
+  return withRequestCache(cacheKey, async () => {
 
-      const query = `
-        query CollectionProducts($query: String!, $firstCollections: Int!, $first: Int!, $after: String) {
-          collections(first: $firstCollections, query: $query) {
-            edges {
-              node {
-                products(first: $first, after: $after) {
-                  pageInfo { hasNextPage endCursor }
-                  edges {
-                    node {
-                      id title handle availableForSale
-                      featuredImage { url }
-                      images(first: 1) { edges { node { url } } }
-                      priceRangeV2 { minVariantPrice { amount currencyCode } }
-                      variants(first: 1) {
-                        edges { node { id compareAtPrice availableForSale } }
+  const creds = await getShopifyCredentials();
+  const shop = options.shop || creds.shop;
+  const token = options.token || creds.token;
+  const storeId = options.storeId || creds.storeId;
+
+  const query = `
+    query CollectionProducts($query: String!, $firstCollections: Int!, $first: Int!, $after: String) {
+      collections(first: $firstCollections, query: $query) {
+        edges {
+          node {
+            products(first: $first, after: $after) {
+              pageInfo {
+                hasNextPage
+                endCursor
+              }
+              edges {
+                node {
+                  id
+                  title
+                  handle
+                  availableForSale
+                  featuredImage { url }
+                  images(first: 1) { edges { node { url } } }
+                  priceRangeV2 { minVariantPrice { amount currencyCode } }
+                  variants(first: 1) {
+                    edges {
+                      node {
+                        id
+                        compareAtPrice
+                        availableForSale
                       }
                     }
                   }
@@ -826,41 +865,61 @@ export async function fetchShopifyCollectionProducts({
             }
           }
         }
-      `;
+      }
+    }
+  `;
 
-      const json = await directStorefrontGraphQL({
-        shop, token, storeId, query,
-        variables: { query: `handle:${handle}`, firstCollections: 1, first: safeFirst, after },
-      });
-      if (json.errors) throw new Error(JSON.stringify(json.errors));
-
-      const productsNode = json?.data?.collections?.edges?.[0]?.node?.products;
-      const edges = productsNode?.edges || [];
-      const pageInfo = productsNode?.pageInfo || { hasNextPage: false, endCursor: null };
-      const products = edges.map(({ node }) => {
-        const priceNode = node?.priceRangeV2?.minVariantPrice;
-        const variant = node?.variants?.edges?.[0]?.node;
-        return {
-          id: node?.id,
-          title: node?.title,
-          handle: node?.handle,
-          availableForSale: node?.availableForSale ?? variant?.availableForSale ?? true,
-          variantId: variant?.id || null,
-          compareAtPrice: variant?.compareAtPrice || null,
-          imageUrl: node?.featuredImage?.url || node?.images?.edges?.[0]?.node?.url || null,
-          image:    node?.featuredImage?.url || node?.images?.edges?.[0]?.node?.url || null,
-          priceAmount: priceNode?.amount || null,
-          priceCurrency: priceNode?.currencyCode || null,
-          price: priceNode?.amount || null,
-          currency: priceNode?.currencyCode || null,
-        };
-      });
-      return { products, pageInfo };
+  try {
+    const json = await directStorefrontGraphQL({
+      shop,
+      token,
+      storeId,
+      query,
+      variables: {
+        query: `handle:${handle}`,
+        firstCollections: 1,
+        first: safeFirst,
+        after,
+      },
     });
+
+    if (json.errors) {
+      console.error("❌ Shopify GraphQL Errors →", json.errors);
+      return { products: [], pageInfo: { hasNextPage: false, endCursor: null } };
+    }
+
+    const productsNode = json?.data?.collections?.edges?.[0]?.node?.products;
+    const edges = productsNode?.edges || [];
+    const pageInfo = productsNode?.pageInfo || {
+      hasNextPage: false,
+      endCursor: null,
+    };
+
+    const products = edges.map(({ node }) => {
+      const priceNode = node?.priceRangeV2?.minVariantPrice;
+      const variant = node?.variants?.edges?.[0]?.node;
+      return {
+        id: node?.id,
+        title: node?.title,
+        handle: node?.handle,
+        availableForSale: node?.availableForSale ?? variant?.availableForSale ?? true,
+        variantId: variant?.id || null,
+        imageUrl:
+          node?.featuredImage?.url ||
+          node?.images?.edges?.[0]?.node?.url ||
+          null,
+        priceAmount: priceNode?.amount || null,
+        priceCurrency: priceNode?.currencyCode || null,
+        compareAtPrice: variant?.compareAtPrice || null,
+      };
+    });
+
+    return { products, pageInfo };
   } catch (error) {
     console.error("❌ Shopify Collection Products Fetch Error:", error);
     return { products: [], pageInfo: { hasNextPage: false, endCursor: null } };
   }
+  });
 }
 
 // ----------------------

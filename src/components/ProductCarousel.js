@@ -14,8 +14,9 @@ import { useDispatch, useSelector } from "react-redux";
 import FontAwesome from "react-native-vector-icons/FontAwesome";
 import { resolveFA4IconName } from "../utils/faIconAlias";
 import {
-  fetchShopifyProducts,
+  fetchShopifyProductsPage,
   fetchShopifyCollectionProducts,
+  fetchShopifyRecentProducts,
 } from "../services/shopify";
 import { addItem } from "../store/slices/cartSlice";
 import { toggleWishlist } from "../store/slices/wishlistSlice";
@@ -449,21 +450,26 @@ export default function ProductCarousel({ section }) {
     setLoading(true);
     setError("");
     try {
-      let resultProducts = [];
+      let result;
       if (useCollectionFetch) {
-        const payload = await fetchShopifyCollectionProducts({
+        result = await fetchShopifyCollectionProducts({
           handle: collectionHandle,
           first: safeFirst,
         });
-        resultProducts = payload?.products || [];
-        if (!resultProducts.length) {
-          resultProducts = await fetchShopifyProducts(safeFirst);
+        if (!result?.products?.length) {
+          result = await fetchShopifyProductsPage({ first: safeFirst });
         }
       } else {
-        resultProducts = await fetchShopifyProducts(safeFirst);
+        result = await fetchShopifyProductsPage({ first: safeFirst });
+      }
+      // If paginated fetch returned nothing, fall back to the recent-products query
+      // which uses a separate cache scope and is the proven-working path.
+      if (!result?.products?.length) {
+        const flat = await fetchShopifyRecentProducts(safeFirst);
+        result = { products: flat || [], pageInfo: { hasNextPage: false, endCursor: null } };
       }
       if (isMountedRef.current) {
-        setProducts(resultProducts);
+        setProducts(result?.products || []);
       }
     } catch (err) {
       if (isMountedRef.current) {
