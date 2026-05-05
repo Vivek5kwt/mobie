@@ -7,7 +7,7 @@ import { useFocusEffect, useNavigation } from "@react-navigation/native";
 import { useDispatch, useSelector } from "react-redux";
 import { addItem } from "../store/slices/cartSlice";
 import { toggleWishlist } from "../store/slices/wishlistSlice";
-import { fetchShopifyProductsPage, fetchShopifyCollectionProducts } from "../services/shopify";
+import { fetchShopifyProducts, fetchShopifyCollectionProducts } from "../services/shopify";
 import Snackbar from "./Snackbar";
 import { useAuth } from "../services/AuthContext";
 import { requireLoginForAction } from "../utils/authGate";
@@ -593,47 +593,33 @@ export default function ProductGrid({ section, limit = 8, title = "Products" }) 
     setLoading(true);
     setError("");
     try {
-      let payload;
+      let prods = [];
+      let more = false;
       if (useCollectionFetch && collectionHandle) {
-        payload = await fetchShopifyCollectionProducts({
+        const payload = await fetchShopifyCollectionProducts({
           handle: collectionHandle,
           first:  safeFirst,
-          options: {
-            shop:  shopifyDomain || undefined,
-            token: shopifyToken  || undefined,
-          },
         });
-        // If collection returned nothing, fall back to all products
-        if (!payload?.products?.length) {
-          payload = await fetchShopifyProductsPage({
-            first: safeFirst,
-            after: null,
-            options: {
-              shop:  shopifyDomain || undefined,
-              token: shopifyToken  || undefined,
-            },
-          });
+        prods = payload?.products || [];
+        more  = Boolean(payload?.pageInfo?.hasNextPage);
+        if (!prods.length) {
+          prods = await fetchShopifyProducts(safeFirst);
+          more  = false;
         }
       } else {
-        payload = await fetchShopifyProductsPage({
-          first: safeFirst,
-          after: null,
-          options: {
-            shop:  shopifyDomain || undefined,
-            token: shopifyToken  || undefined,
-          },
-        });
+        prods = await fetchShopifyProducts(safeFirst);
+        more  = false;
       }
       if (isMountedRef.current) {
-        setProducts(payload?.products || []);
-        setHasMore(Boolean(payload?.pageInfo?.hasNextPage));
+        setProducts(prods);
+        setHasMore(more);
       }
     } catch {
       if (isMountedRef.current) setError("Unable to load products right now. Please try again later.");
     } finally {
       if (isMountedRef.current) setLoading(false);
     }
-  }, [useCollectionFetch, collectionHandle, resolvedLimit, shopifyDomain, shopifyToken]);
+  }, [useCollectionFetch, collectionHandle, resolvedLimit]);
 
   // Initial load and reload when inputs change
   useEffect(() => {

@@ -14,7 +14,7 @@ import { useDispatch, useSelector } from "react-redux";
 import FontAwesome from "react-native-vector-icons/FontAwesome";
 import { resolveFA4IconName } from "../utils/faIconAlias";
 import {
-  fetchShopifyProductsPage,
+  fetchShopifyProducts,
   fetchShopifyCollectionProducts,
 } from "../services/shopify";
 import { addItem } from "../store/slices/cartSlice";
@@ -449,21 +449,21 @@ export default function ProductCarousel({ section }) {
     setLoading(true);
     setError("");
     try {
-      let result;
+      let resultProducts = [];
       if (useCollectionFetch) {
-        result = await fetchShopifyCollectionProducts({
+        const payload = await fetchShopifyCollectionProducts({
           handle: collectionHandle,
           first: safeFirst,
         });
-        // If selected collection is empty/invalid, show all products instead of blank UI.
-        if (!result?.products?.length) {
-          result = await fetchShopifyProductsPage({ first: safeFirst });
+        resultProducts = payload?.products || [];
+        if (!resultProducts.length) {
+          resultProducts = await fetchShopifyProducts(safeFirst);
         }
       } else {
-        result = await fetchShopifyProductsPage({ first: safeFirst });
+        resultProducts = await fetchShopifyProducts(safeFirst);
       }
       if (isMountedRef.current) {
-        setProducts(result?.products || []);
+        setProducts(resultProducts);
       }
     } catch (err) {
       if (isMountedRef.current) {
