@@ -478,6 +478,11 @@ const toTextDecoration = (
   return 'none';
 };
 
+// Clamp DSL font sizes to sane mobile maximums so the signup form
+// always looks visually consistent with the signin form regardless
+// of what the builder sends (e.g. it may send 24px for everything).
+const capFontSize = (value: number, max: number): number => Math.min(value, max);
+
 const buildSignInTokens = (rawProps: Record<string, unknown>): SignInTokens => ({
   ...defaultSignInTokens,
   bgColor: (rawProps?.bgColor as string) ?? defaultSignInTokens.bgColor,
@@ -751,22 +756,10 @@ const buildSignUpTokens = (rawProps: Record<string, unknown>): SignUpTokens => (
     (rawProps?.lastNameLabelColor as string) ?? defaultSignUpTokens.lastNameLabelColor,
   passwordLabelColor:
     (rawProps?.passwordLabelColor as string) ?? defaultSignUpTokens.passwordLabelColor,
-  emailLabelFontSize: toNumber(
-    rawProps?.emailLabelFontSize,
-    defaultSignUpTokens.emailLabelFontSize
-  ),
-  firstNameLabelFontSize: toNumber(
-    rawProps?.firstNameLabelFontSize,
-    defaultSignUpTokens.firstNameLabelFontSize
-  ),
-  lastNameLabelFontSize: toNumber(
-    rawProps?.lastNameLabelFontSize,
-    defaultSignUpTokens.lastNameLabelFontSize
-  ),
-  passwordLabelFontSize: toNumber(
-    rawProps?.passwordLabelFontSize,
-    defaultSignUpTokens.passwordLabelFontSize
-  ),
+  emailLabelFontSize: capFontSize(toNumber(rawProps?.emailLabelFontSize, defaultSignUpTokens.emailLabelFontSize), 15),
+  firstNameLabelFontSize: capFontSize(toNumber(rawProps?.firstNameLabelFontSize, defaultSignUpTokens.firstNameLabelFontSize), 15),
+  lastNameLabelFontSize: capFontSize(toNumber(rawProps?.lastNameLabelFontSize, defaultSignUpTokens.lastNameLabelFontSize), 15),
+  passwordLabelFontSize: capFontSize(toNumber(rawProps?.passwordLabelFontSize, defaultSignUpTokens.passwordLabelFontSize), 15),
   emailLabelFontFamily:
     (rawProps?.emailLabelFontFamily as string) ?? defaultSignUpTokens.emailLabelFontFamily,
   firstNameLabelFontFamily:
@@ -802,22 +795,10 @@ const buildSignUpTokens = (rawProps: Record<string, unknown>): SignUpTokens => (
     (rawProps?.lastNameInputTextColor as string) ?? defaultSignUpTokens.lastNameInputTextColor,
   passwordInputTextColor:
     (rawProps?.passwordInputTextColor as string) ?? defaultSignUpTokens.passwordInputTextColor,
-  emailInputTextFontSize: toNumber(
-    rawProps?.emailInputTextFontSize,
-    defaultSignUpTokens.emailInputTextFontSize
-  ),
-  firstNameInputTextFontSize: toNumber(
-    rawProps?.firstNameInputTextFontSize,
-    defaultSignUpTokens.firstNameInputTextFontSize
-  ),
-  lastNameInputTextFontSize: toNumber(
-    rawProps?.lastNameInputTextFontSize,
-    defaultSignUpTokens.lastNameInputTextFontSize
-  ),
-  passwordInputTextFontSize: toNumber(
-    rawProps?.passwordInputTextFontSize,
-    defaultSignUpTokens.passwordInputTextFontSize
-  ),
+  emailInputTextFontSize: capFontSize(toNumber(rawProps?.emailInputTextFontSize, defaultSignUpTokens.emailInputTextFontSize), 15),
+  firstNameInputTextFontSize: capFontSize(toNumber(rawProps?.firstNameInputTextFontSize, defaultSignUpTokens.firstNameInputTextFontSize), 15),
+  lastNameInputTextFontSize: capFontSize(toNumber(rawProps?.lastNameInputTextFontSize, defaultSignUpTokens.lastNameInputTextFontSize), 15),
+  passwordInputTextFontSize: capFontSize(toNumber(rawProps?.passwordInputTextFontSize, defaultSignUpTokens.passwordInputTextFontSize), 15),
   emailInputTextFontFamily:
     (rawProps?.emailInputTextFontFamily as string) ??
     defaultSignUpTokens.emailInputTextFontFamily,
@@ -869,7 +850,7 @@ const buildSignUpTokens = (rawProps: Record<string, unknown>): SignUpTokens => (
     (rawProps?.buttonAutoUppercase as boolean) ?? defaultSignUpTokens.buttonAutoUppercase,
   buttonHeight: toNumber(rawProps?.buttonHeight, defaultSignUpTokens.buttonHeight),
   buttonWidth: toNumber(rawProps?.buttonWidth, defaultSignUpTokens.buttonWidth),
-  buttonFontSize: toNumber(rawProps?.buttonFontSize, defaultSignUpTokens.buttonFontSize),
+  buttonFontSize: capFontSize(toNumber(rawProps?.buttonFontSize, defaultSignUpTokens.buttonFontSize), 16),
   buttonFontFamily:
     (rawProps?.buttonFontFamily as string) ?? defaultSignUpTokens.buttonFontFamily,
   buttonFontWeight: toFontWeight(
@@ -878,14 +859,8 @@ const buildSignUpTokens = (rawProps: Record<string, unknown>): SignUpTokens => (
   ),
   footerTextColor: (rawProps?.footerTextColor as string) ?? defaultSignUpTokens.footerTextColor,
   footerLinkColor: (rawProps?.footerLinkColor as string) ?? defaultSignUpTokens.footerLinkColor,
-  footerTextFontSize: toNumber(
-    rawProps?.footerTextFontSize,
-    defaultSignUpTokens.footerTextFontSize
-  ),
-  footerLinkFontSize: toNumber(
-    rawProps?.footerLinkFontSize,
-    defaultSignUpTokens.footerLinkFontSize
-  ),
+  footerTextFontSize: capFontSize(toNumber(rawProps?.footerTextFontSize, defaultSignUpTokens.footerTextFontSize), 14),
+  footerLinkFontSize: capFontSize(toNumber(rawProps?.footerLinkFontSize, defaultSignUpTokens.footerLinkFontSize), 14),
   footerLinkFontFamily:
     (rawProps?.footerLinkFontFamily as string) ?? defaultSignUpTokens.footerLinkFontFamily,
   footerLinkFontWeight: toFontWeight(
