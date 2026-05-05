@@ -223,16 +223,25 @@ const resolveButtonColor = (value: unknown, fallback: string): string => {
   return resolved ?? fallback;
 };
 
-const getSectionComponent = (section: Record<string, unknown> | null | undefined): string =>
-  unwrapValue((section?.component ?? section?.properties?.component) as string, '');
+const normalizeSectionName = (value: unknown): string =>
+  String(value || '').trim().toLowerCase().replace(/[\s-]+/g, '_');
 
-const getSectionRawProps = (section: Record<string, unknown> | null | undefined) => {
-  const propsNode =
-    (section?.properties as Record<string, unknown>)?.props?.properties ||
-    (section?.properties as Record<string, unknown>)?.props ||
-    section?.props ||
+const getSectionComponent = (section: Record<string, unknown> | null | undefined): string => {
+  const raw = unwrapValue((section?.component ?? (section?.properties as Record<string, unknown>)?.component) as string, '');
+  return normalizeSectionName(raw);
+};
+
+const getSectionRawProps = (section: Record<string, unknown> | null | undefined): Record<string, unknown> => {
+  const propsNode: Record<string, unknown> =
+    ((section?.properties as Record<string, unknown>)?.props as Record<string, unknown>)?.properties as Record<string, unknown> ||
+    (section?.properties as Record<string, unknown>)?.props as Record<string, unknown> ||
+    section?.props as Record<string, unknown> ||
     {};
-  return unwrapValue((propsNode as Record<string, unknown>)?.raw, {}) as Record<string, unknown>;
+  const rawNode = unwrapValue((propsNode as Record<string, unknown>)?.raw, null);
+  if (rawNode && typeof rawNode === 'object' && !Array.isArray(rawNode)) {
+    return { ...propsNode, ...(rawNode as Record<string, unknown>) };
+  }
+  return propsNode;
 };
 
 const defaultSignInTokens: SignInTokens = {
@@ -973,18 +982,18 @@ const AuthScreen = () => {
         ? signUpDsl.dsl.sections
         : [];
 
-      const signInSection = signInSections.find(
-        (section) => getSectionComponent(section) === 'signin'
-      );
-      const forgotSection = signInSections.find(
-        (section) => getSectionComponent(section) === 'forgot_password'
-      );
-      // Support both "signup" and "sign_up" component names
-      const signUpSection = signUpSections.find(
-        (section) =>
-          getSectionComponent(section) === 'signup' ||
-          getSectionComponent(section) === 'sign_up'
-      );
+      const signInSection = signInSections.find((section) => {
+        const c = getSectionComponent(section);
+        return c === 'signin' || c === 'sign_in';
+      });
+      const forgotSection = signInSections.find((section) => {
+        const c = getSectionComponent(section);
+        return c === 'forgot_password' || c === 'forgotpassword';
+      });
+      const signUpSection = signUpSections.find((section) => {
+        const c = getSectionComponent(section);
+        return c === 'signup' || c === 'sign_up';
+      });
 
       if (signInSection) {
         setSignInTokens(buildSignInTokens(getSectionRawProps(signInSection)));
