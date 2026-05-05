@@ -202,6 +202,7 @@ export default function ProductDetailScreen() {
   const [error, setError] = useState("");
   const [bottomNavSection, setBottomNavSection] = useState(null);
   const [bottomNavHeight, setBottomNavHeight] = useState(BOTTOM_NAV_RESERVED_HEIGHT);
+  const [stickyAtcHeight, setStickyAtcHeight] = useState(130);
   const isMountedRef = useRef(true);
   const dslVersionRef = useRef(null);
   const productRef = useRef(product);
@@ -352,7 +353,7 @@ export default function ProductDetailScreen() {
     () => renderSections.filter((section) => !isAddToCartStickySection(section)),
     [renderSections]
   );
-  const stickyAtcReservedSpace = stickyAddToCartSections.length > 0 ? 110 : 0;
+  const stickyAtcReservedSpace = stickyAddToCartSections.length > 0 ? stickyAtcHeight : 0;
   const showEmptyState = !showLoadingState && (!renderSections.length || !!error);
 
   return (
@@ -394,6 +395,7 @@ export default function ProductDetailScreen() {
               styles.stickyAddToCartDock,
               { bottom: bottomNavSection ? bottomNavHeight : 0 },
             ]}
+            onLayout={(e) => setStickyAtcHeight(e.nativeEvent.layout.height)}
           >
             {stickyAddToCartSections.map((section, index) => (
               <View key={section?.id || section?.component || `sticky-atc-${index}`} style={styles.stickySectionItem}>

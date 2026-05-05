@@ -19,8 +19,6 @@ import FilterSortHeader from "../components/FilterSortHeader";
 import BottomNavigation, { BOTTOM_NAV_RESERVED_HEIGHT } from "../components/BottomNavigation";
 import { fetchDSL } from "../engine/dslHandler";
 import { resolveAppId } from "../utils/appId";
-import { useAuth } from "../services/AuthContext";
-import { requireLoginForAction } from "../utils/authGate";
 
 const PAGE_SIZE = 20;
 const GAP = 12;
@@ -61,7 +59,6 @@ export default function CollectionProductsScreen() {
   const navigation = useNavigation();
   const route = useRoute();
   const dispatch = useDispatch();
-  const { session } = useAuth();
   const { collectionHandle, collectionTitle } = route?.params || {};
 
   const [products, setProducts]       = useState([]);
@@ -133,9 +130,7 @@ export default function CollectionProductsScreen() {
     loadProducts();
   }, [loadProducts]);
 
-  const handleAddToCart = async (product) => {
-    const blocked = await requireLoginForAction({ session, navigation });
-    if (blocked) return;
+  const handleAddToCart = (product) => {
     dispatch(
       addItem({
         item: {

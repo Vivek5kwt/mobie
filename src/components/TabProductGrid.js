@@ -444,8 +444,6 @@ export default function TabProductGrid({ section }) {
   }, [navigation]);
 
   const handleAddToCart = useCallback(async (product) => {
-    const blocked = await requireLoginForAction({ session, navigation });
-    if (blocked) return;
     dispatch(
       addItem({
         item: {
@@ -463,7 +461,7 @@ export default function TabProductGrid({ section }) {
     );
     setSnackMessage("Product added to cart successfully.");
     setSnackVisible(true);
-  }, [dispatch, navigation, session]);
+  }, [dispatch]);
 
   const handleToggleFavorite = useCallback(async (product, currentlyFav) => {
     const blocked = await requireLoginForAction({ session, navigation });

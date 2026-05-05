@@ -547,11 +547,9 @@ function BottomNavigation({ section, activeIndexOverride }) {
       itemSlug === "my-account" ||
       itemSlug === "profile" ||
       ORDER_SLUGS.has(itemSlug) ||
-      itemSlug === "cart" ||
       targetPageSlug === "my-account" ||
       targetPageSlug === "profile" ||
-      ORDER_SLUGS.has(targetPageSlug) ||
-      targetPageSlug === "cart";
+      ORDER_SLUGS.has(targetPageSlug);
 
     if (isProtectedTarget) {
       const blocked = await requireLoginForAction({

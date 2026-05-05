@@ -944,6 +944,7 @@ const AuthScreen = () => {
   );
   const [signInHeaderConfig, setSignInHeaderConfig] = useState<Record<string, unknown> | null>(null);
   const [signUpHeaderConfig, setSignUpHeaderConfig] = useState<Record<string, unknown> | null>(null);
+  const [dslLoaded, setDslLoaded] = useState(false);
   const isMountedRef = useRef(true);
   const loginToastPendingRef = useRef(false);
 
@@ -1017,6 +1018,7 @@ const AuthScreen = () => {
     } finally {
       if (isMountedRef.current) {
         setRefreshing(false);
+        setDslLoaded(true);
       }
     }
   }, []);
@@ -1384,6 +1386,16 @@ const AuthScreen = () => {
       setLoading(false);
     }
   };
+
+  if (!dslLoaded) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+          <ActivityIndicator size="large" color="#0C9297" />
+        </View>
+      </SafeAreaView>
+    );
+  }
 
   return (
     <SafeAreaView style={styles.container}>
