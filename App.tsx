@@ -56,18 +56,6 @@ const ORDER_NOTIFICATION_TYPES = new Set([
 
 export default function App() {
   const navigationRef = useNavigationContainerRef();
-  const requestAndroidNotificationPermission = useCallback(async () => {
-    if (Platform.OS !== 'android' || Platform.Version < 33) return true;
-    try {
-      const result = await PermissionsAndroid.request(
-        PermissionsAndroid.PERMISSIONS.POST_NOTIFICATIONS,
-      );
-      return result === PermissionsAndroid.RESULTS.GRANTED;
-    } catch (error: any) {
-      console.log('Android notification permission request failed:', error?.message);
-      return false;
-    }
-  }, []);
 
   // ── In-app toast / alert for foreground notifications ─────────────────────
   const showInAppMessage = useCallback((title: string, body: string) => {
@@ -103,21 +91,52 @@ export default function App() {
     [navigationRef],
   );
 
-  // ── Request notification permission on first app open ────────────────────
-  // Runs immediately on mount, independent of Firebase availability.
-  // Without this, permission is never shown when Firebase fails to load.
+  // ── Request notification permission once on first app open ──────────────
+  // Separated from FCM setup so the OS dialog always fires even if Firebase
+  // fails to import. Handles Android 13+ rationale and iOS via Firebase.
   useEffect(() => {
-    const askNotifPermission = async () => {
+    const requestNotificationPermission = async () => {
       try {
         if (Platform.OS === 'android') {
-          if (Platform.Version >= 33) {
-            const result = await PermissionsAndroid.request(
-              PermissionsAndroid.PERMISSIONS.POST_NOTIFICATIONS,
+          if (Platform.Version < 33) return; // auto-granted on Android < 13
+
+          const alreadyGranted = await PermissionsAndroid.check(
+            PermissionsAndroid.PERMISSIONS.POST_NOTIFICATIONS,
+          );
+          if (alreadyGranted) return;
+
+          const result = await PermissionsAndroid.request(
+            PermissionsAndroid.PERMISSIONS.POST_NOTIFICATIONS,
+            {
+              title: 'Stay in the loop',
+              message:
+                'Allow notifications to receive order updates and exclusive offers.',
+              buttonPositive: 'Allow',
+              buttonNegative: 'Not now',
+            },
+          );
+
+          // User had previously denied — guide them to device settings
+          if (result === PermissionsAndroid.RESULTS.NEVER_ASK_AGAIN) {
+            Alert.alert(
+              'Notifications Disabled',
+              'To receive order updates, please enable notifications in your device settings.',
+              [
+                { text: 'Not now', style: 'cancel' },
+                {
+                  text: 'Open Settings',
+                  onPress: () => {
+                    import('react-native').then(({ Linking }) =>
+                      Linking.openSettings(),
+                    );
+                  },
+                },
+              ],
             );
-            console.log('Android notification permission:', result);
           }
-          // Android < 13: notifications are auto-granted at install time
         } else if (Platform.OS === 'ios') {
+          // Firebase's requestPermission registers the app with APNs and
+          // obtains the FCM token — it must be called on iOS.
           if (messaging) {
             await messaging().requestPermission();
           }
@@ -126,10 +145,13 @@ export default function App() {
         console.log('Notification permission request failed:', err?.message);
       }
     };
-    askNotifPermission();
-  }, []); // empty deps — run exactly once when the app opens
 
-  // ── FCM setup: token capture + all message listeners ─────────────────────
+    requestNotificationPermission();
+  }, []); // run exactly once on mount
+
+  // ── FCM setup: token capture + message listeners ──────────────────────────
+  // Permission is handled above. This effect only wires up FCM machinery.
+  // Token capture runs regardless of permission so silent/data notifications work.
   useEffect(() => {
     const setupFCM = async () => {
       try {
@@ -138,30 +160,10 @@ export default function App() {
           return;
         }
 
-        // Ensure Android 13+ permission is granted before proceeding
-        const androidGranted = await requestAndroidNotificationPermission();
-        if (!androidGranted) {
-          console.log('FCM permission denied by user on Android');
-          return;
-        }
-
-        // iOS: check current authorization status
-        const authStatus = await messaging().requestPermission();
-        const granted =
-          authStatus === messaging.AuthorizationStatus?.AUTHORIZED ||
-          authStatus === messaging.AuthorizationStatus?.PROVISIONAL ||
-          authStatus === 1 || // AUTHORIZED
-          authStatus === 2;   // PROVISIONAL
-
-        if (!granted) {
-          console.log('⚠️ FCM permission denied by user');
-          return;
-        }
-
-        // 2. Generate FCM token and register it on the backend immediately
+        // Capture FCM token and register it on the backend
         await tokenLogger.captureToken(resolveAppId());
 
-        // 3. Foreground message: show in-app toast/alert while app is open
+        // Foreground message: show in-app toast/alert while app is open
         const unsubMessage = messaging().onMessage(async (remoteMessage: any) => {
           const title = remoteMessage?.notification?.title || 'New Notification';
           const body  = remoteMessage?.notification?.body  || '';
@@ -169,13 +171,13 @@ export default function App() {
           showInAppMessage(title, body);
         });
 
-        // 4. Background tap: app was in background, user tapped notification
+        // Background tap: app was in background, user tapped notification
         const unsubOpen = messaging().onNotificationOpenedApp((remoteMessage: any) => {
           console.log('📲 Notification opened from background:', remoteMessage?.data?.type);
           handleNotificationNavigation(remoteMessage);
         });
 
-        // 5. Token refresh — register new token on backend immediately
+        // Token refresh — register new token on backend immediately
         const unsubRefresh = messaging().onTokenRefresh(async (newToken: string) => {
           console.log('🔄 FCM token refreshed');
           await tokenLogger.refreshToken(newToken, null, resolveAppId());
@@ -194,7 +196,7 @@ export default function App() {
     let cleanup: (() => void) | undefined;
     setupFCM().then((unsub) => { cleanup = unsub; });
     return () => { cleanup?.(); };
-  }, [showInAppMessage, handleNotificationNavigation, requestAndroidNotificationPermission]);
+  }, [showInAppMessage, handleNotificationNavigation]);
 
   return (
     <GestureRootView style={{ flex: 1 }}>
