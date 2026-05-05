@@ -7,7 +7,7 @@ import { useFocusEffect, useNavigation } from "@react-navigation/native";
 import { useDispatch, useSelector } from "react-redux";
 import { addItem } from "../store/slices/cartSlice";
 import { toggleWishlist } from "../store/slices/wishlistSlice";
-import { fetchShopifyProductsPage, fetchShopifyCollectionProducts, fetchShopifyRecentProducts } from "../services/shopify";
+import { fetchShopifyProductsPage, fetchShopifyCollectionProducts } from "../services/shopify";
 import Snackbar from "./Snackbar";
 import { useAuth } from "../services/AuthContext";
 import { requireLoginForAction } from "../utils/authGate";
@@ -622,12 +622,6 @@ export default function ProductGrid({ section, limit = 8, title = "Products" }) 
             token: shopifyToken  || undefined,
           },
         });
-      }
-      // If paginated fetch returned nothing, fall back to the recent-products query
-      // which uses a separate cache scope and is the proven-working path.
-      if (!payload?.products?.length) {
-        const flat = await fetchShopifyRecentProducts(safeFirst);
-        payload = { products: flat || [], pageInfo: { hasNextPage: false, endCursor: null } };
       }
       if (isMountedRef.current) {
         setProducts(payload?.products || []);

@@ -16,7 +16,6 @@ import { resolveFA4IconName } from "../utils/faIconAlias";
 import {
   fetchShopifyProductsPage,
   fetchShopifyCollectionProducts,
-  fetchShopifyRecentProducts,
 } from "../services/shopify";
 import { addItem } from "../store/slices/cartSlice";
 import { toggleWishlist } from "../store/slices/wishlistSlice";
@@ -461,12 +460,6 @@ export default function ProductCarousel({ section }) {
         }
       } else {
         result = await fetchShopifyProductsPage({ first: safeFirst });
-      }
-      // If paginated fetch returned nothing, fall back to the recent-products query
-      // which uses a separate cache scope and is the proven-working path.
-      if (!result?.products?.length) {
-        const flat = await fetchShopifyRecentProducts(safeFirst);
-        result = { products: flat || [], pageInfo: { hasNextPage: false, endCursor: null } };
       }
       if (isMountedRef.current) {
         setProducts(result?.products || []);
