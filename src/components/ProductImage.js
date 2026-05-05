@@ -1,16 +1,14 @@
 import React, { useState } from "react";
-import { ActivityIndicator, Animated, Image, StyleSheet, View } from "react-native";
+import { ActivityIndicator, Image, StyleSheet, View } from "react-native";
 import FontAwesome from "react-native-vector-icons/FontAwesome";
 
 /**
  * Drop-in image component with:
  *  - Spinner overlay while the image is downloading
- *  - Smooth fade-in when the image is ready
- *  - Broken-image icon when the URL fails or is empty
+ *  - Placeholder icon when the URL is empty or fails to load
  *
  * Pass `style` to size the container (width / height / aspectRatio / borderRadius).
- * The Image and all overlays are absolutely positioned inside, so the layout
- * never shifts as loading state changes.
+ * The Image and overlay are absolutely positioned inside the container.
  */
 export default function ProductImage({
   uri,
@@ -21,47 +19,41 @@ export default function ProductImage({
   iconColor = "#D1D5DB",
   iconSize = 28,
 }) {
+  const [loaded, setLoaded] = useState(false);
   const [failed, setFailed] = useState(false);
-  const opacity = React.useRef(new Animated.Value(0)).current;
-  const [showLoader, setShowLoader] = useState(true);
-
-  const handleLoad = () => {
-    setShowLoader(false);
-    Animated.timing(opacity, {
-      toValue: 1,
-      duration: 220,
-      useNativeDriver: true,
-    }).start();
-  };
-
-  const handleError = () => {
-    setShowLoader(false);
-    setFailed(true);
-  };
 
   const noImage = !uri || failed;
 
   return (
     <View style={[styles.container, style]}>
-      {/* Placeholder / loader background */}
-      {(showLoader || noImage) && (
-        <View style={[StyleSheet.absoluteFillObject, styles.overlay, { backgroundColor: placeholderBg }]}>
+      {/* Placeholder / loader shown while loading or on failure */}
+      {(!loaded || noImage) && (
+        <View
+          style={[
+            StyleSheet.absoluteFillObject,
+            styles.overlay,
+            { backgroundColor: placeholderBg },
+          ]}
+        >
           {noImage ? (
-            <FontAwesome name="image" size={iconSize} color={iconColor} />
+            <FontAwesome name="picture-o" size={iconSize} color={iconColor} />
           ) : (
             <ActivityIndicator size="small" color={indicatorColor} />
           )}
         </View>
       )}
 
-      {/* Actual image — fades in once loaded */}
+      {/* Actual image — rendered once uri is available */}
       {!noImage && (
-        <Animated.Image
+        <Image
           source={{ uri }}
-          style={[StyleSheet.absoluteFillObject, { opacity }]}
+          style={StyleSheet.absoluteFillObject}
           resizeMode={resizeMode}
-          onLoad={handleLoad}
-          onError={handleError}
+          onLoad={() => setLoaded(true)}
+          onError={() => {
+            setLoaded(false);
+            setFailed(true);
+          }}
         />
       )}
     </View>
