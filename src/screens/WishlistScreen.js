@@ -9,7 +9,7 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
-import { useNavigation } from "@react-navigation/native";
+import { useFocusEffect, useNavigation } from "@react-navigation/native";
 import { useDispatch, useSelector } from "react-redux";
 import Icon from "react-native-vector-icons/FontAwesome6";
 import { toggleWishlist } from "../store/slices/wishlistSlice";
@@ -39,6 +39,19 @@ export default function WishlistScreen() {
   const dispatch    = useDispatch();
   const { session } = useAuth();
   const wishlistItems = useSelector((state) => state.wishlist?.items || []);
+
+  // Auth gate — redirect to login when screen is opened without a session
+  useFocusEffect(
+    useCallback(() => {
+      if (!session) {
+        navigation.navigate("Auth", {
+          initialMode: "login",
+          requireAuth: true,
+          postLoginTarget: { name: "Wishlist" },
+        });
+      }
+    }, [session, navigation])
+  );
 
   const appId = useMemo(
     () => resolveAppId(session?.user?.appId ?? session?.user?.app_id),
@@ -245,6 +258,8 @@ export default function WishlistScreen() {
   ]);
 
   // ── Render ────────────────────────────────────────────────────────────────
+  if (!session) return null;
+
   return (
     <SafeArea>
       {/* ── Page header ─────────────────────────────────────────────────── */}

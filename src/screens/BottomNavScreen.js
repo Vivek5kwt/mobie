@@ -170,6 +170,16 @@ export default function BottomNavScreen() {
     normalizedPageName.includes("account") ||
     normalizedTitle.includes("profile") ||
     normalizedTitle.includes("account");
+  const isWishlistPage =
+    normalizedPageName.includes("wishlist") || normalizedTitle.includes("wishlist");
+  const isOrdersPage =
+    normalizedPageName === "orders" ||
+    normalizedPageName === "order" ||
+    normalizedPageName === "my-orders" ||
+    normalizedPageName === "order-history" ||
+    normalizedTitle === "orders" ||
+    normalizedTitle === "my orders";
+  const isProtectedPage = isProfilePage || isWishlistPage || isOrdersPage;
   const isAutoRefreshPage = isCartPage || isNotificationPage || isSearchPage || isProfilePage;
   const isHomePage = normalizedPageName === "home";
   const [dsl, setDsl] = useState(null);
@@ -641,6 +651,21 @@ export default function BottomNavScreen() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isNotificationPage, appId]);
 
+  // Auth gate — redirect to login when a protected page is opened without a session.
+  // Wait until the loading state clears so we don't redirect during session restore.
+  useEffect(() => {
+    if (!loading && isProtectedPage && !session) {
+      navigation.navigate("Auth", {
+        initialMode: "login",
+        requireAuth: true,
+        postLoginTarget: {
+          name: "BottomNavScreen",
+          params: route.params,
+        },
+      });
+    }
+  }, [loading, isProtectedPage, session, navigation, route.params]);
+
   useEffect(() => {
     // Check for bottom navigation updates on mount
     checkAndUpdateBottomNav();
@@ -824,18 +849,7 @@ export default function BottomNavScreen() {
             ) : isProfilePage && !loading ? (
               session ? (
                 <FallbackProfile session={session} logout={logout} navigation={navigation} />
-              ) : (
-                <View style={styles.loginPromptBox}>
-                  <Text style={styles.loginPromptTitle}>Sign in to your account</Text>
-                  <Text style={styles.loginPromptSub}>View your orders, wishlist, and profile details.</Text>
-                  <TouchableOpacity
-                    style={styles.loginPromptBtn}
-                    onPress={() => navigation.navigate("Auth")}
-                  >
-                    <Text style={styles.loginPromptBtnText}>Login / Sign Up</Text>
-                  </TouchableOpacity>
-                </View>
-              )
+              ) : null
             ) : (
               <View style={styles.content}>
                 <Text style={styles.subtitleText}>No content available yet.</Text>

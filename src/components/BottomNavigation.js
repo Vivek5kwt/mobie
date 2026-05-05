@@ -158,9 +158,10 @@ const slugifyPageName = (value) =>
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/^-+|-+$/g, "");
 
-const SIGNIN_SLUGS = new Set(["signin", "sign-in", "login", "log-in", "auth"]);
-const ORDER_SLUGS  = new Set(["orders", "order", "my-orders", "myorders", "order-history", "orderhistory", "my-order"]);
-const PROFILE_SLUGS = new Set(["profile", "account", "my-account", "myaccount"]);
+const SIGNIN_SLUGS   = new Set(["signin", "sign-in", "login", "log-in", "auth"]);
+const ORDER_SLUGS    = new Set(["orders", "order", "my-orders", "myorders", "order-history", "orderhistory", "my-order"]);
+const PROFILE_SLUGS  = new Set(["profile", "account", "my-account", "myaccount"]);
+const WISHLIST_SLUGS = new Set(["wishlist", "my-wishlist", "mywishlist", "saved", "favorites", "favourites", "favourite", "favorite"]);
 
 const resolveNavigationTarget = (item = {}) => {
   const link = resolveItemLink(item);
@@ -190,6 +191,9 @@ const resolveNavigationTarget = (item = {}) => {
         name: "OrderDetail",
         params: { title: "Orders", pageName: "orders", link: "orders", fromOrdersTab: true },
       };
+    }
+    if (WISHLIST_SLUGS.has(pageName)) {
+      return { type: "stack", name: "Wishlist", params: {} };
     }
     // Orders should stay inside BottomNavScreen so the tab bar remains visible.
     return {
@@ -225,6 +229,9 @@ const resolveNavigationTarget = (item = {}) => {
       name: "OrderDetail",
       params: { title: "Orders", pageName: "orders", link: "orders", fromOrdersTab: true },
     };
+  }
+  if (WISHLIST_SLUGS.has(cleanedSlug)) {
+    return { type: "stack", name: "Wishlist", params: {} };
   }
   // Orders should stay inside BottomNavScreen so the tab bar remains visible.
 
@@ -544,12 +551,13 @@ function BottomNavigation({ section, activeIndexOverride }) {
     const itemSlug = slugifyPageName(item?.id || resolveItemLabel(item) || resolveItemLink(item) || "");
     const targetPageSlug = slugifyPageName(target?.params?.pageName || "");
     const isProtectedTarget =
-      itemSlug === "my-account" ||
-      itemSlug === "profile" ||
+      PROFILE_SLUGS.has(itemSlug) ||
       ORDER_SLUGS.has(itemSlug) ||
-      targetPageSlug === "my-account" ||
-      targetPageSlug === "profile" ||
-      ORDER_SLUGS.has(targetPageSlug);
+      WISHLIST_SLUGS.has(itemSlug) ||
+      PROFILE_SLUGS.has(targetPageSlug) ||
+      ORDER_SLUGS.has(targetPageSlug) ||
+      WISHLIST_SLUGS.has(targetPageSlug) ||
+      target?.name === "Wishlist";
 
     if (isProtectedTarget) {
       const blocked = await requireLoginForAction({

@@ -6,6 +6,7 @@ import { useSelector } from "react-redux";
 import { createShopifyCartCheckout } from "../services/shopify";
 import Snackbar from "./Snackbar";
 import { resolveFA4IconName } from "../utils/faIconAlias";
+import { useAuth } from "../services/AuthContext";
 
 // ── DSL helpers ────────────────────────────────────────────────────────────────
 
@@ -110,6 +111,7 @@ const interpolateGradientColor = (colors, ratio) => {
 
 export default function CheckoutButton({ section }) {
   const navigation = useNavigation();
+  const { session } = useAuth();
   const cartItems  = useSelector((state) => state?.cart?.items || []);
   const hasCartItems = cartItems.length > 0;
 
@@ -312,6 +314,12 @@ export default function CheckoutButton({ section }) {
     [cartItems]
   );
 
+  // DSL-configurable: store owner can set guestCheckout=false to require login at checkout
+  const guestCheckoutAllowed = toBool(
+    raw?.guestCheckout ?? raw?.allowGuestCheckout ?? raw?.guestCheckoutEnabled,
+    true  // default: guest checkout is allowed
+  );
+
   const [emptySnackbar, setEmptySnackbar] = useState(false);
   const [errorSnackbar, setErrorSnackbar] = useState(false);
   const [loading,       setLoading]       = useState(false);
@@ -319,6 +327,20 @@ export default function CheckoutButton({ section }) {
   const handleCheckout = async () => {
     if (!hasCartItems) { setEmptySnackbar(true); return; }
     if (loading) return;
+
+    // Require login if store owner disabled guest checkout
+    if (!session && !guestCheckoutAllowed) {
+      navigation.navigate("Auth", {
+        initialMode: "login",
+        requireAuth: true,
+        postLoginTarget: {
+          name: "BottomNavScreen",
+          params: { pageName: "cart", title: "Cart" },
+        },
+      });
+      return;
+    }
+
     setLoading(true);
     try {
       const checkoutUrl = await createShopifyCartCheckout({ items: checkoutLines });
