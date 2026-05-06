@@ -1,5 +1,6 @@
 import React, { useMemo } from "react";
 import {
+  DeviceEventEmitter,
   StyleSheet,
   Text,
   TouchableOpacity,
@@ -199,6 +200,8 @@ export default function TrendingSearches({ section }) {
   // ── Chip / pill styling ────────────────────────────────────────────────────
   const chipBgColor     = unwrapValue(rp("chipBgColor") ?? rp("tagBgColor"), "#C8EDF0");
   const chipTextColor   = unwrapValue(rp("chipTextColor") ?? rp("tagTextColor"), "#0E7490");
+  const trendingPillBgColor = unwrapValue(rp("trendingPillBgColor"), chipBgColor);
+  const trendingPillTextColor = unwrapValue(rp("trendingPillTextColor"), chipTextColor);
   const chipFontSize    = toNumber(rp("chipFontSize") ?? rp("tagFontSize"), 13);
   const chipFontWeight  = deriveWeight(rp("chipFontWeight") ?? rp("tagFontWeight"), "500");
   const chipBorderRadius = toNumber(rp("chipBorderRadius") ?? rp("tagBorderRadius"), 999);
@@ -207,6 +210,9 @@ export default function TrendingSearches({ section }) {
   const chipBorderColor = unwrapValue(rp("chipBorderColor"), "transparent");
   const chipBorderWidth = toNumber(rp("chipBorderWidth"), 0);
   const chipGap         = toNumber(rp("chipGap") ?? rp("gap"), 8);
+  const chipVisible     = toBoolean(rp("chipVisible"), true);
+  const maxChipCount    = toNumber(rp("maxChipCount"), searches.length);
+  const chipLayout      = String(unwrapValue(rp("chipLayout"), "Wrap") || "Wrap").toLowerCase();
 
   // ── Container ─────────────────────────────────────────────────────────────
   const bgColor              = unwrapValue(rp("bgColor"), "#FFFFFF");
@@ -223,6 +229,11 @@ export default function TrendingSearches({ section }) {
 
   // ── Navigation ────────────────────────────────────────────────────────────
   const handleChipPress = (item) => {
+    const query = String(item?.query || item?.text || "").trim();
+    if (query) {
+      DeviceEventEmitter.emit("mobidrag:search:setQuery", { query });
+    }
+
     const link = item.link || "";
     if (link.startsWith("/")) {
       const cleaned = link.replace(/^\//, "");
@@ -243,15 +254,20 @@ export default function TrendingSearches({ section }) {
         return;
       }
     }
-    // Fall back: navigate to search results with the chip text as query
-    if (item.query) {
-      try {
-        navigation.navigate("SearchResults", { query: item.query });
-      } catch (_) {
-        // SearchResults screen may not exist in all builds — silently ignore
-      }
+    // Fallback: stay compatible with stacks that only expose a search page.
+    if (query) {
+      navigation.navigate("BottomNavScreen", {
+        pageName: "search",
+        title: "Search",
+        query,
+      });
     }
   };
+
+  const visibleSearches = searches.slice(0, Math.max(0, Number(maxChipCount) || 0));
+  if (!chipVisible || !visibleSearches.length) return null;
+
+  const isRowLayout = chipLayout === "row";
 
   return (
     <View
@@ -281,8 +297,14 @@ export default function TrendingSearches({ section }) {
       )}
 
       {/* Chips wrap to next row — matching the builder preview */}
-      <View style={[styles.chipList, { gap: chipGap }]}>
-        {searches.map((item, index) => (
+      <View
+        style={[
+          styles.chipList,
+          isRowLayout ? styles.chipListRow : null,
+          { gap: chipGap },
+        ]}
+      >
+        {visibleSearches.map((item, index) => (
           <TouchableOpacity
             key={`${item.text}-${index}`}
             activeOpacity={0.75}
@@ -290,7 +312,7 @@ export default function TrendingSearches({ section }) {
             style={[
               styles.chip,
               {
-                backgroundColor: chipBgColor,
+                backgroundColor: trendingPillBgColor,
                 borderRadius: chipBorderRadius,
                 paddingHorizontal: chipPaddingH,
                 paddingVertical: chipPaddingV,
@@ -302,7 +324,7 @@ export default function TrendingSearches({ section }) {
           >
             <Text
               style={{
-                color: chipTextColor,
+                color: trendingPillTextColor,
                 fontSize: chipFontSize,
                 fontWeight: chipFontWeight,
                 lineHeight: 18,
@@ -329,6 +351,9 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     flexWrap: "wrap",
     alignItems: "flex-start",
+  },
+  chipListRow: {
+    flexWrap: "nowrap",
   },
   chip: {
     alignSelf: "flex-start",

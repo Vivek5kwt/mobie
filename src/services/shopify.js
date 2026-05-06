@@ -772,25 +772,38 @@ export async function searchShopifyProducts(searchTerm, limit = 10, options = {}
     }
   `;
 
-  const searchQuery = `title:*${term}* OR handle:*${term}*`;
+  const escapeSearchTerm = (value) =>
+    String(value || "")
+      .trim()
+      .replace(/[\\"]/g, "")
+      .replace(/[()]/g, " ")
+      .replace(/\s+/g, " ");
 
-  try {
-    const json = await directStorefrontGraphQL({
-      shop,
-      token,
-      storeId,
-      query,
-      variables: { first: limit, query: searchQuery },
-    });
+  const safeTerm = escapeSearchTerm(term);
+  const tokens = safeTerm
+    .split(" ")
+    .map((part) => part.trim())
+    .filter((part) => part.length > 1)
+    .slice(0, 4);
 
-    if (json.errors) {
-      console.error("❌ Shopify GraphQL Errors →", json.errors);
-      return [];
-    }
+  const queryParts = [];
+  if (safeTerm) {
+    queryParts.push(
+      `title:*${safeTerm}*`,
+      `handle:*${safeTerm.replace(/\s+/g, "-")}*`,
+      `vendor:*${safeTerm}*`,
+      `product_type:*${safeTerm}*`,
+      `tag:*${safeTerm}*`
+    );
+  }
+  tokens.forEach((token) => {
+    queryParts.push(`title:*${token}*`, `handle:*${token}*`, `tag:*${token}*`);
+  });
 
-    const edges = json?.data?.products?.edges || [];
+  const searchQuery = queryParts.length ? queryParts.join(" OR ") : safeTerm;
 
-    return edges.map(({ node }) => {
+  const mapProductEdges = (edges = []) =>
+    edges.map(({ node }) => {
       const priceNode = node?.priceRangeV2?.minVariantPrice;
       return {
         id: node?.id,
@@ -801,6 +814,55 @@ export async function searchShopifyProducts(searchTerm, limit = 10, options = {}
         priceCurrency: priceNode?.currencyCode || null,
       };
     });
+
+  try {
+    const json = await directStorefrontGraphQL({
+      shop,
+      token,
+      storeId,
+      query,
+      variables: { first: limit, query: searchQuery },
+    });
+
+    if (json.errors && searchQuery !== safeTerm) {
+      const fallbackJson = await directStorefrontGraphQL({
+        shop,
+        token,
+        storeId,
+        query,
+        variables: { first: limit, query: safeTerm },
+      });
+      if (fallbackJson.errors) {
+        console.error("Shopify GraphQL search fallback errors:", fallbackJson.errors);
+        return [];
+      }
+      return mapProductEdges(fallbackJson?.data?.products?.edges || []);
+    }
+
+    if (json.errors) {
+      console.error("❌ Shopify GraphQL Errors →", json.errors);
+      return [];
+    }
+
+    const edges = json?.data?.products?.edges || [];
+    if (edges.length > 0 || searchQuery === safeTerm) {
+      return mapProductEdges(edges);
+    }
+
+    const fallbackJson = await directStorefrontGraphQL({
+      shop,
+      token,
+      storeId,
+      query,
+      variables: { first: limit, query: safeTerm },
+    });
+
+    if (fallbackJson.errors) {
+      console.error("âŒ Shopify GraphQL Search Fallback Errors â†’", fallbackJson.errors);
+      return [];
+    }
+
+    return mapProductEdges(fallbackJson?.data?.products?.edges || []);
   } catch (error) {
     console.error("❌ Shopify Product Search Error:", error);
     return [];

@@ -30,6 +30,14 @@ const deepUnwrap = (v) => {
   return v;
 };
 
+const asObject = (value) => {
+  const resolved = deepUnwrap(value);
+  return resolved && typeof resolved === "object" && !Array.isArray(resolved) ? resolved : {};
+};
+
+const mergeConfig = (...configs) =>
+  configs.reduce((acc, config) => ({ ...acc, ...asObject(config) }), {});
+
 const toNumber = (value, fallback = 0) => {
   const resolved = unwrapValue(value, undefined);
   if (resolved === undefined || resolved === null || resolved === "") return fallback;
@@ -52,6 +60,11 @@ const toBoolean = (value, fallback = false) => {
   return Boolean(resolved);
 };
 
+const hasValue = (value) => {
+  const resolved = unwrapValue(value, undefined);
+  return resolved !== undefined && resolved !== null && resolved !== "";
+};
+
 
 const buildPadding = (config) => ({
   paddingTop: toNumber(config?.pt, 0),
@@ -60,32 +73,44 @@ const buildPadding = (config) => ({
   paddingRight: toNumber(config?.pr, 0),
 });
 
+const resolveJustifyContent = (config) => {
+  const alignRaw = toString(
+    config?.textAlign ?? config?.contentAlign ?? config?.justifyContent,
+    "center"
+  ).toLowerCase();
+
+  return (
+    alignRaw === "left" || alignRaw === "start" || alignRaw === "flex-start" ? "flex-start" :
+    alignRaw === "right" || alignRaw === "end" || alignRaw === "flex-end" ? "flex-end" :
+    "center"
+  );
+};
+
+const resolveTextAlign = (config, raw) => {
+  const alignRaw = toString(
+    config?.textAlign ?? config?.contentAlign ?? raw?.atcTextAlign ?? raw?.buttonTextAlign,
+    "center"
+  ).toLowerCase();
+
+  return alignRaw === "left" ? "left" : alignRaw === "right" ? "right" : "center";
+};
+
 const buildButtonStyles = (config, defaultBg = "#1F2937") => {
   const borderColor = toString(config?.borderColor, "");
   const borderWidth = config?.borderLine || borderColor ? 1 : 0;
 
-  const pt = toNumber(config?.pt, 0) || 12;
-  const pb = toNumber(config?.pb, 0) || 12;
-  const pl = toNumber(config?.pl, 0) || 16;
-  const pr = toNumber(config?.pr, 0) || 16;
-
-  const alignRaw = toString(config?.textAlign ?? config?.align ?? config?.contentAlign, "center").toLowerCase();
-  const justifyContent =
-    alignRaw === "left"  ? "flex-start" :
-    alignRaw === "right" ? "flex-end"   : "center";
-
   return {
-    paddingTop: pt,
-    paddingBottom: pb,
-    paddingLeft: pl,
-    paddingRight: pr,
+    paddingTop: hasValue(config?.pt) ? toNumber(config?.pt, 0) : 12,
+    paddingBottom: hasValue(config?.pb) ? toNumber(config?.pb, 0) : 12,
+    paddingLeft: hasValue(config?.pl) ? toNumber(config?.pl, 0) : 16,
+    paddingRight: hasValue(config?.pr) ? toNumber(config?.pr, 0) : 16,
     backgroundColor: toString(config?.bgColor, defaultBg),
     borderRadius: toNumber(config?.borderRadius ?? config?.corner ?? config?.radius, 999),
     borderColor: borderColor || undefined,
     borderWidth,
     flexDirection: "row",
     alignItems: "center",
-    justifyContent,
+    justifyContent: resolveJustifyContent(config),
   };
 };
 
@@ -136,12 +161,12 @@ export default function AddToCart({ section }) {
   const presentation = deepUnwrap(propsNode?.presentation) || {};
   const css = deepUnwrap(presentation?.css) || deepUnwrap(presentation?.properties?.css) || {};
 
-  const addToCartConfig = deepUnwrap(raw?.addToCart) || deepUnwrap(css?.addToCart) || {};
-  const quantityConfig  = deepUnwrap(raw?.quantityPicker) || deepUnwrap(css?.quantityPicker) || {};
+  const addToCartConfig = mergeConfig(css?.addToCart, raw?.addToCart);
+  const quantityConfig  = mergeConfig(css?.quantityPicker, raw?.quantityPicker);
 
   // Visibility
   const rawWrappedVis = (rawWrapped && typeof rawWrapped === "object") ? rawWrapped : {};
-  const visibility    = deepUnwrap(rawWrappedVis?.visibility) || deepUnwrap(css?.visibility) || {};
+  const visibility    = mergeConfig(css?.visibility, rawWrappedVis?.visibility, raw?.visibility);
 
   const showAddToCart      = toBoolean(deepUnwrap(visibility?.addToCart),           true);
   const showAddToCartIcon  = toBoolean(deepUnwrap(visibility?.addToCartIcon),       false);
@@ -150,7 +175,10 @@ export default function AddToCart({ section }) {
   const showQuantityText   = toBoolean(deepUnwrap(visibility?.quantityPickerText),  true);
   const showQuantityIcons  = toBoolean(deepUnwrap(visibility?.quantityPickerIcons), true);
 
-  const addToCartText = toString(raw?.buttonText ?? addToCartConfig?.text, "Add to Cart");
+  const addToCartText = toString(
+    addToCartConfig?.text ?? addToCartConfig?.label ?? raw?.buttonText ?? raw?.addToCartText,
+    "Add to Cart"
+  );
   const quantityLabel = toString(raw?.quantityLabel ?? quantityConfig?.label, "Quantity");
   const shopifyDomain = toString(raw?.shopifyDomain, getShopifyDomain());
   const productHandle = toString(raw?.handle, "");
@@ -186,14 +214,7 @@ export default function AddToCart({ section }) {
     ? addToCartFgRaw
     : addToCartBg.toLowerCase() === "#ffffff" || addToCartBg.toLowerCase() === "#fff" ? "#111827" : "#ffffff";
 
-  const atcTextAlignRaw = toString(
-    addToCartConfig?.textAlign ?? addToCartConfig?.align ?? addToCartConfig?.contentAlign ??
-    raw?.atcTextAlign ?? raw?.buttonTextAlign,
-    "center"
-  ).toLowerCase();
-  const atcTextAlign =
-    atcTextAlignRaw === "left"  ? "left"  :
-    atcTextAlignRaw === "right" ? "right" : "center";
+  const atcTextAlign = resolveTextAlign(addToCartConfig, raw);
 
   const addToCartTextStyle = {
     color: addToCartFg,
@@ -226,6 +247,16 @@ export default function AddToCart({ section }) {
   const minusIconName = resolveIconName(quantityConfig?.minusIcon);
   const plusIconName = resolveIconName(quantityConfig?.plusIcon);
   const addToCartIconName = resolveIconName(addToCartConfig?.icon);
+  const addToCartIconAlign = toString(addToCartConfig?.iconAlign ?? addToCartConfig?.align, "left").toLowerCase();
+  const addToCartIconOnRight = addToCartIconAlign === "right" || addToCartIconAlign === "end";
+  const addToCartIcon = showAddToCartIcon && !!addToCartIconName ? (
+    <FontAwesome
+      name={addToCartIconName}
+      size={toNumber(addToCartConfig?.iconSize, 14)}
+      color={toString(addToCartConfig?.iconColor, addToCartTextStyle.color)}
+      style={addToCartIconOnRight ? { marginLeft: 6 } : { marginRight: 6 }}
+    />
+  ) : null;
 
   const resolveBottomNavItems = (rawSection) => {
     if (!rawSection) return [];
@@ -390,17 +421,11 @@ export default function AddToCart({ section }) {
           disabled={!addToCartUrl && !productVariantGid && !canAddLocally}
           activeOpacity={0.8}
         >
-          {showAddToCartIcon && !!addToCartIconName && (
-            <FontAwesome
-              name={addToCartIconName}
-              size={toNumber(addToCartConfig?.iconSize, 14)}
-              color={toString(addToCartConfig?.iconColor, addToCartTextStyle.color)}
-              style={{ marginRight: 6 }}
-            />
-          )}
+          {!addToCartIconOnRight && addToCartIcon}
           {showAddToCartText && (
             <Text style={addToCartTextStyle}>{addToCartText}</Text>
           )}
+          {addToCartIconOnRight && addToCartIcon}
         </TouchableOpacity>
       )}
 

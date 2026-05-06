@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import {
   ActivityIndicator,
   Alert,
+  DeviceEventEmitter,
   Image,
   Linking,
   PermissionsAndroid,
@@ -13,7 +14,7 @@ import {
   View,
 } from "react-native";
 import FontAwesome from "react-native-vector-icons/FontAwesome";
-import { useNavigation } from "@react-navigation/native";
+import { useNavigation, useRoute } from "@react-navigation/native";
 import { convertStyles } from "../utils/convertStyles";
 import { searchShopifyProducts } from "../services/shopify";
 
@@ -103,6 +104,7 @@ try {
 
 export default function SearchBar({ section }) {
   const navigation = useNavigation();
+  const route = useRoute();
 
   // Read DSL: most-specific first (properties.props.properties → properties.props → props)
   const rawProps = useMemo(
@@ -147,12 +149,16 @@ export default function SearchBar({ section }) {
   const showInput  = getBool("searchInputVisible", true);
   const showVoice  = getBool("voiceSearchVisible", true);
   const searchLimit = getNum("searchLimit", 10);
+  const autocompleteLimit = Math.max(3, getNum("autocompleteLimit", Math.min(searchLimit, 6)));
+  const suggestionsTitle = get("suggestionsTitle", "Suggestions");
+  const resultsTitle = get("resultsTitle", "Products");
 
   const [value, setValue] = useState("");
   const [isFocused, setIsFocused] = useState(false);
   const [results, setResults] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [submittedTerm, setSubmittedTerm] = useState("");
   const [isListening, setIsListening] = useState(false);
   const voiceDestroyRef = useRef(false);
 
@@ -259,6 +265,7 @@ export default function SearchBar({ section }) {
         setResults([]);
         setError("");
         setLoading(false);
+        setSubmittedTerm("");
         return;
       }
       setLoading(true);
@@ -276,6 +283,35 @@ export default function SearchBar({ section }) {
     [searchLimit]
   );
 
+  const handleChangeText = useCallback((text) => {
+    setValue(text);
+    setSubmittedTerm("");
+  }, []);
+
+  const handleSubmitSearch = useCallback(() => {
+    const term = value.trim();
+    if (!term) {
+      setResults([]);
+      setError("");
+      setSubmittedTerm("");
+      return;
+    }
+    setValue(term);
+    setSubmittedTerm(term);
+    runSearch(term);
+  }, [runSearch, value]);
+
+  const handleProductPress = useCallback(
+    (product) => {
+      setSubmittedTerm(value.trim());
+      navigation.navigate("ProductDetail", {
+        product,
+        detailSections,
+      });
+    },
+    [detailSections, navigation, value]
+  );
+
   useEffect(() => {
     const term = value.trim();
     if (!term) {
@@ -287,6 +323,24 @@ export default function SearchBar({ section }) {
     const t = setTimeout(() => runSearch(term), 350);
     return () => clearTimeout(t);
   }, [value, runSearch]);
+
+  useEffect(() => {
+    const sub = DeviceEventEmitter.addListener("mobidrag:search:setQuery", (payload) => {
+      const next = String(payload?.query || "").trim();
+      if (!next) return;
+      setValue(next);
+      setSubmittedTerm(next);
+      setIsFocused(true);
+    });
+    return () => sub.remove();
+  }, []);
+
+  useEffect(() => {
+    const routeQuery = String(route?.params?.query || "").trim();
+    if (!routeQuery) return;
+    setValue(routeQuery);
+    setSubmittedTerm(routeQuery);
+  }, [route?.params?.query]);
 
   const startVoiceSearch = useCallback(async () => {
     if (!VoiceModule) {
@@ -406,6 +460,11 @@ export default function SearchBar({ section }) {
     };
   }, []);
 
+  const searchTerm = value.trim();
+  const showSearchPanel = searchTerm.length > 0 && (isFocused || submittedTerm || loading || results.length > 0);
+  const visibleResults = submittedTerm ? results : results.slice(0, autocompleteLimit);
+  const searchPanelTitle = submittedTerm ? `${resultsTitle} for "${submittedTerm}"` : suggestionsTitle;
+
   return (
     <View style={[styles.container, containerStyle]}>
       <View style={[styles.inputWrapper, inputWrapperStyle, borderStyle]}>
@@ -414,13 +473,16 @@ export default function SearchBar({ section }) {
           <View style={styles.inputShell}>
             <TextInput
               value={value}
-              onChangeText={setValue}
+              onChangeText={handleChangeText}
               placeholder=""
               style={[styles.input, inputTextStyle, value.length > 0 && !isListening && styles.inputWithClear]}
               underlineColorAndroid="transparent"
               editable={!isListening}
               onFocus={() => setIsFocused(true)}
               onBlur={() => setIsFocused(false)}
+              onSubmitEditing={handleSubmitSearch}
+              returnKeyType="search"
+              blurOnSubmit={false}
             />
             {!value && !isFocused && (
               <Text numberOfLines={1} style={[styles.placeholderOverlay, placeholderTextStyle]}>
@@ -429,7 +491,12 @@ export default function SearchBar({ section }) {
             )}
             {value.length > 0 && !isListening && (
               <TouchableOpacity
-                onPress={() => setValue("")}
+                onPress={() => {
+                  setValue("");
+                  setSubmittedTerm("");
+                  setResults([]);
+                  setError("");
+                }}
                 style={styles.clearButton}
                 activeOpacity={0.7}
                 hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
@@ -463,29 +530,38 @@ export default function SearchBar({ section }) {
       {error ? (
         <Text style={styles.errorText}>{error}</Text>
       ) : null}
-      {(value.trim().length > 0 || results.length > 0) && (
+      {showSearchPanel && (
         <View style={styles.resultsWrapper}>
+          <View style={styles.resultsHeader}>
+            <Text numberOfLines={1} style={styles.resultsTitle}>
+              {searchPanelTitle}
+            </Text>
+            {!submittedTerm && searchTerm ? (
+              <TouchableOpacity
+                onPress={handleSubmitSearch}
+                activeOpacity={0.75}
+                hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+              >
+                <Text style={[styles.searchAllText, { color: searchIconColor }]}>Search</Text>
+              </TouchableOpacity>
+            ) : null}
+          </View>
           {loading && (
             <View style={styles.loadingRow}>
               <ActivityIndicator size="small" color={searchIconColor} />
               <Text style={styles.statusText}>Searching products...</Text>
             </View>
           )}
-          {!loading && !error && results.length === 0 && value.trim() && (
+          {!loading && !error && results.length === 0 && searchTerm && (
             <Text style={styles.statusText}>No products found.</Text>
           )}
           {!loading &&
             !error &&
-            results.map((product) => (
+            visibleResults.map((product) => (
               <TouchableOpacity
                 key={product.id}
                 style={styles.resultRow}
-                onPress={() =>
-                  navigation.navigate("ProductDetail", {
-                    product,
-                    detailSections,
-                  })
-                }
+                onPress={() => handleProductPress(product)}
                 activeOpacity={0.7}
               >
                 {product.imageUrl ? (
@@ -500,9 +576,10 @@ export default function SearchBar({ section }) {
                     {product.title}
                   </Text>
                   <Text style={styles.resultPrice}>
-                    {product.priceCurrency} {product.priceAmount}
+                    {[product.priceCurrency, product.priceAmount].filter(Boolean).join(" ")}
                   </Text>
                 </View>
+                <FontAwesome name="angle-right" size={18} color="#9CA3AF" />
               </TouchableOpacity>
             ))}
         </View>
@@ -566,6 +643,32 @@ const styles = StyleSheet.create({
   resultsWrapper: {
     marginTop: 12,
     gap: 10,
+    padding: 12,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: "#E5E7EB",
+    backgroundColor: "#FFFFFF",
+    shadowColor: "#000000",
+    shadowOpacity: 0.08,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 6 },
+    elevation: 3,
+  },
+  resultsHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 12,
+  },
+  resultsTitle: {
+    flex: 1,
+    color: "#111827",
+    fontSize: 13,
+    fontWeight: "700",
+  },
+  searchAllText: {
+    fontSize: 12,
+    fontWeight: "700",
   },
   loadingRow: {
     flexDirection: "row",
@@ -587,10 +690,9 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 12,
-    padding: 10,
+    paddingVertical: 8,
+    paddingHorizontal: 4,
     borderRadius: 12,
-    borderWidth: 1,
-    borderColor: "#E5E7EB",
     backgroundColor: "#FFFFFF",
   },
   resultImage: {

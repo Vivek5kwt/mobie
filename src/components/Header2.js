@@ -569,6 +569,7 @@ export default function Header2({ section }) {
   const [searchResults, setSearchResults] = useState([]);
   const [searchLoading, setSearchLoading] = useState(false);
   const [searchError, setSearchError] = useState("");
+  const [searchSubmittedTerm, setSearchSubmittedTerm] = useState("");
   const [isProfilePreviewVisible, setIsProfilePreviewVisible] = useState(false);
   const [simpleHeaderLogoFallback, setSimpleHeaderLogoFallback] = useState(false);
 
@@ -688,6 +689,7 @@ export default function Header2({ section }) {
       setSearchResults([]);
       setSearchError("");
       setSearchLoading(false);
+      setSearchSubmittedTerm("");
       return;
     }
 
@@ -717,6 +719,35 @@ export default function Header2({ section }) {
       isMounted = false;
       clearTimeout(timeout);
     };
+  }, [searchEnabled, searchAndIcons?.showSearch, searchLimit, searchValue]);
+
+  const handleHeaderSearchChange = useCallback((text) => {
+    setSearchValue(text);
+    setSearchSubmittedTerm("");
+  }, []);
+
+  const submitHeaderSearch = useCallback(async () => {
+    const term = searchValue.trim();
+    if (!term || !searchEnabled || !searchAndIcons?.showSearch) {
+      setSearchResults([]);
+      setSearchError("");
+      setSearchSubmittedTerm("");
+      return;
+    }
+
+    setSearchValue(term);
+    setSearchSubmittedTerm(term);
+    setSearchLoading(true);
+    setSearchError("");
+    try {
+      const matches = await searchShopifyProducts(term, searchLimit);
+      setSearchResults(matches);
+    } catch (err) {
+      setSearchError("Unable to search products right now.");
+      setSearchResults([]);
+    } finally {
+      setSearchLoading(false);
+    }
   }, [searchEnabled, searchAndIcons?.showSearch, searchLimit, searchValue]);
 
   // ----- Simple Header (Header Component Schema: logo bar with leftSlot | logoSlot | rightSlot) -----
@@ -1121,12 +1152,14 @@ export default function Header2({ section }) {
               </View>
               <TextInput
                 value={searchValue}
-                onChangeText={setSearchValue}
+                onChangeText={handleHeaderSearchChange}
                 placeholder={searchPlaceholder}
                 placeholderTextColor={placeholderColor}
                 style={[convertStyles(searchBarInputStyle), styles.searchInput, { flex: 1, minWidth: 0 }]}
                 underlineColorAndroid="transparent"
                 selectionColor="#131A1D"
+                returnKeyType="search"
+                onSubmitEditing={submitHeaderSearch}
               />
             </View>
           )}
@@ -1167,6 +1200,16 @@ export default function Header2({ section }) {
       ) : null}
       {searchEnabled && searchAndIcons?.showSearch && searchValue.trim().length > 0 && (
         <View style={styles.resultsWrapper}>
+          <View style={styles.resultsHeader}>
+            <Text numberOfLines={1} style={styles.resultsTitle}>
+              {searchSubmittedTerm ? `Products for "${searchSubmittedTerm}"` : "Suggestions"}
+            </Text>
+            {!searchSubmittedTerm && (
+              <TouchableOpacity onPress={submitHeaderSearch} activeOpacity={0.75}>
+                <Text style={styles.searchAllText}>Search</Text>
+              </TouchableOpacity>
+            )}
+          </View>
           {searchLoading && <Text style={styles.statusText}>Searching products...</Text>}
           {!searchLoading && searchError.length > 0 && (
             <Text style={styles.errorText}>{searchError}</Text>
@@ -1296,6 +1339,33 @@ const styles = StyleSheet.create({
   resultsWrapper: {
     marginTop: 12,
     gap: 10,
+    padding: 12,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: "#E5E7EB",
+    backgroundColor: "#FFFFFF",
+    shadowColor: "#000000",
+    shadowOpacity: 0.08,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 6 },
+    elevation: 3,
+  },
+  resultsHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 12,
+  },
+  resultsTitle: {
+    flex: 1,
+    color: "#111827",
+    fontSize: 13,
+    fontWeight: "700",
+  },
+  searchAllText: {
+    color: "#39444D",
+    fontSize: 12,
+    fontWeight: "700",
   },
   statusText: {
     textAlign: "center",

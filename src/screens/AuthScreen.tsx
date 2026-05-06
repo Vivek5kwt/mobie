@@ -20,22 +20,28 @@ import { fetchDSL } from '../engine/dslHandler';
 import authLayoutFallback from '../data/authLayoutFallback';
 import { getShopifyDomain } from '../services/shopify';
 import HeaderDefaultComponent from '../components/HeaderDefault';
+import DynamicRenderer from '../engine/DynamicRenderer';
 
 type SignInTokens = {
   bgColor: string;
   titleColor: string;
   cardBgColor: string;
   cardBorderColor: string;
+  cardBorderWidth: number;
   cardBorderRadius: number;
   cardPaddingTop: number;
   cardPaddingBottom: number;
   cardPaddingLeft: number;
   cardPaddingRight: number;
+  pagePaddingLeft: number;
+  pagePaddingRight: number;
   inputBorderColor: string;
+  inputHeight: number;
   footerTextColor: string;
   footerLinkColor: string;
   buttonTextColor: string;
   buttonBorderColor: string;
+  buttonBorderWidth: number;
   buttonFillColor: string;
   buttonPaddingTop: number;
   buttonPaddingBottom: number;
@@ -77,6 +83,7 @@ type SignInTokens = {
   footerLinkFontSize: number;
   footerLinkFontFamily: string;
   footerLinkFontWeight: string;
+  footerLinkAlignment: string;
   footerVisible: boolean;
   forgotPasswordVisible: boolean;
   authVisible: boolean;
@@ -216,12 +223,34 @@ const toNumber = (value: unknown, fallback: number): number => {
   return Number.isFinite(parsed) ? parsed : fallback;
 };
 
+const toBoolean = (value: unknown, fallback: boolean): boolean => {
+  const resolved = unwrapValue(value as boolean | string | number | null | undefined, fallback);
+  if (typeof resolved === 'boolean') return resolved;
+  if (typeof resolved === 'number') return resolved !== 0;
+  if (typeof resolved === 'string') {
+    const normalized = resolved.trim().toLowerCase();
+    if (['true', '1', 'yes', 'y'].includes(normalized)) return true;
+    if (['false', '0', 'no', 'n'].includes(normalized)) return false;
+  }
+  return fallback;
+};
+
 const resolveButtonColor = (value: unknown, fallback: string): string => {
   const resolved = unwrapValue(value as string | null | undefined, fallback);
   if (typeof resolved === 'string' && resolved.trim().startsWith('linear-gradient')) {
     return fallback;
   }
   return resolved ?? fallback;
+};
+
+const resolveBorderWidth = (line: unknown, color: unknown, fallback: number): number => {
+  const rawLine = String(unwrapValue(line as string | null | undefined, '') || '').trim().toLowerCase();
+  if (rawLine === 'none' || rawLine === '0' || rawLine === '0px') return 0;
+  const numeric = parseFloat(rawLine);
+  if (Number.isFinite(numeric)) return numeric;
+  const rawColor = String(unwrapValue(color as string | null | undefined, '') || '').trim().toLowerCase();
+  if (!rawLine && (!rawColor || rawColor === 'transparent')) return 0;
+  return rawLine || rawColor ? fallback : 0;
 };
 
 const normalizeSectionName = (value: unknown): string =>
@@ -250,16 +279,21 @@ const defaultSignInTokens: SignInTokens = {
   titleColor: '#065F63',
   cardBgColor: '#FFFFFF',
   cardBorderColor: '#D1E7E7',
+  cardBorderWidth: 1,
   cardBorderRadius: 16,
   cardPaddingTop: 20,
   cardPaddingBottom: 20,
   cardPaddingLeft: 20,
   cardPaddingRight: 20,
+  pagePaddingLeft: 16,
+  pagePaddingRight: 16,
   inputBorderColor: '#C7DADA',
+  inputHeight: 50,
   footerTextColor: '#0a0a0a',
   footerLinkColor: '#027579',
   buttonTextColor: '#FFFFFF',
   buttonBorderColor: '#0c9297',
+  buttonBorderWidth: 1,
   buttonFillColor: '#0C9297',
   buttonPaddingTop: 14,
   buttonPaddingBottom: 14,
@@ -301,8 +335,9 @@ const defaultSignInTokens: SignInTokens = {
   footerLinkFontSize: 14,
   footerLinkFontFamily: 'System',
   footerLinkFontWeight: '700',
+  footerLinkAlignment: 'Center',
   footerVisible: true,
-  forgotPasswordVisible: true,
+  forgotPasswordVisible: false,
   authVisible: true,
   buttonRadius: 12,
   inputBorderRadius: 10,
@@ -349,6 +384,7 @@ const defaultSignUpTokens: SignUpTokens = {
   cardPaddingLeft: 20,
   cardPaddingRight: 20,
   inputBorderColor: '#C7DADA',
+  inputHeight: 50,
   authTitle: 'Create an Account',
   buttonText: 'Create Account',
   footerText: 'Already have an account?',
@@ -469,6 +505,11 @@ const toTextAlign = (
   return fallback;
 };
 
+const toFlexAlign = (value: unknown, fallback: 'flex-start' | 'center' | 'flex-end' = 'flex-start') => {
+  const align = toTextAlign(value, fallback === 'center' ? 'center' : fallback === 'flex-end' ? 'right' : 'left');
+  return align === 'right' ? 'flex-end' : align === 'center' ? 'center' : 'flex-start';
+};
+
 const toTextDecoration = (
   underline?: boolean,
   strikethrough?: boolean
@@ -487,17 +528,22 @@ const buildSignInTokens = (rawProps: Record<string, unknown>): SignInTokens => (
   titleColor: (rawProps?.titleColor as string) ?? defaultSignInTokens.titleColor,
   cardBgColor: (rawProps?.cardBgColor as string) ?? defaultSignInTokens.cardBgColor,
   cardBorderColor: (rawProps?.cardBorderColor as string) ?? defaultSignInTokens.cardBorderColor,
+  cardBorderWidth: resolveBorderWidth(rawProps?.borderLine, rawProps?.cardBorderColor ?? rawProps?.borderColor, defaultSignInTokens.cardBorderWidth),
   cardBorderRadius: toNumber(rawProps?.borderRadius, defaultSignInTokens.cardBorderRadius),
   cardPaddingTop: toNumber(rawProps?.pt ?? rawProps?.paddingTop, defaultSignInTokens.cardPaddingTop),
   cardPaddingBottom: toNumber(rawProps?.pb ?? rawProps?.paddingBottom, defaultSignInTokens.cardPaddingBottom),
   cardPaddingLeft: toNumber(rawProps?.pl ?? rawProps?.paddingLeft, defaultSignInTokens.cardPaddingLeft),
   cardPaddingRight: toNumber(rawProps?.pr ?? rawProps?.paddingRight, defaultSignInTokens.cardPaddingRight),
+  pagePaddingLeft: toNumber(rawProps?.subgpl ?? rawProps?.bgpl ?? rawProps?.pagePaddingLeft, defaultSignInTokens.pagePaddingLeft),
+  pagePaddingRight: toNumber(rawProps?.subgpr ?? rawProps?.bgpr ?? rawProps?.pagePaddingRight, defaultSignInTokens.pagePaddingRight),
   inputBorderColor: (rawProps?.inputBorderColor as string) ?? defaultSignInTokens.inputBorderColor,
+  inputHeight: toNumber(rawProps?.inputHeight ?? rawProps?.fieldHeight, defaultSignInTokens.inputHeight),
   footerTextColor: (rawProps?.footerTextColor as string) ?? defaultSignInTokens.footerTextColor,
   footerLinkColor: (rawProps?.footerLinkColor as string) ?? defaultSignInTokens.footerLinkColor,
-  buttonTextColor: (rawProps?.buttonTextColor as string) ?? defaultSignInTokens.buttonTextColor,
+  buttonTextColor: (rawProps?.buttontextColor as string) ?? (rawProps?.buttonTextColor as string) ?? defaultSignInTokens.buttonTextColor,
   buttonBorderColor: (rawProps?.buttonBorderColor as string) ?? defaultSignInTokens.buttonBorderColor,
-  buttonFillColor: resolveButtonColor(rawProps?.buttonBgColor, defaultSignInTokens.buttonFillColor),
+  buttonBorderWidth: resolveBorderWidth(rawProps?.buttonBorderLine, rawProps?.buttonBorderColor, defaultSignInTokens.buttonBorderWidth),
+  buttonFillColor: resolveButtonColor(rawProps?.buttonbgColor ?? rawProps?.buttonBgColor, defaultSignInTokens.buttonFillColor),
   buttonPaddingTop: toNumber(rawProps?.buttonPaddingTop, defaultSignInTokens.buttonPaddingTop),
   buttonPaddingBottom: toNumber(rawProps?.buttonPaddingBottom, defaultSignInTokens.buttonPaddingBottom),
   buttonAutoUppercase: (rawProps?.buttonAutoUppercase as boolean) ?? defaultSignInTokens.buttonAutoUppercase,
@@ -529,18 +575,19 @@ const buildSignInTokens = (rawProps: Record<string, unknown>): SignInTokens => (
   passwordInputTextFontWeight: toFontWeight(rawProps?.passwordInputTextFontWeight, defaultSignInTokens.passwordInputTextFontWeight),
   emailPlaceholderColor: (rawProps?.emailPlaceholderColor as string) ?? defaultSignInTokens.emailPlaceholderColor,
   passwordPlaceholderColor: (rawProps?.passwordPlaceholderColor as string) ?? defaultSignInTokens.passwordPlaceholderColor,
-  buttonFontSize: toNumber(rawProps?.buttonFontSize, defaultSignInTokens.buttonFontSize),
+  buttonFontSize: toNumber(rawProps?.buttonfontSize ?? rawProps?.buttonFontSize, defaultSignInTokens.buttonFontSize),
   buttonFontFamily: (rawProps?.buttonFontFamily as string) ?? defaultSignInTokens.buttonFontFamily,
-  buttonFontWeight: toFontWeight(rawProps?.buttonFontWeight, defaultSignInTokens.buttonFontWeight),
+  buttonFontWeight: toFontWeight(rawProps?.buttonfontWeight ?? rawProps?.buttonFontWeight, defaultSignInTokens.buttonFontWeight),
   buttonHeight: toNumber(rawProps?.buttonHeight, defaultSignInTokens.buttonHeight),
   buttonWidth: toNumber(rawProps?.buttonWidth, defaultSignInTokens.buttonWidth),
   footerTextFontSize: toNumber(rawProps?.footerTextFontSize, defaultSignInTokens.footerTextFontSize),
   footerLinkFontSize: toNumber(rawProps?.footerLinkFontSize, defaultSignInTokens.footerLinkFontSize),
   footerLinkFontFamily: (rawProps?.footerLinkFontFamily as string) ?? defaultSignInTokens.footerLinkFontFamily,
   footerLinkFontWeight: toFontWeight(rawProps?.footerLinkFontWeight, defaultSignInTokens.footerLinkFontWeight),
-  footerVisible: (rawProps?.footerVisible as boolean) ?? defaultSignInTokens.footerVisible,
-  forgotPasswordVisible: (rawProps?.forgotPasswordVisible as boolean) ?? defaultSignInTokens.forgotPasswordVisible,
-  authVisible: (rawProps?.authVisible as boolean) ?? defaultSignInTokens.authVisible,
+  footerLinkAlignment: (rawProps?.footerLinkAlignment as string) ?? defaultSignInTokens.footerLinkAlignment,
+  footerVisible: toBoolean(rawProps?.footerVisible, defaultSignInTokens.footerVisible),
+  forgotPasswordVisible: toBoolean(rawProps?.forgotPasswordVisible, defaultSignInTokens.forgotPasswordVisible),
+  authVisible: toBoolean(rawProps?.authVisible, defaultSignInTokens.authVisible),
   buttonRadius: toNumber(rawProps?.buttonRadius ?? rawProps?.buttonBorderRadius, defaultSignInTokens.buttonRadius),
   inputBorderRadius: toNumber(rawProps?.borderRadius ?? rawProps?.inputRadius ?? rawProps?.inputBorderRadius, defaultSignInTokens.inputBorderRadius),
   headlineSize: toNumber(rawProps?.headlineSize, defaultSignInTokens.headlineSize),
@@ -584,12 +631,16 @@ const buildSignUpTokens = (rawProps: Record<string, unknown>): SignUpTokens => (
   titleColor: (rawProps?.titleColor as string) ?? defaultSignUpTokens.titleColor,
   cardBgColor: (rawProps?.cardBgColor as string) ?? defaultSignUpTokens.cardBgColor,
   cardBorderColor: (rawProps?.cardBorderColor as string) ?? defaultSignUpTokens.cardBorderColor,
+  cardBorderWidth: resolveBorderWidth(rawProps?.borderLine, rawProps?.cardBorderColor ?? rawProps?.borderColor, defaultSignUpTokens.cardBorderWidth),
   cardBorderRadius: toNumber(rawProps?.borderRadius, defaultSignUpTokens.cardBorderRadius),
   cardPaddingTop: toNumber(rawProps?.pt ?? rawProps?.paddingTop, defaultSignUpTokens.cardPaddingTop),
   cardPaddingBottom: toNumber(rawProps?.pb ?? rawProps?.paddingBottom, defaultSignUpTokens.cardPaddingBottom),
   cardPaddingLeft: toNumber(rawProps?.pl ?? rawProps?.paddingLeft, defaultSignUpTokens.cardPaddingLeft),
   cardPaddingRight: toNumber(rawProps?.pr ?? rawProps?.paddingRight, defaultSignUpTokens.cardPaddingRight),
+  pagePaddingLeft: toNumber(rawProps?.subgpl ?? rawProps?.bgpl ?? rawProps?.pagePaddingLeft, defaultSignUpTokens.pagePaddingLeft),
+  pagePaddingRight: toNumber(rawProps?.subgpr ?? rawProps?.bgpr ?? rawProps?.pagePaddingRight, defaultSignUpTokens.pagePaddingRight),
   inputBorderColor: (rawProps?.inputBorderColor as string) ?? defaultSignUpTokens.inputBorderColor,
+  inputHeight: toNumber(rawProps?.inputHeight ?? rawProps?.fieldHeight, defaultSignUpTokens.inputHeight),
   authTitle: (rawProps?.authTitle as string) ?? defaultSignUpTokens.authTitle,
   buttonText: (rawProps?.buttonText as string) ?? defaultSignUpTokens.buttonText,
   footerText: (rawProps?.footerText as string) ?? defaultSignUpTokens.footerText,
@@ -659,17 +710,18 @@ const buildSignUpTokens = (rawProps: Record<string, unknown>): SignUpTokens => (
   firstNamePlaceholderColor: (rawProps?.firstNamePlaceholderColor as string) ?? defaultSignUpTokens.firstNamePlaceholderColor,
   lastNamePlaceholderColor: (rawProps?.lastNamePlaceholderColor as string) ?? defaultSignUpTokens.lastNamePlaceholderColor,
   passwordPlaceholderColor: (rawProps?.passwordPlaceholderColor as string) ?? defaultSignUpTokens.passwordPlaceholderColor,
-  buttonTextColor: (rawProps?.buttonTextColor as string) ?? defaultSignUpTokens.buttonTextColor,
+  buttonTextColor: (rawProps?.buttontextColor as string) ?? (rawProps?.buttonTextColor as string) ?? defaultSignUpTokens.buttonTextColor,
   buttonBorderColor: (rawProps?.buttonBorderColor as string) ?? defaultSignUpTokens.buttonBorderColor,
-  buttonFillColor: resolveButtonColor(rawProps?.buttonBgColor, defaultSignUpTokens.buttonFillColor),
+  buttonBorderWidth: resolveBorderWidth(rawProps?.buttonBorderLine, rawProps?.buttonBorderColor, defaultSignUpTokens.buttonBorderWidth),
+  buttonFillColor: resolveButtonColor(rawProps?.buttonbgColor ?? rawProps?.buttonBgColor, defaultSignUpTokens.buttonFillColor),
   buttonPaddingTop: toNumber(rawProps?.buttonPaddingTop, defaultSignUpTokens.buttonPaddingTop),
   buttonPaddingBottom: toNumber(rawProps?.buttonPaddingBottom, defaultSignUpTokens.buttonPaddingBottom),
   buttonAutoUppercase: (rawProps?.buttonAutoUppercase as boolean) ?? defaultSignUpTokens.buttonAutoUppercase,
   buttonHeight: toNumber(rawProps?.buttonHeight, defaultSignUpTokens.buttonHeight),
   buttonWidth: toNumber(rawProps?.buttonWidth, defaultSignUpTokens.buttonWidth),
-  buttonFontSize: capFontSize(toNumber(rawProps?.buttonFontSize, defaultSignUpTokens.buttonFontSize), 16),
+  buttonFontSize: toNumber(rawProps?.buttonfontSize ?? rawProps?.buttonFontSize, defaultSignUpTokens.buttonFontSize),
   buttonFontFamily: (rawProps?.buttonFontFamily as string) ?? defaultSignUpTokens.buttonFontFamily,
-  buttonFontWeight: toFontWeight(rawProps?.buttonFontWeight, defaultSignUpTokens.buttonFontWeight),
+  buttonFontWeight: toFontWeight(rawProps?.buttonfontWeight ?? rawProps?.buttonFontWeight, defaultSignUpTokens.buttonFontWeight),
   footerTextColor: (rawProps?.footerTextColor as string) ?? defaultSignUpTokens.footerTextColor,
   footerLinkColor: (rawProps?.footerLinkColor as string) ?? defaultSignUpTokens.footerLinkColor,
   footerTextFontSize: capFontSize(toNumber(rawProps?.footerTextFontSize, defaultSignUpTokens.footerTextFontSize), 14),
@@ -717,6 +769,7 @@ type FieldProps = {
   inputAlign?: 'left' | 'center' | 'right';
   inputBorderColor: string;
   inputBorderRadius: number;
+  inputHeight: number;
   cardBgColor: string;
   keyboardType?: 'default' | 'email-address';
   autoCapitalize?: 'none' | 'words' | 'sentences';
@@ -744,6 +797,7 @@ const FormField: React.FC<FieldProps> = ({
   inputAlign = 'left',
   inputBorderColor,
   inputBorderRadius,
+  inputHeight,
   cardBgColor,
   keyboardType = 'default',
   autoCapitalize = 'sentences',
@@ -768,7 +822,7 @@ const FormField: React.FC<FieldProps> = ({
         {label}
       </Text>
     ) : null}
-    <View style={[fieldStyles.inputWrap, { borderColor: inputBorderColor, borderRadius: inputBorderRadius, backgroundColor: cardBgColor }]}>
+    <View style={[fieldStyles.inputWrap, { borderColor: inputBorderColor, borderRadius: inputBorderRadius, backgroundColor: cardBgColor, minHeight: inputHeight }]}>
       <TextInput
         placeholder={placeholder}
         placeholderTextColor={placeholderColor}
@@ -787,6 +841,7 @@ const FormField: React.FC<FieldProps> = ({
             fontWeight: inputFontWeight as any,
             textAlign: inputAlign,
             flex: rightSlot ? 1 : undefined,
+            minHeight: inputHeight,
           },
         ]}
       />
@@ -832,6 +887,9 @@ const AuthScreen = () => {
   const [forgotPasswordTokens, setForgotPasswordTokens] = useState<ForgotPasswordTokens>(defaultForgotPasswordTokens);
   const [signInHeaderConfig, setSignInHeaderConfig] = useState<Record<string, unknown> | null>(null);
   const [signUpHeaderConfig, setSignUpHeaderConfig] = useState<Record<string, unknown> | null>(null);
+  const [signInDslSections, setSignInDslSections] = useState<Record<string, unknown>[]>([]);
+  const [signUpDslSections, setSignUpDslSections] = useState<Record<string, unknown>[]>([]);
+  const [hasForgotPasswordSection, setHasForgotPasswordSection] = useState(false);
   const [dslLoaded, setDslLoaded] = useState(false);
   const isMountedRef = useRef(true);
   const loginToastPendingRef = useRef(false);
@@ -857,6 +915,9 @@ const AuthScreen = () => {
       const forgotSection = signInSections.find((s) => { const c = getSectionComponent(s); return c === 'forgot_password' || c === 'forgotpassword'; });
       const signUpSection = signUpSections.find((s) => { const c = getSectionComponent(s); return c === 'signup' || c === 'sign_up'; });
 
+      setSignInDslSections(signInSections as Record<string, unknown>[]);
+      setSignUpDslSections(signUpSections as Record<string, unknown>[]);
+      setHasForgotPasswordSection(Boolean(forgotSection));
       if (signInSection) setSignInTokens(buildSignInTokens(getSectionRawProps(signInSection)));
       if (forgotSection) setForgotPasswordTokens(buildForgotPasswordTokens(getSectionRawProps(forgotSection)));
       if (signUpSection) setSignUpTokens(buildSignUpTokens(getSectionRawProps(signUpSection)));
@@ -963,6 +1024,27 @@ const AuthScreen = () => {
     return { alignSelf: 'stretch' as const };
   }, [t.buttonWidth]);
 
+  const signInDecorSections = useMemo(
+    () =>
+      signInDslSections.filter((section) => {
+        const component = getSectionComponent(section);
+        return component !== 'signin' && component !== 'sign_in' && component !== 'forgot_password' && component !== 'forgotpassword';
+      }),
+    [signInDslSections]
+  );
+
+  const hasDynamicSignInLayout = mode === 'login' && signInDecorSections.length > 0;
+  const signUpDecorSections = useMemo(
+    () =>
+      signUpDslSections.filter((section) => {
+        const component = getSectionComponent(section);
+        return component !== 'signup' && component !== 'sign_up';
+      }),
+    [signUpDslSections]
+  );
+
+  const hasDynamicSignUpLayout = mode === 'signup' && signUpDecorSections.length > 0;
+
   if (!dslLoaded) {
     return (
       <SafeAreaView style={{ flex: 1, backgroundColor: '#F3F7F7', justifyContent: 'center', alignItems: 'center' }}>
@@ -971,7 +1053,8 @@ const AuthScreen = () => {
     );
   }
 
-  const horizPad = Math.max(t.cardPaddingLeft, 16);
+  const pagePadLeft = t.pagePaddingLeft;
+  const pagePadRight = t.pagePaddingRight;
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: t.bgColor }}>
@@ -989,7 +1072,12 @@ const AuthScreen = () => {
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => loadAuthLayout(true)} />}
         >
           {/* ── Page title ─────────────────────────────────────────────── */}
-          <View style={{ paddingHorizontal: horizPad, paddingTop: Math.max(t.cardPaddingTop, 24), paddingBottom: 20 }}>
+          {hasDynamicSignInLayout || hasDynamicSignUpLayout ? (
+            (mode === 'login' ? signInDecorSections : signUpDecorSections).map((section, index) => (
+              <DynamicRenderer key={`${mode}-dsl-${index}`} section={section as any} />
+            ))
+          ) : (
+          <View style={{ paddingLeft: pagePadLeft, paddingRight: pagePadRight, paddingTop: t.cardPaddingTop, paddingBottom: t.cardPaddingBottom }}>
             {mode === 'login' && t.authVisible ? (
               <Text
                 style={{
@@ -1015,39 +1103,22 @@ const AuthScreen = () => {
                 {signUpTokens.headerTitle}
               </Text>
             ) : null}
-
-            {mode === 'login' && signInTokens.authTitle ? (
-              <Text
-                style={{
-                  color: signInTokens.titleColor,
-                  fontSize: signInTokens.subtextSize,
-                  fontWeight: signInTokens.subtextWeight as any,
-                  fontFamily: signInTokens.subtextFontFamily !== 'System' ? signInTokens.subtextFontFamily : undefined,
-                  marginTop: 4,
-                  opacity: 0.75,
-                }}
-              >
-                {mode === 'login' ? 'Welcome back — sign in to continue.' : 'Fill in your details to get started.'}
-              </Text>
-            ) : null}
           </View>
+          )}
 
           {/* ── Form card ──────────────────────────────────────────────── */}
           <View
             style={{
-              marginHorizontal: horizPad,
+              marginLeft: pagePadLeft,
+              marginRight: pagePadRight,
               backgroundColor: t.cardBgColor,
               borderRadius: t.cardBorderRadius,
-              borderWidth: 1,
+              borderWidth: t.cardBorderWidth,
               borderColor: t.cardBorderColor,
-              paddingHorizontal: 16,
-              paddingTop: 20,
-              paddingBottom: 20,
-              shadowColor: '#000',
-              shadowOpacity: 0.06,
-              shadowRadius: 12,
-              shadowOffset: { width: 0, height: 4 },
-              elevation: 3,
+              paddingLeft: t.cardPaddingLeft,
+              paddingRight: t.cardPaddingRight,
+              paddingTop: t.cardPaddingTop,
+              paddingBottom: t.cardPaddingBottom,
               marginBottom: 16,
             }}
           >
@@ -1096,6 +1167,7 @@ const AuthScreen = () => {
                 inputAlign={toTextAlign(signUpTokens.firstNameInputTextAlignment)}
                 inputBorderColor={signUpTokens.inputBorderColor}
                 inputBorderRadius={signUpTokens.inputBorderRadius}
+                inputHeight={signUpTokens.inputHeight}
                 cardBgColor={signUpTokens.cardBgColor}
                 autoCapitalize="words"
               />
@@ -1122,6 +1194,7 @@ const AuthScreen = () => {
                 inputAlign={toTextAlign(signUpTokens.lastNameInputTextAlignment)}
                 inputBorderColor={signUpTokens.inputBorderColor}
                 inputBorderRadius={signUpTokens.inputBorderRadius}
+                inputHeight={signUpTokens.inputHeight}
                 cardBgColor={signUpTokens.cardBgColor}
                 autoCapitalize="words"
               />
@@ -1148,6 +1221,7 @@ const AuthScreen = () => {
                 inputAlign={mode === 'signup' ? toTextAlign(signUpTokens.emailInputTextAlignment) : 'left'}
                 inputBorderColor={t.inputBorderColor}
                 inputBorderRadius={t.inputBorderRadius}
+                inputHeight={t.inputHeight}
                 cardBgColor={t.cardBgColor}
                 keyboardType="email-address"
                 autoCapitalize="none"
@@ -1177,6 +1251,7 @@ const AuthScreen = () => {
                 inputAlign={mode === 'signup' ? toTextAlign(signUpTokens.passwordInputTextAlignment) : 'left'}
                 inputBorderColor={t.inputBorderColor}
                 inputBorderRadius={t.inputBorderRadius}
+                inputHeight={t.inputHeight}
                 cardBgColor={t.cardBgColor}
                 autoCapitalize="none"
                 autoCorrect={false}
@@ -1210,7 +1285,7 @@ const AuthScreen = () => {
                   {
                     backgroundColor: t.buttonFillColor,
                     borderRadius: t.buttonRadius,
-                    borderWidth: 1,
+                    borderWidth: t.buttonBorderWidth,
                     borderColor: t.buttonBorderColor,
                     height: t.buttonHeight,
                     justifyContent: 'center',
@@ -1239,7 +1314,7 @@ const AuthScreen = () => {
 
             {/* Footer switcher */}
             {t.footerVisible ? (
-              <View style={{ marginTop: 20, alignItems: 'center' }}>
+              <View style={{ marginTop: 20, alignItems: toFlexAlign(t.footerLinkAlignment, 'center') }}>
                 <Text
                   style={{
                     color: t.footerTextColor,
@@ -1256,7 +1331,7 @@ const AuthScreen = () => {
                         fontSize: t.footerLinkFontSize,
                         fontWeight: t.footerLinkFontWeight as any,
                         fontFamily: t.footerLinkFontFamily !== 'System' ? t.footerLinkFontFamily : undefined,
-                        textAlign: mode === 'signup' ? toTextAlign(signUpTokens.footerLinkAlignment, 'center') : 'center',
+                        textAlign: toTextAlign(t.footerLinkAlignment, 'center'),
                       }}
                     >
                       {mode === 'login'
@@ -1272,10 +1347,11 @@ const AuthScreen = () => {
           </View>
 
           {/* ── Forgot password card (login only) ─────────────────────── */}
-          {mode === 'login' && signInTokens.forgotPasswordVisible ? (
+          {mode === 'login' && hasForgotPasswordSection && signInTokens.forgotPasswordVisible ? (
             <View
               style={{
-                marginHorizontal: horizPad,
+                marginLeft: pagePadLeft,
+                marginRight: pagePadRight,
                 backgroundColor: forgotPasswordTokens.cardBgColor,
                 borderRadius: forgotPasswordTokens.cardBorderRadius,
                 borderWidth: 1,
