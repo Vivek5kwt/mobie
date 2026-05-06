@@ -65,7 +65,7 @@ const toFontWeight = (v, fb = "400") => {
   const s = String(r || "").trim().toLowerCase();
   if (!s) return fb;
   if (/^\d+$/.test(s)) return s;
-  if (s === "bold") return "700";/
+  if (s === "bold") return "700";
   if (s === "semibold" || s === "semi bold") return "600";
   if (s === "medium") return "500";
   if (s === "regular" || s === "normal") return "400";
