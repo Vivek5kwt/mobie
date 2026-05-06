@@ -17,7 +17,6 @@ import { resolveFA4IconName } from "../utils/faIconAlias";
 import {
   fetchShopifyProductsPage,
   fetchShopifyCollectionProducts,
-  fetchShopifyRecentProducts,
 } from "../services/shopify";
 import { addItem } from "../store/slices/cartSlice";
 import { toggleWishlist } from "../store/slices/wishlistSlice";
@@ -486,11 +485,6 @@ export default function ProductCarousel({ section }) {
       if (page?.products?.length) return page;
 
       // 3. Recent-products fallback — different cache key, different query
-      const recent = await fetchShopifyRecentProducts(safeFirst, shopOptions);
-      if (recent?.length) {
-        return { products: recent, pageInfo: { hasNextPage: false, endCursor: null } };
-      }
-
       return { products: [], pageInfo: { hasNextPage: false, endCursor: null } };
     };
 

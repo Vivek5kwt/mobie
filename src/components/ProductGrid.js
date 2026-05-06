@@ -7,7 +7,7 @@ import { useFocusEffect, useNavigation } from "@react-navigation/native";
 import { useDispatch, useSelector } from "react-redux";
 import { addItem } from "../store/slices/cartSlice";
 import { toggleWishlist } from "../store/slices/wishlistSlice";
-import { fetchShopifyProductsPage, fetchShopifyCollectionProducts, fetchShopifyRecentProducts } from "../services/shopify";
+import { fetchShopifyProductsPage, fetchShopifyCollectionProducts } from "../services/shopify";
 import Snackbar from "./Snackbar";
 import { useAuth } from "../services/AuthContext";
 import { requireLoginForAction } from "../utils/authGate";
@@ -630,11 +630,6 @@ export default function ProductGrid({ section, limit = 8, title = "Products" }) 
 
       // 3. Recent-products query — uses a different cache key and a sortKey-based query,
       //    acting as a true fallback if the above two return empty.
-      const recent = await fetchShopifyRecentProducts(safeFirst, shopOptions);
-      if (recent?.length) {
-        return { products: recent, pageInfo: { hasNextPage: false, endCursor: null } };
-      }
-
       return { products: [], pageInfo: { hasNextPage: false, endCursor: null } };
     };
 
