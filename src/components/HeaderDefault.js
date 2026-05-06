@@ -387,8 +387,49 @@ export default function HeaderDefault({ config, bottomNavSection, hideTabs = fal
     );
   }
 
+  // ── Top-level navigation (used as fallback for left-slot items) ─────────
+  const topLevelNavRef  = String(resolveVal(config.navigateRef) || resolveVal(config.linkTo) || "").trim();
+  const topLevelNavType = String(resolveVal(config.navigateType) || "").trim().toLowerCase();
+
+  const executeNavigation = (navRef, navType) => {
+    const type = String(navType || "").toLowerCase().trim();
+    const ref  = String(navRef  || "").trim();
+    if (!ref || type === "none") return;
+
+    if (type === "screen") {
+      // Map common DSL screen names to actual navigator screen names
+      const screenMap = {
+        home:         "LayoutScreen",
+        layoutscreen: "LayoutScreen",
+        layout:       "LayoutScreen",
+        allproducts:  "AllProducts",
+        products:     "AllProducts",
+        shop:         "AllProducts",
+        collection:   "AllProducts",
+        cart:         "BottomNavScreen",
+        wishlist:     "Wishlist",
+        profile:      "BottomNavScreen",
+      };
+      const key = ref.toLowerCase().replace(/[\s_-]+/g, "");
+      const screen = screenMap[key] || ref;
+      navigation.navigate(screen);
+    } else if (type === "url") {
+      navigation.navigate("CheckoutWebView", { url: ref, title: "" });
+    } else if (type === "collection") {
+      navigation.navigate("AllProducts", {
+        title: ref,
+        collectionHandle: ref.toLowerCase().replace(/\s+/g, "-"),
+      });
+    } else if (type === "product") {
+      navigation.navigate("ProductDetail", { handle: ref });
+    } else {
+      // Generic: try screen name directly
+      try { navigation.navigate(ref); } catch (_) {}
+    }
+  };
+
   // ── ARRAY MODE: render left / center / right item arrays ─────────────────
-  const renderItem = (rawItem, idx) => {
+  const renderItem = (rawItem, idx, isLeftSlot = false) => {
     if (!rawItem) return null;
     // Unwrap item itself in case it's DSL-wrapped
     const item = resolveVal(rawItem) || rawItem;
@@ -396,41 +437,77 @@ export default function HeaderDefault({ config, bottomNavSection, hideTabs = fal
 
     const rv = (field) => resolveVal(field);
 
-    const itemType        = String(rv(item.type) || "").toLowerCase();
-    const itemIconName    = normalizeIconName(String(rv(item.icon) || ""));
-    const itemTitle       = String(rv(item.title) || rv(item.text) || "");
-    const _iconSz         = rv(item.iconSize);
-    const itemIconSize    = _iconSz != null ? Number(_iconSz) : 18;
-    const itemIconColor   = String(rv(item.iconColor) || iconColor);
-    const itemTextColor   = String(rv(item.textColor) || textColor);
-    const _txtSz          = rv(item.textSize);
-    const itemFontSize    = _txtSz != null ? Number(_txtSz) : 13;
-    const itemFontWeight  = rv(item.textBold) ? "700" : rv(item.textWeight) ? String(rv(item.textWeight)) : "600";
-    const itemFontFamily  = rv(item.textFontFamily) || undefined;
-    const itemFontStyle   = rv(item.textItalic) ? "italic" : "normal";
+    const itemType      = String(rv(item.type) || "").toLowerCase();
+    const itemIconName  = normalizeIconName(String(rv(item.icon) || ""));
+    const itemTitle     = String(rv(item.title) || rv(item.text) || "");
+    const _iconSz       = rv(item.iconSize);
+    const itemIconSize  = _iconSz != null ? Number(_iconSz) : 18;
+    const itemIconColor = String(rv(item.iconColor) || iconColor);
+
+    // Text styling — cover both prefixed (textColor) and unprefixed (color) DSL keys
+    const itemTextColor = String(
+      rv(item.textColor) || rv(item.color) || textColor
+    );
+    const _txtSz = rv(item.textSize) ?? rv(item.fontSize) ?? rv(item.size);
+    const itemFontSize = _txtSz != null ? Number(_txtSz) : 13;
+
+    // Normalise font-weight: builder may send "Medium", "Bold", "700", etc.
+    const _fwNormMap = {
+      thin: "100", extralight: "200", light: "300",
+      regular: "400", normal: "400",
+      medium: "500",
+      semibold: "600", "semi bold": "600", "semi-bold": "600",
+      bold: "700",
+      extrabold: "800", "extra bold": "800",
+      black: "900",
+    };
+    const _fwRaw = rv(item.textBold) || rv(item.bold)
+      ? "700"
+      : String(
+          rv(item.textWeight) || rv(item.fontWeight) || rv(item.weight) || "600"
+        );
+    const itemFontWeight = _fwNormMap[_fwRaw.trim().toLowerCase()] || _fwRaw;
+
+    // Font family — cover textFontFamily / fontFamily / family
+    const _rawFamily = rv(item.textFontFamily) || rv(item.fontFamily) || rv(item.family) || "";
+    const itemFontFamily = _rawFamily
+      ? String(_rawFamily).split(",")[0].trim().replace(/['"]/g, "") || undefined
+      : undefined;
+
+    // Font style & decoration — cover both prefixed and unprefixed keys
+    const itemFontStyle = (rv(item.textItalic) || rv(item.italic)) ? "italic" : "normal";
+    const _isUnderline  = rv(item.textUnderline)     || rv(item.underline);
+    const _isStrike     = rv(item.textStrikethrough) || rv(item.strikethrough);
     let itemTextDecoration = "none";
-    if (rv(item.textUnderline) && rv(item.textStrikethrough)) itemTextDecoration = "underline line-through";
-    else if (rv(item.textUnderline))                           itemTextDecoration = "underline";
-    else if (rv(item.textStrikethrough))                       itemTextDecoration = "line-through";
+    if (_isUnderline && _isStrike) itemTextDecoration = "underline line-through";
+    else if (_isUnderline)         itemTextDecoration = "underline";
+    else if (_isStrike)            itemTextDecoration = "line-through";
 
     // ── Image type properties ─────────────────────────────────────────────
     const itemImageUrl    = String(rv(item.imageUrl) || rv(item.image) || rv(item.src) || "");
     const _imgW           = rv(item.imageWidth)  ?? rv(item.width);
     const _imgH           = rv(item.imageHeight) ?? rv(item.height);
-    const _imgR           = rv(item.imageRadius) ?? rv(item.borderRadius);
-    const itemImageWidth  = _imgW  != null ? Number(_imgW)  : 32;
-    const itemImageHeight = _imgH  != null ? Number(_imgH)  : 32;
-    const itemImageRadius = _imgR  != null ? Number(_imgR)  : 0;
+    const _imgR           = rv(item.imageRadius) ?? rv(item.borderRadius) ?? rv(item.radius);
+    const itemImageWidth  = _imgW != null ? Number(_imgW) : 32;
+    const itemImageHeight = _imgH != null ? Number(_imgH) : 32;
+    const itemImageRadius = _imgR != null ? Number(_imgR) : 0;
 
     // ── Per-item container box styling ────────────────────────────────────
-    const itemBgColor      = String(rv(item.bgColor) || rv(item.backgroundColor) || "");
-    const itemBorderLine   = String(rv(item.borderLine) || rv(item.border) || "none").toLowerCase();
-    const itemBorderColor  = String(rv(item.borderColor) || rv(item.borderColour) || itemIconColor || "#000000");
-    const _bw              = rv(item.borderWidth);
-    const itemBorderWidth  = _bw != null ? Number(_bw) : 2;
-    const _br              = rv(item.borderRadius);
+    // Cover every property name the builder might emit
+    const itemBgColor = String(
+      rv(item.bgColor) || rv(item.backgroundColor) || rv(item.background) || rv(item.bg) || ""
+    );
+    const itemBorderLine = String(
+      rv(item.borderLine) || rv(item.border) || rv(item.borderSide) || "none"
+    ).toLowerCase();
+    const itemBorderColor = String(
+      rv(item.borderColor) || rv(item.borderColour) || rv(item.borderCol) || "#000000"
+    );
+    const _bw = rv(item.borderWidth) ?? rv(item.borderSize);
+    const itemBorderWidth = _bw != null ? Number(_bw) : 1;
+    const _br = rv(item.borderRadius) ?? rv(item.radius) ?? rv(item.corner) ?? rv(item.borderCorner);
     const itemBorderRadius = _br != null ? Number(_br) : 0;
-    const hasItemBox       = !!itemBgColor || (itemBorderLine !== "none" && itemBorderLine !== "");
+    const hasItemBox = !!itemBgColor || (itemBorderLine !== "none" && itemBorderLine !== "");
 
     const itemBorderStyle = (() => {
       if (!itemBorderLine || itemBorderLine === "none") return {};
@@ -445,13 +522,21 @@ export default function HeaderDefault({ config, bottomNavSection, hideTabs = fal
       return sides;
     })();
 
-    const _pH = rv(item.paddingH);
-    const _pV = rv(item.paddingV);
+    const _pH = rv(item.paddingH) ?? rv(item.paddingX) ?? rv(item.px);
+    const _pV = rv(item.paddingV) ?? rv(item.paddingY) ?? rv(item.py);
+    const _pt = rv(item.paddingTop)    ?? rv(item.pt);
+    const _pb = rv(item.paddingBottom) ?? rv(item.pb);
+    const _pl = rv(item.paddingLeft)   ?? rv(item.pl);
+    const _pr = rv(item.paddingRight)  ?? rv(item.pr);
+
     const itemBoxStyle = hasItemBox ? {
       backgroundColor: itemBgColor || "transparent",
       borderRadius: itemBorderRadius,
-      paddingHorizontal: _pH != null ? Number(_pH) : 8,
-      paddingVertical:   _pV != null ? Number(_pV) : 4,
+      // Individual sides take priority over shorthand; shorthand over default 8/4
+      paddingTop:    _pt != null ? Number(_pt) : (_pV != null ? Number(_pV) : 4),
+      paddingBottom: _pb != null ? Number(_pb) : (_pV != null ? Number(_pV) : 4),
+      paddingLeft:   _pl != null ? Number(_pl) : (_pH != null ? Number(_pH) : 8),
+      paddingRight:  _pr != null ? Number(_pr) : (_pH != null ? Number(_pH) : 8),
       ...itemBorderStyle,
     } : {};
 
@@ -460,7 +545,15 @@ export default function HeaderDefault({ config, bottomNavSection, hideTabs = fal
     const isWishlist = itemIconName.includes("heart") || itemIconName.includes("bookmark");
     const showBadge  = (isCart && cartCount > 0) || (isWishlist && wishlistCount > 0);
     const badgeCount = isCart ? cartCount : isWishlist ? wishlistCount : 0;
-    const isInteractive = isCart || isBell || isWishlist;
+
+    // Per-item navigation — falls back to top-level config nav for left-slot items
+    const itemNavRef  = String(rv(item.navigateRef) || rv(item.navigateTo) || rv(item.linkTo) || rv(item.link) || rv(item.href) || "").trim();
+    const itemNavType = String(rv(item.navigateType) || rv(item.linkType) || "").trim().toLowerCase();
+    const effectiveNavRef  = itemNavRef  || (isLeftSlot ? topLevelNavRef  : "");
+    const effectiveNavType = itemNavType || (isLeftSlot ? topLevelNavType : "");
+    const hasCustomNav = !!effectiveNavRef && effectiveNavType !== "none";
+
+    const isInteractive = isCart || isBell || isWishlist || hasCustomNav;
 
     // Strictly respect item type: "text" shows only text, "icon" shows only icon.
     // When type is unspecified/empty, show whatever is available (icon + text can coexist).
@@ -535,9 +628,10 @@ export default function HeaderDefault({ config, bottomNavSection, hideTabs = fal
           key={idx}
           activeOpacity={0.7}
           onPress={() => {
-            if (isCart)          openNavTarget("cart");
-            else if (isBell)     openNavTarget("notification");
-            else if (isWishlist) navigation.navigate("Wishlist");
+            if (isCart)             openNavTarget("cart");
+            else if (isBell)        openNavTarget("notification");
+            else if (isWishlist)    navigation.navigate("Wishlist");
+            else if (hasCustomNav)  executeNavigation(effectiveNavRef, effectiveNavType);
           }}
         >
           {inner}
@@ -564,7 +658,7 @@ export default function HeaderDefault({ config, bottomNavSection, hideTabs = fal
       >
         {/* Left — flex:1 fills available space, pushing right slot to edge */}
         <View style={{ flexDirection: "row", alignItems: "center", gap: 8, flex: 1 }}>
-          {leftItems.map((item, idx) => renderItem(item, idx))}
+          {leftItems.map((item, idx) => renderItem(item, idx, true))}
         </View>
 
         {/* Center — absolutely overlaid so it is always visually centered

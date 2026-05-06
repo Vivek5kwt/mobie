@@ -221,14 +221,13 @@ export default function ProductCarousel({ section }) {
     if (dsRaw) {
       const dsUnwrapped = unwrapValue(dsRaw, {}) || {};
       const dsProp = dsUnwrapped?.properties || dsUnwrapped;
-      const mode = String(unwrapValue(dsProp?.mode, "") || "").toLowerCase();
-      if (mode !== "all_products") {
-        for (const key of topLevelKeys) {
-          const v = _slug(toString(dsProp?.[key], ""));
-          if (v) {
-            console.log(`[ProductCarousel] collectionHandle from dataSource.${key} =`, v);
-            return v;
-          }
+      // Always check for collection handle in dataSource — builder may set
+      // mode="all_products" even when a collection handle is present (builder bug).
+      for (const key of topLevelKeys) {
+        const v = _slug(toString(dsProp?.[key], ""));
+        if (v) {
+          console.log(`[ProductCarousel] collectionHandle from dataSource.${key} =`, v);
+          return v;
         }
       }
     }
@@ -238,6 +237,10 @@ export default function ProductCarousel({ section }) {
   })();
 
   const useCollectionFetch = !!collectionHandle;
+
+  // ── Shopify credentials (from DSL, falls back to global store config) ──────
+  const shopifyDomain = toString(raw?.shopifyDomain ?? rawProps?.shopifyDomain, "");
+  const shopifyToken  = toString(raw?.storefrontToken ?? rawProps?.storefrontToken, "");
 
   // Grid configuration
   // DSL nests grid sub-props under grid.properties; fall back to grid itself for flat schemas
@@ -463,6 +466,10 @@ export default function ProductCarousel({ section }) {
 
   const loadProducts = useCallback(async () => {
     const safeFirst = Math.max(1, Number(itemsShown) || 1);
+    const shopOptions = {
+      shop:  shopifyDomain || undefined,
+      token: shopifyToken  || undefined,
+    };
     setLoading(true);
     setError("");
     try {
@@ -470,13 +477,14 @@ export default function ProductCarousel({ section }) {
       if (useCollectionFetch) {
         result = await fetchShopifyCollectionProducts({
           handle: collectionHandle,
-          first: safeFirst,
+          first:  safeFirst,
+          options: shopOptions,
         });
         if (!result?.products?.length) {
-          result = await fetchShopifyProductsPage({ first: safeFirst });
+          result = await fetchShopifyProductsPage({ first: safeFirst, options: shopOptions });
         }
       } else {
-        result = await fetchShopifyProductsPage({ first: safeFirst });
+        result = await fetchShopifyProductsPage({ first: safeFirst, options: shopOptions });
       }
       if (isMountedRef.current) {
         setProducts(result?.products || []);
@@ -490,7 +498,7 @@ export default function ProductCarousel({ section }) {
         setLoading(false);
       }
     }
-  }, [useCollectionFetch, collectionHandle, itemsShown]);
+  }, [useCollectionFetch, collectionHandle, itemsShown, shopifyDomain, shopifyToken]);
 
   // Initial load and reload whenever data-source params change
   useEffect(() => {

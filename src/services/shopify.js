@@ -41,7 +41,17 @@ const withRequestCache = async (key, producer) => {
   const task = (async () => {
     try {
       const value = await producer();
-      setCached(key, value);
+      // Never cache empty product lists — transient errors or startup races
+      // would lock out retries for the full TTL window.
+      const isPlainArray = Array.isArray(value);
+      const isProductObject =
+        !isPlainArray && value != null && typeof value === "object" && "products" in value;
+      const isEmpty =
+        (isProductObject && !(value.products?.length > 0)) ||
+        (isPlainArray && value.length === 0);
+      if (!isEmpty) {
+        setCached(key, value);
+      }
       return value;
     } finally {
       _inflightRequests.delete(key);

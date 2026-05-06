@@ -291,14 +291,13 @@ export default function ProductGrid({ section, limit = 8, title = "Products" }) 
       // dataSource may itself be wrapped: { type, const: {mode, collectionHandle}, value: ... }
       const dsUnwrapped = unwrapValue(dsRaw, {}) || {};
       const dsProp = dsUnwrapped?.properties || dsUnwrapped;
-      const mode = String(unwrapValue(dsProp?.mode, "") || "").toLowerCase();
-      if (mode !== "all_products") {
-        for (const key of topLevelKeys) {
-          const v = _slug(toString(dsProp?.[key], ""));
-          if (v) {
-            console.log(`[ProductGrid] collectionHandle from dataSource.${key} =`, v);
-            return v;
-          }
+      // Always check for collection handle — builder may set mode="all_products"
+      // even when a collection handle is present (builder bug).
+      for (const key of topLevelKeys) {
+        const v = _slug(toString(dsProp?.[key], ""));
+        if (v) {
+          console.log(`[ProductGrid] collectionHandle from dataSource.${key} =`, v);
+          return v;
         }
       }
     }
