@@ -88,6 +88,7 @@ export default function ProductLibrary({ section }) {
   const [currentIdx,          setCurrentIdx]          = useState(0);
   const [snackVisible,        setSnackVisible]        = useState(false);
   const [snackMessage,        setSnackMessage]        = useState("");
+  const [galleryWidth,        setGalleryWidth]        = useState(Dimensions.get("window").width);
   const galleryRef = useRef(null);
 
   // Pinch-to-zoom state for fullscreen
@@ -128,7 +129,15 @@ export default function ProductLibrary({ section }) {
 
   const images = useMemo(() => {
     const arr = raw?.images;
-    if (Array.isArray(arr) && arr.length > 0) return arr.filter(Boolean);
+    if (Array.isArray(arr) && arr.length > 0) {
+      return Array.from(
+        new Set(
+          arr
+            .map((image) => toString(image?.url ?? image?.src ?? image?.imageUrl ?? image, ""))
+            .filter(Boolean)
+        )
+      );
+    }
     const single = toString(raw?.imageUrl || routeProduct?.imageUrl || routeProduct?.image, "");
     return single ? [single] : [];
   }, [raw?.images, raw?.imageUrl, routeProduct?.image, routeProduct?.imageUrl]);
@@ -191,15 +200,16 @@ export default function ProductLibrary({ section }) {
   useEffect(() => {
     setCurrentIdx(0);
     galleryRef.current?.scrollTo({ x: 0, animated: false });
-  }, [images.length]);
+  }, [galleryWidth, images.length]);
 
   if (!images.length) return null;
 
   // ── Dimensions ────────────────────────────────────────────────────────────
-  const screenWidth = Dimensions.get("window").width;
   const metrics = layout?.metrics?.elements || {};
   const imageMetrics = metrics?.image || {};
-  const imageWidth = imageMetrics?.width ? Number(imageMetrics.width) : screenWidth - 32;
+  const imageWidth = imageMetrics?.width
+    ? Math.min(Number(imageMetrics.width), Math.max(galleryWidth - 32, 1))
+    : Math.max(galleryWidth - 32, 1);
   const imageHeight = imageMetrics?.height
     ? Number(imageMetrics.height)
     : Math.round(imageWidth * 1.0);
@@ -234,14 +244,14 @@ export default function ProductLibrary({ section }) {
   // ── Gallery scroll ─────────────────────────────────────────────────────────
   const handleGalleryScroll = (event) => {
     const x = event.nativeEvent.contentOffset.x;
-    const idx = Math.round(x / screenWidth);
+    const idx = Math.round(x / Math.max(galleryWidth, 1));
     if (idx >= 0 && idx < images.length && idx !== currentIdx) {
       setCurrentIdx(idx);
     }
   };
 
   const scrollToImage = (idx) => {
-    galleryRef.current?.scrollTo({ x: idx * screenWidth, animated: true });
+    galleryRef.current?.scrollTo({ x: idx * galleryWidth, animated: true });
     setCurrentIdx(idx);
   };
 
@@ -264,7 +274,15 @@ export default function ProductLibrary({ section }) {
     <View style={containerStyle}>
 
       {/* ── Gallery + overlays ─────────────────────────────────────────────── */}
-      <View style={[styles.galleryWrap, { height: imageHeight + 16 }]}>
+      <View
+        style={[styles.galleryWrap, { height: imageHeight + 16 }]}
+        onLayout={(event) => {
+          const nextWidth = Math.round(event.nativeEvent.layout.width || 0);
+          if (nextWidth > 0 && nextWidth !== galleryWidth) {
+            setGalleryWidth(nextWidth);
+          }
+        }}
+      >
         <ScrollView
           ref={galleryRef}
           horizontal
@@ -273,12 +291,19 @@ export default function ProductLibrary({ section }) {
           scrollEnabled={hasMultiple}
           onScroll={handleGalleryScroll}
           scrollEventThrottle={16}
-          style={{ width: screenWidth }}
+          nestedScrollEnabled
+          directionalLockEnabled
+          alwaysBounceVertical={false}
+          decelerationRate="fast"
+          snapToInterval={galleryWidth}
+          snapToAlignment="start"
+          disableIntervalMomentum
+          style={{ width: galleryWidth }}
         >
           {images.map((uri, idx) => (
             <Pressable
               key={`img-${idx}`}
-              style={{ width: screenWidth, alignItems: "center", paddingVertical: 8 }}
+              style={{ width: galleryWidth, alignItems: "center", paddingVertical: 8 }}
               onPress={() => setIsFullscreenVisible(true)}
               accessibilityRole="button"
               accessibilityLabel="Open product image fullscreen"

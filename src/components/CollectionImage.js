@@ -143,7 +143,8 @@ const mergeCollectionItems = (dslItems, storeItems) => {
       ...item,
       handle: item.handle || match.handle,
       link: item.link || match.link,
-      image: item.image || match.image,
+      image: isRenderableImageUrl(item.image) ? item.image : match.image,
+      originalImage: item.image || "",
     };
   });
 };
@@ -168,6 +169,14 @@ const isSvgUrl = (url) => {
   if (!url || typeof url !== "string") return false;
   const lower = url.toLowerCase().split("?")[0];
   return lower.endsWith(".svg") || lower.includes(".svg");
+};
+
+const isRenderableImageUrl = (url) => {
+  if (!url || typeof url !== "string") return false;
+  const value = url.trim();
+  if (!value) return false;
+  if (/^blob:/i.test(value)) return false;
+  return /^(https?:|data:image\/|file:)/i.test(value);
 };
 
 // ─── component ────────────────────────────────────────────────────────────────
@@ -255,7 +264,7 @@ export default function CollectionImage({ section }) {
   const showCardImage       = asBoolean(rawProps?.showCardImage, true);
   const showCardText        = asBoolean(cardCfg?.showText, true);
   const cardTextSize        = asNumber(titleNode?.fontSize ?? rawSnapshot?.titleFontSize ?? cardCfg?.textSize, 12);
-  const cardTextColor       = asString(unwrapValue(titleNode?.color ?? rawSnapshot?.titleColor ?? cardCfg?.textColor, "#000000"));
+  const cardTextColor       = asString(unwrapValue(titleNode?.color ?? rawSnapshot?.titleSubCColor ?? rawSnapshot?.titleColor ?? cardCfg?.textColor, "#000000"));
   const cardTextWeight      = deriveFontWeight(titleNode?.fontWeight ?? rawSnapshot?.titleFontWeight ?? cardCfg?.textWeight, "500");
   const cardFontFamily      = cleanFontFamily(
     asString(unwrapValue(titleNode?.fontFamily ?? rawSnapshot?.titleFontFamily ?? cardCfg?.textFontFamily ?? cardCfg?.fontFamily ?? rawProps?.cardFontFamily, ""))
@@ -406,7 +415,7 @@ export default function CollectionImage({ section }) {
             backgroundColor: "#FFFFFF",
           }}
         >
-          {item.image ? (
+          {isRenderableImageUrl(item.image) ? (
             isSvgUrl(item.image) ? (
               <WebView
                 source={{

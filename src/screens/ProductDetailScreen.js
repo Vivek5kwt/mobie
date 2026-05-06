@@ -28,6 +28,8 @@ const resolveSections = (detailSections) => {
   return [];
 };
 
+const hasProductIdentity = (product = {}) => !!(product?.handle || product?.id);
+
 const buildProductDefaults = (product = {}) => {
   const imageUrl = product?.imageUrl;
   const images = Array.isArray(product?.images) && product.images.length > 0
@@ -202,6 +204,7 @@ export default function ProductDetailScreen() {
   const [dslSections, setDslSections] = useState([]);
   const [dslLoading, setDslLoading] = useState(true);
   const [productReady, setProductReady] = useState(false);
+  const [productLoadSettled, setProductLoadSettled] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [bottomNavSection, setBottomNavSection] = useState(null);
@@ -214,10 +217,12 @@ export default function ProductDetailScreen() {
 
   const loadProductDetails = useCallback(async (overrideProduct) => {
     const baseProduct = overrideProduct || productRef.current || {};
-    if (!baseProduct?.handle && !baseProduct?.id) {
+    if (!hasProductIdentity(baseProduct)) {
       if (isMountedRef.current) {
         setLoading(false);
-        setError("No product selected.");
+        setProductReady(false);
+        setProductLoadSettled(true);
+        setError("No Product Detail Found");
       }
       return;
     }
@@ -225,12 +230,14 @@ export default function ProductDetailScreen() {
     setError("");
 
     let details = null;
+    let requestFailed = false;
     try {
       details = await fetchShopifyProductDetails({
         handle: baseProduct?.handle,
         id: baseProduct?.id,
       });
     } catch (err) {
+      requestFailed = true;
       console.error("❌ Product detail refresh failed:", err);
     }
 
@@ -239,8 +246,11 @@ export default function ProductDetailScreen() {
       setDetailProduct({ ...baseProduct, ...details });
       setProductReady(true);
     } else {
-      setError("Unable to load product details right now.");
+      setDetailProduct(null);
+      setProductReady(false);
+      setError(requestFailed ? "Unable to load product details right now." : "No Product Detail Found");
     }
+    setProductLoadSettled(true);
     setLoading(false);
   }, []);
 
@@ -252,6 +262,8 @@ export default function ProductDetailScreen() {
     productRef.current = product;
     setDetailProduct(null);
     setProductReady(false);
+    setProductLoadSettled(false);
+    setError("");
     loadProductDetails(product);
   }, [loadProductDetails, product]);
 
@@ -342,7 +354,6 @@ export default function ProductDetailScreen() {
     () => resolveSections(dslSections),
     [dslSections]
   );
-  const showLoadingState = (loading || dslLoading) && !productReady;
 
   // Only render sections once the Shopify API has returned real product data.
   // Never show DSL placeholder/default values before real data arrives.
@@ -362,7 +373,15 @@ export default function ProductDetailScreen() {
     [renderSections]
   );
   const stickyAtcReservedSpace = stickyAddToCartSections.length > 0 ? stickyAtcHeight : 0;
-  const showEmptyState = !showLoadingState && (!renderSections.length || !!error);
+  const hasProductData = productReady && !!detailProduct;
+  const waitingForInitialProduct = loading && !hasProductData && !productLoadSettled;
+  const waitingForInitialDsl = dslLoading && !renderSections.length && !error;
+  const showLoadingState = waitingForInitialProduct || waitingForInitialDsl;
+  const showEmptyState = !showLoadingState && (
+    !!error ||
+    (productLoadSettled && !hasProductData) ||
+    (hasProductData && !dslLoading && renderSections.length === 0)
+  );
 
   return (
     <SafeAreaView style={styles.safeArea} edges={["left", "right", "bottom"]}>
