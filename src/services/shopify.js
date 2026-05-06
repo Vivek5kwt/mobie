@@ -314,6 +314,13 @@ export async function fetchShopifyProductsPage({
             id
             title
             handle
+            vendor
+            productType
+            tags
+            options {
+              name
+              values
+            }
             featuredImage { url }
             images(first: 1) { edges { node { url } } }
             priceRangeV2 { minVariantPrice { amount currencyCode } }
@@ -359,6 +366,10 @@ export async function fetchShopifyProductsPage({
         id: edge?.node?.id,
         title: edge?.node?.title,
         handle: edge?.node?.handle,
+        vendor: edge?.node?.vendor || "",
+        productType: edge?.node?.productType || "",
+        tags: edge?.node?.tags || [],
+        options: edge?.node?.options || [],
         availableForSale: true,
         variantId: variant?.id || null,
         imageUrl:
@@ -920,6 +931,13 @@ export async function fetchShopifyCollectionProducts({
                   id
                   title
                   handle
+                  vendor
+                  productType
+                  tags
+                  options {
+                    name
+                    values
+                  }
                   featuredImage { url }
                   images(first: 1) { edges { node { url } } }
                   priceRangeV2 { minVariantPrice { amount currencyCode } }
@@ -973,6 +991,10 @@ export async function fetchShopifyCollectionProducts({
         id: node?.id,
         title: node?.title,
         handle: node?.handle,
+        vendor: node?.vendor || "",
+        productType: node?.productType || "",
+        tags: node?.tags || [],
+        options: node?.options || [],
         availableForSale: true,
         variantId: variant?.id || null,
         imageUrl:

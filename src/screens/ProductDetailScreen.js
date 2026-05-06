@@ -10,7 +10,6 @@ import { resolveAppId } from "../utils/appId";
 import { useAuth } from "../services/AuthContext";
 import HeaderDefault from "../components/HeaderDefault";
 import BottomNavigation, { BOTTOM_NAV_RESERVED_HEIGHT } from "../components/BottomNavigation";
-import { getHeaderDefault } from "../services/headerDefaultService";
 
 const unwrapValue = (value, fallback = undefined) => {
   if (value === undefined || value === null) return fallback;
@@ -208,7 +207,7 @@ export default function ProductDetailScreen() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [bottomNavSection, setBottomNavSection] = useState(null);
-  const [headerDefaultConfig, setHeaderDefaultConfig] = useState(() => getHeaderDefault());
+  const [headerDefaultConfig, setHeaderDefaultConfig] = useState(null);
   const [bottomNavHeight, setBottomNavHeight] = useState(BOTTOM_NAV_RESERVED_HEIGHT);
   const [stickyAtcHeight, setStickyAtcHeight] = useState(130);
   const isMountedRef = useRef(true);
@@ -293,6 +292,11 @@ export default function ProductDetailScreen() {
       const liveDsl = await fetchDSL(appId, "product-detail");
       if (!isMounted) return;
       const nextSections = resolveSections(liveDsl?.dsl);
+      if (liveDsl?.dsl?.headerdefault !== undefined) {
+        setHeaderDefaultConfig(liveDsl.dsl.headerdefault);
+      } else {
+        setHeaderDefaultConfig(null);
+      }
       if (nextSections.length) {
         setDslSections(nextSections);
         dslVersionRef.current = liveDsl?.versionNumber ?? null;
@@ -320,6 +324,11 @@ export default function ProductDetailScreen() {
         const nextSections = resolveSections(latest.dsl);
         if (!nextSections.length) return;
 
+        if (latest.dsl?.headerdefault !== undefined) {
+          setHeaderDefaultConfig(latest.dsl.headerdefault);
+        } else {
+          setHeaderDefaultConfig(null);
+        }
         setDslSections(nextSections);
         dslVersionRef.current = incomingVersion;
       } catch (e) {
@@ -330,7 +339,8 @@ export default function ProductDetailScreen() {
     return () => clearInterval(intervalId);
   }, [appId, detailSections]);
 
-  // Fetch bottom nav and headerdefault config from home DSL so they match the home page
+  // Fetch only the bottom nav from home DSL. HeaderDefault must come from the
+  // Product Detail page DSL so product screens follow their own builder config.
   useEffect(() => {
     let mounted = true;
     fetchDSL(appId, "home").then((data) => {
@@ -345,7 +355,6 @@ export default function ProductDetailScreen() {
       );
       if (nav) setBottomNavSection(nav);
 
-      if (data?.dsl?.headerdefault) setHeaderDefaultConfig(data.dsl.headerdefault);
     }).catch(() => {});
     return () => { mounted = false; };
   }, [appId]);
@@ -387,7 +396,9 @@ export default function ProductDetailScreen() {
     <SafeAreaView style={styles.safeArea} edges={["left", "right", "bottom"]}>
       <View style={styles.container}>
         <View style={[styles.headerWrapper, { paddingTop: insets.top }]}>
-          <HeaderDefault config={headerDefaultConfig} hideTabs={true} showBack={true} />
+          {headerDefaultConfig ? (
+            <HeaderDefault config={headerDefaultConfig} hideTabs={true} showBack={true} />
+          ) : null}
         </View>
         {showLoadingState ? (
           <SkeletonLoader />

@@ -10,14 +10,14 @@ import {
   View,
 } from "react-native";
 import { useNavigation, useRoute } from "@react-navigation/native";
-import Icon from "react-native-vector-icons/FontAwesome6";
 import { fetchShopifyProductsPage } from "../services/shopify";
 import { SafeArea } from "../utils/SafeAreaHandler";
-import Header from "../components/Topheader";
+import HeaderDefault from "../components/HeaderDefault";
 import FilterSortHeader from "../components/FilterSortHeader";
 import BottomNavigation, { BOTTOM_NAV_RESERVED_HEIGHT } from "../components/BottomNavigation";
 import { fetchDSL } from "../engine/dslHandler";
 import { resolveAppId } from "../utils/appId";
+import { buildProductFilterOptions, productMatchesFilter } from "../utils/productFilters";
 
 const GAP = 12;
 const H_PAD = 16;
@@ -51,8 +51,11 @@ export default function AllProductsScreen() {
   const [error, setError]             = useState("");
   const [sortKey, setSortKey]         = useState("Popular");
   const [viewMode, setViewMode]       = useState("grid");
+  const [activeFilter, setActiveFilter] = useState(null);
+  const [filterOptions, setFilterOptions] = useState([]);
   const [bottomNavSection, setBottomNavSection] = useState(null);
   const [bottomNavHeight, setBottomNavHeight]   = useState(BOTTOM_NAV_RESERVED_HEIGHT);
+  const [homeHeaderConfig, setHomeHeaderConfig] = useState(null);
 
   const numColumns = viewMode === "list" ? 1 : 2;
   const CARD_W = viewMode === "list"
@@ -76,6 +79,7 @@ export default function AllProductsScreen() {
       const nextPageInfo = payload?.pageInfo || { hasNextPage: false, endCursor: null };
 
       setProducts((prev) => (append ? [...prev, ...nextProducts] : nextProducts));
+      if (!append) setFilterOptions(buildProductFilterOptions(nextProducts));
       setPageInfo(nextPageInfo);
     } catch (err) {
       setError("Unable to load products right now. Please try again later.");
@@ -90,10 +94,23 @@ export default function AllProductsScreen() {
   }, [loadProducts]);
 
   useEffect(() => {
+    let mounted = true;
+    fetchShopifyProductsPage({ first: 100 })
+      .then((payload) => {
+        if (!mounted) return;
+        const nextOptions = buildProductFilterOptions(payload?.products || []);
+        if (nextOptions.length) setFilterOptions(nextOptions);
+      })
+      .catch(() => {});
+    return () => { mounted = false; };
+  }, []);
+
+  useEffect(() => {
     const appId = resolveAppId();
     let mounted = true;
     fetchDSL(appId, "home").then((data) => {
       if (!mounted) return;
+      setHomeHeaderConfig(data?.dsl?.headerdefault || null);
       const nav = (data?.dsl?.sections || []).find((s) => {
         const c = (
           s?.component?.const || s?.component ||
@@ -111,7 +128,12 @@ export default function AllProductsScreen() {
     loadProducts({ after: pageInfo?.endCursor, append: true });
   };
 
-  const displayProducts = useMemo(() => sortProducts(products, sortKey), [products, sortKey]);
+  const displayProducts = useMemo(() => {
+    const filtered = activeFilter
+      ? products.filter((product) => productMatchesFilter(product, activeFilter))
+      : products;
+    return sortProducts(filtered, sortKey);
+  }, [products, sortKey, activeFilter]);
 
   const renderItem = ({ item }) => {
     const isListMode = viewMode === "list";
@@ -150,26 +172,20 @@ export default function AllProductsScreen() {
   return (
     <SafeArea>
       <View style={styles.container}>
-        <Header showBack={false} />
+        {homeHeaderConfig ? (
+          <HeaderDefault config={homeHeaderConfig} bottomNavSection={bottomNavSection} hideTabs showBack />
+        ) : null}
         <View style={styles.headerSection}>
-          <View style={styles.headerRow}>
-            <TouchableOpacity
-              style={styles.backButton}
-              onPress={() => navigation.goBack()}
-              accessibilityRole="button"
-              accessibilityLabel="Go back"
-            >
-              <Icon name="chevron-left" size={20} color="#111827" />
-            </TouchableOpacity>
-            <Text style={styles.heading}>{title || "Products"}</Text>
-          </View>
+          <Text style={styles.heading}>{title || "Products"}</Text>
         </View>
 
         {/* Filter + Sort bar */}
         <FilterSortHeader
           section={{}}
+          filterItems={filterOptions}
           onSortChange={(opt) => setSortKey(opt)}
           onViewModeChange={(mode) => setViewMode(mode)}
+          onFilterChange={(filter) => setActiveFilter(filter)}
         />
 
         <View style={styles.listArea}>
@@ -239,16 +255,6 @@ const styles = StyleSheet.create({
     flex: 1,
     paddingHorizontal: 16,
     paddingTop: 8,
-  },
-  headerRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginBottom: 8,
-  },
-  backButton: {
-    marginRight: 8,
-    paddingVertical: 4,
-    paddingHorizontal: 6,
   },
   heading: {
     fontSize: 22,

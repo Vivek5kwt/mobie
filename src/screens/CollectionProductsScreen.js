@@ -14,11 +14,12 @@ import { useDispatch } from "react-redux";
 import { fetchShopifyCollectionProducts, fetchShopifyProductsPage } from "../services/shopify";
 import { SafeArea } from "../utils/SafeAreaHandler";
 import { addItem } from "../store/slices/cartSlice";
-import Header from "../components/Topheader";
+import HeaderDefault from "../components/HeaderDefault";
 import FilterSortHeader from "../components/FilterSortHeader";
 import BottomNavigation, { BOTTOM_NAV_RESERVED_HEIGHT } from "../components/BottomNavigation";
 import { fetchDSL } from "../engine/dslHandler";
 import { resolveAppId } from "../utils/appId";
+import { buildProductFilterOptions, productMatchesFilter } from "../utils/productFilters";
 
 const PAGE_SIZE = 20;
 const GAP = 12;
@@ -59,7 +60,15 @@ export default function CollectionProductsScreen() {
   const navigation = useNavigation();
   const route = useRoute();
   const dispatch = useDispatch();
-  const { collectionHandle, collectionTitle } = route?.params || {};
+  const {
+    collectionHandle,
+    handle,
+    collectionTitle,
+    title,
+    label,
+  } = route?.params || {};
+  const resolvedCollectionHandle = collectionHandle || handle || "";
+  const resolvedCollectionTitle = collectionTitle || title || label || "Products";
 
   const [products, setProducts]       = useState([]);
   const [pageInfo, setPageInfo]       = useState({ hasNextPage: false, endCursor: null });
@@ -70,6 +79,8 @@ export default function CollectionProductsScreen() {
   const [favorites, setFavorites]     = useState({});
   const [bottomNavSection, setBottomNavSection] = useState(null);
   const [bottomNavHeight, setBottomNavHeight]   = useState(BOTTOM_NAV_RESERVED_HEIGHT);
+  const [homeHeaderConfig, setHomeHeaderConfig] = useState(null);
+  const [filterOptions, setFilterOptions] = useState([]);
 
   // FilterSortHeader state
   const [sortKey, setSortKey]       = useState("Popular");
@@ -89,9 +100,9 @@ export default function CollectionProductsScreen() {
 
       try {
         // Try collection-specific products first
-        if (collectionHandle) {
+        if (resolvedCollectionHandle) {
           const payload = await fetchShopifyCollectionProducts({
-            handle: collectionHandle,
+            handle: resolvedCollectionHandle,
             first: PAGE_SIZE,
             after,
           });
@@ -102,6 +113,7 @@ export default function CollectionProductsScreen() {
             // Has real collection data (or paginating through it)
             setIsFallback(false);
             setProducts((prev) => (append ? [...prev, ...next] : next));
+            if (!append) setFilterOptions(buildProductFilterOptions(next));
             setPageInfo(nextPage);
             return;
           }
@@ -114,6 +126,7 @@ export default function CollectionProductsScreen() {
           const next     = fallback?.products || [];
           const nextPage = fallback?.pageInfo || { hasNextPage: false, endCursor: null };
           setProducts(next);
+          setFilterOptions(buildProductFilterOptions(next));
           setPageInfo(nextPage);
         }
       } catch (_) {
@@ -123,12 +136,28 @@ export default function CollectionProductsScreen() {
         setLoadingMore(false);
       }
     },
-    [collectionHandle]
+    [resolvedCollectionHandle]
   );
 
   useEffect(() => {
     loadProducts();
   }, [loadProducts]);
+
+  useEffect(() => {
+    let mounted = true;
+    const loadStoreFilters = async () => {
+      try {
+        const payload = resolvedCollectionHandle
+          ? await fetchShopifyCollectionProducts({ handle: resolvedCollectionHandle, first: 100 })
+          : await fetchShopifyProductsPage({ first: 100 });
+        if (!mounted) return;
+        const nextOptions = buildProductFilterOptions(payload?.products || []);
+        if (nextOptions.length) setFilterOptions(nextOptions);
+      } catch (_) {}
+    };
+    loadStoreFilters();
+    return () => { mounted = false; };
+  }, [resolvedCollectionHandle]);
 
   const handleAddToCart = (product) => {
     dispatch(
@@ -155,9 +184,7 @@ export default function CollectionProductsScreen() {
   const displayProducts = React.useMemo(() => {
     let list = sortProducts(products, sortKey);
     if (activeFilter) {
-      list = list.filter((p) =>
-        (p.title || "").toLowerCase().includes(activeFilter.toLowerCase())
-      );
+      list = list.filter((p) => productMatchesFilter(p, activeFilter));
     }
     return list;
   }, [products, sortKey, activeFilter]);
@@ -231,6 +258,7 @@ export default function CollectionProductsScreen() {
     let mounted = true;
     fetchDSL(appId, "home").then((data) => {
       if (!mounted) return;
+      setHomeHeaderConfig(data?.dsl?.headerdefault || null);
       const nav = (data?.dsl?.sections || []).find((s) => {
         const c = (
           s?.component?.const || s?.component ||
@@ -246,13 +274,15 @@ export default function CollectionProductsScreen() {
   return (
     <SafeArea>
       <View style={styles.container}>
-        <Header />
+        {homeHeaderConfig ? (
+          <HeaderDefault config={homeHeaderConfig} bottomNavSection={bottomNavSection} hideTabs showBack />
+        ) : null}
 
         {/* Section title row */}
         <View style={styles.sectionRow}>
           <View style={styles.titleColumn}>
             <Text style={styles.sectionTitle}>
-              {collectionTitle || "Products"}
+              {resolvedCollectionTitle}
             </Text>
             {isFallback && (
               <Text style={styles.fallbackNote}>
@@ -272,6 +302,7 @@ export default function CollectionProductsScreen() {
         {/* Filter + Sort header bar */}
         <FilterSortHeader
           section={{}}
+          filterItems={filterOptions}
           onSortChange={(opt) => setSortKey(opt)}
           onViewModeChange={(mode) => setViewMode(mode)}
           onFilterChange={(filter) => setActiveFilter(filter)}

@@ -117,6 +117,52 @@ export default function HeaderDefault({ config, bottomNavSection, hideTabs = fal
   };
 
   const openNavTarget = (target) => {
+    const headerNavRef = String(
+      resolveVal(
+        target === "cart"
+          ? (config?.cart?.navigateRef ?? config?.cart?.linkTo ?? config?.cart?.link ?? config?.navigateRef ?? config?.linkTo)
+          : (config?.notification?.navigateRef ?? config?.notification?.linkTo ?? config?.notification?.link)
+      ) || ""
+    ).trim();
+    const headerNavType = String(
+      resolveVal(
+        target === "cart"
+          ? (config?.cart?.navigateType ?? config?.navigateType)
+          : config?.notification?.navigateType
+      ) || "Screen"
+    ).trim();
+
+    if (headerNavRef) {
+      const type = headerNavType.toLowerCase();
+      const key = headerNavRef.toLowerCase().replace(/[\s_-]+/g, "");
+      if (type === "screen" || !type) {
+        if (key === "home" || key === "layoutscreen" || key === "layout") {
+          navigation.navigate("LayoutScreen");
+        } else if (key === "cart" || key === "profile" || key === "account" || key === "myaccount") {
+          navigation.navigate("BottomNavScreen", {
+            title: headerNavRef,
+            pageName: headerNavRef,
+            link: headerNavRef,
+            bottomNavSection: navSection,
+          });
+        } else if (key === "wishlist") {
+          navigation.navigate("Wishlist");
+        } else {
+          navigation.navigate(headerNavRef);
+        }
+      } else if (type === "url") {
+        navigation.navigate("CheckoutWebView", { url: headerNavRef, title: "" });
+      } else {
+        navigation.navigate("BottomNavScreen", {
+          title: headerNavRef,
+          pageName: headerNavRef,
+          link: headerNavRef,
+          bottomNavSection: navSection,
+        });
+      }
+      return;
+    }
+
     const items = resolveNavItems(navSection);
     const normalized = String(target || "").trim().toLowerCase();
     let idx = items.findIndex((item) => {
@@ -412,7 +458,16 @@ export default function HeaderDefault({ config, bottomNavSection, hideTabs = fal
       };
       const key = ref.toLowerCase().replace(/[\s_-]+/g, "");
       const screen = screenMap[key] || ref;
-      navigation.navigate(screen);
+      if (screen === "BottomNavScreen") {
+        navigation.navigate("BottomNavScreen", {
+          title: ref,
+          pageName: ref,
+          link: ref,
+          bottomNavSection: navSection,
+        });
+      } else {
+        navigation.navigate(screen);
+      }
     } else if (type === "url") {
       navigation.navigate("CheckoutWebView", { url: ref, title: "" });
     } else if (type === "collection") {
@@ -543,6 +598,11 @@ export default function HeaderDefault({ config, bottomNavSection, hideTabs = fal
     const isCart     = itemIconName.includes("cart");
     const isBell     = itemIconName.includes("bell");
     const isWishlist = itemIconName.includes("heart") || itemIconName.includes("bookmark");
+    const isBackIcon = isLeftSlot && showBack && (
+      itemIconName.includes("arrow-left") ||
+      itemIconName.includes("chevron-left") ||
+      itemIconName === "angle-left"
+    );
     const showBadge  = (isCart && cartCount > 0) || (isWishlist && wishlistCount > 0);
     const badgeCount = isCart ? cartCount : isWishlist ? wishlistCount : 0;
 
@@ -553,7 +613,7 @@ export default function HeaderDefault({ config, bottomNavSection, hideTabs = fal
     const effectiveNavType = itemNavType || (isLeftSlot ? topLevelNavType : "");
     const hasCustomNav = !!effectiveNavRef && effectiveNavType !== "none";
 
-    const isInteractive = isCart || isBell || isWishlist || hasCustomNav;
+    const isInteractive = isBackIcon || isCart || isBell || isWishlist || hasCustomNav;
 
     // Strictly respect item type: "text" shows only text, "icon" shows only icon.
     // When type is unspecified/empty, show whatever is available (icon + text can coexist).
@@ -628,10 +688,13 @@ export default function HeaderDefault({ config, bottomNavSection, hideTabs = fal
           key={idx}
           activeOpacity={0.7}
           onPress={() => {
-            if (isCart)             openNavTarget("cart");
+            if (isBackIcon) {
+              if (navigation.canGoBack()) navigation.goBack();
+              else navigation.navigate("LayoutScreen");
+            } else if (hasCustomNav) executeNavigation(effectiveNavRef, effectiveNavType);
+            else if (isCart)        openNavTarget("cart");
             else if (isBell)        openNavTarget("notification");
             else if (isWishlist)    navigation.navigate("Wishlist");
-            else if (hasCustomNav)  executeNavigation(effectiveNavRef, effectiveNavType);
           }}
         >
           {inner}

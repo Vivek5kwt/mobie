@@ -18,6 +18,7 @@ import { SafeArea } from "../utils/SafeAreaHandler";
 import { fetchDSL } from "../engine/dslHandler";
 import { resolveAppId } from "../utils/appId";
 import { useAuth } from "../services/AuthContext";
+import HeaderDefault from "../components/HeaderDefault";
 
 const { width: SCREEN_W } = Dimensions.get("window");
 
@@ -144,11 +145,6 @@ export default function WishlistScreen() {
   const strikepriceFontWeight = toStr(p?.strikepriceFontWeight, "400");
 
   // ── Header bar tokens from headerdefault DSL ──────────────────────────────
-  const hd          = headerConfig || {};
-  const headerBg    = toStr(hd?.backgroundColor ?? hd?.bgColor, "#FFFFFF");
-  const headerText  = toStr(hd?.textColor,  "#111827");
-  const headerIcon  = toStr(hd?.iconColor,  "#111827");
-  const pageTitle   = toStr(hd?.title,      "Wishlist");
 
   // ── Layout math ───────────────────────────────────────────────────────────
   const GAP   = 12;
@@ -156,14 +152,6 @@ export default function WishlistScreen() {
   const imgH  = cardW * imageAspect;
 
   // ── Back navigation ───────────────────────────────────────────────────────
-  const handleBack = useCallback(() => {
-    if (navigation.canGoBack()) {
-      navigation.goBack();
-    } else {
-      navigation.navigate("LayoutScreen");
-    }
-  }, [navigation]);
-
   // ── Render a single wishlist card ─────────────────────────────────────────
   const renderItem = useCallback(({ item }) => (
     <TouchableOpacity
@@ -263,23 +251,9 @@ export default function WishlistScreen() {
   return (
     <SafeArea>
       {/* ── Page header ─────────────────────────────────────────────────── */}
-      <View style={[styles.header, { backgroundColor: headerBg, borderBottomColor: headerBg === "#FFFFFF" ? "#F3F4F6" : "transparent" }]}>
-        <TouchableOpacity
-          style={styles.headerSide}
-          activeOpacity={0.7}
-          onPress={handleBack}
-          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-        >
-          <Icon name="arrow-left" size={18} color={headerIcon} />
-        </TouchableOpacity>
-
-        <Text style={[styles.headerTitle, { color: headerText }]} numberOfLines={1}>
-          {pageTitle}
-        </Text>
-
-        {/* Spacer keeps title centred */}
-        <View style={styles.headerSide} />
-      </View>
+      {headerConfig ? (
+        <HeaderDefault config={headerConfig} hideTabs={true} showBack={true} />
+      ) : null}
 
       {/* ── DSL loading spinner ──────────────────────────────────────────── */}
       {dslLoading ? (
@@ -333,27 +307,6 @@ export default function WishlistScreen() {
 
 // ── Styles ────────────────────────────────────────────────────────────────────
 const styles = StyleSheet.create({
-  header: {
-    flexDirection:     "row",
-    alignItems:        "center",
-    justifyContent:    "space-between",
-    paddingHorizontal: 16,
-    paddingVertical:   12,
-    backgroundColor:   "#FFFFFF",
-    borderBottomWidth: 1,
-    borderBottomColor: "#F3F4F6",
-  },
-  headerSide: {
-    width:      36,
-    alignItems: "center",
-  },
-  headerTitle: {
-    flex:       1,
-    textAlign:  "center",
-    fontSize:   17,
-    fontWeight: "700",
-    color:      "#111827",
-  },
   centre: {
     flex:           1,
     alignItems:     "center",

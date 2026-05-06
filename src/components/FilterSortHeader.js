@@ -24,6 +24,7 @@ function resolveProp(obj, key, fallback) {
 
 export default function FilterSortHeader({
   section,
+  filterItems: filterItemsProp,
   onSortChange,
   onViewModeChange,
   onFilterChange,
@@ -39,7 +40,9 @@ export default function FilterSortHeader({
 
   // Filter items from DSL (for the filter modal)
   const rawItems    = resolveProp(raw, "items", []);
-  const filterItems = Array.isArray(rawItems) ? rawItems : [];
+  const filterItems = Array.isArray(filterItemsProp)
+    ? filterItemsProp
+    : Array.isArray(rawItems) ? rawItems : [];
 
   const [selectedSort, setSelectedSort]   = useState("Popular");
   const [viewMode, setViewMode]           = useState("grid"); // "grid" | "list"
@@ -59,6 +62,12 @@ export default function FilterSortHeader({
   const handleApplyFilter = () => {
     setFilterVisible(false);
     onFilterChange && onFilterChange(activeFilter);
+  };
+
+  const handleClearFilter = () => {
+    setActiveFilter(null);
+    setFilterVisible(false);
+    onFilterChange && onFilterChange(null);
   };
 
   const containerPad = {
@@ -86,7 +95,11 @@ export default function FilterSortHeader({
             onPress={() => setFilterVisible(true)}
           >
             <Icon name="sliders" size={12} color="#111827" style={styles.pillIcon} />
-            {showSortText && <Text style={styles.pillText}>Filter</Text>}
+            {showSortText && (
+              <Text style={styles.pillText} numberOfLines={1}>
+                {activeFilter?.label || "Filter"}
+              </Text>
+            )}
           </TouchableOpacity>
 
           {/* Sort option chips */}
@@ -145,14 +158,18 @@ export default function FilterSortHeader({
           <View style={styles.filterChips}>
             {filterItems.length > 0 ? (
               filterItems.map((item) => {
-                const label = item?.title || item?.name || String(item);
-                const selected = activeFilter === label;
+                const label = item?.label || item?.title || item?.name || String(item);
+                const value = item?.value ?? label;
+                const selected =
+                  activeFilter &&
+                  (activeFilter.id === item?.id ||
+                    `${activeFilter.type || ""}:${activeFilter.value ?? activeFilter.label}` === `${item?.type || ""}:${value}`);
                 return (
                   <TouchableOpacity
                     key={item?.id || label}
                     style={[styles.filterChip, selected && styles.filterChipActive]}
                     activeOpacity={0.75}
-                    onPress={() => setActiveFilter(selected ? null : label)}
+                    onPress={() => setActiveFilter(selected ? null : { ...item, label, value })}
                   >
                     <Text style={[styles.filterChipText, selected && styles.filterChipTextActive]}>
                       {label}
@@ -172,6 +189,15 @@ export default function FilterSortHeader({
           >
             <Text style={styles.applyBtnText}>Apply</Text>
           </TouchableOpacity>
+          {activeFilter ? (
+            <TouchableOpacity
+              style={styles.clearBtn}
+              activeOpacity={0.85}
+              onPress={handleClearFilter}
+            >
+              <Text style={styles.clearBtnText}>Clear filter</Text>
+            </TouchableOpacity>
+          ) : null}
         </View>
       </Modal>
     </>
@@ -315,5 +341,15 @@ const styles = StyleSheet.create({
     color: "#fff",
     fontWeight: "700",
     fontSize: 15,
+  },
+  clearBtn: {
+    marginTop: 10,
+    paddingVertical: 11,
+    alignItems: "center",
+  },
+  clearBtnText: {
+    color: "#6B7280",
+    fontWeight: "600",
+    fontSize: 14,
   },
 });

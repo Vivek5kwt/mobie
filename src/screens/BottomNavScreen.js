@@ -22,7 +22,7 @@ import HeaderDefault from "../components/HeaderDefault";
 import { resolveAppId } from "../utils/appId";
 import { useAuth } from "../services/AuthContext";
 import { SideMenuProvider } from "../services/SideMenuContext";
-import { setHeaderDefault, getHeaderDefault } from "../services/headerDefaultService";
+import { setHeaderDefault } from "../services/headerDefaultService";
 import NotificationList from "../components/NotificationList";
 import { fetchNotifications } from "../services/notificationFetchService";
 
@@ -190,7 +190,7 @@ export default function BottomNavScreen() {
   const [notifications, setNotifications]           = useState([]);
   const [notificationsLoading, setNotificationsLoading] = useState(false);
   const [homeHeaderSections, setHomeHeaderSections] = useState([]);
-  const [headerDefaultConfig, setHeaderDefaultConfig] = useState(() => getHeaderDefault());
+  const [headerDefaultConfig, setHeaderDefaultConfig] = useState(null);
   // Mirror state in a ref so callbacks always read the latest value (no stale closures)
   const homeHeaderSectionsRef = useRef([]);
   const versionRef = useRef(null);
@@ -303,24 +303,7 @@ export default function BottomNavScreen() {
     [primaryHeaderNames]
   );
 
-  // On non-home pages: ALWAYS strip the page's own header and replace it
-  // with the home-page header so every tab shows the identical header.
-  const ensureHeaderSections = useCallback(
-    (incomingDsl, fallbackHeaders) => {
-      if (!incomingDsl || !Array.isArray(incomingDsl.sections)) return incomingDsl;
-      if (!fallbackHeaders || !fallbackHeaders.length) return incomingDsl;
-      // Remove any header that belongs to this page's own DSL
-      const sectionsWithoutHeader = incomingDsl.sections.filter(
-        (section) => !primaryHeaderNames.has(getComponentName(section).toLowerCase())
-      );
-      // Prepend the home-page header
-      return {
-        ...incomingDsl,
-        sections: [...fallbackHeaders, ...sectionsWithoutHeader],
-      };
-    },
-    [primaryHeaderNames]
-  );
+  const ensureHeaderSections = useCallback((incomingDsl) => incomingDsl, []);
 
   const mobileSections = useMemo(
     () => (dsl?.sections || []).filter(shouldRenderSectionOnMobile),
@@ -497,6 +480,7 @@ export default function BottomNavScreen() {
       try {
         setLoading(true);
         setErr(null);
+        setHeaderDefaultConfig(null);
 
         // Step 1: fetch home DSL to get headerdefault + real header sections.
         // Skip on home page itself.
@@ -504,11 +488,6 @@ export default function BottomNavScreen() {
         if (!isHomePage && headers.length === 0) {
           try {
             const homeDslData = await fetchDSL(appId, "home");
-            // Store headerdefault globally so Topheader standalone mode can read it
-            if (homeDslData?.dsl?.headerdefault) {
-              setHeaderDefault(homeDslData.dsl.headerdefault);
-              if (isMounted) setHeaderDefaultConfig(homeDslData.dsl.headerdefault);
-            }
             // Try real header sections first (header / header_mobile)
             headers = extractHeaderSections(homeDslData?.dsl || {});
             // If home page only has header_2, fall back to synthetic standalone header
@@ -540,6 +519,7 @@ export default function BottomNavScreen() {
 
         if (!dslData?.dsl) {
           // Page not found — show home header with empty body
+          setHeaderDefaultConfig(null);
           setDsl({ sections: headers });
           return;
         }
@@ -555,6 +535,12 @@ export default function BottomNavScreen() {
         const nextDsl = isHomePage
           ? dslData.dsl
           : ensureHeaderSections(dslData.dsl, headers);
+        if (dslData.dsl?.headerdefault !== undefined) {
+          setHeaderDefault(dslData.dsl.headerdefault);
+          setHeaderDefaultConfig(dslData.dsl.headerdefault);
+        } else {
+          setHeaderDefaultConfig(null);
+        }
         setDsl(nextDsl);
         versionRef.current = dslData.versionNumber ?? null;
         // Seed fingerprint so the first interval poll doesn't falsely trigger an update
@@ -581,10 +567,6 @@ export default function BottomNavScreen() {
       if (!isHomePage && headers.length === 0) {
         try {
           const homeDslData = await fetchDSL(appId, "home");
-          if (homeDslData?.dsl?.headerdefault) {
-            setHeaderDefault(homeDslData.dsl.headerdefault);
-            setHeaderDefaultConfig(homeDslData.dsl.headerdefault);
-          }
           headers = extractHeaderSections(homeDslData?.dsl || {});
           if (headers.length === 0) {
             headers = [STANDALONE_HEADER_SECTION];
@@ -602,6 +584,12 @@ export default function BottomNavScreen() {
         const nextDsl = isHomePage
           ? dslData.dsl
           : ensureHeaderSections(dslData.dsl, headers);
+        if (dslData.dsl?.headerdefault !== undefined) {
+          setHeaderDefault(dslData.dsl.headerdefault);
+          setHeaderDefaultConfig(dslData.dsl.headerdefault);
+        } else {
+          setHeaderDefaultConfig(null);
+        }
         setDsl(nextDsl);
         versionRef.current = dslData.versionNumber ?? null;
       }
@@ -697,6 +685,12 @@ export default function BottomNavScreen() {
           const nextDsl = isHomePage
             ? latest.dsl
             : ensureHeaderSections(latest.dsl, headers);
+          if (latest.dsl?.headerdefault !== undefined) {
+            setHeaderDefault(latest.dsl.headerdefault);
+            setHeaderDefaultConfig(latest.dsl.headerdefault);
+          } else {
+            setHeaderDefaultConfig(null);
+          }
           setDsl(nextDsl);
           versionRef.current = incomingVersion;
           sectionsFpRef.current = incomingFp;

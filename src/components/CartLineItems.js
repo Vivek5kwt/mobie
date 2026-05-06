@@ -53,6 +53,14 @@ const toBoolean = (value, fallback = false) => {
   return fallback;
 };
 
+const firstDefined = (...values) => {
+  for (const value of values) {
+    const resolved = unwrapValue(value, undefined);
+    if (resolved !== undefined && resolved !== null && resolved !== "") return value;
+  }
+  return undefined;
+};
+
 const toFontWeight = (value, fallback = "400") => {
   const resolved = unwrapValue(value, undefined);
   if (!resolved) return fallback;
@@ -151,7 +159,21 @@ export default function CartLineItems({ section }) {
   const vendorWeight = toFontWeight(raw?.vendorWeight, "600");
 
   // Title
-  const showTitle = toBoolean(raw?.showTitle, true);
+  const titleVisibilityOverride = firstDefined(
+    visibility?.productTitle,
+    visibility?.title,
+    visibility?.itemTitle,
+    visibility?.productName,
+    visibility?.name,
+    raw?.titleVisible,
+    raw?.showProductTitle,
+    raw?.showItemTitle,
+    raw?.productNameVisible
+  );
+  const showTitle =
+    titleVisibilityOverride !== undefined
+      ? toBoolean(titleVisibilityOverride, true)
+      : true;
   const titleColor = toString(raw?.titleColor, "#111827");
   const titleSize = toNumber(raw?.titleSize, 14);
   const titleWeight = toFontWeight(raw?.titleWeight, "600");
@@ -275,6 +297,37 @@ export default function CartLineItems({ section }) {
       ]}
     >
       {sourceItems.map((item, index) => {
+        const itemTitle = toString(
+          item?.title ??
+            item?.productTitle ??
+            item?.name ??
+            item?.product?.title ??
+            item?.merchandise?.product?.title,
+          ""
+        );
+        const itemImage = toString(
+          item?.image ??
+            item?.imageUrl ??
+            item?.featuredImage?.url ??
+            item?.product?.image ??
+            item?.product?.imageUrl ??
+            item?.merchandise?.image?.url,
+          ""
+        );
+        const itemVendor = toString(
+          item?.vendor ??
+            item?.brand ??
+            item?.product?.vendor ??
+            item?.merchandise?.product?.vendor,
+          ""
+        );
+        const itemVariant = toString(
+          item?.variant ??
+            item?.variantTitle ??
+            item?.selectedOptionsText ??
+            item?.merchandise?.title,
+          ""
+        );
         const quantity = toNumber(item?.quantity, 1);
         const price = toNumber(item?.price, 0);
         const compareAt = toNumber(item?.compareAtPrice, 0);
@@ -287,9 +340,9 @@ export default function CartLineItems({ section }) {
         );
 
         // Parse variant string into parts for "Size: M | Color: Blue" display
-        const variantText = String(item?.variant || "").trim();
+        const variantText = itemVariant.trim();
         const variantParts = variantText
-          ? variantText.split("/").map((v) => v.trim()).filter(Boolean)
+          ? variantText.split(/\s*(?:\/|\|)\s*/).map((v) => v.trim()).filter(Boolean)
           : [];
 
         const handleCardPress = () => {
@@ -298,9 +351,9 @@ export default function CartLineItems({ section }) {
             product: {
               id: item.id,
               handle: item.handle,
-              title: item.title,
-              imageUrl: item.image,
-              vendor: item.vendor,
+              title: itemTitle,
+              imageUrl: itemImage,
+              vendor: itemVendor,
               priceAmount: String(item.price ?? ""),
               priceCurrency: item.currency,
             },
@@ -334,9 +387,9 @@ export default function CartLineItems({ section }) {
                   },
                 ]}
               >
-                {item?.image ? (
+                {itemImage ? (
                   <Image
-                    source={{ uri: item.image }}
+                    source={{ uri: itemImage }}
                     style={[styles.image, { borderRadius: imageRadius }]}
                     resizeMode="cover"
                   />
@@ -361,6 +414,16 @@ export default function CartLineItems({ section }) {
               {/* Right content */}
               <View style={styles.info}>
 
+                {/* Title */}
+                {showTitle && !!itemTitle && (
+                  <Text
+                    style={[styles.title, { color: titleColor, fontSize: titleSize, fontWeight: titleWeight, ...(titleFontFamily ? { fontFamily: titleFontFamily } : {}) }]}
+                    numberOfLines={2}
+                  >
+                    {itemTitle}
+                  </Text>
+                )}
+
                 {/* Variant row: Size: M | Color: Blue */}
                 {showVariant && variantParts.length > 0 && (
                   <Text
@@ -372,22 +435,12 @@ export default function CartLineItems({ section }) {
                 )}
 
                 {/* Vendor */}
-                {showVendor && !!item?.vendor && (
+                {showVendor && !!itemVendor && (
                   <Text
                     style={[styles.vendor, { color: vendorColor, fontSize: vendorSize, fontWeight: vendorWeight, ...(vendorFontFamily ? { fontFamily: vendorFontFamily } : {}) }]}
                     numberOfLines={1}
                   >
-                    {item.vendor}
-                  </Text>
-                )}
-
-                {/* Title */}
-                {showTitle && !!item?.title && (
-                  <Text
-                    style={[styles.title, { color: titleColor, fontSize: titleSize, fontWeight: titleWeight, ...(titleFontFamily ? { fontFamily: titleFontFamily } : {}) }]}
-                    numberOfLines={2}
-                  >
-                    {item.title}
+                    {itemVendor}
                   </Text>
                 )}
 

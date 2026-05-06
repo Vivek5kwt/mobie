@@ -33,6 +33,8 @@ type SignInTokens = {
   cardPaddingBottom: number;
   cardPaddingLeft: number;
   cardPaddingRight: number;
+  pagePaddingTop: number;
+  pagePaddingBottom: number;
   pagePaddingLeft: number;
   pagePaddingRight: number;
   inputBorderColor: string;
@@ -285,6 +287,8 @@ const defaultSignInTokens: SignInTokens = {
   cardPaddingBottom: 20,
   cardPaddingLeft: 20,
   cardPaddingRight: 20,
+  pagePaddingTop: 24,
+  pagePaddingBottom: 32,
   pagePaddingLeft: 16,
   pagePaddingRight: 16,
   inputBorderColor: '#C7DADA',
@@ -534,6 +538,8 @@ const buildSignInTokens = (rawProps: Record<string, unknown>): SignInTokens => (
   cardPaddingBottom: toNumber(rawProps?.pb ?? rawProps?.paddingBottom, defaultSignInTokens.cardPaddingBottom),
   cardPaddingLeft: toNumber(rawProps?.pl ?? rawProps?.paddingLeft, defaultSignInTokens.cardPaddingLeft),
   cardPaddingRight: toNumber(rawProps?.pr ?? rawProps?.paddingRight, defaultSignInTokens.cardPaddingRight),
+  pagePaddingTop: toNumber(rawProps?.subgpt ?? rawProps?.bgpt ?? rawProps?.pagePaddingTop, defaultSignInTokens.pagePaddingTop),
+  pagePaddingBottom: toNumber(rawProps?.subgpb ?? rawProps?.bgpb ?? rawProps?.pagePaddingBottom, defaultSignInTokens.pagePaddingBottom),
   pagePaddingLeft: toNumber(rawProps?.subgpl ?? rawProps?.bgpl ?? rawProps?.pagePaddingLeft, defaultSignInTokens.pagePaddingLeft),
   pagePaddingRight: toNumber(rawProps?.subgpr ?? rawProps?.bgpr ?? rawProps?.pagePaddingRight, defaultSignInTokens.pagePaddingRight),
   inputBorderColor: (rawProps?.inputBorderColor as string) ?? defaultSignInTokens.inputBorderColor,
@@ -637,6 +643,8 @@ const buildSignUpTokens = (rawProps: Record<string, unknown>): SignUpTokens => (
   cardPaddingBottom: toNumber(rawProps?.pb ?? rawProps?.paddingBottom, defaultSignUpTokens.cardPaddingBottom),
   cardPaddingLeft: toNumber(rawProps?.pl ?? rawProps?.paddingLeft, defaultSignUpTokens.cardPaddingLeft),
   cardPaddingRight: toNumber(rawProps?.pr ?? rawProps?.paddingRight, defaultSignUpTokens.cardPaddingRight),
+  pagePaddingTop: toNumber(rawProps?.subgpt ?? rawProps?.bgpt ?? rawProps?.pagePaddingTop, defaultSignUpTokens.pagePaddingTop),
+  pagePaddingBottom: toNumber(rawProps?.subgpb ?? rawProps?.bgpb ?? rawProps?.pagePaddingBottom, defaultSignUpTokens.pagePaddingBottom),
   pagePaddingLeft: toNumber(rawProps?.subgpl ?? rawProps?.bgpl ?? rawProps?.pagePaddingLeft, defaultSignUpTokens.pagePaddingLeft),
   pagePaddingRight: toNumber(rawProps?.subgpr ?? rawProps?.bgpr ?? rawProps?.pagePaddingRight, defaultSignUpTokens.pagePaddingRight),
   inputBorderColor: (rawProps?.inputBorderColor as string) ?? defaultSignUpTokens.inputBorderColor,
@@ -921,8 +929,8 @@ const AuthScreen = () => {
       if (signInSection) setSignInTokens(buildSignInTokens(getSectionRawProps(signInSection)));
       if (forgotSection) setForgotPasswordTokens(buildForgotPasswordTokens(getSectionRawProps(forgotSection)));
       if (signUpSection) setSignUpTokens(buildSignUpTokens(getSectionRawProps(signUpSection)));
-      if (signInDsl?.dsl?.headerdefault) setSignInHeaderConfig(signInDsl.dsl.headerdefault as Record<string, unknown>);
-      if (signUpDsl?.dsl?.headerdefault) setSignUpHeaderConfig(signUpDsl.dsl.headerdefault as Record<string, unknown>);
+      setSignInHeaderConfig((signInDsl?.dsl?.headerdefault as Record<string, unknown> | undefined) ?? null);
+      setSignUpHeaderConfig((signUpDsl?.dsl?.headerdefault as Record<string, unknown> | undefined) ?? null);
     } finally {
       if (isMountedRef.current) { setRefreshing(false); setDslLoaded(true); }
     }
@@ -1055,10 +1063,14 @@ const AuthScreen = () => {
 
   const pagePadLeft = t.pagePaddingLeft;
   const pagePadRight = t.pagePaddingRight;
+  const pagePadTop = t.pagePaddingTop;
+  const pagePadBottom = t.pagePaddingBottom;
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: t.bgColor }}>
-      {activeHeaderConfig ? <HeaderDefaultComponent config={activeHeaderConfig} bottomNavSection={null} hideTabs /> : null}
+      {activeHeaderConfig ? (
+        <HeaderDefaultComponent config={activeHeaderConfig} bottomNavSection={null} hideTabs showBack />
+      ) : null}
 
       <KeyboardAvoidingView
         style={{ flex: 1 }}
@@ -1066,7 +1078,7 @@ const AuthScreen = () => {
         keyboardVerticalOffset={Platform.OS === 'ios' ? 64 : 0}
       >
         <ScrollView
-          contentContainerStyle={{ flexGrow: 1, paddingBottom: 32 }}
+          contentContainerStyle={{ flexGrow: 1, paddingBottom: pagePadBottom }}
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => loadAuthLayout(true)} />}
@@ -1077,7 +1089,7 @@ const AuthScreen = () => {
               <DynamicRenderer key={`${mode}-dsl-${index}`} section={section as any} />
             ))
           ) : (
-          <View style={{ paddingLeft: pagePadLeft, paddingRight: pagePadRight, paddingTop: t.cardPaddingTop, paddingBottom: t.cardPaddingBottom }}>
+          <View style={{ paddingLeft: pagePadLeft, paddingRight: pagePadRight, paddingTop: pagePadTop, paddingBottom: 12 }}>
             {mode === 'login' && t.authVisible ? (
               <Text
                 style={{
