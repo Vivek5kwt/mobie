@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
+  Animated,
   Dimensions,
   Pressable,
   ScrollView,
@@ -125,6 +126,22 @@ const cleanFontFamily = (family) => {
   return family.split(",")[0].trim().replace(/['"]/g, "");
 };
 
+
+function ShimmerBone({ style }) {
+  const anim = useRef(new Animated.Value(0)).current;
+  useEffect(() => {
+    const loop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(anim, { toValue: 1, duration: 750, useNativeDriver: true }),
+        Animated.timing(anim, { toValue: 0, duration: 750, useNativeDriver: true }),
+      ])
+    );
+    loop.start();
+    return () => loop.stop();
+  }, [anim]);
+  const opacity = anim.interpolate({ inputRange: [0, 1], outputRange: [0.45, 0.85] });
+  return <Animated.View style={[style, { opacity }]} />;
+}
 
 const isProductAvailable = (product) => {
   if (!product || typeof product !== "object") return true;
@@ -822,7 +839,48 @@ export default function ProductCarousel({ section }) {
         </View>
       )}
 
-      {loading && <Text style={styles.statusText}>Loading products...</Text>}
+      {loading && (
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          scrollEnabled={false}
+          contentContainerStyle={{ flexDirection: "row", gap: colGap, paddingBottom: 4 }}
+        >
+          {Array.from({ length: Math.min(3, Math.max(1, itemsShown)) }).map((_, i) => {
+            const imgH = imageAspectRatio ? cardWidth / imageAspectRatio : imageHeight;
+            return (
+              <View
+                key={i}
+                style={{
+                  width: cardWidth,
+                  borderRadius: outerCorners || 8,
+                  overflow: "hidden",
+                  backgroundColor: "#FFFFFF",
+                  elevation: 2,
+                  shadowColor: "#000",
+                  shadowOffset: { width: 0, height: 1 },
+                  shadowOpacity: 0.07,
+                  shadowRadius: 4,
+                }}
+              >
+                <ShimmerBone
+                  style={{
+                    width: cardWidth,
+                    height: imgH,
+                    borderRadius: imageCorner,
+                    backgroundColor: "#D4D8DF",
+                  }}
+                />
+                <View style={{ padding: 10, gap: 8 }}>
+                  <ShimmerBone style={{ height: 12, width: "75%", borderRadius: 6, backgroundColor: "#D4D8DF" }} />
+                  <ShimmerBone style={{ height: 10, width: "50%", borderRadius: 5, backgroundColor: "#D4D8DF" }} />
+                  <ShimmerBone style={{ height: 10, width: "35%", borderRadius: 5, backgroundColor: "#D4D8DF" }} />
+                </View>
+              </View>
+            );
+          })}
+        </ScrollView>
+      )}
       {error && <Text style={styles.errorText}>{error}</Text>}
 
       {!loading && !error && products.length === 0 && (

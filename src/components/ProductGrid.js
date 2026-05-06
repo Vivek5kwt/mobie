@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Dimensions, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { Animated, Dimensions, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import ProductImage from "./ProductImage";
 import FontAwesome from "react-native-vector-icons/FontAwesome";
 import { resolveFA4IconName } from "../utils/faIconAlias";
@@ -160,6 +160,24 @@ const cleanFontFamily = (family) => {
   return family.split(",")[0].trim().replace(/['"]/g, "");
 };
 
+
+// ── Shimmer bone ──────────────────────────────────────────────────────────────
+
+function ShimmerBone({ style }) {
+  const anim = useRef(new Animated.Value(0)).current;
+  useEffect(() => {
+    const loop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(anim, { toValue: 1, duration: 750, useNativeDriver: true }),
+        Animated.timing(anim, { toValue: 0, duration: 750, useNativeDriver: true }),
+      ])
+    );
+    loop.start();
+    return () => loop.stop();
+  }, [anim]);
+  const opacity = anim.interpolate({ inputRange: [0, 1], outputRange: [0.45, 0.85] });
+  return <Animated.View style={[style, { opacity }]} />;
+}
 
 // ── Component ─────────────────────────────────────────────────────────────────
 
@@ -786,21 +804,47 @@ export default function ProductGrid({ section, limit = 8, title = "Products" }) 
         </View>
       )}
 
-      {/* Loading */}
+      {/* Loading skeleton grid */}
       {loading && (
-        <Text
-          style={[
-            styles.status,
-            {
-              color:      resolvedStatusColor,
-              fontSize:   resolvedStatusFontSize,
-              fontWeight: resolvedStatusWeight,
-              ...(resolvedStatusFontFamily ? { fontFamily: resolvedStatusFontFamily } : null),
-            },
-          ]}
-        >
-          Loading products...
-        </Text>
+        <View style={styles.grid}>
+          {Array.from({ length: Math.min(resolvedColumns * 2, Math.max(resolvedColumns, resolvedLimit || 4)) }).map((_, i) => {
+            const skeletonImgH = imageAspectRatio ? cardWidth * imageAspectRatio : imageHeight;
+            const isLastInRow = (i + 1) % resolvedColumns === 0;
+            const totalSkeletonCards = Math.min(resolvedColumns * 2, Math.max(resolvedColumns, resolvedLimit || 4));
+            const totalSkeletonRows = Math.ceil(totalSkeletonCards / resolvedColumns);
+            const currentRow = Math.floor(i / resolvedColumns) + 1;
+            const isLastRow = currentRow === totalSkeletonRows;
+            return (
+              <View
+                key={i}
+                style={{
+                  width: cardWidth,
+                  marginRight: isLastInRow ? 0 : gridGap,
+                  marginBottom: isLastRow ? 0 : resolvedRowGap,
+                  borderRadius: cardCorner,
+                  backgroundColor: "#FFFFFF",
+                  overflow: "hidden",
+                  borderWidth: resolvedCardBorderWidth,
+                  borderColor: resolvedCardBorderColor,
+                }}
+              >
+                <ShimmerBone
+                  style={{
+                    width: "100%",
+                    height: skeletonImgH,
+                    backgroundColor: "#D4D8DF",
+                    borderRadius: imageCorner ?? cardCorner,
+                  }}
+                />
+                <View style={{ padding: 10, gap: 7 }}>
+                  <ShimmerBone style={{ height: 12, width: "80%", borderRadius: 6, backgroundColor: "#D4D8DF" }} />
+                  <ShimmerBone style={{ height: 10, width: "55%", borderRadius: 5, backgroundColor: "#D4D8DF" }} />
+                  <ShimmerBone style={{ height: 10, width: "40%", borderRadius: 5, backgroundColor: "#D4D8DF" }} />
+                </View>
+              </View>
+            );
+          })}
+        </View>
       )}
 
       {/* Error */}
