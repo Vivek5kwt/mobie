@@ -89,7 +89,7 @@ const buildCollections = (block = {}) => {
       const title  = asString(unwrapValue(p?.title,  ""));
       const image  = asString(unwrapValue(p?.image,  ""));
       const link   = asString(unwrapValue(p?.link,   ""));
-      const handle = asString(unwrapValue(p?.handle, ""));
+      const handle = asString(unwrapValue(p?.handle ?? p?.navigateRef ?? p?.linkTo, ""));
       if (!title && !image) return null;
       return { title, image, link, handle };
     })
@@ -110,6 +110,42 @@ const deriveHandle = (item) => {
     .replace(/\s+/g, "-")
     .replace(/-+/g, "-")
     .replace(/^-|-$/g, "");
+};
+
+const normalizeKey = (value) =>
+  String(value || "")
+    .toLowerCase()
+    .trim()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/-+/g, "-")
+    .replace(/^-|-$/g, "");
+
+const mergeCollectionItems = (dslItems, storeItems) => {
+  if (!dslItems.length) return storeItems;
+  if (!storeItems.length) return dslItems;
+
+  const byHandle = new Map();
+  const byTitle = new Map();
+  storeItems.forEach((item) => {
+    const handle = normalizeKey(item?.handle || deriveHandle(item));
+    const title = normalizeKey(item?.title);
+    if (handle) byHandle.set(handle, item);
+    if (title) byTitle.set(title, item);
+  });
+
+  return dslItems.map((item) => {
+    const handle = normalizeKey(item?.handle || deriveHandle(item));
+    const title = normalizeKey(item?.title);
+    const match = byHandle.get(handle) || byTitle.get(title);
+    if (!match) return item;
+    return {
+      ...match,
+      ...item,
+      handle: item.handle || match.handle,
+      link: item.link || match.link,
+      image: item.image || match.image,
+    };
+  });
 };
 
 const SCREEN_W = Dimensions.get("window").width;
@@ -175,8 +211,11 @@ export default function CollectionImage({ section }) {
   }, [rawProps, rawSnapshot]);
 
   const [shopifyCollections, setShopifyCollections] = useState([]);
-  const collectionsLimit = asNumber(rawProps?.collectionsLimit, 12);
-  const items = dslCollections.length ? dslCollections : shopifyCollections;
+  const collectionsLimit = asNumber(rawProps?.collectionsLimit ?? rawSnapshot?.collectionsLimit, 50);
+  const items = useMemo(
+    () => mergeCollectionItems(dslCollections, shopifyCollections),
+    [dslCollections, shopifyCollections]
+  );
 
   // ── Container ────────────────────────────────────────────────────────────────
   const containerPt = asNumber(containerCfg?.pt, 8);
@@ -186,7 +225,7 @@ export default function CollectionImage({ section }) {
   const bgColor     = asString(unwrapValue(containerCfg?.bgColor, "#FFFFFF"));
 
   // ── Header ───────────────────────────────────────────────────────────────────
-  const showHeader   = asBoolean(rawProps?.showHeader, true);
+  const showHeader   = asBoolean(rawProps?.showHeader ?? rawSnapshot?.showHeader, false);
   const headerText   = asString(
     unwrapValue(
       headerCfg?.headerText ?? headerCfg?.title ?? headerCfg?.text ??
@@ -222,13 +261,25 @@ export default function CollectionImage({ section }) {
     asString(unwrapValue(titleNode?.fontFamily ?? rawSnapshot?.titleFontFamily ?? cardCfg?.textFontFamily ?? cardCfg?.fontFamily ?? rawProps?.cardFontFamily, ""))
   ) || cleanFontFamily(convertStyles(layoutCss?.card?.text || {})?.fontFamily);
   const cardTextAlign       = asString(unwrapValue(titleNode?.align ?? rawSnapshot?.titleAlign ?? cardCfg?.textAlign, "center")).toLowerCase();
+  const titlePosition       = asString(unwrapValue(titleNode?.position ?? rawSnapshot?.titlePosition ?? cardCfg?.titlePosition, "inside")).toLowerCase();
+
+  const rawColumns          = asNumber(generalNode?.columns ?? rawSnapshot?.columns, 0);
+  const sliderCfg           = layoutCss?.slider || {};
+  const hGap                = asNumber(generalNode?.hGap ?? rawSnapshot?.hGap ?? sliderCfg?.gapPx, 12);
+  const vGap                = asNumber(generalNode?.vGap ?? rawSnapshot?.vGap, 12);
+  const availableW          = SCREEN_W - containerPl - containerPr;
+  const gridColumns         = Math.max(2, rawColumns || 2);
+  const gridCardW           = (availableW - hGap * (gridColumns - 1)) / gridColumns;
 
   // Image dimensions from card config
-  const cardImageSize       = asNumber(cardCfg?.imageSize, 68);
+  const cardImageSize       = asNumber(cardCfg?.imageSize ?? rawSnapshot?.imageSize, Math.max(72, gridCardW));
   const cardImageBorder     = asNumber(cardCfg?.imageBorder, 0);
   const cardImageBorderColor = asString(unwrapValue(cardCfg?.imageBorderColor, "#A8A7AE"));
-  const imageShape          = asString(unwrapValue(cardCfg?.imageShape, "circle")).toLowerCase();
-  const imageRadius         = imageShape === "square" ? 0
+  const imageShape          = asString(unwrapValue(cardCfg?.imageShape, rawSnapshot?.imageRadius != null ? "rounded" : "circle")).toLowerCase();
+  const imageScale          = asString(unwrapValue(imageNode?.scale ?? rawSnapshot?.imageScale, "cover")).toLowerCase();
+  const imageRadius         = rawSnapshot?.imageRadius != null || imageNode?.radius != null
+    ? asNumber(imageNode?.radius ?? rawSnapshot?.imageRadius, 16)
+    : imageShape === "square" ? 0
     : imageShape === "circle" ? cardImageSize / 2
     : Math.max(8, Math.round(cardImageSize * 0.2));
 
@@ -239,27 +290,21 @@ export default function CollectionImage({ section }) {
   const showArrows        = asBoolean(behavior?.showArrows ?? layoutCss?.slider?.showArrows, false);
 
   // layoutMode drives horizontal slider vs grid
-  const layoutMode = asString(unwrapValue(behavior?.layoutMode ?? layoutCss?.slider?.layout, "horizontal")).toLowerCase();
+  const layoutMode = asString(unwrapValue(behavior?.layoutMode ?? layoutCss?.slider?.layout, rawColumns ? "grid" : "horizontal")).toLowerCase();
   const isGrid     = layoutMode === "grid";
 
   // Grid columns: explicit DSL column count, or derived from layoutMode
   const columns = isGrid
-    ? Math.max(2, asNumber(generalNode?.columns ?? rawSnapshot?.columns, 2))
+    ? gridColumns
     : 1;
 
   // ── Slider / Card sizing ──────────────────────────────────────────────────────
-  const sliderCfg  = layoutCss?.slider || {};
-  const hGap       = asNumber(generalNode?.hGap ?? rawSnapshot?.hGap ?? sliderCfg?.gapPx, 12);
-  const vGap       = asNumber(generalNode?.vGap ?? rawSnapshot?.vGap, 12);
-
-  const availableW = SCREEN_W - containerPl - containerPr;
-
   // Card container width: read from layout.css.card.width ("96px" → 96)
   // Fallback: image size + text padding
   const rawCardW = asNumber(
     layoutCss?.card?.width,
     isGrid
-      ? (availableW - hGap * (columns - 1)) / columns
+      ? gridCardW
       : cardImageSize + 20
   );
   const cardW    = Math.max(40, Math.min(rawCardW, availableW));
@@ -294,7 +339,6 @@ export default function CollectionImage({ section }) {
 
   // ── Shopify fallback ──────────────────────────────────────────────────────────
   useEffect(() => {
-    if (dslCollections.length) return;
     let alive = true;
     fetchShopifyCollections(collectionsLimit).then((resp) => {
       if (!alive) return;
@@ -310,7 +354,7 @@ export default function CollectionImage({ section }) {
       );
     }).catch(() => {});
     return () => { alive = false; };
-  }, [collectionsLimit, dslCollections.length]);
+  }, [collectionsLimit]);
 
   // ── Callbacks ─────────────────────────────────────────────────────────────────
   const getItemLayout = useCallback(
@@ -386,7 +430,7 @@ export default function CollectionImage({ section }) {
                   height: imageInnerSize,
                   borderRadius: imageRadius,
                 }}
-                resizeMode="cover"
+                resizeMode={imageScale === "contain" ? "contain" : "cover"}
               />
             )
           ) : (
@@ -405,10 +449,30 @@ export default function CollectionImage({ section }) {
               </Text>
             </View>
           )}
+          {showCardText && titlePosition === "inside" && (
+            <View style={styles.insideTitleWrap}>
+              <Text
+                numberOfLines={2}
+                style={[
+                  styles.cardTitle,
+                  styles.insideTitle,
+                  {
+                    color: cardTextColor,
+                    fontSize: cardTextSize,
+                    fontWeight: cardTextWeight,
+                    textAlign: cardTextAlign,
+                    ...(cardFontFamily ? { fontFamily: cardFontFamily } : {}),
+                  },
+                ]}
+              >
+                {item.title}
+              </Text>
+            </View>
+          )}
         </View>
       )}
 
-      {showCardText && (
+      {showCardText && titlePosition !== "inside" && (
         <Text
           numberOfLines={2}
           style={[
@@ -430,7 +494,7 @@ export default function CollectionImage({ section }) {
   ), [
     cardW, hGap, isGrid, onItemPress,
     showCardImage, cardImageSize, imageRadius, cardImageBorder, cardImageBorderColor, imageInnerSize,
-    showCardText, cardTextColor, cardTextSize, cardTextWeight, cardTextAlign, cardFontFamily,
+    showCardText, titlePosition, imageScale, cardTextColor, cardTextSize, cardTextWeight, cardTextAlign, cardFontFamily,
   ]);
 
   if (!items.length) return null;
@@ -511,5 +575,20 @@ const styles = StyleSheet.create({
     marginTop: 6,
     textAlign: "center",
     lineHeight: 16,
+  },
+  insideTitleWrap: {
+    position: "absolute",
+    left: 0,
+    right: 0,
+    bottom: 0,
+    paddingHorizontal: 4,
+    paddingVertical: 4,
+    alignItems: "center",
+  },
+  insideTitle: {
+    marginTop: 0,
+    textShadowColor: "rgba(255,255,255,0.65)",
+    textShadowRadius: 2,
+    textShadowOffset: { width: 0, height: 1 },
   },
 });

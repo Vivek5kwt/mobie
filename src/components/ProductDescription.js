@@ -45,18 +45,50 @@ const toBoolean = (value, fallback = false) => {
   return Boolean(resolved);
 };
 
-const stripHtml = (value) => {
-  const text = toString(value, "");
-  if (!text) return "";
-  return text
-    .replace(/<br\s*\/?>/gi, "\n")
-    .replace(/<\/p>/gi, "\n\n")
-    .replace(/<[^>]+>/g, "")
+const decodeHtmlEntities = (value) =>
+  String(value || "")
     .replace(/&nbsp;/gi, " ")
     .replace(/&amp;/gi, "&")
     .replace(/&lt;/gi, "<")
     .replace(/&gt;/gi, ">")
+    .replace(/&quot;/gi, '"')
+    .replace(/&#39;/gi, "'")
+    .replace(/&#(\d+);/g, (_, code) => String.fromCharCode(Number(code)));
+
+const stripInlineHtml = (value) =>
+  decodeHtmlEntities(String(value || "").replace(/<[^>]+>/g, ""))
+    .replace(/[ \t]+/g, " ")
     .trim();
+
+const normalizeDescriptionBlocks = (value) => {
+  const text = toString(value, "");
+  if (!text.trim()) return [];
+
+  const htmlLike = /<\/?[a-z][\s\S]*>/i.test(text);
+  const normalized = htmlLike
+    ? text
+        .replace(/<li[^>]*>/gi, "\n[[BULLET]]")
+        .replace(/<\/li>/gi, "\n")
+        .replace(/<br\s*\/?>/gi, "\n")
+        .replace(/<\/(p|div|section|article|h[1-6])>/gi, "\n\n")
+        .replace(/<\/(ul|ol)>/gi, "\n\n")
+    : text;
+
+  return normalized
+    .split(/\n+/)
+    .map((line) => stripInlineHtml(line))
+    .filter(Boolean)
+    .map((line) => {
+      if (line.startsWith("[[BULLET]]")) {
+        return { type: "bullet", text: line.replace("[[BULLET]]", "").trim() };
+      }
+      const bulletMatch = line.match(/^([•*-])\s+(.+)$/);
+      if (bulletMatch) return { type: "bullet", text: bulletMatch[2].trim() };
+      const numberMatch = line.match(/^(\d+)[.)]\s+(.+)$/);
+      if (numberMatch) return { type: "number", marker: `${numberMatch[1]}.`, text: numberMatch[2].trim() };
+      return { type: "paragraph", text: line };
+    })
+    .filter((block) => block.text);
 };
 
 const hasVisibleBorder = (line, width, color) => {
@@ -118,11 +150,22 @@ export default function ProductDescription({ section }) {
     titleNode?.text ?? raw?.title,
     "Description"
   );
-  const descriptionText = stripHtml(
-    raw?.description ?? raw?.descriptionText ?? infoNode?.descriptionText
+  const descriptionBlocks = useMemo(
+    () =>
+      normalizeDescriptionBlocks(
+        raw?.descriptionHtml ??
+        raw?.descriptionHTML ??
+        raw?.bodyHtml ??
+        raw?.description ??
+        raw?.descriptionText ??
+        infoNode?.descriptionHtml ??
+        infoNode?.descriptionText
+      ),
+    [raw, infoNode]
   );
+  const hasDescription = descriptionBlocks.length > 0;
 
-  if (!descriptionText && !titleText) return null;
+  if (!hasDescription && !titleText) return null;
 
   // ── Visibility ─────────────────────────────────────────────────────────────
   const showTitle       = toBoolean(visNode?.title,           true);
@@ -243,15 +286,6 @@ export default function ProductDescription({ section }) {
       ? bodyFontSize * bodyLineHeightRaw
       : bodyLineHeightRaw;
 
-  const descriptionParagraphs = useMemo(
-    () =>
-      descriptionText
-        .split(/\n{2,}/)
-        .map((p) => p.trim())
-        .filter(Boolean),
-    [descriptionText]
-  );
-
   // ── Accordion state ────────────────────────────────────────────────────────
   const defaultOpen = toBoolean(raw?.defaultOpen, false);
   const [open, setOpen] = useState(defaultOpen);
@@ -313,7 +347,7 @@ export default function ProductDescription({ section }) {
       </TouchableOpacity>
 
       {/* ── Description body ──────────────────────────────────────────────── */}
-      {open && showDescription && !!descriptionText && (
+      {open && showDescription && hasDescription && (
         <View
           style={{
             backgroundColor: infoBg,
@@ -323,24 +357,47 @@ export default function ProductDescription({ section }) {
             paddingRight:    infoPR,
           }}
         >
-          {descriptionParagraphs.map((paragraph, idx) => (
-            <Text
-              key={`desc-p-${idx}`}
-              style={{
-                fontSize:           bodyFontSize,
-                color:              bodyColor,
-                fontWeight:         String(bodyWeight),
-                fontStyle:          bodyItalic ? "italic" : "normal",
-                textDecorationLine: bodyDecorationLine,
-                lineHeight:         bodyLineHeight,
-                marginBottom:       idx < descriptionParagraphs.length - 1 ? 10 : 0,
-                flexShrink:         1,
-                ...(bodyFontFamily ? { fontFamily: bodyFontFamily } : {}),
-              }}
-            >
-              {paragraph}
-            </Text>
-          ))}
+          {descriptionBlocks.map((block, idx) => {
+            const isListItem = block.type === "bullet" || block.type === "number";
+            const marker = block.type === "number" ? block.marker : "\u2022";
+            const textStyle = {
+              fontSize:           bodyFontSize,
+              color:              bodyColor,
+              fontWeight:         String(bodyWeight),
+              fontStyle:          bodyItalic ? "italic" : "normal",
+              textDecorationLine: bodyDecorationLine,
+              lineHeight:         bodyLineHeight,
+              flexShrink:         1,
+              ...(bodyFontFamily ? { fontFamily: bodyFontFamily } : {}),
+            };
+
+            if (isListItem) {
+              return (
+                <View
+                  key={`desc-item-${idx}`}
+                  style={[
+                    styles.listRow,
+                    { marginBottom: idx < descriptionBlocks.length - 1 ? 8 : 0 },
+                  ]}
+                >
+                  <Text style={[textStyle, styles.listMarker]}>{marker}</Text>
+                  <Text style={[textStyle, styles.listText]}>{block.text}</Text>
+                </View>
+              );
+            }
+
+            return (
+              <Text
+                key={`desc-p-${idx}`}
+                style={[
+                  textStyle,
+                  { marginBottom: idx < descriptionBlocks.length - 1 ? 10 : 0 },
+                ]}
+              >
+                {block.text}
+              </Text>
+            );
+          })}
         </View>
       )}
     </View>
@@ -359,5 +416,15 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems:    "center",
     flex:          1,
+  },
+  listRow: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+  },
+  listMarker: {
+    width: 18,
+  },
+  listText: {
+    flex: 1,
   },
 });

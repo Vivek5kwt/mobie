@@ -396,6 +396,7 @@ export async function fetchShopifyProductDetails({ handle, id, options = {} }) {
         handle
         vendor
         description
+        descriptionHtml
         featuredImage {
           url
         }
@@ -432,6 +433,7 @@ export async function fetchShopifyProductDetails({ handle, id, options = {} }) {
         handle
         vendor
         description
+        descriptionHtml
         featuredImage {
           url
         }
@@ -523,6 +525,7 @@ export async function fetchShopifyProductDetails({ handle, id, options = {} }) {
       handle: product?.handle,
       vendor: product?.vendor,
       description: product?.description,
+      descriptionHtml: product?.descriptionHtml,
       imageUrl: firstImageUrl,
       images: images.length > 0 ? images : (firstImageUrl ? [firstImageUrl] : []),
       priceAmount: priceNode?.amount,

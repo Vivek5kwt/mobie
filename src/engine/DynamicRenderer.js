@@ -55,6 +55,8 @@ const componentMap = {
   header_mobile: Header,
   header_2: Header2,
   collection_image: CollectionImage,
+  collection: CollectionImage,
+  collections: CollectionImage,
   countdown: Countdown,
   media_grid: MediaGrid,
   banner_slider: BannerSlider,
@@ -152,6 +154,8 @@ const componentAliases = {
   addtocart: "add_to_cart",
   "add-to-cart": "add_to_cart",
   // Product components
+  collectionimage: "collection_image",
+  "collection-image": "collection_image",
   productinfo: "product_info",
   "product-info": "product_info",
   productdescription: "product_description",
