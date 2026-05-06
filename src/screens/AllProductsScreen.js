@@ -10,6 +10,7 @@ import {
   View,
 } from "react-native";
 import { useNavigation, useRoute } from "@react-navigation/native";
+import Icon from "react-native-vector-icons/FontAwesome6";
 import { fetchShopifyProductsPage } from "../services/shopify";
 import { SafeArea } from "../utils/SafeAreaHandler";
 import Header from "../components/Topheader";
@@ -158,7 +159,7 @@ export default function AllProductsScreen() {
               accessibilityRole="button"
               accessibilityLabel="Go back"
             >
-              <Text style={styles.backIcon}>←</Text>
+              <Icon name="chevron-left" size={20} color="#111827" />
             </TouchableOpacity>
             <Text style={styles.heading}>{title || "Products"}</Text>
           </View>
@@ -248,11 +249,6 @@ const styles = StyleSheet.create({
     marginRight: 8,
     paddingVertical: 4,
     paddingHorizontal: 6,
-  },
-  backIcon: {
-    fontSize: 20,
-    color: "#111827",
-    fontWeight: "600",
   },
   heading: {
     fontSize: 22,

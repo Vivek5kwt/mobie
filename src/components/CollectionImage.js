@@ -261,7 +261,7 @@ export default function CollectionImage({ section }) {
     asString(unwrapValue(titleNode?.fontFamily ?? rawSnapshot?.titleFontFamily ?? cardCfg?.textFontFamily ?? cardCfg?.fontFamily ?? rawProps?.cardFontFamily, ""))
   ) || cleanFontFamily(convertStyles(layoutCss?.card?.text || {})?.fontFamily);
   const cardTextAlign       = asString(unwrapValue(titleNode?.align ?? rawSnapshot?.titleAlign ?? cardCfg?.textAlign, "center")).toLowerCase();
-  const titlePosition       = asString(unwrapValue(titleNode?.position ?? rawSnapshot?.titlePosition ?? cardCfg?.titlePosition, "inside")).toLowerCase();
+  const titlePosition       = asString(unwrapValue(titleNode?.position ?? rawSnapshot?.titlePosition ?? cardCfg?.titlePosition, "below")).toLowerCase();
 
   const rawColumns          = asNumber(generalNode?.columns ?? rawSnapshot?.columns, 0);
   const sliderCfg           = layoutCss?.slider || {};
