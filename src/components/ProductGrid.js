@@ -7,7 +7,7 @@ import { useFocusEffect, useNavigation } from "@react-navigation/native";
 import { useDispatch, useSelector } from "react-redux";
 import { addItem } from "../store/slices/cartSlice";
 import { toggleWishlist } from "../store/slices/wishlistSlice";
-import { fetchShopifyProductsPage, fetchShopifyCollectionProducts } from "../services/shopify";
+import { fetchShopifyProductsPage, fetchShopifyCollectionProducts, fetchShopifyRecentProducts } from "../services/shopify";
 import Snackbar from "./Snackbar";
 import { useAuth } from "../services/AuthContext";
 import { requireLoginForAction } from "../utils/authGate";
@@ -607,42 +607,50 @@ export default function ProductGrid({ section, limit = 8, title = "Products" }) 
 
   const loadProducts = useCallback(async () => {
     const safeFirst = Math.max(1, resolvedLimit || 8);
+    const shopOptions = { shop: shopifyDomain || undefined, token: shopifyToken || undefined };
+
     setLoading(true);
     setError("");
-    try {
-      let payload;
+
+    // Try every available strategy in order until we get products.
+    const tryFetch = async () => {
+      // 1. Collection-specific fetch (when DSL specifies a collection)
       if (useCollectionFetch && collectionHandle) {
-        payload = await fetchShopifyCollectionProducts({
-          handle: collectionHandle,
-          first:  safeFirst,
-          options: {
-            shop:  shopifyDomain || undefined,
-            token: shopifyToken  || undefined,
-          },
+        const col = await fetchShopifyCollectionProducts({
+          handle: collectionHandle, first: safeFirst, options: shopOptions,
         });
-        if (!payload?.products?.length) {
-          payload = await fetchShopifyProductsPage({
-            first: safeFirst,
-            after: null,
-            options: {
-              shop:  shopifyDomain || undefined,
-              token: shopifyToken  || undefined,
-            },
-          });
-        }
-      } else {
-        payload = await fetchShopifyProductsPage({
-          first: safeFirst,
-          after: null,
-          options: {
-            shop:  shopifyDomain || undefined,
-            token: shopifyToken  || undefined,
-          },
-        });
+        if (col?.products?.length) return col;
       }
+
+      // 2. Standard paginated products query
+      const page = await fetchShopifyProductsPage({
+        first: safeFirst, after: null, options: shopOptions,
+      });
+      if (page?.products?.length) return page;
+
+      // 3. Recent-products query — uses a different cache key and a sortKey-based query,
+      //    acting as a true fallback if the above two return empty.
+      const recent = await fetchShopifyRecentProducts(safeFirst, shopOptions);
+      if (recent?.length) {
+        return { products: recent, pageInfo: { hasNextPage: false, endCursor: null } };
+      }
+
+      return { products: [], pageInfo: { hasNextPage: false, endCursor: null } };
+    };
+
+    try {
+      let result = await tryFetch();
+
+      // If still empty, retry once after 2 s — handles startup race where credentials
+      // haven't fully loaded on the first attempt.
+      if (!result?.products?.length && isMountedRef.current) {
+        await new Promise((r) => setTimeout(r, 2000));
+        if (isMountedRef.current) result = await tryFetch();
+      }
+
       if (isMountedRef.current) {
-        setProducts(payload?.products || []);
-        setHasMore(Boolean(payload?.pageInfo?.hasNextPage));
+        setProducts(result?.products || []);
+        setHasMore(Boolean(result?.pageInfo?.hasNextPage));
       }
     } catch {
       if (isMountedRef.current) setError("Unable to load products right now. Please try again later.");

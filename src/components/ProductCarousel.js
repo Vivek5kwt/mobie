@@ -17,6 +17,7 @@ import { resolveFA4IconName } from "../utils/faIconAlias";
 import {
   fetchShopifyProductsPage,
   fetchShopifyCollectionProducts,
+  fetchShopifyRecentProducts,
 } from "../services/shopify";
 import { addItem } from "../store/slices/cartSlice";
 import { toggleWishlist } from "../store/slices/wishlistSlice";
@@ -465,27 +466,43 @@ export default function ProductCarousel({ section }) {
   }, []);
 
   const loadProducts = useCallback(async () => {
-    const safeFirst = Math.max(1, Number(itemsShown) || 1);
-    const shopOptions = {
-      shop:  shopifyDomain || undefined,
-      token: shopifyToken  || undefined,
-    };
+    const safeFirst = Math.max(1, Number(itemsShown) || 4);
+    const shopOptions = { shop: shopifyDomain || undefined, token: shopifyToken || undefined };
+
     setLoading(true);
     setError("");
-    try {
-      let result;
-      if (useCollectionFetch) {
-        result = await fetchShopifyCollectionProducts({
-          handle: collectionHandle,
-          first:  safeFirst,
-          options: shopOptions,
+
+    const tryFetch = async () => {
+      // 1. Collection-specific fetch (when DSL specifies a collection)
+      if (useCollectionFetch && collectionHandle) {
+        const col = await fetchShopifyCollectionProducts({
+          handle: collectionHandle, first: safeFirst, options: shopOptions,
         });
-        if (!result?.products?.length) {
-          result = await fetchShopifyProductsPage({ first: safeFirst, options: shopOptions });
-        }
-      } else {
-        result = await fetchShopifyProductsPage({ first: safeFirst, options: shopOptions });
+        if (col?.products?.length) return col;
       }
+
+      // 2. Standard paginated products query
+      const page = await fetchShopifyProductsPage({ first: safeFirst, options: shopOptions });
+      if (page?.products?.length) return page;
+
+      // 3. Recent-products fallback — different cache key, different query
+      const recent = await fetchShopifyRecentProducts(safeFirst, shopOptions);
+      if (recent?.length) {
+        return { products: recent, pageInfo: { hasNextPage: false, endCursor: null } };
+      }
+
+      return { products: [], pageInfo: { hasNextPage: false, endCursor: null } };
+    };
+
+    try {
+      let result = await tryFetch();
+
+      // Retry once after 2 s if empty — handles startup credential race condition
+      if (!result?.products?.length && isMountedRef.current) {
+        await new Promise((r) => setTimeout(r, 2000));
+        if (isMountedRef.current) result = await tryFetch();
+      }
+
       if (isMountedRef.current) {
         setProducts(result?.products || []);
       }
