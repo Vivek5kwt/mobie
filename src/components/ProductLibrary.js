@@ -70,6 +70,14 @@ const normalizePosition = (position, fallback = {}) => {
   return Object.keys(s).length ? s : fallback;
 };
 
+const resolveProductId = (product = {}) =>
+  String(product?.id || product?.variantId || product?.handle || product?.title || "").trim();
+
+const resolveProductKeys = (product = {}) =>
+  [product?.id, product?.variantId, product?.handle, product?.title]
+    .map((value) => String(value || "").trim())
+    .filter(Boolean);
+
 export default function ProductLibrary({ section }) {
   const navigation = useNavigation();
   const route = useRoute();
@@ -103,12 +111,27 @@ export default function ProductLibrary({ section }) {
 
   // ── Images ────────────────────────────────────────────────────────────────
   // Prefer raw.images array; fall back to single raw.imageUrl
+  const routeProduct = route?.params?.product || {};
+  const productForWishlist = useMemo(
+    () => ({
+      ...routeProduct,
+      ...raw,
+      images: Array.isArray(raw?.images) && raw.images.length > 0
+        ? raw.images
+        : Array.isArray(routeProduct?.images)
+          ? routeProduct.images
+          : [],
+      imageUrl: raw?.imageUrl || routeProduct?.imageUrl || routeProduct?.image || "",
+    }),
+    [raw, routeProduct]
+  );
+
   const images = useMemo(() => {
     const arr = raw?.images;
     if (Array.isArray(arr) && arr.length > 0) return arr.filter(Boolean);
-    const single = toString(raw?.imageUrl, "");
+    const single = toString(raw?.imageUrl || routeProduct?.imageUrl || routeProduct?.image, "");
     return single ? [single] : [];
-  }, [raw?.images, raw?.imageUrl]);
+  }, [raw?.images, raw?.imageUrl, routeProduct?.image, routeProduct?.imageUrl]);
 
   const activeImageUrl = images[currentIdx] || images[0] || "";
   const hasMultiple = images.length > 1;
@@ -126,12 +149,12 @@ export default function ProductLibrary({ section }) {
   const ratingCountVisible = toBoolean(visibility?.reviewsRatingCounter, true);
 
   // ── Wishlist state from Redux (derived from route product) ─────────────────
-  const routeProduct = route?.params?.product || {};
-  const productId = String(
-    routeProduct?.id || routeProduct?.variantId || routeProduct?.handle || routeProduct?.title || ""
-  ).trim();
+  const productId = resolveProductId(productForWishlist);
+  const productKeys = useMemo(() => resolveProductKeys(productForWishlist), [productForWishlist]);
   const isFavourite = productId
-    ? wishlistItems.some((p) => String(p.id || "").trim() === productId)
+    ? wishlistItems.some((p) =>
+        resolveProductKeys(p).some((key) => productKeys.includes(key))
+      )
     : false;
 
   const handleToggleFavourite = async () => {
@@ -141,14 +164,14 @@ export default function ProductLibrary({ section }) {
     dispatch(
       toggleWishlist({
         product: {
-          id: productId || routeProduct?.handle || routeProduct?.title || "",
-          title: routeProduct?.title || "",
-          image: routeProduct?.imageUrl || (Array.isArray(routeProduct?.images) ? routeProduct.images[0] : "") || "",
-          price: routeProduct?.priceAmount ?? routeProduct?.price ?? 0,
-          compareAtPrice: routeProduct?.compareAtPrice ?? routeProduct?.originalPrice ?? 0,
-          currency: routeProduct?.priceCurrency || routeProduct?.currency || "",
-          handle: routeProduct?.handle || "",
-          vendor: routeProduct?.vendor || "",
+          id: productId,
+          title: productForWishlist?.title || productForWishlist?.titleText || "",
+          image: productForWishlist?.imageUrl || productForWishlist?.image || images[0] || "",
+          price: productForWishlist?.priceAmount ?? productForWishlist?.price ?? productForWishlist?.salePrice ?? 0,
+          compareAtPrice: productForWishlist?.compareAtPrice ?? productForWishlist?.originalPrice ?? productForWishlist?.standardPrice ?? 0,
+          currency: productForWishlist?.priceCurrency || productForWishlist?.currency || "",
+          handle: productForWishlist?.handle || "",
+          vendor: productForWishlist?.vendor || productForWishlist?.vendorText || productForWishlist?.shop || "",
         },
       })
     );

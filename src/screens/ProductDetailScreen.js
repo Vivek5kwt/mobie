@@ -34,6 +34,7 @@ const buildProductDefaults = (product = {}) => {
     ? product.images
     : imageUrl ? [imageUrl] : [];
   return {
+    id: product?.id,
     titleText: product?.title,
     title: product?.title,
     imageUrl,

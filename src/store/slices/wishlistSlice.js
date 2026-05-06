@@ -1,5 +1,17 @@
 import { createSlice } from "@reduxjs/toolkit";
 
+const normalizeId = (value) => String(value || "").trim();
+
+const getWishlistKeys = (product = {}) =>
+  [
+    product.id,
+    product.variantId,
+    product.handle,
+    product.title,
+  ]
+    .map(normalizeId)
+    .filter(Boolean);
+
 const wishlistSlice = createSlice({
   name: "wishlist",
   initialState: {
@@ -8,9 +20,13 @@ const wishlistSlice = createSlice({
   reducers: {
     toggleWishlist(state, action) {
       const product = action.payload?.product || {};
-      const id = String(product.id || product.variantId || product.handle || product.title || "").trim();
+      const keys = getWishlistKeys(product);
+      const id = keys[0] || "";
       if (!id) return;
-      const idx = state.items.findIndex((p) => String(p.id || "").trim() === id);
+      const idx = state.items.findIndex((p) => {
+        const existingKeys = getWishlistKeys(p);
+        return existingKeys.some((key) => keys.includes(key));
+      });
       if (idx >= 0) {
         state.items.splice(idx, 1);
       } else {
