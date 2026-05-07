@@ -4,6 +4,7 @@ import { useNavigation } from "@react-navigation/native";
 import Icon from "react-native-vector-icons/FontAwesome6";
 import { convertStyles } from "../utils/convertStyles";
 import { useAuth } from "../services/AuthContext";
+import { getAppNameSync } from "../utils/appInfo";
 
 const LOCAL_LOGO_IMAGE = require("../assets/logo/mobidraglogo.png");
 
@@ -119,7 +120,7 @@ export default function SideNavigation({ section }) {
     backgroundImage ? { backgroundColor: "transparent" } : { backgroundColor: raw?.bgColor },
   ];
 
-  const headerTitle = unwrapValue(raw?.headerTitle, "Mobidrag");
+  const headerTitle = unwrapValue(raw?.headerTitle, getAppNameSync());
   const subtitle = unwrapValue(raw?.subtitle, "");
   const logoUrl = unwrapValue(raw?.logoUrl, "");
   const logoSource = logoUrl ? resolveLogoSource(logoUrl) : LOCAL_LOGO_IMAGE;

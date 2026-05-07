@@ -13,7 +13,7 @@ const LAYOUT_VERSION_QUERY = gql`
         is_published
         metadata
         page_name
-        published_by
+        published_by  
         store_id
         updated_at
         version_number

@@ -21,6 +21,8 @@ import authLayoutFallback from '../data/authLayoutFallback';
 import { getShopifyDomain } from '../services/shopify';
 import HeaderDefaultComponent from '../components/HeaderDefault';
 import DynamicRenderer from '../engine/DynamicRenderer';
+import { getHeaderDefault } from '../services/headerDefaultService';
+import { getAppNameSync } from '../utils/appInfo';
 
 type SignInTokens = {
   bgColor: string;
@@ -975,7 +977,17 @@ const AuthScreen = () => {
   }, [route?.params]);
 
   const t = mode === 'signup' ? signUpTokens : signInTokens;
-  const activeHeaderConfig = mode === 'login' ? signInHeaderConfig : signUpHeaderConfig;
+  const activeHeaderConfig = useMemo(() => {
+    const dslConfig = mode === 'login' ? signInHeaderConfig : signUpHeaderConfig;
+    const base = dslConfig ?? getHeaderDefault();
+    if (!base) return null;
+    const rawTitle = (base as Record<string, unknown>).title as string | undefined;
+    const isMobidragTitle = !rawTitle || rawTitle === 'Mobidrag' || rawTitle === 'MobiDrag';
+    if (isMobidragTitle) {
+      return { ...base, title: getAppNameSync() } as Record<string, unknown>;
+    }
+    return base;
+  }, [mode, signInHeaderConfig, signUpHeaderConfig]);
 
   const toggleMode = () => { setMode((p) => (p === 'login' ? 'signup' : 'login')); setError(''); };
 
