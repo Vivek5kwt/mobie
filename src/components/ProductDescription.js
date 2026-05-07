@@ -172,33 +172,36 @@ export default function ProductDescription({ section }) {
   const showDescription = toBoolean(visNode?.infoDescription, true);
   const showIcon        = toBoolean(visNode?.icon,            true);
 
-  // ── Icon ───────────────────────────────────────────────────────────────────
-  // raw.dropdownIconValue is what the builder sets when the user picks an icon
-  // propsNode.icon.icon is the DSL-level default
-  // layoutCss.icon.icon / presCss.icon.icon are CSS-snapshot values
-  const rawIconVal  = toString(
-    raw?.dropdownIconValue ?? raw?.iconId ?? raw?.icon ?? raw?.iconStyle?.icon,
-    ""
-  );
+  // ── Icon (left of title — info/leading icon) ──────────────────────────────
+  // This icon is shown to the LEFT of the title text.
+  // Source: raw.iconStyle.icon → propsNode.icon → layout CSS snapshot icon
   const iconNodeVal = toString(iconNode?.icon ?? iconNode?.value, "");
   const cssIconVal  = toString(layoutCss?.icon?.icon ?? presCss?.icon?.icon, "");
-  const resolvedIconRaw = rawIconVal || iconNodeVal || cssIconVal || "fa-circle-info";
+  const resolvedIconRaw = toString(raw?.iconStyle?.icon, "") || iconNodeVal || cssIconVal;
 
-  // Icon color — raw.dropdownIconColor overrides the node/css color
+  // Icon color
   const iconColor = (() => {
-    const fromRaw  = toString(raw?.dropdownIconColor ?? raw?.iconColor ?? raw?.iconStyle?.color, "");
+    const fromRaw  = toString(raw?.iconStyle?.color ?? raw?.iconColor, "");
     const fromNode = toString(iconNode?.color, "");
     const fromCss  = toString(layoutCss?.icon?.color ?? presCss?.icon?.color, "");
     return fromRaw || fromNode || fromCss || "#096d70";
   })();
 
-  // Icon size — try raw keys, then icon node, then CSS fontSize
+  // Icon size
   const iconSize = (() => {
-    const fromRaw  = toNumber(raw?.dropdownIconSize ?? raw?.iconSize ?? raw?.iconStyle?.size, undefined);
+    const fromRaw  = toNumber(raw?.iconStyle?.size ?? raw?.iconSize, undefined);
     const fromNode = toNumber(iconNode?.size, undefined);
     const fromCss  = toNumber(layoutCss?.icon?.fontSize ?? presCss?.icon?.fontSize, undefined);
     return fromRaw ?? fromNode ?? fromCss ?? 16;
   })();
+
+  // ── Dropdown toggle icon (right side — replaces chevron when set) ──────────
+  // The builder writes the user's chosen dropdown icon to raw.dropdownIconValue
+  // or raw.iconId. Falls back to chevron when nothing is explicitly set.
+  const dropdownIconRaw = toString(
+    raw?.dropdownIconValue ?? raw?.iconId ?? raw?.dropdownIcon ?? raw?.arrowIconValue,
+    ""
+  );
 
   // ── Arrow / chevron colour ─────────────────────────────────────────────────
   const arrowColor = toString(
@@ -313,6 +316,15 @@ export default function ProductDescription({ section }) {
         accessibilityLabel={open ? "Collapse description" : "Expand description"}
       >
         <View style={styles.titleRow}>
+          {/* Info icon — left of title */}
+          {showIcon && !!resolvedIconRaw && (
+            <DescIcon
+              rawName={resolvedIconRaw}
+              size={iconSize}
+              color={iconColor}
+              style={{ marginRight: 8 }}
+            />
+          )}
           {showTitle && (
             <Text
               style={{
@@ -330,12 +342,12 @@ export default function ProductDescription({ section }) {
           )}
         </View>
 
-        {/* Dropdown toggle icon — custom icon replaces the default chevron */}
-        {showIcon && resolvedIconRaw ? (
+        {/* Dropdown toggle — user's selected icon or default chevron */}
+        {dropdownIconRaw ? (
           <DescIcon
-            rawName={resolvedIconRaw}
-            size={iconSize}
-            color={iconColor}
+            rawName={dropdownIconRaw}
+            size={arrowSize}
+            color={arrowColor}
           />
         ) : (
           <FontAwesome
