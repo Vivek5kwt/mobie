@@ -194,6 +194,8 @@ export default function ProductGrid({ section, limit = 8, title = "Products" }) 
   const [snackMessage, setSnackMessage] = useState("");
   const isMountedRef = useRef(true);
   const didInitialLoadRef = useRef(false);
+  const loadInFlightRef = useRef(false);
+  const lastLoadAtRef = useRef(0);
 
   // ── Merge raw sub-object ──────────────────────────────────────────────────
   const rawProps = getRawProps(section);
@@ -606,6 +608,13 @@ export default function ProductGrid({ section, limit = 8, title = "Products" }) 
   }, []);
 
   const loadProducts = useCallback(async () => {
+    const now = Date.now();
+    if (loadInFlightRef.current || now - lastLoadAtRef.current < 1200) {
+      return;
+    }
+    loadInFlightRef.current = true;
+    lastLoadAtRef.current = now;
+
     const safeFirst = Math.max(1, resolvedLimit || 8);
     const shopOptions = { shop: shopifyDomain || undefined, token: shopifyToken || undefined };
 
@@ -650,6 +659,7 @@ export default function ProductGrid({ section, limit = 8, title = "Products" }) 
     } catch {
       if (isMountedRef.current) setError("Unable to load products right now. Please try again later.");
     } finally {
+      loadInFlightRef.current = false;
       if (isMountedRef.current) setLoading(false);
     }
   }, [useCollectionFetch, collectionHandle, resolvedLimit, shopifyDomain, shopifyToken]);

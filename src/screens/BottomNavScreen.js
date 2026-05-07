@@ -8,7 +8,7 @@ import {
   Text,
   View,
 } from "react-native";
-import { Animated, TouchableOpacity } from "react-native";
+import { Animated, InteractionManager, TouchableOpacity } from "react-native";
 import FontAwesome from "react-native-vector-icons/FontAwesome";
 import { useFocusEffect, useNavigation, useRoute } from "@react-navigation/native";
 import { SafeArea } from "../utils/SafeAreaHandler";
@@ -184,6 +184,7 @@ export default function BottomNavScreen() {
   const isHomePage = normalizedPageName === "home";
   const [dsl, setDsl] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [heavySectionsReady, setHeavySectionsReady] = useState(() => !isHomePage);
   const [err, setErr] = useState(null);
   const [refreshing, setRefreshing] = useState(false);
   // Notification-page data
@@ -204,6 +205,30 @@ export default function BottomNavScreen() {
   const SIDE_MENU_WIDTH = 280;
   const [isSideMenuOpen, setIsSideMenuOpen] = useState(false);
   const sideMenuTranslateX = useRef(new Animated.Value(-SIDE_MENU_WIDTH)).current;
+
+  useEffect(() => {
+    if (!isHomePage) {
+      setHeavySectionsReady(true);
+      return undefined;
+    }
+
+    let active = true;
+    setHeavySectionsReady(false);
+    const fallbackTimer = setTimeout(() => {
+      if (active) setHeavySectionsReady(true);
+    }, 650);
+    const interactionTask = InteractionManager.runAfterInteractions(() => {
+      if (!active) return;
+      clearTimeout(fallbackTimer);
+      setHeavySectionsReady(true);
+    });
+
+    return () => {
+      active = false;
+      clearTimeout(fallbackTimer);
+      interactionTask?.cancel?.();
+    };
+  }, [isHomePage, normalizedPageName]);
 
   const getComponentName = (section) =>
     section?.component?.const ||
@@ -656,10 +681,11 @@ export default function BottomNavScreen() {
 
   useEffect(() => {
     // Check for bottom navigation updates on mount
+    if (loading) return;
     checkAndUpdateBottomNav();
-  }, [checkAndUpdateBottomNav]);
+  }, [checkAndUpdateBottomNav, loading]);
 
-  // Auto-refresh: polls every 3 s. Updates when version OR section fingerprint changes.
+  // Auto-refresh: polls every 30 s. Updates when version OR section fingerprint changes.
   const sectionsFpRef = useRef(null);
 
   useEffect(() => {
@@ -700,7 +726,7 @@ export default function BottomNavScreen() {
       } catch (error) {
         console.log("❌ Auto-refresh error:", error);
       }
-    }, 3000);
+    }, 30000);
 
     return () => clearInterval(intervalId);
   }, [appId, ensureHeaderSections, isHomePage, pageName, checkAndUpdateBottomNav]);
@@ -828,6 +854,14 @@ export default function BottomNavScreen() {
                   "product_grid", "product_carousel",
                   "tab_product_grid", "tab_product_carousel",
                 ].includes(compName);
+                const isHeavyHomeSection = [
+                  "product_grid", "product_carousel",
+                  "tab_product_grid", "tab_product_carousel",
+                  "recent_products",
+                ].includes(compName);
+                if (isHomePage && !heavySectionsReady && index > 3 && isHeavyHomeSection) {
+                  return null;
+                }
                 return (
                   <View
                     key={index}

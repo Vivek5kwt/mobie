@@ -31,7 +31,7 @@ const setCached = (key, value) => {
   _requestCache.set(key, { at: Date.now(), value });
 };
 
-const withRequestCache = async (key, producer) => {
+const withRequestCache = async (key, producer, { cacheEmpty = false } = {}) => {
   const cached = getCached(key);
   if (cached !== null) return cached;
 
@@ -50,7 +50,7 @@ const withRequestCache = async (key, producer) => {
       const isEmpty =
         (isProductObject && !(value.products?.length > 0)) ||
         (isPlainArray && value.length === 0);
-      if (!isEmpty) {
+      if (!isEmpty || cacheEmpty) {
         setCached(key, value);
       }
       return value;
@@ -122,6 +122,32 @@ export const QUERY_COLLECTIONS = `
           title
           handle
           image { url altText }
+        }
+      }
+    }
+  }
+`;
+
+export const QUERY_TRENDING_SEARCH_TERMS = `
+  query TrendingSearchTerms($productsFirst: Int!, $collectionsFirst: Int!) {
+    products(first: $productsFirst, sortKey: UPDATED_AT, reverse: true) {
+      edges {
+        node {
+          id
+          title
+          handle
+          vendor
+          productType
+          tags
+        }
+      }
+    }
+    collections(first: $collectionsFirst) {
+      edges {
+        node {
+          id
+          title
+          handle
         }
       }
     }
@@ -281,6 +307,141 @@ export async function fetchShopifyCollectionsList(limit = 20, options = {}) {
     console.error("❌ fetchShopifyCollectionsList error:", error);
     return [];
   }
+}
+
+// ----------------------
+// FETCH TRENDING SEARCHES
+// ----------------------
+const TRENDING_TERM_STOP_WORDS = new Set([
+  "and",
+  "for",
+  "the",
+  "with",
+  "from",
+  "your",
+  "new",
+  "sale",
+  "product",
+  "products",
+  "collection",
+  "collections",
+]);
+
+const cleanTrendingTerm = (value) => {
+  const text = String(value || "")
+    .replace(/[_|/\\]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+  if (!text || text.length < 2) return "";
+  if (/^\d+(\.\d+)?$/.test(text)) return "";
+  return text;
+};
+
+const addTrendingTerm = (bucket, value, query, score, index) => {
+  const text = cleanTrendingTerm(value);
+  if (!text) return;
+  const lower = text.toLowerCase();
+  if (TRENDING_TERM_STOP_WORDS.has(lower)) return;
+  const key = lower.replace(/[^a-z0-9]+/gi, "-").replace(/^-+|-+$/g, "");
+  if (!key) return;
+  const existing = bucket.get(key);
+  if (existing) {
+    existing.score += score;
+    existing.count += 1;
+    return;
+  }
+  bucket.set(key, {
+    text,
+    query: cleanTrendingTerm(query || text) || text,
+    score,
+    count: 1,
+    index,
+  });
+};
+
+const titleToTrendingPhrase = (title) => {
+  const words = String(title || "")
+    .replace(/[^a-z0-9\s-]/gi, " ")
+    .split(/\s+/)
+    .map((word) => word.trim())
+    .filter(Boolean)
+    .filter((word) => word.length > 2)
+    .filter((word) => !TRENDING_TERM_STOP_WORDS.has(word.toLowerCase()))
+    .filter((word) => !/^\d+$/.test(word));
+  return words.slice(0, 3).join(" ");
+};
+
+export async function fetchShopifyTrendingSearches(limit = 6, options = {}) {
+  const safeLimit = Math.max(1, Math.min(12, Number(limit) || 6));
+  const productsFirst = Math.max(12, safeLimit * 4);
+  const collectionsFirst = Math.max(6, safeLimit * 2);
+  const cacheKey = buildCacheKey("trendingSearches", {
+    limit: safeLimit,
+    shop: options.shop || "",
+    storeId: options.storeId || "",
+  });
+
+  return withRequestCache(
+    cacheKey,
+    async () => {
+      const creds = await getShopifyCredentials();
+      const shop = options.shop || creds.shop;
+      const token = options.token || creds.token;
+      const storeId = options.storeId || creds.storeId;
+
+      try {
+        const json = await directStorefrontGraphQL({
+          shop,
+          token,
+          storeId,
+          query: QUERY_TRENDING_SEARCH_TERMS,
+          variables: {
+            productsFirst,
+            collectionsFirst,
+          },
+        });
+
+        if (json.errors && !json?.data) {
+          console.error("Shopify trending-search GraphQL errors:", json.errors);
+          return [];
+        }
+
+        const productEdges = json?.data?.products?.edges || [];
+        const collectionEdges = json?.data?.collections?.edges || [];
+        const bucket = new Map();
+        let order = 0;
+
+        collectionEdges.forEach(({ node }) => {
+          addTrendingTerm(bucket, node?.title, node?.title, 12, order++);
+        });
+
+        productEdges.forEach(({ node }) => {
+          const productIndex = order++;
+          addTrendingTerm(bucket, node?.productType, node?.productType, 10, productIndex);
+          (node?.tags || []).slice(0, 6).forEach((tag) => {
+            addTrendingTerm(bucket, tag, tag, 8, productIndex);
+          });
+          addTrendingTerm(bucket, node?.vendor, node?.vendor, 4, productIndex);
+          addTrendingTerm(bucket, titleToTrendingPhrase(node?.title), node?.title, 3, productIndex);
+        });
+
+        return [...bucket.values()]
+          .sort((a, b) => {
+            const scoreDiff = b.score - a.score;
+            if (scoreDiff !== 0) return scoreDiff;
+            const countDiff = b.count - a.count;
+            if (countDiff !== 0) return countDiff;
+            return a.index - b.index;
+          })
+          .slice(0, safeLimit)
+          .map(({ text, query }) => ({ text, query }));
+      } catch (error) {
+        console.error("fetchShopifyTrendingSearches error:", error);
+        return [];
+      }
+    },
+    { cacheEmpty: true }
+  );
 }
 
 // ----------------------

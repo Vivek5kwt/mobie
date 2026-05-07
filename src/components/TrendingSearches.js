@@ -1,4 +1,4 @@
-import React, { useMemo } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
   DeviceEventEmitter,
   StyleSheet,
@@ -7,9 +7,8 @@ import {
   View,
 } from "react-native";
 import { useNavigation } from "@react-navigation/native";
+import { fetchShopifyTrendingSearches } from "../services/shopify";
 import { resolveTextDecorationLine } from "../utils/textDecoration";
-
-// ─── DSL helpers ─────────────────────────────────────────────────────────────
 
 const unwrapValue = (value, fallback) => {
   if (value === undefined || value === null) return fallback;
@@ -21,15 +20,24 @@ const unwrapValue = (value, fallback) => {
   return value;
 };
 
+const deepUnwrap = (value) => {
+  if (value === undefined || value === null) return value;
+  if (typeof value !== "object") return value;
+  if (value.value !== undefined) return deepUnwrap(value.value);
+  if (value.const !== undefined) return value.const;
+  if (value.properties !== undefined) return deepUnwrap(value.properties);
+  return value;
+};
+
 const toBoolean = (value, fallback = true) => {
   const resolved = unwrapValue(value, undefined);
   if (resolved === undefined) return fallback;
   if (typeof resolved === "boolean") return resolved;
   if (typeof resolved === "number") return resolved !== 0;
   if (typeof resolved === "string") {
-    const l = resolved.trim().toLowerCase();
-    if (["true", "1", "yes", "y"].includes(l)) return true;
-    if (["false", "0", "no", "n"].includes(l)) return false;
+    const normalized = resolved.trim().toLowerCase();
+    if (["true", "1", "yes", "y"].includes(normalized)) return true;
+    if (["false", "0", "no", "n"].includes(normalized)) return false;
   }
   return fallback;
 };
@@ -45,10 +53,11 @@ const toNumber = (value, fallback) => {
 const deriveWeight = (value, fallback = "600") => {
   const resolved = unwrapValue(value, fallback);
   if (typeof resolved === "string") {
-    const l = resolved.toLowerCase();
-    if (l === "bold") return "700";
-    if (l === "medium") return "500";
-    if (l === "regular") return "400";
+    const normalized = resolved.toLowerCase();
+    if (normalized === "bold") return "700";
+    if (normalized === "semi bold" || normalized === "semibold") return "600";
+    if (normalized === "medium") return "500";
+    if (normalized === "regular") return "400";
   }
   return String(resolved);
 };
@@ -60,62 +69,42 @@ const cleanFontFamily = (family) => {
   return cleaned || undefined;
 };
 
-// ─── Deep-unwrap a DSL node to its plain value ───────────────────────────────
-
-const deepUnwrap = (value) => {
-  if (value === undefined || value === null) return value;
-  if (typeof value !== "object") return value;
-  if (value.value !== undefined) return deepUnwrap(value.value);
-  if (value.const !== undefined) return value.const;
-  if (value.properties !== undefined) return deepUnwrap(value.properties);
-  return value;
-};
-
-// ─── Normalize search items from various DSL shapes ──────────────────────────
-
 const normalizeSearches = (raw) => {
   if (!raw) return [];
 
-  // Unwrap DSL envelope: { value: [...] } or { properties: { value: [...] } }
   let source = raw;
   const unwrapped = deepUnwrap(raw);
   if (Array.isArray(unwrapped)) {
     source = unwrapped;
   } else if (unwrapped && typeof unwrapped === "object") {
-    // Still an object — try common array keys inside it
     const inner =
-      unwrapped.items     ??
-      unwrapped.searches  ??
-      unwrapped.keywords  ??
-      unwrapped.tags      ??
-      unwrapped.list      ??
+      unwrapped.items ??
+      unwrapped.searches ??
+      unwrapped.keywords ??
+      unwrapped.tags ??
+      unwrapped.list ??
       null;
-    if (inner !== null) {
-      source = deepUnwrap(inner);
-    } else {
-      source = unwrapped;
-    }
+    source = inner !== null ? deepUnwrap(inner) : unwrapped;
   }
 
   const mapItem = (item) => {
-    // Plain string item → use as both text and query
     if (typeof item === "string") {
-      const t = item.trim();
-      return t ? { text: t, link: "", query: t } : null;
+      const text = item.trim();
+      return text ? { text, link: "", query: text } : null;
     }
     if (!item || typeof item !== "object") return null;
 
-    const p = item?.properties || item;
+    const props = item?.properties || item;
     const text = unwrapValue(
-      p?.label ?? p?.text ?? p?.title ?? p?.query ?? p?.name ?? p?.keyword,
+      props?.label ?? props?.text ?? props?.title ?? props?.query ?? props?.name ?? props?.keyword,
       ""
     );
     if (!text) return null;
-    const link  = unwrapValue(p?.link ?? p?.href ?? p?.url, "");
-    const query = unwrapValue(p?.query ?? p?.searchQuery ?? p?.keyword, text);
+    const link = unwrapValue(props?.link ?? props?.href ?? props?.url, "");
+    const query = unwrapValue(props?.query ?? props?.searchQuery ?? props?.keyword, text);
     return {
-      text:  String(text),
-      link:  typeof link === "string" ? link.trim() : "",
+      text: String(text),
+      link: typeof link === "string" ? link.trim() : "",
       query: String(query),
     };
   };
@@ -128,7 +117,7 @@ const normalizeSearches = (raw) => {
 };
 
 const borderStyleForSide = (side, color) => {
-  const normalized = (side || "").toLowerCase();
+  const normalized = String(side || "").toLowerCase();
   if (!normalized) return {};
   const style = { borderColor: color || "#E5E7EB" };
   if (normalized === "all") return { ...style, borderWidth: 1 };
@@ -139,8 +128,6 @@ const borderStyleForSide = (side, color) => {
   return {};
 };
 
-// ─── Component ────────────────────────────────────────────────────────────────
-
 export default function TrendingSearches({ section }) {
   const navigation = useNavigation();
 
@@ -149,126 +136,179 @@ export default function TrendingSearches({ section }) {
     section?.properties?.props ||
     section?.props ||
     {};
-
-  // `raw` sub-object is where builder stores live data (same pattern as all other components)
   const rawData = deepUnwrap(rawProps?.raw) || {};
+  const dataSource =
+    deepUnwrap(section?.dataSource ?? section?.properties?.dataSource ?? rawProps?.dataSource ?? rawData?.dataSource) ||
+    {};
 
-  // Search through every likely key, checking both rawProps and rawData
+  const rp = useCallback((key) => rawProps?.[key] ?? rawData?.[key], [rawData, rawProps]);
+
   const searchesRaw =
-    rawProps?.trendingSearches   ??
-    rawData?.trendingSearches    ??
-    rawProps?.searches           ??
-    rawData?.searches            ??
-    rawProps?.items              ??
-    rawData?.items               ??
-    rawProps?.keywords           ??
-    rawData?.keywords            ??
-    rawProps?.tags               ??
-    rawData?.tags                ??
-    rawData?.list                ??
-    rawProps?.list               ??
+    rawProps?.trendingSearches ??
+    rawData?.trendingSearches ??
+    rawProps?.searches ??
+    rawData?.searches ??
+    rawProps?.items ??
+    rawData?.items ??
+    rawProps?.keywords ??
+    rawData?.keywords ??
+    rawProps?.tags ??
+    rawData?.tags ??
+    rawData?.list ??
+    rawProps?.list ??
     null;
 
-  const searches = useMemo(
-    () => normalizeSearches(searchesRaw),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [JSON.stringify(searchesRaw)]
-  );
+  const manualKey = useMemo(() => {
+    try {
+      return JSON.stringify(searchesRaw ?? null);
+    } catch {
+      return String(searchesRaw ?? "");
+    }
+  }, [searchesRaw]);
 
-  if (!searches.length) return null;
+  const manualSearches = useMemo(() => normalizeSearches(searchesRaw), [manualKey]);
+  const sourceMode = String(
+    unwrapValue(dataSource?.mode ?? rp("sourceMode") ?? rp("trendingSource"), "store")
+  ).toLowerCase();
+  const useManualSearches = ["manual", "static", "dsl"].includes(sourceMode);
 
-  // helper: check rawProps first, fall back to rawData
-  const rp = (key) => rawProps?.[key] ?? rawData?.[key];
-
-  // ── Heading ────────────────────────────────────────────────────────────────
   const headingVisible = toBoolean(rp("headingVisible"), true);
-  const headingText    = unwrapValue(rp("headingText") ?? rp("title"), "Trending Searches");
-  const headingColor   = unwrapValue(rp("headingColor"), "#111827");
-  const headingSize    = toNumber(rp("headingFontSize") ?? rp("titleFontSize"), 16);
+  const headingText = unwrapValue(rp("headingText") ?? rp("title"), "Trending Searches");
+  const headingColor = unwrapValue(rp("headingColor"), "#111827");
+  const headingSize = toNumber(rp("headingFontSize") ?? rp("titleFontSize"), 16);
   const headingFontFamily = cleanFontFamily(rp("headingFontFamily"));
-  const headingBold    = toBoolean(rp("headingBold"), true);
-  const headingItalic  = toBoolean(rp("headingItalic"), false);
+  const headingBold = toBoolean(rp("headingBold"), true);
+  const headingItalic = toBoolean(rp("headingItalic"), false);
   const headingUnderline = toBoolean(rp("headingUnderline"), false);
   const headingStrikethrough = toBoolean(rp("headingStrikethrough"), false);
   const headingDecorationLine = resolveTextDecorationLine({
     underline: headingUnderline,
     strikethrough: headingStrikethrough,
   });
-  const headingWeight  = deriveWeight(rp("headingFontWeight"), headingBold ? "700" : "600");
+  const headingWeight = deriveWeight(rp("headingFontWeight"), headingBold ? "700" : "600");
   const headingPaddingBottom = toNumber(rp("headingPaddingBottom"), 10);
 
-  // ── Chip / pill styling ────────────────────────────────────────────────────
-  const chipBgColor     = unwrapValue(rp("chipBgColor") ?? rp("tagBgColor"), "#F3F4F6");
-  const chipTextColor   = unwrapValue(rp("chipTextColor") ?? rp("chipColor") ?? rp("tagTextColor"), "#111827");
+  const chipBgColor = unwrapValue(rp("chipBgColor") ?? rp("tagBgColor"), "#F3F4F6");
+  const chipTextColor = unwrapValue(rp("chipTextColor") ?? rp("chipColor") ?? rp("tagTextColor"), "#111827");
   const trendingPillBgColor = unwrapValue(rp("trendingPillBgColor"), chipBgColor);
   const trendingPillTextColor = unwrapValue(rp("trendingPillTextColor"), chipTextColor);
-  const chipFontSize    = toNumber(rp("chipFontSize") ?? rp("tagFontSize"), 13);
-  const chipFontWeight  = deriveWeight(rp("chipFontWeight") ?? rp("tagFontWeight"), "500");
-  const chipFontFamily  = cleanFontFamily(rp("chipFontFamily"));
+  const chipFontSize = toNumber(rp("chipFontSize") ?? rp("tagFontSize"), 13);
+  const chipFontWeight = deriveWeight(rp("chipFontWeight") ?? rp("tagFontWeight"), "500");
+  const chipFontFamily = cleanFontFamily(rp("chipFontFamily"));
   const chipBorderRadius = toNumber(rp("chipBorderRadius") ?? rp("tagBorderRadius"), 999);
-  const chipPaddingH    = toNumber(rp("chipPaddingH") ?? rp("tagPaddingH"), 14);
-  const chipPaddingV    = toNumber(rp("chipPaddingV") ?? rp("tagPaddingV"), 8);
+  const chipPaddingH = toNumber(rp("chipPaddingH") ?? rp("tagPaddingH"), 14);
+  const chipPaddingV = toNumber(rp("chipPaddingV") ?? rp("tagPaddingV"), 8);
   const chipBorderColor = unwrapValue(rp("chipBorderColor"), "transparent");
   const chipBorderWidth = toNumber(rp("chipBorderWidth"), 0);
-  const chipGap         = toNumber(rp("chipGap") ?? rp("gap"), 8);
-  const chipLineHeight  = toNumber(rp("chipLineHeight"), Math.max(18, chipFontSize + 5));
-  const chipVisible     = toBoolean(rp("chipVisible"), true);
-  const maxChipCount    = toNumber(rp("maxChipCount"), searches.length);
-  const chipLayout      = String(unwrapValue(rp("chipLayout"), "Wrap") || "Wrap").toLowerCase();
+  const chipGap = toNumber(rp("chipGap") ?? rp("gap"), 8);
+  const chipLineHeight = toNumber(rp("chipLineHeight"), Math.max(18, chipFontSize + 5));
+  const chipVisible = toBoolean(rp("chipVisible"), true);
+  const maxChipCount = toNumber(rp("maxChipCount"), 6);
+  const chipLayout = String(unwrapValue(rp("chipLayout"), "Wrap") || "Wrap").toLowerCase();
+  const emptyText = unwrapValue(rp("emptyText") ?? rp("emptyTitle"), "No trending searches yet");
+  const errorText = unwrapValue(rp("errorText"), "Unable to load trending searches");
+  const showEmptyState = toBoolean(rp("emptyStateVisible"), true);
 
-  // ── Container ─────────────────────────────────────────────────────────────
-  const bgColor              = unwrapValue(rp("bgColor"), "#FFFFFF");
+  const bgColor = unwrapValue(rp("bgColor"), "#FFFFFF");
   const containerBorderRadius = toNumber(rp("borderRadius"), 0);
-  const borderColor          = unwrapValue(rp("borderColor"), "#E5E7EB");
-  const borderSide           = unwrapValue(rp("borderSide"), "");
-
+  const borderColor = unwrapValue(rp("borderColor"), "#E5E7EB");
+  const borderSide = unwrapValue(rp("borderSide"), "");
   const padding = {
-    paddingTop:    toNumber(rp("pt"), 0),
-    paddingRight:  toNumber(rp("pr"), 0),
+    paddingTop: toNumber(rp("pt"), 0),
+    paddingRight: toNumber(rp("pr"), 0),
     paddingBottom: toNumber(rp("pb"), 0),
-    paddingLeft:   toNumber(rp("pl"), 0),
+    paddingLeft: toNumber(rp("pl"), 0),
   };
 
-  // ── Navigation ────────────────────────────────────────────────────────────
-  const handleChipPress = (item) => {
-    const query = String(item?.query || item?.text || "").trim();
-    if (query) {
-      DeviceEventEmitter.emit("mobidrag:search:setQuery", { query });
+  const requestLimit = Math.max(1, Math.min(12, Number(maxChipCount) || 6));
+  const [searches, setSearches] = useState([]);
+  const [loading, setLoading] = useState(!useManualSearches);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    let alive = true;
+
+    if (useManualSearches) {
+      setSearches(manualSearches);
+      setLoading(false);
+      setError("");
+      return () => {
+        alive = false;
+      };
     }
 
-    const link = item.link || "";
-    if (link.startsWith("/")) {
-      const cleaned = link.replace(/^\//, "");
-      if (cleaned.startsWith("collections/")) {
-        navigation.navigate("CollectionProducts", {
-          handle: cleaned.replace("collections/", ""),
-        });
-        return;
-      }
-      if (cleaned.startsWith("products/")) {
-        navigation.navigate("ProductDetail", {
-          handle: cleaned.replace("products/", ""),
-        });
-        return;
-      }
-      if (cleaned) {
-        navigation.navigate("LayoutScreen", { pageName: cleaned });
-        return;
-      }
-    }
-    // Fallback: stay compatible with stacks that only expose a search page.
-    if (query) {
-      navigation.navigate("AllProducts", {
-        title: `Search results for "${query}"`,
-        query,
+    setLoading(true);
+    setError("");
+
+    fetchShopifyTrendingSearches(requestLimit)
+      .then((items) => {
+        if (!alive) return;
+        setSearches(normalizeSearches(items));
+      })
+      .catch(() => {
+        if (!alive) return;
+        setSearches([]);
+        setError(errorText);
+      })
+      .finally(() => {
+        if (alive) setLoading(false);
       });
-    }
-  };
 
-  const visibleSearches = searches.slice(0, Math.max(0, Number(maxChipCount) || 0));
-  if (!chipVisible || !visibleSearches.length) return null;
+    return () => {
+      alive = false;
+    };
+  }, [errorText, manualSearches, requestLimit, useManualSearches]);
+
+  const visibleSearches = useMemo(
+    () => searches.slice(0, requestLimit),
+    [requestLimit, searches]
+  );
+
+  const handleChipPress = useCallback(
+    (item) => {
+      const query = String(item?.query || item?.text || "").trim();
+      if (query) {
+        DeviceEventEmitter.emit("mobidrag:search:setQuery", { query });
+      }
+
+      const link = item?.link || "";
+      if (link.startsWith("/")) {
+        const cleaned = link.replace(/^\//, "");
+        if (cleaned.startsWith("collections/")) {
+          navigation.navigate("CollectionProducts", {
+            handle: cleaned.replace("collections/", ""),
+          });
+          return;
+        }
+        if (cleaned.startsWith("products/")) {
+          navigation.navigate("ProductDetail", {
+            handle: cleaned.replace("products/", ""),
+          });
+          return;
+        }
+        if (cleaned) {
+          navigation.navigate("LayoutScreen", { pageName: cleaned });
+          return;
+        }
+      }
+
+      if (query) {
+        navigation.navigate("AllProducts", {
+          title: `Search results for "${query}"`,
+          query,
+        });
+      }
+    },
+    [navigation]
+  );
+
+  if (!headingVisible && !chipVisible) return null;
+  if (!loading && !error && !visibleSearches.length && !showEmptyState && !headingVisible) {
+    return null;
+  }
 
   const isRowLayout = chipLayout === "row";
+  const skeletonWidths = [106, 78, 92, 118, 84, 98];
 
   return (
     <View
@@ -298,46 +338,79 @@ export default function TrendingSearches({ section }) {
         </Text>
       )}
 
-      {/* Chips wrap to next row — matching the builder preview */}
-      <View
-        style={[
-          styles.chipList,
-          isRowLayout ? styles.chipListRow : null,
-          { gap: chipGap },
-        ]}
-      >
-        {visibleSearches.map((item, index) => (
-          <TouchableOpacity
-            key={`${item.text}-${index}`}
-            activeOpacity={0.75}
-            onPress={() => handleChipPress(item)}
-            style={[
-              styles.chip,
-              {
-                backgroundColor: trendingPillBgColor,
-                borderRadius: chipBorderRadius,
-                paddingHorizontal: chipPaddingH,
-                paddingVertical: chipPaddingV,
-                ...(chipBorderWidth > 0
-                  ? { borderWidth: chipBorderWidth, borderColor: chipBorderColor }
-                  : {}),
-              },
-            ]}
-          >
-            <Text
-              style={{
-                color: trendingPillTextColor,
-                fontSize: chipFontSize,
-                fontWeight: chipFontWeight,
-                lineHeight: chipLineHeight,
-                ...(chipFontFamily ? { fontFamily: chipFontFamily } : null),
-              }}
+      {loading && chipVisible ? (
+        <View
+          style={[
+            styles.chipList,
+            isRowLayout ? styles.chipListRow : null,
+            { gap: chipGap },
+          ]}
+        >
+          {Array.from({ length: Math.min(6, Math.max(3, requestLimit)) }).map((_, index) => (
+            <View
+              key={`trending-skeleton-${index}`}
+              style={[
+                styles.skeletonChip,
+                {
+                  width: skeletonWidths[index % skeletonWidths.length],
+                  height: chipLineHeight + chipPaddingV * 2,
+                  borderRadius: chipBorderRadius,
+                },
+              ]}
+            />
+          ))}
+        </View>
+      ) : null}
+
+      {!loading && error ? (
+        <Text style={[styles.statusText, { color: headingColor }]}>{error}</Text>
+      ) : null}
+
+      {!loading && !error && chipVisible && visibleSearches.length > 0 ? (
+        <View
+          style={[
+            styles.chipList,
+            isRowLayout ? styles.chipListRow : null,
+            { gap: chipGap },
+          ]}
+        >
+          {visibleSearches.map((item, index) => (
+            <TouchableOpacity
+              key={`${item.text}-${index}`}
+              activeOpacity={0.75}
+              onPress={() => handleChipPress(item)}
+              style={[
+                styles.chip,
+                {
+                  backgroundColor: trendingPillBgColor,
+                  borderRadius: chipBorderRadius,
+                  paddingHorizontal: chipPaddingH,
+                  paddingVertical: chipPaddingV,
+                  ...(chipBorderWidth > 0
+                    ? { borderWidth: chipBorderWidth, borderColor: chipBorderColor }
+                    : null),
+                },
+              ]}
             >
-              {item.text}
-            </Text>
-          </TouchableOpacity>
-        ))}
-      </View>
+              <Text
+                style={{
+                  color: trendingPillTextColor,
+                  fontSize: chipFontSize,
+                  fontWeight: chipFontWeight,
+                  lineHeight: chipLineHeight,
+                  ...(chipFontFamily ? { fontFamily: chipFontFamily } : null),
+                }}
+              >
+                {item.text}
+              </Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+      ) : null}
+
+      {!loading && !error && !visibleSearches.length && showEmptyState ? (
+        <Text style={[styles.statusText, { color: headingColor }]}>{emptyText}</Text>
+      ) : null}
     </View>
   );
 }
@@ -349,7 +422,6 @@ const styles = StyleSheet.create({
   heading: {
     marginBottom: 4,
   },
-  // flexWrap so chips spill to the next row — same as builder preview
   chipList: {
     flexDirection: "row",
     flexWrap: "wrap",
@@ -360,5 +432,13 @@ const styles = StyleSheet.create({
   },
   chip: {
     alignSelf: "flex-start",
+  },
+  skeletonChip: {
+    backgroundColor: "#E5E7EB",
+    opacity: 0.85,
+  },
+  statusText: {
+    fontSize: 13,
+    opacity: 0.7,
   },
 });

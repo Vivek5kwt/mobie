@@ -8,6 +8,7 @@ import {
   Button,
   TouchableOpacity,
   Animated,
+  InteractionManager,
 } from "react-native";
 import { useFocusEffect } from "@react-navigation/native";
 import DynamicRenderer from "../engine/DynamicRenderer";
@@ -73,12 +74,46 @@ export default function LayoutScreen({ route, navigation }) {
   const versionRef = useRef(null);
   const snackbarTimer = useRef(null);
   const lastLoginToastKeyRef = useRef(null);
+  const dslRef = useRef(cached?.dsl ?? null);
+  const loadingRef = useRef(!cached?.dsl);
+  const dslRequestInFlightRef = useRef(false);
+  const lastDslFetchAtRef = useRef(cached?.dsl ? Date.now() : 0);
   const SIDE_MENU_WIDTH = 280;
   const sideMenuTranslateX = useRef(new Animated.Value(-SIDE_MENU_WIDTH)).current;
   // Store bottom navigation section separately to prevent it from refreshing
   const bottomNavSectionRef = useRef(null);
   // Initialize bottom nav from cache immediately — never shows blank on remount
   const [stableBottomNavSection, setStableBottomNavSection] = useState(() => cached?.bottomNavSection ?? null);
+  const [heavySectionsReady, setHeavySectionsReady] = useState(() => !isHomePage);
+
+  useEffect(() => {
+    dslRef.current = dsl;
+    loadingRef.current = loading;
+  }, [dsl, loading]);
+
+  useEffect(() => {
+    if (!isHomePage) {
+      setHeavySectionsReady(true);
+      return undefined;
+    }
+
+    let active = true;
+    setHeavySectionsReady(false);
+    const fallbackTimer = setTimeout(() => {
+      if (active) setHeavySectionsReady(true);
+    }, 650);
+    const interactionTask = InteractionManager.runAfterInteractions(() => {
+      if (!active) return;
+      clearTimeout(fallbackTimer);
+      setHeavySectionsReady(true);
+    });
+
+    return () => {
+      active = false;
+      clearTimeout(fallbackTimer);
+      interactionTask?.cancel?.();
+    };
+  }, [cacheKey, isHomePage]);
 
   useEffect(() => {
     if (__DEV__) {
@@ -301,6 +336,10 @@ export default function LayoutScreen({ route, navigation }) {
 
   // Reload DSL - bottom navigation will update dynamically if JSON changes
   const refreshDSL = async (withFeedback = false) => {
+    if (dslRequestInFlightRef.current) return;
+    dslRequestInFlightRef.current = true;
+    lastDslFetchAtRef.current = Date.now();
+
     try {
       const dslData = await fetchDSL(appId, pageName);
       if (dslData?.dsl) {
@@ -374,6 +413,8 @@ export default function LayoutScreen({ route, navigation }) {
     } catch (e) {
       console.log("❌ Refresh error:", e);
       if (withFeedback) showSnackbar("Couldn't refresh right now", "error");
+    } finally {
+      dslRequestInFlightRef.current = false;
     }
   };
 
@@ -385,6 +426,10 @@ export default function LayoutScreen({ route, navigation }) {
 
   // Load DSL on mount
   const loadDSL = async () => {
+    if (dslRequestInFlightRef.current) return;
+    dslRequestInFlightRef.current = true;
+    lastDslFetchAtRef.current = Date.now();
+
     try {
       // Only show spinner if there is no cached content to show yet
       if (!_pageCache[cacheKey]?.dsl) {
@@ -448,6 +493,7 @@ export default function LayoutScreen({ route, navigation }) {
       console.log("❌ DSL LOAD ERROR >>>", e);
       showSnackbar("We hit a snag loading your workspace", "error");
     } finally {
+      dslRequestInFlightRef.current = false;
       setLoading(false);
     }
   };
@@ -536,6 +582,13 @@ export default function LayoutScreen({ route, navigation }) {
   useFocusEffect(
     useCallback(() => {
       // Auto-refresh layout when screen gains focus (e.g. after saving on web)
+      if (
+        !dslRef.current ||
+        loadingRef.current ||
+        Date.now() - lastDslFetchAtRef.current < 10000
+      ) {
+        return undefined;
+      }
       refreshDSLRef.current?.(false);
       // Do not forcibly close side menu here; let user control it
       return undefined;
@@ -640,6 +693,14 @@ export default function LayoutScreen({ route, navigation }) {
                 "product_grid", "product_carousel",
                 "tab_product_grid", "tab_product_carousel",
               ].includes(componentName);
+              const isHeavyHomeSection = [
+                "product_grid", "product_carousel",
+                "tab_product_grid", "tab_product_carousel",
+                "recent_products",
+              ].includes(componentName);
+              if (isHomePage && !heavySectionsReady && i > 3 && isHeavyHomeSection) {
+                return null;
+              }
               const shouldAttachBottomNav =
                 componentName === "header" ||
                 componentName === "header_2" ||

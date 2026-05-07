@@ -459,12 +459,21 @@ export default function ProductCarousel({ section }) {
 
   const isMountedRef = useRef(true);
   const didInitialLoadRef = useRef(false);
+  const loadInFlightRef = useRef(false);
+  const lastLoadAtRef = useRef(0);
   useEffect(() => {
     isMountedRef.current = true;
     return () => { isMountedRef.current = false; };
   }, []);
 
   const loadProducts = useCallback(async () => {
+    const now = Date.now();
+    if (loadInFlightRef.current || now - lastLoadAtRef.current < 1200) {
+      return;
+    }
+    loadInFlightRef.current = true;
+    lastLoadAtRef.current = now;
+
     const safeFirst = Math.max(1, Number(itemsShown) || 4);
     const shopOptions = { shop: shopifyDomain || undefined, token: shopifyToken || undefined };
 
@@ -505,6 +514,7 @@ export default function ProductCarousel({ section }) {
         setError("Unable to load products right now. Please try again later.");
       }
     } finally {
+      loadInFlightRef.current = false;
       if (isMountedRef.current) {
         setLoading(false);
       }
