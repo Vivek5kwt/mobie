@@ -59,13 +59,51 @@ const deriveHandle = (item = {}) => {
   return normalizeKey(item.title || item.label || item.name);
 };
 
+const imageFrom = (...candidates) => {
+  for (const candidate of candidates) {
+    const value = unwrapValue(candidate, "");
+    if (!value) continue;
+    if (typeof value === "string") {
+      const trimmed = value.trim();
+      if (trimmed) return trimmed;
+      continue;
+    }
+    if (typeof value === "object") {
+      const nested = imageFrom(
+        value.url,
+        value.src,
+        value.uri,
+        value.image,
+        value.imageUrl,
+        value.thumbnail,
+        value.preview
+      );
+      if (nested) return nested;
+    }
+  }
+  return "";
+};
+
+const isRenderableImageUrl = (url) => {
+  if (!url || typeof url !== "string") return false;
+  const value = url.trim();
+  if (!value || /^blob:/i.test(value)) return false;
+  return /^(https?:|data:image\/|file:)/i.test(value);
+};
+
 const normalizeItem = (item = {}) => {
   const p = item?.properties || item;
   const title = unwrapValue(p.title ?? p.label ?? p.name ?? p.text, "");
-  const image = unwrapValue(p.image ?? p.imageUrl ?? p.src ?? p.thumbnail, "");
+  const image = imageFrom(p.image, p.imageUrl, p.src, p.thumbnail, p.uploadImage, p.backgroundImageUrl);
   const link = unwrapValue(p.link ?? p.href ?? p.url, "");
   const handle = unwrapValue(p.handle ?? p.collectionHandle ?? p.navigateRef, "");
   const id = unwrapValue(p.id, "") || handle || title;
+  const subCollections = [
+    ...asArray(p.subCollections),
+    ...asArray(p.sub_collections),
+    ...asArray(p.children),
+    ...asArray(p.items),
+  ].map(normalizeItem).filter(Boolean);
   if (!title && !handle) return null;
   return {
     id: String(id || title || handle),
@@ -73,6 +111,7 @@ const normalizeItem = (item = {}) => {
     image: String(image || ""),
     link: String(link || ""),
     handle: String(handle || ""),
+    subCollections,
   };
 };
 
@@ -90,6 +129,67 @@ const getSectionProps = (section = {}) =>
   section?.properties?.props?.properties ||
   section?.properties?.props ||
   {};
+
+const extractCollectionItemsFromValue = (value) => {
+  const resolved = unwrapValue(value, value);
+  if (!resolved) return [];
+
+  if (Array.isArray(resolved)) {
+    return resolved.map(normalizeItem).filter(Boolean);
+  }
+
+  if (Array.isArray(resolved?.items)) {
+    return resolved.items.map(normalizeItem).filter(Boolean);
+  }
+
+  if (Array.isArray(resolved?.value)) {
+    return resolved.value.map(normalizeItem).filter(Boolean);
+  }
+
+  if (typeof resolved === "object") {
+    return Object.entries(resolved)
+      .filter(([key, item]) => {
+        if (/^collection-\d+$/i.test(key)) return true;
+        const p = item?.properties || item || {};
+        return p.title || p.label || p.name || p.image || p.imageUrl || p.handle || p.collectionHandle;
+      })
+      .map(([, item]) => normalizeItem(item))
+      .filter(Boolean);
+  }
+
+  return [];
+};
+
+const findCollectionSectionItems = (dsl = {}) => {
+  const sections = dsl?.sections || [];
+  const collectionSections = sections.filter((section) => {
+    const component = getComponentName(section);
+    return [
+      "collection",
+      "collections",
+      "collection_image",
+      "collection_slider",
+      "category",
+      "categories",
+    ].includes(component);
+  });
+
+  const items = [];
+  collectionSections.forEach((section) => {
+    const props = getSectionProps(section);
+    const raw = unwrapValue(props.raw, {});
+    items.push(
+      ...extractCollectionItemsFromValue(props.items),
+      ...extractCollectionItemsFromValue(raw?.items),
+      ...extractCollectionItemsFromValue(props.collections),
+      ...extractCollectionItemsFromValue(raw?.collections),
+      ...extractCollectionItemsFromValue(props.children),
+      ...extractCollectionItemsFromValue(raw?.children)
+    );
+  });
+
+  return items;
+};
 
 const findProductListItems = (dsl = {}) => {
   const sections = dsl?.sections || [];
@@ -162,7 +262,7 @@ const mergeWithStoreCollections = (dslItems, storeItems) => {
       ...(match || {}),
       ...item,
       handle: item.handle || match?.handle || deriveHandle(item),
-      image: item.image || match?.image || "",
+      image: isRenderableImageUrl(item.image) ? item.image : match?.image || item.image || "",
       link: item.link || match?.link || "",
     };
   });
@@ -192,6 +292,7 @@ export default function SubCollectionScreen() {
     title,
     label,
     parentCollection,
+    sourcePageName,
   } = route?.params || {};
 
   const parentHandle = collectionHandle || handle || parentCollection?.handle || "";
@@ -212,8 +313,20 @@ export default function SubCollectionScreen() {
       setLoading(true);
       setError("");
       try {
-        const [homeData, productListData, storeCollections] = await Promise.all([
+        const pageCandidates = Array.from(new Set([
+          sourcePageName,
+          parentHandle,
+          parentTitle,
+          "collections",
+          "collection",
+          "categories",
+          "category",
+          "sub-collections",
+        ].filter(Boolean)));
+
+        const [homeData, pageResults, productListData, storeCollections] = await Promise.all([
           fetchDSL(appId, "home").catch(() => null),
+          Promise.all(pageCandidates.map((page) => fetchDSL(appId, page).catch(() => null))),
           fetchDSL(appId, "product-list").catch(() => null),
           fetchShopifyCollections(100).catch(() => []),
         ]);
@@ -221,7 +334,15 @@ export default function SubCollectionScreen() {
 
         const homeDsl = homeData?.dsl || homeData || {};
         const productListDsl = productListData?.dsl || productListData || {};
-        const dslItems = findProductListItems(productListDsl);
+        const routedItems = asArray(parentCollection?.subCollections).map(normalizeItem).filter(Boolean);
+        const collectionDslItems = (pageResults || [])
+          .flatMap((pageData) => findCollectionSectionItems(pageData?.dsl || pageData || {}))
+          .filter((item) => normalizeKey(item.handle || item.title) !== normalizeKey(parentHandle || parentTitle));
+        const dslItems = routedItems.length
+          ? routedItems
+          : collectionDslItems.length
+          ? collectionDslItems
+          : findProductListItems(productListDsl);
         const storeItems = (storeCollections || [])
           .map(normalizeStoreCollection)
           .filter((item) => item.title || item.handle);
@@ -240,7 +361,7 @@ export default function SubCollectionScreen() {
     return () => {
       mounted = false;
     };
-  }, [parentHandle]);
+  }, [parentCollection, parentHandle, parentTitle, sourcePageName]);
 
   const openProducts = useCallback((item) => {
     const nextHandle = item?.handle || deriveHandle(item);
@@ -265,7 +386,7 @@ export default function SubCollectionScreen() {
       activeOpacity={0.86}
       onPress={() => openProducts(item)}
     >
-      {item.image ? (
+      {isRenderableImageUrl(item.image) ? (
         <Image source={{ uri: item.image }} style={styles.image} resizeMode="cover" />
       ) : (
         <View style={[styles.image, styles.placeholder]}>

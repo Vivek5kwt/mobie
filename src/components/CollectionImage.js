@@ -8,7 +8,7 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
-import { useNavigation } from "@react-navigation/native";
+import { useNavigation, useRoute } from "@react-navigation/native";
 import { WebView } from "react-native-webview";
 import { fetchShopifyCollections, getShopifyDomain } from "../services/shopify";
 import { convertStyles } from "../utils/convertStyles";
@@ -90,8 +90,9 @@ const buildCollections = (block = {}) => {
       const image  = asString(unwrapValue(p?.image,  ""));
       const link   = asString(unwrapValue(p?.link,   ""));
       const handle = asString(unwrapValue(p?.handle ?? p?.navigateRef ?? p?.linkTo, ""));
+      const children = toArray(p?.children ?? p?.items ?? p?.subCollections ?? p?.sub_collections);
       if (!title && !image) return null;
-      return { title, image, link, handle };
+      return { title, image, link, handle, children };
     })
     .filter(Boolean);
 };
@@ -183,6 +184,7 @@ const isRenderableImageUrl = (url) => {
 
 export default function CollectionImage({ section }) {
   const navigation = useNavigation();
+  const route = useRoute();
 
   const rawProps = useMemo(
     () =>
@@ -302,6 +304,45 @@ export default function CollectionImage({ section }) {
   const layoutMode = asString(unwrapValue(behavior?.layoutMode ?? layoutCss?.slider?.layout, rawColumns ? "grid" : "horizontal")).toLowerCase();
   const isGrid     = layoutMode === "grid";
 
+  const routePageSlug = normalizeKey(
+    route?.params?.pageName ||
+    route?.params?.link ||
+    route?.params?.title ||
+    route?.name ||
+    ""
+  );
+  const isHomeContext =
+    route?.name === "LayoutScreen" ||
+    routePageSlug === "home" ||
+    routePageSlug === "layoutscreen" ||
+    !routePageSlug;
+  const flowValue = asString(
+    unwrapValue(
+      behavior?.navigationFlow ??
+      behavior?.collectionFlow ??
+      rawSnapshot?.navigationFlow ??
+      rawSnapshot?.collectionFlow ??
+      rawProps?.navigationFlow,
+      ""
+    )
+  ).toLowerCase();
+  const explicitSubCollectionFlow = asBoolean(
+    behavior?.openSubCollections ??
+    behavior?.enableSubCollections ??
+    behavior?.subCollectionFlow ??
+    rawSnapshot?.openSubCollections ??
+    rawSnapshot?.enableSubCollections ??
+    rawProps?.openSubCollections,
+    false
+  );
+  const isCollectionPageContext =
+    routePageSlug.includes("collection") ||
+    routePageSlug.includes("categor") ||
+    routePageSlug.includes("catalog");
+  const useSubCollectionFlow =
+    !isHomeContext &&
+    (explicitSubCollectionFlow || flowValue.includes("sub") || isCollectionPageContext);
+
   // Grid columns: explicit DSL column count, or derived from layoutMode
   const columns = isGrid
     ? gridColumns
@@ -381,7 +422,7 @@ export default function CollectionImage({ section }) {
   const onItemPress = useCallback((item) => {
     const handle = deriveHandle(item);
     if (!handle) return;
-    navigation.navigate("SubCollections", {
+    const params = {
       collectionHandle: handle,
       collectionTitle: item?.title || "Collection",
       parentCollection: {
@@ -389,9 +430,18 @@ export default function CollectionImage({ section }) {
         title: item?.title || "Collection",
         image: item?.image || "",
         link: item?.link || "",
+        subCollections: item?.children || [],
       },
-    });
-  }, [navigation]);
+      sourcePageName: routePageSlug,
+    };
+
+    if (useSubCollectionFlow) {
+      navigation.navigate("SubCollections", params);
+      return;
+    }
+
+    navigation.navigate("CollectionProducts", params);
+  }, [navigation, routePageSlug, useSubCollectionFlow]);
 
   // ── Render item ───────────────────────────────────────────────────────────────
   // Image inner size excludes the border width on each side
