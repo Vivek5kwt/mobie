@@ -4,6 +4,7 @@ import { useNavigation } from "@react-navigation/native";
 import Icon from "react-native-vector-icons/FontAwesome6";
 import { useSelector } from "react-redux";
 import bottomNavigationStyle1Section from "../data/bottomNavigationStyle1";
+import { useSideMenu } from "../services/SideMenuContext";
 
 const normalizeIconName = (name) => {
   if (!name) return "";
@@ -26,6 +27,7 @@ const resolveArray = (v) => {
 
 export default function HeaderDefault({ config, bottomNavSection, hideTabs = false, showBack = false }) {
   const navigation = useNavigation();
+  const { openSideMenu, toggleSideMenu } = useSideMenu();
   const canGoBack = navigation.canGoBack();
   const navSection = bottomNavSection || bottomNavigationStyle1Section;
 
@@ -441,6 +443,24 @@ export default function HeaderDefault({ config, bottomNavSection, hideTabs = fal
     const type = String(navType || "").toLowerCase().trim();
     const ref  = String(navRef  || "").trim();
     if (!ref || type === "none") return;
+    const key = ref.toLowerCase().replace(/[\s_-]+/g, "");
+    const isSideNavigationTarget =
+      key === "sidenavigation" ||
+      key === "sidemenu" ||
+      key === "drawer" ||
+      type === "sidenavigation" ||
+      type === "side_navigation" ||
+      type === "sidemenu" ||
+      type === "drawer";
+
+    if (isSideNavigationTarget) {
+      if (typeof openSideMenu === "function") {
+        openSideMenu();
+      } else if (typeof toggleSideMenu === "function") {
+        toggleSideMenu();
+      }
+      return;
+    }
 
     if (type === "screen") {
       // Map common DSL screen names to actual navigator screen names
@@ -456,7 +476,6 @@ export default function HeaderDefault({ config, bottomNavSection, hideTabs = fal
         wishlist:     "Wishlist",
         profile:      "BottomNavScreen",
       };
-      const key = ref.toLowerCase().replace(/[\s_-]+/g, "");
       const screen = screenMap[key] || ref;
       if (screen === "BottomNavScreen") {
         navigation.navigate("BottomNavScreen", {
