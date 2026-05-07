@@ -526,6 +526,7 @@ export default function SignUp({ section }) {
   const mobileButtonFontSize = buttonFontSize;
   const mobileTitleFontSize = headerTitleFontSize;
   const mobileFieldFontSize = (size) => size;
+  const inputTextAlign = "left";
   const mobileCardPaddingTop = bgPadVisible ? Math.min(pt, 24) : 0;
   const mobileCardPaddingBottom = bgPadVisible ? pb : 0;
   const mobileCardPaddingLeft = bgPadVisible ? pl : 0;
@@ -650,7 +651,8 @@ export default function SignUp({ section }) {
                   fontSize: mobileFieldFontSize(firstName ? firstNameInputTextFontSize : firstNamePlaceholderFontSize),
                   fontFamily: firstName ? firstNameInputTextFontFamily : firstNamePlaceholderFontFamily,
                   fontWeight: firstName ? firstNameInputTextFontWeight : firstNamePlaceholderFontWeight,
-                  textAlign: firstNameInputTextAlignment,
+                  textAlign: inputTextAlign,
+                  textAlignVertical: "center",
                   borderRadius: inputBorderRadius,
                   minHeight: inputHeight,
                 },
@@ -683,7 +685,8 @@ export default function SignUp({ section }) {
                   fontSize: mobileFieldFontSize(lastName ? lastNameInputTextFontSize : lastNamePlaceholderFontSize),
                   fontFamily: lastName ? lastNameInputTextFontFamily : lastNamePlaceholderFontFamily,
                   fontWeight: lastName ? lastNameInputTextFontWeight : lastNamePlaceholderFontWeight,
-                  textAlign: lastNameInputTextAlignment,
+                  textAlign: inputTextAlign,
+                  textAlignVertical: "center",
                   borderRadius: inputBorderRadius,
                   minHeight: inputHeight,
                 },
@@ -716,7 +719,8 @@ export default function SignUp({ section }) {
                   fontSize: mobileFieldFontSize(email ? emailInputTextFontSize : emailPlaceholderFontSize),
                   fontFamily: email ? emailInputTextFontFamily : emailPlaceholderFontFamily,
                   fontWeight: email ? emailInputTextFontWeight : emailPlaceholderFontWeight,
-                  textAlign: emailInputTextAlignment,
+                  textAlign: inputTextAlign,
+                  textAlignVertical: "center",
                   borderRadius: inputBorderRadius,
                   minHeight: inputHeight,
                 },
@@ -751,7 +755,8 @@ export default function SignUp({ section }) {
                   fontSize: mobileFieldFontSize(password ? passwordInputTextFontSize : passwordPlaceholderFontSize),
                   fontFamily: password ? passwordInputTextFontFamily : passwordPlaceholderFontFamily,
                   fontWeight: password ? passwordInputTextFontWeight : passwordPlaceholderFontWeight,
-                  textAlign: passwordInputTextAlignment,
+                  textAlign: inputTextAlign,
+                  textAlignVertical: "center",
                   borderRadius: inputBorderRadius,
                   minHeight: inputHeight,
                 },
@@ -937,6 +942,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 11,
     fontSize: 15,
+    textAlign: "left",
+    textAlignVertical: "center",
     width: "100%",
   },
   errorText: {

@@ -802,7 +802,6 @@ const FormField: React.FC<FieldProps> = ({
   inputFontSize,
   inputFontFamily,
   inputFontWeight,
-  inputAlign = 'left',
   inputBorderColor,
   inputBorderRadius,
   inputHeight,
@@ -847,7 +846,8 @@ const FormField: React.FC<FieldProps> = ({
             fontSize: inputFontSize,
             fontFamily: inputFontFamily !== 'System' ? inputFontFamily : undefined,
             fontWeight: inputFontWeight as any,
-            textAlign: inputAlign,
+            textAlign: 'left',
+            textAlignVertical: 'center',
             flex: rightSlot ? 1 : undefined,
             minHeight: inputHeight,
           },
@@ -872,6 +872,8 @@ const fieldStyles = StyleSheet.create({
     paddingHorizontal: 14,
     paddingVertical: 12,
     minHeight: 50,
+    textAlign: 'left',
+    textAlignVertical: 'center',
   },
 });
 
