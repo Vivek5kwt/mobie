@@ -833,7 +833,8 @@ export default function BottomNavScreen() {
                     key={index}
                     style={[
                       styles.sectionWrapper,
-                      isProductSection && styles.sectionWrapperProduct,
+                      isSearchPage && styles.sectionWrapperTight,
+                      isProductSection && !isSearchPage && styles.sectionWrapperProduct,
                     ]}
                   >
                     <DynamicRenderer section={section} />

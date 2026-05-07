@@ -6,7 +6,7 @@ import { resolveFA4IconName } from "../utils/faIconAlias";
 import { useFocusEffect, useNavigation } from "@react-navigation/native";
 import { useDispatch, useSelector } from "react-redux";
 import { addItem } from "../store/slices/cartSlice";
-import { toggleWishlist } from "../store/slices/wishlistSlice";
+import { isWishlistProduct, toggleWishlist } from "../store/slices/wishlistSlice";
 import { fetchShopifyProductsPage, fetchShopifyCollectionProducts } from "../services/shopify";
 import Snackbar from "./Snackbar";
 import { useAuth } from "../services/AuthContext";
@@ -871,7 +871,7 @@ export default function ProductGrid({ section, limit = 8, title = "Products" }) 
         <View style={styles.grid}>
           {products.map((product, index) => {
             const prodId = String(product?.id || product?.variantId || product?.handle || product?.title || "").trim();
-            const isInWishlist = prodId ? wishlistItems.some((p) => String(p.id || "").trim() === prodId) : false;
+            const isInWishlist = isWishlistProduct(wishlistItems, product);
             const isAvailable = isProductAvailable(product);
 
             // Suppress marginBottom on last-row cards so no phantom gap appears

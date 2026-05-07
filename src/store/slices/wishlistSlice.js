@@ -1,16 +1,80 @@
 import { createSlice } from "@reduxjs/toolkit";
 
-const normalizeId = (value) => String(value || "").trim();
+export const normalizeWishlistKey = (value) => String(value || "").trim();
 
-const getWishlistKeys = (product = {}) =>
+export const getWishlistKeys = (product = {}) =>
   [
     product.id,
     product.variantId,
+    product.adminGraphqlApiId,
+    product.graphqlId,
     product.handle,
+    product.productHandle,
     product.title,
+    product.name,
   ]
-    .map(normalizeId)
+    .map(normalizeWishlistKey)
     .filter(Boolean);
+
+export const getWishlistIdentityKeys = (product = {}) =>
+  [
+    product.id,
+    product.variantId,
+    product.adminGraphqlApiId,
+    product.graphqlId,
+    product.handle,
+    product.productHandle,
+  ]
+    .map(normalizeWishlistKey)
+    .filter(Boolean);
+
+export const wishlistProductsMatch = (left = {}, right = {}) => {
+  const leftIdentity = getWishlistIdentityKeys(left);
+  const rightIdentity = getWishlistIdentityKeys(right);
+  if (leftIdentity.length && rightIdentity.length) {
+    return leftIdentity.some((key) => rightIdentity.includes(key));
+  }
+  const leftKeys = getWishlistKeys(left);
+  const rightKeys = getWishlistKeys(right);
+  return leftKeys.some((key) => rightKeys.includes(key));
+};
+
+export const isWishlistProduct = (wishlistItems = [], product = {}) => {
+  const keys = getWishlistKeys(product);
+  if (!keys.length) return false;
+  return wishlistItems.some((item) => wishlistProductsMatch(item, product));
+};
+
+export const buildWishlistProduct = (product = {}) => {
+  const keys = getWishlistKeys(product);
+  const id = keys[0] || "";
+  if (!id) return null;
+  const image = product.image || product.imageUrl || product.featuredImage || "";
+  const price = product.price ?? product.priceAmount ?? product.salePrice ?? 0;
+  const compareAtPrice =
+    product.compareAtPrice ??
+    product.originalPrice ??
+    product.standardPrice ??
+    product.compareAtPriceAmount ??
+    0;
+  const currency = product.currency || product.priceCurrency || product.currencyCode || "";
+
+  return {
+    id,
+    variantId: product.variantId || "",
+    title: product.title || product.name || product.titleText || "Product",
+    image,
+    imageUrl: product.imageUrl || image,
+    price,
+    priceAmount: price,
+    compareAtPrice,
+    originalPrice: compareAtPrice,
+    currency,
+    priceCurrency: currency,
+    handle: product.handle || product.productHandle || "",
+    vendor: product.vendor || product.vendorText || product.shop || "",
+  };
+};
 
 const wishlistSlice = createSlice({
   name: "wishlist",
@@ -20,26 +84,15 @@ const wishlistSlice = createSlice({
   reducers: {
     toggleWishlist(state, action) {
       const product = action.payload?.product || {};
-      const keys = getWishlistKeys(product);
-      const id = keys[0] || "";
-      if (!id) return;
+      const wishlistProduct = buildWishlistProduct(product);
+      if (!wishlistProduct) return;
       const idx = state.items.findIndex((p) => {
-        const existingKeys = getWishlistKeys(p);
-        return existingKeys.some((key) => keys.includes(key));
+        return wishlistProductsMatch(p, product);
       });
       if (idx >= 0) {
         state.items.splice(idx, 1);
       } else {
-        state.items.push({
-          id,
-          title: product.title || "Product",
-          image: product.image || product.imageUrl || "",
-          price: product.price ?? product.priceAmount ?? 0,
-          compareAtPrice: product.compareAtPrice ?? product.originalPrice ?? 0,
-          currency: product.currency || product.priceCurrency || "",
-          handle: product.handle || "",
-          vendor: product.vendor || "",
-        });
+        state.items.push(wishlistProduct);
       }
     },
     clearWishlist(state) {

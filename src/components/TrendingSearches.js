@@ -53,6 +53,13 @@ const deriveWeight = (value, fallback = "600") => {
   return String(resolved);
 };
 
+const cleanFontFamily = (family) => {
+  const resolved = unwrapValue(family, "");
+  if (!resolved) return undefined;
+  const cleaned = String(resolved).split(",")[0].trim().replace(/['"]/g, "");
+  return cleaned || undefined;
+};
+
 // ─── Deep-unwrap a DSL node to its plain value ───────────────────────────────
 
 const deepUnwrap = (value) => {
@@ -168,14 +175,6 @@ export default function TrendingSearches({ section }) {
     [JSON.stringify(searchesRaw)]
   );
 
-  // Debug: log what was found (remove after confirming it works)
-  if (__DEV__) {
-    if (!searches.length) {
-      console.log("[TrendingSearches] No searches found. rawProps keys:", Object.keys(rawProps));
-      console.log("[TrendingSearches] rawData keys:", Object.keys(rawData));
-    }
-  }
-
   if (!searches.length) return null;
 
   // helper: check rawProps first, fall back to rawData
@@ -186,6 +185,7 @@ export default function TrendingSearches({ section }) {
   const headingText    = unwrapValue(rp("headingText") ?? rp("title"), "Trending Searches");
   const headingColor   = unwrapValue(rp("headingColor"), "#111827");
   const headingSize    = toNumber(rp("headingFontSize") ?? rp("titleFontSize"), 16);
+  const headingFontFamily = cleanFontFamily(rp("headingFontFamily"));
   const headingBold    = toBoolean(rp("headingBold"), true);
   const headingItalic  = toBoolean(rp("headingItalic"), false);
   const headingUnderline = toBoolean(rp("headingUnderline"), false);
@@ -198,18 +198,20 @@ export default function TrendingSearches({ section }) {
   const headingPaddingBottom = toNumber(rp("headingPaddingBottom"), 10);
 
   // ── Chip / pill styling ────────────────────────────────────────────────────
-  const chipBgColor     = unwrapValue(rp("chipBgColor") ?? rp("tagBgColor"), "#C8EDF0");
-  const chipTextColor   = unwrapValue(rp("chipTextColor") ?? rp("tagTextColor"), "#0E7490");
+  const chipBgColor     = unwrapValue(rp("chipBgColor") ?? rp("tagBgColor"), "#F3F4F6");
+  const chipTextColor   = unwrapValue(rp("chipTextColor") ?? rp("chipColor") ?? rp("tagTextColor"), "#111827");
   const trendingPillBgColor = unwrapValue(rp("trendingPillBgColor"), chipBgColor);
   const trendingPillTextColor = unwrapValue(rp("trendingPillTextColor"), chipTextColor);
   const chipFontSize    = toNumber(rp("chipFontSize") ?? rp("tagFontSize"), 13);
   const chipFontWeight  = deriveWeight(rp("chipFontWeight") ?? rp("tagFontWeight"), "500");
+  const chipFontFamily  = cleanFontFamily(rp("chipFontFamily"));
   const chipBorderRadius = toNumber(rp("chipBorderRadius") ?? rp("tagBorderRadius"), 999);
   const chipPaddingH    = toNumber(rp("chipPaddingH") ?? rp("tagPaddingH"), 14);
   const chipPaddingV    = toNumber(rp("chipPaddingV") ?? rp("tagPaddingV"), 8);
   const chipBorderColor = unwrapValue(rp("chipBorderColor"), "transparent");
   const chipBorderWidth = toNumber(rp("chipBorderWidth"), 0);
   const chipGap         = toNumber(rp("chipGap") ?? rp("gap"), 8);
+  const chipLineHeight  = toNumber(rp("chipLineHeight"), Math.max(18, chipFontSize + 5));
   const chipVisible     = toBoolean(rp("chipVisible"), true);
   const maxChipCount    = toNumber(rp("maxChipCount"), searches.length);
   const chipLayout      = String(unwrapValue(rp("chipLayout"), "Wrap") || "Wrap").toLowerCase();
@@ -256,9 +258,8 @@ export default function TrendingSearches({ section }) {
     }
     // Fallback: stay compatible with stacks that only expose a search page.
     if (query) {
-      navigation.navigate("BottomNavScreen", {
-        pageName: "search",
-        title: "Search",
+      navigation.navigate("AllProducts", {
+        title: `Search results for "${query}"`,
         query,
       });
     }
@@ -289,6 +290,7 @@ export default function TrendingSearches({ section }) {
               fontStyle: headingItalic ? "italic" : "normal",
               textDecorationLine: headingDecorationLine,
               paddingBottom: headingPaddingBottom,
+              ...(headingFontFamily ? { fontFamily: headingFontFamily } : null),
             },
           ]}
         >
@@ -327,7 +329,8 @@ export default function TrendingSearches({ section }) {
                 color: trendingPillTextColor,
                 fontSize: chipFontSize,
                 fontWeight: chipFontWeight,
-                lineHeight: 18,
+                lineHeight: chipLineHeight,
+                ...(chipFontFamily ? { fontFamily: chipFontFamily } : null),
               }}
             >
               {item.text}

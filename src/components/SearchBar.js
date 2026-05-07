@@ -4,6 +4,7 @@ import {
   Alert,
   DeviceEventEmitter,
   Image,
+  Keyboard,
   Linking,
   PermissionsAndroid,
   Platform,
@@ -72,6 +73,13 @@ const extractDetailSections = (rawProps) => {
     if (Array.isArray(resolved?.sections)) return resolved.sections;
   }
   return [];
+};
+
+const formatProductPrice = (product = {}) => {
+  const amount = product?.priceAmount ?? product?.price;
+  if (amount === undefined || amount === null || amount === "") return "";
+  const currency = product?.priceCurrency || product?.currency || "";
+  return [currency, amount].filter(Boolean).join(" ");
 };
 
 const toNumber = (value, fallback) => {
@@ -152,6 +160,13 @@ export default function SearchBar({ section }) {
   const autocompleteLimit = Math.max(3, getNum("autocompleteLimit", Math.min(searchLimit, 6)));
   const suggestionsTitle = get("suggestionsTitle", "Suggestions");
   const resultsTitle = get("resultsTitle", "Products");
+  const panelBgColor = get("suggestionsBgColor", get("panelBgColor", searchBgColor || "#FFFFFF"));
+  const panelBorderColor = get("suggestionsBorderColor", borderColor);
+  const panelRadius = getNum("suggestionsBorderRadius", Math.max(12, borderRadius || 12));
+  const panelTextColor = get("suggestionsTextColor", searchTextColor);
+  const panelMutedColor = get("suggestionsMutedColor", placeholderColor || "#6B7280");
+  const panelAccentColor = get("suggestionsAccentColor", searchIconColor);
+  const resultRowBgColor = get("suggestionRowBgColor", "#FFFFFF");
 
   const [value, setValue] = useState("");
   const [isFocused, setIsFocused] = useState(false);
@@ -288,16 +303,18 @@ export default function SearchBar({ section }) {
     setSubmittedTerm("");
   }, []);
 
-  const openSearchResults = useCallback(() => {
-    const term = value.trim();
+  const openSearchResults = useCallback((overrideTerm) => {
+    const term = String(overrideTerm ?? value).trim();
     if (!term) {
       setResults([]);
       setError("");
       setSubmittedTerm("");
       return;
     }
+    Keyboard.dismiss();
     setValue(term);
     setSubmittedTerm(term);
+    setIsFocused(false);
     navigation.navigate("AllProducts", {
       title: `Search results for "${term}"`,
       query: term,
@@ -307,7 +324,9 @@ export default function SearchBar({ section }) {
 
   const handleProductPress = useCallback(
     (product) => {
+      Keyboard.dismiss();
       setSubmittedTerm(value.trim());
+      setIsFocused(false);
       navigation.navigate("ProductDetail", {
         product,
         detailSections,
@@ -465,15 +484,16 @@ export default function SearchBar({ section }) {
   }, []);
 
   const searchTerm = value.trim();
-  const showSearchPanel = searchTerm.length > 0 && (isFocused || submittedTerm || loading || results.length > 0);
+  const showSearchPanel = searchTerm.length > 0 && (isFocused || submittedTerm || loading || results.length > 0 || error);
   const visibleResults = submittedTerm ? results : results.slice(0, autocompleteLimit);
   const searchPanelTitle = submittedTerm ? `${resultsTitle} for "${submittedTerm}"` : suggestionsTitle;
+  const showSearchAllRow = !submittedTerm && !!searchTerm;
 
   return (
     <View style={[styles.container, containerStyle]}>
       <View style={[styles.inputWrapper, inputWrapperStyle, borderStyle]}>
         <TouchableOpacity
-          onPress={openSearchResults}
+          onPress={() => openSearchResults()}
           activeOpacity={0.7}
           hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
           accessibilityLabel="Search products"
@@ -492,7 +512,7 @@ export default function SearchBar({ section }) {
               editable={!isListening}
               onFocus={() => setIsFocused(true)}
               onBlur={() => setIsFocused(false)}
-              onSubmitEditing={openSearchResults}
+              onSubmitEditing={() => openSearchResults()}
               returnKeyType="search"
               blurOnSubmit={false}
             />
@@ -539,40 +559,108 @@ export default function SearchBar({ section }) {
           Listening... Speak now
         </Text>
       )}
-      {error ? (
+      {error && !showSearchPanel ? (
         <Text style={styles.errorText}>{error}</Text>
       ) : null}
       {showSearchPanel && (
-        <View style={styles.resultsWrapper}>
+        <View
+          style={[
+            styles.resultsWrapper,
+            {
+              backgroundColor: panelBgColor,
+              borderColor: panelBorderColor,
+              borderRadius: panelRadius,
+            },
+          ]}
+        >
           <View style={styles.resultsHeader}>
-            <Text numberOfLines={1} style={styles.resultsTitle}>
-              {searchPanelTitle}
-            </Text>
-            {!submittedTerm && searchTerm ? (
+            <View style={styles.resultsTitleWrap}>
+              <Text numberOfLines={1} style={styles.resultsTitle}>
+                {searchPanelTitle}
+              </Text>
+              {!loading && !error && results.length > 0 ? (
+                <Text style={[styles.resultsMeta, { color: panelMutedColor }]}>
+                  {submittedTerm ? `${results.length} matching products` : "Tap a product or search all"}
+                </Text>
+              ) : null}
+            </View>
+            {showSearchAllRow ? (
               <TouchableOpacity
-                onPress={openSearchResults}
+                onPress={() => openSearchResults()}
                 activeOpacity={0.75}
                 hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+                style={styles.searchAllChip}
               >
-                <Text style={[styles.searchAllText, { color: searchIconColor }]}>Search</Text>
+                <Text style={[styles.searchAllText, { color: panelAccentColor }]}>View all</Text>
               </TouchableOpacity>
             ) : null}
           </View>
           {loading && (
-            <View style={styles.loadingRow}>
-              <ActivityIndicator size="small" color={searchIconColor} />
-              <Text style={styles.statusText}>Searching products...</Text>
+            <>
+              <View style={styles.loadingRow}>
+                <ActivityIndicator size="small" color={searchIconColor} />
+                <Text style={[styles.statusText, { color: panelMutedColor }]}>Searching products...</Text>
+              </View>
+              {[0, 1, 2].map((item) => (
+                <View key={`search-skeleton-${item}`} style={styles.skeletonRow}>
+                  <View style={styles.skeletonImage} />
+                  <View style={styles.skeletonInfo}>
+                    <View style={styles.skeletonLineWide} />
+                    <View style={styles.skeletonLineShort} />
+                  </View>
+                </View>
+              ))}
+            </>
+          )}
+          {!loading && error ? (
+            <View style={styles.emptyState}>
+              <View style={styles.emptyIconCircle}>
+                <FontAwesome name="exclamation-circle" size={18} color="#B91C1C" />
+              </View>
+              <Text style={[styles.emptyTitle, { color: panelTextColor }]}>Search is unavailable</Text>
+              <Text style={[styles.emptySubtitle, { color: panelMutedColor }]}>{error}</Text>
+            </View>
+          ) : null}
+          {!loading && !error && results.length === 0 && searchTerm && (
+            <View style={styles.emptyState}>
+              <View style={styles.emptyIconCircle}>
+                <FontAwesome name="search" size={18} color="#9CA3AF" />
+              </View>
+              <Text style={[styles.emptyTitle, { color: panelTextColor }]}>No products found</Text>
+              <Text style={[styles.emptySubtitle, { color: panelMutedColor }]}>Try a different keyword or browse all products.</Text>
+              <TouchableOpacity
+                onPress={() => openSearchResults(searchTerm)}
+                activeOpacity={0.8}
+                style={[styles.emptyAction, { backgroundColor: panelTextColor }]}
+              >
+                <Text style={styles.emptyActionText}>Search anyway</Text>
+              </TouchableOpacity>
             </View>
           )}
-          {!loading && !error && results.length === 0 && searchTerm && (
-            <Text style={styles.statusText}>No products found.</Text>
+          {!loading && !error && showSearchAllRow && results.length > 0 && (
+            <TouchableOpacity
+              style={[styles.queryRow, { backgroundColor: resultRowBgColor }]}
+              activeOpacity={0.75}
+              onPress={() => openSearchResults(searchTerm)}
+            >
+              <View style={[styles.queryIcon, { backgroundColor: panelBgColor }]}>
+                <FontAwesome name="search" size={14} color={panelAccentColor} />
+              </View>
+              <View style={styles.resultInfo}>
+                <Text numberOfLines={1} style={styles.queryTitle}>
+                  Search all results for "{searchTerm}"
+                </Text>
+                <Text style={[styles.resultPrice, { color: panelMutedColor }]}>Open product listing page</Text>
+              </View>
+              <FontAwesome name="angle-right" size={18} color="#9CA3AF" />
+            </TouchableOpacity>
           )}
           {!loading &&
             !error &&
             visibleResults.map((product) => (
               <TouchableOpacity
                 key={product.id}
-                style={styles.resultRow}
+                style={[styles.resultRow, { backgroundColor: resultRowBgColor }]}
                 onPress={() => handleProductPress(product)}
                 activeOpacity={0.7}
               >
@@ -584,12 +672,14 @@ export default function SearchBar({ section }) {
                   </View>
                 )}
                 <View style={styles.resultInfo}>
-                  <Text numberOfLines={2} style={styles.resultTitle}>
+                  <Text numberOfLines={2} style={[styles.resultTitle, { color: panelTextColor }]}>
                     {product.title}
                   </Text>
-                  <Text style={styles.resultPrice}>
-                    {[product.priceCurrency, product.priceAmount].filter(Boolean).join(" ")}
-                  </Text>
+                  {!!formatProductPrice(product) && (
+                    <Text style={[styles.resultPrice, { color: panelMutedColor }]}>
+                      {formatProductPrice(product)}
+                    </Text>
+                  )}
                 </View>
                 <FontAwesome name="angle-right" size={18} color="#9CA3AF" />
               </TouchableOpacity>
@@ -654,7 +744,7 @@ const styles = StyleSheet.create({
   },
   resultsWrapper: {
     marginTop: 12,
-    gap: 10,
+    gap: 8,
     padding: 12,
     borderRadius: 16,
     borderWidth: 1,
@@ -672,11 +762,25 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     gap: 12,
   },
-  resultsTitle: {
+  resultsTitleWrap: {
     flex: 1,
+    minWidth: 0,
+  },
+  resultsTitle: {
     color: "#111827",
     fontSize: 13,
     fontWeight: "700",
+  },
+  resultsMeta: {
+    color: "#6B7280",
+    fontSize: 11,
+    marginTop: 2,
+  },
+  searchAllChip: {
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 999,
+    backgroundColor: "#F3F4F6",
   },
   searchAllText: {
     fontSize: 12,
@@ -692,18 +796,106 @@ const styles = StyleSheet.create({
     color: "#6B7280",
     fontSize: 14,
   },
+  skeletonRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    paddingVertical: 8,
+    paddingHorizontal: 4,
+  },
+  skeletonImage: {
+    width: 56,
+    height: 56,
+    borderRadius: 10,
+    backgroundColor: "#EEF0F3",
+  },
+  skeletonInfo: {
+    flex: 1,
+    gap: 8,
+  },
+  skeletonLineWide: {
+    width: "78%",
+    height: 12,
+    borderRadius: 999,
+    backgroundColor: "#EEF0F3",
+  },
+  skeletonLineShort: {
+    width: "42%",
+    height: 10,
+    borderRadius: 999,
+    backgroundColor: "#F3F4F6",
+  },
   errorText: {
     color: "#B91C1C",
     fontSize: 14,
     marginTop: 8,
     marginHorizontal: 14,
   },
+  emptyState: {
+    alignItems: "center",
+    paddingVertical: 16,
+    paddingHorizontal: 10,
+  },
+  emptyIconCircle: {
+    width: 42,
+    height: 42,
+    borderRadius: 21,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#F3F4F6",
+    marginBottom: 8,
+  },
+  emptyTitle: {
+    color: "#111827",
+    fontSize: 14,
+    fontWeight: "700",
+  },
+  emptySubtitle: {
+    color: "#6B7280",
+    fontSize: 12,
+    marginTop: 4,
+    textAlign: "center",
+  },
+  emptyAction: {
+    marginTop: 12,
+    borderRadius: 999,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    backgroundColor: "#111827",
+  },
+  emptyActionText: {
+    color: "#FFFFFF",
+    fontSize: 12,
+    fontWeight: "700",
+  },
+  queryRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    paddingVertical: 10,
+    paddingHorizontal: 8,
+    borderRadius: 12,
+    backgroundColor: "#F9FAFB",
+  },
+  queryIcon: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#FFFFFF",
+  },
+  queryTitle: {
+    color: "#111827",
+    fontSize: 14,
+    fontWeight: "700",
+  },
   resultRow: {
     flexDirection: "row",
     alignItems: "center",
     gap: 12,
-    paddingVertical: 8,
-    paddingHorizontal: 4,
+    paddingVertical: 10,
+    paddingHorizontal: 8,
     borderRadius: 12,
     backgroundColor: "#FFFFFF",
   },

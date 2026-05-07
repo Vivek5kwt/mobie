@@ -19,7 +19,7 @@ import {
   fetchShopifyCollectionProducts,
 } from "../services/shopify";
 import { addItem } from "../store/slices/cartSlice";
-import { toggleWishlist } from "../store/slices/wishlistSlice";
+import { isWishlistProduct, toggleWishlist } from "../store/slices/wishlistSlice";
 import { resolveTextDecorationLine } from "../utils/textDecoration";
 import Snackbar from "./Snackbar";
 import { useAuth } from "../services/AuthContext";
@@ -477,7 +477,7 @@ export default function ProductCarousel({ section }) {
         const col = await fetchShopifyCollectionProducts({
           handle: collectionHandle, first: safeFirst, options: shopOptions,
         });
-        if (col?.products?.length) return col;
+        return col || { products: [], pageInfo: { hasNextPage: false, endCursor: null } };
       }
 
       // 2. Standard paginated products query
@@ -524,16 +524,6 @@ export default function ProductCarousel({ section }) {
       loadProducts();
       return undefined;
     }, [loadProducts])
-  );
-
-  const wishlistIds = useMemo(
-    () =>
-      new Set(
-        wishlistItems
-          .map((item) => String(item?.id || "").trim())
-          .filter(Boolean)
-      ),
-    [wishlistItems]
   );
 
   // Background polling every 60 s to pick up new products
@@ -913,10 +903,7 @@ export default function ProductCarousel({ section }) {
           contentContainerStyle={[styles.carousel, { gap: colGap }]}
         >
           {products.slice(0, itemsShown).map((product, index) => {
-            const productId = String(
-              product?.id || product?.variantId || product?.handle || product?.title || ""
-            ).trim();
-            const isFavorite = productId ? wishlistIds.has(productId) : false;
+            const isFavorite = isWishlistProduct(wishlistItems, product);
             const isSoldOut = !isProductAvailable(product);
 
             return (

@@ -16,7 +16,7 @@ import { useNavigation, useRoute } from "@react-navigation/native";
 import { useDispatch, useSelector } from "react-redux";
 import { PinchGestureHandler, State } from "react-native-gesture-handler";
 import FontAwesome from "react-native-vector-icons/FontAwesome";
-import { toggleWishlist } from "../store/slices/wishlistSlice";
+import { getWishlistKeys, isWishlistProduct, toggleWishlist } from "../store/slices/wishlistSlice";
 import Snackbar from "./Snackbar";
 import { useAuth } from "../services/AuthContext";
 import { requireLoginForAction } from "../utils/authGate";
@@ -70,14 +70,6 @@ const normalizePosition = (position, fallback = {}) => {
   return Object.keys(s).length ? s : fallback;
 };
 
-const resolveProductId = (product = {}) =>
-  String(product?.id || product?.variantId || product?.handle || product?.title || "").trim();
-
-const resolveProductKeys = (product = {}) =>
-  [product?.id, product?.variantId, product?.handle, product?.title]
-    .map((value) => String(value || "").trim())
-    .filter(Boolean);
-
 export default function ProductLibrary({ section }) {
   const navigation = useNavigation();
   const route = useRoute();
@@ -107,7 +99,7 @@ export default function ProductLibrary({ section }) {
   const imageStyles = css?.image || {};
   const shareStyles = css?.share || {};
   const reviewStyles = css?.reviews || {};
-  const favouriteStyles = css?.favourite || {};
+  const favouriteStyles = css?.favourite || css?.favorite || raw?.favourite || raw?.favorite || {};
   const visibility = css?.visibility || {};
 
   // ── Images ────────────────────────────────────────────────────────────────
@@ -152,24 +144,29 @@ export default function ProductLibrary({ section }) {
   const showBackButton = toBoolean(raw?.showBackButton, false);
   const ratingVisible = toBoolean(visibility?.reviews, showRating);
   const shareVisible = toBoolean(visibility?.share, false); // off by default in screenshot
-  const favouriteVisible = toBoolean(visibility?.favourite, true);
+  const favouriteVisible = toBoolean(
+    visibility?.favourite ??
+      visibility?.favorite ??
+      raw?.showFavourite ??
+      raw?.showFavorite ??
+      raw?.favouriteVisible ??
+      raw?.favoriteVisible,
+    true
+  );
   const ratingIconVisible = toBoolean(visibility?.reviewsIcon, true);
   const ratingTextVisible = toBoolean(visibility?.reviewsRating, true);
   const ratingCountVisible = toBoolean(visibility?.reviewsRatingCounter, true);
 
   // ── Wishlist state from Redux (derived from route product) ─────────────────
-  const productId = resolveProductId(productForWishlist);
-  const productKeys = useMemo(() => resolveProductKeys(productForWishlist), [productForWishlist]);
-  const isFavourite = productId
-    ? wishlistItems.some((p) =>
-        resolveProductKeys(p).some((key) => productKeys.includes(key))
-      )
-    : false;
+  const productKeys = useMemo(() => getWishlistKeys(productForWishlist), [productForWishlist]);
+  const productId = productKeys[0] || "";
+  const isFavourite = isWishlistProduct(wishlistItems, productForWishlist);
 
   const handleToggleFavourite = async () => {
     const blocked = await requireLoginForAction({ session, navigation });
     if (blocked) return;
     const adding = !isFavourite;
+    if (!productKeys.length) return;
     dispatch(
       toggleWishlist({
         product: {

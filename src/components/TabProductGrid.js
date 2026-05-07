@@ -18,7 +18,7 @@ import {
   fetchShopifyProducts,
 } from "../services/shopify";
 import { addItem } from "../store/slices/cartSlice";
-import { toggleWishlist } from "../store/slices/wishlistSlice";
+import { isWishlistProduct, toggleWishlist } from "../store/slices/wishlistSlice";
 import { resolveFA4IconName } from "../utils/faIconAlias";
 import { resolveTextDecorationLine } from "../utils/textDecoration";
 import { useAuth } from "../services/AuthContext";
@@ -188,16 +188,6 @@ export default function TabProductGrid({ section }) {
   const [loadingTabId, setLoadingTabId] = useState(null);
   const [snackVisible, setSnackVisible] = useState(false);
   const [snackMessage, setSnackMessage] = useState("");
-  const wishlistIds = useMemo(
-    () =>
-      new Set(
-        wishlistItems
-          .map((item) => String(item?.id || "").trim())
-          .filter(Boolean)
-      ),
-    [wishlistItems]
-  );
-
   const activeTab = useMemo(
     () => tabs.find((t) => t.id === activeTabId) || tabs[0],
     [tabs, activeTabId]
@@ -662,10 +652,7 @@ export default function TabProductGrid({ section }) {
         >
           {products.map((product) => {
             const carouselCardW = Math.floor(SCREEN_W * 0.42);
-            const productId = String(
-              product?.id || product?.variantId || product?.handle || product?.name || product?.title || ""
-            ).trim();
-            const isFav = productId ? wishlistIds.has(productId) : false;
+            const isFav = isWishlistProduct(wishlistItems, product);
             const inStock = isProductAvailable(product);
             return (
               <Pressable
@@ -772,10 +759,7 @@ export default function TabProductGrid({ section }) {
               ]}
             >
               {row.map((product, colIdx) => {
-                const productId = String(
-                  product?.id || product?.variantId || product?.handle || product?.name || product?.title || ""
-                ).trim();
-                const isFav = productId ? wishlistIds.has(productId) : false;
+                const isFav = isWishlistProduct(wishlistItems, product);
                 const inStock = isProductAvailable(product);
                 return (
                   <Pressable
