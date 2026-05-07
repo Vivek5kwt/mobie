@@ -15,8 +15,9 @@ import { fetchDSL } from "../engine/dslHandler";
 import { resolveAppId } from "../utils/appId";
 import FontAwesome from "react-native-vector-icons/FontAwesome";
 import { useAuth } from "../services/AuthContext";
-import { fetchCustomerOrders } from "../services/shopify";
+import { cancelShopifyOrder, fetchCustomerOrders, fetchShopifyOrderDetails } from "../services/shopify";
 import { triggerOrderNotification, ORDER_EVENTS } from "../services/notificationService";
+import { saveCompletedOrder } from "../services/orderHistoryService";
 import BottomNavigation, { BOTTOM_NAV_RESERVED_HEIGHT } from "../components/BottomNavigation";
 
 // ─── DSL helpers ──────────────────────────────────────────────────────────────
@@ -72,6 +73,9 @@ const toFontWeight = (v, fb = "400") => {
   return fb;
 };
 
+const hasOrderValue = (value) =>
+  value !== undefined && value !== null && value !== "";
+
 const dslBorder = (propsNode, defaultWidth = 1) => {
   const color = toStr(propsNode?.borderColor ?? propsNode?.strokeColor, "");
   if (!color) return {};
@@ -94,8 +98,39 @@ const getProps = (section) =>
   section?.props ||
   {};
 
-const fmt = (n, symbol = "$") =>
+const fmt = (n, symbol = "") =>
   `${symbol}${Math.abs(toNum(n, 0)).toFixed(2)}`;
+
+const currencySymbolForCode = (code = "") => {
+  const normalized = String(code || "").trim().toUpperCase();
+  const symbols = {
+    INR: "₹",
+    USD: "$",
+    CAD: "$",
+    AUD: "$",
+    EUR: "€",
+    GBP: "£",
+    JPY: "¥",
+  };
+  return symbols[normalized] || normalized || "";
+};
+
+const formatAddressForDisplay = (address) => {
+  if (!address || typeof address !== "object") return "";
+  if (Array.isArray(address.formatted) && address.formatted.length) {
+    return address.formatted.filter(Boolean).join("\n");
+  }
+  return [
+    address.name,
+    address.address1,
+    address.address2,
+    address.city,
+    address.province,
+    address.country,
+    address.zip,
+    address.phone,
+  ].filter(Boolean).join("\n");
+};
 
 // ─── Main Screen ──────────────────────────────────────────────────────────────
 
@@ -112,10 +147,13 @@ export default function OrderDetailScreen() {
   const [dslLoading,      setDslLoading]      = useState(true);
   const [order,           setOrder]           = useState(routeOrder);
   const [fetchingOrders,  setFetchingOrders]  = useState(!routeOrder);
+  const [detailsRefreshing, setDetailsRefreshing] = useState(false);
+  const [detailsError, setDetailsError] = useState("");
   const [noOrders,        setNoOrders]        = useState(false);
   const [bottomNavSection, setBottomNavSection] = useState(null);
   const [bottomNavHeight,  setBottomNavHeight]  = useState(BOTTOM_NAV_RESERVED_HEIGHT);
   const versionRef = useRef(null);
+  const enrichedOrderRef = useRef("");
 
   // ── Load DSL ──────────────────────────────────────────────────────────────
   const loadDsl = useCallback(async () => {
@@ -183,6 +221,33 @@ export default function OrderDetailScreen() {
     })();
     return () => { mounted = false; };
   }, [routeOrder, session]);
+
+  useEffect(() => {
+    if (!order) return;
+    const key = String(order.adminOrderId || order.id || order.orderNumber || order.name || order.statusUrl || "");
+    if (!key || enrichedOrderRef.current === key) return;
+
+    let mounted = true;
+    enrichedOrderRef.current = key;
+    setDetailsRefreshing(true);
+    setDetailsError("");
+
+    (async () => {
+      try {
+        const latest = await fetchShopifyOrderDetails({ order });
+        if (!mounted || !latest) return;
+        setOrder((current) => ({ ...(current || {}), ...latest }));
+      } catch (_) {
+        if (mounted) {
+          setDetailsError("Some order details could not be refreshed from the store.");
+        }
+      } finally {
+        if (mounted) setDetailsRefreshing(false);
+      }
+    })();
+
+    return () => { mounted = false; };
+  }, [order]);
 
   // ── Bottom nav from home DSL ───────────────────────────────────────────────
   useEffect(() => {
@@ -265,6 +330,23 @@ export default function OrderDetailScreen() {
             ]}
             showsVerticalScrollIndicator={false}
           >
+            {(detailsRefreshing || detailsError) && (
+              <View style={[
+                styles.detailNotice,
+                detailsError ? styles.detailNoticeError : null,
+              ]}>
+                {detailsRefreshing ? (
+                  <ActivityIndicator size="small" color="#0EA5E9" />
+                ) : null}
+                <Text style={[
+                  styles.detailNoticeText,
+                  detailsError ? styles.detailNoticeErrorText : null,
+                ]}>
+                  {detailsError || "Refreshing latest order details..."}
+                </Text>
+              </View>
+            )}
+
             {/* Order info card */}
             <OrderInfoSection section={orderInfoSection} order={order} />
 
@@ -275,10 +357,14 @@ export default function OrderDetailScreen() {
             {cancelOrderSection && (
               <CancelOrderSection
                 section={cancelOrderSection}
-                navigation={navigation}
                 order={order}
                 appId={appId}
                 userId={session?.user?.id ?? null}
+                email={session?.user?.email || ""}
+                onCanceled={(updatedOrder) => {
+                  setOrder((current) => ({ ...(current || {}), ...(updatedOrder || {}) }));
+                  setDetailsError("");
+                }}
               />
             )}
 
@@ -307,7 +393,6 @@ export default function OrderDetailScreen() {
 
 function OrderInfoSection({ section, order }) {
   const propsNode = section ? getProps(section) : {};
-  const dslInfo   = unwrap(propsNode?.orderInfo, {}) || {};
 
   const cardBg          = toStr(propsNode?.bgColor ?? propsNode?.backgroundColor ?? propsNode?.cardBg, "#FFFFFF");
   const cardRadius      = toNum(propsNode?.borderRadius ?? propsNode?.radius ?? propsNode?.cornerRadius, 12);
@@ -325,14 +410,14 @@ function OrderInfoSection({ section, order }) {
   const rowPr           = toNum(propsNode?.rowPaddingRight ?? propsNode?.paddingRight, 16);
 
   const info = {
-    orderDate:      order?.orderDate      || toStr(dslInfo.orderDate,      ""),
-    orderNumber:    order?.orderNumber    || toStr(dslInfo.orderNumber,     ""),
-    status:         order?.status         || toStr(dslInfo.status,          ""),
-    deliveryMethod: order?.deliveryMethod || toStr(dslInfo.deliveryMethod,  ""),
-    address:        order?.address        || toStr(dslInfo.address,         ""),
-    arrival:        order?.arrival        || toStr(dslInfo.arrival,         ""),
-    billing:        order?.billing        || toStr(dslInfo.billing,         ""),
-    payment:        order?.payment        || toStr(dslInfo.payment,         ""),
+    orderDate:      order?.orderDate || order?.placedOn || order?.processedAt || "",
+    orderNumber:    order?.orderNumber || order?.name || "",
+    status:         order?.status || "",
+    deliveryMethod: order?.deliveryMethod || order?.shippingMethod || "",
+    address:        order?.address || formatAddressForDisplay(order?.shippingAddress),
+    arrival:        order?.arrival || order?.estimatedDelivery || "",
+    billing:        order?.billing || formatAddressForDisplay(order?.billingAddress),
+    payment:        order?.payment || order?.paymentMethod || (Array.isArray(order?.paymentGatewayNames) ? order.paymentGatewayNames.join(", ") : ""),
   };
 
   const rows = [
@@ -391,7 +476,14 @@ function PriceInfoSection({ section, order }) {
   const totalColor   = toStr(propsNode?.totalColor ?? propsNode?.boldColor, "#111827");
   const rowFontSize  = toNum(propsNode?.fontSize, 14);
   const totalSize    = toNum(propsNode?.totalFontSize ?? propsNode?.boldFontSize, 15);
-  const currSymbol   = toStr(propsNode?.currencySymbol ?? propsNode?.currency, order?.currencySymbol || "$");
+  const orderCurrencyCode = toStr(order?.currencyCode ?? order?.priceCurrency, "");
+  const orderCurrencySymbol = toStr(order?.currencySymbol, "");
+  const normalizedOrderSymbol = orderCurrencySymbol === "$" && orderCurrencyCode
+    ? ""
+    : orderCurrencySymbol;
+  const currSymbol =
+    normalizedOrderSymbol ||
+    currencySymbolForCode(orderCurrencyCode);
   const rowFontFamily = cleanFontFamily(toStr(propsNode?.fontFamily, ""));
   const labelWeight = toFontWeight(propsNode?.labelFontWeight, "400");
   const valueWeight = toFontWeight(propsNode?.valueFontWeight, "400");
@@ -401,16 +493,16 @@ function PriceInfoSection({ section, order }) {
   const showTax = toBool(propsNode?.showTax, true);
   const showTotal = toBool(propsNode?.showTotal, true);
 
-  const delivery = order?.delivery !== undefined ? order.delivery : toNum(propsNode?.delivery, 0);
-  const tax      = order?.tax      !== undefined ? order.tax      : toNum(propsNode?.tax,      0);
-  const total    = order?.total    !== undefined ? order.total    : toNum(propsNode?.total,     0);
-  const subtotal = order?.subtotal !== undefined ? order.subtotal : toNum(propsNode?.subtotal, total);
+  const delivery = hasOrderValue(order?.delivery) ? order.delivery : undefined;
+  const tax      = hasOrderValue(order?.tax) ? order.tax : undefined;
+  const total    = hasOrderValue(order?.total) ? order.total : undefined;
+  const subtotal = hasOrderValue(order?.subtotal) ? order.subtotal : undefined;
 
   const rows = [
-    showSubtotal ? { label: toStr(propsNode?.subtotalLabel ?? propsNode?.subTotalLabel, "Subtotal"), value: fmt(subtotal, currSymbol), bold: false } : null,
-    showDelivery ? { label: toStr(propsNode?.deliveryLabel, "Delivery"), value: fmt(delivery, currSymbol), bold: false } : null,
-    showTax ? { label: toStr(propsNode?.taxLabel, "Tax"), value: fmt(tax, currSymbol), bold: false } : null,
-    showTotal ? { label: toStr(propsNode?.totalLabel, "Total"), value: fmt(total, currSymbol), bold: true } : null,
+    showSubtotal && hasOrderValue(subtotal) ? { label: toStr(propsNode?.subtotalLabel ?? propsNode?.subTotalLabel, "Subtotal"), value: fmt(subtotal, currSymbol), bold: false } : null,
+    showDelivery && hasOrderValue(delivery) ? { label: toStr(propsNode?.deliveryLabel, "Delivery"), value: fmt(delivery, currSymbol), bold: false } : null,
+    showTax && hasOrderValue(tax) ? { label: toStr(propsNode?.taxLabel, "Tax"), value: fmt(tax, currSymbol), bold: false } : null,
+    showTotal && hasOrderValue(total) ? { label: toStr(propsNode?.totalLabel, "Total"), value: fmt(total, currSymbol), bold: true } : null,
   ].filter(Boolean);
 
   const border = dslBorder(propsNode);
@@ -449,9 +541,11 @@ function PriceInfoSection({ section, order }) {
 
 // ─── Cancel Order Section ─────────────────────────────────────────────────────
 
-function CancelOrderSection({ section, navigation, order, appId, userId }) {
+function CancelOrderSection({ section, order, appId, userId, email, onCanceled }) {
   const propsNode = getProps(section);
   const raw       = unwrap(propsNode?.raw, {}) || {};
+  const [submitting, setSubmitting] = useState(false);
+  const [errorText, setErrorText] = useState("");
 
   const label      = toStr(raw.label,                    "Cancel order");
   const visibility = raw.visibility || {};
@@ -472,8 +566,63 @@ function CancelOrderSection({ section, navigation, order, appId, userId }) {
   const outerPb = toNum(boxBg.paddingBottom, 0);
   const outerPl = toNum(boxBg.paddingLeft, 0);
   const outerPr = toNum(boxBg.paddingRight, 0);
+  const status = String(order?.status || order?.financialStatus || "").trim().toLowerCase();
+  const alreadyCanceled = !!order?.cancelledAt || status === "canceled" || status === "cancelled" || status === "voided";
+  const canCancel = !alreadyCanceled && order?.cancellable !== false;
+  const disabled = submitting || !canCancel;
+
+  const performCancel = async () => {
+    setSubmitting(true);
+    setErrorText("");
+    try {
+      const result = await cancelShopifyOrder({
+        order,
+        reason: toStr(raw.cancelReason, "customer"),
+        notifyCustomer: toBool(raw.notifyCustomer, true),
+      });
+      const updatedOrder = {
+        ...(order || {}),
+        ...(result?.order || {}),
+        status: result?.order?.status || "Canceled",
+        cancellable: false,
+      };
+
+      onCanceled?.(updatedOrder);
+
+      saveCompletedOrder({
+        appId,
+        userId,
+        email,
+        order: updatedOrder,
+      }).catch(() => {});
+
+      triggerOrderNotification({
+        type: ORDER_EVENTS.ORDER_CANCELED,
+        orderNumber: updatedOrder?.orderNumber || "",
+        orderId: updatedOrder?.id ? String(updatedOrder.id) : null,
+        appId,
+        userId,
+      }).catch(() => {});
+
+      Alert.alert(
+        result?.alreadyCanceled ? "Order already canceled" : "Order canceled",
+        result?.alreadyCanceled
+          ? "This order was already canceled in the store."
+          : "Your order has been canceled successfully."
+      );
+    } catch (error) {
+      const message =
+        error?.message ||
+        "Unable to cancel this order right now. Please try again.";
+      setErrorText(message);
+      Alert.alert("Cancel order failed", message);
+    } finally {
+      setSubmitting(false);
+    }
+  };
 
   const handleCancel = () => {
+    if (disabled) return;
     Alert.alert(
       "Cancel Order",
       "Are you sure you want to cancel this order?",
@@ -482,16 +631,7 @@ function CancelOrderSection({ section, navigation, order, appId, userId }) {
         {
           text: "Cancel Order",
           style: "destructive",
-          onPress: () => {
-            triggerOrderNotification({
-              type: ORDER_EVENTS.ORDER_CANCELED,
-              orderNumber: order?.orderNumber || "",
-              orderId: order?.id ? String(order.id) : null,
-              appId,
-              userId,
-            }).catch(() => {});
-            navigation.goBack();
-          },
+          onPress: performCancel,
         },
       ],
       { cancelable: true }
@@ -504,16 +644,24 @@ function CancelOrderSection({ section, navigation, order, appId, userId }) {
         style={[
           styles.cancelButton,
           {
-            backgroundColor: bgColor,
+            backgroundColor: disabled ? "#E5E7EB" : bgColor,
             borderRadius,
             ...(borderColor ? { borderColor, borderWidth: 1 } : { borderWidth: 0 }),
           },
         ]}
         onPress={handleCancel}
+        disabled={disabled}
         activeOpacity={0.85}
       >
-        <Text style={{ color: textColor, fontSize, fontWeight, ...(fontFamily ? { fontFamily } : {}) }}>{label}</Text>
+        {submitting ? (
+          <ActivityIndicator size="small" color={textColor} />
+        ) : (
+          <Text style={{ color: disabled ? "#6B7280" : textColor, fontSize, fontWeight, ...(fontFamily ? { fontFamily } : {}) }}>
+            {alreadyCanceled ? "Order canceled" : label}
+          </Text>
+        )}
       </TouchableOpacity>
+      {errorText ? <Text style={styles.cancelErrorText}>{errorText}</Text> : null}
     </View>
   );
 }
@@ -686,6 +834,28 @@ const styles = StyleSheet.create({
   },
 
   // ── Card shared
+  detailNotice: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    borderRadius: 10,
+    backgroundColor: "#EFF6FF",
+  },
+  detailNoticeError: {
+    backgroundColor: "#FEF2F2",
+  },
+  detailNoticeText: {
+    flex: 1,
+    color: "#1D4ED8",
+    fontSize: 12,
+    lineHeight: 17,
+  },
+  detailNoticeErrorText: {
+    color: "#B91C1C",
+  },
+
   card: { overflow: "hidden" },
 
   // ── Order Info
@@ -737,6 +907,14 @@ const styles = StyleSheet.create({
   },
 
   // ── Order Items
+  cancelErrorText: {
+    marginTop: 8,
+    color: "#B91C1C",
+    fontSize: 12,
+    lineHeight: 17,
+    textAlign: "center",
+  },
+
   itemsContainer: { gap: 12 },
   itemCard: {
     flexDirection: "row",

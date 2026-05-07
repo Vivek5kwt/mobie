@@ -4,6 +4,7 @@ const STOREFRONT_VERSION = "2024-10";
 // Backend proxy — handles Shopify auth server-side so the mobile app
 // never needs a valid storefront token on-device.
 const PROXY_ENDPOINT = "https://app.mobidrag.com/api/shopify/preview-graphql";
+const ADMIN_API_VERSION = STOREFRONT_VERSION;
 
 // Fallback credentials — used when getStore fails
 const FALLBACK_SHOP    = "mobidrag-demo.myshopify.com";
@@ -74,6 +75,7 @@ const getShopifyCredentials = async () => {
     shop:    config?.shopify_domain          || FALLBACK_SHOP,
     token:   config?.storefront_access_token || FALLBACK_TOKEN,
     storeId,
+    currency: config?.currency || "",
   };
 };
 
@@ -650,6 +652,233 @@ const formatOrderDate = (value, style = "long") => {
   return date.toLocaleDateString("en-US", options);
 };
 
+const extractShopifyNumericId = (value) => {
+  const raw = String(value || "").trim();
+  if (!raw) return "";
+  const gidMatch = raw.match(/\/(\d+)(?:\?|$)/);
+  if (gidMatch) return gidMatch[1];
+  const plainMatch = raw.match(/^#?(\d+)$/);
+  if (plainMatch) return plainMatch[1];
+  return "";
+};
+
+const formatAddressLines = (address = {}) => {
+  if (!address || typeof address !== "object") return "";
+  if (Array.isArray(address.formatted) && address.formatted.length) {
+    return address.formatted.filter(Boolean).join("\n");
+  }
+  return [
+    address.name,
+    address.address1,
+    address.address2,
+    address.city,
+    address.province,
+    address.country,
+    address.zip,
+    address.phone,
+  ]
+    .filter(Boolean)
+    .join("\n");
+};
+
+const getShopifyAdminCredentials = async () => {
+  const config = await fetchStoreConfig();
+  const shop = config?.shopify_domain || FALLBACK_SHOP;
+  const accessToken = config?.access_token || config?.admin_access_token || "";
+  const storeId = config?.id ? Number(config.id) : FALLBACK_STORE_ID;
+  return { shop, accessToken, storeId, currency: config?.currency || "" };
+};
+
+const shopifyAdminRequest = async ({ path, method = "GET", body }) => {
+  const { shop, accessToken } = await getShopifyAdminCredentials();
+  if (!accessToken) {
+    throw new Error("Store Admin API token is unavailable.");
+  }
+
+  const response = await fetch(`https://${shop}/admin/api/${ADMIN_API_VERSION}${path}`, {
+    method,
+    headers: {
+      "Content-Type": "application/json",
+      "X-Shopify-Access-Token": accessToken,
+    },
+    body: body ? JSON.stringify(body) : undefined,
+  });
+
+  const text = await response.text();
+  let json = {};
+  try {
+    json = text ? JSON.parse(text) : {};
+  } catch (_) {
+    json = {};
+  }
+
+  if (!response.ok) {
+    const message =
+      json?.errors ||
+      json?.error ||
+      json?.message ||
+      text ||
+      `Shopify Admin API HTTP ${response.status}`;
+    throw new Error(typeof message === "string" ? message : JSON.stringify(message));
+  }
+
+  return json;
+};
+
+const mapAdminOrder = (adminOrder = {}, fallback = {}) => {
+  if (!adminOrder || typeof adminOrder !== "object") return fallback;
+  const currency = adminOrder.currency || fallback.currencyCode || "";
+  const currencySymbol = currency ? currencySymbolForCode(currency) : fallback.currencySymbol || "";
+  const paymentGatewayNames = Array.isArray(adminOrder.payment_gateway_names)
+    ? adminOrder.payment_gateway_names.filter(Boolean)
+    : [];
+  const shippingLine = Array.isArray(adminOrder.shipping_lines)
+    ? adminOrder.shipping_lines.find(Boolean)
+    : null;
+  const totalShipping = Array.isArray(adminOrder.shipping_lines)
+    ? adminOrder.shipping_lines.reduce((sum, line) => sum + parseFloat(line?.price || 0), 0)
+    : fallback.delivery;
+  const financialStatus = adminOrder.financial_status || fallback.financialStatus || "";
+  const fulfillmentStatus = adminOrder.fulfillment_status || fallback.fulfillmentStatus || "";
+  const cancelledAt = adminOrder.cancelled_at || fallback.cancelledAt || "";
+  const status = cancelledAt
+    ? "Canceled"
+    : formatOrderStatus(fulfillmentStatus, financialStatus) || fallback.status || "";
+
+  return {
+    ...fallback,
+    id: fallback.id || adminOrder.admin_graphql_api_id || (adminOrder.id ? `gid://shopify/Order/${adminOrder.id}` : ""),
+    adminOrderId: adminOrder.id ? String(adminOrder.id) : fallback.adminOrderId || "",
+    adminGraphqlApiId: adminOrder.admin_graphql_api_id || fallback.adminGraphqlApiId || "",
+    name: adminOrder.name || fallback.name || "",
+    orderNumber: adminOrder.name || fallback.orderNumber || "",
+    orderDate: formatOrderDate(adminOrder.processed_at || adminOrder.created_at) || fallback.orderDate || "",
+    placedAt: adminOrder.processed_at || adminOrder.created_at || fallback.placedAt || "",
+    placedOn: formatOrderDate(adminOrder.processed_at || adminOrder.created_at, "short") || fallback.placedOn || "",
+    status,
+    financialStatus,
+    fulfillmentStatus,
+    cancelledAt,
+    cancelReason: adminOrder.cancel_reason || fallback.cancelReason || "",
+    statusUrl: adminOrder.order_status_url || fallback.statusUrl || "",
+    deliveryMethod: shippingLine?.title || shippingLine?.code || fallback.deliveryMethod || "",
+    shippingAddress: adminOrder.shipping_address || fallback.shippingAddress || null,
+    billingAddress: adminOrder.billing_address || fallback.billingAddress || null,
+    address: formatAddressLines(adminOrder.shipping_address) || fallback.address || "",
+    billing: formatAddressLines(adminOrder.billing_address) || fallback.billing || "",
+    paymentGatewayNames,
+    paymentMethod: paymentGatewayNames.join(", ") || fallback.paymentMethod || "",
+    payment: paymentGatewayNames.join(", ") || fallback.payment || "",
+    delivery: Number.isFinite(totalShipping) ? totalShipping : parseFloat(adminOrder.total_shipping_price_set?.shop_money?.amount || 0),
+    tax: parseFloat(adminOrder.current_total_tax || adminOrder.total_tax || fallback.tax || 0),
+    subtotal: parseFloat(adminOrder.current_subtotal_price || adminOrder.subtotal_price || fallback.subtotal || 0),
+    total: parseFloat(adminOrder.current_total_price || adminOrder.total_price || fallback.total || 0),
+    currencyCode: currency,
+    currencySymbol,
+    cancellable: !cancelledAt && !["refunded", "voided"].includes(String(financialStatus).toLowerCase()),
+    lineItems: Array.isArray(fallback.lineItems) && fallback.lineItems.length
+      ? fallback.lineItems
+      : (adminOrder.line_items || []).map((line) => ({
+          id: line.admin_graphql_api_id || String(line.id || ""),
+          variantId: line.variant_id ? `gid://shopify/ProductVariant/${line.variant_id}` : "",
+          productId: line.product_id ? `gid://shopify/Product/${line.product_id}` : "",
+          title: line.title || line.name || "Product",
+          variant: line.variant_title || "",
+          quantity: line.quantity || 1,
+          priceAmount: parseFloat(line.price || 0),
+          priceCurrency: currency,
+          price: `${currencySymbol}${parseFloat(line.price || 0).toFixed(2)}`,
+        })),
+  };
+};
+
+const findAdminOrderForCustomerOrder = async (order = {}) => {
+  const numericId = extractShopifyNumericId(order?.adminOrderId || order?.id || order?.adminGraphqlApiId);
+  const fields = [
+    "id",
+    "admin_graphql_api_id",
+    "name",
+    "order_number",
+    "processed_at",
+    "created_at",
+    "cancelled_at",
+    "cancel_reason",
+    "financial_status",
+    "fulfillment_status",
+    "currency",
+    "current_total_price",
+    "total_price",
+    "current_subtotal_price",
+    "subtotal_price",
+    "current_total_tax",
+    "total_tax",
+    "shipping_address",
+    "billing_address",
+    "payment_gateway_names",
+    "shipping_lines",
+    "line_items",
+    "order_status_url",
+  ].join(",");
+
+  if (numericId) {
+    const json = await shopifyAdminRequest({
+      path: `/orders/${numericId}.json?fields=${encodeURIComponent(fields)}`,
+    });
+    return json?.order || null;
+  }
+
+  const name = String(order?.name || order?.orderNumber || "").trim();
+  if (!name) return null;
+  const json = await shopifyAdminRequest({
+    path: `/orders.json?status=any&limit=1&name=${encodeURIComponent(name)}&fields=${encodeURIComponent(fields)}`,
+  });
+  return Array.isArray(json?.orders) ? json.orders[0] || null : null;
+};
+
+export async function fetchShopifyOrderDetails({ order } = {}) {
+  if (!order) return null;
+  const adminOrder = await findAdminOrderForCustomerOrder(order);
+  return adminOrder ? mapAdminOrder(adminOrder, order) : order;
+}
+
+export async function cancelShopifyOrder({ order, reason = "customer", notifyCustomer = true } = {}) {
+  if (!order) {
+    throw new Error("Order is required.");
+  }
+  const adminOrder = await findAdminOrderForCustomerOrder(order);
+  const adminOrderId = adminOrder?.id || extractShopifyNumericId(order?.adminOrderId || order?.id);
+  if (!adminOrderId) {
+    throw new Error("Unable to resolve the Shopify order id.");
+  }
+  if (adminOrder?.cancelled_at) {
+    return {
+      success: true,
+      order: mapAdminOrder(adminOrder, order),
+      alreadyCanceled: true,
+    };
+  }
+
+  const json = await shopifyAdminRequest({
+    path: `/orders/${adminOrderId}/cancel.json`,
+    method: "POST",
+    body: {
+      reason,
+      email: notifyCustomer,
+    },
+  });
+
+  const canceledOrder = json?.order || {
+    ...adminOrder,
+    cancelled_at: new Date().toISOString(),
+    cancel_reason: reason,
+  };
+
+  return {
+    success: true,
+    order: mapAdminOrder(canceledOrder, order),
+  };
+}
+
 export async function createShopifyCustomerAccessToken({ email, password, options = {} } = {}) {
   if (!email || !password) return null;
 
@@ -1201,8 +1430,10 @@ export async function fetchCustomerOrders({ customerAccessToken, first = 10 } = 
                 address1
                 address2
                 city
+                province
                 country
                 zip
+                phone
               }
               lineItems(first: 20) {
                 edges {
@@ -1244,15 +1475,12 @@ export async function fetchCustomerOrders({ customerAccessToken, first = 10 } = 
     const edges = json?.data?.customer?.orders?.edges || [];
     const orders = edges.map(({ node }) => {
       const addr = node.shippingAddress;
-      const addressText = addr
-        ? [addr.name, addr.address1, addr.address2, addr.city, addr.country, addr.zip]
-            .filter(Boolean).join("\n")
-        : "";
+      const addressText = formatAddressLines(addr);
       const totalMoney = node.totalPriceV2 || {};
       const subtotalMoney = node.subtotalPriceV2 || totalMoney;
       const shippingMoney = node.totalShippingPriceV2 || {};
       const taxMoney = node.totalTaxV2 || {};
-      const currency = totalMoney?.currencyCode || subtotalMoney?.currencyCode || "";
+      const currency = totalMoney?.currencyCode || subtotalMoney?.currencyCode || creds.currency || "";
       const currencySymbol = currencySymbolForCode(currency);
       return {
         id:             node.id,
@@ -1265,10 +1493,14 @@ export async function fetchCustomerOrders({ customerAccessToken, first = 10 } = 
         fulfillmentStatus: node.fulfillmentStatus || "",
         financialStatus: node.financialStatus || "",
         statusUrl:      node.statusUrl || "",
-        deliveryMethod: "Standard",
+        deliveryMethod: "",
+        shippingAddress: addr || null,
         address:        addressText,
         arrival:        "",
-        billing:        "Same as delivery address",
+        billingAddress: null,
+        billing:        "",
+        paymentMethod:  "",
+        paymentGatewayNames: [],
         payment:        "",
         delivery:       parseFloat(shippingMoney?.amount || 0),
         tax:            parseFloat(taxMoney?.amount || 0),
@@ -1276,6 +1508,7 @@ export async function fetchCustomerOrders({ customerAccessToken, first = 10 } = 
         total:          parseFloat(totalMoney?.amount || 0),
         currencyCode:   currency,
         currencySymbol,
+        cancellable:    !["REFUNDED", "VOIDED"].includes(String(node.financialStatus || "").toUpperCase()),
         lineItems: (node.lineItems?.edges || []).map(({ node: li }) => ({
           id:            li.variant?.id || li.title,
           variantId:     li.variant?.id || "",

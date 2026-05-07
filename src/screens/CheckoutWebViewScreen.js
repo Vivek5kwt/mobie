@@ -17,6 +17,7 @@ import { useAuth } from "../services/AuthContext";
 import { resolveAppId } from "../utils/appId";
 import { triggerOrderNotification, ORDER_EVENTS } from "../services/notificationService";
 import { saveCompletedOrder } from "../services/orderHistoryService";
+import { getStoreConfigSync } from "../services/storeService";
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -31,52 +32,92 @@ const extractOrderNumber = (url) => {
     const n = u.searchParams.get("order_number") || u.searchParams.get("order");
     if (n) return `#${n}`;
   } catch (_) {}
-  return `#${Math.floor(1000 + Math.random() * 9000)}`;
+  return "";
 };
 
-const buildOrderFromCart = (capturedItems, url) => {
+const currencySymbolForCode = (code = "") => {
+  const normalized = String(code || "").trim().toUpperCase();
+  const symbols = {
+    INR: "₹",
+    USD: "$",
+    CAD: "$",
+    AUD: "$",
+    EUR: "€",
+    GBP: "£",
+    JPY: "¥",
+  };
+  return symbols[normalized] || normalized || "";
+};
+
+const looksLikeCurrencyCode = (value = "") =>
+  /^[A-Z]{3}$/.test(String(value || "").trim().toUpperCase());
+
+const resolveItemCurrencyCode = (item = {}, fallbackCode = "") => {
+  const explicit =
+    item.priceCurrency ||
+    item.currencyCode ||
+    item.presentmentCurrencyCode ||
+    "";
+  if (explicit) return String(explicit).trim().toUpperCase();
+  if (looksLikeCurrencyCode(item.currency)) {
+    return String(item.currency).trim().toUpperCase();
+  }
+  return String(fallbackCode || "").trim().toUpperCase();
+};
+
+const buildOrderFromCart = (capturedItems, url, storeCurrencyCode = "") => {
   const today   = new Date();
   const fmt     = (d) => d.toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric" });
-  const arrival = new Date(today.getTime() + 7 * 24 * 60 * 60 * 1000);
+  const firstCurrencyCode = (capturedItems || [])
+    .map((item) => resolveItemCurrencyCode(item, storeCurrencyCode))
+    .find(Boolean);
 
-  const lineItems = (capturedItems || []).map((item) => ({
-    id:       String(item.id || item.variantId || ""),
-    variantId: item.variantId || item.id || "",
-    handle:   item.handle || "",
-    title:    item.title || "Product",
-    variant:  item.variant || "",
-    imageUrl: item.image || item.imageUrl || "",
-    image:    item.image || item.imageUrl || "",
-    priceAmount: parseFloat(item.price || 0),
-    priceCurrency: item.currency || item.priceCurrency || "USD",
-    price:    item.price
-      ? `${item.currency || item.currencySymbol || "$"}${parseFloat(item.price).toFixed(2)}`
-      : "",
-    quantity: item.quantity || 1,
-  }));
+  const lineItems = (capturedItems || []).map((item) => {
+    const currencyCode = resolveItemCurrencyCode(item, storeCurrencyCode);
+    const rawItemSymbol = item.currencySymbol || (!looksLikeCurrencyCode(item.currency) ? item.currency : "");
+    const itemSymbol = rawItemSymbol === "$" && currencyCode
+      ? ""
+      : rawItemSymbol;
+    const symbol = itemSymbol || currencySymbolForCode(currencyCode);
+    return {
+      id:       String(item.id || item.variantId || ""),
+      variantId: item.variantId || item.id || "",
+      handle:   item.handle || "",
+      title:    item.title || "Product",
+      variant:  item.variant || "",
+      imageUrl: item.image || item.imageUrl || "",
+      image:    item.image || item.imageUrl || "",
+      priceAmount: parseFloat(item.price || 0),
+      priceCurrency: currencyCode,
+      price:    item.price
+        ? `${symbol}${parseFloat(item.price).toFixed(2)}`
+        : "",
+      quantity: item.quantity || 1,
+    };
+  });
 
   const subtotal = (capturedItems || []).reduce(
     (sum, item) => sum + parseFloat(item.price || 0) * (item.quantity || 1),
     0
   );
-  const tax   = parseFloat((subtotal * 0.08).toFixed(2));
-  const total = parseFloat((subtotal + tax).toFixed(2));
+  const total = parseFloat(subtotal.toFixed(2));
+  const orderNumber = extractOrderNumber(url);
+  const currencySymbol = currencySymbolForCode(firstCurrencyCode);
 
   return {
-    id:             extractOrderNumber(url),
-    orderNumber:    extractOrderNumber(url),
+    id:             orderNumber,
+    orderNumber,
     orderDate:      fmt(today),
     placedAt:       today.toISOString(),
     placedOn:       fmt(today),
-    status:         "Order Placed",
-    deliveryMethod: "Standard Shipping",
-    arrival:        fmt(arrival),
-    delivery:       0,
-    tax,
+    status:         "",
+    deliveryMethod: "",
+    arrival:        "",
     subtotal,
     total,
-    currencyCode:   capturedItems[0]?.priceCurrency || capturedItems[0]?.currencyCode || "",
-    currencySymbol: capturedItems[0]?.currency || capturedItems[0]?.currencySymbol || "$",
+    currencyCode:   firstCurrencyCode || "",
+    currencySymbol,
+    needsStoreRefresh: true,
     lineItems,
   };
 };
@@ -208,7 +249,8 @@ export default function CheckoutWebViewScreen() {
       hasCompletedOrderRef.current = true;
 
       const capturedItems = capturedItemsRef.current || [];
-      const order         = buildOrderFromCart(capturedItems, completedUrl || "");
+      const storeCurrency = getStoreConfigSync()?.currency || "";
+      const order         = buildOrderFromCart(capturedItems, completedUrl || "", storeCurrency);
 
       triggerOrderNotification({
         type:        ORDER_EVENTS.ORDER_PLACED,

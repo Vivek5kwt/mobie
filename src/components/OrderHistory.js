@@ -13,6 +13,7 @@ import FontAwesome from "react-native-vector-icons/FontAwesome";
 import { useAuth } from "../services/AuthContext";
 import { fetchCustomerOrders } from "../services/shopify";
 import { getStoredOrders, mergeOrdersByIdentity } from "../services/orderHistoryService";
+import { getStoreConfigSync } from "../services/storeService";
 import { addItem } from "../store/slices/cartSlice";
 
 const deepUnwrap = (value) => {
@@ -107,15 +108,20 @@ const currencySymbolForCode = (code = "") => {
     GBP: "£",
     JPY: "¥",
   };
-  return symbols[normalized] || normalized || "$";
+  return symbols[normalized] || normalized || "";
 };
 
-const formatMoney = (amount, order = {}, fallbackSymbol = "$") => {
+const formatMoney = (amount, order = {}, fallbackSymbol = "") => {
   if (typeof amount === "string" && amount.trim()) return amount.trim();
   const numeric = Number(amount);
+  const storeCurrencyCode = getStoreConfigSync()?.currency || "";
+  const resolvedCode = order.currencyCode || order.priceCurrency || storeCurrencyCode;
+  const orderSymbol = order.currencySymbol === "$" && resolvedCode
+    ? ""
+    : order.currencySymbol;
   const symbol =
-    order.currencySymbol ||
-    currencySymbolForCode(order.currencyCode || order.priceCurrency) ||
+    orderSymbol ||
+    currencySymbolForCode(resolvedCode) ||
     fallbackSymbol;
   return `${symbol}${Number.isFinite(numeric) ? numeric.toFixed(2) : "0.00"}`;
 };
@@ -336,7 +342,7 @@ export default function OrderHistory({ section }) {
         const imageUrl =
           toStr(order.image || order.imageUrl || firstItem.image || firstItem.imageUrl, "");
         const date = orderDateText(order);
-        const total = formatMoney(order.total ?? order.price ?? order.amount, order, toStr(raw?.currency, "$"));
+        const total = formatMoney(order.total ?? order.price ?? order.amount, order);
         const status = toStr(order.status || order.fulfillmentStatus || order.financialStatus, "");
 
         return (
