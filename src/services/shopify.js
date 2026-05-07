@@ -776,10 +776,24 @@ export async function searchShopifyProducts(searchTerm, limit = 10, options = {}
             id
             title
             handle
-            featuredImage {
-              url
+            vendor
+            productType
+            tags
+            options {
+              name
+              values
             }
+            featuredImage { url }
+            images(first: 1) { edges { node { url } } }
             priceRangeV2 { minVariantPrice { amount currencyCode } }
+            variants(first: 1) {
+              edges {
+                node {
+                  id
+                  compareAtPrice
+                }
+              }
+            }
           }
         }
       }
@@ -818,14 +832,22 @@ export async function searchShopifyProducts(searchTerm, limit = 10, options = {}
 
   const mapProductEdges = (edges = []) =>
     edges.map(({ node }) => {
+      const variant = node?.variants?.edges?.[0]?.node;
       const priceNode = node?.priceRangeV2?.minVariantPrice;
       return {
         id: node?.id,
         title: node?.title,
         handle: node?.handle,
-        imageUrl: node?.featuredImage?.url || null,
+        vendor: node?.vendor || "",
+        productType: node?.productType || "",
+        tags: node?.tags || [],
+        options: node?.options || [],
+        availableForSale: true,
+        variantId: variant?.id || null,
+        imageUrl: node?.featuredImage?.url || node?.images?.edges?.[0]?.node?.url || null,
         priceAmount: priceNode?.amount || null,
         priceCurrency: priceNode?.currencyCode || null,
+        compareAtPrice: variant?.compareAtPrice || null,
       };
     });
 

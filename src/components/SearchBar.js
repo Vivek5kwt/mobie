@@ -288,7 +288,7 @@ export default function SearchBar({ section }) {
     setSubmittedTerm("");
   }, []);
 
-  const handleSubmitSearch = useCallback(() => {
+  const openSearchResults = useCallback(() => {
     const term = value.trim();
     if (!term) {
       setResults([]);
@@ -298,8 +298,12 @@ export default function SearchBar({ section }) {
     }
     setValue(term);
     setSubmittedTerm(term);
-    runSearch(term);
-  }, [runSearch, value]);
+    navigation.navigate("AllProducts", {
+      title: `Search results for "${term}"`,
+      query: term,
+      detailSections,
+    });
+  }, [detailSections, navigation, value]);
 
   const handleProductPress = useCallback(
     (product) => {
@@ -468,7 +472,15 @@ export default function SearchBar({ section }) {
   return (
     <View style={[styles.container, containerStyle]}>
       <View style={[styles.inputWrapper, inputWrapperStyle, borderStyle]}>
-        <FontAwesome name="search" size={searchIconSize} color={searchIconColor} />
+        <TouchableOpacity
+          onPress={openSearchResults}
+          activeOpacity={0.7}
+          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+          accessibilityLabel="Search products"
+          accessibilityRole="button"
+        >
+          <FontAwesome name="search" size={searchIconSize} color={searchIconColor} />
+        </TouchableOpacity>
         {showInput && (
           <View style={styles.inputShell}>
             <TextInput
@@ -480,7 +492,7 @@ export default function SearchBar({ section }) {
               editable={!isListening}
               onFocus={() => setIsFocused(true)}
               onBlur={() => setIsFocused(false)}
-              onSubmitEditing={handleSubmitSearch}
+              onSubmitEditing={openSearchResults}
               returnKeyType="search"
               blurOnSubmit={false}
             />
@@ -538,7 +550,7 @@ export default function SearchBar({ section }) {
             </Text>
             {!submittedTerm && searchTerm ? (
               <TouchableOpacity
-                onPress={handleSubmitSearch}
+                onPress={openSearchResults}
                 activeOpacity={0.75}
                 hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
               >

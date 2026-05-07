@@ -146,58 +146,66 @@ export default function FilterSortHeader({
         animationType="slide"
         onRequestClose={() => setFilterVisible(false)}
       >
-        <TouchableOpacity
-          style={styles.backdrop}
-          activeOpacity={1}
-          onPress={() => setFilterVisible(false)}
-        />
-        <View style={styles.sheet}>
-          <View style={styles.sheetHandle} />
-          <Text style={styles.sheetTitle}>Filter by Category</Text>
-
-          <View style={styles.filterChips}>
-            {filterItems.length > 0 ? (
-              filterItems.map((item) => {
-                const label = item?.label || item?.title || item?.name || String(item);
-                const value = item?.value ?? label;
-                const selected =
-                  activeFilter &&
-                  (activeFilter.id === item?.id ||
-                    `${activeFilter.type || ""}:${activeFilter.value ?? activeFilter.label}` === `${item?.type || ""}:${value}`);
-                return (
-                  <TouchableOpacity
-                    key={item?.id || label}
-                    style={[styles.filterChip, selected && styles.filterChipActive]}
-                    activeOpacity={0.75}
-                    onPress={() => setActiveFilter(selected ? null : { ...item, label, value })}
-                  >
-                    <Text style={[styles.filterChipText, selected && styles.filterChipTextActive]}>
-                      {label}
-                    </Text>
-                  </TouchableOpacity>
-                );
-              })
-            ) : (
-              <Text style={styles.noFilters}>No filter options available.</Text>
-            )}
-          </View>
-
+        <View style={styles.modalRoot}>
           <TouchableOpacity
-            style={styles.applyBtn}
-            activeOpacity={0.85}
-            onPress={handleApplyFilter}
-          >
-            <Text style={styles.applyBtnText}>Apply</Text>
-          </TouchableOpacity>
-          {activeFilter ? (
-            <TouchableOpacity
-              style={styles.clearBtn}
-              activeOpacity={0.85}
-              onPress={handleClearFilter}
+            style={styles.backdrop}
+            activeOpacity={1}
+            onPress={() => setFilterVisible(false)}
+          />
+          <View style={styles.sheet}>
+            <View style={styles.sheetHandle} />
+            <Text style={styles.sheetTitle}>Filter by Category</Text>
+
+            <ScrollView
+              style={styles.filterScroll}
+              contentContainerStyle={styles.filterChips}
+              showsVerticalScrollIndicator={false}
             >
-              <Text style={styles.clearBtnText}>Clear filter</Text>
-            </TouchableOpacity>
-          ) : null}
+              {filterItems.length > 0 ? (
+                filterItems.map((item) => {
+                  const label = item?.label || item?.title || item?.name || String(item);
+                  const value = item?.value ?? label;
+                  const selected =
+                    activeFilter &&
+                    (activeFilter.id === item?.id ||
+                      `${activeFilter.type || ""}:${activeFilter.value ?? activeFilter.label}` === `${item?.type || ""}:${value}`);
+                  return (
+                    <TouchableOpacity
+                      key={item?.id || label}
+                      style={[styles.filterChip, selected && styles.filterChipActive]}
+                      activeOpacity={0.75}
+                      onPress={() => setActiveFilter(selected ? null : { ...item, label, value })}
+                    >
+                      <Text style={[styles.filterChipText, selected && styles.filterChipTextActive]}>
+                        {label}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })
+              ) : (
+                <Text style={styles.noFilters}>No filter options available.</Text>
+              )}
+            </ScrollView>
+
+            <View style={styles.sheetActions}>
+              <TouchableOpacity
+                style={styles.applyBtn}
+                activeOpacity={0.85}
+                onPress={handleApplyFilter}
+              >
+                <Text style={styles.applyBtnText}>Apply</Text>
+              </TouchableOpacity>
+              {activeFilter ? (
+                <TouchableOpacity
+                  style={styles.clearBtn}
+                  activeOpacity={0.85}
+                  onPress={handleClearFilter}
+                >
+                  <Text style={styles.clearBtnText}>Clear filter</Text>
+                </TouchableOpacity>
+              ) : null}
+            </View>
+          </View>
         </View>
       </Modal>
     </>
@@ -271,9 +279,14 @@ const styles = StyleSheet.create({
     borderColor: "#9CA3AF",
   },
 
+  modalRoot: {
+    flex: 1,
+    justifyContent: "flex-end",
+  },
+
   // Modal backdrop
   backdrop: {
-    flex: 1,
+    ...StyleSheet.absoluteFillObject,
     backgroundColor: "rgba(0,0,0,0.3)",
   },
 
@@ -283,8 +296,9 @@ const styles = StyleSheet.create({
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
     paddingHorizontal: 20,
-    paddingBottom: 32,
+    paddingBottom: 18,
     paddingTop: 12,
+    maxHeight: "82%",
   },
   sheetHandle: {
     width: 36,
@@ -300,11 +314,14 @@ const styles = StyleSheet.create({
     color: "#111827",
     marginBottom: 16,
   },
+  filterScroll: {
+    maxHeight: 360,
+  },
   filterChips: {
     flexDirection: "row",
     flexWrap: "wrap",
     gap: 10,
-    marginBottom: 24,
+    paddingBottom: 18,
   },
   filterChip: {
     paddingVertical: 7,
@@ -330,6 +347,12 @@ const styles = StyleSheet.create({
   noFilters: {
     fontSize: 13,
     color: "#9CA3AF",
+  },
+  sheetActions: {
+    borderTopWidth: 1,
+    borderTopColor: "#F3F4F6",
+    paddingTop: 12,
+    backgroundColor: "#FFFFFF",
   },
   applyBtn: {
     backgroundColor: "#111827",

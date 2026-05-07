@@ -10,7 +10,7 @@ import {
   View,
 } from "react-native";
 import { useNavigation, useRoute } from "@react-navigation/native";
-import { fetchShopifyProductsPage } from "../services/shopify";
+import { fetchShopifyProductsPage, searchShopifyProducts } from "../services/shopify";
 import { SafeArea } from "../utils/SafeAreaHandler";
 import HeaderDefault from "../components/HeaderDefault";
 import FilterSortHeader from "../components/FilterSortHeader";
@@ -43,6 +43,8 @@ export default function AllProductsScreen() {
   const navigation = useNavigation();
   const route = useRoute();
   const { title, detailSections } = route?.params || {};
+  const searchTerm = String(route?.params?.query ?? route?.params?.searchQuery ?? "").trim();
+  const isSearchMode = searchTerm.length > 0;
 
   const [products, setProducts]       = useState([]);
   const [pageInfo, setPageInfo]       = useState({ hasNextPage: false, endCursor: null });
@@ -71,23 +73,35 @@ export default function AllProductsScreen() {
     setError("");
 
     try {
-      const payload = await fetchShopifyProductsPage({
-        first: PAGE_SIZE,
-        after,
-      });
-      const nextProducts = payload?.products || [];
-      const nextPageInfo = payload?.pageInfo || { hasNextPage: false, endCursor: null };
+      let nextProducts = [];
+      let nextPageInfo = { hasNextPage: false, endCursor: null };
+
+      if (isSearchMode) {
+        if (append) return;
+        nextProducts = await searchShopifyProducts(searchTerm, Math.max(PAGE_SIZE * 5, 60));
+      } else {
+        const payload = await fetchShopifyProductsPage({
+          first: PAGE_SIZE,
+          after,
+        });
+        nextProducts = payload?.products || [];
+        nextPageInfo = payload?.pageInfo || { hasNextPage: false, endCursor: null };
+      }
 
       setProducts((prev) => (append ? [...prev, ...nextProducts] : nextProducts));
       if (!append) setFilterOptions(buildProductFilterOptions(nextProducts));
       setPageInfo(nextPageInfo);
     } catch (err) {
-      setError("Unable to load products right now. Please try again later.");
+      setError(
+        isSearchMode
+          ? "Unable to search products right now. Please try again later."
+          : "Unable to load products right now. Please try again later."
+      );
     } finally {
       setLoading(false);
       setLoadingMore(false);
     }
-  }, []);
+  }, [isSearchMode, searchTerm]);
 
   useEffect(() => {
     loadProducts({ after: null, append: false });
@@ -95,6 +109,9 @@ export default function AllProductsScreen() {
 
   useEffect(() => {
     let mounted = true;
+    if (isSearchMode) {
+      return () => { mounted = false; };
+    }
     fetchShopifyProductsPage({ first: 100 })
       .then((payload) => {
         if (!mounted) return;
@@ -103,7 +120,7 @@ export default function AllProductsScreen() {
       })
       .catch(() => {});
     return () => { mounted = false; };
-  }, []);
+  }, [isSearchMode]);
 
   useEffect(() => {
     const appId = resolveAppId();
@@ -176,7 +193,9 @@ export default function AllProductsScreen() {
           <HeaderDefault config={homeHeaderConfig} bottomNavSection={bottomNavSection} hideTabs showBack />
         ) : null}
         <View style={styles.headerSection}>
-          <Text style={styles.heading}>{title || "Products"}</Text>
+          <Text style={styles.heading}>
+            {title || (isSearchMode ? `Search results for "${searchTerm}"` : "Products")}
+          </Text>
         </View>
 
         {/* Filter + Sort bar */}
@@ -204,7 +223,11 @@ export default function AllProductsScreen() {
                 styles.listContent,
                 { paddingBottom: bottomNavSection ? bottomNavHeight + 16 : 24 },
               ]}
-              ListEmptyComponent={<Text style={styles.status}>No products available yet.</Text>}
+              ListEmptyComponent={
+                <Text style={styles.status}>
+                  {isSearchMode ? `No products found for "${searchTerm}".` : "No products available yet."}
+                </Text>
+              }
               ListFooterComponent={
                 pageInfo?.hasNextPage ? (
                   <TouchableOpacity

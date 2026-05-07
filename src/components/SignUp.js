@@ -526,7 +526,7 @@ export default function SignUp({ section }) {
   const mobileButtonFontSize = buttonFontSize;
   const mobileTitleFontSize = headerTitleFontSize;
   const mobileFieldFontSize = (size) => size;
-  const mobileCardPaddingTop = bgPadVisible ? pt : 0;
+  const mobileCardPaddingTop = bgPadVisible ? Math.min(pt, 24) : 0;
   const mobileCardPaddingBottom = bgPadVisible ? pb : 0;
   const mobileCardPaddingLeft = bgPadVisible ? pl : 0;
   const mobileCardPaddingRight = bgPadVisible ? pr : 0;
@@ -635,7 +635,7 @@ export default function SignUp({ section }) {
 
         {/* First Name Field */}
         {firstNameVisible && (
-          <View style={[styles.fieldContainer, { alignItems: firstNameAlignment }]}>
+          <View style={styles.fieldContainer}>
             {firstNameLabelVisible && (
               <Text style={[styles.label, { color: firstNameLabelColor, fontSize: firstNameLabelFontSize, fontFamily: firstNameLabelFontFamily, fontWeight: firstNameLabelFontWeight }]}>
                 {firstNameLabelText}
@@ -668,7 +668,7 @@ export default function SignUp({ section }) {
 
         {/* Last Name Field */}
         {lastNameVisible && (
-          <View style={[styles.fieldContainer, { alignItems: lastNameAlignment }]}>
+          <View style={styles.fieldContainer}>
             {lastNameLabelVisible && (
               <Text style={[styles.label, { color: lastNameLabelColor, fontSize: lastNameLabelFontSize, fontFamily: lastNameLabelFontFamily, fontWeight: lastNameLabelFontWeight }]}>
                 {lastNameLabelText}
@@ -701,7 +701,7 @@ export default function SignUp({ section }) {
 
         {/* Email Field */}
         {emailInputVisible && (
-          <View style={[styles.fieldContainer, { alignItems: emailAlignment }]}>
+          <View style={styles.fieldContainer}>
             {emailLabelVisible && (
               <Text style={[styles.label, { color: emailLabelColor, fontSize: emailLabelFontSize, fontFamily: emailLabelFontFamily, fontWeight: emailLabelFontWeight }]}>
                 {emailLabelText}
@@ -736,7 +736,7 @@ export default function SignUp({ section }) {
 
         {/* Password Field */}
         {passwordInputVisible && (
-          <View style={[styles.fieldContainer, { alignItems: passwordAlignment }]}>
+          <View style={styles.fieldContainer}>
             {passwordLabelVisible && (
               <Text style={[styles.label, { color: passwordLabelColor, fontSize: passwordLabelFontSize, fontFamily: passwordLabelFontFamily, fontWeight: passwordLabelFontWeight }]}>
                 {passwordLabelText}
@@ -929,6 +929,8 @@ const styles = StyleSheet.create({
   },
   label: {
     marginBottom: 6,
+    alignSelf: "stretch",
+    textAlign: "left",
   },
   input: {
     borderWidth: 1,

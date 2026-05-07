@@ -726,7 +726,7 @@ export default function Header2({ section }) {
     setSearchSubmittedTerm("");
   }, []);
 
-  const submitHeaderSearch = useCallback(async () => {
+  const submitHeaderSearch = useCallback(() => {
     const term = searchValue.trim();
     if (!term || !searchEnabled || !searchAndIcons?.showSearch) {
       setSearchResults([]);
@@ -737,18 +737,14 @@ export default function Header2({ section }) {
 
     setSearchValue(term);
     setSearchSubmittedTerm(term);
-    setSearchLoading(true);
+    setSearchLoading(false);
     setSearchError("");
-    try {
-      const matches = await searchShopifyProducts(term, searchLimit);
-      setSearchResults(matches);
-    } catch (err) {
-      setSearchError("Unable to search products right now.");
-      setSearchResults([]);
-    } finally {
-      setSearchLoading(false);
-    }
-  }, [searchEnabled, searchAndIcons?.showSearch, searchLimit, searchValue]);
+    navigation.navigate("AllProducts", {
+      title: `Search results for "${term}"`,
+      query: term,
+      detailSections,
+    });
+  }, [detailSections, navigation, searchEnabled, searchAndIcons?.showSearch, searchValue]);
 
   // ----- Simple Header (Header Component Schema: logo bar with leftSlot | logoSlot | rightSlot) -----
   if (isSimpleHeader) {
@@ -1143,13 +1139,19 @@ export default function Header2({ section }) {
                 minHeight: searchAndIcons.searchBoxHeight,
               },
             ]}>
-              <View style={styles.searchIconContainer}>
+              <TouchableOpacity
+                style={styles.searchIconContainer}
+                onPress={submitHeaderSearch}
+                activeOpacity={0.7}
+                accessibilityLabel="Search products"
+                accessibilityRole="button"
+              >
                 <FontAwesome
                   name="search"
                   size={18}
                   color={searchAndIcons?.searchIconColor || "#39444D"}
                 />
-              </View>
+              </TouchableOpacity>
               <TextInput
                 value={searchValue}
                 onChangeText={handleHeaderSearchChange}

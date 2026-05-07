@@ -1063,8 +1063,9 @@ const AuthScreen = () => {
 
   const pagePadLeft = t.pagePaddingLeft;
   const pagePadRight = t.pagePaddingRight;
-  const pagePadTop = t.pagePaddingTop;
+  const pagePadTop = Math.min(t.pagePaddingTop, activeHeaderConfig ? 8 : 16);
   const pagePadBottom = t.pagePaddingBottom;
+  const cardPadTop = Math.min(t.cardPaddingTop, mode === 'signup' ? 24 : 20);
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: t.bgColor }}>
@@ -1089,7 +1090,7 @@ const AuthScreen = () => {
               <DynamicRenderer key={`${mode}-dsl-${index}`} section={section as any} />
             ))
           ) : (
-          <View style={{ paddingLeft: pagePadLeft, paddingRight: pagePadRight, paddingTop: pagePadTop, paddingBottom: 12 }}>
+          <View style={{ paddingLeft: pagePadLeft, paddingRight: pagePadRight, paddingTop: pagePadTop, paddingBottom: 6 }}>
             {mode === 'login' && t.authVisible ? (
               <Text
                 style={{
@@ -1129,7 +1130,7 @@ const AuthScreen = () => {
               borderColor: t.cardBorderColor,
               paddingLeft: t.cardPaddingLeft,
               paddingRight: t.cardPaddingRight,
-              paddingTop: t.cardPaddingTop,
+              paddingTop: cardPadTop,
               paddingBottom: t.cardPaddingBottom,
               marginBottom: 16,
             }}
@@ -1167,7 +1168,7 @@ const AuthScreen = () => {
                 labelFontSize={signUpTokens.firstNameLabelFontSize}
                 labelFontFamily={signUpTokens.firstNameLabelFontFamily}
                 labelFontWeight={signUpTokens.firstNameLabelFontWeight}
-                labelAlign={toTextAlign(signUpTokens.firstNameAlignment)}
+                labelAlign="left"
                 placeholder={signUpTokens.firstNamePlaceholder}
                 placeholderColor={signUpTokens.firstNamePlaceholderColor}
                 value={firstName}
@@ -1194,7 +1195,7 @@ const AuthScreen = () => {
                 labelFontSize={signUpTokens.lastNameLabelFontSize}
                 labelFontFamily={signUpTokens.lastNameLabelFontFamily}
                 labelFontWeight={signUpTokens.lastNameLabelFontWeight}
-                labelAlign={toTextAlign(signUpTokens.lastNameAlignment)}
+                labelAlign="left"
                 placeholder={signUpTokens.lastNamePlaceholder}
                 placeholderColor={signUpTokens.lastNamePlaceholderColor}
                 value={lastName}
@@ -1221,7 +1222,7 @@ const AuthScreen = () => {
                 labelFontSize={mode === 'login' ? signInTokens.emailLabelFontSize : signUpTokens.emailLabelFontSize}
                 labelFontFamily={mode === 'login' ? signInTokens.emailLabelFontFamily : signUpTokens.emailLabelFontFamily}
                 labelFontWeight={mode === 'login' ? signInTokens.emailLabelFontWeight : signUpTokens.emailLabelFontWeight}
-                labelAlign={mode === 'signup' ? toTextAlign(signUpTokens.emailAlignment) : 'left'}
+                labelAlign="left"
                 placeholder={mode === 'login' ? signInTokens.emailPlaceholder : signUpTokens.emailPlaceholder}
                 placeholderColor={mode === 'login' ? signInTokens.emailPlaceholderColor : signUpTokens.emailPlaceholderColor}
                 value={email}
@@ -1250,7 +1251,7 @@ const AuthScreen = () => {
                 labelFontSize={mode === 'login' ? signInTokens.passwordLabelFontSize : signUpTokens.passwordLabelFontSize}
                 labelFontFamily={mode === 'login' ? signInTokens.passwordLabelFontFamily : signUpTokens.passwordLabelFontFamily}
                 labelFontWeight={mode === 'login' ? signInTokens.passwordLabelFontWeight : signUpTokens.passwordLabelFontWeight}
-                labelAlign={mode === 'signup' ? toTextAlign(signUpTokens.passwordAlignment) : 'left'}
+                labelAlign="left"
                 placeholder={mode === 'login' ? signInTokens.passwordPlaceholder : signUpTokens.passwordPlaceholder}
                 placeholderColor={mode === 'login' ? signInTokens.passwordPlaceholderColor : signUpTokens.passwordPlaceholderColor}
                 value={password}
