@@ -99,7 +99,7 @@ export default function CollectionProductsScreen() {
       setError("");
 
       try {
-        // Try collection-specific products first
+        // Try collection-specific products first.
         if (resolvedCollectionHandle) {
           const payload = await fetchShopifyCollectionProducts({
             handle: resolvedCollectionHandle,
@@ -109,17 +109,14 @@ export default function CollectionProductsScreen() {
           const next     = payload?.products || [];
           const nextPage = payload?.pageInfo || { hasNextPage: false, endCursor: null };
 
-          if (next.length > 0 || after) {
-            // Has real collection data (or paginating through it)
-            setIsFallback(false);
-            setProducts((prev) => (append ? [...prev, ...next] : next));
-            if (!append) setFilterOptions(buildProductFilterOptions(next));
-            setPageInfo(nextPage);
-            return;
-          }
+          setIsFallback(false);
+          setProducts((prev) => (append ? [...prev, ...next] : next));
+          if (!append) setFilterOptions(buildProductFilterOptions(next));
+          setPageInfo(nextPage);
+          return;
         }
 
-        // Collection empty or handle missing — fall back to all products
+        // Only the generic product-list route falls back to all products.
         if (!append) {
           setIsFallback(true);
           const fallback = await fetchShopifyProductsPage({ first: PAGE_SIZE });

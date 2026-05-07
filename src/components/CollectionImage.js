@@ -381,9 +381,15 @@ export default function CollectionImage({ section }) {
   const onItemPress = useCallback((item) => {
     const handle = deriveHandle(item);
     if (!handle) return;
-    navigation.navigate("CollectionProducts", {
+    navigation.navigate("SubCollections", {
       collectionHandle: handle,
       collectionTitle: item?.title || "Collection",
+      parentCollection: {
+        handle,
+        title: item?.title || "Collection",
+        image: item?.image || "",
+        link: item?.link || "",
+      },
     });
   }, [navigation]);
 

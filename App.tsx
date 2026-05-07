@@ -28,6 +28,7 @@ import OrderDetailScreen from './src/screens/OrderDetailScreen';
 import SettingsScreen from './src/screens/SettingsScreen';
 import PostPurchaseScreen from './src/screens/PostPurchaseScreen';
 import ProductDetailScreen from './src/screens/ProductDetailScreen';
+import SubCollectionScreen from './src/screens/SubCollectionScreen';
 import WriteReviewScreen from './src/screens/WriteReviewScreen';
 import WishlistScreen from './src/screens/WishlistScreen';
 import SplashScreen from './src/screens/saplash';
@@ -262,6 +263,12 @@ export default function App() {
                     <Stack.Screen
                       name="CollectionProducts"
                       component={CollectionProductsScreen}
+                      options={{ animation: 'slide_from_right' }}
+                    />
+
+                    <Stack.Screen
+                      name="SubCollections"
+                      component={SubCollectionScreen}
                       options={{ animation: 'slide_from_right' }}
                     />
 

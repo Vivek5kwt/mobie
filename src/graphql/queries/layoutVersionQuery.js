@@ -7,7 +7,7 @@ const LAYOUT_VERSION_QUERY = gql`
       layout_versions {
         dsl
         app_id
-        layout_id
+        layout_id 
         created_at
         id
         is_published
