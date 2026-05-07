@@ -16,6 +16,7 @@ import Header from "../components/Topheader";
 import { useAuth } from "../services/AuthContext";
 import { resolveAppId } from "../utils/appId";
 import { triggerOrderNotification, ORDER_EVENTS } from "../services/notificationService";
+import { saveCompletedOrder } from "../services/orderHistoryService";
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -40,10 +41,17 @@ const buildOrderFromCart = (capturedItems, url) => {
 
   const lineItems = (capturedItems || []).map((item) => ({
     id:       String(item.id || item.variantId || ""),
+    variantId: item.variantId || item.id || "",
+    handle:   item.handle || "",
     title:    item.title || "Product",
     variant:  item.variant || "",
     imageUrl: item.image || item.imageUrl || "",
-    price:    item.price ? `$${parseFloat(item.price).toFixed(2)}` : "",
+    image:    item.image || item.imageUrl || "",
+    priceAmount: parseFloat(item.price || 0),
+    priceCurrency: item.currency || item.priceCurrency || "USD",
+    price:    item.price
+      ? `${item.currency || item.currencySymbol || "$"}${parseFloat(item.price).toFixed(2)}`
+      : "",
     quantity: item.quantity || 1,
   }));
 
@@ -55,14 +63,20 @@ const buildOrderFromCart = (capturedItems, url) => {
   const total = parseFloat((subtotal + tax).toFixed(2));
 
   return {
+    id:             extractOrderNumber(url),
     orderNumber:    extractOrderNumber(url),
     orderDate:      fmt(today),
+    placedAt:       today.toISOString(),
+    placedOn:       fmt(today),
     status:         "Order Placed",
     deliveryMethod: "Standard Shipping",
     arrival:        fmt(arrival),
     delivery:       0,
     tax,
+    subtotal,
     total,
+    currencyCode:   capturedItems[0]?.priceCurrency || capturedItems[0]?.currencyCode || "",
+    currencySymbol: capturedItems[0]?.currency || capturedItems[0]?.currencySymbol || "$",
     lineItems,
   };
 };
@@ -203,6 +217,13 @@ export default function CheckoutWebViewScreen() {
         userId,
       }).catch(() => {});
 
+      saveCompletedOrder({
+        appId: resolvedAppId,
+        userId,
+        email: session?.user?.email || "",
+        order,
+      }).catch(() => {});
+
       // Small delay so the WebView finishes its last render before we leave
       setTimeout(() => {
         navigation.reset({
@@ -219,7 +240,7 @@ export default function CheckoutWebViewScreen() {
         });
       }, 600);
     },
-    [navigation, resolvedAppId, userId]
+    [navigation, resolvedAppId, session?.user?.email, userId]
   );
 
   // ── Back handling ─────────────────────────────────────────────────────────

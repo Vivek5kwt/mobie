@@ -70,6 +70,21 @@ const pickNum = (candidates, fallback) => {
   return fallback;
 };
 
+const pickSessionCustomerAccessToken = (session) => {
+  const candidates = [
+    session?.user?.customerAccessToken,
+    session?.user?.shopifyCustomerAccessToken,
+    session?.user?.customer_access_token,
+    session?.customerAccessToken,
+    session?.shopifyCustomerAccessToken,
+  ];
+  for (const candidate of candidates) {
+    const value = toStr(candidate, "");
+    if (value) return value;
+  }
+  return "";
+};
+
 const toFontWeight = (value, fallback = "600") => {
   const v = deepUnwrap(value);
   if (!v) return fallback;
@@ -343,7 +358,14 @@ export default function CheckoutButton({ section }) {
 
     setLoading(true);
     try {
-      const checkoutUrl = await createShopifyCartCheckout({ items: checkoutLines });
+      const checkoutUrl = await createShopifyCartCheckout({
+        items: checkoutLines,
+        options: {
+          customerAccessToken: pickSessionCustomerAccessToken(session),
+          email: session?.user?.email || "",
+          countryCode: session?.user?.country || undefined,
+        },
+      });
       if (checkoutUrl && navigation?.navigate) {
         navigation.navigate("CheckoutWebView", { url: checkoutUrl, title: "Checkout" });
       } else {

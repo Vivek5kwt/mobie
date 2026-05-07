@@ -6,6 +6,7 @@ import { resolveAppId } from '../utils/appId';
 import { fetchStoreConfig } from './storeService';
 import { loginCustomer } from './customerService';
 import { registerCustomer } from './customerService';
+import { createShopifyCustomerAccessToken } from './shopify';
 
 type UserProfile = {
   id?: number;
@@ -28,6 +29,9 @@ type UserProfile = {
   createdAt?: string;
   updatedAt?: string;
   userToken?: string;
+  customerAccessToken?: string;
+  customerAccessTokenExpiresAt?: string;
+  shopifyCustomerId?: string | number;
 };
 
 export type AuthSession = {
@@ -115,6 +119,59 @@ export const clearSession = async () => {
   await AsyncStorage.removeItem(USER_KEY);
 };  
 
+const parseMaybeJson = (value: unknown): any => {
+  if (!value) return null;
+  if (typeof value === 'object') return value;
+  if (typeof value !== 'string') return null;
+  try {
+    return JSON.parse(value);
+  } catch (_) {
+    return null;
+  }
+};
+
+const extractCustomerAccessToken = (payload: any) => {
+  const shopifyCustomer = parseMaybeJson(payload?.shopify_customer) || payload?.shopify_customer || {};
+  const candidates = [
+    payload?.customerAccessToken,
+    payload?.customer_access_token,
+    payload?.accessToken,
+    payload?.access_token,
+    payload?.token?.accessToken,
+    payload?.customer?.customerAccessToken,
+    payload?.customer?.customer_access_token,
+    shopifyCustomer?.customerAccessToken?.accessToken,
+    shopifyCustomer?.customer_access_token,
+    shopifyCustomer?.accessToken,
+    shopifyCustomer?.access_token,
+    shopifyCustomer?.token,
+  ];
+  const accessToken = candidates.find((candidate) => typeof candidate === 'string' && candidate.trim());
+  const expiresAt =
+    payload?.customerAccessTokenExpiresAt ||
+    payload?.customer_access_token_expires_at ||
+    shopifyCustomer?.customerAccessToken?.expiresAt ||
+    shopifyCustomer?.expiresAt ||
+    shopifyCustomer?.expires_at ||
+    undefined;
+
+  return {
+    accessToken: accessToken ? String(accessToken).trim() : '',
+    expiresAt: expiresAt ? String(expiresAt) : undefined,
+  };
+};
+
+const resolveShopifyCustomerToken = async (email: string, password: string, backendPayload?: any) => {
+  const extracted = extractCustomerAccessToken(backendPayload);
+  if (extracted.accessToken) return extracted;
+
+  const created = await createShopifyCustomerAccessToken({ email, password });
+  return {
+    accessToken: created?.accessToken || '',
+    expiresAt: created?.expiresAt || undefined,
+  };
+};
+
 
 export const login = async (email: string, password: string): Promise<AuthSession> => {
   if (!email || !password) {
@@ -136,6 +193,10 @@ export const login = async (email: string, password: string): Promise<AuthSessio
     }
 
     const sessionToken = payload?.token || generateToken();
+    const customerToken = await resolveShopifyCustomerToken(email, password).catch(() => ({
+      accessToken: '',
+      expiresAt: undefined,
+    }));
 
     const session: AuthSession = {
       token: sessionToken,
@@ -160,6 +221,8 @@ export const login = async (email: string, password: string): Promise<AuthSessio
         createdAt: user.created_at,
         updatedAt: user.updated_at,
         userToken: user.token,
+        customerAccessToken: customerToken.accessToken || undefined,
+        customerAccessTokenExpiresAt: customerToken.expiresAt,
       },
     };
 
@@ -176,6 +239,10 @@ export const login = async (email: string, password: string): Promise<AuthSessio
         });
         const customer = customerPayload?.customer || {};
         const fallbackToken = customerPayload?.token || generateToken();
+        const customerToken = await resolveShopifyCustomerToken(email, password, customerPayload).catch(() => ({
+          accessToken: '',
+          expiresAt: undefined,
+        }));
         const firstName = customer?.first_name || '';
         const lastName = customer?.last_name || '';
         const session: AuthSession = {
@@ -199,6 +266,9 @@ export const login = async (email: string, password: string): Promise<AuthSessio
             onboarding: Boolean(liveStore?.onboarding),
             status: liveStore?.status,
             userToken: customerPayload?.token,
+            customerAccessToken: customerToken.accessToken || undefined,
+            customerAccessTokenExpiresAt: customerToken.expiresAt,
+            shopifyCustomerId: customer?.shopify_customer_id,
           },
         };
         await saveSession(session);
@@ -232,13 +302,14 @@ export const signup = async (
     const resolvedShopifyDomain = liveStore?.shopify_domain || undefined;
     const resolvedAppId = resolveAppId();
     const resolvedStoreId = liveStore?.id ? Number(liveStore.id) : 0;
+    let registeredCustomer: any = null;
 
     if (resolvedStoreId > 0) {
       const parts = name.split(/\s+/).filter(Boolean);
       const firstName = parts[0] || name;
       const lastName = parts.slice(1).join(' ') || '.';
       try {
-        await registerCustomer({
+        registeredCustomer = await registerCustomer({
           first_name: firstName,
           last_name: lastName,
           email,
@@ -275,6 +346,10 @@ export const signup = async (
     }
 
     const returnedUser = payload.user;
+    const customerToken = await resolveShopifyCustomerToken(email, password, registeredCustomer).catch(() => ({
+      accessToken: '',
+      expiresAt: undefined,
+    }));
 
     const session: AuthSession = {
       token: generateToken(),
@@ -298,6 +373,9 @@ export const signup = async (
         timezone:       returnedUser.timezone ?? liveStore?.timezone,
         createdAt:      returnedUser.created_at,
         updatedAt:      returnedUser.updated_at,
+        customerAccessToken: customerToken.accessToken || undefined,
+        customerAccessTokenExpiresAt: customerToken.expiresAt,
+        shopifyCustomerId: registeredCustomer?.shopify_customer_id,
       },
     };
 

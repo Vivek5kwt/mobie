@@ -188,8 +188,8 @@ const resolveNavigationTarget = (item = {}) => {
     if (ORDER_SLUGS.has(pageName)) {
       return {
         type: "stack",
-        name: "OrderDetail",
-        params: { title: "Orders", pageName: "orders", link: "orders", fromOrdersTab: true },
+        name: "BottomNavScreen",
+        params: { title: "Orders", pageName: "orders", link: "orders" },
       };
     }
     if (WISHLIST_SLUGS.has(pageName)) {
@@ -226,8 +226,8 @@ const resolveNavigationTarget = (item = {}) => {
   if (ORDER_SLUGS.has(cleanedSlug)) {
     return {
       type: "stack",
-      name: "OrderDetail",
-      params: { title: "Orders", pageName: "orders", link: "orders", fromOrdersTab: true },
+      name: "BottomNavScreen",
+      params: { title: "Orders", pageName: "orders", link: "orders" },
     };
   }
   if (WISHLIST_SLUGS.has(cleanedSlug)) {

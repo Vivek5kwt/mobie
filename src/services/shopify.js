@@ -576,6 +576,143 @@ const resolveBuyerCountryCode = (options = {}) => {
   return /^[A-Z]{2}$/.test(rawCode) ? rawCode : DEFAULT_CHECKOUT_COUNTRY_CODE;
 };
 
+const resolveCustomerAccessToken = (options = {}) => {
+  const raw =
+    options?.customerAccessToken ??
+    options?.shopifyCustomerAccessToken ??
+    options?.customer_access_token ??
+    options?.buyerIdentity?.customerAccessToken ??
+    "";
+  const value = String(raw || "").trim();
+  return value || "";
+};
+
+const buildBuyerIdentity = (options = {}) => {
+  const buyerIdentity = {
+    countryCode: resolveBuyerCountryCode(options),
+  };
+  const customerAccessToken = resolveCustomerAccessToken(options);
+  if (customerAccessToken) {
+    buyerIdentity.customerAccessToken = customerAccessToken;
+  }
+  if (options?.email) {
+    buyerIdentity.email = options.email;
+  }
+  return buyerIdentity;
+};
+
+const currencySymbolForCode = (code = "") => {
+  const normalized = String(code || "").trim().toUpperCase();
+  const symbols = {
+    INR: "₹",
+    USD: "$",
+    CAD: "$",
+    AUD: "$",
+    EUR: "€",
+    GBP: "£",
+    JPY: "¥",
+  };
+  return symbols[normalized] || normalized || "$";
+};
+
+const formatOrderStatus = (fulfillmentStatus, financialStatus) => {
+  const raw = String(fulfillmentStatus || financialStatus || "").trim();
+  if (!raw) return "";
+  const normalized = raw.toUpperCase().replace(/[^A-Z0-9]+/g, "_");
+  const labels = {
+    FULFILLED: "Delivered",
+    PARTIALLY_FULFILLED: "Partially fulfilled",
+    IN_PROGRESS: "In progress",
+    ON_HOLD: "On hold",
+    OPEN: "Order placed",
+    PENDING_FULFILLMENT: "Pending",
+    RESTOCKED: "Restocked",
+    SCHEDULED: "Scheduled",
+    UNFULFILLED: "Order placed",
+    PAID: "Paid",
+    AUTHORIZED: "Authorized",
+    PENDING: "Pending",
+    PARTIALLY_PAID: "Partially paid",
+    REFUNDED: "Refunded",
+    VOIDED: "Voided",
+  };
+  return labels[normalized] || raw.toLowerCase().replace(/(^|\s)\w/g, (m) => m.toUpperCase());
+};
+
+const formatOrderDate = (value, style = "long") => {
+  if (!value) return "";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  const options =
+    style === "short"
+      ? { year: "numeric", month: "short", day: "numeric" }
+      : { year: "numeric", month: "long", day: "numeric" };
+  return date.toLocaleDateString("en-US", options);
+};
+
+export async function createShopifyCustomerAccessToken({ email, password, options = {} } = {}) {
+  if (!email || !password) return null;
+
+  const creds = await getShopifyCredentials();
+  const shop = options.shop || creds.shop;
+  const token = options.token || creds.token;
+  const storeId = options.storeId || creds.storeId;
+
+  const mutation = `
+    mutation CustomerAccessTokenCreate($input: CustomerAccessTokenCreateInput!) {
+      customerAccessTokenCreate(input: $input) {
+        customerAccessToken {
+          accessToken
+          expiresAt
+        }
+        customerUserErrors {
+          field
+          message
+          code
+        }
+      }
+    }
+  `;
+
+  try {
+    const json = await directStorefrontGraphQL({
+      shop,
+      token,
+      storeId,
+      query: mutation,
+      variables: {
+        input: {
+          email,
+          password,
+        },
+      },
+    });
+
+    if (json?.errors?.length) {
+      console.warn("⚠️ Customer token GraphQL errors:", JSON.stringify(json.errors));
+      return null;
+    }
+
+    const payload = json?.data?.customerAccessTokenCreate;
+    const userErrors = payload?.customerUserErrors || [];
+    if (userErrors.length) {
+      console.warn("⚠️ Customer token user errors:", JSON.stringify(userErrors));
+      return null;
+    }
+
+    const accessToken = payload?.customerAccessToken?.accessToken || "";
+    if (!accessToken) return null;
+
+    return {
+      accessToken,
+      expiresAt: payload?.customerAccessToken?.expiresAt || null,
+    };
+  } catch (error) {
+    console.warn("⚠️ createShopifyCustomerAccessToken failed:", error?.message || error);
+    return null;
+  }
+}
+
 export async function createShopifyCheckout({ variantId, quantity = 1, options = {} }) {
   if (!variantId) {
     throw new Error("Missing variant ID for checkout.");
@@ -586,7 +723,7 @@ export async function createShopifyCheckout({ variantId, quantity = 1, options =
   const token = options.token || creds.token;
   const storeId = options.storeId || creds.storeId;
   const merchandiseId = ensureVariantGid(variantId);
-  const buyerCountryCode = resolveBuyerCountryCode(options);
+  const buyerIdentity = buildBuyerIdentity(options);
 
   if (!merchandiseId) {
     throw new Error("Invalid variant ID for checkout.");
@@ -619,9 +756,7 @@ export async function createShopifyCheckout({ variantId, quantity = 1, options =
             quantity: Math.max(1, quantity),
           },
         ],
-        buyerIdentity: {
-          countryCode: buyerCountryCode,
-        },
+        buyerIdentity,
       },
     },
   });
@@ -650,7 +785,7 @@ export async function createShopifyCartCheckout({ items = [], options = {} }) {
   const shop = options.shop || creds.shop;
   const token = options.token || creds.token;
   const storeId = options.storeId || creds.storeId;
-  const buyerCountryCode = resolveBuyerCountryCode(options);
+  const buyerIdentity = buildBuyerIdentity(options);
 
   const lines = (items || [])
     .map((item) => ({
@@ -690,9 +825,7 @@ export async function createShopifyCartCheckout({ items = [], options = {} }) {
         variables: {
           input: {
             lines,
-            buyerIdentity: {
-              countryCode: buyerCountryCode,
-            },
+            buyerIdentity,
           },
         },
       });
@@ -1058,9 +1191,11 @@ export async function fetchCustomerOrders({ customerAccessToken, first = 10 } = 
               processedAt
               financialStatus
               fulfillmentStatus
-              currentTotalPrice { amount currencyCode }
-              totalShippingPrice { amount currencyCode }
-              totalTax { amount currencyCode }
+              statusUrl
+              totalPriceV2 { amount currencyCode }
+              subtotalPriceV2 { amount currencyCode }
+              totalShippingPriceV2 { amount currencyCode }
+              totalTaxV2 { amount currencyCode }
               shippingAddress {
                 name
                 address1
@@ -1075,12 +1210,17 @@ export async function fetchCustomerOrders({ customerAccessToken, first = 10 } = 
                     title
                     quantity
                     variant {
+                    title
+                    image { url }
+                    price { amount currencyCode }
+                    product {
+                      handle
                       title
-                      image { url }
-                      price { amount currencyCode }
+                      vendor
                     }
                   }
                 }
+              }
               }
             }
           }
@@ -1108,32 +1248,49 @@ export async function fetchCustomerOrders({ customerAccessToken, first = 10 } = 
         ? [addr.name, addr.address1, addr.address2, addr.city, addr.country, addr.zip]
             .filter(Boolean).join("\n")
         : "";
-      const currency = node.currentTotalPrice?.currencyCode || "";
+      const totalMoney = node.totalPriceV2 || {};
+      const subtotalMoney = node.subtotalPriceV2 || totalMoney;
+      const shippingMoney = node.totalShippingPriceV2 || {};
+      const taxMoney = node.totalTaxV2 || {};
+      const currency = totalMoney?.currencyCode || subtotalMoney?.currencyCode || "";
+      const currencySymbol = currencySymbolForCode(currency);
       return {
         id:             node.id,
-        orderNumber:    `#${node.orderNumber}`,
-        orderDate:      node.processedAt
-          ? new Date(node.processedAt).toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" })
-          : "",
-        status:         node.fulfillmentStatus || node.financialStatus || "",
+        name:           node.name || (node.orderNumber ? `#${node.orderNumber}` : ""),
+        orderNumber:    node.name || (node.orderNumber ? `#${node.orderNumber}` : ""),
+        orderDate:      formatOrderDate(node.processedAt),
+        placedAt:       node.processedAt || "",
+        placedOn:       formatOrderDate(node.processedAt, "short"),
+        status:         formatOrderStatus(node.fulfillmentStatus, node.financialStatus),
+        fulfillmentStatus: node.fulfillmentStatus || "",
+        financialStatus: node.financialStatus || "",
+        statusUrl:      node.statusUrl || "",
         deliveryMethod: "Standard",
         address:        addressText,
         arrival:        "",
         billing:        "Same as delivery address",
         payment:        "",
-        delivery:       parseFloat(node.totalShippingPrice?.amount || 0),
-        tax:            parseFloat(node.totalTax?.amount || 0),
-        total:          parseFloat(node.currentTotalPrice?.amount || 0),
-        currencySymbol: currency,
+        delivery:       parseFloat(shippingMoney?.amount || 0),
+        tax:            parseFloat(taxMoney?.amount || 0),
+        subtotal:       parseFloat(subtotalMoney?.amount || totalMoney?.amount || 0),
+        total:          parseFloat(totalMoney?.amount || 0),
+        currencyCode:   currency,
+        currencySymbol,
         lineItems: (node.lineItems?.edges || []).map(({ node: li }) => ({
-          id:       li.variant?.id || li.title,
-          title:    li.title,
-          variant:  li.variant?.title || "",
-          imageUrl: li.variant?.image?.url || null,
-          price:    li.variant?.price
-            ? `${currency} ${parseFloat(li.variant.price.amount).toFixed(2)}`
+          id:            li.variant?.id || li.title,
+          variantId:     li.variant?.id || "",
+          handle:        li.variant?.product?.handle || "",
+          title:         li.title || li.variant?.product?.title || "Product",
+          vendor:        li.variant?.product?.vendor || "",
+          variant:       li.variant?.title || "",
+          imageUrl:      li.variant?.image?.url || null,
+          image:         li.variant?.image?.url || "",
+          priceAmount:   parseFloat(li.variant?.price?.amount || 0),
+          priceCurrency: li.variant?.price?.currencyCode || currency,
+          price:         li.variant?.price
+            ? `${currencySymbolForCode(li.variant.price.currencyCode || currency)}${parseFloat(li.variant.price.amount || 0).toFixed(2)}`
             : "",
-          quantity: li.quantity,
+          quantity:      li.quantity,
         })),
       };
     });

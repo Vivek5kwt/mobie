@@ -42,6 +42,7 @@ import WishlistItem from "../components/WishlistItem";
 import ConfirmationHeader from "../components/ConfirmationHeader";
 import FilterSortHeader from "../components/FilterSortHeader";
 import RecentProducts from "../components/RecentProducts";
+import OrderHistory from "../components/OrderHistory";
 
 const normalizeComponentName = (value) =>
   String(value || "")
@@ -131,6 +132,10 @@ const componentMap = {
   recent_viewed: RecentProducts,
   recentproducts: RecentProducts,
   recentlyviewed: RecentProducts,
+  order_history: OrderHistory,
+  orderhistory: OrderHistory,
+  orders: OrderHistory,
+  my_orders: OrderHistory,
 };
 
 const componentAliases = {
@@ -167,6 +172,10 @@ const componentAliases = {
   "filter-sort": "filter_sort_header",
   filtersortheader: "filter_sort_header",
   "filter-sort-header": "filter_sort_header",
+  "order-history": "order_history",
+  "order history": "order_history",
+  myorders: "order_history",
+  "my-orders": "order_history",
 };
 
 export default function DynamicRenderer({ section }) {
