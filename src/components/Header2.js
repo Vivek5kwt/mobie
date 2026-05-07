@@ -331,7 +331,7 @@ export default function Header2({ section }) {
   const searchAndIcons = {
     showSearch: resolveBooleanSetting(searchAndIconsNode.showSearch, true),
     placeholder: resolveValue(searchAndIconsNode.placeholder, "Search products"),
-    showSideMenu: resolveBooleanSetting(searchAndIconsNode.showSideMenu, true),
+    showSideMenu: resolveBooleanSetting(searchAndIconsNode.showSideMenu, false),
     searchBgColor: resolveValue(searchAndIconsNode.searchBgColor, "#FFFFFF"),
     searchIconColor: resolveValue(searchAndIconsNode.searchIconColor, "#4B5563"),
     searchTextColor: resolveValue(searchAndIconsNode.searchTextColor, "#131b28"),
@@ -540,7 +540,7 @@ export default function Header2({ section }) {
   const shouldShowSearchRow =
     (searchEnabled && searchAndIcons?.showSearch) ||
     (notificationEnabled && searchAndIcons?.showNotification);
-  const shouldShowSideMenu = hasSideNav && searchAndIcons?.showSideMenu !== false;
+  const shouldShowSideMenu = resolveBooleanSetting(searchAndIconsNode?.showSideMenu, false);
   const shouldShowSearchRowOrMenu = shouldShowSearchRow || shouldShowSideMenu;
   const shouldShowTopRow = hasGreeting || (profileEnabled && profile?.show);
   const searchLimit = resolveValue(searchAndIcons?.searchLimit, 10);
@@ -779,7 +779,7 @@ export default function Header2({ section }) {
     if (logoImageStyle.height === "auto") delete logoImageStyle.height;
 
     const sideMenuProps = rawPropsNode.sideMenu?.properties || rawPropsNode.sideMenu || {};
-    const sideMenuVisible = resolveBooleanSetting(sideMenuProps.visible, true);
+    const sideMenuVisible = resolveBooleanSetting(sideMenuProps.visible, false);
     const sideMenuIconName = normalizeIconName(
       resolveValue(sideMenuProps.iconId ?? sideMenuProps.iconName ?? sideMenuProps.icon, "bars")
     );
@@ -889,7 +889,7 @@ export default function Header2({ section }) {
     return (
       <View style={simpleContainerStyle}>
         <View style={[header2Styles.leftSlot, normalizedLayout.leftSlot]}>
-          {sideMenuVisible && hasSideNav && (
+          {sideMenuVisible && (
             <TouchableOpacity onPress={openSideMenu} activeOpacity={0.7}>
               <Icon
                 name={sideMenuIconName}
