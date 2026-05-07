@@ -140,7 +140,9 @@ export default function OrderDetailScreen() {
   const { session } = useAuth();
 
   // Order may be passed via route params (from checkout flow or orders list)
-  const routeOrder = route?.params?.order ?? null;
+  const routeOrder =
+    route?.params?.order ??
+    (route?.params?.orderId ? { id: route.params.orderId, adminOrderId: route.params.orderId } : null);
   const appId = resolveAppId();
 
   const [sections,        setSections]        = useState([]);
@@ -154,6 +156,16 @@ export default function OrderDetailScreen() {
   const [bottomNavHeight,  setBottomNavHeight]  = useState(BOTTOM_NAV_RESERVED_HEIGHT);
   const versionRef = useRef(null);
   const enrichedOrderRef = useRef("");
+  const customerAccessToken =
+    session?.user?.customerAccessToken ||
+    session?.user?.shopifyCustomerAccessToken ||
+    session?.user?.customer_access_token ||
+    session?.customerAccessToken ||
+    session?.shopifyCustomerAccessToken ||
+    session?.user?.userToken ||
+    session?.accessToken ||
+    session?.token ||
+    "";
 
   // ── Load DSL ──────────────────────────────────────────────────────────────
   const loadDsl = useCallback(async () => {
@@ -188,13 +200,7 @@ export default function OrderDetailScreen() {
   // ── Fetch orders from Shopify if no order was passed ─────────────────────
   useEffect(() => {
     if (routeOrder) return;           // already have data — skip Shopify fetch
-    const token =
-      session?.user?.customerAccessToken ||
-      session?.user?.userToken ||
-      session?.customerAccessToken ||
-      session?.accessToken ||
-      session?.token ||
-      null;
+    const token = customerAccessToken || null;
 
     if (!token) {
       setFetchingOrders(false);
@@ -220,11 +226,18 @@ export default function OrderDetailScreen() {
       }
     })();
     return () => { mounted = false; };
-  }, [routeOrder, session]);
+  }, [customerAccessToken, routeOrder]);
 
   useEffect(() => {
     if (!order) return;
-    const key = String(order.adminOrderId || order.id || order.orderNumber || order.name || order.statusUrl || "");
+    const key = String(
+      order.adminOrderId ||
+      order.id ||
+      order.orderNumber ||
+      order.name ||
+      order.statusUrl ||
+      (order.needsStoreRefresh ? `${order.total || ""}:${order.placedAt || order.orderDate || ""}` : "")
+    );
     if (!key || enrichedOrderRef.current === key) return;
 
     let mounted = true;
@@ -234,7 +247,7 @@ export default function OrderDetailScreen() {
 
     (async () => {
       try {
-        const latest = await fetchShopifyOrderDetails({ order });
+        const latest = await fetchShopifyOrderDetails({ order, customerAccessToken });
         if (!mounted || !latest) return;
         setOrder((current) => ({ ...(current || {}), ...latest }));
       } catch (_) {
@@ -247,7 +260,7 @@ export default function OrderDetailScreen() {
     })();
 
     return () => { mounted = false; };
-  }, [order]);
+  }, [customerAccessToken, order]);
 
   // ── Bottom nav from home DSL ───────────────────────────────────────────────
   useEffect(() => {
@@ -361,6 +374,7 @@ export default function OrderDetailScreen() {
                 appId={appId}
                 userId={session?.user?.id ?? null}
                 email={session?.user?.email || ""}
+                customerAccessToken={customerAccessToken}
                 onCanceled={(updatedOrder) => {
                   setOrder((current) => ({ ...(current || {}), ...(updatedOrder || {}) }));
                   setDetailsError("");
@@ -541,7 +555,7 @@ function PriceInfoSection({ section, order }) {
 
 // ─── Cancel Order Section ─────────────────────────────────────────────────────
 
-function CancelOrderSection({ section, order, appId, userId, email, onCanceled }) {
+function CancelOrderSection({ section, order, appId, userId, email, customerAccessToken, onCanceled }) {
   const propsNode = getProps(section);
   const raw       = unwrap(propsNode?.raw, {}) || {};
   const [submitting, setSubmitting] = useState(false);
@@ -579,6 +593,7 @@ function CancelOrderSection({ section, order, appId, userId, email, onCanceled }
         order,
         reason: toStr(raw.cancelReason, "customer"),
         notifyCustomer: toBool(raw.notifyCustomer, true),
+        customerAccessToken,
       });
       const updatedOrder = {
         ...(order || {}),

@@ -662,6 +662,24 @@ const extractShopifyNumericId = (value) => {
   return "";
 };
 
+const normalizeOrderIdentity = (value) =>
+  String(value || "").trim().toLowerCase().replace(/^order\s+/i, "").replace(/^#/, "");
+
+const sameOrderDay = (a, b) => {
+  if (!a || !b) return false;
+  const first = new Date(a);
+  const second = new Date(b);
+  if (Number.isNaN(first.getTime()) || Number.isNaN(second.getTime())) return false;
+  return first.toISOString().slice(0, 10) === second.toISOString().slice(0, 10);
+};
+
+const nearlySameMoney = (a, b) => {
+  const first = Number(a);
+  const second = Number(b);
+  if (!Number.isFinite(first) || !Number.isFinite(second)) return false;
+  return Math.abs(first - second) < 0.01;
+};
+
 const formatAddressLines = (address = {}) => {
   if (!address || typeof address !== "object") return "";
   if (Array.isArray(address.formatted) && address.formatted.length) {
@@ -793,7 +811,15 @@ const mapAdminOrder = (adminOrder = {}, fallback = {}) => {
 };
 
 const findAdminOrderForCustomerOrder = async (order = {}) => {
-  const numericId = extractShopifyNumericId(order?.adminOrderId || order?.id || order?.adminGraphqlApiId);
+  const numericCandidates = [
+    order?.adminOrderId,
+    order?.admin_order_id,
+    order?.orderId,
+    order?.order_id,
+    order?.id,
+    order?.adminGraphqlApiId,
+    order?.admin_graphql_api_id,
+  ].map(extractShopifyNumericId).filter(Boolean);
   const fields = [
     "id",
     "admin_graphql_api_id",
@@ -820,40 +846,148 @@ const findAdminOrderForCustomerOrder = async (order = {}) => {
     "order_status_url",
   ].join(",");
 
-  if (numericId) {
-    const json = await shopifyAdminRequest({
-      path: `/orders/${numericId}.json?fields=${encodeURIComponent(fields)}`,
-    });
-    return json?.order || null;
+  for (const numericId of [...new Set(numericCandidates)]) {
+    try {
+      const json = await shopifyAdminRequest({
+        path: `/orders/${numericId}.json?fields=${encodeURIComponent(fields)}`,
+      });
+      if (json?.order) return json.order;
+    } catch (_) {}
   }
 
-  const name = String(order?.name || order?.orderNumber || "").trim();
-  if (!name) return null;
-  const json = await shopifyAdminRequest({
-    path: `/orders.json?status=any&limit=1&name=${encodeURIComponent(name)}&fields=${encodeURIComponent(fields)}`,
-  });
-  return Array.isArray(json?.orders) ? json.orders[0] || null : null;
+  const rawNameCandidates = [
+    order?.name,
+    order?.orderNumber,
+    order?.order_number,
+    order?.number,
+  ].map((value) => String(value || "").trim()).filter(Boolean);
+  const nameCandidates = [...new Set(rawNameCandidates.flatMap((value) => {
+    const normalized = value.startsWith("#") ? value : `#${value}`;
+    return [value, normalized];
+  }))];
+
+  for (const name of nameCandidates) {
+    try {
+      const json = await shopifyAdminRequest({
+        path: `/orders.json?status=any&limit=1&name=${encodeURIComponent(name)}&fields=${encodeURIComponent(fields)}`,
+      });
+      if (Array.isArray(json?.orders) && json.orders[0]) return json.orders[0];
+    } catch (_) {}
+  }
+
+  const orderNumber = rawNameCandidates
+    .map((value) => String(value || "").match(/(\d+)/)?.[1] || "")
+    .find(Boolean);
+  if (orderNumber) {
+    try {
+      const json = await shopifyAdminRequest({
+        path: `/orders.json?status=any&limit=5&order_number=${encodeURIComponent(orderNumber)}&fields=${encodeURIComponent(fields)}`,
+      });
+      if (Array.isArray(json?.orders) && json.orders[0]) return json.orders[0];
+    } catch (_) {}
+  }
+
+  try {
+    const json = await shopifyAdminRequest({
+      path: `/orders.json?status=any&limit=50&fields=${encodeURIComponent(fields)}`,
+    });
+    const orders = Array.isArray(json?.orders) ? json.orders : [];
+    const orderIdentities = rawNameCandidates.map(normalizeOrderIdentity).filter(Boolean);
+    const statusUrl = String(order?.statusUrl || order?.orderStatusUrl || "").trim();
+    const matched = orders.find((adminOrder) => {
+      const adminIdentities = [
+        adminOrder.name,
+        adminOrder.order_number,
+        adminOrder.id,
+        adminOrder.admin_graphql_api_id,
+      ].map(normalizeOrderIdentity).filter(Boolean);
+      if (orderIdentities.some((value) => adminIdentities.includes(value))) return true;
+      if (statusUrl && adminOrder.order_status_url === statusUrl) return true;
+      return (
+        nearlySameMoney(order?.total, adminOrder.current_total_price || adminOrder.total_price) &&
+        sameOrderDay(order?.placedAt || order?.orderDate || order?.placedOn, adminOrder.processed_at || adminOrder.created_at)
+      );
+    });
+    if (matched) return matched;
+  } catch (_) {}
+
+  return null;
 };
 
-export async function fetchShopifyOrderDetails({ order } = {}) {
+const findMatchingCustomerOrder = (target = {}, orders = []) => {
+  if (!Array.isArray(orders) || !orders.length) return null;
+  const targetIdentities = [
+    target?.adminOrderId,
+    target?.id,
+    target?.name,
+    target?.orderNumber,
+    target?.statusUrl,
+  ].map(normalizeOrderIdentity).filter(Boolean);
+
+  const matched = orders.find((candidate) => {
+    const candidateIdentities = [
+      candidate?.adminOrderId,
+      candidate?.id,
+      candidate?.name,
+      candidate?.orderNumber,
+      candidate?.statusUrl,
+    ].map(normalizeOrderIdentity).filter(Boolean);
+    if (targetIdentities.some((value) => candidateIdentities.includes(value))) return true;
+    return (
+      nearlySameMoney(target?.total, candidate?.total) &&
+      sameOrderDay(target?.placedAt || target?.orderDate || target?.placedOn, candidate?.placedAt || candidate?.orderDate || candidate?.placedOn)
+    );
+  });
+
+  if (matched) return matched;
+  if (target?.needsStoreRefresh && orders[0]) return orders[0];
+  if (!targetIdentities.length && orders.length === 1) return orders[0];
+  return null;
+};
+
+const findAdminOrderWithCustomerFallback = async ({ order, customerAccessToken } = {}) => {
+  let lookupOrder = order || {};
+  let adminOrder = await findAdminOrderForCustomerOrder(lookupOrder);
+  if (adminOrder || !customerAccessToken) {
+    return { adminOrder, lookupOrder };
+  }
+
+  const { orders } = await fetchCustomerOrders({ customerAccessToken, first: 10 });
+  const customerOrder = findMatchingCustomerOrder(lookupOrder, orders);
+  if (!customerOrder) {
+    return { adminOrder: null, lookupOrder };
+  }
+
+  lookupOrder = { ...lookupOrder, ...customerOrder };
+  adminOrder = await findAdminOrderForCustomerOrder(lookupOrder);
+  return { adminOrder, lookupOrder };
+};
+
+export async function fetchShopifyOrderDetails({ order, customerAccessToken } = {}) {
   if (!order) return null;
-  const adminOrder = await findAdminOrderForCustomerOrder(order);
-  return adminOrder ? mapAdminOrder(adminOrder, order) : order;
+  const { adminOrder, lookupOrder } = await findAdminOrderWithCustomerFallback({
+    order,
+    customerAccessToken,
+  });
+  return adminOrder ? mapAdminOrder(adminOrder, lookupOrder) : lookupOrder;
 }
 
-export async function cancelShopifyOrder({ order, reason = "customer", notifyCustomer = true } = {}) {
+export async function cancelShopifyOrder({ order, reason = "customer", notifyCustomer = true, customerAccessToken } = {}) {
   if (!order) {
     throw new Error("Order is required.");
   }
-  const adminOrder = await findAdminOrderForCustomerOrder(order);
-  const adminOrderId = adminOrder?.id || extractShopifyNumericId(order?.adminOrderId || order?.id);
+  const { adminOrder, lookupOrder } = await findAdminOrderWithCustomerFallback({
+    order,
+    customerAccessToken,
+  });
+  const adminOrderId = adminOrder?.id || extractShopifyNumericId(lookupOrder?.adminOrderId || lookupOrder?.id);
   if (!adminOrderId) {
-    throw new Error("Unable to resolve the Shopify order id.");
+    throw new Error("Unable to sync this order from Shopify. Please reopen order history and try again.");
   }
   if (adminOrder?.cancelled_at) {
     return {
       success: true,
-      order: mapAdminOrder(adminOrder, order),
+      order: mapAdminOrder(adminOrder, lookupOrder),
       alreadyCanceled: true,
     };
   }
@@ -875,7 +1009,7 @@ export async function cancelShopifyOrder({ order, reason = "customer", notifyCus
 
   return {
     success: true,
-    order: mapAdminOrder(canceledOrder, order),
+    order: mapAdminOrder(canceledOrder, lookupOrder),
   };
 }
 
