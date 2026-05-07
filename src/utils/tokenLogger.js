@@ -4,6 +4,7 @@ import { resolveAppId } from './appId';
 
 const STORAGE_FCM_TOKEN_KEY     = '@device_fcm_token';
 const STORAGE_FCM_RECORD_ID_KEY = '@fcm_record_id';   // id returned by createFcmToken
+const STORAGE_FCM_APP_ID_KEY    = '@fcm_record_app_id';
 
 class TokenLogger {
   constructor() {
@@ -47,6 +48,13 @@ class TokenLogger {
     try {
       if (this.AsyncStorage) await this.AsyncStorage.removeItem(key);
     } catch (_) {}
+  }
+
+  async _saveRecord(result, appid) {
+    if (!result?.id) return;
+    this.recordId = String(result.id);
+    await this._save(STORAGE_FCM_RECORD_ID_KEY, this.recordId);
+    await this._save(STORAGE_FCM_APP_ID_KEY, resolveAppId(appid));
   }
 
   // ── Firebase helper ────────────────────────────────────────────────────────
@@ -94,7 +102,44 @@ class TokenLogger {
     this.token = firebaseToken;
     await this._save(STORAGE_FCM_TOKEN_KEY, firebaseToken);
     console.log(`✅ FCM token captured locally (last 12): ...${firebaseToken.slice(-12)}`);
-    console.log('ℹ️ Backend registration deferred — will register after login with userid');
+    console.log('FCM backend registration will run now; userid will be attached after login if needed');
+
+    if (!this.recordId) this.recordId = await this._load(STORAGE_FCM_RECORD_ID_KEY);
+    const resolvedAppId = resolveAppId(appid);
+
+    if (this.recordId) {
+      try {
+        const result = await updateFcmToken({
+          id: this.recordId,
+          token: firebaseToken,
+          appid: resolvedAppId,
+        });
+        if (result?.id) {
+          await this._saveRecord(result, resolvedAppId);
+          console.log(`FCM token refreshed on backend (id: ${result.id})`);
+        }
+      } catch (err) {
+        console.log('Existing FCM record update failed; creating a new record:', err?.message);
+        this.recordId = null;
+        await this._remove(STORAGE_FCM_RECORD_ID_KEY);
+      }
+    }
+
+    if (!this.recordId) {
+      try {
+        const result = await createFcmToken({
+          token: firebaseToken,
+          userid: null,
+          appid: resolvedAppId,
+        });
+        if (result?.id) {
+          await this._saveRecord(result, resolvedAppId);
+          console.log(`FCM token registered on first app open (id: ${result.id})`);
+        }
+      } catch (err) {
+        console.log('captureToken: backend registration failed:', err?.message);
+      }
+    }
 
     return firebaseToken;
   }
@@ -146,6 +191,7 @@ class TokenLogger {
           appid:  resolvedAppId,
         });
         if (result?.id) {
+          await this._saveRecord(result, resolvedAppId);
           console.log(`✅ FCM record updated with userid (id: ${result.id})`);
         }
         return result ?? null;
@@ -163,8 +209,7 @@ class TokenLogger {
           appid:  resolvedAppId,
         });
         if (result?.id) {
-          this.recordId = String(result.id);
-          await this._save(STORAGE_FCM_RECORD_ID_KEY, this.recordId);
+          await this._saveRecord(result, resolvedAppId);
           console.log(`✅ FCM token registered with userid (id: ${result.id})`);
         }
         return result ?? null;
@@ -195,17 +240,32 @@ class TokenLogger {
     this.recordId = null;
     await this._save(STORAGE_FCM_TOKEN_KEY, newToken);
     await this._remove(STORAGE_FCM_RECORD_ID_KEY);
+    await this._remove(STORAGE_FCM_APP_ID_KEY);
 
     const resolvedUserId = userid ? Number(userid) : null;
+    const resolvedAppId = resolveAppId(appid);
 
-    // If user is not logged in, just store the token for later registration
+    // If user is not logged in, still register this device token with appid.
     if (!resolvedUserId) {
-      console.log('🔄 FCM token rotated — stored locally, will register after login');
-      return null;
+      console.log('FCM token rotated - registering without userid');
+      try {
+        const result = await createFcmToken({
+          token: newToken,
+          userid: null,
+          appid: resolvedAppId,
+        });
+        if (result?.id) {
+          await this._saveRecord(result, resolvedAppId);
+          console.log(`Rotated FCM token registered without userid (id: ${result.id})`);
+        }
+        return result ?? null;
+      } catch (err) {
+        console.log('refreshToken: guest backend registration failed:', err?.message);
+        return null;
+      }
     }
 
     console.log('🔄 FCM token rotated — re-registering on backend');
-    const resolvedAppId = resolveAppId(appid);
 
     try {
       const result = await createFcmToken({
@@ -237,6 +297,7 @@ class TokenLogger {
     this.recordId = null;
     await this._remove(STORAGE_FCM_TOKEN_KEY);
     await this._remove(STORAGE_FCM_RECORD_ID_KEY);
+    await this._remove(STORAGE_FCM_APP_ID_KEY);
     console.log('🗑️ FCM token and record cleared');
   }
 }

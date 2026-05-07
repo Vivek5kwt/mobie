@@ -30,6 +30,11 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         const storedSession = await restoreSession();
         if (storedSession) {
           setSession(storedSession);
+          if (storedSession?.user?.id) {
+            tokenLogger
+              .updateTokenForUser(storedSession.user.id, storedSession.user.appId)
+              .catch(() => {});
+          }
         }
       } finally {
         setInitializing(false);
