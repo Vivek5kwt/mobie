@@ -1,7 +1,6 @@
 import React, { useState } from "react";
 import {
   Image,
-  ScrollView,
   StyleSheet,
   Text,
   TouchableOpacity,
@@ -110,11 +109,7 @@ export default function WishlistItem({ section }) {
   }
 
   return (
-    <View style={{ flex: 1 }}>
-    <ScrollView
-      contentContainerStyle={[styles.grid, { paddingHorizontal: 12, paddingVertical: 12 }]}
-      showsVerticalScrollIndicator={false}
-    >
+    <View style={[styles.grid, { paddingHorizontal: 12, paddingVertical: 12 }]}>
       <Text style={styles.countLabel}>
         {wishlistItems.length} {wishlistItems.length === 1 ? "item" : "items"} saved
       </Text>
@@ -238,14 +233,13 @@ export default function WishlistItem({ section }) {
           );
         })}
       </View>
-    </ScrollView>
-    <Snackbar
-      visible={snackVisible}
-      message="Product removed from wishlist successfully."
-      onDismiss={() => setSnackVisible(false)}
-      duration={2500}
-      type="info"
-    />
+      <Snackbar
+        visible={snackVisible}
+        message="Product removed from wishlist successfully."
+        onDismiss={() => setSnackVisible(false)}
+        duration={2500}
+        type="info"
+      />
     </View>
   );
 }

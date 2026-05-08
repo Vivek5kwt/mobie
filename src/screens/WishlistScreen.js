@@ -2,8 +2,8 @@ import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
   Dimensions,
-  FlatList,
   Image,
+  ScrollView,
   StyleSheet,
   Text,
   TouchableOpacity,
@@ -19,6 +19,7 @@ import { fetchDSL } from "../engine/dslHandler";
 import { resolveAppId } from "../utils/appId";
 import { useAuth } from "../services/AuthContext";
 import HeaderDefault from "../components/HeaderDefault";
+import DynamicRenderer from "../engine/DynamicRenderer";
 
 const { width: SCREEN_W } = Dimensions.get("window");
 
@@ -31,17 +32,29 @@ const unwrap = (v, fallback) => {
   }
   return v ?? fallback;
 };
-const toStr  = (v, fb = "")    => { const r = unwrap(v, fb); return (r === undefined || r === null) ? fb : String(r); };
-const toNum  = (v, fb = 0)     => { const r = unwrap(v, fb); const n = parseFloat(r); return Number.isNaN(n) ? fb : n; };
+const toStr = (v, fb = "")  => { const r = unwrap(v, fb); return (r === undefined || r === null) ? fb : String(r); };
+const toNum = (v, fb = 0)   => { const r = unwrap(v, fb); const n = parseFloat(r); return Number.isNaN(n) ? fb : n; };
+
+const normalizeComp = (s) =>
+  String(
+    s?.component?.const || s?.component || s?.properties?.component?.const || ""
+  ).trim().toLowerCase().replace(/[\s-]+/g, "_");
+
+// Components that should NOT be rendered as free DSL sections on this screen
+const SKIP_COMPS = new Set([
+  "wishlist_item", "wishlist", "wishlist-item",
+  "bottom_navigation", "bottom_navigation_style_1", "bottom_navigation_style_2",
+  "header", "header_2", "header_mobile",
+]);
 
 // ── Component ─────────────────────────────────────────────────────────────────
 export default function WishlistScreen() {
-  const navigation  = useNavigation();
-  const dispatch    = useDispatch();
-  const { session } = useAuth();
+  const navigation    = useNavigation();
+  const dispatch      = useDispatch();
+  const { session }   = useAuth();
   const wishlistItems = useSelector((state) => state.wishlist?.items || []);
 
-  // Auth gate — redirect to login when screen is opened without a session
+  // Auth gate
   useFocusEffect(
     useCallback(() => {
       if (!session) {
@@ -63,6 +76,7 @@ export default function WishlistScreen() {
   const [dslLoading,    setDslLoading]    = useState(true);
   const [wishlistProps, setWishlistProps] = useState(null);
   const [headerConfig,  setHeaderConfig]  = useState(null);
+  const [otherSections, setOtherSections] = useState([]);
   const [snackVisible,  setSnackVisible]  = useState(false);
 
   const loadDSL = useCallback(async () => {
@@ -71,29 +85,34 @@ export default function WishlistScreen() {
       const result = await fetchDSL(appId, "wishlist");
       const dsl    = result?.dsl || result;
 
-      // Extract headerdefault for header bar styling
       if (dsl?.headerdefault) setHeaderConfig(dsl.headerdefault);
 
-      // Find the wishlist_item section
       const sections = dsl?.sections || [];
-      const section  = sections.find((s) => {
-        const comp = String(
-          s?.component?.const || s?.component || s?.properties?.component?.const || ""
-        ).toLowerCase();
-        return comp === "wishlist_item";
+
+      // wishlist_item section → extract card styling props only
+      const wishlistSection = sections.find((s) => {
+        const c = normalizeComp(s);
+        return c === "wishlist_item" || c === "wishlist";
       });
 
-      if (section) {
-        // Extract props node (handles both flat and nested DSL shapes)
+      if (wishlistSection) {
         const propsNode =
-          section?.properties?.props?.properties ||
-          section?.properties?.props ||
-          section?.props ||
+          wishlistSection?.properties?.props?.properties ||
+          wishlistSection?.properties?.props ||
+          wishlistSection?.props ||
           {};
         setWishlistProps(propsNode);
       }
+
+      // All other renderable sections (text blocks, banners, spacers, etc.)
+      setOtherSections(
+        sections.filter((s) => {
+          const c = normalizeComp(s);
+          return c !== "" && !SKIP_COMPS.has(c);
+        })
+      );
     } catch (_) {
-      // DSL fetch failed — component renders with defaults
+      // DSL fetch failed — renders with defaults
     } finally {
       setDslLoading(false);
     }
@@ -101,8 +120,8 @@ export default function WishlistScreen() {
 
   useEffect(() => { loadDSL(); }, [loadDSL]);
 
-  // ── Resolve DSL tokens (with sensible defaults) ───────────────────────────
-  const p = wishlistProps || {};   // shorthand — empty object = all defaults
+  // ── Resolve DSL card-styling tokens ──────────────────────────────────────
+  const p = wishlistProps || {};
 
   const pt          = toNum(p?.pt,          12);
   const pb          = toNum(p?.pb,          12);
@@ -144,16 +163,13 @@ export default function WishlistScreen() {
   const strikeFontSize        = toNum(p?.strikeFontSize,        12);
   const strikepriceFontWeight = toStr(p?.strikepriceFontWeight, "400");
 
-  // ── Header bar tokens from headerdefault DSL ──────────────────────────────
-
   // ── Layout math ───────────────────────────────────────────────────────────
   const GAP   = 12;
   const cardW = (SCREEN_W - pl - pr - GAP) / 2;
   const imgH  = cardW * imageAspect;
 
-  // ── Back navigation ───────────────────────────────────────────────────────
-  // ── Render a single wishlist card ─────────────────────────────────────────
-  const renderItem = useCallback(({ item }) => (
+  // ── Single product card ───────────────────────────────────────────────────
+  const renderCard = useCallback((item) => (
     <TouchableOpacity
       style={[
         styles.card,
@@ -162,7 +178,6 @@ export default function WishlistScreen() {
       activeOpacity={0.88}
       onPress={() => navigation.navigate("ProductDetail", { product: item })}
     >
-      {/* Product image */}
       <View style={{ position: "relative" }}>
         {item.image ? (
           <Image
@@ -189,7 +204,6 @@ export default function WishlistScreen() {
           </View>
         )}
 
-        {/* Remove-from-wishlist heart */}
         <TouchableOpacity
           style={styles.heartBtn}
           activeOpacity={0.8}
@@ -203,7 +217,6 @@ export default function WishlistScreen() {
         </TouchableOpacity>
       </View>
 
-      {/* Card body */}
       <View style={styles.cardBody}>
         <Text
           numberOfLines={2}
@@ -250,48 +263,54 @@ export default function WishlistScreen() {
 
   return (
     <SafeArea>
-      {/* ── Page header ─────────────────────────────────────────────────── */}
       {headerConfig ? (
         <HeaderDefault config={headerConfig} hideTabs={true} showBack={true} />
       ) : null}
 
-      {/* ── DSL loading spinner ──────────────────────────────────────────── */}
       {dslLoading ? (
         <View style={styles.centre}>
           <ActivityIndicator size="large" color="#016D77" />
         </View>
-
-      ) : wishlistItems.length === 0 ? (
-        /* ── Empty state ──────────────────────────────────────────────────── */
-        <View style={styles.emptyWrap}>
-          <Icon name="heart" size={52} color="#E5E7EB" />
-          <Text style={styles.emptyTitle}>Your wishlist is empty</Text>
-          <Text style={styles.emptySubtitle}>Save items you love and find them here.</Text>
-          <TouchableOpacity
-            style={styles.browseBtn}
-            activeOpacity={0.85}
-            onPress={() => navigation.navigate("LayoutScreen")}
-          >
-            <Text style={styles.browseBtnText}>Browse Products</Text>
-          </TouchableOpacity>
-        </View>
-
       ) : (
-        /* ── Wishlist grid ────────────────────────────────────────────────── */
-        <FlatList
-          data={wishlistItems}
-          keyExtractor={(item) => String(item.id)}
-          numColumns={2}
-          columnWrapperStyle={{ gap: GAP }}
-          contentContainerStyle={{
-            paddingTop:        pt,
-            paddingBottom:     pb + 24,
-            paddingHorizontal: pl,
-          }}
+        <ScrollView
           showsVerticalScrollIndicator={false}
-          ItemSeparatorComponent={() => <View style={{ height: GAP }} />}
-          renderItem={renderItem}
-        />
+          contentContainerStyle={{ flexGrow: 1 }}
+        >
+          {/* All non-wishlist DSL sections (text blocks, banners, spacers, etc.) */}
+          {otherSections.map((section, i) => (
+            <DynamicRenderer key={i} section={section} />
+          ))}
+
+          {wishlistItems.length === 0 ? (
+            /* ── Empty state ──────────────────────────────────────────────── */
+            <View style={styles.emptyWrap}>
+              <Icon name="heart" size={52} color="#E5E7EB" />
+              <Text style={styles.emptyTitle}>Your wishlist is empty</Text>
+              <Text style={styles.emptySubtitle}>Save items you love and find them here.</Text>
+              <TouchableOpacity
+                style={styles.browseBtn}
+                activeOpacity={0.85}
+                onPress={() => navigation.navigate("LayoutScreen")}
+              >
+                <Text style={styles.browseBtnText}>Browse Products</Text>
+              </TouchableOpacity>
+            </View>
+          ) : (
+            /* ── Product grid ────────────────────────────────────────────── */
+            <View style={{ paddingTop: pt, paddingBottom: pb + 24, paddingLeft: pl, paddingRight: pr }}>
+              <Text style={styles.countLabel}>
+                {wishlistItems.length} {wishlistItems.length === 1 ? "item" : "items"} saved
+              </Text>
+              <View style={styles.gridRow}>
+                {wishlistItems.map((item, idx) => (
+                  <React.Fragment key={String(item.id ?? idx)}>
+                    {renderCard(item)}
+                  </React.Fragment>
+                ))}
+              </View>
+            </View>
+          )}
+        </ScrollView>
       )}
 
       <Snackbar
@@ -348,11 +367,23 @@ const styles = StyleSheet.create({
     alignItems:    "center",
     flexWrap:      "wrap",
   },
+  countLabel: {
+    fontSize:     13,
+    color:        "#6B7280",
+    marginBottom: 12,
+    fontWeight:   "500",
+  },
+  gridRow: {
+    flexDirection: "row",
+    flexWrap:      "wrap",
+    gap:           12,
+  },
   emptyWrap: {
     flex:              1,
     alignItems:        "center",
     justifyContent:    "center",
     paddingHorizontal: 32,
+    paddingVertical:   48,
     gap:               12,
   },
   emptyTitle: {

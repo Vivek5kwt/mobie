@@ -175,8 +175,7 @@ export default function ProductDescription({ section }) {
   // ── Icon (left of title — info/leading icon) ──────────────────────────────
   // This icon is shown to the LEFT of the title text.
   // Source: raw.iconStyle.icon → propsNode.icon → layout CSS snapshot icon
-  const iconNodeVal = toString(iconNode?.icon ?? iconNode?.value, "");
-  const resolvedIconRaw = toString(raw?.iconStyle?.icon, "") || iconNodeVal;
+  const resolvedIconRaw = toString(raw?.iconStyle?.icon, "");
 
   // Icon color
   const iconColor = (() => {
