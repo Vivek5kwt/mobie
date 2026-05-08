@@ -8,6 +8,7 @@ import {
 } from "react-native";
 import { useDispatch, useSelector } from "react-redux";
 import { applyDiscount, removeDiscount } from "../store/slices/cartSlice";
+import { resolveFont } from "../services/typographyService";
 
 const unwrapValue = (value, fallback = undefined) => {
   if (value === undefined || value === null) return fallback;
@@ -33,11 +34,7 @@ const toString = (value, fallback = "") => {
   return String(resolved);
 };
 
-const cleanFontFamily = (family) => {
-  if (!family) return undefined;
-  const cleaned = String(family).split(",")[0].trim().replace(/['"]/g, "");
-  return cleaned || undefined;
-};
+const cleanFontFamily = (family) => resolveFont(family) || "";
 
 const toBoolean = (value, fallback = false) => {
   const resolved = unwrapValue(value, fallback);

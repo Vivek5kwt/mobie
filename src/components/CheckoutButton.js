@@ -7,6 +7,7 @@ import { createShopifyCartCheckout } from "../services/shopify";
 import Snackbar from "./Snackbar";
 import { resolveFA4IconName } from "../utils/faIconAlias";
 import { useAuth } from "../services/AuthContext";
+import { resolveFont } from "../services/typographyService";
 
 // ── DSL helpers ────────────────────────────────────────────────────────────────
 
@@ -44,11 +45,7 @@ const toBool = (value, fallback = false) => {
   return fallback;
 };
 
-const cleanFontFamily = (family) => {
-  if (!family) return undefined;
-  const cleaned = String(family).split(",")[0].trim().replace(/['"]/g, "");
-  return cleaned || undefined;
-};
+const cleanFontFamily = (family) => resolveFont(family) || "";
 
 // First non-empty string wins
 const pickStr = (candidates, fallback) => {

@@ -11,6 +11,7 @@ import { useNavigation } from "@react-navigation/native";
 import FontAwesome from "react-native-vector-icons/FontAwesome";
 import { updateQuantity, removeItem } from "../store/slices/cartSlice";
 import { resolveFA4IconName } from "../utils/faIconAlias";
+import { resolveFont } from "../services/typographyService";
 
 const unwrapValue = (value, fallback = undefined) => {
   if (value === undefined || value === null) return fallback;
@@ -36,11 +37,7 @@ const toString = (value, fallback = "") => {
   return String(resolved);
 };
 
-const cleanFontFamily = (family) => {
-  if (!family) return undefined;
-  const cleaned = String(family).split(",")[0].trim().replace(/['"]/g, "");
-  return cleaned || undefined;
-};
+const cleanFontFamily = (family) => resolveFont(family) || "";
 
 const toBoolean = (value, fallback = false) => {
   const resolved = unwrapValue(value, fallback);

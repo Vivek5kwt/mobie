@@ -20,6 +20,7 @@ import { getWishlistKeys, isWishlistProduct, toggleWishlist } from "../store/sli
 import Snackbar from "./Snackbar";
 import { useAuth } from "../services/AuthContext";
 import { requireLoginForAction } from "../utils/authGate";
+import { resolveFont } from "../services/typographyService";
 
 const unwrapValue = (value, fallback = undefined) => {
   if (value === undefined || value === null) return fallback;
@@ -45,11 +46,7 @@ const toString = (value, fallback = "") => {
   return String(resolved);
 };
 
-const cleanFontFamily = (family) => {
-  if (!family) return undefined;
-  const cleaned = String(family).split(",")[0].trim().replace(/['"]/g, "");
-  return cleaned || undefined;
-};
+const cleanFontFamily = (family) => resolveFont(family) || "";
 
 const toBoolean = (value, fallback = false) => {
   const resolved = unwrapValue(value, fallback);

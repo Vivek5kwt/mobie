@@ -19,6 +19,7 @@ import { cancelShopifyOrder, fetchCustomerOrders, fetchShopifyOrderDetails } fro
 import { triggerOrderNotification, ORDER_EVENTS } from "../services/notificationService";
 import { saveCompletedOrder } from "../services/orderHistoryService";
 import BottomNavigation, { BOTTOM_NAV_RESERVED_HEIGHT } from "../components/BottomNavigation";
+import { resolveFont } from "../services/typographyService";
 
 // ─── DSL helpers ──────────────────────────────────────────────────────────────
 
@@ -46,11 +47,7 @@ const toStr = (v, fb = "") => {
   const s = String(r).trim();
   return s && s !== "undefined" && s !== "null" ? s : fb;
 };
-const cleanFontFamily = (family) => {
-  if (!family) return undefined;
-  const cleaned = String(family).split(",")[0].trim().replace(/['"]/g, "");
-  return cleaned || undefined;
-};
+const cleanFontFamily = (family) => resolveFont(family) || "";
 const toBool = (v, fb = false) => {
   const r = unwrap(v, fb);
   if (typeof r === "boolean") return r;

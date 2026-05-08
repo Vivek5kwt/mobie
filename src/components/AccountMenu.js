@@ -10,6 +10,7 @@ import FontAwesome from "react-native-vector-icons/FontAwesome";
 import { useNavigation } from "@react-navigation/native";
 import { convertStyles } from "../utils/convertStyles";
 import { useAuth } from "../services/AuthContext";
+import { resolveFont } from "../services/typographyService";
 
 // ── helpers ────────────────────────────────────────────────────────────────
 
@@ -155,7 +156,7 @@ export default function AccountMenu({ section }) {
   const labelUnderline = bool(rawProps?.textUnderline, false);
   const labelStrikethrough = bool(rawProps?.textStrikethrough, false);
   const labelUppercase = bool(rawProps?.textUppercase, false);
-  const labelFontFamily = str(rawProps?.textFontFamily, "");
+  const labelFontFamily = resolveFont(str(rawProps?.textFontFamily ?? rawProps?.fontFamily, ""));
 
   // ── chevron ───────────────────────────────────────────────────────────────
   const showChevron  = bool(rawProps?.showChevron ?? rawProps?.showArrow, true);

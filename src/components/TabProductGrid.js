@@ -24,6 +24,7 @@ import { resolveTextDecorationLine } from "../utils/textDecoration";
 import { useAuth } from "../services/AuthContext";
 import { requireLoginForAction } from "../utils/authGate";
 import Snackbar from "./Snackbar";
+import { resolveFont } from "../services/typographyService";
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -42,11 +43,7 @@ const toStr = (value, fallback = "") => {
   return r === undefined || r === null ? fallback : String(r);
 };
 
-const cleanFontFamily = (family) => {
-  if (!family) return undefined;
-  const cleaned = String(family).split(",")[0].trim().replace(/['"]/g, "");
-  return cleaned || undefined;
-};
+const cleanFontFamily = (family) => resolveFont(family) || "";
 
 const toNum = (value, fallback) => {
   const r = unwrapValue(value, undefined);

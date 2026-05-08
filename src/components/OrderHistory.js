@@ -15,6 +15,7 @@ import { fetchCustomerOrders } from "../services/shopify";
 import { getStoredOrders, mergeOrdersByIdentity } from "../services/orderHistoryService";
 import { getStoreConfigSync } from "../services/storeService";
 import { addItem } from "../store/slices/cartSlice";
+import { resolveFont } from "../services/typographyService";
 
 const deepUnwrap = (value) => {
   if (value === undefined || value === null) return value;
@@ -50,12 +51,7 @@ const toBool = (value, fallback = false) => {
   return fallback;
 };
 
-const cleanFontFamily = (family) => {
-  const value = toStr(family, "");
-  if (!value) return undefined;
-  const cleaned = value.split(",")[0].trim().replace(/['"]/g, "");
-  return cleaned || undefined;
-};
+const cleanFontFamily = (family) => resolveFont(family) || "";
 
 const toFontWeight = (value, fallback = "600") => {
   const raw = toStr(value, fallback).toLowerCase();

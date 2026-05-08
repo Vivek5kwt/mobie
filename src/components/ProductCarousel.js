@@ -24,6 +24,7 @@ import { resolveTextDecorationLine } from "../utils/textDecoration";
 import Snackbar from "./Snackbar";
 import { useAuth } from "../services/AuthContext";
 import { requireLoginForAction } from "../utils/authGate";
+import { resolveFont } from "../services/typographyService";
 
 const unwrapValue = (value, fallback = undefined) => {
   if (value === undefined || value === null) return fallback;
@@ -121,10 +122,7 @@ const deepUnwrap = (v) => {
 };
 
 // Strip web CSS fallback fonts ("Poppins, sans-serif" → "Poppins")
-const cleanFontFamily = (family) => {
-  if (!family) return "";
-  return family.split(",")[0].trim().replace(/['"]/g, "");
-};
+const cleanFontFamily = (family) => resolveFont(family) || "";
 
 
 function ShimmerBone({ style }) {

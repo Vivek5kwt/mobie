@@ -586,7 +586,7 @@ export default function HeroBanner({ section }) {
 
   // Button typography — fontFamily, fontSize, letterSpacing
   // Priority: buttonAttrs > flatProps > button.properties > tokenStyle > layoutCSS
-  const buttonFontFamily =
+  const buttonFontFamily = resolveFont(
     toString(buttonAttrs?.fontFamily, "") ||
     toString(flatPropsNode?.buttonFontFamily, "") ||
     toString(
@@ -597,7 +597,8 @@ export default function HeroBanner({ section }) {
       buttonTokens?.fontFamily,
       ""
     ) ||
-    toString(layoutCss?.button?.fontFamily, "");
+    toString(layoutCss?.button?.fontFamily, "")
+  );
 
   const buttonFontSize =
     toNumber(buttonAttrs?.fontSize, undefined) ??

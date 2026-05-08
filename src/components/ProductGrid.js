@@ -11,6 +11,7 @@ import { fetchShopifyProductsPage, fetchShopifyCollectionProducts } from "../ser
 import Snackbar from "./Snackbar";
 import { useAuth } from "../services/AuthContext";
 import { requireLoginForAction } from "../utils/authGate";
+import { resolveFont } from "../services/typographyService";
 
 // ── Currency symbol lookup ────────────────────────────────────────────────────
 
@@ -155,10 +156,7 @@ const isProductAvailable = (product) => {
 };
 
 // Strip web CSS fallback fonts ("Poppins, sans-serif" → "Poppins")
-const cleanFontFamily = (family) => {
-  if (!family) return "";
-  return family.split(",")[0].trim().replace(/['"]/g, "");
-};
+const cleanFontFamily = (family) => resolveFont(family) || "";
 
 
 // ── Shimmer bone ──────────────────────────────────────────────────────────────
@@ -418,13 +416,19 @@ export default function ProductGrid({ section, limit = 8, title = "Products" }) 
   const resolvedProductTitleSize       = resolveFirstNumber([rawProps?.productTitleSize, rawProps?.itemTitleSize, rawProps?.cardTitleSize, cardTitleCss?.fontSize], 14);
   const resolvedProductTitleColor      = toString(rawProps?.productTitleColor ?? rawProps?.itemTitleColor ?? cardTitleCss?.color, "#111827");
   const resolvedProductTitleWeight     = toFontWeight(rawProps?.productTitleWeight ?? rawProps?.itemTitleWeight ?? cardTitleCss?.fontWeight, "600");
-  const resolvedProductTitleFontFamily = cleanFontFamily(toString(rawProps?.productTitleFontFamily ?? cardTitleCss?.fontFamily, ""));
+  const resolvedProductTitleFontFamily = cleanFontFamily(toString(
+    rawProps?.productTitleFontFamily ?? rawProps?.titleFamily ?? rawProps?.titleFontFamily ?? rawProps?.fontFamily ?? cardTitleCss?.fontFamily,
+    ""
+  ));
 
   // ── Price ─────────────────────────────────────────────────────────────────
   const resolvedPriceSize       = resolveFirstNumber([rawProps?.priceSize, rawProps?.productPriceSize, rawProps?.cardPriceSize, cardPriceCss?.fontSize], 14);
   const resolvedPriceColor      = toString(rawProps?.priceColor ?? rawProps?.productPriceColor ?? cardPriceCss?.color, "#111827");
   const resolvedPriceWeight     = toFontWeight(rawProps?.priceWeight ?? rawProps?.productPriceWeight ?? cardPriceCss?.fontWeight, "600");
-  const resolvedPriceFontFamily = cleanFontFamily(toString(rawProps?.priceFontFamily ?? rawProps?.productPriceFontFamily ?? cardPriceCss?.fontFamily, ""));
+  const resolvedPriceFontFamily = cleanFontFamily(toString(
+    rawProps?.priceFamily ?? rawProps?.priceFontFamily ?? rawProps?.productPriceFontFamily ?? rawProps?.fontFamily ?? cardPriceCss?.fontFamily,
+    ""
+  ));
   const resolvedPriceMarginTop  = resolveFirstNumber([rawProps?.priceMarginTop, rawProps?.priceMt], 4);
 
   // ── Status / Error text ───────────────────────────────────────────────────
@@ -453,7 +457,10 @@ export default function ProductGrid({ section, limit = 8, title = "Products" }) 
   const addToCartBorderRadius = resolveFirstNumber([rawProps?.addToCartBorderRadius, rawProps?.cartBtnRadius, rawProps?.btnRadius, cardAddToCartCss?.borderRadius], 6);
   const addToCartFontSize   = resolveFirstNumber([rawProps?.addToCartFontSize, rawProps?.cartBtnFontSize, cardAddToCartCss?.fontSize], 13);
   const addToCartFontWeight = toFontWeight(rawProps?.addToCartFontWeight ?? rawProps?.cartBtnFontWeight ?? cardAddToCartCss?.fontWeight, "600");
-  const addToCartFontFamily = cleanFontFamily(toString(rawProps?.addToCartFontFamily ?? rawProps?.cartBtnFontFamily ?? cardAddToCartCss?.fontFamily, ""));
+  const addToCartFontFamily = cleanFontFamily(toString(
+    rawProps?.atcFamily ?? rawProps?.addToCartFontFamily ?? rawProps?.cartBtnFontFamily ?? rawProps?.fontFamily ?? cardAddToCartCss?.fontFamily,
+    ""
+  ));
   const atcPadT   = resolveFirstNumber([rawProps?.atcPadT, rawProps?.atcPadY], 6);
   const atcPadB   = resolveFirstNumber([rawProps?.atcPadB, rawProps?.atcPadY], 6);
   const atcPadL   = resolveFirstNumber([rawProps?.atcPadL, rawProps?.atcPadX], 10);

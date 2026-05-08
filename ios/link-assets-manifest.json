@@ -1,0 +1,37 @@
+{
+  "migIndex": 1,
+  "data": [
+    {
+      "path": "src/assets/fonts/Inter.ttf",
+      "sha1": "6177ac91c6fb7df9b09beda7802ea15699a88703"
+    },
+    {
+      "path": "src/assets/fonts/Lato.ttf",
+      "sha1": "e923c72eda5e50a87e18ff5c71e9ef4b3b6455a3"
+    },
+    {
+      "path": "src/assets/fonts/Manrope.ttf",
+      "sha1": "c44909e751e226f188c3112e011617e6d2ce2408"
+    },
+    {
+      "path": "src/assets/fonts/Montserrat.ttf",
+      "sha1": "ec13ef1f2c99f8780d6f2eb3f9f27ef89f30161b"
+    },
+    {
+      "path": "src/assets/fonts/OpenSans.ttf",
+      "sha1": "576aa669c4ceb3830fde859a4db52916def172af"
+    },
+    {
+      "path": "src/assets/fonts/PlayfairDisplay.ttf",
+      "sha1": "3e12c2cf422de852cd0af0227179901b155abf14"
+    },
+    {
+      "path": "src/assets/fonts/Poppins.ttf",
+      "sha1": "fdd3002e7d814ee47c1c1b8487c72c6bbb3a2d00"
+    },
+    {
+      "path": "src/assets/fonts/Roboto.ttf",
+      "sha1": "cb6cc5710764b9f06b8d8c923f961e3c1ceb7a59"
+    }
+  ]
+}

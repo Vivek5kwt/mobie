@@ -10,6 +10,7 @@ import { getAppLogoSync } from "../utils/appInfo";
 import { getHeaderDefault } from "../services/headerDefaultService";
 import { resolveTextDecorationLine } from "../utils/textDecoration";
 import { useAuth } from "../services/AuthContext";
+import { resolveFont } from "../services/typographyService";
 import { requireLoginForAction } from "../utils/authGate";
 
 const LOCAL_LOGO_IMAGE = require("../assets/logo/mobidraglogo.png");
@@ -210,10 +211,10 @@ export default function Header({ section, showBack, showNotification, onTitlePre
       isStandalone ? (defaultConfig?.textAlign ?? defaultConfig?.titleAlign ?? "center") : "center",
     ),
   ).toLowerCase();
-  const headerFontFamily = unwrapValue(
+  const headerFontFamily = resolveFont(unwrapValue(
     props?.headerFontFamily,
     isStandalone ? (defaultConfig?.fontFamily ?? undefined) : undefined,
-  );
+  ));
   const headerFontWeight = resolveFontWeight(
     props?.headerFontWeight,
     isStandalone

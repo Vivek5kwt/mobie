@@ -1,4 +1,5 @@
 import { normalizeTextDecorationLine } from "./textDecoration";
+import { resolveFont } from "../services/typographyService";
 
 export function convertStyles(styleObj = {}) {
   if (!styleObj || typeof styleObj !== "object") return {};
@@ -29,10 +30,8 @@ export function convertStyles(styleObj = {}) {
 
     // --------- NEW: FONT FAMILY HANDLING ---------
     if (key === "fontFamily") {
-      // Handle: "Poppins, sans-serif" → "Poppins"
-      if (typeof val === "string") {
-        out.fontFamily = val.split(",")[0].trim().replace(/['"]/g, '');
-      }
+      const resolvedFont = resolveFont(val);
+      if (resolvedFont) out.fontFamily = resolvedFont;
       continue;
     }
 

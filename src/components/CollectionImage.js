@@ -12,6 +12,7 @@ import { useNavigation, useRoute } from "@react-navigation/native";
 import { WebView } from "react-native-webview";
 import { fetchShopifyCollections, getShopifyDomain } from "../services/shopify";
 import { convertStyles } from "../utils/convertStyles";
+import { resolveFont } from "../services/typographyService";
 
 // ─── helpers ──────────────────────────────────────────────────────────────────
 
@@ -152,11 +153,7 @@ const mergeCollectionItems = (dslItems, storeItems) => {
 
 const SCREEN_W = Dimensions.get("window").width;
 
-const cleanFontFamily = (family) => {
-  if (!family) return undefined;
-  const cleaned = String(family).split(",")[0].trim().replace(/['"]/g, "");
-  return cleaned || undefined;
-};
+const cleanFontFamily = (family) => resolveFont(family) || "";
 
 const toArray = (value) => {
   const resolved = unwrapValue(value, value);

@@ -9,6 +9,7 @@ import { convertStyles } from "../utils/convertStyles";
 import { useSideMenu } from "../services/SideMenuContext";
 import { useAuth } from "../services/AuthContext";
 import { requireLoginForAction } from "../utils/authGate";
+import { resolveFont } from "../services/typographyService";
 
 export const BOTTOM_NAV_RESERVED_HEIGHT = 80;
 
@@ -381,8 +382,9 @@ function BottomNavigation({ section, activeIndexOverride }) {
     Number(getSchemaValue(textNode?.fontSize)) ||
     Number(raw?.textFontSize) ||
     12;
-  const fontFamily =
-    getSchemaValue(textNode?.fontFamily) ?? raw?.textFontFamily;
+  const fontFamily = resolveFont(
+    getSchemaValue(textNode?.fontFamily) ?? raw?.textFontFamily ?? raw?.fontFamily
+  );
   const fontWeight =
     String(getSchemaValue(textNode?.fontWeight) ?? raw?.textFontWeight ?? "600");
 

@@ -1,4 +1,5 @@
 module.exports = {
+    assets: ['./src/assets/fonts'],
     dependencies: {
       'react-native-reanimated': {
         platforms: {
@@ -8,4 +9,4 @@ module.exports = {
       },
     },
   };
-  
+

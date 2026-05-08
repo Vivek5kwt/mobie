@@ -23,6 +23,7 @@ import HeaderDefaultComponent from '../components/HeaderDefault';
 import DynamicRenderer from '../engine/DynamicRenderer';
 import { getHeaderDefault } from '../services/headerDefaultService';
 import { getAppNameSync } from '../utils/appInfo';
+import { resolveFont } from '../services/typographyService';
 
 type SignInTokens = {
   bgColor: string;
@@ -237,6 +238,12 @@ const toBoolean = (value: unknown, fallback: boolean): boolean => {
     if (['false', '0', 'no', 'n'].includes(normalized)) return false;
   }
   return fallback;
+};
+
+const toFontFamily = (value: unknown, fallback = 'System'): string => {
+  const resolved = unwrapValue(value as string | null | undefined, fallback);
+  if (typeof resolved !== 'string') return fallback;
+  return resolveFont(resolved) ?? fallback;
 };
 
 const resolveButtonColor = (value: unknown, fallback: string): string => {
@@ -569,28 +576,28 @@ const buildSignInTokens = (rawProps: Record<string, unknown>): SignInTokens => (
   passwordLabelColor: (rawProps?.passwordLabelColor as string) ?? defaultSignInTokens.passwordLabelColor,
   emailLabelFontSize: toNumber(rawProps?.emailLabelFontSize, defaultSignInTokens.emailLabelFontSize),
   passwordLabelFontSize: toNumber(rawProps?.passwordLabelFontSize, defaultSignInTokens.passwordLabelFontSize),
-  emailLabelFontFamily: (rawProps?.emailLabelFontFamily as string) ?? defaultSignInTokens.emailLabelFontFamily,
-  passwordLabelFontFamily: (rawProps?.passwordLabelFontFamily as string) ?? defaultSignInTokens.passwordLabelFontFamily,
+  emailLabelFontFamily: toFontFamily(rawProps?.emailLabelFontFamily ?? rawProps?.fontFamily, defaultSignInTokens.emailLabelFontFamily),
+  passwordLabelFontFamily: toFontFamily(rawProps?.passwordLabelFontFamily ?? rawProps?.fontFamily, defaultSignInTokens.passwordLabelFontFamily),
   emailLabelFontWeight: toFontWeight(rawProps?.emailLabelFontWeight, defaultSignInTokens.emailLabelFontWeight),
   passwordLabelFontWeight: toFontWeight(rawProps?.passwordLabelFontWeight, defaultSignInTokens.passwordLabelFontWeight),
   emailInputTextColor: (rawProps?.emailInputTextColor as string) ?? defaultSignInTokens.emailInputTextColor,
   passwordInputTextColor: (rawProps?.passwordInputTextColor as string) ?? defaultSignInTokens.passwordInputTextColor,
   emailInputTextFontSize: toNumber(rawProps?.emailInputTextFontSize, defaultSignInTokens.emailInputTextFontSize),
   passwordInputTextFontSize: toNumber(rawProps?.passwordInputTextFontSize, defaultSignInTokens.passwordInputTextFontSize),
-  emailInputTextFontFamily: (rawProps?.emailInputTextFontFamily as string) ?? defaultSignInTokens.emailInputTextFontFamily,
-  passwordInputTextFontFamily: (rawProps?.passwordInputTextFontFamily as string) ?? defaultSignInTokens.passwordInputTextFontFamily,
+  emailInputTextFontFamily: toFontFamily(rawProps?.emailInputTextFontFamily ?? rawProps?.fontFamily, defaultSignInTokens.emailInputTextFontFamily),
+  passwordInputTextFontFamily: toFontFamily(rawProps?.passwordInputTextFontFamily ?? rawProps?.fontFamily, defaultSignInTokens.passwordInputTextFontFamily),
   emailInputTextFontWeight: toFontWeight(rawProps?.emailInputTextFontWeight, defaultSignInTokens.emailInputTextFontWeight),
   passwordInputTextFontWeight: toFontWeight(rawProps?.passwordInputTextFontWeight, defaultSignInTokens.passwordInputTextFontWeight),
   emailPlaceholderColor: (rawProps?.emailPlaceholderColor as string) ?? defaultSignInTokens.emailPlaceholderColor,
   passwordPlaceholderColor: (rawProps?.passwordPlaceholderColor as string) ?? defaultSignInTokens.passwordPlaceholderColor,
   buttonFontSize: toNumber(rawProps?.buttonfontSize ?? rawProps?.buttonFontSize, defaultSignInTokens.buttonFontSize),
-  buttonFontFamily: (rawProps?.buttonFontFamily as string) ?? defaultSignInTokens.buttonFontFamily,
+  buttonFontFamily: toFontFamily(rawProps?.buttonFontFamily ?? rawProps?.fontFamily, defaultSignInTokens.buttonFontFamily),
   buttonFontWeight: toFontWeight(rawProps?.buttonfontWeight ?? rawProps?.buttonFontWeight, defaultSignInTokens.buttonFontWeight),
   buttonHeight: toNumber(rawProps?.buttonHeight, defaultSignInTokens.buttonHeight),
   buttonWidth: toNumber(rawProps?.buttonWidth, defaultSignInTokens.buttonWidth),
   footerTextFontSize: toNumber(rawProps?.footerTextFontSize, defaultSignInTokens.footerTextFontSize),
   footerLinkFontSize: toNumber(rawProps?.footerLinkFontSize, defaultSignInTokens.footerLinkFontSize),
-  footerLinkFontFamily: (rawProps?.footerLinkFontFamily as string) ?? defaultSignInTokens.footerLinkFontFamily,
+  footerLinkFontFamily: toFontFamily(rawProps?.footerLinkFontFamily ?? rawProps?.fontFamily, defaultSignInTokens.footerLinkFontFamily),
   footerLinkFontWeight: toFontWeight(rawProps?.footerLinkFontWeight, defaultSignInTokens.footerLinkFontWeight),
   footerLinkAlignment: (rawProps?.footerLinkAlignment as string) ?? defaultSignInTokens.footerLinkAlignment,
   footerVisible: toBoolean(rawProps?.footerVisible, defaultSignInTokens.footerVisible),
@@ -600,10 +607,10 @@ const buildSignInTokens = (rawProps: Record<string, unknown>): SignInTokens => (
   inputBorderRadius: toNumber(rawProps?.borderRadius ?? rawProps?.inputRadius ?? rawProps?.inputBorderRadius, defaultSignInTokens.inputBorderRadius),
   headlineSize: toNumber(rawProps?.headlineSize, defaultSignInTokens.headlineSize),
   headlineWeight: toFontWeight(rawProps?.headlineWeight, defaultSignInTokens.headlineWeight),
-  headlineFontFamily: (rawProps?.headlineFontFamily as string) ?? defaultSignInTokens.headlineFontFamily,
+  headlineFontFamily: toFontFamily(rawProps?.headlineFontFamily ?? rawProps?.fontFamily, defaultSignInTokens.headlineFontFamily),
   subtextSize: toNumber(rawProps?.subtextSize, defaultSignInTokens.subtextSize),
   subtextWeight: toFontWeight(rawProps?.subtextWeight, defaultSignInTokens.subtextWeight),
-  subtextFontFamily: (rawProps?.subtextFontFamily as string) ?? defaultSignInTokens.subtextFontFamily,
+  subtextFontFamily: toFontFamily(rawProps?.subtextFontFamily ?? rawProps?.fontFamily, defaultSignInTokens.subtextFontFamily),
 });
 
 const buildForgotPasswordTokens = (rawProps: Record<string, unknown>): ForgotPasswordTokens => ({
@@ -624,7 +631,7 @@ const buildForgotPasswordTokens = (rawProps: Record<string, unknown>): ForgotPas
   buttonFillColor: resolveButtonColor(rawProps?.buttonBgColor, defaultForgotPasswordTokens.buttonFillColor),
   headlineText: (rawProps?.headlineText as string) ?? defaultForgotPasswordTokens.headlineText,
   headlineFontSize: toNumber(rawProps?.headlineFontSize, defaultForgotPasswordTokens.headlineFontSize),
-  headlineFontFamily: (rawProps?.headlineFontFamily as string) ?? defaultForgotPasswordTokens.headlineFontFamily,
+  headlineFontFamily: toFontFamily(rawProps?.headlineFontFamily ?? rawProps?.fontFamily, defaultForgotPasswordTokens.headlineFontFamily),
   headlineFontWeight: toFontWeight(rawProps?.headlineFontWeight, defaultForgotPasswordTokens.headlineFontWeight, rawProps?.headlineBold as boolean | undefined),
   headlineFontStyle: (rawProps?.headlineItalic as boolean | undefined) ? 'italic' : 'normal',
   headlineTextDecoration: toTextDecoration(rawProps?.headlineUnderline as boolean | undefined, rawProps?.headlineStrikethrough as boolean | undefined),
@@ -662,7 +669,7 @@ const buildSignUpTokens = (rawProps: Record<string, unknown>): SignUpTokens => (
   headerTitle: (rawProps?.headerTitle as string) ?? defaultSignUpTokens.headerTitle,
   headerTitleColor: (rawProps?.headerTitleColor as string) ?? defaultSignUpTokens.headerTitleColor,
   headerTitleFontSize: toNumber(rawProps?.headerTitleFontSize, defaultSignUpTokens.headerTitleFontSize),
-  headerTitleFontFamily: (rawProps?.headerTitleFontFamily as string) ?? defaultSignUpTokens.headerTitleFontFamily,
+  headerTitleFontFamily: toFontFamily(rawProps?.headerTitleFontFamily ?? rawProps?.fontFamily, defaultSignUpTokens.headerTitleFontFamily),
   headerTitleFontWeight: toFontWeight(rawProps?.headerTitleFontWeight, defaultSignUpTokens.headerTitleFontWeight),
   emailAlignment: (rawProps?.emailAlignment as string) ?? defaultSignUpTokens.emailAlignment,
   firstNameAlignment: (rawProps?.firstNameAlignment as string) ?? defaultSignUpTokens.firstNameAlignment,
@@ -692,10 +699,10 @@ const buildSignUpTokens = (rawProps: Record<string, unknown>): SignUpTokens => (
   firstNameLabelFontSize: capFontSize(toNumber(rawProps?.firstNameLabelFontSize, defaultSignUpTokens.firstNameLabelFontSize), 15),
   lastNameLabelFontSize: capFontSize(toNumber(rawProps?.lastNameLabelFontSize, defaultSignUpTokens.lastNameLabelFontSize), 15),
   passwordLabelFontSize: capFontSize(toNumber(rawProps?.passwordLabelFontSize, defaultSignUpTokens.passwordLabelFontSize), 15),
-  emailLabelFontFamily: (rawProps?.emailLabelFontFamily as string) ?? defaultSignUpTokens.emailLabelFontFamily,
-  firstNameLabelFontFamily: (rawProps?.firstNameLabelFontFamily as string) ?? defaultSignUpTokens.firstNameLabelFontFamily,
-  lastNameLabelFontFamily: (rawProps?.lastNameLabelFontFamily as string) ?? defaultSignUpTokens.lastNameLabelFontFamily,
-  passwordLabelFontFamily: (rawProps?.passwordLabelFontFamily as string) ?? defaultSignUpTokens.passwordLabelFontFamily,
+  emailLabelFontFamily: toFontFamily(rawProps?.emailLabelFontFamily ?? rawProps?.fontFamily, defaultSignUpTokens.emailLabelFontFamily),
+  firstNameLabelFontFamily: toFontFamily(rawProps?.firstNameLabelFontFamily ?? rawProps?.fontFamily, defaultSignUpTokens.firstNameLabelFontFamily),
+  lastNameLabelFontFamily: toFontFamily(rawProps?.lastNameLabelFontFamily ?? rawProps?.fontFamily, defaultSignUpTokens.lastNameLabelFontFamily),
+  passwordLabelFontFamily: toFontFamily(rawProps?.passwordLabelFontFamily ?? rawProps?.fontFamily, defaultSignUpTokens.passwordLabelFontFamily),
   emailLabelFontWeight: toFontWeight(rawProps?.emailLabelFontWeight, defaultSignUpTokens.emailLabelFontWeight),
   firstNameLabelFontWeight: toFontWeight(rawProps?.firstNameLabelFontWeight, defaultSignUpTokens.firstNameLabelFontWeight),
   lastNameLabelFontWeight: toFontWeight(rawProps?.lastNameLabelFontWeight, defaultSignUpTokens.lastNameLabelFontWeight),
@@ -708,10 +715,10 @@ const buildSignUpTokens = (rawProps: Record<string, unknown>): SignUpTokens => (
   firstNameInputTextFontSize: capFontSize(toNumber(rawProps?.firstNameInputTextFontSize, defaultSignUpTokens.firstNameInputTextFontSize), 15),
   lastNameInputTextFontSize: capFontSize(toNumber(rawProps?.lastNameInputTextFontSize, defaultSignUpTokens.lastNameInputTextFontSize), 15),
   passwordInputTextFontSize: capFontSize(toNumber(rawProps?.passwordInputTextFontSize, defaultSignUpTokens.passwordInputTextFontSize), 15),
-  emailInputTextFontFamily: (rawProps?.emailInputTextFontFamily as string) ?? defaultSignUpTokens.emailInputTextFontFamily,
-  firstNameInputTextFontFamily: (rawProps?.firstNameInputTextFontFamily as string) ?? defaultSignUpTokens.firstNameInputTextFontFamily,
-  lastNameInputTextFontFamily: (rawProps?.lastNameInputTextFontFamily as string) ?? defaultSignUpTokens.lastNameInputTextFontFamily,
-  passwordInputTextFontFamily: (rawProps?.passwordInputTextFontFamily as string) ?? defaultSignUpTokens.passwordInputTextFontFamily,
+  emailInputTextFontFamily: toFontFamily(rawProps?.emailInputTextFontFamily ?? rawProps?.fontFamily, defaultSignUpTokens.emailInputTextFontFamily),
+  firstNameInputTextFontFamily: toFontFamily(rawProps?.firstNameInputTextFontFamily ?? rawProps?.fontFamily, defaultSignUpTokens.firstNameInputTextFontFamily),
+  lastNameInputTextFontFamily: toFontFamily(rawProps?.lastNameInputTextFontFamily ?? rawProps?.fontFamily, defaultSignUpTokens.lastNameInputTextFontFamily),
+  passwordInputTextFontFamily: toFontFamily(rawProps?.passwordInputTextFontFamily ?? rawProps?.fontFamily, defaultSignUpTokens.passwordInputTextFontFamily),
   emailInputTextFontWeight: toFontWeight(rawProps?.emailInputTextFontWeight, defaultSignUpTokens.emailInputTextFontWeight),
   firstNameInputTextFontWeight: toFontWeight(rawProps?.firstNameInputTextFontWeight, defaultSignUpTokens.firstNameInputTextFontWeight),
   lastNameInputTextFontWeight: toFontWeight(rawProps?.lastNameInputTextFontWeight, defaultSignUpTokens.lastNameInputTextFontWeight),
@@ -730,13 +737,13 @@ const buildSignUpTokens = (rawProps: Record<string, unknown>): SignUpTokens => (
   buttonHeight: toNumber(rawProps?.buttonHeight, defaultSignUpTokens.buttonHeight),
   buttonWidth: toNumber(rawProps?.buttonWidth, defaultSignUpTokens.buttonWidth),
   buttonFontSize: toNumber(rawProps?.buttonfontSize ?? rawProps?.buttonFontSize, defaultSignUpTokens.buttonFontSize),
-  buttonFontFamily: (rawProps?.buttonFontFamily as string) ?? defaultSignUpTokens.buttonFontFamily,
+  buttonFontFamily: toFontFamily(rawProps?.buttonFontFamily ?? rawProps?.fontFamily, defaultSignUpTokens.buttonFontFamily),
   buttonFontWeight: toFontWeight(rawProps?.buttonfontWeight ?? rawProps?.buttonFontWeight, defaultSignUpTokens.buttonFontWeight),
   footerTextColor: (rawProps?.footerTextColor as string) ?? defaultSignUpTokens.footerTextColor,
   footerLinkColor: (rawProps?.footerLinkColor as string) ?? defaultSignUpTokens.footerLinkColor,
   footerTextFontSize: capFontSize(toNumber(rawProps?.footerTextFontSize, defaultSignUpTokens.footerTextFontSize), 14),
   footerLinkFontSize: capFontSize(toNumber(rawProps?.footerLinkFontSize, defaultSignUpTokens.footerLinkFontSize), 14),
-  footerLinkFontFamily: (rawProps?.footerLinkFontFamily as string) ?? defaultSignUpTokens.footerLinkFontFamily,
+  footerLinkFontFamily: toFontFamily(rawProps?.footerLinkFontFamily ?? rawProps?.fontFamily, defaultSignUpTokens.footerLinkFontFamily),
   footerLinkFontWeight: toFontWeight(rawProps?.footerLinkFontWeight, defaultSignUpTokens.footerLinkFontWeight),
   footerLinkAlignment: (rawProps?.footerLinkAlignment as string) ?? defaultSignUpTokens.footerLinkAlignment,
   footerLinkAutoUppercase: (rawProps?.footerLinkAutoUppercase as boolean) ?? defaultSignUpTokens.footerLinkAutoUppercase,
@@ -752,10 +759,10 @@ const buildSignUpTokens = (rawProps: Record<string, unknown>): SignUpTokens => (
   inputBorderRadius: toNumber(rawProps?.borderRadius ?? rawProps?.inputRadius ?? rawProps?.inputBorderRadius, defaultSignUpTokens.inputBorderRadius),
   headlineSize: toNumber(rawProps?.headlineSize, defaultSignUpTokens.headlineSize),
   headlineWeight: toFontWeight(rawProps?.headlineWeight, defaultSignUpTokens.headlineWeight),
-  headlineFontFamily: (rawProps?.headlineFontFamily as string) ?? defaultSignUpTokens.headlineFontFamily,
+  headlineFontFamily: toFontFamily(rawProps?.headlineFontFamily ?? rawProps?.fontFamily, defaultSignUpTokens.headlineFontFamily),
   subtextSize: toNumber(rawProps?.subtextSize, defaultSignUpTokens.subtextSize),
   subtextWeight: toFontWeight(rawProps?.subtextWeight, defaultSignUpTokens.subtextWeight),
-  subtextFontFamily: (rawProps?.subtextFontFamily as string) ?? defaultSignUpTokens.subtextFontFamily,
+  subtextFontFamily: toFontFamily(rawProps?.subtextFontFamily ?? rawProps?.fontFamily, defaultSignUpTokens.subtextFontFamily),
 });
 
 // ─── Field components ────────────────────────────────────────────────────────

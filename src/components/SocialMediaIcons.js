@@ -3,6 +3,7 @@ import { Linking, StyleSheet, Text, TouchableOpacity, View } from "react-native"
 import { useNavigation } from "@react-navigation/native";
 import Icon from "react-native-vector-icons/FontAwesome6";
 import { convertStyles } from "../utils/convertStyles";
+import { resolveFont } from "../services/typographyService";
 
 const unwrapValue = (value, fallback = undefined) => {
   if (value === undefined || value === null) return fallback;
@@ -35,11 +36,7 @@ const toNumber = (value, fallback) => {
   return Number.isNaN(parsed) ? fallback : parsed;
 };
 
-const cleanFontFamily = (family) => {
-  if (!family) return undefined;
-  const cleaned = String(family).split(",")[0].trim().replace(/['"]/g, "");
-  return cleaned || undefined;
-};
+const cleanFontFamily = (family) => resolveFont(family) || "";
 
 const deriveWeight = (value, fallback = "700") => {
   const resolved = unwrapValue(value, fallback);

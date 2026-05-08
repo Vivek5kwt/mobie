@@ -4,6 +4,7 @@ import FontAwesome from "react-native-vector-icons/FontAwesome";
 import FontAwesome6 from "react-native-vector-icons/FontAwesome6";
 import { resolveFA4IconName } from "../utils/faIconAlias";
 import { resolveTextDecorationLine } from "../utils/textDecoration";
+import { resolveFont } from "../services/typographyService";
 
 // ─── DSL helpers ──────────────────────────────────────────────────────────────
 
@@ -23,11 +24,7 @@ const toString = (value, fallback = "") => {
   return String(resolved);
 };
 
-const cleanFontFamily = (family) => {
-  if (!family) return undefined;
-  const cleaned = String(family).split(",")[0].trim().replace(/['"]/g, "");
-  return cleaned || undefined;
-};
+const cleanFontFamily = (family) => resolveFont(family) || "";
 
 const toNumber = (value, fallback) => {
   const resolved = unwrapValue(value, undefined);
@@ -132,7 +129,6 @@ export default function ProductDescription({ section }) {
   const titleNode  = unwrapValue(propsNode?.title, {});
   const infoNode   = unwrapValue(propsNode?.info, {});
   const outerNode  = unwrapValue(propsNode?.outer, {});
-  const iconNode   = unwrapValue(propsNode?.icon, {});
   const visNode    = unwrapValue(propsNode?.visibility, {});
 
   // Both layout and presentation carry the same CSS snapshot — prefer layout
@@ -170,28 +166,6 @@ export default function ProductDescription({ section }) {
   // ── Visibility ─────────────────────────────────────────────────────────────
   const showTitle       = toBoolean(visNode?.title,           true);
   const showDescription = toBoolean(visNode?.infoDescription, true);
-  const showIcon        = toBoolean(visNode?.icon,            true);
-
-  // ── Icon (left of title — info/leading icon) ──────────────────────────────
-  // This icon is shown to the LEFT of the title text.
-  // Source: raw.iconStyle.icon → propsNode.icon → layout CSS snapshot icon
-  const resolvedIconRaw = toString(raw?.iconStyle?.icon, "");
-
-  // Icon color
-  const iconColor = (() => {
-    const fromRaw  = toString(raw?.iconStyle?.color ?? raw?.iconColor, "");
-    const fromNode = toString(iconNode?.color, "");
-    const fromCss  = toString(layoutCss?.icon?.color ?? presCss?.icon?.color, "");
-    return fromRaw || fromNode || fromCss || "#096d70";
-  })();
-
-  // Icon size
-  const iconSize = (() => {
-    const fromRaw  = toNumber(raw?.iconStyle?.size ?? raw?.iconSize, undefined);
-    const fromNode = toNumber(iconNode?.size, undefined);
-    const fromCss  = toNumber(layoutCss?.icon?.fontSize ?? presCss?.icon?.fontSize, undefined);
-    return fromRaw ?? fromNode ?? fromCss ?? 16;
-  })();
 
   // ── Dropdown toggle icon (right side — replaces chevron when set) ──────────
   // The builder writes the user's chosen dropdown icon to raw.dropdownIconValue
@@ -265,7 +239,7 @@ export default function ProductDescription({ section }) {
     const v = toString(titleStyle?.fontWeight ?? layoutCss?.title?.fontWeight, "700");
     return v;
   })();
-  const titleFontFamily = cleanFontFamily(toString(titleStyle?.fontFamily ?? layoutCss?.title?.fontFamily, ""));
+  const titleFontFamily = cleanFontFamily(toString(titleStyle?.fontFamily ?? raw?.titleFontFamily ?? raw?.fontFamily ?? layoutCss?.title?.fontFamily, ""));
   const titleItalic         = toBoolean(titleStyle?.italic,        false);
   const titleUnderline      = toBoolean(titleStyle?.underline,     false);
   const titleStrikethrough  = toBoolean(titleStyle?.strikethrough, false);
@@ -276,7 +250,7 @@ export default function ProductDescription({ section }) {
   const bodyFontSize   = toNumber(descStyle?.fontSize ?? layoutCss?.infoText?.fontSize, 12);
   const bodyColor      = toString(descStyle?.color    ?? layoutCss?.infoText?.color,    "#6B7280");
   const bodyWeight     = toString(descStyle?.fontWeight ?? layoutCss?.infoText?.fontWeight, "400");
-  const bodyFontFamily = cleanFontFamily(toString(descStyle?.fontFamily ?? layoutCss?.infoText?.fontFamily, ""));
+  const bodyFontFamily = cleanFontFamily(toString(descStyle?.fontFamily ?? raw?.descriptionFontFamily ?? raw?.fontFamily ?? layoutCss?.infoText?.fontFamily, ""));
   const bodyItalic        = toBoolean(descStyle?.italic,    false);
   const bodyUnderline     = toBoolean(descStyle?.underline, false);
   const bodyStrikethrough = toBoolean(descStyle?.strikethrough, false);
@@ -314,15 +288,6 @@ export default function ProductDescription({ section }) {
         accessibilityLabel={open ? "Collapse description" : "Expand description"}
       >
         <View style={styles.titleRow}>
-          {/* Info icon — left of title */}
-          {showIcon && !!resolvedIconRaw && (
-            <DescIcon
-              rawName={resolvedIconRaw}
-              size={iconSize}
-              color={iconColor}
-              style={{ marginRight: 8 }}
-            />
-          )}
           {showTitle && (
             <Text
               style={{

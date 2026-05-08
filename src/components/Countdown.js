@@ -5,6 +5,7 @@ import FontAwesome from "react-native-vector-icons/FontAwesome";
 import { Linking } from "react-native";
 import { NavigationContext } from "@react-navigation/native";
 import { convertStyles, extractGradientInfo } from "../utils/convertStyles";
+import { resolveFont } from "../services/typographyService";
 
 const unwrapValue = (value, fallback = undefined) => {
   if (value === undefined || value === null) return fallback;
@@ -16,11 +17,7 @@ const unwrapValue = (value, fallback = undefined) => {
   return value;
 };
 
-const cleanFontFamily = (family) => {
-  if (!family) return undefined;
-  const cleaned = String(family).split(",")[0].trim().replace(/['"]/g, "");
-  return cleaned || undefined;
-};
+const cleanFontFamily = (family) => resolveFont(family) || "";
 
 const asBoolean = (value, fallback = true) => {
   const resolved = unwrapValue(value, fallback);

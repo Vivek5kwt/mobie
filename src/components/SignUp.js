@@ -19,6 +19,7 @@ import { registerCustomer } from "../services/customerService";
 import { resolveAppId } from "../utils/appId";
 import { fetchStoreConfig } from "../services/storeService";
 import { resolveFA4IconName } from "../utils/faIconAlias";
+import { resolveFont } from "../services/typographyService";
 import Icon from "react-native-vector-icons/FontAwesome6";
 
 const unwrapValue = (value, fallback = undefined) => {
@@ -239,21 +240,22 @@ export default function SignUp({ section }) {
     const passwordPlaceholderFontSize = fs(raw.passwordPlaceholderFontSize, 15);
 
     // Font families
-    const headerTitleFontFamily = toString(raw.headerTitleFontFamily, "Inter, sans-serif");
-    const buttonFontFamily = toString(raw.buttonFontFamily, "Inter, sans-serif");
-    const footerLinkFontFamily = toString(raw.footerLinkFontFamily, "Inter, sans-serif");
-    const firstNameLabelFontFamily = toString(raw.firstNameLabelFontFamily, "Inter, sans-serif");
-    const lastNameLabelFontFamily = toString(raw.lastNameLabelFontFamily, "Inter, sans-serif");
-    const emailLabelFontFamily = toString(raw.emailLabelFontFamily, "Inter, sans-serif");
-    const passwordLabelFontFamily = toString(raw.passwordLabelFontFamily, "Inter, sans-serif");
-    const firstNameInputTextFontFamily = toString(raw.firstNameInputTextFontFamily, "Inter, sans-serif");
-    const lastNameInputTextFontFamily = toString(raw.lastNameInputTextFontFamily, "Inter, sans-serif");
-    const emailInputTextFontFamily = toString(raw.emailInputTextFontFamily, "Inter, sans-serif");
-    const passwordInputTextFontFamily = toString(raw.passwordInputTextFontFamily, "Inter, sans-serif");
-    const firstNamePlaceholderFontFamily = toString(raw.firstNamePlaceholderFontFamily, "Inter, sans-serif");
-    const lastNamePlaceholderFontFamily = toString(raw.lastNamePlaceholderFontFamily, "Inter, sans-serif");
-    const emailPlaceholderFontFamily = toString(raw.emailPlaceholderFontFamily, "Inter, sans-serif");
-    const passwordPlaceholderFontFamily = toString(raw.passwordPlaceholderFontFamily, "Inter, sans-serif");
+    const baseFontFamily = toString(raw.fontFamily, "Inter");
+    const headerTitleFontFamily = resolveFont(toString(raw.headerTitleFontFamily, baseFontFamily));
+    const buttonFontFamily = resolveFont(toString(raw.buttonFontFamily, baseFontFamily));
+    const footerLinkFontFamily = resolveFont(toString(raw.footerLinkFontFamily, baseFontFamily));
+    const firstNameLabelFontFamily = resolveFont(toString(raw.firstNameLabelFontFamily, baseFontFamily));
+    const lastNameLabelFontFamily = resolveFont(toString(raw.lastNameLabelFontFamily, baseFontFamily));
+    const emailLabelFontFamily = resolveFont(toString(raw.emailLabelFontFamily, baseFontFamily));
+    const passwordLabelFontFamily = resolveFont(toString(raw.passwordLabelFontFamily, baseFontFamily));
+    const firstNameInputTextFontFamily = resolveFont(toString(raw.firstNameInputTextFontFamily, baseFontFamily));
+    const lastNameInputTextFontFamily = resolveFont(toString(raw.lastNameInputTextFontFamily, baseFontFamily));
+    const emailInputTextFontFamily = resolveFont(toString(raw.emailInputTextFontFamily, baseFontFamily));
+    const passwordInputTextFontFamily = resolveFont(toString(raw.passwordInputTextFontFamily, baseFontFamily));
+    const firstNamePlaceholderFontFamily = resolveFont(toString(raw.firstNamePlaceholderFontFamily, baseFontFamily));
+    const lastNamePlaceholderFontFamily = resolveFont(toString(raw.lastNamePlaceholderFontFamily, baseFontFamily));
+    const emailPlaceholderFontFamily = resolveFont(toString(raw.emailPlaceholderFontFamily, baseFontFamily));
+    const passwordPlaceholderFontFamily = resolveFont(toString(raw.passwordPlaceholderFontFamily, baseFontFamily));
 
     // Font weights
     const headerTitleFontWeight = toFontWeight(raw.headerTitleFontWeight) || "700";
@@ -626,7 +628,7 @@ export default function SignUp({ section }) {
                 color: titleColor,
                 fontSize: mobileTitleFontSize,
                 fontWeight: toFontWeight(raw.headlineWeight) || "700",
-                fontFamily: toString(raw.headlineFontFamily, headerTitleFontFamily || "Inter"),
+                fontFamily: resolveFont(toString(raw.headlineFontFamily, headerTitleFontFamily || "Inter")),
               },
             ]}
           >
@@ -842,7 +844,7 @@ export default function SignUp({ section }) {
                 {
                   color: footerTextColor,
                   fontSize: footerTextFontSize,
-                  fontFamily: toString(raw.subtextFontFamily, "Inter"),
+                  fontFamily: resolveFont(toString(raw.subtextFontFamily, baseFontFamily)),
                   fontWeight: toFontWeight(raw.subtextWeight) || "400",
                 },
               ]}

@@ -5,6 +5,7 @@ import Icon from "react-native-vector-icons/FontAwesome6";
 import { useSelector } from "react-redux";
 import bottomNavigationStyle1Section from "../data/bottomNavigationStyle1";
 import { useSideMenu } from "../services/SideMenuContext";
+import { resolveFont } from "../services/typographyService";
 
 const normalizeIconName = (name) => {
   if (!name) return "";
@@ -241,11 +242,7 @@ export default function HeaderDefault({ config, bottomNavSection, hideTabs = fal
       : 40;
 
     // ── Title text styling (DSL-driven) ──────────────────────────────────────
-    const cleanFontFamily = (family) => {
-      if (!family) return undefined;
-      const cleaned = String(family).split(",")[0].trim().replace(/['"]/g, "");
-      return cleaned || undefined;
-    };
+    const cleanFontFamily = (family) => resolveFont(family) || "";
     const _fsr = resolveVal(config.titleFontSize) ?? resolveVal(config.fontSize);
     const titleFontSize   = Number.isFinite(Number(_fsr)) && Number(_fsr) > 0 ? Number(_fsr) : 18;
     const titleFontFamily = cleanFontFamily(
@@ -544,9 +541,7 @@ export default function HeaderDefault({ config, bottomNavSection, hideTabs = fal
 
     // Font family — cover textFontFamily / fontFamily / family
     const _rawFamily = rv(item.textFontFamily) || rv(item.fontFamily) || rv(item.family) || "";
-    const itemFontFamily = _rawFamily
-      ? String(_rawFamily).split(",")[0].trim().replace(/['"]/g, "") || undefined
-      : undefined;
+    const itemFontFamily = resolveFont(_rawFamily) || undefined;
 
     // Font style & decoration — cover both prefixed and unprefixed keys
     const itemFontStyle = (rv(item.textItalic) || rv(item.italic)) ? "italic" : "normal";

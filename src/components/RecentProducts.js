@@ -15,6 +15,7 @@ import { addItem } from "../store/slices/cartSlice";
 import { fetchShopifyRecentProducts } from "../services/shopify";
 import { useAuth } from "../services/AuthContext";
 import { requireLoginForAction } from "../utils/authGate";
+import { resolveFont } from "../services/typographyService";
 
 // ─── DSL helpers ─────────────────────────────────────────────────────────────
 
@@ -40,10 +41,7 @@ const num = (v, fb) => {
   return Number.isNaN(p) ? fb : p;
 };
 
-const cleanFamily = (v) => {
-  if (!v) return undefined;
-  return String(v).split(",")[0].trim().replace(/['"]/g, "") || undefined;
-};
+const cleanFamily = (v) => resolveFont(v) || undefined;
 
 const parsePx = (v, fb) => {
   if (v === undefined || v === null || v === "") return fb;

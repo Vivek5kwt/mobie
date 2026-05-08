@@ -20,6 +20,7 @@ import { resolveAppId } from "../utils/appId";
 import { useAuth } from "../services/AuthContext";
 import HeaderDefault from "../components/HeaderDefault";
 import DynamicRenderer from "../engine/DynamicRenderer";
+import { resolveFont } from "../services/typographyService";
 
 const { width: SCREEN_W } = Dimensions.get("window");
 
@@ -152,7 +153,7 @@ export default function WishlistScreen() {
   const titleColor      = toStr(p?.titleColor,      "#111827");
   const titleFontSize   = toNum(p?.titleFontSize,   14);
   const titleFontWeight = toStr(p?.titleFontWeight, "600");
-  const titleFontFamily = toStr(p?.titleFontFamily, "");
+  const titleFontFamily = resolveFont(toStr(p?.titleFontFamily ?? p?.fontFamily, ""));
 
   const priceColor      = toStr(p?.priceColor,      "#16A34A");
   const priceFontSize   = toNum(p?.priceFontSize,   14);

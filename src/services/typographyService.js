@@ -1,3 +1,5 @@
+import { Platform } from 'react-native';
+
 /**
  * typographyService.js
  *
@@ -14,8 +16,8 @@
  * "typography" sub-object, or under headerdefault.  setTypography() accepts
  * all three locations and picks whichever value is found first.
  *
- * Supported fonts (TTF files must exist in android/app/src/main/assets/fonts/):
- *   Inter, Poppins, Roboto, Montserrat, OpenSans, Lato, PlayfairDisplay
+ * Supported fonts (TTF files must exist in the configured app fonts asset path):
+ *   Inter, Manrope, Poppins, Roboto, Montserrat, OpenSans, Lato, PlayfairDisplay
  *
  * Font name normalisation:
  *   "Open Sans"        → "OpenSans"
@@ -28,6 +30,7 @@
 // that fontFamily resolves correctly on Android.
 const FONT_NAME_MAP = {
   'inter':           'Inter',
+  'manrope':         'Manrope',
   'poppins':         'Poppins',
   'roboto':          'Roboto',
   'montserrat':      'Montserrat',
@@ -38,13 +41,48 @@ const FONT_NAME_MAP = {
   'playfairdisplay': 'PlayfairDisplay',
 };
 
+const IOS_FONT_NAME_MAP = {
+  'inter':           'Inter28pt-Regular',
+  'manrope':         'Manrope-ExtraLight',
+  'poppins':         'Poppins-Regular',
+  'roboto':          'Roboto-Regular',
+  'montserrat':      'Montserrat-Regular',
+  'open sans':       'OpenSans-Regular',
+  'opensans':        'OpenSans-Regular',
+  'lato':            'Lato-Regular',
+  'playfair display':'PlayfairDisplay-Regular',
+  'playfairdisplay': 'PlayfairDisplay-Regular',
+};
+
+const GENERIC_FONT_NAMES = new Set([
+  'inherit',
+  'initial',
+  'unset',
+  'system',
+  'system-ui',
+  'sans',
+  'sans-serif',
+  'serif',
+  'monospace',
+  'arial',
+  'helvetica',
+]);
+
 export function resolveFont(name) {
   if (!name || typeof name !== 'string') return null;
-  // Strip CSS fallback stack: "Poppins, sans-serif" → "Poppins"
-  const fontName = name.split(',')[0].trim().replace(/['"]/g, '');
-  if (!fontName) return null;
-  const key = fontName.toLowerCase();
-  return FONT_NAME_MAP[key] ?? fontName;
+  const candidates = name
+    .split(',')
+    .map((part) => part.trim().replace(/[\'"]/g, ''))
+    .filter(Boolean);
+
+  for (const fontName of candidates) {
+    const key = fontName.toLowerCase();
+    if (GENERIC_FONT_NAMES.has(key)) continue;
+    const platformMap = Platform.OS === 'ios' ? IOS_FONT_NAME_MAP : FONT_NAME_MAP;
+    return platformMap[key] ?? FONT_NAME_MAP[key] ?? fontName;
+  }
+
+  return null;
 }
 
 // ── Module-level cache ─────────────────────────────────────────────────────────

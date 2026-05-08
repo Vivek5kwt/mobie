@@ -1,6 +1,7 @@
 import React from "react";
 import { Share, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import FontAwesome from "react-native-vector-icons/FontAwesome";
+import { resolveFont } from "../services/typographyService";
 
 const unwrapValue = (value, fallback = undefined) => {
   if (value === undefined || value === null) return fallback;
@@ -18,11 +19,7 @@ const toString = (value, fallback = "") => {
   return String(resolved);
 };
 
-const cleanFontFamily = (family) => {
-  if (!family) return undefined;
-  const cleaned = String(family).split(",")[0].trim().replace(/['"]/g, "");
-  return cleaned || undefined;
-};
+const cleanFontFamily = (family) => resolveFont(family) || "";
 
 const toNumber = (value, fallback) => {
   const resolved = unwrapValue(value, undefined);
@@ -166,9 +163,9 @@ export default function ProductInfo({ section }) {
   const ratingCountSize    = toNumber(ratingCss?.count?.fontSize, 12);
 
   // ── Font families ────────────────────────────────────────────────────────────
-  const titleFontFamily    = cleanFontFamily(toString(titleCss?.fontFamily ?? raw?.titleFontFamily ?? titleStyleCss?.fontFamily, ""));
-  const vendorFontFamily   = cleanFontFamily(toString(vendorCss?.fontFamily ?? raw?.vendorFontFamily ?? vendorStyleCss?.fontFamily, ""));
-  const priceFontFamily    = cleanFontFamily(toString(priceCss?.fontFamily ?? priceCss?.sale?.fontFamily, ""));
+  const titleFontFamily    = cleanFontFamily(toString(titleCss?.fontFamily ?? raw?.titleFontFamily ?? raw?.headlineFontFamily ?? raw?.fontFamily ?? titleStyleCss?.fontFamily, ""));
+  const vendorFontFamily   = cleanFontFamily(toString(vendorCss?.fontFamily ?? raw?.vendorFontFamily ?? raw?.subtextFontFamily ?? raw?.fontFamily ?? vendorStyleCss?.fontFamily, ""));
+  const priceFontFamily    = cleanFontFamily(toString(priceCss?.fontFamily ?? priceCss?.standard?.fontFamily ?? priceCss?.sale?.fontFamily ?? raw?.priceFontFamily ?? raw?.fontFamily, ""));
   const ratingBorderWidth  = ratingCss?.borderLine ? 1 : 0;
   const ratingBorderColor  = toString(ratingCss?.borderColor, "#e5e7eb");
   const showRatingIcon     = toBoolean(visibility?.reviewsIcon ?? visibility?.ratingIcon, true);

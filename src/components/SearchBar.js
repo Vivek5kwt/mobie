@@ -16,6 +16,7 @@ import {
 } from "react-native";
 import FontAwesome from "react-native-vector-icons/FontAwesome";
 import { useNavigation, useRoute } from "@react-navigation/native";
+import { resolveFont } from "../services/typographyService";
 import { convertStyles } from "../utils/convertStyles";
 import { searchShopifyProducts } from "../services/shopify";
 
@@ -141,7 +142,7 @@ export default function SearchBar({ section }) {
   const voiceIconColor  = get("voiceIconColor", "#6B7280");
   const searchIconColor = get("searchIconColor", "#9CA3AF");
   const fontSize        = getNum("fontSize", 14);
-  const fontFamily      = get("fontFamily", undefined);
+  const fontFamily      = resolveFont(get("fontFamily", undefined));
   const fontWeight      = toFontWeight(rawProps?.fontWeight, "400");
   const borderRadius    = getNum("borderRadius", 24);
   const borderSide      = get("borderSide", "none");

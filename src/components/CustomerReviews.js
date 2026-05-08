@@ -8,6 +8,7 @@ import {
 } from "react-native";
 import FontAwesome from "react-native-vector-icons/FontAwesome";
 import { useNavigation } from "@react-navigation/native";
+import { resolveFont } from "../services/typographyService";
 
 // ─── DSL helpers ──────────────────────────────────────────────────────────────
 
@@ -26,11 +27,7 @@ const toString = (value, fallback = "") => {
   return r === undefined || r === null ? fallback : String(r);
 };
 
-const cleanFontFamily = (family) => {
-  if (!family) return undefined;
-  const cleaned = String(family).split(",")[0].trim().replace(/['"]/g, "");
-  return cleaned || undefined;
-};
+const cleanFontFamily = (family) => resolveFont(family) || "";
 
 const toNumber = (value, fallback) => {
   const r = unwrapValue(value, undefined);

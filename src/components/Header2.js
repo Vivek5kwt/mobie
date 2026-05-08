@@ -21,6 +21,7 @@ import { searchShopifyProducts } from "../services/shopify";
 import { getAppLogoSync } from "../utils/appInfo";
 import { resolveTextDecorationLine } from "../utils/textDecoration";
 import { resolveFA4IconName } from "../utils/faIconAlias";
+import { resolveFont } from "../services/typographyService";
 
 const unwrapValue = (value, fallback = undefined) => {
   if (value === undefined || value === null) return fallback;
@@ -64,11 +65,7 @@ const normalizeIconName = (name, fallback = "bars") => {
   return cleaned || fallback;
 };
 
-const cleanFontFamily = (family) => {
-  if (!family) return undefined;
-  const cleaned = String(family).split(",")[0].trim().replace(/['"]/g, "");
-  return cleaned || undefined;
-};
+const cleanFontFamily = (family) => resolveFont(family) || "";
 
 const resolveFontWeight = (value, fallback = "400") => {
   const resolved = unwrapValue(value, fallback);

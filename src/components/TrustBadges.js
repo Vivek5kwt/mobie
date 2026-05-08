@@ -2,6 +2,7 @@ import React, { useMemo } from "react";
 import { StyleSheet, Text, View } from "react-native";
 import FontAwesome from "react-native-vector-icons/FontAwesome";
 import { resolveFA4IconName } from "../utils/faIconAlias";
+import { resolveFont } from "../services/typographyService";
 
 // ─── DSL helpers ─────────────────────────────────────────────────────────────
 
@@ -37,11 +38,7 @@ const bool = (v, fallback = true) => {
   return fallback;
 };
 
-const cleanFamily = (v) => {
-  if (!v) return undefined;
-  const c = String(v).split(",")[0].trim().replace(/['"]/g, "");
-  return c || undefined;
-};
+const cleanFamily = (v) => resolveFont(v) || undefined;
 
 const parsePx = (v, fallback) => {
   if (v === undefined || v === null || v === "") return fallback;

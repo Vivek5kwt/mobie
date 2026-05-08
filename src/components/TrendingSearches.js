@@ -9,6 +9,7 @@ import {
 import { useNavigation } from "@react-navigation/native";
 import { fetchShopifyTrendingSearches } from "../services/shopify";
 import { resolveTextDecorationLine } from "../utils/textDecoration";
+import { resolveFont } from "../services/typographyService";
 
 const unwrapValue = (value, fallback) => {
   if (value === undefined || value === null) return fallback;
@@ -62,12 +63,7 @@ const deriveWeight = (value, fallback = "600") => {
   return String(resolved);
 };
 
-const cleanFontFamily = (family) => {
-  const resolved = unwrapValue(family, "");
-  if (!resolved) return undefined;
-  const cleaned = String(resolved).split(",")[0].trim().replace(/['"]/g, "");
-  return cleaned || undefined;
-};
+const cleanFontFamily = (family) => resolveFont(family) || "";
 
 const normalizeSearches = (raw) => {
   if (!raw) return [];

@@ -3,6 +3,7 @@ import { Image, StyleSheet, Text, View } from "react-native";
 import FontAwesome from "react-native-vector-icons/FontAwesome";
 import { convertStyles } from "../utils/convertStyles";
 import { useAuth } from "../services/AuthContext";
+import { resolveFont } from "../services/typographyService";
 
 const resolveValue = (input, fallback) => {
   if (input === undefined || input === null) return fallback;
@@ -49,11 +50,7 @@ const resolveFontWeight = (value, fallback = "400") => {
   return fallback;
 };
 
-const cleanFontFamily = (family) => {
-  if (!family) return undefined;
-  const cleaned = String(family).split(",")[0].trim().replace(/['"]/g, "");
-  return cleaned || undefined;
-};
+const cleanFontFamily = (family) => resolveFont(family) || "";
 
 const parseIconName = (iconClass) => {
   if (!iconClass || typeof iconClass !== "string") return "user";

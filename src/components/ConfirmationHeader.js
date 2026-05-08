@@ -1,6 +1,7 @@
 import React from "react";
 import { StyleSheet, Text, View } from "react-native";
 import FontAwesome from "react-native-vector-icons/FontAwesome";
+import { resolveFont } from "../services/typographyService";
 
 const unwrapValue = (value, fallback = undefined) => {
   if (value === undefined || value === null) return fallback;
@@ -102,7 +103,7 @@ export default function ConfirmationHeader({ section }) {
   const titleColor = toString(raw?.titleColor, "#000000");
   const titleSize = toNumber(raw?.titleSize ?? raw?.headlineSize, 28);
   const titleWeight = toFontWeight(raw?.titleFontWeight ?? raw?.titleWeight, "700");
-  const titleFontFamily = toString(raw?.headlineFontFamily ?? raw?.titleFontFamily ?? raw?.fontFamily, "");
+  const titleFontFamily = resolveFont(toString(raw?.headlineFontFamily ?? raw?.titleFontFamily ?? raw?.fontFamily, ""));
 
   // Subtext
   const showSubtext = toBoolean(raw?.showSubtext, true);
@@ -110,7 +111,7 @@ export default function ConfirmationHeader({ section }) {
   const subtextColor = toString(raw?.subtextColor, "#6B7280");
   const subtextSize = toNumber(raw?.subtextSize, 14);
   const subtextWeight = toFontWeight(raw?.subtextWeight ?? raw?.fontWeight, "400");
-  const subtextFontFamily = toString(raw?.subtextFontFamily ?? raw?.fontFamily, "");
+  const subtextFontFamily = resolveFont(toString(raw?.subtextFontFamily ?? raw?.fontFamily, ""));
 
   return (
     <View

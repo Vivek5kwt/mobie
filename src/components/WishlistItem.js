@@ -11,6 +11,7 @@ import { useDispatch, useSelector } from "react-redux";
 import FontAwesome from "react-native-vector-icons/FontAwesome";
 import { toggleWishlist } from "../store/slices/wishlistSlice";
 import Snackbar from "./Snackbar";
+import { resolveFont } from "../services/typographyService";
 
 const unwrapValue = (value, fallback = undefined) => {
   if (value === undefined || value === null) return fallback;
@@ -78,7 +79,7 @@ export default function WishlistItem({ section }) {
   const titleFontWeight = toString(raw?.titleFontWeight, "600");
   const priceFontWeight = toString(raw?.priceFontWeight, "500");
   const strikeFontWeight = toString(raw?.strikepriceFontWeight ?? raw?.strikePriceFontWeight, "400");
-  const titleFontFamily = toString(raw?.titleFontFamily, "");
+  const titleFontFamily = resolveFont(toString(raw?.titleFontFamily ?? raw?.fontFamily, ""));
 
   // Resolve image aspect ratio: "1:1" → 1, "4:3" → 0.75 (height/width), etc.
   const resolveAspectRatio = (ratio) => {

@@ -12,6 +12,14 @@
 		761780ED2CA45674006654EE /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 761780EC2CA45674006654EE /* AppDelegate.swift */; };
 		81AB9BB82411601600AC10FF /* LaunchScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 81AB9BB72411601600AC10FF /* LaunchScreen.storyboard */; };
 		C6E1A07912E117E8A3941A53 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = 13B07FB81A68108700A75B9A /* PrivacyInfo.xcprivacy */; };
+		20933673BA7C48C399FDB59A /* Inter.ttf in Resources */ = {isa = PBXBuildFile; fileRef = B6ACB28BE9674FC78D637E27 /* Inter.ttf */; };
+		1089E49DAC9E4718A352C724 /* Lato.ttf in Resources */ = {isa = PBXBuildFile; fileRef = A5A41F40DCDE42C79B2278C5 /* Lato.ttf */; };
+		CA171F4E787A488DA082D7E4 /* Manrope.ttf in Resources */ = {isa = PBXBuildFile; fileRef = BCD6B3BEC4BF4CCDB0902E30 /* Manrope.ttf */; };
+		5E58F18865424383852BB118 /* Montserrat.ttf in Resources */ = {isa = PBXBuildFile; fileRef = 1941A0B38B6A48EFACE8446D /* Montserrat.ttf */; };
+		99ABE49F076D48C6A143DD48 /* OpenSans.ttf in Resources */ = {isa = PBXBuildFile; fileRef = FA08D834580F490BA8360010 /* OpenSans.ttf */; };
+		C438792E4E4047CE8D3FCE8F /* PlayfairDisplay.ttf in Resources */ = {isa = PBXBuildFile; fileRef = 2B08E2165EB348AF91C1CC64 /* PlayfairDisplay.ttf */; };
+		B01F30AF6CD4444A81FF86EE /* Poppins.ttf in Resources */ = {isa = PBXBuildFile; fileRef = DC41021B6F884CDF90C148F9 /* Poppins.ttf */; };
+		3F41CB3C990241E2AEFC684F /* Roboto.ttf in Resources */ = {isa = PBXBuildFile; fileRef = 321E74D5DA8B46E196890986 /* Roboto.ttf */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -25,6 +33,14 @@
 		81AB9BB72411601600AC10FF /* LaunchScreen.storyboard */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = file.storyboard; name = LaunchScreen.storyboard; path = MobiDrag/LaunchScreen.storyboard; sourceTree = "<group>"; };
 		A71D6F7BD1362E8B15012D09 /* libPods-MobiDrag.a */ = {isa = PBXFileReference; explicitFileType = archive.ar; includeInIndex = 0; path = "libPods-MobiDrag.a"; sourceTree = BUILT_PRODUCTS_DIR; };
 		ED297162215061F000B7C4FE /* JavaScriptCore.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = JavaScriptCore.framework; path = System/Library/Frameworks/JavaScriptCore.framework; sourceTree = SDKROOT; };
+		B6ACB28BE9674FC78D637E27 /* Inter.ttf */ = {isa = PBXFileReference; name = "Inter.ttf"; path = "../src/assets/fonts/Inter.ttf"; sourceTree = "<group>"; fileEncoding = undefined; lastKnownFileType = unknown; explicitFileType = undefined; includeInIndex = 0; };
+		A5A41F40DCDE42C79B2278C5 /* Lato.ttf */ = {isa = PBXFileReference; name = "Lato.ttf"; path = "../src/assets/fonts/Lato.ttf"; sourceTree = "<group>"; fileEncoding = undefined; lastKnownFileType = unknown; explicitFileType = undefined; includeInIndex = 0; };
+		BCD6B3BEC4BF4CCDB0902E30 /* Manrope.ttf */ = {isa = PBXFileReference; name = "Manrope.ttf"; path = "../src/assets/fonts/Manrope.ttf"; sourceTree = "<group>"; fileEncoding = undefined; lastKnownFileType = unknown; explicitFileType = undefined; includeInIndex = 0; };
+		1941A0B38B6A48EFACE8446D /* Montserrat.ttf */ = {isa = PBXFileReference; name = "Montserrat.ttf"; path = "../src/assets/fonts/Montserrat.ttf"; sourceTree = "<group>"; fileEncoding = undefined; lastKnownFileType = unknown; explicitFileType = undefined; includeInIndex = 0; };
+		FA08D834580F490BA8360010 /* OpenSans.ttf */ = {isa = PBXFileReference; name = "OpenSans.ttf"; path = "../src/assets/fonts/OpenSans.ttf"; sourceTree = "<group>"; fileEncoding = undefined; lastKnownFileType = unknown; explicitFileType = undefined; includeInIndex = 0; };
+		2B08E2165EB348AF91C1CC64 /* PlayfairDisplay.ttf */ = {isa = PBXFileReference; name = "PlayfairDisplay.ttf"; path = "../src/assets/fonts/PlayfairDisplay.ttf"; sourceTree = "<group>"; fileEncoding = undefined; lastKnownFileType = unknown; explicitFileType = undefined; includeInIndex = 0; };
+		DC41021B6F884CDF90C148F9 /* Poppins.ttf */ = {isa = PBXFileReference; name = "Poppins.ttf"; path = "../src/assets/fonts/Poppins.ttf"; sourceTree = "<group>"; fileEncoding = undefined; lastKnownFileType = unknown; explicitFileType = undefined; includeInIndex = 0; };
+		321E74D5DA8B46E196890986 /* Roboto.ttf */ = {isa = PBXFileReference; name = "Roboto.ttf"; path = "../src/assets/fonts/Roboto.ttf"; sourceTree = "<group>"; fileEncoding = undefined; lastKnownFileType = unknown; explicitFileType = undefined; includeInIndex = 0; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -75,6 +91,7 @@
 				83CBBA001A601CBA00E9B192 /* Products */,
 				2D16E6871FA4F8E400B85C8A /* Frameworks */,
 				BBD78D7AC51CEA395F1C20DB /* Pods */,
+				6ED3DE698DDB4A269C0F6417 /* Resources */,
 			);
 			indentWidth = 2;
 			sourceTree = "<group>";
@@ -97,6 +114,22 @@
 			);
 			path = Pods;
 			sourceTree = "<group>";
+		};
+		6ED3DE698DDB4A269C0F6417 /* Resources */ = {
+			isa = "PBXGroup";
+			children = (
+				B6ACB28BE9674FC78D637E27 /* Inter.ttf */,
+				A5A41F40DCDE42C79B2278C5 /* Lato.ttf */,
+				BCD6B3BEC4BF4CCDB0902E30 /* Manrope.ttf */,
+				1941A0B38B6A48EFACE8446D /* Montserrat.ttf */,
+				FA08D834580F490BA8360010 /* OpenSans.ttf */,
+				2B08E2165EB348AF91C1CC64 /* PlayfairDisplay.ttf */,
+				DC41021B6F884CDF90C148F9 /* Poppins.ttf */,
+				321E74D5DA8B46E196890986 /* Roboto.ttf */,
+			);
+			name = Resources;
+			sourceTree = "<group>";
+			path = "";
 		};
 /* End PBXGroup section */
 
@@ -161,6 +194,14 @@
 				81AB9BB82411601600AC10FF /* LaunchScreen.storyboard in Resources */,
 				13B07FBF1A68108700A75B9A /* Images.xcassets in Resources */,
 				C6E1A07912E117E8A3941A53 /* PrivacyInfo.xcprivacy in Resources */,
+				20933673BA7C48C399FDB59A /* Inter.ttf in Resources */,
+				1089E49DAC9E4718A352C724 /* Lato.ttf in Resources */,
+				CA171F4E787A488DA082D7E4 /* Manrope.ttf in Resources */,
+				5E58F18865424383852BB118 /* Montserrat.ttf in Resources */,
+				99ABE49F076D48C6A143DD48 /* OpenSans.ttf in Resources */,
+				C438792E4E4047CE8D3FCE8F /* PlayfairDisplay.ttf in Resources */,
+				B01F30AF6CD4444A81FF86EE /* Poppins.ttf in Resources */,
+				3F41CB3C990241E2AEFC684F /* Roboto.ttf in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
