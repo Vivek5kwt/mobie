@@ -115,7 +115,7 @@ function DescIcon({ rawName, size, color, style }) {
   try {
     return <FontAwesome6 name={bare} size={size} color={color} style={style} />;
   } catch {
-    return <FontAwesome name="info-circle" size={size} color={color} style={style} />;
+    return null;
   }
 }
 
@@ -176,8 +176,7 @@ export default function ProductDescription({ section }) {
   // This icon is shown to the LEFT of the title text.
   // Source: raw.iconStyle.icon → propsNode.icon → layout CSS snapshot icon
   const iconNodeVal = toString(iconNode?.icon ?? iconNode?.value, "");
-  const cssIconVal  = toString(layoutCss?.icon?.icon ?? presCss?.icon?.icon, "");
-  const resolvedIconRaw = toString(raw?.iconStyle?.icon, "") || iconNodeVal || cssIconVal;
+  const resolvedIconRaw = toString(raw?.iconStyle?.icon, "") || iconNodeVal;
 
   // Icon color
   const iconColor = (() => {

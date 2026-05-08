@@ -1077,9 +1077,11 @@ const AuthScreen = () => {
 
   const pagePadLeft = t.pagePaddingLeft;
   const pagePadRight = t.pagePaddingRight;
-  const pagePadTop = Math.min(t.pagePaddingTop, activeHeaderConfig ? 8 : 16);
+  const pagePadTop = mode === 'signup'
+    ? Math.min(t.pagePaddingTop, activeHeaderConfig ? 4 : 10)
+    : Math.min(t.pagePaddingTop, activeHeaderConfig ? 8 : 16);
   const pagePadBottom = t.pagePaddingBottom;
-  const cardPadTop = Math.min(t.cardPaddingTop, mode === 'signup' ? 24 : 20);
+  const cardPadTop = Math.min(t.cardPaddingTop, mode === 'signup' ? 12 : 20);
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: t.bgColor }}>
@@ -1104,7 +1106,7 @@ const AuthScreen = () => {
               <DynamicRenderer key={`${mode}-dsl-${index}`} section={section as any} />
             ))
           ) : (
-          <View style={{ paddingLeft: pagePadLeft, paddingRight: pagePadRight, paddingTop: pagePadTop, paddingBottom: 6 }}>
+          <View style={{ paddingLeft: pagePadLeft, paddingRight: pagePadRight, paddingTop: pagePadTop, paddingBottom: mode === 'signup' ? 4 : 6 }}>
             {mode === 'login' && t.authVisible ? (
               <Text
                 style={{

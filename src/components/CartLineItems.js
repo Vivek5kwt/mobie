@@ -459,7 +459,7 @@ export default function CartLineItems({ section }) {
                 )}
 
                 {/* Savings badge */}
-                {showSavings && (
+                {showSavings && savings > 0 && (
                   <View
                     style={[
                       styles.badge,
