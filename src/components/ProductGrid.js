@@ -908,63 +908,68 @@ export default function ProductGrid({ section, limit = 8, title = "Products" }) 
                 activeOpacity={0.85}
                 onPress={() => navigation.navigate("ProductDetail", { product, detailSections })}
               >
-                {/* Favorite badge */}
-                {resolvedShowFavorite && (
-                  <TouchableOpacity
-                    style={[styles.favoriteBadge, { backgroundColor: resolvedFavBgColor }]}
-                    activeOpacity={0.8}
-                    onPress={async (e) => {
-                      e.stopPropagation?.();
-                      const blocked = await requireLoginForAction({ session, navigation });
-                      if (blocked) return;
-                      const adding = !isInWishlist;
-                      dispatch(toggleWishlist({
-                        product: {
-                          id:             prodId,
-                          title:          product?.title || "",
-                          image:          product?.imageUrl || "",
-                          price:          product?.priceAmount ?? product?.price ?? 0,
-                          compareAtPrice: product?.compareAtPrice ?? product?.originalPrice ?? 0,
-                          currency:       product?.priceCurrency || product?.currency || "",
-                          handle:         product?.handle || "",
-                          vendor:         product?.vendor || "",
-                        },
-                      }));
-                      setSnackMessage(adding ? "Product added to wishlist successfully." : "Product removed from wishlist successfully.");
-                      setSnackVisible(true);
+                {/* Product image + favourite badge */}
+                <View style={{ position: "relative" }}>
+                  <ProductImage
+                    uri={product.imageUrl}
+                    style={{
+                      width:        "100%",
+                      height:       imageHeight,
+                      borderRadius: imageCorner,
+                      marginTop:    imagePad,
+                      marginBottom: imagePad,
+                      marginLeft:   imagePad,
+                      marginRight:  imagePad,
                     }}
-                  >
-                    <Text
-                      style={[
-                        styles.favoriteIcon,
-                        {
-                          color:      isInWishlist ? "#EF4444" : resolvedFavIconColor,
-                          fontSize:   resolvedFavIconSize,
-                          fontWeight: resolvedFavIconWeight,
-                          ...(resolvedFavIconFontFamily ? { fontFamily: resolvedFavIconFontFamily } : null),
-                        },
-                      ]}
-                    >
-                      {isInWishlist ? "♥" : "♡"}
-                    </Text>
-                  </TouchableOpacity>
-                )}
+                    resizeMode={imageResizeMode}
+                    placeholderBg={resolvedImageBgColor}
+                  />
 
-                {/* Product image */}
-                <ProductImage
-                  uri={product.imageUrl}
-                  style={{
-                    width:        "100%",
-                    height:       imageHeight,
-                    borderRadius: imageCorner,
-                    marginTop:    imagePad,
-                    marginBottom: imagePad,
-                    marginLeft:   imagePad,
-                    marginRight:  imagePad,
-                  }}
-                  resizeMode={imageResizeMode}
-                  placeholderBg={resolvedImageBgColor}
-                />
+                  {resolvedShowFavorite && (() => {
+                    const btnSize = Math.max(30, resolvedFavIconSize + 12);
+                    return (
+                      <TouchableOpacity
+                        style={[
+                          styles.favoriteBadge,
+                          {
+                            width:           btnSize,
+                            height:          btnSize,
+                            borderRadius:    btnSize / 2,
+                            backgroundColor: resolvedFavBgColor,
+                          },
+                        ]}
+                        activeOpacity={0.7}
+                        onPress={async (e) => {
+                          e.stopPropagation?.();
+                          const blocked = await requireLoginForAction({ session, navigation });
+                          if (blocked) return;
+                          const adding = !isInWishlist;
+                          dispatch(toggleWishlist({
+                            product: {
+                              id:             prodId,
+                              title:          product?.title || "",
+                              image:          product?.imageUrl || "",
+                              price:          product?.priceAmount ?? product?.price ?? 0,
+                              compareAtPrice: product?.compareAtPrice ?? product?.originalPrice ?? 0,
+                              currency:       product?.priceCurrency || product?.currency || "",
+                              handle:         product?.handle || "",
+                              vendor:         product?.vendor || "",
+                            },
+                          }));
+                          setSnackMessage(adding ? "Product added to wishlist successfully." : "Product removed from wishlist successfully.");
+                          setSnackVisible(true);
+                        }}
+                        hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                      >
+                        <FontAwesome
+                          name={isInWishlist ? "heart" : "heart-o"}
+                          size={resolvedFavIconSize}
+                          color={isInWishlist ? "#EF4444" : resolvedFavIconColor}
+                        />
+                      </TouchableOpacity>
+                    );
+                  })()}
+                </View>
 
                 {/* Add to Cart — rendered above card body when position = "above" */}
                 {showAddToCart && atcAbove && (() => {
@@ -1177,19 +1182,17 @@ const styles = StyleSheet.create({
     backgroundColor: "#fff",
   },
   favoriteBadge: {
-    position:         "absolute",
-    top:              8,
-    right:            8,
-    zIndex:           2,
-    backgroundColor:  "rgba(255,255,255,0.9)",
-    borderRadius:     14,
-    paddingHorizontal: 7,
-    paddingVertical:  3,
-  },
-  favoriteIcon: {
-    color:      "#e11d48",
-    fontSize:   14,
-    fontWeight: "700",
+    position:        "absolute",
+    top:             8,
+    right:           8,
+    zIndex:          10,
+    elevation:       6,
+    alignItems:      "center",
+    justifyContent:  "center",
+    shadowColor:     "#000",
+    shadowOffset:    { width: 0, height: 1 },
+    shadowOpacity:   0.15,
+    shadowRadius:    3,
   },
   content: {
     paddingHorizontal: 10,

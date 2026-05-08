@@ -170,10 +170,10 @@ const parseAspectRatio = (ratio) => {
 
 const getImageResizeMode = (scale) => {
   const normalized = String(scale || "").toLowerCase();
-  if (normalized === "cover") return "cover";
-  if (normalized === "contain") return "contain";
+  if (normalized === "cover" || normalized === "fill") return "cover";
+  if (normalized === "contain" || normalized === "fit") return "contain";
   if (normalized === "stretch") return "stretch";
-  return "cover"; // Default
+  return "contain"; // Default — show full image without cropping
 };
 
 export default function ProductCarousel({ section }) {
@@ -316,7 +316,7 @@ export default function ProductCarousel({ section }) {
   // Image configuration
   const cardImageActive = toBoolean(raw?.cardImageActive, true);
   const imageRatio = toString(raw?.imageRatio ?? raw?.ratio, "");
-  const imageScale = toString(raw?.imageScale, "Fill");
+  const imageScale = toString(raw?.imageScale, "Fit");
   const imageCorner = toNumber(raw?.imageCorner, 6);
   // Parse ratio string → aspectRatio (w/h). "Auto" or empty → null (use explicit height instead)
   const imageAspectRatio = (() => {
