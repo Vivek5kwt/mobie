@@ -194,10 +194,25 @@ export default function TrendingSearches({ section }) {
     paddingLeft: toNumber(rp("headingPaddingLeft"), 0),
   };
 
-  const chipBgColor = unwrapValue(rp("chipbgColor") ?? rp("chipBgColor") ?? rp("tagBgColor"), "#F3F4F6");
-  const chipTextColor = unwrapValue(rp("chipTextColor") ?? rp("chipColor") ?? rp("tagTextColor"), "#111827");
-  const trendingPillBgColor = unwrapValue(rp("trendingPillBgColor"), chipBgColor);
-  const trendingPillTextColor = unwrapValue(rp("trendingPillTextColor"), chipTextColor);
+  const chipBgColor = unwrapValue(
+    firstDefined(
+      rp("chipbgColor"),
+      rp("chipBgColor"),
+      rp("chipBackgroundColor"),
+      rp("tagBgColor"),
+      rp("trendingPillBgColor")
+    ),
+    "#F3F4F6"
+  );
+  const chipTextColor = unwrapValue(
+    firstDefined(
+      rp("chipColor"),
+      rp("chipTextColor"),
+      rp("tagTextColor"),
+      rp("trendingPillTextColor")
+    ),
+    "#111827"
+  );
   const chipFontSize = toNumber(rp("chipFontSize") ?? rp("tagFontSize"), 13);
   const chipFontWeight = deriveWeight(rp("chipFontWeight") ?? rp("tagFontWeight"), "500");
   const chipFontFamily = cleanFontFamily(rp("chipFontFamily"));
@@ -392,7 +407,7 @@ export default function TrendingSearches({ section }) {
               style={[
                 styles.chip,
                 {
-                  backgroundColor: trendingPillBgColor,
+                  backgroundColor: chipBgColor,
                   borderRadius: chipBorderRadius,
                   ...chipPadding,
                   ...(chipBorderWidth > 0
@@ -403,7 +418,7 @@ export default function TrendingSearches({ section }) {
             >
               <Text
                 style={{
-                  color: trendingPillTextColor,
+                  color: chipTextColor,
                   fontSize: chipFontSize,
                   fontWeight: chipFontWeight,
                   lineHeight: chipLineHeight,

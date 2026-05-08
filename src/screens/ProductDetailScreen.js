@@ -76,8 +76,30 @@ const mergeRawNode = (rawNode, mergedRaw) => {
   return mergedRaw;
 };
 
+const PRODUCT_DEFAULT_SKIP_COMPONENTS = new Set([
+  "recent_products",
+  "recently_viewed",
+  "recent_viewed",
+  "recentproducts",
+  "recentlyviewed",
+]);
+
+const getComponentName = (section) =>
+  String(
+    section?.component?.const ||
+      section?.component ||
+      section?.properties?.component?.const ||
+      section?.properties?.component ||
+      ""
+  )
+    .trim()
+    .toLowerCase();
+
 const mergeSectionWithProduct = (section, product) => {
   if (!section) return section;
+  if (PRODUCT_DEFAULT_SKIP_COMPONENTS.has(getComponentName(section))) {
+    return section;
+  }
   const propsNode =
     section?.properties?.props?.properties || section?.properties?.props || section?.props || {};
   const raw = unwrapValue(propsNode?.raw, {});

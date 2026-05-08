@@ -743,7 +743,7 @@ export default function BottomNavScreen() {
           closeSideMenu,
         }}
       >
-        <View style={[styles.container, isCartPage ? styles.cartContainer : null]}>
+        <View style={[styles.container, (isCartPage || isProfilePage) ? styles.cartContainer : null]}>
           {/* Back-button row shown when screen is opened from Settings (no bottom nav) */}
           {hideBottomNav && (
             <View style={styles.backRow}>
@@ -833,7 +833,7 @@ export default function BottomNavScreen() {
             showsVerticalScrollIndicator
             contentContainerStyle={[
               styles.scrollContent,
-              isCartPage ? styles.cartScrollContent : null,
+              (isCartPage || isProfilePage) ? styles.cartScrollContent : null,
               { paddingBottom: resolvedBottomNavSection && !hideBottomNav ? bottomNavHeight : 0 },
             ]}
             keyboardShouldPersistTaps="handled"
@@ -855,6 +855,13 @@ export default function BottomNavScreen() {
                   "product_grid", "product_carousel",
                   "tab_product_grid", "tab_product_carousel",
                 ].includes(compName);
+                const isAccountDslPage = isProfilePage && [
+                  "account_profile",
+                  "account_menu",
+                  "profile_header",
+                  "account_profile_header",
+                  "text_block",
+                ].includes(compName);
                 const isHeavyHomeSection = [
                   "product_grid", "product_carousel",
                   "tab_product_grid", "tab_product_carousel",
@@ -869,6 +876,7 @@ export default function BottomNavScreen() {
                     style={[
                       styles.sectionWrapper,
                       isSearchPage && styles.sectionWrapperTight,
+                      isAccountDslPage && styles.sectionWrapperTight,
                       isProductSection && !isSearchPage && styles.sectionWrapperProduct,
                     ]}
                   >

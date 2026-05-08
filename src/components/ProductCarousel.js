@@ -93,6 +93,31 @@ const toBoolean = (value, fallback = false) => {
   return fallback;
 };
 
+const hasExplicitValue = (value) => {
+  const resolved = unwrapValue(value, undefined);
+  if (resolved === undefined || resolved === null) return false;
+  if (typeof resolved === "string") return resolved.trim() !== "";
+  return true;
+};
+
+const resolveBooleanSetting = (values, fallback = false) => {
+  for (const value of values) {
+    if (hasExplicitValue(value)) return toBoolean(value, fallback);
+  }
+  return fallback;
+};
+
+const resolveVisibilitySetting = (values, fallback = true) => {
+  let sawExplicitTrue = false;
+  for (const value of values) {
+    if (!hasExplicitValue(value)) continue;
+    const resolved = toBoolean(value, fallback);
+    if (!resolved) return false;
+    sawExplicitTrue = true;
+  }
+  return sawExplicitTrue || fallback;
+};
+
 const toTextAlign = (value, fallback = "left") => {
   const resolved = toString(value, fallback).toLowerCase();
   if (resolved === "center") return "center";
@@ -193,6 +218,7 @@ export default function ProductCarousel({ section }) {
   const raw = (rawUnwrapped && typeof rawUnwrapped === "object")
     ? { ...rawProps, ...rawUnwrapped }
     : (rawProps || {});
+  const visibilityNode = deepUnwrap(raw?.visibility?.properties ?? raw?.visibility) || {};
 
   const _slug = (s) =>
     String(s || "").toLowerCase().trim().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
@@ -260,7 +286,17 @@ export default function ProductCarousel({ section }) {
   const rowGap = toNumber(raw?.rowGap, 12);
 
   // Header configuration
-  const headerGroupActive = toBoolean(raw?.headerGroupActive, true);
+  const headerGroupActive = resolveVisibilitySetting(
+    [
+      raw?.headerGroupActive,
+      raw?.headerActive,
+      raw?.showHeader,
+      raw?.headerVisible,
+      visibilityNode?.header,
+      visibilityNode?.headerGroup,
+    ],
+    true
+  );
   const header = unwrapValue(raw?.header, "");
   const headerText = Array.isArray(header)
     ? header.map((h) => unwrapValue(h)).join(" ")
@@ -282,10 +318,41 @@ export default function ProductCarousel({ section }) {
     "left"
   );
   const headerLinkHref = toString(raw?.headerLinkHref, "");
-  const gridTitleActive = toBoolean(raw?.gridTitleActive, true);
+  const gridTitleActive = headerGroupActive && resolveVisibilitySetting(
+    [
+      raw?.gridTitleActive,
+      raw?.carouselTitleActive,
+      raw?.carouselTitleVisible,
+      raw?.carouselTitleEnabled,
+      raw?.sectionTitleActive,
+      raw?.sectionTitleVisible,
+      raw?.headerTitleActive,
+      raw?.headerTitleVisible,
+      raw?.titleActive,
+      raw?.titleVisible,
+      raw?.showGridTitle,
+      raw?.showCarouselTitle,
+      raw?.showHeaderTitle,
+      raw?.showTitle,
+      visibilityNode?.gridTitle,
+      visibilityNode?.carouselTitle,
+      visibilityNode?.sectionTitle,
+      visibilityNode?.headerTitle,
+      visibilityNode?.title,
+    ],
+    true
+  );
 
   // View All configuration
-  const viewAllActive = toBoolean(raw?.viewAllActive, true);
+  const viewAllActive = headerGroupActive && resolveVisibilitySetting(
+    [
+      raw?.viewAllActive,
+      raw?.viewAllVisible,
+      raw?.showViewAll,
+      visibilityNode?.viewAll,
+    ],
+    true
+  );
   const viewAllText = unwrapValue(raw?.viewAllText, "View all");
   const viewAllSize = toNumber(raw?.viewAllSize, 14);
   const viewAllColor = toString(raw?.viewAllColor, "#000000");
@@ -353,13 +420,22 @@ export default function ProductCarousel({ section }) {
   const strikeWeight = toFontWeight(raw?.strikeWeight, "700");
 
   // Favorite configuration
-  // Single source of truth — first explicit DSL flag wins; default false (hidden)
-  const showFavorite = toBoolean(
-    raw?.favoriteIconEnabled ??
-    raw?.favActive ??
-    raw?.favEnabled ??
-    raw?.showFavoriteIcon ??
-    raw?.showFavorite,
+  const showFavorite = resolveBooleanSetting(
+    [
+      raw?.favActive,
+      raw?.favEnabled,
+      raw?.showFavorite,
+      raw?.showFavoriteIcon,
+      raw?.favoriteActive,
+      raw?.favoriteVisible,
+      raw?.favoriteIconVisible,
+      raw?.addToFavoriteActive,
+      raw?.addToFavoriteVisible,
+      visibilityNode?.favorite,
+      visibilityNode?.favoriteIcon,
+      visibilityNode?.addToFavorite,
+      raw?.favoriteIconEnabled,
+    ],
     false
   );
   const favoriteIconId = toString(raw?.favoriteIconId, "fa-heart");
@@ -379,7 +455,21 @@ export default function ProductCarousel({ section }) {
   const favoriteOffIconName = resolveFA4IconName(unfavoriteIconId) || "heart-o";
 
   // Add to Cart configuration
-  const atcActive = toBoolean(raw?.atcActive, true);
+  const atcActive = resolveBooleanSetting(
+    [
+      raw?.atcActive,
+      raw?.addToCartActive,
+      raw?.showAddToCart,
+      raw?.showCartButton,
+      raw?.addToCartVisible,
+      raw?.addToCartEnabled,
+      raw?.cartBtnEnabled,
+      visibilityNode?.addToCart,
+      visibilityNode?.atc,
+      visibilityNode?.button,
+    ],
+    true
+  );
   const atcAvailableText = unwrapValue(raw?.atcAvailableText, "Add To Cart");
   const atcSoldOutText = unwrapValue(raw?.atcSoldOutText ?? raw?.unavailableText, "Unavailable");
   // Normalise ATC position: "above"/"top"/"before" → "above", "overlay"/"on-image" → "overlay", else "below"

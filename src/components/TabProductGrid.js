@@ -66,6 +66,20 @@ const toBool = (value, fallback = true) => {
   return fallback;
 };
 
+const hasExplicitValue = (value) => {
+  const resolved = unwrapValue(value, undefined);
+  if (resolved === undefined || resolved === null) return false;
+  if (typeof resolved === "string") return resolved.trim() !== "";
+  return true;
+};
+
+const resolveBoolSetting = (values, fallback = true) => {
+  for (const value of values) {
+    if (hasExplicitValue(value)) return toBool(value, fallback);
+  }
+  return fallback;
+};
+
 const toFontWeight = (value, fallback = "500") => {
   const r = unwrapValue(value, undefined);
   if (!r) return fallback;
@@ -150,6 +164,7 @@ export default function TabProductGrid({ section }) {
 
   // rawConfig holds all the flat builder values
   const rawConfig = rawProps?.raw?.value || rawProps?.raw || rawProps || {};
+  const visibilityConfig = rawConfig?.visibility?.properties || rawConfig?.visibility || {};
   const layoutNode = rawProps?.layout?.properties || rawProps?.layout || {};
   const layoutCss = layoutNode?.css?.value || layoutNode?.css?.properties || layoutNode?.css || {};
   const layoutCardTitleCss = layoutCss?.cardTitle || layoutCss?.title || {};
@@ -288,16 +303,40 @@ export default function TabProductGrid({ section }) {
     false
   );
 
-  const showFavorite   = toBool(
-    rawConfig?.favoriteIconEnabled ??
-      rawConfig?.favActive ??
-      rawConfig?.showFavorite ??
-      rawConfig?.showFavoriteIcon ??
+  const showFavorite   = resolveBoolSetting(
+    [
+      rawConfig?.favActive,
       rawConfig?.favEnabled,
+      rawConfig?.showFavorite,
+      rawConfig?.showFavoriteIcon,
+      rawConfig?.favoriteActive,
+      rawConfig?.favoriteVisible,
+      rawConfig?.favoriteIconVisible,
+      rawConfig?.addToFavoriteActive,
+      rawConfig?.addToFavoriteVisible,
+      visibilityConfig?.favorite,
+      visibilityConfig?.favoriteIcon,
+      visibilityConfig?.addToFavorite,
+      rawConfig?.favoriteIconEnabled,
+    ],
     true
   );
   const favoriteToggleConfig = buildFavoriteToggleConfig(rawConfig);
-  const showAddToCart  = toBool(rawConfig?.showAddToCart ?? rawConfig?.atcActive, true);
+  const showAddToCart  = resolveBoolSetting(
+    [
+      rawConfig?.atcActive,
+      rawConfig?.addToCartActive,
+      rawConfig?.showAddToCart,
+      rawConfig?.showCartButton,
+      rawConfig?.addToCartVisible,
+      rawConfig?.addToCartEnabled,
+      rawConfig?.cartBtnEnabled,
+      visibilityConfig?.addToCart,
+      visibilityConfig?.atc,
+      visibilityConfig?.button,
+    ],
+    true
+  );
   const showPrice      = toBool(rawConfig?.showPrice ?? rawConfig?.cardPriceActive, true);
   const showTitleText  = toBool(rawConfig?.showTitle ?? rawConfig?.cardTitleActive, true);
   const priceSize      = toNum(rawConfig?.priceSize ?? rawConfig?.subtextSize ?? layoutCardPriceCss?.fontSize, 12);

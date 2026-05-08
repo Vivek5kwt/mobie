@@ -98,9 +98,10 @@ const resolveBorderWidth = (line, color, fallback = 1) => {
   if (rawLine === "none" || rawLine === "0" || rawLine === "0px") return 0;
   const numeric = parseFloat(rawLine);
   if (Number.isFinite(numeric)) return numeric;
+  if (!rawLine) return 0;
   const rawColor = toString(color, "").trim().toLowerCase();
-  if (!rawLine && (!rawColor || rawColor === "transparent")) return 0;
-  return rawLine || rawColor ? fallback : 0;
+  if (!rawColor || rawColor === "transparent") return 0;
+  return fallback;
 };
 
 const getAlignment = (align) => {
@@ -193,6 +194,10 @@ export default function SignUp({ section }) {
     const lastNamePlaceholder = toString(raw.lastNamePlaceholder, "Last Name");
     const emailPlaceholder = toString(raw.emailPlaceholder, "Enter email");
     const passwordPlaceholder = toString(raw.passwordPlaceholder, "Enter password");
+    const firstNamePlaceholderVisible = toBoolean(raw.firstNamePlaceHolderVisible ?? raw.firstNamePlaceholderVisible, true);
+    const lastNamePlaceholderVisible = toBoolean(raw.lastNamePlaceHolderVisible ?? raw.lastNamePlaceholderVisible, true);
+    const emailPlaceholderVisible = toBoolean(raw.emailPlaceHolderVisible ?? raw.emailPlaceholderVisible, true);
+    const passwordPlaceholderVisible = toBoolean(raw.passwordPlaceHolderVisible ?? raw.passwordPlaceholderVisible, true);
 
     // Colors
     const titleColor = toString(raw.titleColor, "#027579");
@@ -341,6 +346,7 @@ export default function SignUp({ section }) {
       authTitle, headerTitle, buttonText, footerText, footerLinkText,
       firstNameLabelText, lastNameLabelText, emailLabelText, passwordLabelText,
       firstNamePlaceholder, lastNamePlaceholder, emailPlaceholder, passwordPlaceholder,
+      firstNamePlaceholderVisible, lastNamePlaceholderVisible, emailPlaceholderVisible, passwordPlaceholderVisible,
       titleColor, headerTitleColor, buttonTextColor, buttonIconColor, footerTextColor,
       footerLinkColor, firstNameLabelColor, lastNameLabelColor, emailLabelColor,
       passwordLabelColor, firstNameInputTextColor, lastNameInputTextColor,
@@ -387,6 +393,7 @@ export default function SignUp({ section }) {
     authTitle, headerTitle, buttonText, footerText, footerLinkText,
     firstNameLabelText, lastNameLabelText, emailLabelText, passwordLabelText,
     firstNamePlaceholder, lastNamePlaceholder, emailPlaceholder, passwordPlaceholder,
+    firstNamePlaceholderVisible, lastNamePlaceholderVisible, emailPlaceholderVisible, passwordPlaceholderVisible,
     titleColor, headerTitleColor, buttonTextColor, buttonIconColor, footerTextColor,
     footerLinkColor, firstNameLabelColor, lastNameLabelColor, emailLabelColor,
     passwordLabelColor, firstNameInputTextColor, lastNameInputTextColor,
@@ -529,7 +536,9 @@ export default function SignUp({ section }) {
   const mobileTitleFontSize = headerTitleFontSize;
   const mobileFieldFontSize = (size) => size;
   const inputTextAlign = "left";
-  const mobileCardPaddingTop = bgPadVisible ? Math.min(pt, 24) : 0;
+  const shouldShowFieldLabel = (labelVisible, placeholderVisible) =>
+    labelVisible && !placeholderVisible;
+  const mobileCardPaddingTop = bgPadVisible ? pt : 0;
   const mobileCardPaddingBottom = bgPadVisible ? pb : 0;
   const mobileCardPaddingLeft = bgPadVisible ? pl : 0;
   const mobileCardPaddingRight = bgPadVisible ? pr : 0;
@@ -639,7 +648,7 @@ export default function SignUp({ section }) {
         {/* First Name Field */}
         {firstNameVisible && (
           <View style={styles.fieldContainer}>
-            {firstNameLabelVisible && (
+            {shouldShowFieldLabel(firstNameLabelVisible, firstNamePlaceholderVisible) && (
               <Text style={[styles.label, { color: firstNameLabelColor, fontSize: firstNameLabelFontSize, fontFamily: firstNameLabelFontFamily, fontWeight: firstNameLabelFontWeight }]}>
                 {firstNameLabelText}
               </Text>
@@ -659,7 +668,7 @@ export default function SignUp({ section }) {
                   minHeight: inputHeight,
                 },
               ]}
-              placeholder={firstNamePlaceholder}
+              placeholder={firstNamePlaceholderVisible ? firstNamePlaceholder : ""}
               placeholderTextColor={firstNamePlaceholderColor}
               value={firstName}
               onChangeText={(text) =>
@@ -673,7 +682,7 @@ export default function SignUp({ section }) {
         {/* Last Name Field */}
         {lastNameVisible && (
           <View style={styles.fieldContainer}>
-            {lastNameLabelVisible && (
+            {shouldShowFieldLabel(lastNameLabelVisible, lastNamePlaceholderVisible) && (
               <Text style={[styles.label, { color: lastNameLabelColor, fontSize: lastNameLabelFontSize, fontFamily: lastNameLabelFontFamily, fontWeight: lastNameLabelFontWeight }]}>
                 {lastNameLabelText}
               </Text>
@@ -693,7 +702,7 @@ export default function SignUp({ section }) {
                   minHeight: inputHeight,
                 },
               ]}
-              placeholder={lastNamePlaceholder}
+              placeholder={lastNamePlaceholderVisible ? lastNamePlaceholder : ""}
               placeholderTextColor={lastNamePlaceholderColor}
               value={lastName}
               onChangeText={(text) =>
@@ -707,7 +716,7 @@ export default function SignUp({ section }) {
         {/* Email Field */}
         {emailInputVisible && (
           <View style={styles.fieldContainer}>
-            {emailLabelVisible && (
+            {shouldShowFieldLabel(emailLabelVisible, emailPlaceholderVisible) && (
               <Text style={[styles.label, { color: emailLabelColor, fontSize: emailLabelFontSize, fontFamily: emailLabelFontFamily, fontWeight: emailLabelFontWeight }]}>
                 {emailLabelText}
               </Text>
@@ -727,7 +736,7 @@ export default function SignUp({ section }) {
                   minHeight: inputHeight,
                 },
               ]}
-              placeholder={emailPlaceholder}
+              placeholder={emailPlaceholderVisible ? emailPlaceholder : ""}
               placeholderTextColor={emailPlaceholderColor}
               value={email}
               onChangeText={(text) =>
@@ -743,7 +752,7 @@ export default function SignUp({ section }) {
         {/* Password Field */}
         {passwordInputVisible && (
           <View style={styles.fieldContainer}>
-            {passwordLabelVisible && (
+            {shouldShowFieldLabel(passwordLabelVisible, passwordPlaceholderVisible) && (
               <Text style={[styles.label, { color: passwordLabelColor, fontSize: passwordLabelFontSize, fontFamily: passwordLabelFontFamily, fontWeight: passwordLabelFontWeight }]}>
                 {passwordLabelText}
               </Text>
@@ -763,7 +772,7 @@ export default function SignUp({ section }) {
                   minHeight: inputHeight,
                 },
               ]}
-              placeholder={passwordPlaceholder}
+              placeholder={passwordPlaceholderVisible ? passwordPlaceholder : ""}
               placeholderTextColor={passwordPlaceholderColor}
               value={password}
               onChangeText={(text) =>

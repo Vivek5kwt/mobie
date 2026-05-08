@@ -120,6 +120,31 @@ const toBoolean = (value, fallback = false) => {
   return fallback;
 };
 
+const hasExplicitValue = (value) => {
+  const resolved = unwrapValue(value, undefined);
+  if (resolved === undefined || resolved === null) return false;
+  if (typeof resolved === "string") return resolved.trim() !== "";
+  return true;
+};
+
+const resolveBooleanSetting = (values, fallback = false) => {
+  for (const value of values) {
+    if (hasExplicitValue(value)) return toBoolean(value, fallback);
+  }
+  return fallback;
+};
+
+const resolveVisibilitySetting = (values, fallback = true) => {
+  let sawExplicitTrue = false;
+  for (const value of values) {
+    if (!hasExplicitValue(value)) continue;
+    const resolved = toBoolean(value, fallback);
+    if (!resolved) return false;
+    sawExplicitTrue = true;
+  }
+  return sawExplicitTrue || fallback;
+};
+
 const toTextAlign = (value, fallback = "left") => {
   const resolved = toString(value, fallback).toLowerCase();
   if (resolved === "center") return "center";
@@ -222,12 +247,55 @@ export default function ProductGrid({ section, limit = 8, title = "Products" }) 
   )));
 
   // ── Visibility flags ──────────────────────────────────────────────────────
-  const resolvedShowGridTitle = toBoolean(
-    rawProps?.gridTitleActive ?? rawProps?.headerGroupActive ?? rawProps?.showTitle,
+  const visibilityNode = deepUnwrap(rawProps?.visibility?.properties ?? rawProps?.visibility) || {};
+  const headerCssDisplay = toString(headerCss?.display, "").toLowerCase();
+  const resolvedShowHeaderGroup = resolveVisibilitySetting(
+    [
+      rawProps?.headerGroupActive,
+      rawProps?.headerActive,
+      rawProps?.showHeader,
+      rawProps?.headerVisible,
+      visibilityNode?.header,
+      visibilityNode?.headerGroup,
+    ],
     true
   );
-  const resolvedShowCardTitle = toBoolean(
-    rawProps?.cardTitleActive ?? rawProps?.showTitle,
+  const resolvedShowGridTitle = resolvedShowHeaderGroup && resolveVisibilitySetting(
+    [
+      headerCssDisplay === "none" ? false : undefined,
+      rawProps?.gridTitleActive,
+      rawProps?.carouselTitleActive,
+      rawProps?.carouselTitleVisible,
+      rawProps?.carouselTitleEnabled,
+      rawProps?.sectionTitleActive,
+      rawProps?.sectionTitleVisible,
+      rawProps?.headerTitleActive,
+      rawProps?.headerTitleVisible,
+      rawProps?.titleActive,
+      rawProps?.titleVisible,
+      rawProps?.showGridTitle,
+      rawProps?.showCarouselTitle,
+      rawProps?.showHeaderTitle,
+      rawProps?.showTitle,
+      visibilityNode?.gridTitle,
+      visibilityNode?.carouselTitle,
+      visibilityNode?.sectionTitle,
+      visibilityNode?.headerTitle,
+      visibilityNode?.title,
+    ],
+    true
+  );
+  const resolvedShowCardTitle = resolveVisibilitySetting(
+    [
+      rawProps?.cardTitleActive,
+      rawProps?.cardTitleVisible,
+      rawProps?.productTitleActive,
+      rawProps?.productTitleVisible,
+      rawProps?.showCardTitle,
+      rawProps?.showProductTitle,
+      visibilityNode?.cardTitle,
+      visibilityNode?.productTitle,
+    ],
     true
   );
   const resolvedShowPrice = toBoolean(
@@ -235,25 +303,37 @@ export default function ProductGrid({ section, limit = 8, title = "Products" }) 
     true
   );
   const resolvedFavMode = toString(rawProps?.favMode, "").toLowerCase();
-  // Explicit DSL flags always win. "always show" mode is used only as the default fallback
-  // when no explicit flag is present — it cannot override an explicit false.
-  const resolvedShowFavorite = toBoolean(
-    rawProps?.favoriteIconEnabled ??
-    rawProps?.favActive ??
-    rawProps?.showFavorite ??
-    rawProps?.showFavoriteIcon ??
-    rawProps?.favEnabled,
-    resolvedFavMode === "always show" // fallback: true only when favMode="always show"
+  const resolvedShowFavorite = resolveBooleanSetting(
+    [
+      rawProps?.favActive,
+      rawProps?.favEnabled,
+      rawProps?.showFavorite,
+      rawProps?.showFavoriteIcon,
+      rawProps?.favoriteActive,
+      rawProps?.favoriteVisible,
+      rawProps?.favoriteIconVisible,
+      rawProps?.addToFavoriteActive,
+      rawProps?.addToFavoriteVisible,
+      visibilityNode?.favorite,
+      visibilityNode?.favoriteIcon,
+      visibilityNode?.addToFavorite,
+      rawProps?.favoriteIconEnabled,
+    ],
+    resolvedFavMode === "always show"
   );
-  const resolvedViewAllActive = toBoolean(
-    rawProps?.viewAllActive ?? rawProps?.showViewAll,
+  const resolvedViewAllActive = resolvedShowHeaderGroup && resolveVisibilitySetting(
+    [
+      rawProps?.viewAllActive,
+      rawProps?.viewAllVisible,
+      rawProps?.showViewAll,
+      visibilityNode?.viewAll,
+    ],
     true
   );
   const resolvedTitleWrap = toBoolean(
     rawProps?.titleWrap ?? rawProps?.textWrap ?? rawProps?.productTitleWrap ?? rawProps?.cardTitleWrap,
     false
   );
-  const visibilityNode = deepUnwrap(rawProps?.visibility) || {};
   const showBgPadding = toBoolean(
     visibilityNode?.bgPadding ?? visibilityNode?.padding,
     true
@@ -448,7 +528,21 @@ export default function ProductGrid({ section, limit = 8, title = "Products" }) 
 
   // ── Add-to-Cart button ────────────────────────────────────────────────────
   const cardAddToCartCss    = deepUnwrap(cardCss?.addToCart) || deepUnwrap(presentationCss?.addToCart) || deepUnwrap(presentationCss?.button) || {};
-  const showAddToCart       = toBoolean(rawProps?.atcActive ?? rawProps?.showAddToCart ?? rawProps?.showCartButton ?? rawProps?.addToCartEnabled ?? rawProps?.cartBtnEnabled, true);
+  const showAddToCart       = resolveBooleanSetting(
+    [
+      rawProps?.atcActive,
+      rawProps?.addToCartActive,
+      rawProps?.showAddToCart,
+      rawProps?.showCartButton,
+      rawProps?.addToCartVisible,
+      rawProps?.addToCartEnabled,
+      rawProps?.cartBtnEnabled,
+      visibilityNode?.addToCart,
+      visibilityNode?.atc,
+      visibilityNode?.button,
+    ],
+    true
+  );
   const addToCartLabel      = toString(rawProps?.addToCartText ?? rawProps?.cartBtnText ?? rawProps?.addToCartLabel ?? rawProps?.cartButtonText ?? cardAddToCartCss?.label, "Add to Cart");
   const addToCartBgColor    = toString(rawProps?.addToCartBgColor ?? rawProps?.cartBtnBgColor ?? rawProps?.buttonBgColor ?? rawProps?.btnBgColor ?? cardAddToCartCss?.backgroundColor, "#0D9488");
   const addToCartTextColor  = toString(rawProps?.addToCartTextColor ?? rawProps?.cartBtnTextColor ?? rawProps?.buttonTextColor ?? rawProps?.btnTextColor ?? cardAddToCartCss?.color, "#FFFFFF");

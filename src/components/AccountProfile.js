@@ -125,8 +125,8 @@ export default function AccountProfile({ section }) {
     ...resolveBorderStyle(borderLine, borderColor),
   };
 
-  const nameFontFamily = cleanFontFamily(resolveValue(rawProps?.headlineFontFamily ?? rawProps?.nameFontFamily ?? rawProps?.fontFamily, ""));
-  const emailFontFamily = cleanFontFamily(resolveValue(rawProps?.subtextFontFamily ?? rawProps?.emailFontFamily ?? rawProps?.fontFamily, ""));
+  const nameFontFamily = cleanFontFamily(resolveValue(rawProps?.nameFontFamily ?? rawProps?.headlineFontFamily ?? rawProps?.fontFamily, ""));
+  const emailFontFamily = cleanFontFamily(resolveValue(rawProps?.emailFontFamily ?? rawProps?.subtextFontFamily ?? rawProps?.fontFamily, ""));
   const resolvedNameStyle = {
     ...nameStyle,
     color: resolveValue(rawProps?.nameColor, nameStyle?.color),

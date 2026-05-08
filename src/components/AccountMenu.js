@@ -26,6 +26,11 @@ const str  = (v, fb = "")    => { const r = deepUnwrap(v); return (r !== undefin
 const num  = (v, fb)         => { const r = deepUnwrap(v); if (r === undefined || r === null || r === "") return fb; if (typeof r === "number") return r; const p = parseFloat(r); return Number.isNaN(p) ? fb : p; };
 const bool = (v, fb = true)  => { const r = deepUnwrap(v); if (typeof r === "boolean") return r; if (typeof r === "number") return r !== 0; if (typeof r === "string") { const l = r.trim().toLowerCase(); if (["true","1","yes","y"].includes(l)) return true; if (["false","0","no","n"].includes(l)) return false; } return fb; };
 
+const hasExplicitValue = (v) => {
+  const r = deepUnwrap(v);
+  return r !== undefined && r !== null;
+};
+
 const parseIconName = (iconClass) => {
   if (!iconClass || typeof iconClass !== "string") return "";
   const tokens = iconClass.split(" ").filter(Boolean);
@@ -80,10 +85,10 @@ export default function AccountMenu({ section }) {
   //   presentation.properties.css.value  (account_profile pattern)
   const css = useMemo(() => {
     const pres =
-      deepUnwrap(propsRoot?.presentation) ||
       deepUnwrap(propsRoot?.presentation?.properties) ||
+      deepUnwrap(propsRoot?.presentation) ||
       {};
-    return deepUnwrap(pres?.css) || {};
+    return deepUnwrap(pres?.css ?? pres?.properties?.css) || {};
   }, [propsRoot]);
 
   const cssRow       = useMemo(() => convertStyles(css?.row       || {}), [css]);
@@ -97,11 +102,15 @@ export default function AccountMenu({ section }) {
   );
 
   // ── container / row background ───────────────────────────────────────────
-  // Priority: rawProps.containerBgColor → CSS container.background → white
-  // NOTE: rawProps.bgColor in DSL is often the icon bg accent, NOT the row bg
+  // The outer wrapper must stay separate from the row so rounded row corners
+  // do not leak the row color into surrounding DSL gaps.
   const containerBg = str(
-    rawProps?.containerBgColor ?? rawProps?.rowBgColor ?? rawProps?.bgColor,
-    cssContainer?.backgroundColor || cssRow?.backgroundColor || "#FFFFFF"
+    rawProps?.containerBgColor ?? rawProps?.containerBackgroundColor,
+    cssContainer?.backgroundColor || "#FFFFFF"
+  );
+  const rowBg = str(
+    rawProps?.rowBgColor ?? rawProps?.bgColor,
+    cssRow?.backgroundColor || "#FFFFFF"
   );
 
   // ── row border ────────────────────────────────────────────────────────────
@@ -109,12 +118,15 @@ export default function AccountMenu({ section }) {
   const rawBorderSide  = str(rawProps?.borderSide ?? rawProps?.borderLine, "");
   const rawBorderColor = str(rawProps?.borderColor, "");
   const rawBorderRadius = num(rawProps?.borderRadius ?? rawProps?.borderCorners, undefined);
+  const hasRawBorderLine = hasExplicitValue(rawProps?.borderSide) || hasExplicitValue(rawProps?.borderLine);
 
   // From CSS
   const cssBorder        = parseBorderString(css?.row?.border || "");
   const cssBorderRadius  = parsePx(css?.row?.borderRadius, undefined);
 
-  const borderWidth  = cssBorder?.borderWidth  ?? (rawBorderSide && rawBorderSide !== "none" ? 1 : 0);
+  const borderWidth = hasRawBorderLine
+    ? (rawBorderSide && rawBorderSide !== "none" ? num(rawProps?.borderWidth ?? rawProps?.borderSize, cssBorder?.borderWidth ?? 1) : 0)
+    : (cssBorder?.borderWidth ?? 0);
   const borderColor  = rawBorderColor || cssBorder?.borderColor || "#E5E7EB";
   const borderRadius = rawBorderRadius ?? cssBorderRadius ?? 10;
 
@@ -314,7 +326,7 @@ export default function AccountMenu({ section }) {
               style={[
                 styles.row,
                 {
-                  backgroundColor: cssRow?.backgroundColor || "#FFFFFF",
+                  backgroundColor: rowBg,
                   borderWidth,
                   borderColor,
                   borderRadius,

@@ -57,6 +57,8 @@ type SignInTokens = {
   footerLinkText: string;
   emailPlaceholder: string;
   passwordPlaceholder: string;
+  emailPlaceholderVisible: boolean;
+  passwordPlaceholderVisible: boolean;
   emailLabelText: string;
   passwordLabelText: string;
   emailLabelVisible: boolean;
@@ -166,6 +168,8 @@ type SignUpTokens = SignInTokens & {
   passwordPlaceholderColor: string;
   firstNamePlaceholder: string;
   lastNamePlaceholder: string;
+  firstNamePlaceholderVisible: boolean;
+  lastNamePlaceholderVisible: boolean;
   buttonHeight: number;
   buttonWidth: number;
   buttonFontSize: number;
@@ -259,9 +263,10 @@ const resolveBorderWidth = (line: unknown, color: unknown, fallback: number): nu
   if (rawLine === 'none' || rawLine === '0' || rawLine === '0px') return 0;
   const numeric = parseFloat(rawLine);
   if (Number.isFinite(numeric)) return numeric;
+  if (!rawLine) return 0;
   const rawColor = String(unwrapValue(color as string | null | undefined, '') || '').trim().toLowerCase();
-  if (!rawLine && (!rawColor || rawColor === 'transparent')) return 0;
-  return rawLine || rawColor ? fallback : 0;
+  if (!rawColor || rawColor === 'transparent') return 0;
+  return fallback;
 };
 
 const normalizeSectionName = (value: unknown): string =>
@@ -317,10 +322,12 @@ const defaultSignInTokens: SignInTokens = {
   footerLinkText: 'Create an Account',
   emailPlaceholder: 'Enter email',
   passwordPlaceholder: 'Enter password',
+  emailPlaceholderVisible: true,
+  passwordPlaceholderVisible: true,
   emailLabelText: 'Email',
   passwordLabelText: 'Password',
-  emailLabelVisible: true,
-  passwordLabelVisible: true,
+  emailLabelVisible: false,
+  passwordLabelVisible: false,
   emailLabelColor: '#065F63',
   passwordLabelColor: '#065F63',
   emailLabelFontSize: 14,
@@ -415,10 +422,10 @@ const defaultSignUpTokens: SignUpTokens = {
   firstNameInputTextAlignment: 'Left',
   lastNameInputTextAlignment: 'Left',
   passwordInputTextAlignment: 'Left',
-  emailLabelVisible: true,
-  firstNameLabelVisible: true,
-  lastNameLabelVisible: true,
-  passwordLabelVisible: true,
+  emailLabelVisible: false,
+  firstNameLabelVisible: false,
+  lastNameLabelVisible: false,
+  passwordLabelVisible: false,
   emailInputVisible: true,
   firstNameVisible: true,
   lastNameVisible: true,
@@ -429,6 +436,8 @@ const defaultSignUpTokens: SignUpTokens = {
   passwordLabelText: 'Password',
   firstNamePlaceholder: 'Enter first name',
   lastNamePlaceholder: 'Enter last name',
+  firstNamePlaceholderVisible: true,
+  lastNamePlaceholderVisible: true,
   emailLabelColor: '#374151',
   firstNameLabelColor: '#374151',
   lastNameLabelColor: '#374151',
@@ -568,6 +577,8 @@ const buildSignInTokens = (rawProps: Record<string, unknown>): SignInTokens => (
   footerLinkText: (rawProps?.footerLinkText as string) ?? defaultSignInTokens.footerLinkText,
   emailPlaceholder: (rawProps?.emailPlaceholder as string) ?? defaultSignInTokens.emailPlaceholder,
   passwordPlaceholder: (rawProps?.passwordPlaceholder as string) ?? defaultSignInTokens.passwordPlaceholder,
+  emailPlaceholderVisible: toBoolean(rawProps?.emailPlaceHolderVisible ?? rawProps?.emailPlaceholderVisible, defaultSignInTokens.emailPlaceholderVisible),
+  passwordPlaceholderVisible: toBoolean(rawProps?.passwordPlaceHolderVisible ?? rawProps?.passwordPlaceholderVisible, defaultSignInTokens.passwordPlaceholderVisible),
   emailLabelText: (rawProps?.emailLabelText as string) ?? defaultSignInTokens.emailLabelText,
   passwordLabelText: (rawProps?.passwordLabelText as string) ?? defaultSignInTokens.passwordLabelText,
   emailLabelVisible: (rawProps?.emailLabelVisible as boolean) ?? defaultSignInTokens.emailLabelVisible,
@@ -666,6 +677,10 @@ const buildSignUpTokens = (rawProps: Record<string, unknown>): SignUpTokens => (
   passwordPlaceholder: (rawProps?.passwordPlaceholder as string) ?? defaultSignUpTokens.passwordPlaceholder,
   firstNamePlaceholder: (rawProps?.firstNamePlaceholder as string) ?? defaultSignUpTokens.firstNamePlaceholder,
   lastNamePlaceholder: (rawProps?.lastNamePlaceholder as string) ?? defaultSignUpTokens.lastNamePlaceholder,
+  emailPlaceholderVisible: toBoolean(rawProps?.emailPlaceHolderVisible ?? rawProps?.emailPlaceholderVisible, defaultSignUpTokens.emailPlaceholderVisible),
+  passwordPlaceholderVisible: toBoolean(rawProps?.passwordPlaceHolderVisible ?? rawProps?.passwordPlaceholderVisible, defaultSignUpTokens.passwordPlaceholderVisible),
+  firstNamePlaceholderVisible: toBoolean(rawProps?.firstNamePlaceHolderVisible ?? rawProps?.firstNamePlaceholderVisible, defaultSignUpTokens.firstNamePlaceholderVisible),
+  lastNamePlaceholderVisible: toBoolean(rawProps?.lastNamePlaceHolderVisible ?? rawProps?.lastNamePlaceholderVisible, defaultSignUpTokens.lastNamePlaceholderVisible),
   headerTitle: (rawProps?.headerTitle as string) ?? defaultSignUpTokens.headerTitle,
   headerTitleColor: (rawProps?.headerTitleColor as string) ?? defaultSignUpTokens.headerTitleColor,
   headerTitleFontSize: toNumber(rawProps?.headerTitleFontSize, defaultSignUpTokens.headerTitleFontSize),
@@ -776,6 +791,7 @@ type FieldProps = {
   labelFontWeight: string;
   labelAlign?: 'left' | 'center' | 'right';
   placeholder: string;
+  placeholderVisible?: boolean;
   placeholderColor: string;
   value: string;
   onChangeText: (v: string) => void;
@@ -804,6 +820,7 @@ const FormField: React.FC<FieldProps> = ({
   labelFontWeight,
   labelAlign = 'left',
   placeholder,
+  placeholderVisible = true,
   placeholderColor,
   value,
   onChangeText,
@@ -811,6 +828,7 @@ const FormField: React.FC<FieldProps> = ({
   inputFontSize,
   inputFontFamily,
   inputFontWeight,
+  inputAlign = 'left',
   inputBorderColor,
   inputBorderRadius,
   inputHeight,
@@ -820,9 +838,11 @@ const FormField: React.FC<FieldProps> = ({
   autoCorrect = true,
   secureTextEntry = false,
   rightSlot,
-}) => (
+}) => {
+  const shouldShowLabel = labelVisible && !placeholderVisible && Boolean(label);
+  return (
   <View style={fieldStyles.group}>
-    {labelVisible && label ? (
+    {shouldShowLabel ? (
       <Text
         style={[
           fieldStyles.label,
@@ -840,7 +860,7 @@ const FormField: React.FC<FieldProps> = ({
     ) : null}
     <View style={[fieldStyles.inputWrap, { borderColor: inputBorderColor, borderRadius: inputBorderRadius, backgroundColor: cardBgColor, minHeight: inputHeight }]}>
       <TextInput
-        placeholder={placeholder}
+        placeholder={placeholderVisible ? placeholder : ''}
         placeholderTextColor={placeholderColor}
         value={value}
         onChangeText={onChangeText}
@@ -855,7 +875,7 @@ const FormField: React.FC<FieldProps> = ({
             fontSize: inputFontSize,
             fontFamily: inputFontFamily !== 'System' ? inputFontFamily : undefined,
             fontWeight: inputFontWeight as any,
-            textAlign: 'left',
+            textAlign: inputAlign,
             textAlignVertical: 'center',
             flex: rightSlot ? 1 : undefined,
             minHeight: inputHeight,
@@ -865,7 +885,8 @@ const FormField: React.FC<FieldProps> = ({
       {rightSlot ?? null}
     </View>
   </View>
-);
+  );
+};
 
 const fieldStyles = StyleSheet.create({
   group: { marginBottom: 14 },
@@ -1084,11 +1105,9 @@ const AuthScreen = () => {
 
   const pagePadLeft = t.pagePaddingLeft;
   const pagePadRight = t.pagePaddingRight;
-  const pagePadTop = mode === 'signup'
-    ? Math.min(t.pagePaddingTop, activeHeaderConfig ? 4 : 10)
-    : Math.min(t.pagePaddingTop, activeHeaderConfig ? 8 : 16);
+  const pagePadTop = t.pagePaddingTop;
   const pagePadBottom = t.pagePaddingBottom;
-  const cardPadTop = Math.min(t.cardPaddingTop, mode === 'signup' ? 12 : 20);
+  const cardPadTop = t.cardPaddingTop;
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: t.bgColor }}>
@@ -1193,6 +1212,7 @@ const AuthScreen = () => {
                 labelFontWeight={signUpTokens.firstNameLabelFontWeight}
                 labelAlign="left"
                 placeholder={signUpTokens.firstNamePlaceholder}
+                placeholderVisible={signUpTokens.firstNamePlaceholderVisible}
                 placeholderColor={signUpTokens.firstNamePlaceholderColor}
                 value={firstName}
                 onChangeText={setFirstName}
@@ -1220,6 +1240,7 @@ const AuthScreen = () => {
                 labelFontWeight={signUpTokens.lastNameLabelFontWeight}
                 labelAlign="left"
                 placeholder={signUpTokens.lastNamePlaceholder}
+                placeholderVisible={signUpTokens.lastNamePlaceholderVisible}
                 placeholderColor={signUpTokens.lastNamePlaceholderColor}
                 value={lastName}
                 onChangeText={setLastName}
@@ -1247,6 +1268,7 @@ const AuthScreen = () => {
                 labelFontWeight={mode === 'login' ? signInTokens.emailLabelFontWeight : signUpTokens.emailLabelFontWeight}
                 labelAlign="left"
                 placeholder={mode === 'login' ? signInTokens.emailPlaceholder : signUpTokens.emailPlaceholder}
+                placeholderVisible={mode === 'login' ? signInTokens.emailPlaceholderVisible : signUpTokens.emailPlaceholderVisible}
                 placeholderColor={mode === 'login' ? signInTokens.emailPlaceholderColor : signUpTokens.emailPlaceholderColor}
                 value={email}
                 onChangeText={setEmail}
@@ -1276,6 +1298,7 @@ const AuthScreen = () => {
                 labelFontWeight={mode === 'login' ? signInTokens.passwordLabelFontWeight : signUpTokens.passwordLabelFontWeight}
                 labelAlign="left"
                 placeholder={mode === 'login' ? signInTokens.passwordPlaceholder : signUpTokens.passwordPlaceholder}
+                placeholderVisible={mode === 'login' ? signInTokens.passwordPlaceholderVisible : signUpTokens.passwordPlaceholderVisible}
                 placeholderColor={mode === 'login' ? signInTokens.passwordPlaceholderColor : signUpTokens.passwordPlaceholderColor}
                 value={password}
                 onChangeText={setPassword}

@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
   Dimensions,
   Image,
@@ -8,14 +8,16 @@ import {
   View,
 } from "react-native";
 import { useNavigation } from "@react-navigation/native";
-import { useDispatch } from "react-redux";
+import { useDispatch, useSelector } from "react-redux";
 import FontAwesome from "react-native-vector-icons/FontAwesome";
 import { resolveFA4IconName } from "../utils/faIconAlias";
 import { addItem } from "../store/slices/cartSlice";
+import { isWishlistProduct, toggleWishlist } from "../store/slices/wishlistSlice";
 import { fetchShopifyRecentProducts } from "../services/shopify";
 import { useAuth } from "../services/AuthContext";
 import { requireLoginForAction } from "../utils/authGate";
 import { resolveFirstFont } from "../services/typographyService";
+import FavoriteToggleButton, { buildFavoriteToggleConfig } from "./FavoriteToggleButton";
 
 // ─── DSL helpers ─────────────────────────────────────────────────────────────
 
@@ -45,6 +47,20 @@ const parsePx = (v, fb) => {
   if (v === undefined || v === null || v === "") return fb;
   const n = parseFloat(String(v));
   return Number.isNaN(n) ? fb : n;
+};
+
+const firstDefined = (...values) =>
+  values.find((value) => value !== undefined && value !== null && value !== "");
+
+const parseBorder = (borderValue, fallbackColor = "#E5E7EB") => {
+  const border = str(borderValue, "");
+  if (!border || border.toLowerCase() === "none") return null;
+  const widthMatch = border.match(/(\d+(?:\.\d+)?)px/i);
+  const colorMatch = border.match(/#[0-9a-f]{3,8}|rgba?\([^)]+\)|[a-z]+/i);
+  return {
+    borderWidth: widthMatch ? parseFloat(widthMatch[1]) : 1,
+    borderColor: colorMatch ? colorMatch[0] : fallbackColor,
+  };
 };
 
 const fwMap = { thin:"100", extralight:"200", light:"300", regular:"400", medium:"500", semibold:"600", bold:"700", extrabold:"800", black:"900" };
@@ -93,6 +109,29 @@ const isProductAvailable = (product) => {
 };
 // ─── Currency symbol lookup ───────────────────────────────────────────────────
 
+const normalizeProducts = (value) => {
+  const unwrapped = unwrap(value, []);
+  if (!Array.isArray(unwrapped)) return [];
+  return unwrapped
+    .map((item, index) => {
+      const product = unwrap(item, item);
+      if (!product || typeof product !== "object") return null;
+      const title = str(product.title ?? product.name, "");
+      const id = str(product.id ?? product.variantId ?? product.handle ?? title ?? index, "");
+      if (!id && !title) return null;
+      return {
+        ...product,
+        id,
+        title: title || "Product",
+        imageUrl: product.imageUrl || product.image || "",
+        image: product.image || product.imageUrl || "",
+        priceAmount: product.priceAmount ?? product.price ?? 0,
+        priceCurrency: product.priceCurrency || product.currency || "",
+      };
+    })
+    .filter(Boolean);
+};
+
 const CURRENCY_SYMBOLS = {
   USD: "$", INR: "₹", GBP: "£", EUR: "€", CAD: "CA$",
   AUD: "A$", JPY: "¥", CNY: "¥", SGD: "S$", AED: "د.إ",
@@ -106,6 +145,7 @@ export default function RecentProducts({ section }) {
   const navigation = useNavigation();
   const dispatch   = useDispatch();
   const { session } = useAuth();
+  const wishlistItems = useSelector((state) => state.wishlist?.items || []);
 
   // ── DSL extraction ─────────────────────────────────────────────────────────
   const propsNode =
@@ -115,17 +155,21 @@ export default function RecentProducts({ section }) {
     {};
 
   const raw = unwrap(propsNode?.raw, {});
+  const manualProducts = useMemo(() => normalizeProducts(raw?.items), [raw?.items]);
+  const hasManualProducts = manualProducts.length > 0;
 
   // layout.css contains card/atc/image/header/price styling
   const layoutRaw = unwrap(propsNode?.layout, {});
   const css       = unwrap(layoutRaw?.css, {});
+  const metricsRaw = unwrap(layoutRaw?.metrics, {});
+  const metrics = unwrap(metricsRaw?.elements, {}) || {};
 
   // ── Settings ───────────────────────────────────────────────────────────────
   // Use `header` / `sectionTitle` — NOT `title`, which ProductDetailScreen merges
   // with the current product's name via buildProductDefaults, causing the product
   // name to appear as the section heading.
-  const sectionTitle  = str(raw?.header ?? raw?.sectionTitle ?? raw?.title, "Recently Viewed");
-  const limit         = Math.max(1, num(raw?.limit ?? raw?.itemsShown, 4));
+  const sectionTitle  = str(firstDefined(raw?.header, raw?.sectionTitle, raw?.title), "Recently Viewed");
+  const limit         = Math.max(1, num(firstDefined(raw?.itemsShown, raw?.limit), 4));
   const shopifyDomain = str(raw?.shopifyDomain, "");
   const shopifyToken  = str(raw?.storefrontToken, "");
   const columns       = 2;
@@ -133,10 +177,13 @@ export default function RecentProducts({ section }) {
   // ── Container ─────────────────────────────────────────────────────────────
   const containerCss = unwrap(css?.container, {});
   const containerBg  = str(raw?.backgroundColor ?? containerCss?.background ?? containerCss?.backgroundColor, "#FFFFFF");
-  const containerPT  = parsePx(containerCss?.paddingTop,    0);
-  const containerPB  = parsePx(containerCss?.paddingBottom, 0);
-  const containerPL  = parsePx(containerCss?.paddingLeft,   0);
-  const containerPR  = parsePx(containerCss?.paddingRight,  0);
+  const containerPT  = parsePx(firstDefined(raw?.paddingTop, raw?.pt, containerCss?.paddingTop), 0);
+  const containerPB  = parsePx(firstDefined(raw?.paddingBottom, raw?.pb, containerCss?.paddingBottom), 0);
+  const containerPL  = parsePx(firstDefined(raw?.paddingLeft, raw?.pl, containerCss?.paddingLeft), 0);
+  const containerPR  = parsePx(firstDefined(raw?.paddingRight, raw?.pr, containerCss?.paddingRight), 0);
+  const containerRadius = parsePx(firstDefined(raw?.borderRadius, containerCss?.borderRadius), 0);
+  const metricContainerWidth = parsePx(metricsRaw?.container?.width, 0);
+  const metricGridWidth = parsePx(metrics?.grid?.width, 0);
 
   // ── Header ─────────────────────────────────────────────────────────────────
   const headerCss     = unwrap(css?.header, {});
@@ -153,15 +200,21 @@ export default function RecentProducts({ section }) {
 
   // ── Card width (needed before imageHeight so we can use it as the default) ─
   const screenWidth = Dimensions.get("window").width;
-  const cardWidth   = Math.max(0, (screenWidth - containerPL - containerPR - gridGap * (columns - 1)) / columns);
+  const maxContentWidth = metricContainerWidth > 0 ? Math.min(metricContainerWidth, screenWidth) : screenWidth;
+  const gridWidth = metricGridWidth > 0
+    ? Math.min(metricGridWidth, Math.max(0, maxContentWidth - containerPL - containerPR))
+    : Math.max(0, maxContentWidth - containerPL - containerPR);
+  const cardWidth = Math.max(0, (gridWidth - gridGap * (columns - 1)) / columns);
 
   // ── Card ──────────────────────────────────────────────────────────────────
   const cardCss    = unwrap(css?.card, {});
   const cardBg     = str(cardCss?.background ?? cardCss?.backgroundColor, "#FFFFFF");
   const cardRadius = parsePx(raw?.cardRadius ?? cardCss?.borderRadius, 0);
-  const cardBorder = cardCss?.border
-    ? { borderWidth: 1, borderColor: "#E5E7EB" }
-    : { borderWidth: 1, borderColor: str(raw?.cardBorderColor, "#E5E7EB") };
+  const parsedCardBorder = parseBorder(cardCss?.border, str(raw?.cardBorderColor, "#E5E7EB"));
+  const cardBorder = parsedCardBorder || {
+    borderWidth: num(raw?.cardBorderWidth, 0),
+    borderColor: str(raw?.cardBorderColor, "#E5E7EB"),
+  };
 
   // ── Image ─────────────────────────────────────────────────────────────────
   const imageWrapCss  = unwrap(css?.imageWrap, {});
@@ -171,7 +224,7 @@ export default function RecentProducts({ section }) {
   const imageBgColor  = str(raw?.imageBgColor ?? raw?.imageBackgroundColor ?? imageWrapCss?.backgroundColor ?? imageCss?.backgroundColor, "#F3F4F6");
   const imagePad      = parsePx(raw?.imagePad ?? raw?.imagePadding ?? imageWrapCss?.padding, 0);
   const imageResizeMode = (() => {
-    const s = str(raw?.imageScale ?? raw?.imageResizeMode ?? imageCss?.objectFit, "cover").toLowerCase();
+    const s = str(raw?.imageScale ?? raw?.scale ?? raw?.imageResizeMode ?? imageCss?.objectFit, "cover").toLowerCase();
     if (s === "contain" || s === "fit") return "contain";
     if (s === "stretch") return "stretch";
     if (s === "center") return "center";
@@ -186,8 +239,8 @@ export default function RecentProducts({ section }) {
   // ── Product title ─────────────────────────────────────────────────────────
   const titleCss    = unwrap(css?.title, {});
   const titleColor  = str(raw?.titleColor ?? titleCss?.color, "#111827");
-  const titleSize   = parsePx(raw?.titleSize ?? titleCss?.fontSize, 12);
-  const titleWeight = toFW(raw?.titleWeight ?? titleCss?.fontWeight, "400");
+  const titleSize   = parsePx(firstDefined(raw?.titleFontSize, raw?.titleSize, titleCss?.fontSize), 12);
+  const titleWeight = toFW(firstDefined(raw?.titleFontWeight, raw?.titleWeight, titleCss?.fontWeight), "400");
   const titleFamily = resolveFirstFont(raw?.titleFontFamily, raw?.productTitleFontFamily, titleCss?.fontFamily, raw?.fontFamily);
   const titleLines  = 1;
   const titleDecoration = toDecorationLine(raw?.titleStrikethrough, titleCss?.textDecoration);
@@ -196,18 +249,18 @@ export default function RecentProducts({ section }) {
   const priceCss      = unwrap(css?.priceStandard, {});
   const strikesCss    = unwrap(css?.priceStrike, {});
   const priceColor    = str(raw?.priceColor ?? priceCss?.color, "#111827");
-  const priceSize     = parsePx(raw?.priceSize ?? priceCss?.fontSize, 12);
-  const priceWeight   = toFW(raw?.priceWeight ?? priceCss?.fontWeight, "700");
+  const priceSize     = parsePx(firstDefined(raw?.standardPriceFontSize, raw?.priceFontSize, raw?.priceSize, priceCss?.fontSize), 12);
+  const priceWeight   = toFW(firstDefined(raw?.standardPriceFontWeight, raw?.priceFontWeight, raw?.priceWeight, priceCss?.fontWeight), "700");
   const priceFamily   = resolveFirstFont(raw?.standardPriceFontFamily, raw?.priceFontFamily, priceCss?.fontFamily, raw?.fontFamily);
   const strikesColor  = str(strikesCss?.color, "#6B7280");
   const strikesSize   = parsePx(strikesCss?.fontSize, 11);
 
   // ── ATC button ─────────────────────────────────────────────────────────────
   const atcCss         = unwrap(css?.atc, {});
-  const atcBg          = str(raw?.atcBgColor ?? atcCss?.backgroundColor, "#111111");
-  const atcColor       = str(raw?.atcColor ?? raw?.atcTextColor ?? atcCss?.color, "#FFFFFF");
-  const atcSize        = parsePx(raw?.atcFontSize ?? atcCss?.fontSize, 12);
-  const atcWeight      = toFW(raw?.atcFontWeight ?? atcCss?.fontWeight, "700");
+  const atcBg          = str(firstDefined(raw?.atcBgColor, raw?.buttonBgColor, atcCss?.backgroundColor), "#111111");
+  const atcColor       = str(firstDefined(raw?.atcColor, raw?.atcTextColor, raw?.buttonTextColor, atcCss?.color), "#FFFFFF");
+  const atcSize        = parsePx(firstDefined(raw?.atcFontSize, raw?.buttonFontSize, atcCss?.fontSize), 12);
+  const atcWeight      = toFW(firstDefined(raw?.atcFontWeight, raw?.buttonFontWeight, atcCss?.fontWeight), "700");
   const atcFamily      = resolveFirstFont(raw?.atcFontFamily, raw?.buttonFontFamily, atcCss?.fontFamily, raw?.fontFamily);
   const atcRadius      = parsePx(raw?.atcRadius ?? raw?.atcBorderRadius ?? raw?.buttonRadius ?? atcCss?.borderRadius, 6);
   const atcPadT        = parsePx(atcCss?.paddingTop,    8);
@@ -216,7 +269,7 @@ export default function RecentProducts({ section }) {
   const atcIconName    = resolveFA4IconName(atcIconRaw) || "shopping-cart";
   const atcIconSize    = num(raw?.atcIconSize ?? raw?.iconSize, 12);
   const atcIconColor   = str(raw?.atcIconColor ?? raw?.iconColor ?? atcColor, atcColor);
-  const atcText        = str(raw?.atcText ?? raw?.addToCartText ?? raw?.buttonText, "Add to Cart");
+  const atcText        = str(firstDefined(raw?.atcText, raw?.addToCartText, raw?.buttonText), "Add to Cart");
   const atcDecorationAvailable = toDecorationLine(raw?.atcStrikethroughAvailable, atcCss?.textDecoration);
 
   // ── Unavailable button ────────────────────────────────────────────────────
@@ -232,16 +285,23 @@ export default function RecentProducts({ section }) {
   const showImage = bool(visibility?.image ?? raw?.imageActive ?? raw?.showImage ?? raw?.cardImageActive, true);
   const showTitle = bool(visibility?.title ?? raw?.titleActive ?? raw?.showTitle ?? raw?.cardTitleActive, true);
   const showPrice = bool(visibility?.price ?? raw?.priceActive ?? raw?.showPrice ?? raw?.cardPriceActive, true);
-  const showAtc = bool(visibility?.atc ?? visibility?.button ?? raw?.atcActive ?? raw?.showAtc ?? raw?.showButton, true);
+  const showAtc = bool(visibility?.addToCart ?? visibility?.atc ?? visibility?.button ?? raw?.atcActive ?? raw?.showAddToCart ?? raw?.showAtc ?? raw?.showButton, true);
+  const showFavorite = bool(visibility?.addToFavorite ?? visibility?.favorite ?? visibility?.wishlist ?? raw?.showFavorite ?? raw?.showAddToFavorite, false);
   const showAtcIcon = bool(visibility?.icon ?? raw?.iconActive ?? raw?.atcIconActive ?? raw?.showIcon, true);
+  const favoriteToggleConfig = useMemo(() => buildFavoriteToggleConfig(raw, css?.favorite), [raw, css]);
 
   // cardWidth and screenWidth are computed above (before imageHeight)
 
   // ── Data fetch ─────────────────────────────────────────────────────────────
-  const [products, setProducts] = useState([]);
+  const [products, setProducts] = useState(() => manualProducts);
   const [loading,  setLoading]  = useState(false);
 
   const loadProducts = useCallback(async () => {
+    if (hasManualProducts) {
+      setProducts(manualProducts);
+      setLoading(false);
+      return;
+    }
     setLoading(true);
     try {
       const results = await fetchShopifyRecentProducts(limit, {
@@ -254,7 +314,7 @@ export default function RecentProducts({ section }) {
     } finally {
       setLoading(false);
     }
-  }, [limit, shopifyDomain, shopifyToken]);
+  }, [hasManualProducts, limit, manualProducts, shopifyDomain, shopifyToken]);
 
   useEffect(() => { loadProducts(); }, [loadProducts]);
 
@@ -283,12 +343,21 @@ export default function RecentProducts({ section }) {
     navigation.navigate("ProductDetail", { product });
   };
 
+  const handleToggleFavorite = async (product) => {
+    const blocked = await requireLoginForAction({ session, navigation });
+    if (blocked) return;
+    dispatch(toggleWishlist({ product }));
+  };
+
   if (!loading && products.length === 0) return null;
 
   return (
     <View
       style={{
         backgroundColor: containerBg,
+        borderRadius:    containerRadius,
+        width:           maxContentWidth,
+        maxWidth:        "100%",
         paddingTop:      containerPT,
         paddingBottom:   containerPB,
         paddingLeft:     containerPL,
@@ -311,22 +380,16 @@ export default function RecentProducts({ section }) {
         </Text>
       )}
 
-      {/* Loading placeholder */}
-      {loading && (
-        <Text style={{ color: "#9CA3AF", fontSize: 13, textAlign: "center", paddingVertical: 16 }}>
-          Loading...
-        </Text>
-      )}
-
       {/* Grid */}
       {!loading && (
-        <View style={styles.grid}>
+        <View style={[styles.grid, { width: gridWidth, maxWidth: "100%" }]}>
           {products.slice(0, limit).map((product, idx) => {
             const isAvailable = isProductAvailable(product);
             const price       = product.priceAmount ?? product.price;
             const compareAt   = product.compareAtPrice;
             const currency    = product.priceCurrency ?? product.currency ?? "";
             const showStrike  = compareAt && parseFloat(compareAt) > parseFloat(price || 0);
+            const isFavorite = isWishlistProduct(wishlistItems, product);
 
             return (
               <TouchableOpacity
@@ -356,6 +419,7 @@ export default function RecentProducts({ section }) {
                       borderTopLeftRadius: cardRadius,
                       borderTopRightRadius: cardRadius,
                       overflow: "hidden",
+                      position: "relative",
                     }}
                   >
                     <Image
@@ -363,6 +427,16 @@ export default function RecentProducts({ section }) {
                       style={{ width: "100%", height: "100%" }}
                       resizeMode={imageResizeMode}
                     />
+                    {showFavorite && (
+                      <FavoriteToggleButton
+                        isFavorite={isFavorite}
+                        config={favoriteToggleConfig}
+                        onPress={(e) => {
+                          e?.stopPropagation?.();
+                          handleToggleFavorite(product);
+                        }}
+                      />
+                    )}
                   </View>
                 ) : showImage ? (
                   <View
@@ -374,11 +448,22 @@ export default function RecentProducts({ section }) {
                       justifyContent: "center",
                       borderTopLeftRadius:  cardRadius,
                       borderTopRightRadius: cardRadius,
+                      position: "relative",
                     }}
                   >
                     <Text style={{ fontSize: 28, color: "#D1D5DB" }}>
                       {(product.title || "?").charAt(0).toUpperCase()}
                     </Text>
+                    {showFavorite && (
+                      <FavoriteToggleButton
+                        isFavorite={isFavorite}
+                        config={favoriteToggleConfig}
+                        onPress={(e) => {
+                          e?.stopPropagation?.();
+                          handleToggleFavorite(product);
+                        }}
+                      />
+                    )}
                   </View>
                 ) : null}
 
