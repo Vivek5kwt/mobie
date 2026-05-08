@@ -180,7 +180,7 @@ export default function BottomNavScreen() {
     normalizedTitle === "orders" ||
     normalizedTitle === "my orders";
   const isProtectedPage = isProfilePage || isWishlistPage || isOrdersPage;
-  const isAutoRefreshPage = isCartPage || isNotificationPage || isSearchPage || isProfilePage;
+  const isAutoRefreshPage = isCartPage || isNotificationPage || isProfilePage;
   const isHomePage = normalizedPageName === "home";
   const [dsl, setDsl] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -682,8 +682,9 @@ export default function BottomNavScreen() {
   useEffect(() => {
     // Check for bottom navigation updates on mount
     if (loading) return;
+    if (isSearchPage && hasInitialBottomNav) return;
     checkAndUpdateBottomNav();
-  }, [checkAndUpdateBottomNav, loading]);
+  }, [checkAndUpdateBottomNav, hasInitialBottomNav, isSearchPage, loading]);
 
   // Auto-refresh: polls every 30 s. Updates when version OR section fingerprint changes.
   const sectionsFpRef = useRef(null);

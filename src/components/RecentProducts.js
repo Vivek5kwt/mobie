@@ -15,7 +15,7 @@ import { addItem } from "../store/slices/cartSlice";
 import { fetchShopifyRecentProducts } from "../services/shopify";
 import { useAuth } from "../services/AuthContext";
 import { requireLoginForAction } from "../utils/authGate";
-import { resolveFont } from "../services/typographyService";
+import { resolveFirstFont } from "../services/typographyService";
 
 // ─── DSL helpers ─────────────────────────────────────────────────────────────
 
@@ -40,8 +40,6 @@ const num = (v, fb) => {
   const p = parseFloat(String(r));
   return Number.isNaN(p) ? fb : p;
 };
-
-const cleanFamily = (v) => resolveFont(v) || undefined;
 
 const parsePx = (v, fb) => {
   if (v === undefined || v === null || v === "") return fb;
@@ -145,7 +143,7 @@ export default function RecentProducts({ section }) {
   const headerColor   = str(raw?.headerColor ?? headerCss?.color, "#111111");
   const headerSize    = parsePx(raw?.headerSize ?? headerCss?.fontSize, 14);
   const headerWeight  = toFW(raw?.headerWeight ?? headerCss?.fontWeight, "700");
-  const headerFamily  = cleanFamily(str(raw?.headerFamily ?? headerCss?.fontFamily, ""));
+  const headerFamily  = resolveFirstFont(raw?.headerFamily, raw?.headlineFontFamily, headerCss?.fontFamily, raw?.fontFamily);
   const headerDecoration = toDecorationLine(raw?.headerStrikethrough, headerCss?.textDecoration);
   const headerMB      = parsePx(headerCss?.marginBottom, 8);
 
@@ -190,7 +188,7 @@ export default function RecentProducts({ section }) {
   const titleColor  = str(raw?.titleColor ?? titleCss?.color, "#111827");
   const titleSize   = parsePx(raw?.titleSize ?? titleCss?.fontSize, 12);
   const titleWeight = toFW(raw?.titleWeight ?? titleCss?.fontWeight, "400");
-  const titleFamily = cleanFamily(str(raw?.titleFontFamily ?? titleCss?.fontFamily, ""));
+  const titleFamily = resolveFirstFont(raw?.titleFontFamily, raw?.productTitleFontFamily, titleCss?.fontFamily, raw?.fontFamily);
   const titleLines  = 1;
   const titleDecoration = toDecorationLine(raw?.titleStrikethrough, titleCss?.textDecoration);
 
@@ -200,7 +198,7 @@ export default function RecentProducts({ section }) {
   const priceColor    = str(raw?.priceColor ?? priceCss?.color, "#111827");
   const priceSize     = parsePx(raw?.priceSize ?? priceCss?.fontSize, 12);
   const priceWeight   = toFW(raw?.priceWeight ?? priceCss?.fontWeight, "700");
-  const priceFamily   = cleanFamily(str(raw?.priceFontFamily ?? priceCss?.fontFamily, ""));
+  const priceFamily   = resolveFirstFont(raw?.standardPriceFontFamily, raw?.priceFontFamily, priceCss?.fontFamily, raw?.fontFamily);
   const strikesColor  = str(strikesCss?.color, "#6B7280");
   const strikesSize   = parsePx(strikesCss?.fontSize, 11);
 
@@ -210,7 +208,7 @@ export default function RecentProducts({ section }) {
   const atcColor       = str(raw?.atcColor ?? raw?.atcTextColor ?? atcCss?.color, "#FFFFFF");
   const atcSize        = parsePx(raw?.atcFontSize ?? atcCss?.fontSize, 12);
   const atcWeight      = toFW(raw?.atcFontWeight ?? atcCss?.fontWeight, "700");
-  const atcFamily      = cleanFamily(str(raw?.atcFontFamily ?? atcCss?.fontFamily, ""));
+  const atcFamily      = resolveFirstFont(raw?.atcFontFamily, raw?.buttonFontFamily, atcCss?.fontFamily, raw?.fontFamily);
   const atcRadius      = parsePx(raw?.atcRadius ?? raw?.atcBorderRadius ?? raw?.buttonRadius ?? atcCss?.borderRadius, 6);
   const atcPadT        = parsePx(atcCss?.paddingTop,    8);
   const atcPadB        = parsePx(atcCss?.paddingBottom, 8);

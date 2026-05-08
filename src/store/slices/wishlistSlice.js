@@ -45,6 +45,16 @@ export const isWishlistProduct = (wishlistItems = [], product = {}) => {
   return wishlistItems.some((item) => wishlistProductsMatch(item, product));
 };
 
+export const dedupeWishlistProducts = (wishlistItems = []) => {
+  let changed = false;
+  const deduped = wishlistItems.filter((item, index, items) => {
+    const keep = !!item && items.findIndex((candidate) => wishlistProductsMatch(candidate, item)) === index;
+    if (!keep) changed = true;
+    return keep;
+  });
+  return changed ? deduped : wishlistItems;
+};
+
 export const buildWishlistProduct = (product = {}) => {
   const keys = getWishlistKeys(product);
   const id = keys[0] || "";
@@ -86,13 +96,11 @@ const wishlistSlice = createSlice({
       const product = action.payload?.product || {};
       const wishlistProduct = buildWishlistProduct(product);
       if (!wishlistProduct) return;
-      const idx = state.items.findIndex((p) => {
-        return wishlistProductsMatch(p, product);
-      });
-      if (idx >= 0) {
-        state.items.splice(idx, 1);
+      const existing = state.items.filter((p) => wishlistProductsMatch(p, product));
+      if (existing.length) {
+        state.items = state.items.filter((p) => !wishlistProductsMatch(p, product));
       } else {
-        state.items.push(wishlistProduct);
+        state.items = dedupeWishlistProducts([...state.items, wishlistProduct]);
       }
     },
     clearWishlist(state) {

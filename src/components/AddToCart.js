@@ -8,7 +8,7 @@ import Snackbar from "./Snackbar";
 import {
   getShopifyDomain,
 } from "../services/shopify";
-import { resolveFont } from "../services/typographyService";
+import { resolveFirstFont } from "../services/typographyService";
 import { resolveFA4IconName } from "../utils/faIconAlias";
 
 const unwrapValue = (value, fallback = undefined) => {
@@ -220,7 +220,7 @@ export default function AddToCart({ section }) {
     color: addToCartFg,
     fontSize: toNumber(addToCartConfig?.textSize, 15),
     fontWeight: toString(addToCartConfig?.textWeight, "600"),
-    fontFamily: resolveFont(toString(addToCartConfig?.textFamily ?? addToCartConfig?.fontFamily, "")) || undefined,
+    fontFamily: resolveFirstFont(addToCartConfig?.textFamily, addToCartConfig?.fontFamily, raw?.buttonFontFamily, raw?.fontFamily) || undefined,
     textAlign: atcTextAlign,
   };
 
@@ -236,9 +236,7 @@ export default function AddToCart({ section }) {
     color: toString(quantityConfig?.textColor, "#111827"),
     fontSize: toNumber(quantityConfig?.textSize, 12),
     fontWeight: toString(quantityConfig?.textWeight, "700"),
-    fontFamily: resolveFont(
-      toString(quantityConfig?.textFamily ?? quantityConfig?.fontFamily, "")
-    ) || undefined,
+    fontFamily: resolveFirstFont(quantityConfig?.textFamily, quantityConfig?.fontFamily, raw?.fontFamily) || undefined,
   };
 
   const decrement = () => setQuantity((prev) => Math.max(1, prev - 1));

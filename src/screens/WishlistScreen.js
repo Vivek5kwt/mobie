@@ -12,7 +12,7 @@ import {
 import { useFocusEffect, useNavigation } from "@react-navigation/native";
 import { useDispatch, useSelector } from "react-redux";
 import Icon from "react-native-vector-icons/FontAwesome6";
-import { toggleWishlist } from "../store/slices/wishlistSlice";
+import { dedupeWishlistProducts, toggleWishlist } from "../store/slices/wishlistSlice";
 import Snackbar from "../components/Snackbar";
 import { SafeArea } from "../utils/SafeAreaHandler";
 import { fetchDSL } from "../engine/dslHandler";
@@ -21,6 +21,7 @@ import { useAuth } from "../services/AuthContext";
 import HeaderDefault from "../components/HeaderDefault";
 import DynamicRenderer from "../engine/DynamicRenderer";
 import { resolveFont } from "../services/typographyService";
+import FavoriteToggleButton, { buildFavoriteToggleConfig } from "../components/FavoriteToggleButton";
 
 const { width: SCREEN_W } = Dimensions.get("window");
 
@@ -53,7 +54,7 @@ export default function WishlistScreen() {
   const navigation    = useNavigation();
   const dispatch      = useDispatch();
   const { session }   = useAuth();
-  const wishlistItems = useSelector((state) => state.wishlist?.items || []);
+  const wishlistItems = useSelector((state) => dedupeWishlistProducts(state.wishlist?.items || []));
 
   // Auth gate
   useFocusEffect(
@@ -149,6 +150,10 @@ export default function WishlistScreen() {
 
   const iconSize  = toNum(p?.iconSize,  18);
   const iconColor = toStr(p?.iconColor, "#EF4444");
+  const favoriteToggleConfig = useMemo(
+    () => buildFavoriteToggleConfig({ favIconSize: iconSize, favoriteIconColor: iconColor }),
+    [iconSize, iconColor]
+  );
 
   const titleColor      = toStr(p?.titleColor,      "#111827");
   const titleFontSize   = toNum(p?.titleFontSize,   14);
@@ -205,17 +210,17 @@ export default function WishlistScreen() {
           </View>
         )}
 
-        <TouchableOpacity
-          style={styles.heartBtn}
-          activeOpacity={0.8}
-          onPress={() => {
+        <FavoriteToggleButton
+          isFavorite
+          config={favoriteToggleConfig}
+          onPress={(e) => {
+            e?.stopPropagation?.();
+            e?.preventDefault?.();
             dispatch(toggleWishlist({ product: item }));
             setSnackVisible(true);
           }}
-          hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
-        >
-          <Icon name="heart" size={iconSize} color={iconColor} solid />
-        </TouchableOpacity>
+          accessibilityLabel="Remove from wishlist"
+        />
       </View>
 
       <View style={styles.cardBody}>
@@ -253,7 +258,7 @@ export default function WishlistScreen() {
     </TouchableOpacity>
   ), [
     cardW, radius, bgColor, borderColor, imgH, imageRadius, imageResizeMode,
-    iconSize, iconColor, titleFontSize, titleFontWeight, titleColor, titleFontFamily,
+    favoriteToggleConfig, titleFontSize, titleFontWeight, titleColor, titleFontFamily,
     priceColor, priceFontSize, priceFontWeight, priceAlign,
     strikeColor, strikeFontSize, strikepriceFontWeight,
     dispatch, navigation,
@@ -346,18 +351,6 @@ const styles = StyleSheet.create({
     fontSize:   28,
     fontWeight: "700",
     color:      "#9CA3AF",
-  },
-  heartBtn: {
-    position:        "absolute",
-    top:             8,
-    right:           8,
-    width:           30,
-    height:          30,
-    borderRadius:    15,
-    backgroundColor: "rgba(255,255,255,0.9)",
-    alignItems:      "center",
-    justifyContent:  "center",
-    elevation:       2,
   },
   cardBody: {
     padding: 10,

@@ -85,6 +85,14 @@ export function resolveFont(name) {
   return null;
 }
 
+export function resolveFirstFont(...names) {
+  for (const name of names) {
+    const resolved = resolveFont(name);
+    if (resolved) return resolved;
+  }
+  return null;
+}
+
 // ── Module-level cache ─────────────────────────────────────────────────────────
 let _typography = {
   headlineFontFamily: null,

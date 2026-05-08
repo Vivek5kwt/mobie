@@ -12,6 +12,7 @@ import Snackbar from "./Snackbar";
 import { useAuth } from "../services/AuthContext";
 import { requireLoginForAction } from "../utils/authGate";
 import { resolveFont } from "../services/typographyService";
+import FavoriteToggleButton, { buildFavoriteToggleConfig } from "./FavoriteToggleButton";
 
 // ── Currency symbol lookup ────────────────────────────────────────────────────
 
@@ -194,6 +195,7 @@ export default function ProductGrid({ section, limit = 8, title = "Products" }) 
   const didInitialLoadRef = useRef(false);
   const loadInFlightRef = useRef(false);
   const lastLoadAtRef = useRef(0);
+  const favoriteTapRef = useRef(false);
 
   // ── Merge raw sub-object ──────────────────────────────────────────────────
   const rawProps = getRawProps(section);
@@ -442,11 +444,7 @@ export default function ProductGrid({ section, limit = 8, title = "Products" }) 
   const resolvedErrorFontFamily  = cleanFontFamily(toString(rawProps?.errorFontFamily ?? presentationCss?.error?.fontFamily, ""));
 
   // ── Favorite badge ────────────────────────────────────────────────────────
-  const resolvedFavBgColor        = toString(rawProps?.favoriteBackgroundColor ?? rawProps?.favoriteBgColor ?? presentationCss?.favorite?.backgroundColor, "rgba(255,255,255,0.9)");
-  const resolvedFavIconColor      = toString(rawProps?.favoriteColor ?? rawProps?.favoriteIconColor ?? presentationCss?.favorite?.color, "#e11d48");
-  const resolvedFavIconSize       = resolveFirstNumber([rawProps?.favoriteIconSize, rawProps?.favoriteSize, presentationCss?.favorite?.fontSize], 14);
-  const resolvedFavIconWeight     = toFontWeight(rawProps?.favoriteIconWeight ?? rawProps?.favoriteWeight ?? presentationCss?.favorite?.fontWeight, "700");
-  const resolvedFavIconFontFamily = cleanFontFamily(toString(rawProps?.favoriteIconFontFamily ?? presentationCss?.favorite?.fontFamily, ""));
+  const favoriteToggleConfig = buildFavoriteToggleConfig(rawProps, presentationCss?.favorite);
 
   // ── Add-to-Cart button ────────────────────────────────────────────────────
   const cardAddToCartCss    = deepUnwrap(cardCss?.addToCart) || deepUnwrap(presentationCss?.addToCart) || deepUnwrap(presentationCss?.button) || {};
@@ -913,7 +911,13 @@ export default function ProductGrid({ section, limit = 8, title = "Products" }) 
                   },
                 ]}
                 activeOpacity={0.85}
-                onPress={() => navigation.navigate("ProductDetail", { product, detailSections })}
+                onPress={() => {
+                  if (favoriteTapRef.current) {
+                    favoriteTapRef.current = false;
+                    return;
+                  }
+                  navigation.navigate("ProductDetail", { product, detailSections });
+                }}
               >
                 {/* Product image + favourite badge */}
                 <View style={{ position: "relative" }}>
@@ -932,50 +936,37 @@ export default function ProductGrid({ section, limit = 8, title = "Products" }) 
                     placeholderBg={resolvedImageBgColor}
                   />
 
-                  {resolvedShowFavorite && (() => {
-                    const btnSize = Math.max(30, resolvedFavIconSize + 12);
-                    return (
-                      <TouchableOpacity
-                        style={[
-                          styles.favoriteBadge,
-                          {
-                            width:           btnSize,
-                            height:          btnSize,
-                            borderRadius:    btnSize / 2,
-                            backgroundColor: resolvedFavBgColor,
+                  {resolvedShowFavorite && (
+                    <FavoriteToggleButton
+                      isFavorite={isInWishlist}
+                      config={favoriteToggleConfig}
+                      onPress={async (e) => {
+                        e?.stopPropagation?.();
+                        e?.preventDefault?.();
+                        const blocked = await requireLoginForAction({ session, navigation });
+                        if (blocked) return;
+                        favoriteTapRef.current = true;
+                        setTimeout(() => {
+                          favoriteTapRef.current = false;
+                        }, 0);
+                        const adding = !isInWishlist;
+                        dispatch(toggleWishlist({
+                          product: {
+                            id:             prodId,
+                            title:          product?.title || "",
+                            image:          product?.imageUrl || "",
+                            price:          product?.priceAmount ?? product?.price ?? 0,
+                            compareAtPrice: product?.compareAtPrice ?? product?.originalPrice ?? 0,
+                            currency:       product?.priceCurrency || product?.currency || "",
+                            handle:         product?.handle || "",
+                            vendor:         product?.vendor || "",
                           },
-                        ]}
-                        activeOpacity={0.7}
-                        onPress={async (e) => {
-                          e.stopPropagation?.();
-                          const blocked = await requireLoginForAction({ session, navigation });
-                          if (blocked) return;
-                          const adding = !isInWishlist;
-                          dispatch(toggleWishlist({
-                            product: {
-                              id:             prodId,
-                              title:          product?.title || "",
-                              image:          product?.imageUrl || "",
-                              price:          product?.priceAmount ?? product?.price ?? 0,
-                              compareAtPrice: product?.compareAtPrice ?? product?.originalPrice ?? 0,
-                              currency:       product?.priceCurrency || product?.currency || "",
-                              handle:         product?.handle || "",
-                              vendor:         product?.vendor || "",
-                            },
-                          }));
-                          setSnackMessage(adding ? "Product added to wishlist successfully." : "Product removed from wishlist successfully.");
-                          setSnackVisible(true);
-                        }}
-                        hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                      >
-                        <FontAwesome
-                          name={isInWishlist ? "heart" : "heart-o"}
-                          size={resolvedFavIconSize}
-                          color={isInWishlist ? "#EF4444" : resolvedFavIconColor}
-                        />
-                      </TouchableOpacity>
-                    );
-                  })()}
+                        }));
+                        setSnackMessage(adding ? "Product added to wishlist successfully." : "Product removed from wishlist successfully.");
+                        setSnackVisible(true);
+                      }}
+                    />
+                  )}
                 </View>
 
                 {/* Add to Cart — rendered above card body when position = "above" */}
@@ -1187,19 +1178,6 @@ const styles = StyleSheet.create({
     borderRadius:    8,
     overflow:        "hidden",
     backgroundColor: "#fff",
-  },
-  favoriteBadge: {
-    position:        "absolute",
-    top:             8,
-    right:           8,
-    zIndex:          10,
-    elevation:       6,
-    alignItems:      "center",
-    justifyContent:  "center",
-    shadowColor:     "#000",
-    shadowOffset:    { width: 0, height: 1 },
-    shadowOpacity:   0.15,
-    shadowRadius:    3,
   },
   content: {
     paddingHorizontal: 10,

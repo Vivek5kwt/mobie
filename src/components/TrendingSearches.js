@@ -51,6 +51,9 @@ const toNumber = (value, fallback) => {
   return Number.isNaN(parsed) ? fallback : parsed;
 };
 
+const firstDefined = (...values) =>
+  values.find((value) => value !== undefined && value !== null && value !== "");
+
 const deriveWeight = (value, fallback = "600") => {
   const resolved = unwrapValue(value, fallback);
   if (typeof resolved === "string") {
@@ -139,20 +142,21 @@ export default function TrendingSearches({ section }) {
 
   const rp = useCallback((key) => rawProps?.[key] ?? rawData?.[key], [rawData, rawProps]);
 
-  const searchesRaw =
-    rawProps?.trendingSearches ??
-    rawData?.trendingSearches ??
-    rawProps?.searches ??
-    rawData?.searches ??
-    rawProps?.items ??
-    rawData?.items ??
-    rawProps?.keywords ??
-    rawData?.keywords ??
-    rawProps?.tags ??
-    rawData?.tags ??
-    rawData?.list ??
-    rawProps?.list ??
-    null;
+  const searchesRaw = firstDefined(
+    rawProps?.trendingSearches,
+    rawData?.trendingSearches,
+    rawProps?.searches,
+    rawData?.searches,
+    rawProps?.items,
+    rawData?.items,
+    rawProps?.keywords,
+    rawData?.keywords,
+    rawProps?.tags,
+    rawData?.tags,
+    rawData?.list,
+    rawProps?.list,
+    null
+  );
 
   const manualKey = useMemo(() => {
     try {
@@ -166,7 +170,8 @@ export default function TrendingSearches({ section }) {
   const sourceMode = String(
     unwrapValue(dataSource?.mode ?? rp("sourceMode") ?? rp("trendingSource"), "store")
   ).toLowerCase();
-  const useManualSearches = ["manual", "static", "dsl"].includes(sourceMode);
+  const hasDslSearches = searchesRaw !== null && searchesRaw !== undefined;
+  const useManualSearches = hasDslSearches || ["manual", "static", "dsl"].includes(sourceMode);
 
   const headingVisible = toBoolean(rp("headingVisible"), true);
   const headingText = unwrapValue(rp("headingText") ?? rp("title"), "Trending Searches");
@@ -182,22 +187,32 @@ export default function TrendingSearches({ section }) {
     strikethrough: headingStrikethrough,
   });
   const headingWeight = deriveWeight(rp("headingFontWeight"), headingBold ? "700" : "600");
-  const headingPaddingBottom = toNumber(rp("headingPaddingBottom"), 10);
+  const headingPadding = {
+    paddingTop: toNumber(rp("headingPaddingTop"), 0),
+    paddingRight: toNumber(rp("headingPaddingRight"), 0),
+    paddingBottom: toNumber(rp("headingPaddingBottom"), 0),
+    paddingLeft: toNumber(rp("headingPaddingLeft"), 0),
+  };
 
-  const chipBgColor = unwrapValue(rp("chipBgColor") ?? rp("tagBgColor"), "#F3F4F6");
+  const chipBgColor = unwrapValue(rp("chipbgColor") ?? rp("chipBgColor") ?? rp("tagBgColor"), "#F3F4F6");
   const chipTextColor = unwrapValue(rp("chipTextColor") ?? rp("chipColor") ?? rp("tagTextColor"), "#111827");
   const trendingPillBgColor = unwrapValue(rp("trendingPillBgColor"), chipBgColor);
   const trendingPillTextColor = unwrapValue(rp("trendingPillTextColor"), chipTextColor);
   const chipFontSize = toNumber(rp("chipFontSize") ?? rp("tagFontSize"), 13);
   const chipFontWeight = deriveWeight(rp("chipFontWeight") ?? rp("tagFontWeight"), "500");
   const chipFontFamily = cleanFontFamily(rp("chipFontFamily"));
-  const chipBorderRadius = toNumber(rp("chipBorderRadius") ?? rp("tagBorderRadius"), 999);
-  const chipPaddingH = toNumber(rp("chipPaddingH") ?? rp("tagPaddingH"), 14);
-  const chipPaddingV = toNumber(rp("chipPaddingV") ?? rp("tagPaddingV"), 8);
-  const chipBorderColor = unwrapValue(rp("chipBorderColor"), "transparent");
+  const chipBorderRadius = toNumber(rp("chipborderRadius") ?? rp("chipBorderRadius") ?? rp("tagBorderRadius"), 999);
+  const chipPadding = {
+    paddingTop: toNumber(rp("t") ?? rp("chipPaddingTop") ?? rp("tagPaddingTop"), 0),
+    paddingRight: toNumber(rp("r") ?? rp("chipPaddingRight") ?? rp("tagPaddingRight"), 0),
+    paddingBottom: toNumber(rp("b") ?? rp("chipPaddingBottom") ?? rp("tagPaddingBottom"), 0),
+    paddingLeft: toNumber(rp("l") ?? rp("chipPaddingLeft") ?? rp("tagPaddingLeft"), 0),
+  };
+  const chipBorderColor = unwrapValue(rp("chipborderColor") ?? rp("chipBorderColor"), "transparent");
   const chipBorderWidth = toNumber(rp("chipBorderWidth"), 0);
+  const chipBorderSide = unwrapValue(rp("chipborderSide") ?? rp("chipBorderSide"), "");
   const chipGap = toNumber(rp("chipGap") ?? rp("gap"), 8);
-  const chipLineHeight = toNumber(rp("chipLineHeight"), Math.max(18, chipFontSize + 5));
+  const chipLineHeight = toNumber(rp("chipLineHeight"), Math.ceil(chipFontSize * 1.35));
   const chipVisible = toBoolean(rp("chipVisible"), true);
   const maxChipCount = toNumber(rp("maxChipCount"), 6);
   const chipLayout = String(unwrapValue(rp("chipLayout"), "Wrap") || "Wrap").toLowerCase();
@@ -217,8 +232,8 @@ export default function TrendingSearches({ section }) {
   };
 
   const requestLimit = Math.max(1, Math.min(12, Number(maxChipCount) || 6));
-  const [searches, setSearches] = useState([]);
-  const [loading, setLoading] = useState(!useManualSearches);
+  const [searches, setSearches] = useState(() => (useManualSearches ? manualSearches : []));
+  const [loading, setLoading] = useState(() => !useManualSearches);
   const [error, setError] = useState("");
 
   useEffect(() => {
@@ -318,14 +333,13 @@ export default function TrendingSearches({ section }) {
       {headingVisible && (
         <Text
           style={[
-            styles.heading,
             {
               color: headingColor,
               fontSize: headingSize,
               fontWeight: headingWeight,
               fontStyle: headingItalic ? "italic" : "normal",
               textDecorationLine: headingDecorationLine,
-              paddingBottom: headingPaddingBottom,
+              ...headingPadding,
               ...(headingFontFamily ? { fontFamily: headingFontFamily } : null),
             },
           ]}
@@ -349,7 +363,7 @@ export default function TrendingSearches({ section }) {
                 styles.skeletonChip,
                 {
                   width: skeletonWidths[index % skeletonWidths.length],
-                  height: chipLineHeight + chipPaddingV * 2,
+                  height: chipLineHeight + chipPadding.paddingTop + chipPadding.paddingBottom,
                   borderRadius: chipBorderRadius,
                 },
               ]}
@@ -380,11 +394,10 @@ export default function TrendingSearches({ section }) {
                 {
                   backgroundColor: trendingPillBgColor,
                   borderRadius: chipBorderRadius,
-                  paddingHorizontal: chipPaddingH,
-                  paddingVertical: chipPaddingV,
+                  ...chipPadding,
                   ...(chipBorderWidth > 0
                     ? { borderWidth: chipBorderWidth, borderColor: chipBorderColor }
-                    : null),
+                    : borderStyleForSide(chipBorderSide, chipBorderColor)),
                 },
               ]}
             >
@@ -416,7 +429,6 @@ const styles = StyleSheet.create({
     width: "100%",
   },
   heading: {
-    marginBottom: 4,
   },
   chipList: {
     flexDirection: "row",

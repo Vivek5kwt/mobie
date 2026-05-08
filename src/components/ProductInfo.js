@@ -1,7 +1,7 @@
 import React from "react";
 import { Share, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import FontAwesome from "react-native-vector-icons/FontAwesome";
-import { resolveFont } from "../services/typographyService";
+import { resolveFirstFont } from "../services/typographyService";
 
 const unwrapValue = (value, fallback = undefined) => {
   if (value === undefined || value === null) return fallback;
@@ -18,8 +18,6 @@ const toString = (value, fallback = "") => {
   if (resolved === undefined || resolved === null) return fallback;
   return String(resolved);
 };
-
-const cleanFontFamily = (family) => resolveFont(family) || "";
 
 const toNumber = (value, fallback) => {
   const resolved = unwrapValue(value, undefined);
@@ -158,14 +156,15 @@ export default function ProductInfo({ section }) {
   const ratingFontSize     = toNumber(ratingCss?.fontSize ?? ratingCss?.rating?.fontSize, 13);
   const ratingColor        = toString(ratingCss?.color ?? ratingCss?.rating?.color, "#111827");
   const ratingFontWeight   = toString(ratingCss?.fontWeight ?? ratingCss?.rating?.fontWeight, "600");
-  const ratingFontFamily   = cleanFontFamily(toString(ratingCss?.fontFamily ?? ratingCss?.rating?.fontFamily, ""));
+  const ratingFontFamily   = resolveFirstFont(raw?.ratingFontFamily, ratingCss?.rating?.fontFamily, ratingCss?.fontFamily, raw?.fontFamily);
+  const ratingCountFontFamily = resolveFirstFont(raw?.ratingCountFontFamily, ratingCss?.count?.fontFamily, ratingCss?.fontFamily, raw?.fontFamily);
   const ratingCountColor   = toString(ratingCss?.count?.color, "#6B7280");
   const ratingCountSize    = toNumber(ratingCss?.count?.fontSize, 12);
 
   // ── Font families ────────────────────────────────────────────────────────────
-  const titleFontFamily    = cleanFontFamily(toString(titleCss?.fontFamily ?? raw?.titleFontFamily ?? raw?.headlineFontFamily ?? raw?.fontFamily ?? titleStyleCss?.fontFamily, ""));
-  const vendorFontFamily   = cleanFontFamily(toString(vendorCss?.fontFamily ?? raw?.vendorFontFamily ?? raw?.subtextFontFamily ?? raw?.fontFamily ?? vendorStyleCss?.fontFamily, ""));
-  const priceFontFamily    = cleanFontFamily(toString(priceCss?.fontFamily ?? priceCss?.standard?.fontFamily ?? priceCss?.sale?.fontFamily ?? raw?.priceFontFamily ?? raw?.fontFamily, ""));
+  const titleFontFamily    = resolveFirstFont(raw?.titleFontFamily, raw?.titleAttributes?.fontFamily, titleCss?.fontFamily, titleStyleCss?.fontFamily, raw?.headlineFontFamily, raw?.fontFamily);
+  const vendorFontFamily   = resolveFirstFont(raw?.vendorFontFamily, raw?.vendorAttributes?.fontFamily, vendorCss?.fontFamily, vendorStyleCss?.fontFamily, raw?.subtextFontFamily, raw?.fontFamily);
+  const priceFontFamily    = resolveFirstFont(raw?.priceFontFamily, raw?.priceAttributes?.fontFamily, priceCss?.standard?.fontFamily, priceCss?.sale?.fontFamily, priceCss?.strikethrough?.fontFamily, priceCss?.fontFamily, raw?.fontFamily);
   const ratingBorderWidth  = ratingCss?.borderLine ? 1 : 0;
   const ratingBorderColor  = toString(ratingCss?.borderColor, "#e5e7eb");
   const showRatingIcon     = toBoolean(visibility?.reviewsIcon ?? visibility?.ratingIcon, true);
@@ -255,6 +254,7 @@ export default function ProductInfo({ section }) {
                       fontSize:   ratingCountSize,
                       color:      ratingCountColor,
                       marginLeft: 3,
+                      ...(ratingCountFontFamily ? { fontFamily: ratingCountFontFamily } : {}),
                     }}
                   >
                     {ratingCountText}
@@ -331,6 +331,7 @@ export default function ProductInfo({ section }) {
                     color:      toString(priceCss?.standard?.color, "#111827"),
                     fontWeight: toString(priceCss?.standard?.fontWeight, "600"),
                     marginLeft: showSale && salePrice !== undefined ? 8 : 0,
+                    ...(priceFontFamily ? { fontFamily: priceFontFamily } : {}),
                   },
                 ]}
               >
@@ -346,6 +347,7 @@ export default function ProductInfo({ section }) {
                     color:      toString(priceCss?.strikethrough?.color, "#9CA3AF"),
                     fontWeight: toString(priceCss?.strikethrough?.fontWeight, "400"),
                     marginLeft: 8,
+                    ...(priceFontFamily ? { fontFamily: priceFontFamily } : {}),
                   },
                 ]}
               >

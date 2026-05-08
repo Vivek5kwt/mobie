@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Dimensions,
@@ -10,16 +10,20 @@ import {
   View,
 } from "react-native";
 import { useNavigation, useRoute } from "@react-navigation/native";
-import { useDispatch } from "react-redux";
+import { useDispatch, useSelector } from "react-redux";
 import { fetchShopifyCollectionProducts, fetchShopifyProductsPage } from "../services/shopify";
 import { SafeArea } from "../utils/SafeAreaHandler";
 import { addItem } from "../store/slices/cartSlice";
+import { isWishlistProduct, toggleWishlist } from "../store/slices/wishlistSlice";
 import HeaderDefault from "../components/HeaderDefault";
 import FilterSortHeader from "../components/FilterSortHeader";
 import BottomNavigation, { BOTTOM_NAV_RESERVED_HEIGHT } from "../components/BottomNavigation";
 import { fetchDSL } from "../engine/dslHandler";
 import { resolveAppId } from "../utils/appId";
 import { buildProductFilterOptions, productMatchesFilter } from "../utils/productFilters";
+import FavoriteToggleButton, { buildFavoriteToggleConfig } from "../components/FavoriteToggleButton";
+import { useAuth } from "../services/AuthContext";
+import { requireLoginForAction } from "../utils/authGate";
 
 const PAGE_SIZE = 20;
 const GAP = 12;
@@ -60,6 +64,8 @@ export default function CollectionProductsScreen() {
   const navigation = useNavigation();
   const route = useRoute();
   const dispatch = useDispatch();
+  const { session } = useAuth();
+  const wishlistItems = useSelector((state) => state.wishlist?.items || []);
   const {
     collectionHandle,
     handle,
@@ -76,11 +82,11 @@ export default function CollectionProductsScreen() {
   const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError]             = useState("");
   const [isFallback, setIsFallback]   = useState(false);
-  const [favorites, setFavorites]     = useState({});
   const [bottomNavSection, setBottomNavSection] = useState(null);
   const [bottomNavHeight, setBottomNavHeight]   = useState(BOTTOM_NAV_RESERVED_HEIGHT);
   const [homeHeaderConfig, setHomeHeaderConfig] = useState(null);
   const [filterOptions, setFilterOptions] = useState([]);
+  const favoriteTapRef = useRef(false);
 
   // FilterSortHeader state
   const [sortKey, setSortKey]       = useState("Popular");
@@ -91,6 +97,7 @@ export default function CollectionProductsScreen() {
   const CARD_W = viewMode === "list"
     ? SCREEN_W - H_PAD * 2
     : (SCREEN_W - H_PAD * 2 - GAP) / 2;
+  const favoriteToggleConfig = buildFavoriteToggleConfig();
 
   const loadProducts = useCallback(
     async ({ after = null, append = false } = {}) => {
@@ -174,9 +181,6 @@ export default function CollectionProductsScreen() {
     );
   };
 
-  const toggleFav = (id) =>
-    setFavorites((prev) => ({ ...prev, [id]: !prev[id] }));
-
   // Apply sort + optional filter
   const displayProducts = React.useMemo(() => {
     let list = sortProducts(products, sortKey);
@@ -188,16 +192,20 @@ export default function CollectionProductsScreen() {
 
   const renderItem = ({ item }) => {
     const inStock = isProductAvailable(item);
-    const isFav   = !!favorites[item.id];
+    const isFav   = isWishlistProduct(wishlistItems, item);
     const isListMode = viewMode === "list";
 
     return (
       <TouchableOpacity
         style={[styles.card, { width: CARD_W }, isListMode && styles.cardList]}
         activeOpacity={0.88}
-        onPress={() =>
-          navigation.navigate("ProductDetail", { product: item })
-        }
+        onPress={() => {
+          if (favoriteTapRef.current) {
+            favoriteTapRef.current = false;
+            return;
+          }
+          navigation.navigate("ProductDetail", { product: item });
+        }}
       >
         {/* Product image */}
         <View style={[styles.imageWrap, isListMode && styles.imageWrapList]}>
@@ -215,16 +223,21 @@ export default function CollectionProductsScreen() {
             </View>
           )}
           {/* Favourite toggle */}
-          <TouchableOpacity
-            style={styles.favBtn}
-            activeOpacity={0.8}
-            onPress={() => toggleFav(item.id)}
-            hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
-          >
-            <Text style={[styles.favIcon, isFav && styles.favActive]}>
-              {isFav ? "♥" : "♡"}
-            </Text>
-          </TouchableOpacity>
+          <FavoriteToggleButton
+            isFavorite={isFav}
+            config={favoriteToggleConfig}
+            onPress={async (e) => {
+              e?.stopPropagation?.();
+              e?.preventDefault?.();
+              const blocked = await requireLoginForAction({ session, navigation });
+              if (blocked) return;
+              favoriteTapRef.current = true;
+              setTimeout(() => {
+                favoriteTapRef.current = false;
+              }, 0);
+              dispatch(toggleWishlist({ product: item }));
+            }}
+          />
         </View>
 
         {/* Card body */}
@@ -445,26 +458,6 @@ const styles = StyleSheet.create({
     fontSize: 28,
     fontWeight: "700",
     color: "#9CA3AF",
-  },
-  favBtn: {
-    position: "absolute",
-    top: 6,
-    right: 6,
-    width: 26,
-    height: 26,
-    borderRadius: 13,
-    backgroundColor: "rgba(255,255,255,0.9)",
-    alignItems: "center",
-    justifyContent: "center",
-    elevation: 2,
-  },
-  favIcon: {
-    fontSize: 13,
-    color: "#9CA3AF",
-    lineHeight: 15,
-  },
-  favActive: {
-    color: "#EF4444",
   },
   cardBody: {
     flex: 1,

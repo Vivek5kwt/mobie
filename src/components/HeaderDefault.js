@@ -6,6 +6,7 @@ import { useSelector } from "react-redux";
 import bottomNavigationStyle1Section from "../data/bottomNavigationStyle1";
 import { useSideMenu } from "../services/SideMenuContext";
 import { resolveFont } from "../services/typographyService";
+import { dedupeWishlistProducts } from "../store/slices/wishlistSlice";
 
 const normalizeIconName = (name) => {
   if (!name) return "";
@@ -39,7 +40,7 @@ export default function HeaderDefault({ config, bottomNavSection, hideTabs = fal
     }, 0)
   );
 
-  const wishlistCount = useSelector((state) => (state?.wishlist?.items || []).length);
+  const wishlistCount = useSelector((state) => dedupeWishlistProducts(state?.wishlist?.items || []).length);
 
   // Tabs active index — must be a hook (called before any early returns)
   const [activeTabIdx, setActiveTabIdx] = useState(

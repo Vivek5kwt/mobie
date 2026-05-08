@@ -20,7 +20,8 @@ import { getWishlistKeys, isWishlistProduct, toggleWishlist } from "../store/sli
 import Snackbar from "./Snackbar";
 import { useAuth } from "../services/AuthContext";
 import { requireLoginForAction } from "../utils/authGate";
-import { resolveFont } from "../services/typographyService";
+import { resolveFirstFont } from "../services/typographyService";
+import FavoriteToggleButton, { buildFavoriteToggleConfig } from "./FavoriteToggleButton";
 
 const unwrapValue = (value, fallback = undefined) => {
   if (value === undefined || value === null) return fallback;
@@ -45,8 +46,6 @@ const toString = (value, fallback = "") => {
   if (resolved === undefined || resolved === null) return fallback;
   return String(resolved);
 };
-
-const cleanFontFamily = (family) => resolveFont(family) || "";
 
 const toBoolean = (value, fallback = false) => {
   const resolved = unwrapValue(value, fallback);
@@ -213,12 +212,20 @@ export default function ProductLibrary({ section }) {
 
   // ── Icon sizes ────────────────────────────────────────────────────────────
   const shareIconSize = toNumber(shareStyles?.icon?.size, 14);
-  const favouriteIconSize = toNumber(favouriteStyles?.icon?.size, 16);
+  const favouriteToggleConfig = buildFavoriteToggleConfig(
+    {
+      ...raw,
+      favIconSize: favouriteStyles?.icon?.size ?? raw?.favIconSize,
+      favPosition: favouriteStyles?.position ?? raw?.favouritePosition ?? raw?.favoritePosition,
+      favBubbleBgColor: favouriteStyles?.bg ?? raw?.favouriteBg ?? raw?.favoriteBg,
+    },
+    favouriteStyles
+  );
   const ratingIconSize = toNumber(reviewStyles?.icon?.size, 12);
 
   // ── Font families ─────────────────────────────────────────────────────────
-  const ratingFontFamily = cleanFontFamily(toString(reviewStyles?.rating?.fontFamily ?? reviewStyles?.fontFamily, ""));
-  const ratingCountFontFamily = cleanFontFamily(toString(reviewStyles?.count?.fontFamily ?? reviewStyles?.fontFamily, ""));
+  const ratingFontFamily = resolveFirstFont(raw?.ratingFontFamily, reviewStyles?.rating?.fontFamily, reviewStyles?.fontFamily, raw?.fontFamily);
+  const ratingCountFontFamily = resolveFirstFont(raw?.ratingCountFontFamily, reviewStyles?.count?.fontFamily, reviewStyles?.fontFamily, raw?.fontFamily);
 
   // ── Container ─────────────────────────────────────────────────────────────
   const containerStyle = [
@@ -325,26 +332,12 @@ export default function ProductLibrary({ section }) {
 
         {/* Favourite button */}
         {favouriteVisible && (
-          <Pressable
+          <FavoriteToggleButton
+            isFavorite={isFavourite}
+            config={favouriteToggleConfig}
             onPress={handleToggleFavourite}
-            style={[
-              styles.iconBubble,
-              normalizePosition(favouriteStyles?.position, styles.favBubble),
-              {
-                backgroundColor: isFavourite
-                  ? toString(favouriteStyles?.activeBg, "#EF4444")
-                  : toString(favouriteStyles?.bg, "#EF4444"),
-              },
-            ]}
-            accessibilityRole="button"
             accessibilityLabel={isFavourite ? "Remove from favourites" : "Add to favourites"}
-          >
-            <FontAwesome
-              name={isFavourite ? "heart" : "heart-o"}
-              size={favouriteIconSize}
-              color={toString(favouriteStyles?.icon?.color, "#FFFFFF")}
-            />
-          </Pressable>
+          />
         )}
 
         {/* Share button */}

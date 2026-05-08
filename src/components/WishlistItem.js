@@ -9,9 +9,10 @@ import {
 import { useNavigation } from "@react-navigation/native";
 import { useDispatch, useSelector } from "react-redux";
 import FontAwesome from "react-native-vector-icons/FontAwesome";
-import { toggleWishlist } from "../store/slices/wishlistSlice";
+import { dedupeWishlistProducts, toggleWishlist } from "../store/slices/wishlistSlice";
 import Snackbar from "./Snackbar";
 import { resolveFont } from "../services/typographyService";
+import FavoriteToggleButton, { buildFavoriteToggleConfig } from "./FavoriteToggleButton";
 
 const unwrapValue = (value, fallback = undefined) => {
   if (value === undefined || value === null) return fallback;
@@ -48,7 +49,7 @@ const buildRawProps = (rawProps = {}) => {
 export default function WishlistItem({ section }) {
   const navigation = useNavigation();
   const dispatch = useDispatch();
-  const wishlistItems = useSelector((state) => state.wishlist?.items || []);
+  const wishlistItems = useSelector((state) => dedupeWishlistProducts(state.wishlist?.items || []));
   const [snackVisible, setSnackVisible] = useState(false);
 
   const rawProps =
@@ -68,6 +69,7 @@ export default function WishlistItem({ section }) {
   const borderColor = toString(raw?.borderColor, "#E5E7EB");
   const iconColor = toString(raw?.iconColor, "#EF4444");
   const iconSize = toNumber(raw?.iconSize, 18);
+  const favoriteToggleConfig = buildFavoriteToggleConfig({ favIconSize: iconSize, favoriteIconColor: iconColor });
   const imageRadius = toNumber(raw?.imageRadius, 8);
   const imageRatio = toString(raw?.imageRatio, "1:1");
   const priceColor = toString(raw?.priceColor, "#16A34A");
@@ -170,17 +172,17 @@ export default function WishlistItem({ section }) {
                 )}
 
                 {/* Heart icon overlay */}
-                <TouchableOpacity
-                  style={styles.heartBtn}
-                  onPress={() => {
+                <FavoriteToggleButton
+                  isFavorite
+                  config={favoriteToggleConfig}
+                  onPress={(e) => {
+                    e?.stopPropagation?.();
+                    e?.preventDefault?.();
                     dispatch(toggleWishlist({ product }));
                     setSnackVisible(true);
                   }}
-                  hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                  activeOpacity={0.8}
-                >
-                  <FontAwesome name="heart" size={iconSize} color={iconColor} />
-                </TouchableOpacity>
+                  accessibilityLabel="Remove from wishlist"
+                />
               </View>
 
               {/* Product info */}
@@ -281,17 +283,6 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     backgroundColor: "#F3F4F6",
-  },
-  heartBtn: {
-    position: "absolute",
-    top: 8,
-    right: 8,
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: "rgba(255,255,255,0.9)",
-    alignItems: "center",
-    justifyContent: "center",
   },
   info: {
     gap: 4,

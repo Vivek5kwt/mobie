@@ -7,7 +7,7 @@ import {
   View,
 } from "react-native";
 import FontAwesome from "react-native-vector-icons/FontAwesome";
-import { resolveFont } from "../services/typographyService";
+import { resolveFirstFont } from "../services/typographyService";
 import { resolveFA4IconName } from "../utils/faIconAlias";
 
 // ─── DSL helpers ──────────────────────────────────────────────────────────────
@@ -300,7 +300,7 @@ export default function VariantSelector({ section }) {
   // ── Group label ────────────────────────────────────────────────────────────
   const labelColor      = pick([raw?.titleColor, raw?.labelColor], "#111111");
   const labelFontSize   = pickNum([raw?.titleFontsize,   raw?.titleFontSize,   raw?.labelFontSize],  14);
-  const labelFontFamily = resolveFont(pick([raw?.titleFontfamily, raw?.titleFontFamily, raw?.labelFontFamily], "")) || undefined;
+  const labelFontFamily = resolveFirstFont(raw?.titleFontfamily, raw?.titleFontFamily, raw?.labelFontFamily, raw?.headlineFontFamily, raw?.fontFamily) || undefined;
   const labelFontWeight = resolveWeight(raw?.titleFontWeight ?? raw?.titleFontweight ?? raw?.labelFontWeight) || "600";
   const labelMarginBottom = pickNum([raw?.labelGap, raw?.labelMarginBottom, raw?.labelMb], 10);
 
@@ -309,7 +309,7 @@ export default function VariantSelector({ section }) {
 
   // ── Chip (text selector) styles ────────────────────────────────────────────
   const chipFontSize   = pickNum([raw?.textFontsize,   raw?.textFontSize,   raw?.chipFontSize],  12);
-  const chipFontFamily = resolveFont(pick([raw?.textFontfamily, raw?.textFontFamily, raw?.chipFontFamily], "")) || undefined;
+  const chipFontFamily = resolveFirstFont(raw?.textFontfamily, raw?.textFontFamily, raw?.chipFontFamily, raw?.subtextFontFamily, raw?.fontFamily) || undefined;
   const chipFontWeight = resolveWeight(raw?.textFontWeight ?? raw?.textFontweight ?? raw?.chipFontWeight) || "500";
   const chipRadius     = pickNum([raw?.buttonRadius,   raw?.boxBorderRadius, raw?.chipRadius], 10);
   const chipPadH       = pickNum([raw?.boxPaddingleft, raw?.boxPaddingLeft,  raw?.chipPadH],  14);
@@ -345,7 +345,7 @@ export default function VariantSelector({ section }) {
   const featureFontSize   = pickNum([raw?.featureFontSize, raw?.badgeFontSize,    raw?.featureTextSize], 11);
   const featureFontColor  = pick([raw?.featureFontColor,   raw?.badgeFontColor,   raw?.featureTextColor, raw?.featureColor], "#6B7280");
   const featureFontWeight = resolveWeight(raw?.featureFontWeight ?? raw?.badgeFontWeight) || "500";
-  const featureFontFamily = resolveFont(pick([raw?.featureFontFamily, raw?.badgeFontFamily], "")) || undefined;
+  const featureFontFamily = resolveFirstFont(raw?.featureFontFamily, raw?.badgeFontFamily, raw?.fontFamily) || undefined;
   const featurePadTop     = pickNum([raw?.featuresPadTop, raw?.featurePadTop, raw?.badgePadTop], 12);
   const dividerColor      = pick([raw?.dividerColor, raw?.featureDividerColor], "#E5E7EB");
   const dividerWidth      = pickNum([raw?.dividerWidth, raw?.featureDividerWidth], 1);
@@ -445,6 +445,7 @@ export default function VariantSelector({ section }) {
                           marginTop:  3,
                           textAlign:  "center",
                           maxWidth:   swatchSize + 10,
+                          ...(chipFontFamily || labelFontFamily ? { fontFamily: chipFontFamily || labelFontFamily } : {}),
                         }}
                         numberOfLines={1}
                       >

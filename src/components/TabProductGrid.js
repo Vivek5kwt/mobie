@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState, useCallback } from "react";
+import React, { useEffect, useMemo, useRef, useState, useCallback } from "react";
 import {
   ActivityIndicator,
   Dimensions,
@@ -25,6 +25,7 @@ import { useAuth } from "../services/AuthContext";
 import { requireLoginForAction } from "../utils/authGate";
 import Snackbar from "./Snackbar";
 import { resolveFont } from "../services/typographyService";
+import FavoriteToggleButton, { buildFavoriteToggleConfig } from "./FavoriteToggleButton";
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -89,9 +90,6 @@ const isDark = (hex) => {
   return (0.299 * r + 0.587 * g + 0.114 * b) < 128;
 };
 
-const resolveIconName = (value, fallback) =>
-  resolveFA4IconName(toStr(value, fallback)) || fallback;
-
 const normalizeAtcPosition = (value, fallback = "below") => {
   const resolved = toStr(value, fallback).toLowerCase();
   if (resolved.includes("above") || resolved.includes("top")) return "above";
@@ -141,6 +139,7 @@ export default function TabProductGrid({ section }) {
   const navigation = useNavigation();
   const { session } = useAuth();
   const wishlistItems = useSelector((state) => state?.wishlist?.items || []);
+  const favoriteTapRef = useRef(false);
 
   // ── Parse DSL ──────────────────────────────────────────────────────────────
   const rawProps =
@@ -297,28 +296,7 @@ export default function TabProductGrid({ section }) {
       rawConfig?.favEnabled,
     true
   );
-  const favoriteIconName = resolveIconName(
-    rawConfig?.favoriteIconId ?? rawConfig?.favoriteIcon ?? rawConfig?.favIcon,
-    "heart"
-  );
-  const unfavoriteIconName = resolveIconName(
-    rawConfig?.unfavoriteIconId ?? rawConfig?.unfavoriteIcon ?? rawConfig?.unfavIcon,
-    "heart-o"
-  );
-  const favoriteIconSize = toNum(rawConfig?.favoriteIconSize ?? rawConfig?.favIconSize, 16);
-  const unfavoriteIconSize = toNum(rawConfig?.unfavoriteIconSize ?? rawConfig?.unfavIconSize, favoriteIconSize);
-  const favoriteIconColor = toStr(
-    rawConfig?.favoriteIconColor ?? rawConfig?.favoriteColor ?? rawConfig?.favIconColor ?? rawConfig?.favColor,
-    "#EF4444"
-  );
-  const unfavoriteIconColor = toStr(
-    rawConfig?.unfavoriteIconColor ?? rawConfig?.unfavoriteColor ?? rawConfig?.favIconInactiveColor,
-    "#9CA3AF"
-  );
-  const favoriteBadgeBgColor = toStr(
-    rawConfig?.favoriteBackgroundColor ?? rawConfig?.favoriteBgColor ?? rawConfig?.favBgColor,
-    "rgba(255,255,255,0.95)"
-  );
+  const favoriteToggleConfig = buildFavoriteToggleConfig(rawConfig);
   const showAddToCart  = toBool(rawConfig?.showAddToCart ?? rawConfig?.atcActive, true);
   const showPrice      = toBool(rawConfig?.showPrice ?? rawConfig?.cardPriceActive, true);
   const showTitleText  = toBool(rawConfig?.showTitle ?? rawConfig?.cardTitleActive, true);
@@ -654,7 +632,13 @@ export default function TabProductGrid({ section }) {
             return (
               <Pressable
                 key={product.id}
-                onPress={() => handleProductPress(product)}
+                onPress={() => {
+                  if (favoriteTapRef.current) {
+                    favoriteTapRef.current = false;
+                    return;
+                  }
+                  handleProductPress(product);
+                }}
                 style={({ pressed }) => [
                   styles.card,
                   pressed && { opacity: 0.9 },
@@ -684,22 +668,19 @@ export default function TabProductGrid({ section }) {
                     <View style={styles.imagePlaceholder} />
                   )}
                   {showFavorite && (
-                    <TouchableOpacity
-                      style={[styles.favBtn, { backgroundColor: favoriteBadgeBgColor }]}
-                      activeOpacity={0.8}
-                      onPress={(e) => { e?.stopPropagation?.(); handleToggleFavorite(product, isFav); }}
-                      onPressIn={(e) => e?.stopPropagation?.()}
-                      hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
-                      accessibilityRole="button"
+                    <FavoriteToggleButton
+                      isFavorite={isFav}
+                      config={favoriteToggleConfig}
+                      onPress={(e) => {
+                        e?.stopPropagation?.();
+                        favoriteTapRef.current = true;
+                        setTimeout(() => {
+                          favoriteTapRef.current = false;
+                        }, 0);
+                        handleToggleFavorite(product, isFav);
+                      }}
                       accessibilityLabel={isFav ? "Remove from wishlist" : "Add to wishlist"}
-                    >
-                      <FontAwesome
-                        name={isFav ? favoriteIconName : unfavoriteIconName}
-                        size={isFav ? favoriteIconSize : unfavoriteIconSize}
-                        color={isFav ? favoriteIconColor : unfavoriteIconColor}
-                        style={styles.favIcon}
-                      />
-                    </TouchableOpacity>
+                    />
                   )}
                   {showAddToCart && atcPosition === "overlay" && renderAddToCart(product, inStock)}
                 </View>
@@ -761,7 +742,13 @@ export default function TabProductGrid({ section }) {
                 return (
                   <Pressable
                     key={product.id}
-                    onPress={() => handleProductPress(product)}
+                    onPress={() => {
+                      if (favoriteTapRef.current) {
+                        favoriteTapRef.current = false;
+                        return;
+                      }
+                      handleProductPress(product);
+                    }}
                     style={({ pressed }) => [
                       styles.card,
                       pressed && { opacity: 0.9 },
@@ -798,25 +785,19 @@ export default function TabProductGrid({ section }) {
                       )}
 
                       {showFavorite && (
-                        <TouchableOpacity
-                          style={[
-                            styles.favBtn,
-                            { backgroundColor: favoriteBadgeBgColor },
-                          ]}
-                          activeOpacity={0.8}
-                          onPress={(e) => { e?.stopPropagation?.(); handleToggleFavorite(product, isFav); }}
-                          onPressIn={(e) => e?.stopPropagation?.()}
-                          hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
-                          accessibilityRole="button"
+                        <FavoriteToggleButton
+                          isFavorite={isFav}
+                          config={favoriteToggleConfig}
+                          onPress={(e) => {
+                            e?.stopPropagation?.();
+                            favoriteTapRef.current = true;
+                            setTimeout(() => {
+                              favoriteTapRef.current = false;
+                            }, 0);
+                            handleToggleFavorite(product, isFav);
+                          }}
                           accessibilityLabel={isFav ? "Remove from wishlist" : "Add to wishlist"}
-                        >
-                          <FontAwesome
-                            name={isFav ? favoriteIconName : unfavoriteIconName}
-                            size={isFav ? favoriteIconSize : unfavoriteIconSize}
-                            color={isFav ? favoriteIconColor : unfavoriteIconColor}
-                            style={styles.favIcon}
-                          />
-                        </TouchableOpacity>
+                        />
                       )}
 
                       {showAddToCart && atcPosition === "overlay" && renderAddToCart(product, inStock)}
@@ -931,27 +912,6 @@ const styles = StyleSheet.create({
   imagePlaceholder: {
     flex: 1,
     backgroundColor: "#E5E7EB",
-  },
-  favBtn: {
-    position:       "absolute",
-    top:            8,
-    right:          8,
-    width:          30,
-    height:         30,
-    borderRadius:   15,
-    alignItems:     "center",
-    justifyContent: "center",
-    shadowColor:    "#000",
-    shadowOffset:   { width: 0, height: 1 },
-    shadowOpacity:  0.15,
-    shadowRadius:   3,
-    elevation:      6,
-    zIndex:         10,
-  },
-  favIcon: {
-    lineHeight: 16,
-    textAlign: "center",
-    includeFontPadding: false,
   },
   cardContent: {
     paddingHorizontal: 8,
