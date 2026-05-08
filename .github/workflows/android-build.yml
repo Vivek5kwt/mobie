@@ -15,7 +15,7 @@ on:
         required: true
   repository_dispatch:
     types: [android_build]
- types:
+ 
 jobs:
   build:
     runs-on: ubuntu-latest
