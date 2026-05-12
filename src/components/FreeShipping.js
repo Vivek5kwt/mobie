@@ -2,6 +2,7 @@ import React, { useMemo } from "react";
 import { StyleSheet, Text, View } from "react-native";
 import { useSelector } from "react-redux";
 import { resolveFont } from "../services/typographyService";
+import { normalizeCurrencyLabel } from "../utils/money";
 
 const unwrapValue = (value, fallback = undefined) => {
   if (value === undefined || value === null) return fallback;
@@ -77,7 +78,7 @@ export default function FreeShipping({ section }) {
   // DSL config
   const enabled = toBoolean(raw?.enabled ?? raw?.active, true);
   const threshold = toNumber(raw?.threshold ?? raw?.freeShippingThreshold ?? raw?.minAmount, 500);
-  const currencySymbol = toString(raw?.currencySymbol ?? raw?.currency ?? raw?.symbol, "$");
+  const currencySymbol = normalizeCurrencyLabel(toString(raw?.currencySymbol ?? raw?.currency ?? raw?.symbol, "$"));
 
   // Text templates — use {amount} placeholder
   const progressText = toString(
@@ -121,13 +122,17 @@ export default function FreeShipping({ section }) {
   const formattedRemaining = remaining % 1 === 0
     ? remaining.toFixed(0)
     : remaining.toFixed(2);
+  const remainingWithCurrency = `${currencySymbol}${formattedRemaining}`;
+  const remainingToken = progressText.includes("{symbol}") || progressText.includes("{currency}")
+    ? formattedRemaining
+    : remainingWithCurrency;
 
   const message = isReached
     ? completedText
     : progressText
         .replace("{symbol}", currencySymbol)
-        .replace("{amount}", `${currencySymbol}${formattedRemaining}`)
-        .replace("{remaining}", `${currencySymbol}${formattedRemaining}`)
+        .replace("{amount}", remainingToken)
+        .replace("{remaining}", remainingToken)
         .replace("{currency}", currencySymbol);
 
   return (

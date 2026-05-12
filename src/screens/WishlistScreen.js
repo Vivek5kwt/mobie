@@ -22,6 +22,7 @@ import HeaderDefault from "../components/HeaderDefault";
 import DynamicRenderer from "../engine/DynamicRenderer";
 import { resolveFont } from "../services/typographyService";
 import FavoriteToggleButton, { buildFavoriteToggleConfig } from "../components/FavoriteToggleButton";
+import { formatMoney } from "../utils/money";
 
 const { width: SCREEN_W } = Dimensions.get("window");
 
@@ -238,7 +239,7 @@ export default function WishlistScreen() {
 
         <View style={styles.priceRow}>
           <Text style={{ color: priceColor, fontSize: priceFontSize, fontWeight: priceFontWeight, textAlign: priceAlign }}>
-            {item.currency} {parseFloat(item.price || 0).toFixed(2)}
+            {formatMoney(item.price, item.currency || item.priceCurrency || item.currencySymbol)}
           </Text>
           {!!item.compareAtPrice && parseFloat(item.compareAtPrice) > parseFloat(item.price || 0) && (
             <Text
@@ -250,7 +251,7 @@ export default function WishlistScreen() {
                 marginLeft:         6,
               }}
             >
-              {item.currency} {parseFloat(item.compareAtPrice).toFixed(2)}
+              {formatMoney(item.compareAtPrice, item.currency || item.priceCurrency || item.currencySymbol)}
             </Text>
           )}
         </View>

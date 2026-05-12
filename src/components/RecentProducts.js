@@ -18,6 +18,7 @@ import { useAuth } from "../services/AuthContext";
 import { requireLoginForAction } from "../utils/authGate";
 import { resolveFirstFont } from "../services/typographyService";
 import FavoriteToggleButton, { buildFavoriteToggleConfig } from "./FavoriteToggleButton";
+import { formatMoney } from "../utils/money";
 
 // ─── DSL helpers ─────────────────────────────────────────────────────────────
 
@@ -131,13 +132,6 @@ const normalizeProducts = (value) => {
     })
     .filter(Boolean);
 };
-
-const CURRENCY_SYMBOLS = {
-  USD: "$", INR: "₹", GBP: "£", EUR: "€", CAD: "CA$",
-  AUD: "A$", JPY: "¥", CNY: "¥", SGD: "S$", AED: "د.إ",
-};
-const toCurrSymbol = (code) =>
-  CURRENCY_SYMBOLS[String(code || "").toUpperCase()] || code || "";
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
@@ -497,7 +491,7 @@ export default function RecentProducts({ section }) {
                           ...(priceFamily ? { fontFamily: priceFamily } : {}),
                         }}
                       >
-                        {toCurrSymbol(currency)}{parseFloat(price || 0).toFixed(2)}
+                        {formatMoney(price, currency)}
                       </Text>
                       {showStrike && (
                         <Text
@@ -508,7 +502,7 @@ export default function RecentProducts({ section }) {
                             marginLeft:         4,
                           }}
                         >
-                          {toCurrSymbol(currency)}{parseFloat(compareAt).toFixed(2)}
+                          {formatMoney(compareAt, currency)}
                         </Text>
                       )}
                     </View>
@@ -575,4 +569,3 @@ const styles = StyleSheet.create({
     flexWrap:      "wrap",
   },
 });
-

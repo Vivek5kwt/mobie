@@ -12,6 +12,7 @@ import FontAwesome from "react-native-vector-icons/FontAwesome";
 import { updateQuantity, removeItem } from "../store/slices/cartSlice";
 import { resolveFA4IconName } from "../utils/faIconAlias";
 import { resolveFont } from "../services/typographyService";
+import { formatMoney } from "../utils/money";
 
 const unwrapValue = (value, fallback = undefined) => {
   if (value === undefined || value === null) return fallback;
@@ -85,7 +86,7 @@ const resolveCurrencyLabel = (...values) => {
 };
 
 const fmtPrice = (amount, currency) =>
-  `${normalizeCurrencyLabel(currency)}${Math.abs(toNumber(amount, 0)).toFixed(2)}`;
+  formatMoney(Math.abs(toNumber(amount, 0)), currency);
 
 export default function CartLineItems({ section }) {
   const dispatch = useDispatch();

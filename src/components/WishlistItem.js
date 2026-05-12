@@ -13,6 +13,7 @@ import { dedupeWishlistProducts, toggleWishlist } from "../store/slices/wishlist
 import Snackbar from "./Snackbar";
 import { resolveFont } from "../services/typographyService";
 import FavoriteToggleButton, { buildFavoriteToggleConfig } from "./FavoriteToggleButton";
+import { formatMoney } from "../utils/money";
 
 const unwrapValue = (value, fallback = undefined) => {
   if (value === undefined || value === null) return fallback;
@@ -212,8 +213,10 @@ export default function WishlistItem({ section }) {
                       },
                     ]}
                   >
-                    {product.currency ? `${product.currency} ` : ""}
-                    {product.price ? Number(product.price).toFixed(2) : "—"}
+                    {formatMoney(
+                      product.price,
+                      product.currency || product.priceCurrency || product.currencySymbol
+                    ) || "—"}
                   </Text>
                   {product.compareAtPrice > 0 && product.compareAtPrice > product.price && (
                     <Text
@@ -226,8 +229,10 @@ export default function WishlistItem({ section }) {
                         },
                       ]}
                     >
-                      {product.currency ? `${product.currency} ` : ""}
-                      {Number(product.compareAtPrice).toFixed(2)}
+                      {formatMoney(
+                        product.compareAtPrice,
+                        product.currency || product.priceCurrency || product.currencySymbol
+                      )}
                     </Text>
                   )}
                 </View>

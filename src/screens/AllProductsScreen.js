@@ -18,6 +18,7 @@ import BottomNavigation, { BOTTOM_NAV_RESERVED_HEIGHT } from "../components/Bott
 import { fetchDSL } from "../engine/dslHandler";
 import { resolveAppId } from "../utils/appId";
 import { buildProductFilterOptions, productMatchesFilter } from "../utils/productFilters";
+import { formatMoney } from "../utils/money";
 
 const GAP = 12;
 const H_PAD = 16;
@@ -178,8 +179,10 @@ export default function AllProductsScreen() {
             {item.title}
           </Text>
           <Text style={styles.price}>
-            {item.priceCurrency ? `${item.priceCurrency} ` : ""}
-            {item.priceAmount || ""}
+            {formatMoney(
+              item.priceAmount ?? item.price,
+              item.priceCurrency || item.currency || item.currencySymbol
+            )}
           </Text>
         </View>
       </TouchableOpacity>

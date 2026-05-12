@@ -44,7 +44,7 @@ const buildProductDefaults = (product = {}) => {
     standardPrice: product?.priceAmount,
     priceCurrency: product?.priceCurrency,
     currency: product?.priceCurrency,
-    currencySymbol: product?.priceCurrency ? `${product.priceCurrency} ` : undefined,
+    currencySymbol: product?.currencySymbol || product?.priceCurrency,
     vendorText: product?.vendor,
     shop: product?.vendor,
     description: product?.description,

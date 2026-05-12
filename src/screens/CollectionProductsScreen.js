@@ -24,6 +24,7 @@ import { buildProductFilterOptions, productMatchesFilter } from "../utils/produc
 import FavoriteToggleButton, { buildFavoriteToggleConfig } from "../components/FavoriteToggleButton";
 import { useAuth } from "../services/AuthContext";
 import { requireLoginForAction } from "../utils/authGate";
+import { formatMoney } from "../utils/money";
 
 const PAGE_SIZE = 20;
 const GAP = 12;
@@ -246,7 +247,10 @@ export default function CollectionProductsScreen() {
             {item.title}
           </Text>
           <Text style={styles.price}>
-            {parseFloat(item.priceAmount || 0).toFixed(2)}
+            {formatMoney(
+              item.priceAmount ?? item.price,
+              item.priceCurrency || item.currency || item.currencySymbol
+            )}
           </Text>
           <TouchableOpacity
             style={inStock ? styles.cartBtnActive : styles.cartBtnSoldOut}

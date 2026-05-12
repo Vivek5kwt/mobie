@@ -2,6 +2,7 @@ import React from "react";
 import { Share, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import FontAwesome from "react-native-vector-icons/FontAwesome";
 import { resolveFirstFont } from "../services/typographyService";
+import { formatMoney } from "../utils/money";
 
 const unwrapValue = (value, fallback = undefined) => {
   if (value === undefined || value === null) return fallback;
@@ -38,13 +39,6 @@ const toBoolean = (value, fallback = false) => {
   return Boolean(resolved);
 };
 
-const formatCurrency = (amount, currencySymbol) => {
-  if (amount === undefined || amount === null || amount === "") return "";
-  const numeric = Number(amount);
-  if (Number.isNaN(numeric)) return `${currencySymbol}${amount}`;
-  return `${currencySymbol}${numeric.toFixed(2)}`;
-};
-
 export default function ProductInfo({ section }) {
   const propsNode =
     section?.properties?.props?.properties ||
@@ -71,7 +65,16 @@ export default function ProductInfo({ section }) {
   // ── Product data ────────────────────────────────────────────────────────────
   const titleText      = toString(raw?.titleText ?? raw?.title, toString(titleCss?.text, ""));
   const vendorText     = toString(raw?.vendorText ?? raw?.shop, toString(vendorCss?.text, ""));
-  const currencySymbol = toString(raw?.currencySymbol, toString(priceCss?.currencySymbol, "$"));
+  const currencyLabel  = toString(
+    raw?.priceCurrency ??
+      raw?.currencyCode ??
+      raw?.currency ??
+      raw?.currencySymbol ??
+      priceCss?.currencyCode ??
+      priceCss?.currency ??
+      priceCss?.currencySymbol,
+    "$"
+  );
   const salePrice      = raw?.salePrice ?? priceCss?.salePrice;
   const standardPrice  = raw?.standardPrice ?? priceCss?.standardPrice;
 
@@ -320,7 +323,7 @@ export default function ProductInfo({ section }) {
                   },
                 ]}
               >
-                {formatCurrency(salePrice, currencySymbol)}
+                {formatMoney(salePrice, currencyLabel)}
               </Text>
             )}
             {showStandard && standardPrice !== undefined && (
@@ -335,7 +338,7 @@ export default function ProductInfo({ section }) {
                   },
                 ]}
               >
-                {formatCurrency(standardPrice, currencySymbol)}
+                {formatMoney(standardPrice, currencyLabel)}
               </Text>
             )}
             {showStrikethrough && standardPrice !== undefined && (
@@ -351,7 +354,7 @@ export default function ProductInfo({ section }) {
                   },
                 ]}
               >
-                {formatCurrency(standardPrice, currencySymbol)}
+                {formatMoney(standardPrice, currencyLabel)}
               </Text>
             )}
           </View>

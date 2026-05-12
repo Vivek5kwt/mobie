@@ -14,6 +14,7 @@ import { useNavigation } from "@react-navigation/native";
 import { convertStyles } from "../utils/convertStyles";
 import { resolveTextDecorationLine } from "../utils/textDecoration";
 import { fetchShopifyProductsPage } from "../services/shopify";
+import { formatMoney } from "../utils/money";
 
 const unwrapValue = (value, fallback = undefined) => {
   if (value === undefined || value === null) return fallback;
@@ -376,12 +377,10 @@ export default function MediaGrid({ section }) {
           id: product.id || `shopify-${index}`,
           handle: product.handle || "",
           title: product.title || "Product",
-          subtitle:
-            product.priceCurrency && product.priceAmount
-              ? `${product.priceCurrency} ${product.priceAmount}`
-              : product.priceAmount
-              ? String(product.priceAmount)
-              : "",
+          subtitle: formatMoney(
+            product.priceAmount ?? product.price,
+            product.priceCurrency || product.currency || product.currencySymbol
+          ),
           badge: "",
           src: product.imageUrl || "",
           mediaType: "image",

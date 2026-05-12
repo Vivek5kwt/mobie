@@ -13,15 +13,7 @@ import { useAuth } from "../services/AuthContext";
 import { requireLoginForAction } from "../utils/authGate";
 import { resolveFont } from "../services/typographyService";
 import FavoriteToggleButton, { buildFavoriteToggleConfig } from "./FavoriteToggleButton";
-
-// ── Currency symbol lookup ────────────────────────────────────────────────────
-
-const CURRENCY_SYMBOLS = {
-  USD: "$", INR: "₹", GBP: "£", EUR: "€", CAD: "CA$",
-  AUD: "A$", JPY: "¥", CNY: "¥", SGD: "S$", AED: "د.إ",
-};
-const toCurrSymbol = (code) =>
-  CURRENCY_SYMBOLS[String(code || "").toUpperCase()] || code || "";
+import { formatMoney } from "../utils/money";
 
 // ── DSL helpers ───────────────────────────────────────────────────────────────
 
@@ -1158,7 +1150,10 @@ export default function ProductGrid({ section, limit = 8, title = "Products" }) 
                         },
                       ]}
                     >
-                      {toCurrSymbol(product.priceCurrency)}{product.priceAmount}
+                      {formatMoney(
+                        product.priceAmount ?? product.price,
+                        product.priceCurrency || product.currency || product.currencySymbol
+                      )}
                     </Text>
                   )}
                 </View>

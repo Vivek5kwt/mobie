@@ -26,6 +26,7 @@ import { requireLoginForAction } from "../utils/authGate";
 import Snackbar from "./Snackbar";
 import { resolveFont } from "../services/typographyService";
 import FavoriteToggleButton, { buildFavoriteToggleConfig } from "./FavoriteToggleButton";
+import { formatMoney } from "../utils/money";
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -755,7 +756,7 @@ export default function TabProductGrid({ section }) {
                         },
                       ]}
                     >
-                      {product.currency} {parseFloat(product.price).toFixed(1)}
+                      {formatMoney(product.price, product.currency || product.priceCurrency)}
                     </Text>
                   )}
                   {showAddToCart && atcPosition === "below" && renderAddToCart(product, inStock)}
@@ -877,7 +878,7 @@ export default function TabProductGrid({ section }) {
                             },
                           ]}
                         >
-                          {product.currency} {parseFloat(product.price).toFixed(1)}
+                          {formatMoney(product.price, product.currency || product.priceCurrency)}
                         </Text>
                       )}
 

@@ -19,6 +19,7 @@ import { useNavigation, useRoute } from "@react-navigation/native";
 import { resolveFont } from "../services/typographyService";
 import { convertStyles } from "../utils/convertStyles";
 import { searchShopifyProducts } from "../services/shopify";
+import { formatMoney } from "../utils/money";
 
 const unwrapValue = (value, fallback) => {
   if (value === undefined || value === null) return fallback;
@@ -78,9 +79,8 @@ const extractDetailSections = (rawProps) => {
 
 const formatProductPrice = (product = {}) => {
   const amount = product?.priceAmount ?? product?.price;
-  if (amount === undefined || amount === null || amount === "") return "";
-  const currency = product?.priceCurrency || product?.currency || "";
-  return [currency, amount].filter(Boolean).join(" ");
+  const currency = product?.priceCurrency || product?.currency || product?.currencySymbol || "";
+  return formatMoney(amount, currency);
 };
 
 const toNumber = (value, fallback) => {

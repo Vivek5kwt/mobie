@@ -25,6 +25,7 @@ import Snackbar from "./Snackbar";
 import { useAuth } from "../services/AuthContext";
 import { requireLoginForAction } from "../utils/authGate";
 import { resolveFont } from "../services/typographyService";
+import { formatMoney } from "../utils/money";
 
 const unwrapValue = (value, fallback = undefined) => {
   if (value === undefined || value === null) return fallback;
@@ -1101,7 +1102,10 @@ export default function ProductCarousel({ section }) {
                             },
                           ]}
                         >
-                          {product.priceCurrency} {product.priceAmount}
+                          {formatMoney(
+                            product.priceAmount ?? product.price,
+                            product.priceCurrency || product.currency || product.currencySymbol
+                          )}
                         </Text>
                       )}
                       <Text
@@ -1115,7 +1119,10 @@ export default function ProductCarousel({ section }) {
                           },
                         ]}
                       >
-                        {product.priceCurrency} {product.priceAmount}
+                        {formatMoney(
+                          product.priceAmount ?? product.price,
+                          product.priceCurrency || product.currency || product.currencySymbol
+                        )}
                       </Text>
                     </View>
                   )}

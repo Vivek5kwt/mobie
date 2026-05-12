@@ -22,6 +22,7 @@ import { getAppLogoSync } from "../utils/appInfo";
 import { resolveTextDecorationLine } from "../utils/textDecoration";
 import { resolveFA4IconName } from "../utils/faIconAlias";
 import { resolveFont } from "../services/typographyService";
+import { formatMoney } from "../utils/money";
 
 const unwrapValue = (value, fallback = undefined) => {
   if (value === undefined || value === null) return fallback;
@@ -1241,7 +1242,10 @@ export default function Header2({ section }) {
                     {product.title}
                   </Text>
                   <Text style={styles.resultPrice}>
-                    {product.priceCurrency} {product.priceAmount}
+                    {formatMoney(
+                      product.priceAmount ?? product.price,
+                      product.priceCurrency || product.currency || product.currencySymbol
+                    )}
                   </Text>
                 </View>
               </TouchableOpacity>

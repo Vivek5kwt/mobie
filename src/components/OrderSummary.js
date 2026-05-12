@@ -2,6 +2,7 @@ import React, { useMemo } from "react";
 import { Image, StyleSheet, Text, View } from "react-native";
 import { useSelector } from "react-redux";
 import { resolveFont } from "../services/typographyService";
+import { formatMoney } from "../utils/money";
 
 const unwrapValue = (value, fallback = undefined) => {
   if (value === undefined || value === null) return fallback;
@@ -67,7 +68,7 @@ const resolveCurrencyLabel = (...values) => {
 };
 
 const fmt = (amount, currency) =>
-  `${normalizeCurrencyLabel(currency)}${Math.abs(amount).toFixed(2)}`;
+  formatMoney(Math.abs(amount), currency);
 
 export default function OrderSummary({ section }) {
   const propsNode =
@@ -318,7 +319,7 @@ export default function OrderSummary({ section }) {
 
             {/* Price */}
             <Text style={styles.itemPrice}>
-              {itemCurrency}{lineTotal.toFixed(2)}
+              {fmt(lineTotal, itemCurrency)}
             </Text>
           </View>
         );
