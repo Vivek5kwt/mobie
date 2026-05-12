@@ -2,7 +2,7 @@ import React, { useMemo } from "react";
 import { StyleSheet, Text, View } from "react-native";
 import { useSelector } from "react-redux";
 import { resolveFont } from "../services/typographyService";
-import { normalizeCurrencyLabel } from "../utils/money";
+import { formatMoney, normalizeCurrencyLabel } from "../utils/money";
 
 const unwrapValue = (value, fallback = undefined) => {
   if (value === undefined || value === null) return fallback;
@@ -78,7 +78,8 @@ export default function FreeShipping({ section }) {
   // DSL config
   const enabled = toBoolean(raw?.enabled ?? raw?.active, true);
   const threshold = toNumber(raw?.threshold ?? raw?.freeShippingThreshold ?? raw?.minAmount, 500);
-  const currencySymbol = normalizeCurrencyLabel(toString(raw?.currencySymbol ?? raw?.currency ?? raw?.symbol, "$"));
+  const currencySource = toString(raw?.currencySymbol ?? raw?.currency ?? raw?.symbol, "$");
+  const currencySymbol = normalizeCurrencyLabel(currencySource);
 
   // Text templates — use {amount} placeholder
   const progressText = toString(
@@ -119,10 +120,10 @@ export default function FreeShipping({ section }) {
   const isReached = remaining === 0;
 
   // Build message
-  const formattedRemaining = remaining % 1 === 0
-    ? remaining.toFixed(0)
-    : remaining.toFixed(2);
-  const remainingWithCurrency = `${currencySymbol}${formattedRemaining}`;
+  const remainingWithCurrency = formatMoney(remaining, currencySource || currencySymbol);
+  const formattedRemaining = currencySymbol && remainingWithCurrency.startsWith(currencySymbol)
+    ? remainingWithCurrency.slice(currencySymbol.length)
+    : remainingWithCurrency;
   const remainingToken = progressText.includes("{symbol}") || progressText.includes("{currency}")
     ? formattedRemaining
     : remainingWithCurrency;

@@ -39,6 +39,9 @@ export const currencyCodeFrom = (value) => {
   const upper = label.toUpperCase();
   if (CURRENCY_ALIASES[upper]) return CURRENCY_ALIASES[upper];
   if (/^[A-Z]{3}$/.test(upper)) return upper;
+  if (upper.includes("\u20b9") || /\bINR\b/.test(upper) || /\bRS\.?\b/.test(upper) || /\bRUPEES?\b/.test(upper)) {
+    return "INR";
+  }
   return "";
 };
 
@@ -65,7 +68,51 @@ const parseMoneyAmount = (amount) => {
   return Number.isFinite(numeric) ? numeric : null;
 };
 
+const currencyLabelFromAmount = (amount) => {
+  const text = toCleanString(amount);
+  if (!text) return "";
+  const match = text.match(/^\s*-?\s*([A-Za-z]{2,4}\.?|[^\d.,\s-]+)\s*/);
+  const label = toCleanString(match?.[1]);
+  if (!label) return "";
+  const code = currencyCodeFrom(label);
+  return code ? currencySymbolForCode(code) || `${code} ` : label;
+};
+
+const normalizeFractionDigits = (minimumFractionDigits, maximumFractionDigits) => {
+  const min = Math.max(0, Number(minimumFractionDigits) || 0);
+  const max = Math.max(min, Number(maximumFractionDigits) || 0);
+  return { min, max };
+};
+
+const fixedWithOptionalDecimals = (amount, minimumFractionDigits, maximumFractionDigits) => {
+  const { min, max } = normalizeFractionDigits(minimumFractionDigits, maximumFractionDigits);
+  let text = amount.toFixed(max);
+  if (max > min && text.includes(".")) {
+    while (text.endsWith("0") && text.split(".")[1].length > min) {
+      text = text.slice(0, -1);
+    }
+    if (text.endsWith(".")) text = text.slice(0, -1);
+  }
+  return text;
+};
+
+const formatIndianNumber = (amount, minimumFractionDigits, maximumFractionDigits) => {
+  const text = fixedWithOptionalDecimals(amount, minimumFractionDigits, maximumFractionDigits);
+  const [integerPart, decimalPart] = text.split(".");
+  if (integerPart.length <= 3) return decimalPart ? `${integerPart}.${decimalPart}` : integerPart;
+
+  const lastThree = integerPart.slice(-3);
+  const leading = integerPart.slice(0, -3);
+  const groupedLeading = leading.replace(/\B(?=(\d{2})+(?!\d))/g, ",");
+  const grouped = `${groupedLeading},${lastThree}`;
+  return decimalPart ? `${grouped}.${decimalPart}` : grouped;
+};
+
 const formatNumber = (amount, minimumFractionDigits, maximumFractionDigits, locale) => {
+  if ((locale || "").toLowerCase() === "en-in") {
+    return formatIndianNumber(amount, minimumFractionDigits, maximumFractionDigits);
+  }
+
   try {
     return amount.toLocaleString(locale || "en-IN", {
       minimumFractionDigits,
@@ -79,16 +126,33 @@ const formatNumber = (amount, minimumFractionDigits, maximumFractionDigits, loca
 export const formatMoney = (amount, currency, options = {}) => {
   if (amount === undefined || amount === null || amount === "") return "";
 
-  const minimumFractionDigits = options.minimumFractionDigits ?? 2;
-  const maximumFractionDigits = options.maximumFractionDigits ?? 2;
-  const code = currencyCodeFrom(currency);
+  const code = currencyCodeFrom(currency) || currencyCodeFrom(amount);
+  const isIndianRupee = code === "INR";
   const locale = options.locale || CURRENCY_LOCALES[code] || "en-IN";
   const numeric = parseMoneyAmount(amount);
+  const minimumFractionDigits =
+    options.minimumFractionDigits ??
+    (isIndianRupee && numeric !== null && Number.isInteger(numeric) ? 0 : 2);
+  const maximumFractionDigits = options.maximumFractionDigits ?? 2;
+  const normalizedCurrencyLabel = normalizeCurrencyLabel(currency);
+  const inferredAmountLabel = currencyLabelFromAmount(amount);
+  const label =
+    normalizedCurrencyLabel ||
+    (code ? currencySymbolForCode(code) || `${code} ` : inferredAmountLabel);
 
   if (numeric === null) {
-    const label = normalizeCurrencyLabel(currency);
     const text = toCleanString(amount);
-    return label ? `${label}${text}` : text;
+    if (!label || text.startsWith(label)) return text;
+    return `${label}${text}`;
+  }
+
+  if (isIndianRupee) {
+    const sign = numeric < 0 ? "-" : "";
+    return `${sign}${label}${formatIndianNumber(
+      Math.abs(numeric),
+      minimumFractionDigits,
+      maximumFractionDigits
+    )}`;
   }
 
   if (code && typeof Intl !== "undefined" && Intl.NumberFormat) {
@@ -103,7 +167,6 @@ export const formatMoney = (amount, currency, options = {}) => {
     } catch (_) {}
   }
 
-  const label = normalizeCurrencyLabel(currency);
   const sign = numeric < 0 ? "-" : "";
   return `${sign}${label}${formatNumber(
     Math.abs(numeric),

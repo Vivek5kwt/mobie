@@ -20,6 +20,10 @@ import { triggerOrderNotification, ORDER_EVENTS } from "../services/notification
 import { saveCompletedOrder } from "../services/orderHistoryService";
 import BottomNavigation, { BOTTOM_NAV_RESERVED_HEIGHT } from "../components/BottomNavigation";
 import { resolveFont } from "../services/typographyService";
+import {
+  currencySymbolForCode as sharedCurrencySymbolForCode,
+  formatMoney as formatSharedMoney,
+} from "../utils/money";
 
 // ─── DSL helpers ──────────────────────────────────────────────────────────────
 
@@ -95,22 +99,8 @@ const getProps = (section) =>
   section?.props ||
   {};
 
-const fmt = (n, symbol = "") =>
-  `${symbol}${Math.abs(toNum(n, 0)).toFixed(2)}`;
-
-const currencySymbolForCode = (code = "") => {
-  const normalized = String(code || "").trim().toUpperCase();
-  const symbols = {
-    INR: "₹",
-    USD: "$",
-    CAD: "$",
-    AUD: "$",
-    EUR: "€",
-    GBP: "£",
-    JPY: "¥",
-  };
-  return symbols[normalized] || normalized || "";
-};
+const fmt = (n, currency = "") =>
+  formatSharedMoney(Math.abs(toNum(n, 0)), currency);
 
 const formatAddressForDisplay = (address) => {
   if (!address || typeof address !== "object") return "";
@@ -494,7 +484,8 @@ function PriceInfoSection({ section, order }) {
     : orderCurrencySymbol;
   const currSymbol =
     normalizedOrderSymbol ||
-    currencySymbolForCode(orderCurrencyCode);
+    sharedCurrencySymbolForCode(orderCurrencyCode);
+  const currLabel = orderCurrencyCode || currSymbol;
   const rowFontFamily = cleanFontFamily(toStr(propsNode?.fontFamily, ""));
   const labelWeight = toFontWeight(propsNode?.labelFontWeight, "400");
   const valueWeight = toFontWeight(propsNode?.valueFontWeight, "400");
@@ -510,10 +501,10 @@ function PriceInfoSection({ section, order }) {
   const subtotal = hasOrderValue(order?.subtotal) ? order.subtotal : undefined;
 
   const rows = [
-    showSubtotal && hasOrderValue(subtotal) ? { label: toStr(propsNode?.subtotalLabel ?? propsNode?.subTotalLabel, "Subtotal"), value: fmt(subtotal, currSymbol), bold: false } : null,
-    showDelivery && hasOrderValue(delivery) ? { label: toStr(propsNode?.deliveryLabel, "Delivery"), value: fmt(delivery, currSymbol), bold: false } : null,
-    showTax && hasOrderValue(tax) ? { label: toStr(propsNode?.taxLabel, "Tax"), value: fmt(tax, currSymbol), bold: false } : null,
-    showTotal && hasOrderValue(total) ? { label: toStr(propsNode?.totalLabel, "Total"), value: fmt(total, currSymbol), bold: true } : null,
+    showSubtotal && hasOrderValue(subtotal) ? { label: toStr(propsNode?.subtotalLabel ?? propsNode?.subTotalLabel, "Subtotal"), value: fmt(subtotal, currLabel), bold: false } : null,
+    showDelivery && hasOrderValue(delivery) ? { label: toStr(propsNode?.deliveryLabel, "Delivery"), value: fmt(delivery, currLabel), bold: false } : null,
+    showTax && hasOrderValue(tax) ? { label: toStr(propsNode?.taxLabel, "Tax"), value: fmt(tax, currLabel), bold: false } : null,
+    showTotal && hasOrderValue(total) ? { label: toStr(propsNode?.totalLabel, "Total"), value: fmt(total, currLabel), bold: true } : null,
   ].filter(Boolean);
 
   const border = dslBorder(propsNode);
@@ -702,6 +693,12 @@ function OrderItemsSection({ section, items }) {
   const padLeft   = toNum(propsNode?.paddingLeft,   12);
   const padRight  = toNum(propsNode?.paddingRight,  12);
   const padBottom = toNum(propsNode?.paddingBottom, 12);
+  const itemPriceText = (item = {}) => {
+    const amount = item.priceAmount ?? item.price;
+    if (amount === undefined || amount === null || amount === "") return "";
+    const currency = item.priceCurrency || item.currencyCode || item.currency || item.currencySymbol;
+    return formatSharedMoney(amount, currency);
+  };
 
   return (
     <View style={styles.itemsContainer}>
@@ -749,9 +746,9 @@ function OrderItemsSection({ section, items }) {
             {item.deliveryDate ? (
               <Text style={[styles.itemMeta, { color: metaColor, fontSize: metaFontSize }]}>Delivery Date: {item.deliveryDate}</Text>
             ) : null}
-            {item.price ? (
+            {itemPriceText(item) ? (
               <Text style={[styles.itemPrice, { color: priceColor, fontSize: priceFontSize, fontWeight: priceFontWeight, textAlign: priceAlign, ...(priceFontFamily ? { fontFamily: priceFontFamily } : {}) }]}>
-                Price: {item.price}
+                Price: {itemPriceText(item)}
               </Text>
             ) : null}
           </View>

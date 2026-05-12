@@ -18,6 +18,10 @@ import { resolveAppId } from "../utils/appId";
 import { triggerOrderNotification, ORDER_EVENTS } from "../services/notificationService";
 import { saveCompletedOrder } from "../services/orderHistoryService";
 import { getStoreConfigSync } from "../services/storeService";
+import {
+  currencySymbolForCode as sharedCurrencySymbolForCode,
+  formatMoney as formatSharedMoney,
+} from "../utils/money";
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -33,20 +37,6 @@ const extractOrderNumber = (url) => {
     if (n) return `#${n}`;
   } catch (_) {}
   return "";
-};
-
-const currencySymbolForCode = (code = "") => {
-  const normalized = String(code || "").trim().toUpperCase();
-  const symbols = {
-    INR: "₹",
-    USD: "$",
-    CAD: "$",
-    AUD: "$",
-    EUR: "€",
-    GBP: "£",
-    JPY: "¥",
-  };
-  return symbols[normalized] || normalized || "";
 };
 
 const looksLikeCurrencyCode = (value = "") =>
@@ -78,7 +68,7 @@ const buildOrderFromCart = (capturedItems, url, storeCurrencyCode = "") => {
     const itemSymbol = rawItemSymbol === "$" && currencyCode
       ? ""
       : rawItemSymbol;
-    const symbol = itemSymbol || currencySymbolForCode(currencyCode);
+    const symbol = itemSymbol || sharedCurrencySymbolForCode(currencyCode);
     return {
       id:       String(item.id || item.variantId || ""),
       variantId: item.variantId || item.id || "",
@@ -90,7 +80,7 @@ const buildOrderFromCart = (capturedItems, url, storeCurrencyCode = "") => {
       priceAmount: parseFloat(item.price || 0),
       priceCurrency: currencyCode,
       price:    item.price
-        ? `${symbol}${parseFloat(item.price).toFixed(2)}`
+        ? formatSharedMoney(item.price, currencyCode || symbol)
         : "",
       quantity: item.quantity || 1,
     };
@@ -102,7 +92,7 @@ const buildOrderFromCart = (capturedItems, url, storeCurrencyCode = "") => {
   );
   const total = parseFloat(subtotal.toFixed(2));
   const orderNumber = extractOrderNumber(url);
-  const currencySymbol = currencySymbolForCode(firstCurrencyCode);
+  const currencySymbol = sharedCurrencySymbolForCode(firstCurrencyCode);
 
   return {
     id:             orderNumber,

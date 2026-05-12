@@ -453,6 +453,35 @@ export default function BottomNavScreen() {
     return v === true || v === "true" || v === 1;
   }, [headerDefaultConfig]);
 
+  const bottomNavItems = useMemo(() => {
+    const section = resolvedBottomNavSection;
+    const rawProps = section?.props || section?.properties?.props?.properties || section?.properties?.props || {};
+    const raw = rawProps?.raw?.value ?? rawProps?.raw ?? {};
+    const items = raw?.items ?? raw?.navItems ?? rawProps?.items?.value ?? rawProps?.items ?? [];
+    return Array.isArray(items) ? items : [];
+  }, [resolvedBottomNavSection]);
+
+  const standaloneBackFallback = useMemo(() => {
+    const firstItem = bottomNavItems[0] || {};
+    const firstPage = firstItem?.link || firstItem?.id || firstItem?.pageName || firstItem?.label || "home";
+    const firstTitle = firstItem?.label || firstItem?.title || firstItem?.name || "Home";
+    return {
+      title: firstTitle,
+      link: firstPage,
+      pageName: firstPage,
+      activeIndex: 0,
+      bottomNavSection: resolvedBottomNavSection,
+    };
+  }, [bottomNavItems, resolvedBottomNavSection]);
+
+  const handleStandaloneBack = useCallback(() => {
+    if (navigation.canGoBack()) {
+      navigation.goBack();
+      return;
+    }
+    navigation.navigate("BottomNavScreen", standaloneBackFallback);
+  }, [navigation, standaloneBackFallback]);
+
   const visibleSections = useMemo(
     () =>
       sortedSections.filter((section) => {
@@ -744,19 +773,21 @@ export default function BottomNavScreen() {
         }}
       >
         <View style={[styles.container, (isCartPage || isProfilePage) ? styles.cartContainer : null]}>
-          {/* Back-button row shown when screen is opened from Settings (no bottom nav) */}
+          {/* Single standalone header for pages opened without the bottom nav. */}
           {hideBottomNav && (
-            <View style={styles.backRow}>
+            <View style={styles.standaloneHeader}>
               <TouchableOpacity
-                onPress={() => navigation.goBack()}
-                style={styles.backRowBtn}
+                onPress={handleStandaloneBack}
+                style={styles.standaloneBackBtn}
+                activeOpacity={0.7}
                 hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
               >
                 <FontAwesome name="angle-left" size={24} color="#111827" />
               </TouchableOpacity>
-              <Text style={styles.backRowTitle} numberOfLines={1}>
+              <Text style={styles.standaloneHeaderTitle} numberOfLines={1}>
                 {title}
               </Text>
+              <View style={styles.standaloneBackBtn} />
             </View>
           )}
         {loading ? (
@@ -796,36 +827,6 @@ export default function BottomNavScreen() {
         ) : (
           /* ── All other tabs: DSL-driven content ────────────────────────────── */
           <View style={{ flex: 1 }}>
-
-            {/* Cart page: show back-header only for standalone flow (bottom nav hidden) */}
-            {isCartPage && hideBottomNav && (
-              <View style={styles.notifHeader}>
-                <TouchableOpacity
-                  style={styles.notifBackBtn}
-                  activeOpacity={0.7}
-                  hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                  onPress={() => {
-                    if (navigation.canGoBack()) {
-                      navigation.goBack();
-                    } else {
-                      navigation.navigate("BottomNavScreen", {
-                        title: "Home",
-                        link: "home",
-                        activeIndex: 0,
-                        bottomNavSection: resolvedBottomNavSection,
-                      });
-                    }
-                  }}
-                >
-                  <FontAwesome name="angle-left" size={24} color="#111827" />
-                </TouchableOpacity>
-                <Text style={styles.notifHeaderTitle} numberOfLines={1}>
-                  {title || "Cart"}
-                </Text>
-                {/* Spacer to keep title centred */}
-                <View style={styles.notifBackBtn} />
-              </View>
-            )}
 
           <ScrollView
             contentInsetAdjustmentBehavior="automatic"
@@ -940,45 +941,26 @@ const styles = StyleSheet.create({
   cartContainer: {
     backgroundColor: "#FFFFFF",
   },
-  backRow: {
+  standaloneHeader: {
     flexDirection: "row",
     alignItems: "center",
+    justifyContent: "space-between",
     backgroundColor: "#FFFFFF",
     paddingHorizontal: 16,
-    paddingVertical: 14,
-    borderBottomWidth: 1,
-    borderBottomColor: "#E5E7EB",
-    gap: 12,
-  },
-  backRowBtn: {
-    paddingRight: 4,
-  },
-  backRowTitle: {
-    fontSize: 17,
-    fontWeight: "700",
-    color: "#111827",
-    flex: 1,
-  },
-  notifHeader: {
-    flexDirection:     "row",
-    alignItems:        "center",
-    justifyContent:    "space-between",
-    paddingHorizontal: 16,
-    paddingVertical:   12,
-    backgroundColor:   "#FFFFFF",
+    paddingVertical: 12,
     borderBottomWidth: 1,
     borderBottomColor: "#F3F4F6",
   },
-  notifBackBtn: {
-    width:      36,
+  standaloneBackBtn: {
+    width: 36,
     alignItems: "center",
   },
-  notifHeaderTitle: {
-    flex:       1,
-    textAlign:  "center",
-    fontSize:   17,
+  standaloneHeaderTitle: {
+    flex: 1,
+    textAlign: "center",
+    fontSize: 17,
     fontWeight: "700",
-    color:      "#111827",
+    color: "#111827",
   },
   scrollContent: {
     flexGrow: 1,

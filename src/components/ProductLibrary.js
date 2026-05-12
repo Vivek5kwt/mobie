@@ -55,15 +55,35 @@ const toBoolean = (value, fallback = false) => {
   return Boolean(resolved);
 };
 
-const normalizePosition = (position, fallback = {}) => {
-  if (!position || typeof position !== "string") return fallback;
-  const normalized = position.toLowerCase();
-  const s = {};
-  if (normalized.includes("top")) s.top = 16;
-  if (normalized.includes("bottom")) s.bottom = 16;
-  if (normalized.includes("left")) s.left = 16;
-  if (normalized.includes("right")) s.right = 16;
-  return Object.keys(s).length ? s : fallback;
+const firstDefined = (...values) =>
+  values.find((value) => value !== undefined && value !== null && value !== "");
+
+const resolveImageOverlayPosition = ({
+  position,
+  fallback = "top-right",
+  inset = 16,
+  horizontalOffset = 0,
+  verticalOffset = 0,
+}) => {
+  const rawPosition = toString(position, "") || fallback;
+  const normalized = String(rawPosition || fallback).toLowerCase();
+  const style = {};
+  const x = Math.max(0, horizontalOffset) + Math.max(0, inset);
+  const y = Math.max(0, verticalOffset) + Math.max(0, inset);
+
+  if (normalized.includes("bottom")) {
+    style.bottom = y;
+  } else {
+    style.top = y;
+  }
+
+  if (normalized.includes("left")) {
+    style.left = x;
+  } else {
+    style.right = x;
+  }
+
+  return style;
 };
 
 export default function ProductLibrary({ section }) {
@@ -209,6 +229,20 @@ export default function ProductLibrary({ section }) {
   const imageCorner = toNumber(imageStyles?.corner, 16);
   const imageScale = toString(imageStyles?.scale, "Fit").toLowerCase();
   const resizeMode = imageScale === "fill" || imageScale === "cover" ? "cover" : "contain";
+  const imageFramePaddingY = Math.max(
+    0,
+    toNumber(
+      firstDefined(
+        imageStyles?.paddingVertical,
+        imageStyles?.paddingY,
+        imageStyles?.py,
+        raw?.imagePaddingVertical,
+        raw?.imagePadY
+      ),
+      8
+    )
+  );
+  const imageHorizontalOffset = Math.max(0, (galleryWidth - imageWidth) / 2);
 
   // ── Icon sizes ────────────────────────────────────────────────────────────
   const shareIconSize = toNumber(shareStyles?.icon?.size, 14);
@@ -217,11 +251,63 @@ export default function ProductLibrary({ section }) {
       ...raw,
       favIconSize: favouriteStyles?.icon?.size ?? raw?.favIconSize,
       favPosition: favouriteStyles?.position ?? raw?.favouritePosition ?? raw?.favoritePosition,
+      favBubbleInset: firstDefined(
+        favouriteStyles?.inset,
+        favouriteStyles?.offset,
+        favouriteStyles?.bubbleInset,
+        raw?.favBubbleInset,
+        raw?.favBubbleOffset,
+        raw?.favoriteInset
+      ),
       favBubbleBgColor: favouriteStyles?.bg ?? raw?.favouriteBg ?? raw?.favoriteBg,
     },
     favouriteStyles
   );
+  const favouriteOverlayStyle = resolveImageOverlayPosition({
+    position: favouriteToggleConfig.position,
+    fallback: "top-right",
+    inset: favouriteToggleConfig.inset,
+    horizontalOffset: imageHorizontalOffset,
+    verticalOffset: imageFramePaddingY,
+  });
+  const favouriteImageConfig = {
+    ...favouriteToggleConfig,
+    inset: 0,
+  };
+  const favouriteBubblePadding = Math.max(
+    favouriteToggleConfig.paddingTop || 0,
+    favouriteToggleConfig.paddingRight || 0,
+    favouriteToggleConfig.paddingBottom || 0,
+    favouriteToggleConfig.paddingLeft || 0,
+    0
+  );
+  const favouriteBubbleSize = Math.max(
+    30,
+    Math.max(favouriteToggleConfig.favoriteIconSize || 0, favouriteToggleConfig.unfavoriteIconSize || 0) +
+      favouriteBubblePadding * 2
+  );
+  const shareStackOffset = favouriteVisible
+    ? Math.max(0, favouriteToggleConfig.inset) + favouriteBubbleSize
+    : 0;
   const ratingIconSize = toNumber(reviewStyles?.icon?.size, 12);
+  const ratingInset = toNumber(
+    firstDefined(
+      reviewStyles?.inset,
+      reviewStyles?.offset,
+      reviewStyles?.bubbleInset,
+      reviewStyles?.reviewsInset,
+      raw?.ratingInset,
+      raw?.reviewsInset
+    ),
+    16
+  );
+  const ratingOverlayStyle = resolveImageOverlayPosition({
+    position: reviewStyles?.position,
+    fallback: "bottom-left",
+    inset: ratingInset,
+    horizontalOffset: imageHorizontalOffset,
+    verticalOffset: imageFramePaddingY,
+  });
 
   // ── Font families ─────────────────────────────────────────────────────────
   const ratingFontFamily = resolveFirstFont(raw?.ratingFontFamily, reviewStyles?.rating?.fontFamily, reviewStyles?.fontFamily, raw?.fontFamily);
@@ -276,7 +362,7 @@ export default function ProductLibrary({ section }) {
 
       {/* ── Gallery + overlays ─────────────────────────────────────────────── */}
       <View
-        style={[styles.galleryWrap, { height: imageHeight + 16 }]}
+        style={[styles.galleryWrap, { height: imageHeight + imageFramePaddingY * 2 }]}
         onLayout={(event) => {
           const nextWidth = Math.round(event.nativeEvent.layout.width || 0);
           if (nextWidth > 0 && nextWidth !== galleryWidth) {
@@ -304,7 +390,7 @@ export default function ProductLibrary({ section }) {
           {images.map((uri, idx) => (
             <Pressable
               key={`img-${idx}`}
-              style={{ width: galleryWidth, alignItems: "center", paddingVertical: 8 }}
+              style={{ width: galleryWidth, alignItems: "center", paddingVertical: imageFramePaddingY }}
               onPress={() => setIsFullscreenVisible(true)}
               accessibilityRole="button"
               accessibilityLabel="Open product image fullscreen"
@@ -334,7 +420,8 @@ export default function ProductLibrary({ section }) {
         {favouriteVisible && (
           <FavoriteToggleButton
             isFavorite={isFavourite}
-            config={favouriteToggleConfig}
+            config={favouriteImageConfig}
+            style={favouriteOverlayStyle}
             onPress={handleToggleFavourite}
             accessibilityLabel={isFavourite ? "Remove from favourites" : "Add to favourites"}
           />
@@ -345,7 +432,13 @@ export default function ProductLibrary({ section }) {
           <View
             style={[
               styles.iconBubble,
-              normalizePosition(shareStyles?.position, styles.shareBubble),
+              resolveImageOverlayPosition({
+                position: shareStyles?.position,
+                fallback: "top-right",
+                inset: toNumber(firstDefined(shareStyles?.inset, shareStyles?.offset, raw?.shareInset), 16),
+                horizontalOffset: imageHorizontalOffset,
+                verticalOffset: imageFramePaddingY + shareStackOffset,
+              }),
               {
                 backgroundColor: toString(shareStyles?.bg, "#e5f3f4"),
                 borderRadius: toNumber(shareStyles?.corner, 17),
@@ -375,7 +468,7 @@ export default function ProductLibrary({ section }) {
                 paddingBottom: toNumber(reviewStyles?.padding?.bottom, 4),
                 paddingLeft: toNumber(reviewStyles?.padding?.left, 6),
               },
-              normalizePosition(reviewStyles?.position, styles.ratingBubblePos),
+              ratingOverlayStyle,
             ]}
           >
             {ratingIconVisible && (
@@ -525,14 +618,6 @@ const styles = StyleSheet.create({
     top: 24,
     left: 24,
   },
-  favBubble: {
-    top: 24,
-    right: 24,
-  },
-  shareBubble: {
-    top: 72,
-    right: 24,
-  },
   ratingBubble: {
     position: "absolute",
     flexDirection: "row",
@@ -546,10 +631,6 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.10,
     shadowRadius: 2,
     elevation: 2,
-  },
-  ratingBubblePos: {
-    left: 24,
-    bottom: 24,
   },
   // ── Thumbnails ────────────────────────────────────────────────────────────
   thumbRow: {

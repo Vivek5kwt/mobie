@@ -1,4 +1,8 @@
 import { fetchStoreConfig, getStoreConfigSync } from './storeService';
+import {
+  currencySymbolForCode as sharedCurrencySymbolForCode,
+  formatMoney as formatSharedMoney,
+} from '../utils/money';
 
 const STOREFRONT_VERSION = "2024-10";
 // Backend proxy — handles Shopify auth server-side so the mobile app
@@ -764,20 +768,6 @@ const buildBuyerIdentity = (options = {}) => {
   return buyerIdentity;
 };
 
-const currencySymbolForCode = (code = "") => {
-  const normalized = String(code || "").trim().toUpperCase();
-  const symbols = {
-    INR: "₹",
-    USD: "$",
-    CAD: "$",
-    AUD: "$",
-    EUR: "€",
-    GBP: "£",
-    JPY: "¥",
-  };
-  return symbols[normalized] || normalized || "$";
-};
-
 const formatOrderStatus = (fulfillmentStatus, financialStatus) => {
   const raw = String(fulfillmentStatus || financialStatus || "").trim();
   if (!raw) return "";
@@ -907,7 +897,7 @@ const shopifyAdminRequest = async ({ path, method = "GET", body }) => {
 const mapAdminOrder = (adminOrder = {}, fallback = {}) => {
   if (!adminOrder || typeof adminOrder !== "object") return fallback;
   const currency = adminOrder.currency || fallback.currencyCode || "";
-  const currencySymbol = currency ? currencySymbolForCode(currency) : fallback.currencySymbol || "";
+  const currencySymbol = currency ? sharedCurrencySymbolForCode(currency) : fallback.currencySymbol || "";
   const paymentGatewayNames = Array.isArray(adminOrder.payment_gateway_names)
     ? adminOrder.payment_gateway_names.filter(Boolean)
     : [];
@@ -966,7 +956,7 @@ const mapAdminOrder = (adminOrder = {}, fallback = {}) => {
           quantity: line.quantity || 1,
           priceAmount: parseFloat(line.price || 0),
           priceCurrency: currency,
-          price: `${currencySymbol}${parseFloat(line.price || 0).toFixed(2)}`,
+          price: formatSharedMoney(line.price || 0, currency),
         })),
   };
 };
@@ -1776,7 +1766,7 @@ export async function fetchCustomerOrders({ customerAccessToken, first = 10 } = 
       const shippingMoney = node.totalShippingPriceV2 || {};
       const taxMoney = node.totalTaxV2 || {};
       const currency = totalMoney?.currencyCode || subtotalMoney?.currencyCode || creds.currency || "";
-      const currencySymbol = currencySymbolForCode(currency);
+      const currencySymbol = sharedCurrencySymbolForCode(currency);
       return {
         id:             node.id,
         name:           node.name || (node.orderNumber ? `#${node.orderNumber}` : ""),
@@ -1816,7 +1806,7 @@ export async function fetchCustomerOrders({ customerAccessToken, first = 10 } = 
           priceAmount:   parseFloat(li.variant?.price?.amount || 0),
           priceCurrency: li.variant?.price?.currencyCode || currency,
           price:         li.variant?.price
-            ? `${currencySymbolForCode(li.variant.price.currencyCode || currency)}${parseFloat(li.variant.price.amount || 0).toFixed(2)}`
+            ? formatSharedMoney(li.variant.price.amount || 0, li.variant.price.currencyCode || currency)
             : "",
           quantity:      li.quantity,
         })),

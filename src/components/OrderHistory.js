@@ -16,6 +16,7 @@ import { getStoredOrders, mergeOrdersByIdentity } from "../services/orderHistory
 import { getStoreConfigSync } from "../services/storeService";
 import { addItem } from "../store/slices/cartSlice";
 import { resolveFont } from "../services/typographyService";
+import { formatMoney as formatSharedMoney } from "../utils/money";
 
 const deepUnwrap = (value) => {
   if (value === undefined || value === null) return value;
@@ -93,33 +94,18 @@ const pickCustomerAccessToken = (session) => {
   return "";
 };
 
-const currencySymbolForCode = (code = "") => {
-  const normalized = String(code || "").trim().toUpperCase();
-  const symbols = {
-    INR: "₹",
-    USD: "$",
-    CAD: "$",
-    AUD: "$",
-    EUR: "€",
-    GBP: "£",
-    JPY: "¥",
-  };
-  return symbols[normalized] || normalized || "";
-};
-
-const formatMoney = (amount, order = {}, fallbackSymbol = "") => {
-  if (typeof amount === "string" && amount.trim()) return amount.trim();
-  const numeric = Number(amount);
+const formatOrderMoney = (amount, order = {}, fallbackSymbol = "") => {
   const storeCurrencyCode = getStoreConfigSync()?.currency || "";
   const resolvedCode = order.currencyCode || order.priceCurrency || storeCurrencyCode;
   const orderSymbol = order.currencySymbol === "$" && resolvedCode
     ? ""
     : order.currencySymbol;
-  const symbol =
+  const currency =
     orderSymbol ||
-    currencySymbolForCode(resolvedCode) ||
+    resolvedCode ||
     fallbackSymbol;
-  return `${symbol}${Number.isFinite(numeric) ? numeric.toFixed(2) : "0.00"}`;
+  const value = amount === undefined || amount === null || amount === "" ? 0 : amount;
+  return formatSharedMoney(value, currency);
 };
 
 const orderNumberText = (order = {}) => {
@@ -338,7 +324,7 @@ export default function OrderHistory({ section }) {
         const imageUrl =
           toStr(order.image || order.imageUrl || firstItem.image || firstItem.imageUrl, "");
         const date = orderDateText(order);
-        const total = formatMoney(order.total ?? order.price ?? order.amount, order);
+        const total = formatOrderMoney(order.total ?? order.price ?? order.amount, order);
         const status = toStr(order.status || order.fulfillmentStatus || order.financialStatus, "");
 
         return (
