@@ -128,6 +128,17 @@ export default function SearchBar({ section }) {
   const get    = (key, fallback) => unwrapValue(rawProps?.[key], fallback);
   const getNum = (key, fallback) => toNumber(rawProps?.[key], fallback);
   const getBool = (key, fallback) => unwrapBoolean(rawProps?.[key], fallback);
+  const isDedicatedSearchPage = useMemo(() => {
+    const routeHint = String(
+      route?.params?.pageName ||
+      route?.params?.link ||
+      route?.params?.title ||
+      ""
+    )
+      .trim()
+      .toLowerCase();
+    return routeHint === "search" || routeHint.includes("search");
+  }, [route?.params?.link, route?.params?.pageName, route?.params?.title]);
 
   const paddingTop    = getNum("pt", 12);
   const paddingBottom = getNum("pb", 12);
@@ -337,6 +348,12 @@ export default function SearchBar({ section }) {
   );
 
   useEffect(() => {
+    if (isDedicatedSearchPage) {
+      setResults([]);
+      setError("");
+      setLoading(false);
+      return;
+    }
     const term = value.trim();
     if (!term) {
       setResults([]);
@@ -346,7 +363,12 @@ export default function SearchBar({ section }) {
     }
     const t = setTimeout(() => runSearch(term), 350);
     return () => clearTimeout(t);
-  }, [value, runSearch]);
+  }, [isDedicatedSearchPage, value, runSearch]);
+
+  useEffect(() => {
+    if (!isDedicatedSearchPage) return;
+    DeviceEventEmitter.emit("mobidrag:search:queryChanged", { query: value.trim() });
+  }, [isDedicatedSearchPage, value]);
 
   useEffect(() => {
     const sub = DeviceEventEmitter.addListener("mobidrag:search:setQuery", (payload) => {
@@ -485,7 +507,7 @@ export default function SearchBar({ section }) {
   }, []);
 
   const searchTerm = value.trim();
-  const showSearchPanel = searchTerm.length > 0 && (isFocused || submittedTerm || loading || results.length > 0 || error);
+  const showSearchPanel = !isDedicatedSearchPage && searchTerm.length > 0 && (isFocused || submittedTerm || loading || results.length > 0 || error);
   const visibleResults = submittedTerm ? results : results.slice(0, autocompleteLimit);
   const searchPanelTitle = submittedTerm ? `${resultsTitle} for "${submittedTerm}"` : suggestionsTitle;
   const showSearchAllRow = !submittedTerm && !!searchTerm;
@@ -517,8 +539,8 @@ export default function SearchBar({ section }) {
               returnKeyType="search"
               blurOnSubmit={false}
             />
-            {!value && !isFocused && (
-              <Text numberOfLines={1} style={[styles.placeholderOverlay, placeholderTextStyle]}>
+            {!value && (
+              <Text pointerEvents="none" numberOfLines={1} style={[styles.placeholderOverlay, placeholderTextStyle]}>
                 {searchPlaceholder}
               </Text>
             )}

@@ -1425,11 +1425,15 @@ export async function searchShopifyProducts(searchTerm, limit = 10, options = {}
             handle
             vendor
             productType
+            availableForSale
             tags
+            description
             options {
               name
               values
             }
+            rating: metafield(namespace: "reviews", key: "rating") { value }
+            ratingCount: metafield(namespace: "reviews", key: "rating_count") { value }
             featuredImage { url }
             images(first: 1) { edges { node { url } } }
             priceRangeV2 { minVariantPrice { amount currencyCode } }
@@ -1488,13 +1492,16 @@ export async function searchShopifyProducts(searchTerm, limit = 10, options = {}
         vendor: node?.vendor || "",
         productType: node?.productType || "",
         tags: node?.tags || [],
+        description: node?.description || "",
         options: node?.options || [],
-        availableForSale: true,
+        availableForSale: node?.availableForSale ?? true,
         variantId: variant?.id || null,
         imageUrl: node?.featuredImage?.url || node?.images?.edges?.[0]?.node?.url || null,
         priceAmount: priceNode?.amount || null,
         priceCurrency: priceNode?.currencyCode || null,
         compareAtPrice: variant?.compareAtPrice || null,
+        rating: node?.rating?.value || null,
+        ratingCount: node?.ratingCount?.value || null,
       };
     });
 

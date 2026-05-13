@@ -205,20 +205,23 @@ export default function Header2({ section }) {
 
   const openBottomNavTarget = (target) => {
     const items = resolveBottomNavItems(bottomNavSection);
-    const fallbackIndex = target === "cart" ? 1 : 2;
+    const fallbackIndex = target === "cart" ? 1 : target === "search" ? 0 : 2;
     const resolvedIndex = resolveBottomNavIndex(items, target);
     const activeIndex = resolvedIndex >= 0 ? resolvedIndex : fallbackIndex;
-    const item = items[activeIndex];
+    const item = resolvedIndex >= 0 ? items[activeIndex] : null;
     const title =
       item?.label ||
       item?.title ||
       item?.name ||
-      (target === "cart" ? "Cart" : "Notifications");
+      (target === "cart" ? "Cart" : target === "search" ? "Search" : "Notifications");
     const rawLink = item?.link ?? item?.href ?? item?.url ?? "";
-    const link = typeof rawLink === "string" ? rawLink.replace(/^\//, "") : "";
+    const link = typeof rawLink === "string" && rawLink.trim()
+      ? rawLink.replace(/^\//, "")
+      : target;
     const params = {
       title,
       link,
+      pageName: link || target,
       activeIndex,
       bottomNavSection,
     };
@@ -1139,7 +1142,10 @@ export default function Header2({ section }) {
             ]}>
               <TouchableOpacity
                 style={styles.searchIconContainer}
-                onPress={submitHeaderSearch}
+                onPress={() => {
+                  if (searchValue.trim()) submitHeaderSearch();
+                  else openBottomNavTarget("search");
+                }}
                 activeOpacity={0.7}
                 accessibilityLabel="Search products"
                 accessibilityRole="button"
@@ -1160,6 +1166,8 @@ export default function Header2({ section }) {
                 selectionColor="#131A1D"
                 returnKeyType="search"
                 onSubmitEditing={submitHeaderSearch}
+                onFocus={() => openBottomNavTarget("search")}
+                onPressIn={() => openBottomNavTarget("search")}
               />
             </View>
           )}

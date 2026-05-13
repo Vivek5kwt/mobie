@@ -175,6 +175,10 @@ export default function TrendingSearches({ section }) {
 
   const headingVisible = toBoolean(rp("headingVisible"), true);
   const headingText = unwrapValue(rp("headingText") ?? rp("title"), "Trending Searches");
+  const activeHeadingText = unwrapValue(
+    rp("activeHeadingText") ?? rp("popularHeadingText") ?? rp("typingHeadingText"),
+    "Popular Searches"
+  );
   const headingColor = unwrapValue(rp("headingColor"), "#111827");
   const headingSize = toNumber(rp("headingFontSize") ?? rp("titleFontSize"), 16);
   const headingFontFamily = cleanFontFamily(rp("headingFontFamily"));
@@ -250,6 +254,14 @@ export default function TrendingSearches({ section }) {
   const [searches, setSearches] = useState(() => (useManualSearches ? manualSearches : []));
   const [loading, setLoading] = useState(() => !useManualSearches);
   const [error, setError] = useState("");
+  const [activeSearchQuery, setActiveSearchQuery] = useState("");
+
+  useEffect(() => {
+    const sub = DeviceEventEmitter.addListener("mobidrag:search:queryChanged", (payload) => {
+      setActiveSearchQuery(String(payload?.query || "").trim());
+    });
+    return () => sub.remove();
+  }, []);
 
   useEffect(() => {
     let alive = true;
@@ -335,6 +347,7 @@ export default function TrendingSearches({ section }) {
 
   const isRowLayout = chipLayout === "row";
   const skeletonWidths = [106, 78, 92, 118, 84, 98];
+  const displayedHeading = activeSearchQuery ? activeHeadingText : headingText;
 
   return (
     <View
@@ -359,7 +372,7 @@ export default function TrendingSearches({ section }) {
             },
           ]}
         >
-          {headingText}
+          {displayedHeading}
         </Text>
       )}
 

@@ -37,6 +37,10 @@ export default function FilterSortHeader({
   const pl           = resolveProp(raw, "pl", 16);
   const pr           = resolveProp(raw, "pr", 16);
   const showSortText = resolveProp(raw, "sortButtonTextVisible", true);
+  const compactControls =
+    resolveProp(raw, "compactSearchControls", false) === true ||
+    resolveProp(raw, "compactControls", false) === true ||
+    resolveProp(raw, "variant", "") === "searchResults";
 
   // Filter items from DSL (for the filter modal)
   const rawItems    = resolveProp(raw, "items", []);
@@ -47,10 +51,12 @@ export default function FilterSortHeader({
   const [selectedSort, setSelectedSort]   = useState("Popular");
   const [viewMode, setViewMode]           = useState("grid"); // "grid" | "list"
   const [filterVisible, setFilterVisible] = useState(false);
+  const [sortVisible, setSortVisible]     = useState(false);
   const [activeFilter, setActiveFilter]   = useState(null);
 
   const handleSortSelect = (opt) => {
     setSelectedSort(opt);
+    setSortVisible(false);
     onSortChange && onSortChange(opt);
   };
 
@@ -81,65 +87,134 @@ export default function FilterSortHeader({
   return (
     <>
       {/* ── Main bar ─────────────────────────────────────────────────── */}
-      <View style={[styles.bar, containerPad]}>
+      <View style={[styles.bar, compactControls && styles.compactBar, containerPad]}>
         {/* Left: Filter + Sort tabs */}
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.leftScroll}
-        >
-          {/* Filter button */}
-          <TouchableOpacity
-            style={styles.pill}
-            activeOpacity={0.75}
-            onPress={() => setFilterVisible(true)}
-          >
-            <Icon name="sliders" size={12} color="#111827" style={styles.pillIcon} />
-            {showSortText && (
-              <Text style={styles.pillText} numberOfLines={1}>
+        {compactControls ? (
+          <View style={styles.compactLeft}>
+            <TouchableOpacity
+              style={styles.compactPill}
+              activeOpacity={0.75}
+              onPress={() => setSortVisible(true)}
+            >
+              <Text style={styles.compactPillText} numberOfLines={1}>Sort</Text>
+              <Icon name="angle-down" size={12} color="#111827" />
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.compactPill}
+              activeOpacity={0.75}
+              onPress={() => setFilterVisible(true)}
+            >
+              <Text style={styles.compactPillText} numberOfLines={1}>
                 {activeFilter?.label || "Filter"}
               </Text>
-            )}
-          </TouchableOpacity>
-
-          {/* Sort option chips */}
-          {SORT_OPTIONS.map((opt) => {
-            const active = selectedSort === opt;
-            return (
-              <TouchableOpacity
-                key={opt}
-                style={[styles.pill, active && styles.pillActive]}
-                activeOpacity={0.75}
-                onPress={() => handleSortSelect(opt)}
-              >
-                <Text style={[styles.pillText, active && styles.pillTextActive]}>
-                  {opt}
+              <Icon name="angle-down" size={12} color="#111827" />
+            </TouchableOpacity>
+          </View>
+        ) : (
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.leftScroll}
+          >
+            {/* Filter button */}
+            <TouchableOpacity
+              style={styles.pill}
+              activeOpacity={0.75}
+              onPress={() => setFilterVisible(true)}
+            >
+              <Icon name="sliders" size={12} color="#111827" style={styles.pillIcon} />
+              {showSortText && (
+                <Text style={styles.pillText} numberOfLines={1}>
+                  {activeFilter?.label || "Filter"}
                 </Text>
-              </TouchableOpacity>
-            );
-          })}
-        </ScrollView>
+              )}
+            </TouchableOpacity>
+
+            {/* Sort option chips */}
+            {SORT_OPTIONS.map((opt) => {
+              const active = selectedSort === opt;
+              return (
+                <TouchableOpacity
+                  key={opt}
+                  style={[styles.pill, active && styles.pillActive]}
+                  activeOpacity={0.75}
+                  onPress={() => handleSortSelect(opt)}
+                >
+                  <Text style={[styles.pillText, active && styles.pillTextActive]}>
+                    {opt}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
+          </ScrollView>
+        )}
 
         {/* Right: List / Grid toggle */}
-        <View style={styles.viewToggle}>
+        <View style={[styles.viewToggle, compactControls && styles.compactViewToggle]}>
           <TouchableOpacity
-            style={[styles.toggleBtn, viewMode === "list" && styles.toggleBtnActive]}
+            style={[styles.toggleBtn, compactControls && styles.compactToggleBtn, viewMode === "list" && styles.toggleBtnActive]}
             activeOpacity={0.75}
             onPress={() => handleViewMode("list")}
           >
-            <Icon name="bars" size={14} color={viewMode === "list" ? "#111827" : "#9CA3AF"} />
+            <Icon name="bars" size={14} color={viewMode === "list" ? "#111827" : "#D1D5DB"} />
           </TouchableOpacity>
           <TouchableOpacity
-            style={[styles.toggleBtn, viewMode === "grid" && styles.toggleBtnActive]}
+            style={[styles.toggleBtn, compactControls && styles.compactToggleBtn, viewMode === "grid" && styles.toggleBtnActive]}
             activeOpacity={0.75}
             onPress={() => handleViewMode("grid")}
           >
-            <Icon name="th-large" size={14} color={viewMode === "grid" ? "#111827" : "#9CA3AF"} />
+            <Icon name="th-large" size={14} color={viewMode === "grid" ? "#111827" : "#D1D5DB"} />
           </TouchableOpacity>
+          {compactControls ? (
+            <TouchableOpacity
+              style={[styles.toggleBtn, styles.compactToggleBtn]}
+              activeOpacity={0.75}
+              onPress={() => handleViewMode("grid")}
+            >
+              <Icon name="th" size={14} color="#D1D5DB" />
+            </TouchableOpacity>
+          ) : null}
         </View>
       </View>
 
       {/* ── Filter Modal ─────────────────────────────────────────────── */}
+      <Modal
+        visible={sortVisible}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setSortVisible(false)}
+      >
+        <View style={styles.modalRoot}>
+          <TouchableOpacity
+            style={styles.backdrop}
+            activeOpacity={1}
+            onPress={() => setSortVisible(false)}
+          />
+          <View style={styles.sheet}>
+            <View style={styles.sheetHandle} />
+            <Text style={styles.sheetTitle}>Sort Products</Text>
+            <View style={styles.sortOptions}>
+              {SORT_OPTIONS.map((opt) => {
+                const active = selectedSort === opt;
+                return (
+                  <TouchableOpacity
+                    key={opt}
+                    style={[styles.sortOption, active && styles.sortOptionActive]}
+                    activeOpacity={0.75}
+                    onPress={() => handleSortSelect(opt)}
+                  >
+                    <Text style={[styles.sortOptionText, active && styles.sortOptionTextActive]}>
+                      {opt}
+                    </Text>
+                    {active ? <Icon name="check" size={13} color="#111827" /> : null}
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+          </View>
+        </View>
+      </Modal>
+
       <Modal
         visible={filterVisible}
         transparent
@@ -220,6 +295,30 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: "#F3F4F6",
   },
+  compactBar: {
+    justifyContent: "space-between",
+    borderBottomWidth: 0,
+  },
+  compactLeft: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    flexShrink: 1,
+  },
+  compactPill: {
+    minHeight: 34,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    paddingHorizontal: 14,
+    borderRadius: 18,
+    backgroundColor: "#ECECEC",
+  },
+  compactPillText: {
+    fontSize: 14,
+    fontWeight: "500",
+    color: "#111827",
+  },
 
   // Scrollable left area
   leftScroll: {
@@ -264,6 +363,9 @@ const styles = StyleSheet.create({
     marginLeft: 8,
     gap: 4,
   },
+  compactViewToggle: {
+    gap: 8,
+  },
   toggleBtn: {
     width: 32,
     height: 32,
@@ -273,6 +375,12 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     backgroundColor: "#fff",
+  },
+  compactToggleBtn: {
+    width: 24,
+    height: 28,
+    borderWidth: 0,
+    backgroundColor: "transparent",
   },
   toggleBtnActive: {
     backgroundColor: "#F3F4F6",
@@ -316,6 +424,30 @@ const styles = StyleSheet.create({
   },
   filterScroll: {
     maxHeight: 360,
+  },
+  sortOptions: {
+    gap: 8,
+  },
+  sortOption: {
+    minHeight: 44,
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    backgroundColor: "#FFFFFF",
+  },
+  sortOptionActive: {
+    backgroundColor: "#F3F4F6",
+  },
+  sortOptionText: {
+    color: "#374151",
+    fontSize: 14,
+    fontWeight: "500",
+  },
+  sortOptionTextActive: {
+    color: "#111827",
+    fontWeight: "700",
   },
   filterChips: {
     flexDirection: "row",
