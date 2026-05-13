@@ -14,6 +14,7 @@ import {
   View,
 } from 'react-native';
 import { useFocusEffect, useNavigation, useRoute } from '@react-navigation/native';
+import LinearGradient from 'react-native-linear-gradient';
 import Icon from 'react-native-vector-icons/FontAwesome6';
 import { useAuth } from '../services/AuthContext';
 import { fetchDSL } from '../engine/dslHandler';
@@ -24,6 +25,11 @@ import DynamicRenderer from '../engine/DynamicRenderer';
 import { getHeaderDefault } from '../services/headerDefaultService';
 import { getAppNameSync } from '../utils/appInfo';
 import { resolveFont } from '../services/typographyService';
+
+type ButtonGradient = {
+  colors: string[];
+  angle: number;
+};
 
 type SignInTokens = {
   bgColor: string;
@@ -48,6 +54,7 @@ type SignInTokens = {
   buttonBorderColor: string;
   buttonBorderWidth: number;
   buttonFillColor: string;
+  buttonGradient: ButtonGradient | null;
   buttonPaddingTop: number;
   buttonPaddingBottom: number;
   buttonAutoUppercase: boolean;
@@ -81,12 +88,20 @@ type SignInTokens = {
   passwordInputTextFontWeight: string;
   emailPlaceholderColor: string;
   passwordPlaceholderColor: string;
+  emailPlaceholderFontSize: number;
+  passwordPlaceholderFontSize: number;
+  emailPlaceholderFontFamily: string;
+  passwordPlaceholderFontFamily: string;
+  emailPlaceholderFontWeight: string;
+  passwordPlaceholderFontWeight: string;
   buttonFontSize: number;
   buttonFontFamily: string;
   buttonFontWeight: string;
   buttonHeight: number;
   buttonWidth: number;
   footerTextFontSize: number;
+  footerTextFontFamily: string;
+  footerTextFontWeight: string;
   footerLinkFontSize: number;
   footerLinkFontFamily: string;
   footerLinkFontWeight: string;
@@ -253,9 +268,46 @@ const toFontFamily = (value: unknown, fallback = 'System'): string => {
 const resolveButtonColor = (value: unknown, fallback: string): string => {
   const resolved = unwrapValue(value as string | null | undefined, fallback);
   if (typeof resolved === 'string' && resolved.trim().startsWith('linear-gradient')) {
-    return fallback;
+    return resolved.match(/rgba?\([^)]+\)|#[0-9a-fA-F]{3,8}/)?.[0] ?? fallback;
   }
   return resolved ?? fallback;
+};
+
+const splitGradientParts = (value: string): string[] => {
+  const parts: string[] = [];
+  let depth = 0;
+  let current = '';
+  for (const char of value) {
+    if (char === '(') depth += 1;
+    if (char === ')') depth = Math.max(0, depth - 1);
+    if (char === ',' && depth === 0) {
+      parts.push(current.trim());
+      current = '';
+      continue;
+    }
+    current += char;
+  }
+  if (current.trim()) parts.push(current.trim());
+  return parts;
+};
+
+const resolveButtonGradient = (value: unknown): ButtonGradient | null => {
+  const resolved = unwrapValue(value as string | null | undefined, '');
+  if (typeof resolved !== 'string' || !resolved.trim().startsWith('linear-gradient')) {
+    return null;
+  }
+  const match = resolved.match(/linear-gradient\((.*)\)/);
+  if (!match) return null;
+  const parts = splitGradientParts(match[1]);
+  const angleMatch = parts[0]?.match(/(-?\d+(?:\.\d+)?)deg/);
+  const colors = parts
+    .map((part) => part.match(/rgba?\([^)]+\)|#[0-9a-fA-F]{3,8}/)?.[0])
+    .filter((color): color is string => Boolean(color));
+  if (colors.length < 2) return null;
+  return {
+    colors,
+    angle: angleMatch ? Number(angleMatch[1]) : 180,
+  };
 };
 
 const resolveBorderWidth = (line: unknown, color: unknown, fallback: number): number => {
@@ -331,6 +383,7 @@ const defaultSignInTokens: SignInTokens = {
   buttonBorderColor: '#0c9297',
   buttonBorderWidth: 1,
   buttonFillColor: '#0C9297',
+  buttonGradient: null,
   buttonPaddingTop: 14,
   buttonPaddingBottom: 14,
   buttonAutoUppercase: false,
@@ -364,12 +417,20 @@ const defaultSignInTokens: SignInTokens = {
   passwordInputTextFontWeight: '400',
   emailPlaceholderColor: '#A0AEC0',
   passwordPlaceholderColor: '#A0AEC0',
+  emailPlaceholderFontSize: 15,
+  passwordPlaceholderFontSize: 15,
+  emailPlaceholderFontFamily: 'System',
+  passwordPlaceholderFontFamily: 'System',
+  emailPlaceholderFontWeight: '400',
+  passwordPlaceholderFontWeight: '400',
   buttonFontSize: 16,
   buttonFontFamily: 'System',
   buttonFontWeight: '700',
   buttonHeight: 50,
   buttonWidth: 100,
   footerTextFontSize: 14,
+  footerTextFontFamily: 'System',
+  footerTextFontWeight: '400',
   footerLinkFontSize: 14,
   footerLinkFontFamily: 'System',
   footerLinkFontWeight: '700',
@@ -526,6 +587,9 @@ const toFontWeight = (
     if (normalized === 'medium') return '500';
     return value;
   }
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    return String(value);
+  }
   if (isBold !== undefined) {
     return isBold ? '700' : '400';
   }
@@ -585,7 +649,8 @@ const buildSignInTokens = (rawProps: Record<string, unknown>): SignInTokens => (
   buttonTextColor: (rawProps?.buttontextColor as string) ?? (rawProps?.buttonTextColor as string) ?? defaultSignInTokens.buttonTextColor,
   buttonBorderColor: (rawProps?.buttonBorderColor as string) ?? defaultSignInTokens.buttonBorderColor,
   buttonBorderWidth: resolveBorderWidth(rawProps?.buttonBorderLine, rawProps?.buttonBorderColor, defaultSignInTokens.buttonBorderWidth),
-  buttonFillColor: resolveButtonColor(rawProps?.buttonbgColor ?? rawProps?.buttonBgColor, defaultSignInTokens.buttonFillColor),
+  buttonFillColor: resolveButtonColor(rawProps?.buttonBgColor ?? rawProps?.buttonbgColor, defaultSignInTokens.buttonFillColor),
+  buttonGradient: resolveButtonGradient(rawProps?.buttonBgColor ?? rawProps?.buttonbgColor),
   buttonPaddingTop: toNumber(rawProps?.buttonPaddingTop, defaultSignInTokens.buttonPaddingTop),
   buttonPaddingBottom: toNumber(rawProps?.buttonPaddingBottom, defaultSignInTokens.buttonPaddingBottom),
   buttonAutoUppercase: (rawProps?.buttonAutoUppercase as boolean) ?? defaultSignInTokens.buttonAutoUppercase,
@@ -611,20 +676,28 @@ const buildSignInTokens = (rawProps: Record<string, unknown>): SignInTokens => (
   passwordLabelFontWeight: toFontWeight(rawProps?.passwordLabelFontWeight, defaultSignInTokens.passwordLabelFontWeight),
   emailInputTextColor: (rawProps?.emailInputTextColor as string) ?? defaultSignInTokens.emailInputTextColor,
   passwordInputTextColor: (rawProps?.passwordInputTextColor as string) ?? defaultSignInTokens.passwordInputTextColor,
-  emailInputTextFontSize: toNumber(rawProps?.emailInputTextFontSize, defaultSignInTokens.emailInputTextFontSize),
-  passwordInputTextFontSize: toNumber(rawProps?.passwordInputTextFontSize, defaultSignInTokens.passwordInputTextFontSize),
+  emailInputTextFontSize: toNumber(rawProps?.emailInputTextFontSize ?? rawProps?.inputFontSize ?? rawProps?.fontSize, defaultSignInTokens.emailInputTextFontSize),
+  passwordInputTextFontSize: toNumber(rawProps?.passwordInputTextFontSize ?? rawProps?.inputFontSize ?? rawProps?.fontSize, defaultSignInTokens.passwordInputTextFontSize),
   emailInputTextFontFamily: toFontFamily(rawProps?.emailInputTextFontFamily ?? rawProps?.fontFamily, defaultSignInTokens.emailInputTextFontFamily),
   passwordInputTextFontFamily: toFontFamily(rawProps?.passwordInputTextFontFamily ?? rawProps?.fontFamily, defaultSignInTokens.passwordInputTextFontFamily),
-  emailInputTextFontWeight: toFontWeight(rawProps?.emailInputTextFontWeight, defaultSignInTokens.emailInputTextFontWeight),
-  passwordInputTextFontWeight: toFontWeight(rawProps?.passwordInputTextFontWeight, defaultSignInTokens.passwordInputTextFontWeight),
+  emailInputTextFontWeight: toFontWeight(rawProps?.emailInputTextFontWeight ?? rawProps?.fontWeight, defaultSignInTokens.emailInputTextFontWeight),
+  passwordInputTextFontWeight: toFontWeight(rawProps?.passwordInputTextFontWeight ?? rawProps?.fontWeight, defaultSignInTokens.passwordInputTextFontWeight),
   emailPlaceholderColor: (rawProps?.emailPlaceholderColor as string) ?? defaultSignInTokens.emailPlaceholderColor,
   passwordPlaceholderColor: (rawProps?.passwordPlaceholderColor as string) ?? defaultSignInTokens.passwordPlaceholderColor,
+  emailPlaceholderFontSize: toNumber(rawProps?.emailPlaceholderFontSize ?? rawProps?.placeholderFontSize ?? rawProps?.fontSize, defaultSignInTokens.emailPlaceholderFontSize),
+  passwordPlaceholderFontSize: toNumber(rawProps?.passwordPlaceholderFontSize ?? rawProps?.placeholderFontSize ?? rawProps?.fontSize, defaultSignInTokens.passwordPlaceholderFontSize),
+  emailPlaceholderFontFamily: toFontFamily(rawProps?.emailPlaceholderFontFamily ?? rawProps?.placeholderFontFamily ?? rawProps?.fontFamily, defaultSignInTokens.emailPlaceholderFontFamily),
+  passwordPlaceholderFontFamily: toFontFamily(rawProps?.passwordPlaceholderFontFamily ?? rawProps?.placeholderFontFamily ?? rawProps?.fontFamily, defaultSignInTokens.passwordPlaceholderFontFamily),
+  emailPlaceholderFontWeight: toFontWeight(rawProps?.emailPlaceholderFontWeight ?? rawProps?.placeholderFontWeight ?? rawProps?.fontWeight, defaultSignInTokens.emailPlaceholderFontWeight),
+  passwordPlaceholderFontWeight: toFontWeight(rawProps?.passwordPlaceholderFontWeight ?? rawProps?.placeholderFontWeight ?? rawProps?.fontWeight, defaultSignInTokens.passwordPlaceholderFontWeight),
   buttonFontSize: toNumber(rawProps?.buttonfontSize ?? rawProps?.buttonFontSize, defaultSignInTokens.buttonFontSize),
   buttonFontFamily: toFontFamily(rawProps?.buttonFontFamily ?? rawProps?.fontFamily, defaultSignInTokens.buttonFontFamily),
   buttonFontWeight: toFontWeight(rawProps?.buttonfontWeight ?? rawProps?.buttonFontWeight, defaultSignInTokens.buttonFontWeight),
   buttonHeight: toNumber(rawProps?.buttonHeight, defaultSignInTokens.buttonHeight),
   buttonWidth: toNumber(rawProps?.buttonWidth, defaultSignInTokens.buttonWidth),
-  footerTextFontSize: toNumber(rawProps?.footerTextFontSize, defaultSignInTokens.footerTextFontSize),
+  footerTextFontSize: toNumber(rawProps?.footerTextFontSize ?? rawProps?.subtextSize ?? rawProps?.fontSize, defaultSignInTokens.footerTextFontSize),
+  footerTextFontFamily: toFontFamily(rawProps?.footerTextFontFamily ?? rawProps?.subtextFontFamily ?? rawProps?.fontFamily, defaultSignInTokens.footerTextFontFamily),
+  footerTextFontWeight: toFontWeight(rawProps?.footerTextFontWeight ?? rawProps?.subtextWeight ?? rawProps?.fontWeight, defaultSignInTokens.footerTextFontWeight),
   footerLinkFontSize: toNumber(rawProps?.footerLinkFontSize, defaultSignInTokens.footerLinkFontSize),
   footerLinkFontFamily: toFontFamily(rawProps?.footerLinkFontFamily ?? rawProps?.fontFamily, defaultSignInTokens.footerLinkFontFamily),
   footerLinkFontWeight: toFontWeight(rawProps?.footerLinkFontWeight, defaultSignInTokens.footerLinkFontWeight),
@@ -752,18 +825,25 @@ const buildSignUpTokens = (rawProps: Record<string, unknown>): SignUpTokens => (
   firstNameInputTextFontFamily: toFontFamily(rawProps?.firstNameInputTextFontFamily ?? rawProps?.fontFamily, defaultSignUpTokens.firstNameInputTextFontFamily),
   lastNameInputTextFontFamily: toFontFamily(rawProps?.lastNameInputTextFontFamily ?? rawProps?.fontFamily, defaultSignUpTokens.lastNameInputTextFontFamily),
   passwordInputTextFontFamily: toFontFamily(rawProps?.passwordInputTextFontFamily ?? rawProps?.fontFamily, defaultSignUpTokens.passwordInputTextFontFamily),
-  emailInputTextFontWeight: toFontWeight(rawProps?.emailInputTextFontWeight, defaultSignUpTokens.emailInputTextFontWeight),
+  emailInputTextFontWeight: toFontWeight(rawProps?.emailInputTextFontWeight ?? rawProps?.fontWeight, defaultSignUpTokens.emailInputTextFontWeight),
   firstNameInputTextFontWeight: toFontWeight(rawProps?.firstNameInputTextFontWeight, defaultSignUpTokens.firstNameInputTextFontWeight),
   lastNameInputTextFontWeight: toFontWeight(rawProps?.lastNameInputTextFontWeight, defaultSignUpTokens.lastNameInputTextFontWeight),
-  passwordInputTextFontWeight: toFontWeight(rawProps?.passwordInputTextFontWeight, defaultSignUpTokens.passwordInputTextFontWeight),
+  passwordInputTextFontWeight: toFontWeight(rawProps?.passwordInputTextFontWeight ?? rawProps?.fontWeight, defaultSignUpTokens.passwordInputTextFontWeight),
   emailPlaceholderColor: (rawProps?.emailPlaceholderColor as string) ?? defaultSignUpTokens.emailPlaceholderColor,
   firstNamePlaceholderColor: (rawProps?.firstNamePlaceholderColor as string) ?? defaultSignUpTokens.firstNamePlaceholderColor,
   lastNamePlaceholderColor: (rawProps?.lastNamePlaceholderColor as string) ?? defaultSignUpTokens.lastNamePlaceholderColor,
   passwordPlaceholderColor: (rawProps?.passwordPlaceholderColor as string) ?? defaultSignUpTokens.passwordPlaceholderColor,
+  emailPlaceholderFontSize: toNumber(rawProps?.emailPlaceholderFontSize ?? rawProps?.placeholderFontSize ?? rawProps?.fontSize, defaultSignUpTokens.emailPlaceholderFontSize),
+  passwordPlaceholderFontSize: toNumber(rawProps?.passwordPlaceholderFontSize ?? rawProps?.placeholderFontSize ?? rawProps?.fontSize, defaultSignUpTokens.passwordPlaceholderFontSize),
+  emailPlaceholderFontFamily: toFontFamily(rawProps?.emailPlaceholderFontFamily ?? rawProps?.placeholderFontFamily ?? rawProps?.fontFamily, defaultSignUpTokens.emailPlaceholderFontFamily),
+  passwordPlaceholderFontFamily: toFontFamily(rawProps?.passwordPlaceholderFontFamily ?? rawProps?.placeholderFontFamily ?? rawProps?.fontFamily, defaultSignUpTokens.passwordPlaceholderFontFamily),
+  emailPlaceholderFontWeight: toFontWeight(rawProps?.emailPlaceholderFontWeight ?? rawProps?.placeholderFontWeight ?? rawProps?.fontWeight, defaultSignUpTokens.emailPlaceholderFontWeight),
+  passwordPlaceholderFontWeight: toFontWeight(rawProps?.passwordPlaceholderFontWeight ?? rawProps?.placeholderFontWeight ?? rawProps?.fontWeight, defaultSignUpTokens.passwordPlaceholderFontWeight),
   buttonTextColor: (rawProps?.buttontextColor as string) ?? (rawProps?.buttonTextColor as string) ?? defaultSignUpTokens.buttonTextColor,
   buttonBorderColor: (rawProps?.buttonBorderColor as string) ?? defaultSignUpTokens.buttonBorderColor,
   buttonBorderWidth: resolveBorderWidth(rawProps?.buttonBorderLine, rawProps?.buttonBorderColor, defaultSignUpTokens.buttonBorderWidth),
-  buttonFillColor: resolveButtonColor(rawProps?.buttonbgColor ?? rawProps?.buttonBgColor, defaultSignUpTokens.buttonFillColor),
+  buttonFillColor: resolveButtonColor(rawProps?.buttonBgColor ?? rawProps?.buttonbgColor, defaultSignUpTokens.buttonFillColor),
+  buttonGradient: resolveButtonGradient(rawProps?.buttonBgColor ?? rawProps?.buttonbgColor),
   buttonPaddingTop: toNumber(rawProps?.buttonPaddingTop, defaultSignUpTokens.buttonPaddingTop),
   buttonPaddingBottom: toNumber(rawProps?.buttonPaddingBottom, defaultSignUpTokens.buttonPaddingBottom),
   buttonAutoUppercase: (rawProps?.buttonAutoUppercase as boolean) ?? defaultSignUpTokens.buttonAutoUppercase,
@@ -774,7 +854,9 @@ const buildSignUpTokens = (rawProps: Record<string, unknown>): SignUpTokens => (
   buttonFontWeight: toFontWeight(rawProps?.buttonfontWeight ?? rawProps?.buttonFontWeight, defaultSignUpTokens.buttonFontWeight),
   footerTextColor: (rawProps?.footerTextColor as string) ?? defaultSignUpTokens.footerTextColor,
   footerLinkColor: (rawProps?.footerLinkColor as string) ?? defaultSignUpTokens.footerLinkColor,
-  footerTextFontSize: capFontSize(toNumber(rawProps?.footerTextFontSize, defaultSignUpTokens.footerTextFontSize), 14),
+  footerTextFontSize: capFontSize(toNumber(rawProps?.footerTextFontSize ?? rawProps?.subtextSize ?? rawProps?.fontSize, defaultSignUpTokens.footerTextFontSize), 14),
+  footerTextFontFamily: toFontFamily(rawProps?.footerTextFontFamily ?? rawProps?.subtextFontFamily ?? rawProps?.fontFamily, defaultSignUpTokens.footerTextFontFamily),
+  footerTextFontWeight: toFontWeight(rawProps?.footerTextFontWeight ?? rawProps?.subtextWeight ?? rawProps?.fontWeight, defaultSignUpTokens.footerTextFontWeight),
   footerLinkFontSize: capFontSize(toNumber(rawProps?.footerLinkFontSize, defaultSignUpTokens.footerLinkFontSize), 14),
   footerLinkFontFamily: toFontFamily(rawProps?.footerLinkFontFamily ?? rawProps?.fontFamily, defaultSignUpTokens.footerLinkFontFamily),
   footerLinkFontWeight: toFontWeight(rawProps?.footerLinkFontWeight, defaultSignUpTokens.footerLinkFontWeight),
@@ -811,6 +893,9 @@ type FieldProps = {
   placeholder: string;
   placeholderVisible?: boolean;
   placeholderColor: string;
+  placeholderFontSize?: number;
+  placeholderFontFamily?: string;
+  placeholderFontWeight?: string;
   value: string;
   onChangeText: (v: string) => void;
   inputColor: string;
@@ -840,6 +925,9 @@ const FormField: React.FC<FieldProps> = ({
   placeholder,
   placeholderVisible = true,
   placeholderColor,
+  placeholderFontSize,
+  placeholderFontFamily,
+  placeholderFontWeight,
   value,
   onChangeText,
   inputColor,
@@ -858,6 +946,10 @@ const FormField: React.FC<FieldProps> = ({
   rightSlot,
 }) => {
   const shouldShowLabel = labelVisible && !placeholderVisible && Boolean(label);
+  const usePlaceholderTypography = placeholderVisible && !value;
+  const resolvedInputFontSize = usePlaceholderTypography ? placeholderFontSize ?? inputFontSize : inputFontSize;
+  const resolvedInputFontFamily = usePlaceholderTypography ? placeholderFontFamily ?? inputFontFamily : inputFontFamily;
+  const resolvedInputFontWeight = usePlaceholderTypography ? placeholderFontWeight ?? inputFontWeight : inputFontWeight;
   return (
   <View style={fieldStyles.group}>
     {shouldShowLabel ? (
@@ -890,9 +982,9 @@ const FormField: React.FC<FieldProps> = ({
           fieldStyles.input,
           {
             color: inputColor,
-            fontSize: inputFontSize,
-            fontFamily: inputFontFamily !== 'System' ? inputFontFamily : undefined,
-            fontWeight: inputFontWeight as any,
+            fontSize: resolvedInputFontSize,
+            fontFamily: resolvedInputFontFamily !== 'System' ? resolvedInputFontFamily : undefined,
+            fontWeight: resolvedInputFontWeight as any,
             textAlign: inputAlign,
             textAlignVertical: 'center',
             flex: rightSlot ? 1 : undefined,
@@ -1097,6 +1189,21 @@ const AuthScreen = () => {
     return { alignSelf: 'stretch' as const };
   }, [t.buttonWidth]);
 
+  const submitButtonContent = loading ? (
+    <ActivityIndicator color={t.buttonTextColor} />
+  ) : (
+    <Text
+      style={{
+        color: t.buttonTextColor,
+        fontSize: t.buttonFontSize,
+        fontWeight: t.buttonFontWeight as any,
+        fontFamily: t.buttonFontFamily !== 'System' ? t.buttonFontFamily : undefined,
+      }}
+    >
+      {buttonLabel}
+    </Text>
+  );
+
   const signInDecorSections = useMemo(
     () =>
       signInDslSections.filter((section) => {
@@ -1293,6 +1400,9 @@ const AuthScreen = () => {
                 placeholder={mode === 'login' ? signInTokens.emailPlaceholder : signUpTokens.emailPlaceholder}
                 placeholderVisible={mode === 'login' ? signInTokens.emailPlaceholderVisible : signUpTokens.emailPlaceholderVisible}
                 placeholderColor={mode === 'login' ? signInTokens.emailPlaceholderColor : signUpTokens.emailPlaceholderColor}
+                placeholderFontSize={mode === 'login' ? signInTokens.emailPlaceholderFontSize : signUpTokens.emailPlaceholderFontSize}
+                placeholderFontFamily={mode === 'login' ? signInTokens.emailPlaceholderFontFamily : signUpTokens.emailPlaceholderFontFamily}
+                placeholderFontWeight={mode === 'login' ? signInTokens.emailPlaceholderFontWeight : signUpTokens.emailPlaceholderFontWeight}
                 value={email}
                 onChangeText={setEmail}
                 inputColor={mode === 'login' ? signInTokens.emailInputTextColor : signUpTokens.emailInputTextColor}
@@ -1323,6 +1433,9 @@ const AuthScreen = () => {
                 placeholder={mode === 'login' ? signInTokens.passwordPlaceholder : signUpTokens.passwordPlaceholder}
                 placeholderVisible={mode === 'login' ? signInTokens.passwordPlaceholderVisible : signUpTokens.passwordPlaceholderVisible}
                 placeholderColor={mode === 'login' ? signInTokens.passwordPlaceholderColor : signUpTokens.passwordPlaceholderColor}
+                placeholderFontSize={mode === 'login' ? signInTokens.passwordPlaceholderFontSize : signUpTokens.passwordPlaceholderFontSize}
+                placeholderFontFamily={mode === 'login' ? signInTokens.passwordPlaceholderFontFamily : signUpTokens.passwordPlaceholderFontFamily}
+                placeholderFontWeight={mode === 'login' ? signInTokens.passwordPlaceholderFontWeight : signUpTokens.passwordPlaceholderFontWeight}
                 value={password}
                 onChangeText={setPassword}
                 secureTextEntry={!passwordVisible}
@@ -1365,7 +1478,7 @@ const AuthScreen = () => {
                 disabled={loading || initializing}
                 style={[
                   {
-                    backgroundColor: t.buttonFillColor,
+                    backgroundColor: t.buttonGradient ? 'transparent' : t.buttonFillColor,
                     borderRadius: t.buttonRadius,
                     borderWidth: t.buttonBorderWidth,
                     borderColor: t.buttonBorderColor,
@@ -1373,23 +1486,28 @@ const AuthScreen = () => {
                     justifyContent: 'center',
                     alignItems: 'center',
                     marginTop: 4,
+                    overflow: 'hidden',
                   },
                   buttonWidthStyle,
                 ]}
               >
-                {loading ? (
-                  <ActivityIndicator color={t.buttonTextColor} />
-                ) : (
-                  <Text
+                {t.buttonGradient ? (
+                  <LinearGradient
+                    colors={t.buttonGradient.colors}
+                    angle={t.buttonGradient.angle}
+                    useAngle
                     style={{
-                      color: t.buttonTextColor,
-                      fontSize: t.buttonFontSize,
-                      fontWeight: t.buttonFontWeight as any,
-                      fontFamily: t.buttonFontFamily !== 'System' ? t.buttonFontFamily : undefined,
+                      width: '100%',
+                      height: '100%',
+                      justifyContent: 'center',
+                      alignItems: 'center',
+                      borderRadius: t.buttonRadius,
                     }}
                   >
-                    {buttonLabel}
-                  </Text>
+                    {submitButtonContent}
+                  </LinearGradient>
+                ) : (
+                  submitButtonContent
                 )}
               </TouchableOpacity>
             ) : null}
@@ -1401,6 +1519,8 @@ const AuthScreen = () => {
                   style={{
                     color: t.footerTextColor,
                     fontSize: t.footerTextFontSize,
+                    fontFamily: t.footerTextFontFamily !== 'System' ? t.footerTextFontFamily : undefined,
+                    fontWeight: t.footerTextFontWeight as any,
                   }}
                 >
                   {mode === 'login' ? signInTokens.footerText : signUpTokens.footerText}

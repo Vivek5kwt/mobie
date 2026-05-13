@@ -1425,7 +1425,6 @@ export async function searchShopifyProducts(searchTerm, limit = 10, options = {}
             handle
             vendor
             productType
-            availableForSale
             tags
             description
             options {
@@ -1494,7 +1493,7 @@ export async function searchShopifyProducts(searchTerm, limit = 10, options = {}
         tags: node?.tags || [],
         description: node?.description || "",
         options: node?.options || [],
-        availableForSale: node?.availableForSale ?? true,
+        availableForSale: true,
         variantId: variant?.id || null,
         imageUrl: node?.featuredImage?.url || node?.images?.edges?.[0]?.node?.url || null,
         priceAmount: priceNode?.amount || null,
