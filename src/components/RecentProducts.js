@@ -93,6 +93,27 @@ const toDecorationLine = (...vals) => {
   return "none";
 };
 
+const decorationEnabled = (value, type) => {
+  const resolved = unwrap(value, undefined);
+  if (resolved === undefined || resolved === null || resolved === "") return false;
+  if (typeof resolved === "boolean") return resolved;
+  if (typeof resolved === "number") return resolved !== 0;
+  const normalized = String(resolved).trim().toLowerCase();
+  if (["true", "1", "yes", "y"].includes(normalized)) return true;
+  if (["false", "0", "no", "n", "none"].includes(normalized)) return false;
+  if (type === "underline") return normalized.includes("underline");
+  return normalized.includes("line-through") || normalized.includes("strikethrough");
+};
+
+const toTextDecorationLine = ({ underline, strikethrough }) => {
+  const hasUnderline = decorationEnabled(underline, "underline");
+  const hasStrikethrough = decorationEnabled(strikethrough, "strikethrough");
+  if (hasUnderline && hasStrikethrough) return "underline line-through";
+  if (hasUnderline) return "underline";
+  if (hasStrikethrough) return "line-through";
+  return "none";
+};
+
 const isProductAvailable = (product) => {
   if (!product || typeof product !== "object") return true;
   if (product.availableForSale === false) return false;
@@ -185,7 +206,10 @@ export default function RecentProducts({ section }) {
   const headerSize    = parsePx(raw?.headerSize ?? headerCss?.fontSize, 14);
   const headerWeight  = toFW(raw?.headerWeight ?? headerCss?.fontWeight, "700");
   const headerFamily  = resolveFirstFont(raw?.headerFamily, raw?.headlineFontFamily, headerCss?.fontFamily, raw?.fontFamily);
-  const headerDecoration = toDecorationLine(raw?.headerStrikethrough, headerCss?.textDecoration);
+  const headerDecoration = toTextDecorationLine({
+    underline: firstDefined(raw?.headerUnderline, raw?.sectionTitleUnderline, raw?.headlineUnderline),
+    strikethrough: firstDefined(raw?.headerStrikethrough, raw?.sectionTitleStrikethrough, raw?.headlineStrikethrough),
+  });
   const headerMB      = parsePx(headerCss?.marginBottom, 8);
 
   // ── Grid ──────────────────────────────────────────────────────────────────
