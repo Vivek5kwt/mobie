@@ -155,7 +155,7 @@ export default function AllProductsScreen() {
 
       if (isSearchMode) {
         if (append) return;
-        nextProducts = await searchShopifyProducts(searchTerm, Math.max(PAGE_SIZE * 5, 60));
+        nextProducts = await searchShopifyProducts(searchTerm, 250);
       } else {
         const payload = await fetchShopifyProductsPage({
           first: PAGE_SIZE,

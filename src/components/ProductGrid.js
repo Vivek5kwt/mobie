@@ -1,13 +1,13 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Animated, Dimensions, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { Animated, DeviceEventEmitter, Dimensions, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import ProductImage from "./ProductImage";
 import FontAwesome from "react-native-vector-icons/FontAwesome";
 import { resolveFA4IconName } from "../utils/faIconAlias";
-import { useFocusEffect, useNavigation } from "@react-navigation/native";
+import { useFocusEffect, useNavigation, useRoute } from "@react-navigation/native";
 import { useDispatch, useSelector } from "react-redux";
 import { addItem } from "../store/slices/cartSlice";
 import { isWishlistProduct, toggleWishlist } from "../store/slices/wishlistSlice";
-import { fetchShopifyProductsPage, fetchShopifyCollectionProducts } from "../services/shopify";
+import { fetchShopifyProductsPage, fetchShopifyCollectionProducts, searchShopifyProducts } from "../services/shopify";
 import Snackbar from "./Snackbar";
 import { useAuth } from "../services/AuthContext";
 import { requireLoginForAction } from "../utils/authGate";
@@ -199,6 +199,7 @@ function ShimmerBone({ style }) {
 
 export default function ProductGrid({ section, limit = 8, title = "Products" }) {
   const navigation = useNavigation();
+  const route = useRoute();
   const dispatch   = useDispatch();
   const { session } = useAuth();
   const wishlistItems = useSelector((state) => state.wishlist?.items || []);
@@ -212,7 +213,10 @@ export default function ProductGrid({ section, limit = 8, title = "Products" }) 
   const didInitialLoadRef = useRef(false);
   const loadInFlightRef = useRef(false);
   const lastLoadAtRef = useRef(0);
+  const lastLoadKeyRef = useRef("");
+  const loadRequestSeqRef = useRef(0);
   const favoriteTapRef = useRef(false);
+  const [searchQuery, setSearchQuery] = useState("");
 
   // ── Merge raw sub-object ──────────────────────────────────────────────────
   const rawProps = getRawProps(section);
@@ -647,6 +651,16 @@ export default function ProductGrid({ section, limit = 8, title = "Products" }) 
 
   // ── Background color ──────────────────────────────────────────────────────
   const resolvedBgColor = toString(rawProps?.bgColor ?? presentationCss?.container?.backgroundColor, "");
+  const isSearchPage = useMemo(() => {
+    const hints = [
+      route?.params?.pageName,
+      route?.params?.link,
+      route?.params?.title,
+    ]
+      .map((value) => String(value || "").trim().toLowerCase())
+      .filter(Boolean);
+    return hints.some((value) => value === "search" || value.includes("search"));
+  }, [route?.params?.link, route?.params?.pageName, route?.params?.title]);
 
   // ── Handlers ─────────────────────────────────────────────────────────────
   const handleAddToCart = useCallback(async (product, e) => {
@@ -698,13 +712,36 @@ export default function ProductGrid({ section, limit = 8, title = "Products" }) 
     return () => { isMountedRef.current = false; };
   }, []);
 
+  useEffect(() => {
+    if (!isSearchPage) return undefined;
+    const routeQuery = String(route?.params?.query ?? route?.params?.searchQuery ?? "").trim();
+    if (routeQuery) setSearchQuery(routeQuery);
+    const sub = DeviceEventEmitter.addListener("mobidrag:search:queryChanged", (payload) => {
+      setSearchQuery(String(payload?.query || "").trim());
+    });
+    return () => sub.remove();
+  }, [isSearchPage, route?.params?.query, route?.params?.searchQuery]);
+
   const loadProducts = useCallback(async () => {
     const now = Date.now();
-    if (loadInFlightRef.current || now - lastLoadAtRef.current < 1200) {
+    const loadKey = [
+      isSearchPage ? "search" : "grid",
+      searchQuery,
+      useCollectionFetch ? collectionHandle : "",
+      resolvedLimit,
+      shopifyDomain || "",
+    ].join("|");
+    if (
+      (loadInFlightRef.current && lastLoadKeyRef.current === loadKey) ||
+      (lastLoadKeyRef.current === loadKey && now - lastLoadAtRef.current < 1200)
+    ) {
       return;
     }
     loadInFlightRef.current = true;
     lastLoadAtRef.current = now;
+    lastLoadKeyRef.current = loadKey;
+    const requestSeq = loadRequestSeqRef.current + 1;
+    loadRequestSeqRef.current = requestSeq;
 
     const safeFirst = Math.max(1, resolvedLimit || 8);
     const shopOptions = { shop: shopifyDomain || undefined, token: shopifyToken || undefined };
@@ -714,6 +751,13 @@ export default function ProductGrid({ section, limit = 8, title = "Products" }) 
 
     // Try every available strategy in order until we get products.
     const tryFetch = async () => {
+      const activeSearchQuery = String(searchQuery || "").trim();
+      if (isSearchPage && activeSearchQuery) {
+        const searchLimit = Math.max(safeFirst, 250);
+        const matches = await searchShopifyProducts(activeSearchQuery, searchLimit, shopOptions);
+        return { products: matches, pageInfo: { hasNextPage: false, endCursor: null } };
+      }
+
       // 1. Collection-specific fetch (when DSL specifies a collection)
       if (useCollectionFetch && collectionHandle) {
         const col = await fetchShopifyCollectionProducts({
@@ -743,17 +787,21 @@ export default function ProductGrid({ section, limit = 8, title = "Products" }) 
         if (isMountedRef.current) result = await tryFetch();
       }
 
-      if (isMountedRef.current) {
+      if (isMountedRef.current && loadRequestSeqRef.current === requestSeq) {
         setProducts(result?.products || []);
         setHasMore(Boolean(result?.pageInfo?.hasNextPage));
       }
     } catch {
-      if (isMountedRef.current) setError("Unable to load products right now. Please try again later.");
+      if (isMountedRef.current && loadRequestSeqRef.current === requestSeq) {
+        setError("Unable to load products right now. Please try again later.");
+      }
     } finally {
-      loadInFlightRef.current = false;
-      if (isMountedRef.current) setLoading(false);
+      if (loadRequestSeqRef.current === requestSeq) {
+        loadInFlightRef.current = false;
+        if (isMountedRef.current) setLoading(false);
+      }
     }
-  }, [useCollectionFetch, collectionHandle, resolvedLimit, shopifyDomain, shopifyToken]);
+  }, [isSearchPage, searchQuery, useCollectionFetch, collectionHandle, resolvedLimit, shopifyDomain, shopifyToken]);
 
   // Initial load and reload when inputs change
   useEffect(() => {

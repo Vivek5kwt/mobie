@@ -1436,10 +1436,12 @@ export async function searchShopifyProducts(searchTerm, limit = 10, options = {}
             featuredImage { url }
             images(first: 1) { edges { node { url } } }
             priceRangeV2 { minVariantPrice { amount currencyCode } }
-            variants(first: 1) {
+            variants(first: 10) {
               edges {
                 node {
                   id
+                  title
+                  availableForSale
                   compareAtPrice
                 }
               }
@@ -1482,7 +1484,10 @@ export async function searchShopifyProducts(searchTerm, limit = 10, options = {}
 
   const mapProductEdges = (edges = []) =>
     edges.map(({ node }) => {
-      const variant = node?.variants?.edges?.[0]?.node;
+      const variants = (node?.variants?.edges || [])
+        .map((edge) => edge?.node)
+        .filter(Boolean);
+      const variant = variants[0];
       const priceNode = node?.priceRangeV2?.minVariantPrice;
       return {
         id: node?.id,
@@ -1493,7 +1498,8 @@ export async function searchShopifyProducts(searchTerm, limit = 10, options = {}
         tags: node?.tags || [],
         description: node?.description || "",
         options: node?.options || [],
-        availableForSale: true,
+        availableForSale: variants.length ? variants.some((item) => item?.availableForSale !== false) : true,
+        variants,
         variantId: variant?.id || null,
         imageUrl: node?.featuredImage?.url || node?.images?.edges?.[0]?.node?.url || null,
         priceAmount: priceNode?.amount || null,
