@@ -234,7 +234,7 @@ export default function AccountMenu({ section }) {
   const handlePress = (item) => {
     if (isLogoutEntry(item)) {
       if (!isLoggedIn) {
-        navigation.navigate("Auth");
+        navigation.navigate("Auth", { initialMode: "login" });
         return;
       }
 
@@ -248,7 +248,7 @@ export default function AccountMenu({ section }) {
             style: "destructive",
             onPress: async () => {
               await logout();
-              navigation.reset({ index: 0, routes: [{ name: "Auth" }] });
+              navigation.reset({ index: 0, routes: [{ name: "Auth", params: { initialMode: "login" } }] });
             },
           },
         ],
@@ -280,7 +280,7 @@ export default function AccountMenu({ section }) {
       // Sign-in / login → Auth screen
       const signinSlugs = new Set(["signin", "sign-in", "login", "log-in", "auth"]);
       if (signinSlugs.has(normalized)) {
-        navigation.navigate("Auth");
+        navigation.navigate("Auth", { initialMode: "login" });
         return;
       }
 

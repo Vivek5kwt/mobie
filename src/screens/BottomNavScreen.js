@@ -54,7 +54,7 @@ function FallbackProfile({ session, logout, navigation }) {
           style: "destructive",
           onPress: async () => {
             await logout();
-            navigation.reset({ index: 0, routes: [{ name: "Auth" }] });
+            navigation.reset({ index: 0, routes: [{ name: "Auth", params: { initialMode: "login" } }] });
           },
         },
       ],
@@ -536,6 +536,12 @@ export default function BottomNavScreen() {
         setErr(null);
         setHeaderDefaultConfig(null);
 
+        if (SIGNIN_SLUGS.has(normalizedPageName)) {
+          console.log(`🔑 Sign-in page detected ("${pageName}") — redirecting to Auth screen`);
+          if (isMounted) navigation.navigate("Auth", { initialMode: "login" });
+          return;
+        }
+
         // Step 1: fetch home DSL to get headerdefault + real header sections.
         // Skip on home page itself.
         let headers = homeHeaderSectionsRef.current;
@@ -558,14 +564,7 @@ export default function BottomNavScreen() {
           }
         }
 
-        // Step 2: if this is a sign-in slug, go straight to Auth screen (no DSL to render)
-        if (SIGNIN_SLUGS.has(normalizedPageName)) {
-          console.log(`🔑 Sign-in page detected ("${pageName}") — redirecting to Auth screen`);
-          if (isMounted) navigation.navigate("Auth");
-          return;
-        }
-
-        // Step 3: fetch the current page DSL
+        // Step 2: fetch the current page DSL
         console.log(`📱 Loading DSL — page: "${pageName}", appId: ${appId}`);
         const dslData = await fetchDSL(appId, pageName);
 
@@ -582,7 +581,7 @@ export default function BottomNavScreen() {
         const dslSections = dslData.dsl?.sections || [];
         if (SIGNIN_SLUGS.has(normalizedPageName) && dslSections.length === 0) {
           console.log(`🔑 Empty signin page — redirecting to Auth screen`);
-          if (isMounted) navigation.navigate("Auth");
+          if (isMounted) navigation.navigate("Auth", { initialMode: "login" });
           return;
         }
 

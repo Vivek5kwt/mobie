@@ -177,7 +177,7 @@ const resolveNavigationTarget = (item = {}) => {
     }
     // Sign-in slugs → Auth screen
     if (SIGNIN_SLUGS.has(pageName)) {
-      return { type: "stack", name: "Auth" };
+      return { type: "stack", name: "Auth", params: { initialMode: "login" } };
     }
     if (PROFILE_SLUGS.has(pageName)) {
       return {
@@ -215,7 +215,7 @@ const resolveNavigationTarget = (item = {}) => {
   }
   // Sign-in links → Auth screen
   if (SIGNIN_SLUGS.has(cleanedSlug)) {
-    return { type: "stack", name: "Auth" };
+    return { type: "stack", name: "Auth", params: { initialMode: "login" } };
   }
   if (PROFILE_SLUGS.has(cleanedSlug)) {
     return {
@@ -602,9 +602,9 @@ function BottomNavigation({ section, activeIndexOverride }) {
     }
 
     if (target.type === "stack" && target.name) {
-      // Auth screen — navigate directly without extra params
+      // Auth screen: preserve the requested auth mode.
       if (target.name === "Auth") {
-        try { navigation.push("Auth"); } catch (_) { navigation.navigate("Auth"); }
+        try { navigation.push("Auth", target.params); } catch (_) { navigation.navigate("Auth", target.params); }
         return;
       }
 

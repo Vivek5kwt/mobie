@@ -150,6 +150,15 @@ const isPageNameMatch = (candidateName, targetName) => {
   return false;
 };
 
+const hasPageIdentity = ([key, page]) => {
+  const pageInfo = page?.page || {};
+  return Boolean(
+    normalizeName(key) ||
+      normalizeName(pageInfo?.name) ||
+      normalizeName(pageInfo?.handle)
+  );
+};
+
 const selectDslPage = (dslData, layoutMeta, pageOverride) => {
   if (!dslData?.pages || typeof dslData.pages !== "object") {
     if (!pageOverride) return dslData;
@@ -193,9 +202,14 @@ const selectDslPage = (dslData, layoutMeta, pageOverride) => {
     });
 
   if (pageOverride && !match) {
-    // Last chance: if layoutMeta confirms the right layout, use first entry
+    // Last chance: if layoutMeta confirms the right layout and the DSL has
+    // one unambiguous page payload, use it. With multiple named pages, picking
+    // entries[0] can render a different screen inside the requested one.
     const layoutPageName = normalizeName(layoutMeta?.page_name);
-    if (layoutPageName && isPageNameMatch(layoutPageName, targetName) && entries.length) {
+    const canUseOnlyEntry =
+      entries.length === 1 ||
+      (entries.length > 0 && entries.every((entry) => !hasPageIdentity(entry)));
+    if (layoutPageName && isPageNameMatch(layoutPageName, targetName) && canUseOnlyEntry) {
       return sanitizeSections(entries[0][1]);
     }
     console.log(`📄 No DSL match for "${pageOverride}". Returning empty page data.`);

@@ -511,7 +511,7 @@ export default function SignUp({ section }) {
         }
       } else {
         Alert.alert("Success", "Account created successfully!", [
-          { text: "Sign In", onPress: () => navigation.navigate("Auth") },
+          { text: "Sign In", onPress: () => navigation.navigate("Auth", { initialMode: "login" }) },
           { text: "OK" },
         ]);
       }
@@ -524,7 +524,7 @@ export default function SignUp({ section }) {
 
   // "Sign In" footer link always goes to the Auth screen
   const handleSignInLink = () => {
-    navigation.navigate("Auth");
+    navigation.navigate("Auth", { initialMode: "login" });
   };
 
   const displayButtonText = buttonAutoUppercase ? buttonText.toUpperCase() : buttonText;

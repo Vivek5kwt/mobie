@@ -272,10 +272,28 @@ const resolveBorderWidth = (line: unknown, color: unknown, fallback: number): nu
 const normalizeSectionName = (value: unknown): string =>
   String(value || '').trim().toLowerCase().replace(/[\s-]+/g, '_');
 
+const SIGN_IN_COMPONENTS = new Set(['signin', 'sign_in']);
+const SIGN_UP_COMPONENTS = new Set(['signup', 'sign_up']);
+const FORGOT_PASSWORD_COMPONENTS = new Set(['forgot_password', 'forgotpassword']);
+
 const getSectionComponent = (section: Record<string, unknown> | null | undefined): string => {
   const raw = unwrapValue((section?.component ?? (section?.properties as Record<string, unknown>)?.component) as string, '');
   return normalizeSectionName(raw);
 };
+
+const isSignInSection = (section: Record<string, unknown> | null | undefined): boolean =>
+  SIGN_IN_COMPONENTS.has(getSectionComponent(section));
+
+const isSignUpSection = (section: Record<string, unknown> | null | undefined): boolean =>
+  SIGN_UP_COMPONENTS.has(getSectionComponent(section));
+
+const isForgotPasswordSection = (section: Record<string, unknown> | null | undefined): boolean =>
+  FORGOT_PASSWORD_COMPONENTS.has(getSectionComponent(section));
+
+const hasAuthSections = (
+  sections: Record<string, unknown>[],
+  matcher: (section: Record<string, unknown>) => boolean
+): boolean => sections.some((section) => matcher(section));
 
 const getSectionRawProps = (section: Record<string, unknown> | null | undefined): Record<string, unknown> => {
   const propsNode: Record<string, unknown> =
@@ -947,22 +965,27 @@ const AuthScreen = () => {
       ]);
       if (!isMountedRef.current) return;
 
-      const livSignInSections = Array.isArray(signInDsl?.dsl?.sections) ? signInDsl.dsl.sections : [];
-      const signInSections = livSignInSections.length > 0 ? livSignInSections : (authLayoutFallback.sections || []);
-      const signUpSections = Array.isArray(signUpDsl?.dsl?.sections) ? signUpDsl.dsl.sections : [];
+      const liveSignInSections = Array.isArray(signInDsl?.dsl?.sections) ? signInDsl.dsl.sections : [];
+      const liveSignUpSections = Array.isArray(signUpDsl?.dsl?.sections) ? signUpDsl.dsl.sections : [];
+      const hasLiveSignInPage = hasAuthSections(liveSignInSections, (section) =>
+        isSignInSection(section) || isForgotPasswordSection(section)
+      );
+      const hasLiveSignUpPage = hasAuthSections(liveSignUpSections, isSignUpSection);
+      const signInSections = hasLiveSignInPage ? liveSignInSections : (authLayoutFallback.sections || []);
+      const signUpSections = hasLiveSignUpPage ? liveSignUpSections : [];
 
-      const signInSection = signInSections.find((s) => { const c = getSectionComponent(s); return c === 'signin' || c === 'sign_in'; });
-      const forgotSection = signInSections.find((s) => { const c = getSectionComponent(s); return c === 'forgot_password' || c === 'forgotpassword'; });
-      const signUpSection = signUpSections.find((s) => { const c = getSectionComponent(s); return c === 'signup' || c === 'sign_up'; });
+      const signInSection = signInSections.find(isSignInSection);
+      const forgotSection = signInSections.find(isForgotPasswordSection);
+      const signUpSection = signUpSections.find(isSignUpSection);
 
       setSignInDslSections(signInSections as Record<string, unknown>[]);
       setSignUpDslSections(signUpSections as Record<string, unknown>[]);
       setHasForgotPasswordSection(Boolean(forgotSection));
-      if (signInSection) setSignInTokens(buildSignInTokens(getSectionRawProps(signInSection)));
-      if (forgotSection) setForgotPasswordTokens(buildForgotPasswordTokens(getSectionRawProps(forgotSection)));
-      if (signUpSection) setSignUpTokens(buildSignUpTokens(getSectionRawProps(signUpSection)));
-      setSignInHeaderConfig((signInDsl?.dsl?.headerdefault as Record<string, unknown> | undefined) ?? null);
-      setSignUpHeaderConfig((signUpDsl?.dsl?.headerdefault as Record<string, unknown> | undefined) ?? null);
+      setSignInTokens(signInSection ? buildSignInTokens(getSectionRawProps(signInSection)) : defaultSignInTokens);
+      setForgotPasswordTokens(forgotSection ? buildForgotPasswordTokens(getSectionRawProps(forgotSection)) : defaultForgotPasswordTokens);
+      setSignUpTokens(signUpSection ? buildSignUpTokens(getSectionRawProps(signUpSection)) : defaultSignUpTokens);
+      setSignInHeaderConfig(hasLiveSignInPage ? ((signInDsl?.dsl?.headerdefault as Record<string, unknown> | undefined) ?? null) : null);
+      setSignUpHeaderConfig(hasLiveSignUpPage ? ((signUpDsl?.dsl?.headerdefault as Record<string, unknown> | undefined) ?? null) : null);
     } finally {
       if (isMountedRef.current) { setRefreshing(false); setDslLoaded(true); }
     }
@@ -1078,7 +1101,7 @@ const AuthScreen = () => {
     () =>
       signInDslSections.filter((section) => {
         const component = getSectionComponent(section);
-        return component !== 'signin' && component !== 'sign_in' && component !== 'forgot_password' && component !== 'forgotpassword';
+        return !SIGN_IN_COMPONENTS.has(component) && !FORGOT_PASSWORD_COMPONENTS.has(component);
       }),
     [signInDslSections]
   );
@@ -1088,7 +1111,7 @@ const AuthScreen = () => {
     () =>
       signUpDslSections.filter((section) => {
         const component = getSectionComponent(section);
-        return component !== 'signup' && component !== 'sign_up';
+        return !SIGN_UP_COMPONENTS.has(component);
       }),
     [signUpDslSections]
   );

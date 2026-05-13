@@ -155,7 +155,7 @@ export default function SideNavigation({ section }) {
       // ── Logout ───────────────────────────────────────────────────────────
       if (isLogoutItem(item)) {
         if (!isLoggedIn) {
-          navigation.navigate("Auth");
+          navigation.navigate("Auth", { initialMode: "login" });
           return;
         }
         Alert.alert(
@@ -168,7 +168,7 @@ export default function SideNavigation({ section }) {
               style: "destructive",
               onPress: async () => {
                 await logout();
-                navigation.reset({ index: 0, routes: [{ name: "Auth" }] });
+                navigation.reset({ index: 0, routes: [{ name: "Auth", params: { initialMode: "login" } }] });
               },
             },
           ],
@@ -200,7 +200,7 @@ export default function SideNavigation({ section }) {
 
       // ── Auth pages ────────────────────────────────────────────────────────
       if (SIGNIN_SLUGS.has(slug)) {
-        navigation.navigate("Auth");
+        navigation.navigate("Auth", { initialMode: "login" });
         return;
       }
 
