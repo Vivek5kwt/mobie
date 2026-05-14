@@ -337,9 +337,7 @@ export default function RecentProducts({ section }) {
   useEffect(() => { loadProducts(); }, [loadProducts]);
 
   // ── Handlers ──────────────────────────────────────────────────────────────
-  const handleAddToCart = async (product) => {
-    const blocked = await requireLoginForAction({ session, navigation });
-    if (blocked) return;
+  const handleAddToCart = (product) => {
     dispatch(addItem({
       item: {
         id:             product.variantId || product.id,
