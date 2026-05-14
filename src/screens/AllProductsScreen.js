@@ -6,6 +6,7 @@ import {
   Image,
   StyleSheet,
   Text,
+  TextInput,
   TouchableOpacity,
   View,
 } from "react-native";
@@ -130,10 +131,47 @@ export default function AllProductsScreen() {
   const [sortKey, setSortKey]         = useState("Popular");
   const [viewMode, setViewMode]       = useState("grid");
   const [activeFilter, setActiveFilter] = useState(null);
+  const [searchInput, setSearchInput] = useState(searchTerm);
   const [filterOptions, setFilterOptions] = useState([]);
   const [bottomNavSection, setBottomNavSection] = useState(null);
   const [bottomNavHeight, setBottomNavHeight]   = useState(BOTTOM_NAV_RESERVED_HEIGHT);
   const [homeHeaderConfig, setHomeHeaderConfig] = useState(null);
+
+  useEffect(() => {
+    setSearchInput(searchTerm);
+  }, [searchTerm]);
+
+  const updateSearchParams = useCallback(
+    (nextSearchTerm) => {
+      const next = String(nextSearchTerm ?? "").trim();
+      if (!next || next === searchTerm) {
+        return;
+      }
+      setActiveFilter(null);
+      navigation.setParams?.({
+        query: next,
+        searchQuery: next,
+        title: `Search results for "${next}"`,
+      });
+    },
+    [navigation, searchTerm]
+  );
+
+  useEffect(() => {
+    if (!isSearchMode) {
+      return undefined;
+    }
+    const next = searchInput.trim();
+    if (!next || next === searchTerm) {
+      return undefined;
+    }
+    const timeout = setTimeout(() => updateSearchParams(next), 450);
+    return () => clearTimeout(timeout);
+  }, [isSearchMode, searchInput, searchTerm, updateSearchParams]);
+
+  const submitSearch = useCallback(() => {
+    updateSearchParams(searchInput);
+  }, [searchInput, updateSearchParams]);
 
   const numColumns = viewMode === "list" ? 1 : 2;
   const CARD_W = viewMode === "list"
@@ -464,16 +502,33 @@ export default function AllProductsScreen() {
                 </View>
               </TouchableOpacity>
             </View>
-            <TouchableOpacity
+            <View
               style={styles.resultSearchBox}
-              activeOpacity={0.75}
-              onPress={openSearchPage}
             >
               <FontAwesome name="search" size={16} color="#9CA3AF" />
-              <Text numberOfLines={1} style={styles.resultSearchText}>
-                {searchTerm}
-              </Text>
-            </TouchableOpacity>
+              <TextInput
+                value={searchInput}
+                onChangeText={setSearchInput}
+                onSubmitEditing={submitSearch}
+                returnKeyType="search"
+                blurOnSubmit={false}
+                placeholder="Search"
+                placeholderTextColor="#9CA3AF"
+                selectionColor="#111827"
+                underlineColorAndroid="transparent"
+                style={styles.resultSearchInput}
+              />
+              {searchInput.length > 0 ? (
+                <TouchableOpacity
+                  style={styles.resultSearchClear}
+                  activeOpacity={0.75}
+                  onPress={() => setSearchInput("")}
+                  hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                >
+                  <FontAwesome name="times-circle" size={16} color="#B8BDC7" />
+                </TouchableOpacity>
+              ) : null}
+            </View>
           </View>
         ) : homeHeaderConfig ? (
           <HeaderDefault config={homeHeaderConfig} bottomNavSection={bottomNavSection} hideTabs showBack />
@@ -609,10 +664,18 @@ const styles = StyleSheet.create({
     gap: 10,
     paddingHorizontal: 12,
   },
-  resultSearchText: {
+  resultSearchInput: {
     flex: 1,
-    color: "#9CA3AF",
+    minHeight: 38,
+    paddingVertical: 0,
+    color: "#111827",
     fontSize: 15,
+  },
+  resultSearchClear: {
+    width: 24,
+    height: 24,
+    alignItems: "center",
+    justifyContent: "center",
   },
   headerSection: {
     paddingHorizontal: 16,
