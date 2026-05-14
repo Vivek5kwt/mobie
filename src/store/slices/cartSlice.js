@@ -1,4 +1,5 @@
 import { createSlice } from "@reduxjs/toolkit";
+import { normalizeDiscountCode, normalizeDiscountRecord } from "../../utils/cartDiscounts";
 
 const initialState = {
   items: [],
@@ -61,20 +62,40 @@ const cartSlice = createSlice({
       state.discounts = [];
     },
     applyDiscount(state, action) {
-      const code = String(action.payload?.code || "").trim().toUpperCase();
+      const discount = normalizeDiscountRecord(action.payload?.discount || action.payload || {});
+      const code = normalizeDiscountCode(discount.code);
       if (!code) return;
       if (!state.discounts) state.discounts = [];
-      if (!state.discounts.includes(code)) {
-        state.discounts.push(code);
-      }
+      state.discounts = state.discounts.filter(
+        (entry) => normalizeDiscountCode(entry?.code || entry) !== code
+      );
+      state.discounts.push({ ...discount, code });
+    },
+    setDiscounts(state, action) {
+      const discounts = Array.isArray(action.payload?.discounts)
+        ? action.payload.discounts
+        : [];
+      state.discounts = discounts
+        .map(normalizeDiscountRecord)
+        .filter((entry) => entry.code && entry.applicable === true);
     },
     removeDiscount(state, action) {
-      const code = String(action.payload?.code || "").trim().toUpperCase();
+      const code = normalizeDiscountCode(action.payload?.code);
       if (!state.discounts) return;
-      state.discounts = state.discounts.filter((c) => c !== code);
+      state.discounts = state.discounts.filter(
+        (entry) => normalizeDiscountCode(entry?.code || entry) !== code
+      );
     },
   },
 });
 
-export const { addItem, updateQuantity, removeItem, clearCart, applyDiscount, removeDiscount } = cartSlice.actions;
+export const {
+  addItem,
+  updateQuantity,
+  removeItem,
+  clearCart,
+  applyDiscount,
+  setDiscounts,
+  removeDiscount,
+} = cartSlice.actions;
 export default cartSlice.reducer;

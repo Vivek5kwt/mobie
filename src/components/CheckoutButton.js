@@ -8,6 +8,7 @@ import Snackbar from "./Snackbar";
 import { resolveFA4IconName } from "../utils/faIconAlias";
 import { useAuth } from "../services/AuthContext";
 import { resolveFont } from "../services/typographyService";
+import { activeDiscountCodes, cartDiscountFingerprint } from "../utils/cartDiscounts";
 
 // ── DSL helpers ────────────────────────────────────────────────────────────────
 
@@ -125,6 +126,7 @@ export default function CheckoutButton({ section }) {
   const navigation = useNavigation();
   const { session } = useAuth();
   const cartItems  = useSelector((state) => state?.cart?.items || []);
+  const discountRecords = useSelector((state) => state?.cart?.discounts || []);
   const hasCartItems = cartItems.length > 0;
 
   // ── Resolve props node ───────────────────────────────────────────────────────
@@ -325,6 +327,11 @@ export default function CheckoutButton({ section }) {
     })),
     [cartItems]
   );
+  const cartFingerprint = useMemo(() => cartDiscountFingerprint(cartItems), [cartItems]);
+  const checkoutDiscountCodes = useMemo(
+    () => activeDiscountCodes(discountRecords, cartFingerprint),
+    [discountRecords, cartFingerprint]
+  );
 
   // DSL-configurable: store owner can set guestCheckout=false to require login at checkout
   const guestCheckoutAllowed = toBool(
@@ -357,6 +364,7 @@ export default function CheckoutButton({ section }) {
     try {
       const checkoutUrl = await createShopifyCartCheckout({
         items: checkoutLines,
+        discountCodes: checkoutDiscountCodes,
         options: {
           customerAccessToken: pickSessionCustomerAccessToken(session),
           email: session?.user?.email || "",

@@ -3,6 +3,11 @@ import {
   currencySymbolForCode as sharedCurrencySymbolForCode,
   formatMoney as formatSharedMoney,
 } from '../utils/money';
+import {
+  cartDiscountFingerprint,
+  normalizeDiscountCode,
+  normalizeDiscountCodes,
+} from '../utils/cartDiscounts';
 
 const STOREFRONT_VERSION = "2024-10";
 // Backend proxy — handles Shopify auth server-side so the mobile app
@@ -768,6 +773,198 @@ const buildBuyerIdentity = (options = {}) => {
   return buyerIdentity;
 };
 
+const moneyAmount = (money = {}) => {
+  const amount = parseFloat(money?.amount ?? 0);
+  return {
+    amount: Number.isFinite(amount) ? amount : 0,
+    currencyCode: money?.currencyCode || "",
+  };
+};
+
+const buildCheckoutLines = (items = []) =>
+  (items || [])
+    .map((item) => ({
+      merchandiseId: ensureVariantGid(item?.variantId || item?.id),
+      quantity: Math.max(1, Number(item?.quantity) || 1),
+    }))
+    .filter((line) => line.merchandiseId);
+
+const buildDirectCartLines = (items = []) =>
+  (items || [])
+    .map((item) => {
+      const raw = String(item?.variantId || item?.id || "");
+      const match = raw.match(/ProductVariant\/(\d+)/) || (!raw.includes("gid://") && raw.match(/^(\d+)$/));
+      if (!match) return null;
+      return `${match[1]}:${Math.max(1, Number(item?.quantity) || 1)}`;
+    })
+    .filter(Boolean);
+
+const sumDiscountAllocations = (cart, requestedCodes = []) => {
+  const requested = new Set(requestedCodes);
+  const amounts = new Map();
+  const currencies = new Map();
+  const addAllocation = (allocation = {}) => {
+    const code = normalizeDiscountCode(
+      allocation?.code ||
+      allocation?.discountApplication?.code ||
+      allocation?.sourceDiscountApplication?.code
+    );
+    if (!code || !requested.has(code)) return;
+    const money = moneyAmount(allocation?.discountedAmount || allocation?.allocatedAmount);
+    if (money.amount <= 0) return;
+    amounts.set(code, (amounts.get(code) || 0) + money.amount);
+    if (money.currencyCode) currencies.set(code, money.currencyCode);
+  };
+
+  (cart?.discountAllocations || []).forEach(addAllocation);
+  (cart?.lines?.edges || []).forEach((edge) => {
+    (edge?.node?.discountAllocations || []).forEach(addAllocation);
+  });
+
+  return { amounts, currencies };
+};
+
+const buildDiscountPreviewResult = ({ cart, requestedCodes, cartFingerprint }) => {
+  const codes = normalizeDiscountCodes(requestedCodes);
+  const returnedCodes = Array.isArray(cart?.discountCodes) ? cart.discountCodes : [];
+  const { amounts, currencies } = sumDiscountAllocations(cart, codes);
+  const subtotal = moneyAmount(cart?.cost?.subtotalAmount);
+  const total = moneyAmount(cart?.cost?.totalAmount);
+  const costDelta = Math.max(0, subtotal.amount - total.amount);
+
+  const records = codes.map((code) => {
+    const returned = returnedCodes.find(
+      (entry) => normalizeDiscountCode(entry?.code) === code
+    );
+    const applicable = returned?.applicable === true;
+    return {
+      code,
+      applicable,
+      amount: applicable ? Math.max(0, amounts.get(code) || 0) : 0,
+      currencyCode: currencies.get(code) || subtotal.currencyCode || total.currencyCode || "",
+      cartFingerprint,
+      message: applicable ? "" : "Discount code is not valid for this cart.",
+      checkedAt: Date.now(),
+    };
+  });
+
+  const applicableRecords = records.filter((record) => record.applicable);
+  const allocatedTotal = applicableRecords.reduce((sum, record) => sum + record.amount, 0);
+  if (costDelta > allocatedTotal && applicableRecords.length === 1) {
+    applicableRecords[0].amount = costDelta;
+    applicableRecords[0].currencyCode =
+      applicableRecords[0].currencyCode || subtotal.currencyCode || total.currencyCode || "";
+  }
+
+  return {
+    discounts: records,
+    totalDiscountAmount: records.reduce(
+      (sum, record) => sum + (record.applicable ? Math.max(0, record.amount) : 0),
+      0
+    ),
+    subtotalAmount: subtotal.amount,
+    totalAmount: total.amount,
+    currencyCode: subtotal.currencyCode || total.currencyCode || "",
+    checkoutUrl: cart?.checkoutUrl || "",
+    cartFingerprint,
+  };
+};
+
+export async function validateShopifyCartDiscounts({ items = [], discountCodes = [], options = {} } = {}) {
+  const codes = normalizeDiscountCodes(discountCodes);
+  const cartFingerprint = options.cartFingerprint || cartDiscountFingerprint(items);
+  if (!codes.length) {
+    return { discounts: [], totalDiscountAmount: 0, cartFingerprint };
+  }
+
+  const lines = buildCheckoutLines(items);
+  if (!lines.length) {
+    return {
+      discounts: codes.map((code) => ({
+        code,
+        applicable: false,
+        amount: 0,
+        currencyCode: "",
+        cartFingerprint,
+        message: "Add products before applying a discount code.",
+        checkedAt: Date.now(),
+      })),
+      totalDiscountAmount: 0,
+      cartFingerprint,
+    };
+  }
+
+  const creds = await getShopifyCredentials();
+  const shop = options.shop || creds.shop;
+  const token = options.token || creds.token;
+  const storeId = options.storeId || creds.storeId;
+  const buyerIdentity = buildBuyerIdentity(options);
+
+  const mutation = `
+    mutation ValidateCartDiscounts($input: CartInput!) {
+      cartCreate(input: $input) {
+        cart {
+          checkoutUrl
+          discountCodes { code applicable }
+          discountAllocations {
+            discountedAmount { amount currencyCode }
+            ... on CartCodeDiscountAllocation { code }
+          }
+          cost {
+            subtotalAmount { amount currencyCode }
+            totalAmount { amount currencyCode }
+          }
+          lines(first: 250) {
+            edges {
+              node {
+                discountAllocations {
+                  discountedAmount { amount currencyCode }
+                  ... on CartCodeDiscountAllocation { code }
+                }
+              }
+            }
+          }
+        }
+        userErrors { field message }
+      }
+    }
+  `;
+
+  const json = await directStorefrontGraphQL({
+    shop,
+    token,
+    storeId,
+    query: mutation,
+    variables: {
+      input: {
+        lines,
+        discountCodes: codes,
+        buyerIdentity,
+      },
+    },
+  });
+
+  if (json?.errors?.length) {
+    throw new Error(json.errors.map((error) => error.message).join(" "));
+  }
+
+  const payload = json?.data?.cartCreate;
+  const errors = payload?.userErrors || [];
+  if (errors.length) {
+    throw new Error(errors.map((error) => error.message).join(" "));
+  }
+
+  if (!payload?.cart) {
+    throw new Error("Discount validation did not return a cart.");
+  }
+
+  return buildDiscountPreviewResult({
+    cart: payload.cart,
+    requestedCodes: codes,
+    cartFingerprint,
+  });
+}
+
 const formatOrderStatus = (fulfillmentStatus, financialStatus) => {
   const raw = String(fulfillmentStatus || financialStatus || "").trim();
   if (!raw) return "";
@@ -1294,29 +1491,20 @@ export async function createShopifyCheckout({ variantId, quantity = 1, options =
   return checkoutUrl;
 }
 
-export async function createShopifyCartCheckout({ items = [], options = {} }) {
+export async function createShopifyCartCheckout({ items = [], discountCodes = [], options = {} }) {
   const creds = await getShopifyCredentials();
   const shop = options.shop || creds.shop;
   const token = options.token || creds.token;
   const storeId = options.storeId || creds.storeId;
   const buyerIdentity = buildBuyerIdentity(options);
+  const requestedDiscountCodes = normalizeDiscountCodes(
+    discountCodes.length ? discountCodes : options.discountCodes || []
+  );
 
-  const lines = (items || [])
-    .map((item) => ({
-      merchandiseId: ensureVariantGid(item?.variantId || item?.id),
-      quantity: Math.max(1, Number(item?.quantity) || 1),
-    }))
-    .filter((line) => line.merchandiseId);
+  const lines = buildCheckoutLines(items);
 
   // Build numeric variant IDs for direct cart URL fallback (no API needed)
-  const directCartLines = (items || [])
-    .map((item) => {
-      const raw = String(item?.variantId || item?.id || "");
-      const match = raw.match(/ProductVariant\/(\d+)/) || (!raw.includes("gid://") && raw.match(/^(\d+)$/));
-      if (!match) return null;
-      return `${match[1]}:${Math.max(1, Number(item?.quantity) || 1)}`;
-    })
-    .filter(Boolean);
+  const directCartLines = buildDirectCartLines(items);
 
   if (!lines.length && !directCartLines.length) {
     throw new Error("No valid cart items for checkout.");
@@ -1327,7 +1515,10 @@ export async function createShopifyCartCheckout({ items = [], options = {} }) {
     const cartCreateMutation = `
       mutation CreateCart($input: CartInput!) {
         cartCreate(input: $input) {
-          cart { checkoutUrl }
+          cart {
+            checkoutUrl
+            discountCodes { code applicable }
+          }
           userErrors { field message }
         }
       }
@@ -1340,12 +1531,27 @@ export async function createShopifyCartCheckout({ items = [], options = {} }) {
           input: {
             lines,
             buyerIdentity,
+            ...(requestedDiscountCodes.length ? { discountCodes: requestedDiscountCodes } : {}),
           },
         },
       });
       if (!json?.errors?.length) {
         const payload = json?.data?.cartCreate;
         if (!payload?.userErrors?.length) {
+          if (requestedDiscountCodes.length) {
+            const returnedCodes = payload?.cart?.discountCodes || [];
+            const invalidCode = requestedDiscountCodes.find((code) => {
+              const match = returnedCodes.find(
+                (entry) => normalizeDiscountCode(entry?.code) === code
+              );
+              return !match || match.applicable !== true;
+            });
+            if (invalidCode) {
+              const error = new Error(`Discount code ${invalidCode} is not valid for this cart.`);
+              error.discountValidationFailed = true;
+              throw error;
+            }
+          }
           const url = payload?.cart?.checkoutUrl;
           if (url) {
             console.log("✅ Checkout via cartCreate:", url);
@@ -1355,6 +1561,7 @@ export async function createShopifyCartCheckout({ items = [], options = {} }) {
       }
       console.warn("⚠️ cartCreate failed, trying checkoutCreate...");
     } catch (e) {
+      if (e?.discountValidationFailed) throw e;
       console.warn("⚠️ cartCreate error:", e.message);
     }
 
@@ -1375,7 +1582,12 @@ export async function createShopifyCartCheckout({ items = [], options = {} }) {
       const json = await directStorefrontGraphQL({
         shop, token, storeId,
         query: checkoutCreateMutation,
-        variables: { input: { lineItems } },
+        variables: {
+          input: {
+            lineItems,
+            ...(requestedDiscountCodes.length ? { discountCodes: requestedDiscountCodes } : {}),
+          },
+        },
       });
       if (!json?.errors?.length) {
         const payload = json?.data?.checkoutCreate;
@@ -1395,7 +1607,10 @@ export async function createShopifyCartCheckout({ items = [], options = {} }) {
 
   // ── Attempt 3: direct Shopify cart URL (no API call needed) ─────────────
   if (directCartLines.length) {
-    const url = `https://${shop}/cart/${directCartLines.join(",")}`;
+    const discountQuery = requestedDiscountCodes.length
+      ? `?discount=${encodeURIComponent(requestedDiscountCodes.join(","))}`
+      : "";
+    const url = `https://${shop}/cart/${directCartLines.join(",")}${discountQuery}`;
     console.log("✅ Checkout via direct cart URL:", url);
     return url;
   }

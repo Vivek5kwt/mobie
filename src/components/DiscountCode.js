@@ -1,5 +1,6 @@
-import React, { useState } from "react";
+import React, { useMemo, useState } from "react";
 import {
+  ActivityIndicator,
   StyleSheet,
   Text,
   TextInput,
@@ -7,8 +8,16 @@ import {
   View,
 } from "react-native";
 import { useDispatch, useSelector } from "react-redux";
-import { applyDiscount, removeDiscount } from "../store/slices/cartSlice";
+import { removeDiscount, setDiscounts } from "../store/slices/cartSlice";
 import { resolveFont } from "../services/typographyService";
+import { validateShopifyCartDiscounts } from "../services/shopify";
+import { useAuth } from "../services/AuthContext";
+import {
+  activeDiscountRecords,
+  cartDiscountFingerprint,
+  normalizeDiscountCode,
+  normalizeDiscountRecords,
+} from "../utils/cartDiscounts";
 
 const unwrapValue = (value, fallback = undefined) => {
   if (value === undefined || value === null) return fallback;
@@ -61,8 +70,12 @@ const toFontWeight = (value, fallback = "400") => {
 
 export default function DiscountCode({ section }) {
   const dispatch = useDispatch();
-  const appliedCodes = useSelector((state) => state?.cart?.discounts || []);
+  const { session } = useAuth();
+  const cartItems = useSelector((state) => state?.cart?.items || []);
+  const discountRecords = useSelector((state) => state?.cart?.discounts || []);
   const [inputValue, setInputValue] = useState("");
+  const [feedback, setFeedback] = useState(null);
+  const [validating, setValidating] = useState(false);
 
   const propsNode =
     section?.properties?.props?.properties ||
@@ -121,14 +134,72 @@ export default function DiscountCode({ section }) {
   const inputFontFamily = cleanFontFamily(toString(raw?.inputFontFamily ?? raw?.fontFamily, ""));
   const applyFontFamily = cleanFontFamily(toString(raw?.applyFontFamily ?? raw?.buttonFontFamily ?? raw?.fontFamily, ""));
   const chipFontFamily  = cleanFontFamily(toString(raw?.chipFontFamily ?? raw?.fontFamily, ""));
+  const successColor = toString(raw?.successColor ?? raw?.validMessageColor, "#047857");
+  const errorColor = toString(raw?.errorColor ?? raw?.invalidMessageColor, "#DC2626");
+  const successMessage = toString(raw?.successMessage ?? raw?.validMessage, "Discount applied.");
+  const duplicateMessage = toString(raw?.duplicateMessage, "Discount code is already applied.");
+  const invalidMessage = toString(raw?.invalidMessage, "Discount code is not valid for this cart.");
+  const emptyCartMessage = toString(raw?.emptyCartMessage, "Add products before applying a discount code.");
+  const validationErrorMessage = toString(
+    raw?.validationErrorMessage,
+    "Coupon could not be checked right now. Please try again."
+  );
+
+  const cartFingerprint = useMemo(() => cartDiscountFingerprint(cartItems), [cartItems]);
+  const appliedCodes = useMemo(
+    () => activeDiscountRecords(discountRecords, cartFingerprint),
+    [discountRecords, cartFingerprint]
+  );
 
   if (!enabled) return null;
 
-  const handleApply = () => {
-    const code = inputValue.trim();
-    if (!code) return;
-    dispatch(applyDiscount({ code }));
-    setInputValue("");
+  const handleApply = async () => {
+    const code = normalizeDiscountCode(inputValue);
+    if (!code || validating) return;
+
+    if (!cartItems.length) {
+      setFeedback({ type: "error", message: emptyCartMessage });
+      return;
+    }
+
+    const existingCodes = appliedCodes.map((entry) => entry.code);
+    if (existingCodes.includes(code)) {
+      setFeedback({ type: "success", message: duplicateMessage });
+      setInputValue("");
+      return;
+    }
+
+    setValidating(true);
+    setFeedback(null);
+    try {
+      const preview = await validateShopifyCartDiscounts({
+        items: cartItems,
+        discountCodes: [...existingCodes, code],
+        options: {
+          cartFingerprint,
+          email: session?.user?.email || "",
+          countryCode: session?.user?.country || undefined,
+        },
+      });
+      const validDiscounts = normalizeDiscountRecords(preview?.discounts || []).filter(
+        (entry) => entry.applicable === true && entry.cartFingerprint === cartFingerprint
+      );
+      dispatch(setDiscounts({ discounts: validDiscounts }));
+      const applied = validDiscounts.find((entry) => entry.code === code);
+      if (applied) {
+        setInputValue("");
+        setFeedback({ type: "success", message: successMessage });
+      } else {
+        const failed = normalizeDiscountRecords(preview?.discounts || []).find(
+          (entry) => entry.code === code
+        );
+        setFeedback({ type: "error", message: failed?.message || invalidMessage });
+      }
+    } catch (error) {
+      setFeedback({ type: "error", message: validationErrorMessage });
+    } finally {
+      setValidating(false);
+    }
   };
 
   const handleRemove = (code) => {
@@ -188,6 +259,7 @@ export default function DiscountCode({ section }) {
           autoCorrect={false}
           returnKeyType="done"
           onSubmitEditing={handleApply}
+          editable={!validating}
         />
         <TouchableOpacity
           style={[
@@ -196,33 +268,53 @@ export default function DiscountCode({ section }) {
               backgroundColor: applyBg,
               borderRadius: applyBorderRadius,
               height: applyHeight,
+              opacity: validating ? 0.75 : 1,
             },
           ]}
           onPress={handleApply}
+          disabled={validating}
           activeOpacity={0.8}
         >
-          <Text
-            style={[
-              styles.applyText,
-              {
-                color: applyTextColor,
-                fontSize: applyFontSize,
-                fontWeight: applyFontWeight,
-                ...(applyFontFamily ? { fontFamily: applyFontFamily } : {}),
-              },
-            ]}
-          >
-            {applyText}
-          </Text>
+          {validating ? (
+            <ActivityIndicator size="small" color={applyTextColor} />
+          ) : (
+            <Text
+              style={[
+                styles.applyText,
+                {
+                  color: applyTextColor,
+                  fontSize: applyFontSize,
+                  fontWeight: applyFontWeight,
+                  ...(applyFontFamily ? { fontFamily: applyFontFamily } : {}),
+                },
+              ]}
+            >
+              {applyText}
+            </Text>
+          )}
         </TouchableOpacity>
       </View>
+
+      {!!feedback?.message && (
+        <Text
+          style={[
+            styles.message,
+            {
+              color: feedback.type === "success" ? successColor : errorColor,
+              ...(inputFontFamily ? { fontFamily: inputFontFamily } : {}),
+            },
+          ]}
+        >
+          {feedback.message}
+        </Text>
+      )}
 
       {/* Applied codes */}
       {appliedCodes.length > 0 && (
         <View style={styles.chipList}>
-          {appliedCodes.map((code) => (
+          {appliedCodes.map((discount) => (
             <View
-              key={code}
+              key={discount.code}
               style={[
                 styles.chip,
                 {
@@ -242,11 +334,11 @@ export default function DiscountCode({ section }) {
                   },
                 ]}
               >
-                {code}
+                {discount.code}
               </Text>
               <TouchableOpacity
                 style={styles.chipRemove}
-                onPress={() => handleRemove(code)}
+                onPress={() => handleRemove(discount.code)}
                 hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
               >
                 <Text style={[styles.chipRemoveText, { color: removeIconColor }]}>
@@ -286,6 +378,10 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   applyText: {},
+  message: {
+    fontSize: 12,
+    lineHeight: 17,
+  },
   chipList: {
     flexDirection: "column",
     gap: 8,

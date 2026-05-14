@@ -3,6 +3,11 @@ import { Image, StyleSheet, Text, View } from "react-native";
 import { useSelector } from "react-redux";
 import { resolveFont } from "../services/typographyService";
 import { formatMoney } from "../utils/money";
+import {
+  activeDiscountRecords,
+  cartDiscountFingerprint,
+  totalDiscountAmount as sumActiveDiscountAmount,
+} from "../utils/cartDiscounts";
 
 const unwrapValue = (value, fallback = undefined) => {
   if (value === undefined || value === null) return fallback;
@@ -97,7 +102,7 @@ export default function OrderSummary({ section }) {
 
   // Redux
   const cartItems = useSelector((state) => state?.cart?.items || []);
-  const appliedCodes = useSelector((state) => state?.cart?.discounts || []);
+  const discountRecords = useSelector((state) => state?.cart?.discounts || []);
 
   // DSL items (post-purchase / injected items override Redux cart)
   const dslItems = Array.isArray(raw?.items) ? raw.items : [];
@@ -127,6 +132,14 @@ export default function OrderSummary({ section }) {
   );
   const dslCartTotal = raw?.cartTotal != null ? toNumber(raw?.cartTotal, 0) : null;
   const cartTotal = dslCartTotal != null ? dslCartTotal : computedCartTotal;
+  const cartFingerprint = useMemo(
+    () => cartDiscountFingerprint(cartItems),
+    [cartItems]
+  );
+  const activeDiscounts = useMemo(
+    () => activeDiscountRecords(discountRecords, cartFingerprint),
+    [discountRecords, cartFingerprint]
+  );
 
   // DSL — container
   const bgColor = toString(raw?.bgColor ?? raw?.backgroundColor, "#FFFFFF");
@@ -159,6 +172,7 @@ export default function OrderSummary({ section }) {
     sourceItems[0]?.currency,
     sourceItems[0]?.priceCurrency,
     sourceItems[0]?.currencySymbol,
+    activeDiscounts[0]?.currencyCode,
     raw?.currency,
     raw?.priceCurrency,
     raw?.currencySymbol,
@@ -192,11 +206,8 @@ export default function OrderSummary({ section }) {
   const showDiscount = toBoolean(raw?.showDiscount, !usesDslItems);
   const discountLabel = toString(raw?.discountLabel, "Discount");
   const discountColor = toString(raw?.discountColor, "#EF4444");
-  // Discount per code: fixed amount or % per code
-  const discountPerCodeAmount = raw?.discountAmount != null
-    ? toNumber(raw.discountAmount, 0)
-    : (toNumber(raw?.discountPercent, 0) / 100) * cartTotal;
-  const totalDiscountAmount = discountPerCodeAmount * appliedCodes.length;
+  const validatedDiscountAmount = sumActiveDiscountAmount(discountRecords, cartFingerprint);
+  const totalDiscountAmount = Math.min(cartTotal, validatedDiscountAmount);
 
   // Chip styling for applied discount codes
   const chipBg = toString(raw?.chipBg ?? raw?.codeBg, "#F9FAFB");
@@ -354,7 +365,7 @@ export default function OrderSummary({ section }) {
       )}
 
       {/* Discount */}
-      {showDiscount && appliedCodes.length > 0 && totalDiscountAmount > 0 && (
+      {showDiscount && activeDiscounts.length > 0 && totalDiscountAmount > 0 && (
         <>
           <SummaryRow
             label={discountLabel}
@@ -367,9 +378,9 @@ export default function OrderSummary({ section }) {
           />
           {/* Applied code chips */}
           <View style={styles.chipRow}>
-            {appliedCodes.map((code) => (
+            {activeDiscounts.map((discount) => (
               <View
-                key={code}
+                key={discount.code}
                 style={[
                   styles.chip,
                   {
@@ -380,7 +391,7 @@ export default function OrderSummary({ section }) {
                 ]}
               >
                 <Text style={[styles.chipText, { color: chipTextColor, fontSize: chipFontSize, ...(chipFontFamily ? { fontFamily: chipFontFamily } : {}) }]}>
-                  {chipPrefix}{code}
+                  {chipPrefix}{discount.code}
                 </Text>
               </View>
             ))}

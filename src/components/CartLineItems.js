@@ -13,6 +13,7 @@ import { updateQuantity, removeItem } from "../store/slices/cartSlice";
 import { resolveFA4IconName } from "../utils/faIconAlias";
 import { resolveFont } from "../services/typographyService";
 import { formatMoney } from "../utils/money";
+import { activeDiscountRecords, cartDiscountFingerprint } from "../utils/cartDiscounts";
 
 const unwrapValue = (value, fallback = undefined) => {
   if (value === undefined || value === null) return fallback;
@@ -259,7 +260,8 @@ export default function CartLineItems({ section }) {
   const savingsFontFamily  = cleanFontFamily(toString(raw?.savingsFontFamily  ?? raw?.fontFamily, ""));
   const qtyFontFamily      = cleanFontFamily(toString(raw?.qtyFontFamily      ?? raw?.fontFamily, ""));
 
-  const discountCount = appliedDiscounts.length;
+  const cartFingerprint = useMemo(() => cartDiscountFingerprint(cartItems), [cartItems]);
+  const discountCount = activeDiscountRecords(appliedDiscounts, cartFingerprint).length;
 
   // Total (shown if DSL enables it)
   const showTotal = toBoolean(raw?.showTotal, false);
