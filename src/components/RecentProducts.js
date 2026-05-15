@@ -1,10 +1,10 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
-  Dimensions,
   Image,
   StyleSheet,
   Text,
   TouchableOpacity,
+  useWindowDimensions,
   View,
 } from "react-native";
 import { useNavigation } from "@react-navigation/native";
@@ -177,8 +177,6 @@ export default function RecentProducts({ section }) {
   // layout.css contains card/atc/image/header/price styling
   const layoutRaw = unwrap(propsNode?.layout, {});
   const css       = unwrap(layoutRaw?.css, {});
-  const metricsRaw = unwrap(layoutRaw?.metrics, {});
-  const metrics = unwrap(metricsRaw?.elements, {}) || {};
 
   // ── Settings ───────────────────────────────────────────────────────────────
   // Use `header` / `sectionTitle` — NOT `title`, which ProductDetailScreen merges
@@ -188,7 +186,9 @@ export default function RecentProducts({ section }) {
   const limit         = Math.max(1, num(firstDefined(raw?.itemsShown, raw?.limit), 4));
   const shopifyDomain = str(raw?.shopifyDomain, "");
   const shopifyToken  = str(raw?.storefrontToken, "");
-  const columns       = 2;
+  const columns       = Math.max(1, Math.min(4, Math.round(num(raw?.columns, 2))));
+  const { width: windowWidth } = useWindowDimensions();
+  const [measuredWidth, setMeasuredWidth] = useState(0);
 
   // ── Container ─────────────────────────────────────────────────────────────
   const containerCss = unwrap(css?.container, {});
@@ -198,8 +198,6 @@ export default function RecentProducts({ section }) {
   const containerPL  = parsePx(firstDefined(raw?.paddingLeft, raw?.pl, containerCss?.paddingLeft), 0);
   const containerPR  = parsePx(firstDefined(raw?.paddingRight, raw?.pr, containerCss?.paddingRight), 0);
   const containerRadius = parsePx(firstDefined(raw?.borderRadius, containerCss?.borderRadius), 0);
-  const metricContainerWidth = parsePx(metricsRaw?.container?.width, 0);
-  const metricGridWidth = parsePx(metrics?.grid?.width, 0);
 
   // ── Header ─────────────────────────────────────────────────────────────────
   const headerCss     = unwrap(css?.header, {});
@@ -215,14 +213,11 @@ export default function RecentProducts({ section }) {
 
   // ── Grid ──────────────────────────────────────────────────────────────────
   const gridCss  = unwrap(css?.grid, {});
-  const gridGap  = parsePx(raw?.gap ?? gridCss?.gap, 8);
+  const gridGap  = parsePx(raw?.gap ?? gridCss?.gap, 12);
 
   // ── Card width (needed before imageHeight so we can use it as the default) ─
-  const screenWidth = Dimensions.get("window").width;
-  const maxContentWidth = metricContainerWidth > 0 ? Math.min(metricContainerWidth, screenWidth) : screenWidth;
-  const gridWidth = metricGridWidth > 0
-    ? Math.min(metricGridWidth, Math.max(0, maxContentWidth - containerPL - containerPR))
-    : Math.max(0, maxContentWidth - containerPL - containerPR);
+  const layoutWidth = measuredWidth > 0 ? measuredWidth : windowWidth;
+  const gridWidth = Math.max(0, layoutWidth - containerPL - containerPR);
   const cardWidth = Math.max(0, (gridWidth - gridGap * (columns - 1)) / columns);
 
   // ── Card ──────────────────────────────────────────────────────────────────
@@ -398,11 +393,18 @@ export default function RecentProducts({ section }) {
 
   return (
     <View
+      onLayout={(event) => {
+        const nextWidth = event?.nativeEvent?.layout?.width || 0;
+        if (nextWidth > 0 && Math.abs(nextWidth - measuredWidth) > 1) {
+          setMeasuredWidth(nextWidth);
+        }
+      }}
       style={{
         backgroundColor: containerBg,
         borderRadius:    containerRadius,
-        width:           maxContentWidth,
+        width:           "100%",
         maxWidth:        "100%",
+        alignSelf:       "stretch",
         paddingTop:      containerPT,
         paddingBottom:   containerPB,
         paddingLeft:     containerPL,
@@ -427,7 +429,7 @@ export default function RecentProducts({ section }) {
 
       {/* Grid */}
       {!loading && (
-        <View style={[styles.grid, { width: gridWidth, maxWidth: "100%" }]}>
+        <View style={[styles.grid, { width: "100%", maxWidth: "100%" }]}>
           {products.slice(0, limit).map((product, idx) => {
             const isAvailable = isProductAvailable(product);
             const price       = product.priceAmount ?? product.price;

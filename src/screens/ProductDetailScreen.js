@@ -426,6 +426,7 @@ export default function ProductDetailScreen() {
           <SkeletonLoader />
         ) : (
           <ScrollView
+            style={styles.scrollView}
             contentContainerStyle={[
               styles.scrollContent,
               {
@@ -485,6 +486,10 @@ const styles = StyleSheet.create({
   },
   container: {
     flex: 1,
+    backgroundColor: "#ffffff",
+  },
+  scrollView: {
+    backgroundColor: "#ffffff",
   },
   headerWrapper: {
     zIndex: 2,
@@ -495,7 +500,7 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 2 },
   },
   scrollContent: {
-    backgroundColor: "#F7F7F7",
+    backgroundColor: "#ffffff",
     minHeight: "100%",
   },
   bottomNav: {
@@ -516,6 +521,7 @@ const styles = StyleSheet.create({
   },
   section: {
     marginBottom: 10,
+    backgroundColor: "#ffffff",
   },
   status: {
     paddingTop: 12,
