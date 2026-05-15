@@ -19,6 +19,7 @@ import { requireLoginForAction } from "../utils/authGate";
 import { resolveFirstFont } from "../services/typographyService";
 import FavoriteToggleButton, { buildFavoriteToggleConfig } from "./FavoriteToggleButton";
 import { formatMoney } from "../utils/money";
+import Snackbar from "./Snackbar";
 
 // ─── DSL helpers ─────────────────────────────────────────────────────────────
 
@@ -227,12 +228,33 @@ export default function RecentProducts({ section }) {
   // ── Card ──────────────────────────────────────────────────────────────────
   const cardCss    = unwrap(css?.card, {});
   const cardBg     = str(cardCss?.background ?? cardCss?.backgroundColor, "#FFFFFF");
-  const cardRadius = parsePx(raw?.cardRadius ?? cardCss?.borderRadius, 0);
+  const cardRadius = parsePx(raw?.cardRadius ?? cardCss?.borderRadius, 10);
   const parsedCardBorder = parseBorder(cardCss?.border, str(raw?.cardBorderColor, "#E5E7EB"));
-  const cardBorder = parsedCardBorder || {
-    borderWidth: num(raw?.cardBorderWidth, 0),
-    borderColor: str(raw?.cardBorderColor, "#E5E7EB"),
-  };
+  const rawBorderWidth = firstDefined(raw?.cardBorderWidth, raw?.borderWidth);
+  const allowLayoutBorder = bool(firstDefined(raw?.useLayoutCardBorder, raw?.useCssCardBorder), false);
+  const cardBorderEnabled = bool(
+    firstDefined(raw?.cardBorderEnabled, raw?.showCardBorder, raw?.borderEnabled, raw?.showBorder),
+    rawBorderWidth !== undefined ? num(rawBorderWidth, 0) > 0 : allowLayoutBorder
+  );
+  const cardBorder = cardBorderEnabled
+    ? {
+        borderWidth: num(rawBorderWidth, parsedCardBorder?.borderWidth ?? 1),
+        borderColor: str(firstDefined(raw?.cardBorderColor, raw?.borderColor), parsedCardBorder?.borderColor ?? "#E5E7EB"),
+      }
+    : { borderWidth: 0, borderColor: "transparent" };
+  const cardShadowEnabled = bool(firstDefined(raw?.cardShadowEnabled, raw?.showCardShadow, raw?.shadowEnabled), true);
+  const cardShadowStyle = cardShadowEnabled
+    ? {
+        shadowColor: str(raw?.cardShadowColor, "#000000"),
+        shadowOffset: {
+          width: parsePx(raw?.cardShadowOffsetX, 0),
+          height: parsePx(raw?.cardShadowOffsetY, 3),
+        },
+        shadowOpacity: num(raw?.cardShadowOpacity, 0.08),
+        shadowRadius: parsePx(raw?.cardShadowRadius, 8),
+        elevation: num(raw?.cardElevation, 2),
+      }
+    : {};
 
   // ── Image ─────────────────────────────────────────────────────────────────
   const imageWrapCss  = unwrap(css?.imageWrap, {});
@@ -288,6 +310,11 @@ export default function RecentProducts({ section }) {
   const atcIconSize    = num(raw?.atcIconSize ?? raw?.iconSize, 12);
   const atcIconColor   = str(raw?.atcIconColor ?? raw?.iconColor ?? atcColor, atcColor);
   const atcText        = str(firstDefined(raw?.atcText, raw?.addToCartText, raw?.buttonText), "Add to Cart");
+  const addedToCartMessage = str(
+    firstDefined(raw?.addedToCartMessage, raw?.cartSuccessMessage, raw?.atcSuccessMessage),
+    "Item added to cart."
+  );
+  const snackbarActionText = str(firstDefined(raw?.snackbarActionText, raw?.cartActionText), "View Cart");
   const atcDecorationAvailable = toDecorationLine(raw?.atcStrikethroughAvailable, atcCss?.textDecoration);
 
   // ── Unavailable button ────────────────────────────────────────────────────
@@ -313,6 +340,7 @@ export default function RecentProducts({ section }) {
   // ── Data fetch ─────────────────────────────────────────────────────────────
   const [products, setProducts] = useState(() => manualProducts);
   const [loading,  setLoading]  = useState(false);
+  const [cartSnackbarVisible, setCartSnackbarVisible] = useState(false);
 
   const loadProducts = useCallback(async () => {
     if (hasManualProducts) {
@@ -353,6 +381,7 @@ export default function RecentProducts({ section }) {
         quantity:       1,
       },
     }));
+    setCartSnackbarVisible(true);
   };
 
   const handleProductPress = (product) => {
@@ -419,6 +448,8 @@ export default function RecentProducts({ section }) {
                     marginRight:     (idx + 1) % columns === 0 ? 0 : gridGap,
                     marginBottom:    gridGap,
                     ...cardBorder,
+                    ...cardShadowStyle,
+                    overflow: cardShadowEnabled ? "visible" : "hidden",
                   },
                 ]}
                 activeOpacity={0.85}
@@ -545,7 +576,11 @@ export default function RecentProducts({ section }) {
                       }}
                       activeOpacity={isAvailable ? 0.8 : 1}
                       disabled={!isAvailable}
-                      onPress={() => isAvailable && handleAddToCart(product)}
+                      onPress={(e) => {
+                        e?.stopPropagation?.();
+                        e?.preventDefault?.();
+                        if (isAvailable) handleAddToCart(product);
+                      }}
                     >
                       {isAvailable && showAtcIcon && (
                         <FontAwesome
@@ -573,6 +608,15 @@ export default function RecentProducts({ section }) {
           })}
         </View>
       )}
+      <Snackbar
+        visible={cartSnackbarVisible}
+        message={addedToCartMessage}
+        actionLabel={snackbarActionText}
+        onAction={() => navigation.navigate("BottomNavScreen", { title: "Cart", pageName: "cart", link: "cart" })}
+        onDismiss={() => setCartSnackbarVisible(false)}
+        duration={2600}
+        type="success"
+      />
     </View>
   );
 }
@@ -583,7 +627,7 @@ const styles = StyleSheet.create({
     flexWrap:       "wrap",
   },
   card: {
-    overflow: "hidden",
+    overflow: "visible",
   },
   priceRow: {
     flexDirection: "row",
