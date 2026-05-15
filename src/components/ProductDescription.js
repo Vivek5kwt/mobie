@@ -42,6 +42,9 @@ const toBoolean = (value, fallback = false) => {
   return Boolean(resolved);
 };
 
+const firstDefined = (...values) =>
+  values.find((value) => unwrapValue(value, undefined) !== undefined && unwrapValue(value, undefined) !== null && unwrapValue(value, undefined) !== "");
+
 const decodeHtmlEntities = (value) =>
   String(value || "")
     .replace(/&nbsp;/gi, " ")
@@ -206,13 +209,25 @@ export default function ProductDescription({ section }) {
   );
   const outerBorderWidth = toNumber(
     raw?.borderWidth ?? outerNode?.borderWidth ?? layoutCss?.container?.borderWidth,
-    1
+    0
   );
   const outerBorderLine = toString(
     raw?.borderLine ?? outerNode?.borderLine ?? layoutCss?.container?.borderLine,
-    ""
+    "none"
   );
-  const outerShouldBorder = hasVisibleBorder(outerBorderLine, outerBorderWidth, outerBorderColor);
+  const outerBorderEnabled = firstDefined(
+    raw?.showBorder,
+    raw?.borderEnabled,
+    raw?.hasBorder,
+    outerNode?.showBorder,
+    outerNode?.borderEnabled,
+    layoutCss?.container?.showBorder,
+    layoutCss?.container?.borderEnabled
+  );
+  const outerShouldBorder =
+    outerBorderEnabled !== undefined
+      ? toBoolean(outerBorderEnabled, false)
+      : hasVisibleBorder(outerBorderLine, outerBorderWidth, outerBorderColor);
 
   // ── Header row paddingTop ─────────────────────────────────────────────────
   const headerPT = toNumber(

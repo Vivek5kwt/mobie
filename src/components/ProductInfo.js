@@ -39,6 +39,9 @@ const toBoolean = (value, fallback = false) => {
   return Boolean(resolved);
 };
 
+const firstDefined = (...values) =>
+  values.find((value) => value !== undefined && value !== null && value !== "");
+
 export default function ProductInfo({ section }) {
   const propsNode =
     section?.properties?.props?.properties ||
@@ -58,8 +61,16 @@ export default function ProductInfo({ section }) {
   const vendorCss  = unwrapValue(propsNode?.vendor, {});
   const priceCss   = unwrapValue(propsNode?.price, {});
   const ratingCss  = unwrapValue(propsNode?.rating ?? propsNode?.reviews ?? propsNode?.review, {});
-  const shareCss   = unwrapValue(propsNode?.share, {});
   const visibility = unwrapValue(propsNode?.visibility, {});
+  const hasShareDsl =
+    propsNode?.share !== undefined ||
+    raw?.share !== undefined ||
+    layoutCss?.share !== undefined ||
+    visibility?.share !== undefined ||
+    raw?.showShare !== undefined ||
+    raw?.shareVisible !== undefined ||
+    raw?.showShareIcon !== undefined;
+  const shareCss   = unwrapValue(propsNode?.share ?? raw?.share ?? layoutCss?.share, {});
   const background = unwrapValue(propsNode?.backgroundAndPadding, {});
 
   // ── Product data ────────────────────────────────────────────────────────────
@@ -129,10 +140,9 @@ export default function ProductInfo({ section }) {
     visibility?.rating ?? visibility?.reviews ?? raw?.showRating,
     !!ratingValue  // show if a rating value exists in raw
   );
-  const showShare     = toBoolean(
-    visibility?.share ?? raw?.showShare,
-    true
-  );
+  const showShare     = hasShareDsl
+    ? toBoolean(firstDefined(visibility?.share, raw?.showShare, raw?.shareVisible, raw?.showShareIcon), true)
+    : false;
 
   const hasData = !!(titleText || vendorText || salePrice !== undefined || standardPrice !== undefined);
   if (!hasData) return null;

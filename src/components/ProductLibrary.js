@@ -149,6 +149,7 @@ export default function ProductLibrary({ section }) {
     const single = toString(raw?.imageUrl || routeProduct?.imageUrl || routeProduct?.image, "");
     return single ? [single] : [];
   }, [raw?.images, raw?.imageUrl, routeProduct?.image, routeProduct?.imageUrl]);
+  const imagesKey = useMemo(() => images.join("|"), [images]);
 
   const activeImageUrl = images[currentIdx] || images[0] || "";
   const hasMultiple = images.length > 1;
@@ -209,11 +210,22 @@ export default function ProductLibrary({ section }) {
     }
   }, [baseScale, pinchScale, isFullscreenVisible]);
 
-  // Reset gallery to first image when section changes
+  // Reset only when the product image set changes. Width/layout changes should
+  // keep the user's selected image instead of briefly jumping the indicator to 0.
   useEffect(() => {
+    if (!images.length) return;
     setCurrentIdx(0);
     galleryRef.current?.scrollTo({ x: 0, animated: false });
-  }, [galleryWidth, images.length]);
+  }, [imagesKey, images.length]);
+
+  useEffect(() => {
+    if (!galleryWidth || !images.length) return;
+    const safeIdx = Math.min(currentIdx, images.length - 1);
+    if (safeIdx !== currentIdx) {
+      setCurrentIdx(safeIdx);
+    }
+    galleryRef.current?.scrollTo({ x: safeIdx * galleryWidth, animated: false });
+  }, [galleryWidth]);
 
   if (!images.length) return null;
 
@@ -329,10 +341,15 @@ export default function ProductLibrary({ section }) {
   ];
 
   // ── Gallery scroll ─────────────────────────────────────────────────────────
-  const handleGalleryScroll = (event) => {
+  const resolveGalleryIndex = (event) => {
     const x = event.nativeEvent.contentOffset.x;
     const idx = Math.round(x / Math.max(galleryWidth, 1));
-    if (idx >= 0 && idx < images.length && idx !== currentIdx) {
+    return Math.max(0, Math.min(images.length - 1, idx));
+  };
+
+  const handleGalleryScrollEnd = (event) => {
+    const idx = resolveGalleryIndex(event);
+    if (idx !== currentIdx) {
       setCurrentIdx(idx);
     }
   };
@@ -376,8 +393,7 @@ export default function ProductLibrary({ section }) {
           pagingEnabled
           showsHorizontalScrollIndicator={false}
           scrollEnabled={hasMultiple}
-          onScroll={handleGalleryScroll}
-          scrollEventThrottle={16}
+          onMomentumScrollEnd={handleGalleryScrollEnd}
           nestedScrollEnabled
           directionalLockEnabled
           alwaysBounceVertical={false}

@@ -5,6 +5,7 @@ import { NavigationContainer, useNavigationContainerRef } from '@react-navigatio
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { Provider } from 'react-redux';
+import { PersistGate } from 'redux-persist/integration/react';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import tokenLogger from './src/utils/tokenLogger';
 import { resolveAppId } from './src/utils/appId';
@@ -34,7 +35,7 @@ import WishlistScreen from './src/screens/WishlistScreen';
 import SplashScreen from './src/screens/saplash';
 import AuthScreen from './src/screens/AuthScreen';
 import AuthProvider from './src/services/AuthContext';
-import { store } from './src/store';
+import { persistor, store } from './src/store';
 
 const Stack = createNativeStackNavigator();
 
@@ -202,7 +203,8 @@ export default function App() {
   return (
     <GestureRootView style={{ flex: 1 }}>
       <Provider store={store}>
-        <SafeAreaProvider>
+        <PersistGate loading={null} persistor={persistor}>
+          <SafeAreaProvider>
           <StoreProvider>
             <AuthProvider>
               <ApolloProvider client={client}>
@@ -306,7 +308,8 @@ export default function App() {
               </ApolloProvider>
             </AuthProvider>
           </StoreProvider>
-        </SafeAreaProvider>
+          </SafeAreaProvider>
+        </PersistGate>
       </Provider>
     </GestureRootView>
   );
