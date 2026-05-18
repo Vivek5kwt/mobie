@@ -34,7 +34,11 @@
 		<true/>
 	</dict>
 	<key>NSLocationWhenInUseUsageDescription</key>
-	<string/>
+	<string>MobiDrag may use your location only when a feature needs nearby or delivery-related information.</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>MobiDrag uses the microphone when you start voice search.</string>
+	<key>NSSpeechRecognitionUsageDescription</key>
+	<string>MobiDrag uses speech recognition to turn your voice search into text.</string>
 	<key>RCTNewArchEnabled</key>
 	<true/>
 	<key>UILaunchStoryboardName</key>

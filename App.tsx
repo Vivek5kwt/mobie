@@ -9,14 +9,7 @@ import { PersistGate } from 'redux-persist/integration/react';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import tokenLogger from './src/utils/tokenLogger';
 import { resolveAppId } from './src/utils/appId';
-
-// Import Firebase messaging safely - don't crash if Firebase is not initialized
-let messaging: any = null;
-try {
-  messaging = require('@react-native-firebase/messaging').default;
-} catch (error) {
-  console.log('⚠️ Firebase messaging not available in App.tsx:', (error as any)?.message);
-}
+import { getFirebaseMessaging } from './src/utils/firebaseMessaging';
 
 import client from './src/apollo/client';
 import { StoreProvider } from './src/services/StoreContext';
@@ -139,6 +132,7 @@ export default function App() {
         } else if (Platform.OS === 'ios') {
           // Firebase's requestPermission registers the app with APNs and
           // obtains the FCM token — it must be called on iOS.
+          const messaging = getFirebaseMessaging();
           if (messaging) {
             await messaging().requestPermission();
           }
@@ -157,8 +151,9 @@ export default function App() {
   useEffect(() => {
     const setupFCM = async () => {
       try {
+        const messaging = getFirebaseMessaging();
         if (!messaging) {
-          console.log('⚠️ Firebase messaging not available — skipping FCM setup');
+          console.log('Firebase messaging not available - skipping FCM setup');
           return;
         }
 
@@ -212,6 +207,7 @@ export default function App() {
                   ref={navigationRef}
                   onReady={() => {
                     // 6. Killed-state: app was closed, user tapped notification to open it
+                    const messaging = getFirebaseMessaging();
                     if (!messaging) return;
                     messaging()
                       .getInitialNotification()

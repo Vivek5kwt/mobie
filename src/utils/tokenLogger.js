@@ -1,6 +1,7 @@
 // src/utils/tokenLogger.js
 import { createFcmToken, updateFcmToken } from '../services/fcmTokenService';
 import { resolveAppId } from './appId';
+import { getFirebaseMessaging } from './firebaseMessaging';
 
 const STORAGE_FCM_TOKEN_KEY     = '@device_fcm_token';
 const STORAGE_FCM_RECORD_ID_KEY = '@fcm_record_id';   // id returned by createFcmToken
@@ -61,7 +62,12 @@ class TokenLogger {
 
   async _getFirebaseToken() {
     try {
-      const messaging = require('@react-native-firebase/messaging').default;
+      const messaging = getFirebaseMessaging();
+      if (!messaging) {
+        console.log('[FCM] Firebase messaging is not configured for this build');
+        return null;
+      }
+
       const token = await messaging().getToken();
       if (token) {
         console.log(`[FCM] Firebase token obtained (last 12): ...${token.slice(-12)}`);
