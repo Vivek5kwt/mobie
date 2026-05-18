@@ -586,6 +586,19 @@ export default function ProductGrid({ section, limit = 8, title = "Products" }) 
     cardAddToCartCss?.iconName,
     rawProps?.iconSelection
   );
+  const atcIconVisible = resolveBooleanSetting(
+    [
+      rawProps?.atcIconVisible,
+      rawProps?.addToCartIconVisible,
+      rawProps?.showAtcIcon,
+      rawProps?.showAddToCartIcon,
+      visibilityNode?.atcIcon,
+      visibilityNode?.addToCartIcon,
+      visibilityNode?.cartIcon,
+    ],
+    !!atcAvailableIconId
+  );
+  const atcAvailableIconWithFallback = atcAvailableIconId || (atcIconVisible ? "fa-cart-shopping" : "");
   const atcSoldOutIconId   = resolveIconId(
     rawProps?.atcSoldOutIconId,
     rawProps?.soldOutIconId,
@@ -1106,7 +1119,7 @@ export default function ProductGrid({ section, limit = 8, title = "Products" }) 
                 {/* Add to Cart — rendered above card body when position = "above" */}
                 {showAddToCart && atcAbove && (() => {
                   const btnIconName = isAvailable
-                    ? resolveFA4IconName(atcAvailableIconId)
+                    ? resolveFA4IconName(atcAvailableIconWithFallback)
                     : resolveFA4IconName(atcSoldOutIconId);
                   const btnBg    = isAvailable ? addToCartBgColor   : unavailableBgColor;
                   const btnColor = isAvailable ? addToCartTextColor  : unavailableTextColor;
@@ -1209,7 +1222,7 @@ export default function ProductGrid({ section, limit = 8, title = "Products" }) 
                 {/* Add to Cart — rendered below card body when position = "below" (default) */}
                 {showAddToCart && !atcAbove && (() => {
                   const btnIconName = isAvailable
-                    ? resolveFA4IconName(atcAvailableIconId)
+                    ? resolveFA4IconName(atcAvailableIconWithFallback)
                     : resolveFA4IconName(atcSoldOutIconId);
                   const btnBg    = isAvailable ? addToCartBgColor   : unavailableBgColor;
                   const btnColor = isAvailable ? addToCartTextColor  : unavailableTextColor;

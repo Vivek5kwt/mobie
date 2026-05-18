@@ -86,6 +86,30 @@ const resolveImageOverlayPosition = ({
   return style;
 };
 
+const normalizeOverlayCorner = (position, fallback = "top-right") => {
+  const rawPosition = toString(position, "") || fallback;
+  const normalized = String(rawPosition || fallback).toLowerCase();
+  const vertical = normalized.includes("bottom") ? "bottom" : "top";
+  const horizontal = normalized.includes("left") ? "left" : "right";
+  return `${vertical}-${horizontal}`;
+};
+
+const resolveStackOffset = ({
+  active,
+  position,
+  fallback,
+  occupied,
+  occupiedPosition,
+  occupiedFallback,
+  occupiedSize,
+  gap = 8,
+}) => {
+  if (!active || !occupied) return 0;
+  return normalizeOverlayCorner(position, fallback) === normalizeOverlayCorner(occupiedPosition, occupiedFallback)
+    ? Math.max(0, occupiedSize) + gap
+    : 0;
+};
+
 export default function ProductLibrary({ section }) {
   const navigation = useNavigation();
   const route = useRoute();
@@ -116,7 +140,10 @@ export default function ProductLibrary({ section }) {
   const shareStyles = css?.share || {};
   const reviewStyles = css?.reviews || {};
   const favouriteStyles = css?.favourite || css?.favorite || raw?.favourite || raw?.favorite || {};
-  const visibility = css?.visibility || {};
+  const visibility = {
+    ...(raw?.visibility || {}),
+    ...(css?.visibility || {}),
+  };
 
   // ── Images ────────────────────────────────────────────────────────────────
   // Prefer raw.images array; fall back to single raw.imageUrl
@@ -302,6 +329,7 @@ export default function ProductLibrary({ section }) {
     ? Math.max(0, favouriteToggleConfig.inset) + favouriteBubbleSize
     : 0;
   const ratingIconSize = toNumber(reviewStyles?.icon?.size, 12);
+  const ratingPosition = firstDefined(reviewStyles?.position, raw?.reviewsPosition, raw?.ratingPosition);
   const ratingInset = toNumber(
     firstDefined(
       reviewStyles?.inset,
@@ -313,12 +341,21 @@ export default function ProductLibrary({ section }) {
     ),
     16
   );
+  const ratingStackOffset = resolveStackOffset({
+    active: ratingVisible,
+    position: ratingPosition,
+    fallback: "bottom-left",
+    occupied: favouriteVisible,
+    occupiedPosition: favouriteToggleConfig.position,
+    occupiedFallback: "top-right",
+    occupiedSize: favouriteBubbleSize,
+  });
   const ratingOverlayStyle = resolveImageOverlayPosition({
-    position: reviewStyles?.position,
+    position: ratingPosition,
     fallback: "bottom-left",
     inset: ratingInset,
     horizontalOffset: imageHorizontalOffset,
-    verticalOffset: imageFramePaddingY,
+    verticalOffset: imageFramePaddingY + ratingStackOffset,
   });
 
   // ── Font families ─────────────────────────────────────────────────────────

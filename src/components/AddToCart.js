@@ -119,6 +119,8 @@ const resolveIconName = (iconName) => {
   return resolveFA4IconName(iconName);
 };
 
+const firstDefined = (...values) => values.find((value) => hasValue(value));
+
 const extractVariantIdentifiers = (value) => {
   if (!value) return { gid: "", numeric: "" };
   const raw = String(value);
@@ -244,7 +246,18 @@ export default function AddToCart({ section }) {
 
   const minusIconName = resolveIconName(quantityConfig?.minusIcon);
   const plusIconName = resolveIconName(quantityConfig?.plusIcon);
-  const addToCartIconName = resolveIconName(addToCartConfig?.icon);
+  const addToCartIconRaw = firstDefined(
+    addToCartConfig?.icon?.value,
+    addToCartConfig?.icon,
+    addToCartConfig?.iconName,
+    addToCartConfig?.iconId,
+    addToCartConfig?.cartIcon,
+    addToCartConfig?.buttonIcon,
+    raw?.addToCartIcon,
+    raw?.atcIcon,
+    showAddToCartIcon ? "fa-cart-shopping" : ""
+  );
+  const addToCartIconName = resolveIconName(addToCartIconRaw);
   const addToCartIconAlign = toString(addToCartConfig?.iconAlign ?? addToCartConfig?.align, "left").toLowerCase();
   const addToCartIconOnRight = addToCartIconAlign === "right" || addToCartIconAlign === "end";
   const addToCartIcon = showAddToCartIcon && !!addToCartIconName ? (
