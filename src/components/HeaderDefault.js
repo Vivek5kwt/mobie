@@ -27,6 +27,22 @@ const resolveArray = (v) => {
   return Array.isArray(u) ? u : [];
 };
 
+const normalizeNavKey = (value) =>
+  String(value || "").trim().toLowerCase().replace(/[\s_-]+/g, "");
+
+const isBackNavigationTarget = (navRef, navType) => {
+  const typeKey = normalizeNavKey(navType);
+  const refKey = normalizeNavKey(navRef);
+  return (
+    typeKey === "previousscreen" ||
+    typeKey === "back" ||
+    typeKey === "goback" ||
+    refKey === "back" ||
+    refKey === "__back__" ||
+    refKey === "previousscreen"
+  );
+};
+
 export default function HeaderDefault({ config, bottomNavSection, hideTabs = false, showBack = false }) {
   const navigation = useNavigation();
   const { openSideMenu, toggleSideMenu } = useSideMenu();
@@ -440,8 +456,14 @@ export default function HeaderDefault({ config, bottomNavSection, hideTabs = fal
   const executeNavigation = (navRef, navType) => {
     const type = String(navType || "").toLowerCase().trim();
     const ref  = String(navRef  || "").trim();
-    if (!ref || type === "none") return;
-    const key = ref.toLowerCase().replace(/[\s_-]+/g, "");
+    if (type === "none") return;
+    if (isBackNavigationTarget(ref, type)) {
+      if (navigation.canGoBack()) navigation.goBack();
+      else navigation.navigate("LayoutScreen");
+      return;
+    }
+    if (!ref) return;
+    const key = normalizeNavKey(ref);
     const isSideNavigationTarget =
       key === "sidenavigation" ||
       key === "sidemenu" ||
@@ -613,11 +635,6 @@ export default function HeaderDefault({ config, bottomNavSection, hideTabs = fal
     const isCart     = itemIconName.includes("cart");
     const isBell     = itemIconName.includes("bell");
     const isWishlist = itemIconName.includes("heart") || itemIconName.includes("bookmark");
-    const isBackIcon = isLeftSlot && showBack && (
-      itemIconName.includes("arrow-left") ||
-      itemIconName.includes("chevron-left") ||
-      itemIconName === "angle-left"
-    );
     const showBadge  = (isCart && cartCount > 0) || (isWishlist && wishlistCount > 0);
     const badgeCount = isCart ? cartCount : isWishlist ? wishlistCount : 0;
 
@@ -627,6 +644,14 @@ export default function HeaderDefault({ config, bottomNavSection, hideTabs = fal
     const effectiveNavRef  = itemNavRef  || (isLeftSlot ? topLevelNavRef  : "");
     const effectiveNavType = itemNavType || (isLeftSlot ? topLevelNavType : "");
     const hasCustomNav = !!effectiveNavRef && effectiveNavType !== "none";
+    const isBackIcon = isLeftSlot && (
+      showBack ||
+      isBackNavigationTarget(effectiveNavRef, effectiveNavType)
+    ) && (
+      itemIconName.includes("arrow-left") ||
+      itemIconName.includes("chevron-left") ||
+      itemIconName === "angle-left"
+    );
 
     const isInteractive = isBackIcon || isCart || isBell || isWishlist || hasCustomNav;
 

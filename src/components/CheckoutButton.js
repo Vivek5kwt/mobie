@@ -217,7 +217,7 @@ export default function CheckoutButton({ section }) {
     true
   );
   const label = buttonShowText
-    ? pickStr([raw?.label, raw?.buttonText, raw?.text, raw?.buttonLabel, propsNode?.label], "Checkout")
+    ? pickStr([raw?.buttonText, raw?.label, raw?.text, raw?.buttonLabel, propsNode?.label], "Checkout")
     : "";
 
   // ── Button variant: "filled" | "outlined" | "ghost" ──────────────────────────

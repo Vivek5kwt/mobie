@@ -160,7 +160,12 @@ export default function OrderSummary({ section }) {
   // Title
   const titleText = toString(raw?.title ?? raw?.heading ?? raw?.titleText, "Order Summary");
   const showTitle = toBoolean(
-    visibility?.title ?? raw?.showTitle ?? raw?.titleEnabled,
+    visibility?.title ??
+      raw?.headlineActive ??
+      raw?.headerVisible ??
+      raw?.showHeader ??
+      raw?.showTitle ??
+      raw?.titleEnabled,
     true
   );
   const titleColor = toString(raw?.titleColor, "#111827");

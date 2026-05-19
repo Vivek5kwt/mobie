@@ -97,7 +97,10 @@ export default function DiscountCode({ section }) {
 
   // Title
   const titleText = toString(raw?.title ?? raw?.titleText ?? raw?.heading, "Discounts and Gift Cards");
-  const showTitle = toBoolean(raw?.showTitle ?? raw?.titleEnabled, true);
+  const showTitle = toBoolean(
+    raw?.headerVisible ?? raw?.showHeader ?? raw?.showTitle ?? raw?.titleEnabled,
+    true
+  );
   const titleColor = toString(raw?.titleColor, "#111827");
   const titleSize = toNumber(raw?.titleSize ?? raw?.titleFontSize, 16);
   const titleWeight = toFontWeight(raw?.titleWeight ?? raw?.titleFontWeight, "700");
@@ -113,7 +116,7 @@ export default function DiscountCode({ section }) {
   const placeholderColor = toString(raw?.placeholderColor, "#9CA3AF");
 
   // Apply button
-  const applyText = toString(raw?.applyText ?? raw?.buttonText ?? raw?.btnText, "Apply");
+  const applyText = toString(raw?.applyButtonText ?? raw?.applyText ?? raw?.buttonText ?? raw?.btnText, "Apply");
   const applyBg = toString(raw?.applyBg ?? raw?.buttonBg ?? raw?.btnBg, "#111827");
   const applyTextColor = toString(raw?.applyTextColor ?? raw?.buttonTextColor, "#FFFFFF");
   const applyBorderRadius = toNumber(raw?.applyBorderRadius ?? raw?.btnRadius, 8);

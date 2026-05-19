@@ -1,5 +1,6 @@
 import React, { useMemo } from "react";
 import {
+  Dimensions,
   Image,
   StyleSheet,
   Text,
@@ -90,6 +91,12 @@ const resolveCurrencyLabel = (...values) => {
 const fmtPrice = (amount, currency) =>
   formatMoney(Math.abs(toNumber(amount, 0)), currency);
 
+const { width: SCREEN_W } = Dimensions.get("window");
+const responsiveSize = (ratio, min, max) => {
+  const value = Math.round(SCREEN_W * ratio);
+  return Math.max(min, Math.min(max, value));
+};
+
 export default function CartLineItems({ section }) {
   const dispatch = useDispatch();
   const navigation = useNavigation();
@@ -138,12 +145,21 @@ export default function CartLineItems({ section }) {
   const cardBgColor = toString(raw?.cardBgColor, "#FFFFFF");
   const cardBorderColor = toString(raw?.cardBorderColor ?? raw?.borderColor, "#F3F4F6");
   const cardBorderRadius = toNumber(raw?.cardBorderRadius ?? raw?.borderRadius, 12);
-  const cardBorderWidth = toNumber(raw?.cardBorderWidth ?? raw?.borderSize, 1);
+  const cardBorderLine = toString(raw?.cardBorderLine ?? raw?.borderLine ?? raw?.borderStyle, "all").toLowerCase();
+  const cardBorderWidth = cardBorderLine === "none" ? 0 : toNumber(raw?.cardBorderWidth ?? raw?.borderSize, 1);
   const cardGap = toNumber(raw?.cardGap ?? raw?.gap, 12);
+  const cardPadT = toNumber(raw?.cardPadT ?? raw?.cardPt ?? raw?.itemPadT, 0);
+  const cardPadR = toNumber(raw?.cardPadR ?? raw?.cardPr ?? raw?.itemPadR, 0);
+  const cardPadB = toNumber(raw?.cardPadB ?? raw?.cardPb ?? raw?.itemPadB, 0);
+  const cardPadL = toNumber(raw?.cardPadL ?? raw?.cardPl ?? raw?.itemPadL, 0);
+  const cardInnerGap = toNumber(raw?.cardInnerGap ?? raw?.itemGap, responsiveSize(0.02, 8, 12));
 
   // Image
-  const imageSize = toNumber(raw?.imageSize ?? raw?.imageWidth, 88);
-  const imageRadius = toNumber(raw?.imageRadius ?? raw?.imageCorner, 10);
+  const imageSize = toNumber(
+    raw?.imageSize ?? raw?.imageWidth ?? raw?.productImageSize,
+    responsiveSize(0.16, 58, 72)
+  );
+  const imageRadius = toNumber(raw?.imageRadius ?? raw?.imageCorner ?? raw?.cardImageCorner, 0);
   const imageBg = toString(
     raw?.imageBg ??
       raw?.imageBgColor ??
@@ -162,8 +178,8 @@ export default function CartLineItems({ section }) {
   // Vendor
   const showVendor = toBoolean(raw?.showVendor, true);
   const vendorColor = toString(raw?.vendorColor, "#111827");
-  const vendorSize = toNumber(raw?.vendorSize, 14);
-  const vendorWeight = toFontWeight(raw?.vendorWeight, "600");
+  const vendorSize = toNumber(raw?.vendorSize ?? raw?.vendorFontSize, 12);
+  const vendorWeight = toFontWeight(raw?.vendorWeight ?? raw?.vendorFontWeight, "600");
 
   // Title
   const titleVisibilityOverride = firstDefined(
@@ -173,6 +189,7 @@ export default function CartLineItems({ section }) {
     visibility?.productName,
     visibility?.name,
     raw?.titleVisible,
+    raw?.showTitle,
     raw?.showProductTitle,
     raw?.showItemTitle,
     raw?.productNameVisible
@@ -188,8 +205,8 @@ export default function CartLineItems({ section }) {
   // Price
   const showPrice = toBoolean(raw?.showPrice, true);
   const priceColor = toString(raw?.priceColor, "#111827");
-  const priceSize = toNumber(raw?.priceSize, 14);
-  const priceWeight = toFontWeight(raw?.priceWeight, "700");
+  const priceSize = toNumber(raw?.priceSize ?? raw?.priceFontSize, 14);
+  const priceWeight = toFontWeight(raw?.priceWeight ?? raw?.priceFontWeight, "700");
   const currencyLabel = resolveCurrencyLabel(
     sourceItems[0]?.currency,
     sourceItems[0]?.priceCurrency,
@@ -232,17 +249,17 @@ export default function CartLineItems({ section }) {
   const qtyBorderColor = toString(raw?.qtyBorderColor, "#E5E7EB");
   const qtyBtnBgColor = toString(raw?.qtyBtnBgColor ?? raw?.quantityButtonBgColor, "#FFFFFF");
   const qtyWrapBgColor = toString(raw?.qtyWrapBgColor ?? raw?.quantityWrapBgColor, "transparent");
-  const qtyBtnSize = toNumber(raw?.qtyBtnSize, 32);
-  const qtyBtnRadius = toNumber(raw?.qtyBtnRadius, 8);
+  const qtyBtnSize = toNumber(raw?.qtyBtnSize, responsiveSize(0.06, 22, 28));
+  const qtyBtnRadius = toNumber(raw?.qtyBtnRadius, Math.round(qtyBtnSize / 2));
   const qtyTextColor = toString(raw?.qtyTextColor, "#111827");
-  const qtyTextSize = toNumber(raw?.qtyTextSize, 14);
-  const qtyIconSize = toNumber(raw?.qtyIconSize, 12);
+  const qtyTextSize = toNumber(raw?.qtyTextSize, 12);
+  const qtyIconSize = toNumber(raw?.qtyIconSize, 10);
   const qtyIconColor = toString(raw?.qtyIconColor, "#111827");
 
   // Delete button
   const showDelete = toBoolean(raw?.showDelete ?? raw?.showDeleteButton, true);
   const deleteIconColor = toString(raw?.deleteIconColor, "#9CA3AF");
-  const deleteIconSize = toNumber(raw?.deleteIconSize, 16);
+  const deleteIconSize = toNumber(raw?.deleteIconSize, 14);
 
   // Item icon (e.g. vendor/profile icon from DSR brandKit — shown top-right of each card)
   const showItemIcon   = toBoolean(raw?.showItemIcon ?? raw?.showVendorIcon ?? raw?.showCardIcon, false);
@@ -380,6 +397,11 @@ export default function CartLineItems({ section }) {
                   borderRadius: cardBorderRadius,
                   borderWidth: cardBorderWidth,
                   borderColor: cardBorderColor,
+                  paddingTop: cardPadT,
+                  paddingRight: cardPadR,
+                  paddingBottom: cardPadB,
+                  paddingLeft: cardPadL,
+                  gap: cardInnerGap,
                 },
               ]}
             >
@@ -619,8 +641,6 @@ const styles = StyleSheet.create({
   },
   card: {
     flexDirection: "row",
-    padding: 12,
-    gap: 12,
     overflow: "hidden",
     position: "relative",
   },
@@ -649,13 +669,14 @@ const styles = StyleSheet.create({
   },
   info: {
     flex: 1,
-    gap: 5,
+    gap: 2,
+    minWidth: 0,
   },
   variant: {
-    lineHeight: 16,
+    lineHeight: 15,
   },
   vendor: {
-    lineHeight: 18,
+    lineHeight: 14,
   },
   title: {
     lineHeight: 18,
@@ -687,13 +708,13 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "flex-end",
-    gap: 10,
-    marginTop: 4,
+    gap: 8,
+    marginTop: 2,
   },
   qtyControls: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 12,
+    gap: 8,
   },
   qtyBtn: {
     borderWidth: 1,

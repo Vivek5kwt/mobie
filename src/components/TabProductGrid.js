@@ -82,6 +82,30 @@ const resolveBoolSetting = (values, fallback = true) => {
   return fallback;
 };
 
+const firstNum = (values, fallback) => {
+  for (const value of values) {
+    if (!hasExplicitValue(value)) continue;
+    const resolved = toNum(value, undefined);
+    if (resolved !== undefined) return resolved;
+  }
+  return fallback;
+};
+
+const parseAspectRatio = (value) => {
+  const resolved = unwrapValue(value, undefined);
+  if (resolved === undefined || resolved === null || resolved === "") return undefined;
+  if (typeof resolved === "number" && resolved > 0) return resolved;
+  const text = String(resolved).trim().toLowerCase();
+  const ratioMatch = text.match(/^(\d+(?:\.\d+)?)\s*[:/]\s*(\d+(?:\.\d+)?)$/);
+  if (ratioMatch) {
+    const width = parseFloat(ratioMatch[1]);
+    const height = parseFloat(ratioMatch[2]);
+    return width > 0 && height > 0 ? width / height : undefined;
+  }
+  const parsed = parseFloat(text);
+  return parsed > 0 ? parsed : undefined;
+};
+
 const toFontWeight = (value, fallback = "500") => {
   const r = unwrapValue(value, undefined);
   if (!r) return fallback;
@@ -149,6 +173,7 @@ const isProductAvailable = (product) => {
 };
 const { width: SCREEN_W } = Dimensions.get("window");
 const COL_GAP = 8;
+const DEFAULT_IMAGE_ASPECT_RATIO = 1.55;
 
 export default function TabProductGrid({ section }) {
   const dispatch = useDispatch();
@@ -169,9 +194,52 @@ export default function TabProductGrid({ section }) {
   const visibilityConfig = rawConfig?.visibility?.properties || rawConfig?.visibility || {};
   const layoutNode = rawProps?.layout?.properties || rawProps?.layout || {};
   const layoutCss = layoutNode?.css?.value || layoutNode?.css?.properties || layoutNode?.css || {};
-  const layoutCardTitleCss = layoutCss?.cardTitle || layoutCss?.title || {};
-  const layoutCardPriceCss = layoutCss?.price || layoutCss?.priceText || {};
-  const layoutAddToCartCss = layoutCss?.addToCartButton || layoutCss?.addToCart || {};
+  const presentationNode = rawProps?.presentation?.properties || rawProps?.presentation || {};
+  const presentationCss = presentationNode?.css?.value || presentationNode?.css?.properties || presentationNode?.css || {};
+  const layoutCardCss = layoutCss?.card || {};
+  const presentationCardCss = presentationCss?.card || {};
+  const layoutCardTitleCss =
+    layoutCss?.cardTitle ||
+    layoutCardCss?.title ||
+    presentationCss?.cardTitle ||
+    presentationCardCss?.title ||
+    layoutCss?.title ||
+    {};
+  const layoutCardPriceCss =
+    layoutCss?.cardPrice ||
+    layoutCss?.priceText ||
+    layoutCardCss?.price ||
+    presentationCss?.cardPrice ||
+    presentationCss?.priceText ||
+    presentationCardCss?.price ||
+    layoutCss?.price ||
+    {};
+  const layoutCardImageCss =
+    layoutCss?.cardImage ||
+    layoutCss?.imageWrap ||
+    layoutCss?.image ||
+    layoutCardCss?.image ||
+    presentationCss?.cardImage ||
+    presentationCss?.imageWrap ||
+    presentationCss?.image ||
+    presentationCardCss?.image ||
+    {};
+  const layoutCardContentCss =
+    layoutCss?.cardContent ||
+    layoutCss?.content ||
+    layoutCardCss?.content ||
+    presentationCss?.cardContent ||
+    presentationCss?.content ||
+    presentationCardCss?.content ||
+    {};
+  const layoutAddToCartCss =
+    layoutCss?.addToCartButton ||
+    layoutCss?.addToCart ||
+    layoutCardCss?.addToCart ||
+    presentationCss?.addToCartButton ||
+    presentationCss?.addToCart ||
+    presentationCardCss?.addToCart ||
+    {};
   const tabButtonCss = layoutCss?.tabButton || {};
   const carouselCss  = layoutCss?.carousel  || {};
   const tabBarCss    = layoutCss?.tabBar    || {};
@@ -270,16 +338,16 @@ export default function TabProductGrid({ section }) {
   const tabTextColor = toStr(rawConfig?.tabTextColor, "#374151");
   const activeBg     = toStr(rawConfig?.tabActiveBgColor ?? tabButtonCss?.backgroundColor, "#111111");
   const activeText   = toStr(rawConfig?.tabActiveTextColor ?? tabButtonCss?.color, "#FFFFFF");
-  const tabFontSize  = toNum(rawConfig?.tabFontSize ?? tabButtonCss?.fontSize ?? rawConfig?.fontSize, 12);
+  const tabFontSize  = firstNum([rawConfig?.tabFontSize, tabButtonCss?.fontSize, rawConfig?.fontSize], 12);
   const tabFontWt    = toFontWeight(rawConfig?.tabFontWeight ?? tabButtonCss?.fontWeight, "600");
   const tabFamily    = cleanFontFamily(toStr(rawConfig?.tabFontFamily ?? tabButtonCss?.fontFamily ?? rawConfig?.fontFamily, ""));
   const tabBorderRadius = toNum(rawConfig?.tabBorderRadius ?? tabButtonCss?.borderRadius, 999);
-  const tabPadT = toNum(rawConfig?.tabPadT ?? tabButtonCss?.paddingTop, undefined);
-  const tabPadB = toNum(rawConfig?.tabPadB ?? tabButtonCss?.paddingBottom, undefined);
-  const tabPadL = toNum(rawConfig?.tabPadL ?? tabButtonCss?.paddingLeft, undefined);
-  const tabPadR = toNum(rawConfig?.tabPadR ?? tabButtonCss?.paddingRight, undefined);
-  const tabPadX = toNum(rawConfig?.tabPadX ?? tabButtonCss?.paddingHorizontal, 14);
-  const tabPadY = toNum(rawConfig?.tabPadY ?? tabButtonCss?.paddingVertical, 7);
+  const tabPadT = firstNum([rawConfig?.tabPadT, tabButtonCss?.paddingTop], undefined);
+  const tabPadB = firstNum([rawConfig?.tabPadB, tabButtonCss?.paddingBottom], undefined);
+  const tabPadL = firstNum([rawConfig?.tabPadL, tabButtonCss?.paddingLeft], undefined);
+  const tabPadR = firstNum([rawConfig?.tabPadR, tabButtonCss?.paddingRight], undefined);
+  const tabPadX = firstNum([rawConfig?.tabPadX, tabButtonCss?.paddingHorizontal], 14);
+  const tabPadY = firstNum([rawConfig?.tabPadY, tabButtonCss?.paddingVertical], 7);
 
   const paddingTop    = toNum(rawConfig?.paddingTop,    0);
   const paddingBottom = toNum(rawConfig?.paddingBottom, 0);
@@ -288,9 +356,31 @@ export default function TabProductGrid({ section }) {
 
   const cardRadius     = toNum(rawConfig?.cardBorderRadius, 12);
   const imageCorner    = toNum(rawConfig?.cardImageCorner, 0);
-  const cardTitleSize  = toNum(rawConfig?.cardTitleSize ?? rawConfig?.titleSize ?? rawConfig?.headlineSize ?? layoutCardTitleCss?.fontSize, 12);
-  const cardTitleWt    = toFontWeight(rawConfig?.cardTitleWeight ?? rawConfig?.titleWeight ?? rawConfig?.headlineWeight ?? layoutCardTitleCss?.fontWeight, "600");
-  const cardTitleFamily= cleanFontFamily(toStr(rawConfig?.cardTitleFamily ?? rawConfig?.titleFontFamily ?? rawConfig?.headlineFontFamily ?? layoutCardTitleCss?.fontFamily, ""));
+  const cardTitleSize  = firstNum(
+    [
+      rawConfig?.productTitleSize,
+      rawConfig?.itemTitleSize,
+      rawConfig?.cardTitleSize,
+      rawConfig?.cardTitleFontSize,
+      layoutCardTitleCss?.fontSize,
+    ],
+    12
+  );
+  const cardTitleWt    = toFontWeight(
+    rawConfig?.productTitleWeight ??
+      rawConfig?.itemTitleWeight ??
+      rawConfig?.cardTitleWeight ??
+      layoutCardTitleCss?.fontWeight,
+    "600"
+  );
+  const cardTitleFamily= cleanFontFamily(toStr(
+    rawConfig?.productTitleFamily ??
+      rawConfig?.itemTitleFamily ??
+      rawConfig?.cardTitleFamily ??
+      rawConfig?.cardTitleFontFamily ??
+      layoutCardTitleCss?.fontFamily,
+    ""
+  ));
   const titleAlignRaw  = toStr(
     rawConfig?.titleAlign ??
       rawConfig?.cardTitleAlign ??
@@ -300,11 +390,6 @@ export default function TabProductGrid({ section }) {
     "Left"
   ).toLowerCase();
   const titleTextAlign = titleAlignRaw === "center" ? "center" : titleAlignRaw === "right" ? "right" : "left";
-  const titleWrap = toBool(
-    rawConfig?.titleWrap ?? rawConfig?.textWrap ?? rawConfig?.cardTitleWrap ?? rawConfig?.productTitleWrap,
-    false
-  );
-
   const showFavorite   = resolveBoolSetting(
     [
       rawConfig?.favActive,
@@ -347,25 +432,58 @@ export default function TabProductGrid({ section }) {
       rawConfig?.imageBackgroundColor ??
       rawConfig?.productImageBgColor ??
       rawConfig?.productImageBackgroundColor ??
-      layoutCss?.cardImage?.backgroundColor ??
-      layoutCss?.image?.backgroundColor ??
-      layoutCss?.imageWrap?.backgroundColor,
+      layoutCardImageCss?.backgroundColor,
     "#FFFFFF"
   );
   const productImageResizeMode = resolveProductImageResizeMode(
     rawConfig?.imageScale,
     rawConfig?.scale,
     rawConfig?.imageResizeMode,
-    layoutCss?.cardImage?.objectFit,
-    layoutCss?.cardImage?.resizeMode,
-    layoutCss?.image?.objectFit,
-    layoutCss?.image?.resizeMode,
-    layoutCss?.imageWrap?.objectFit,
-    layoutCss?.imageWrap?.resizeMode
+    layoutCardImageCss?.objectFit,
+    layoutCardImageCss?.resizeMode
   );
-  const priceSize      = toNum(rawConfig?.priceSize ?? rawConfig?.subtextSize ?? layoutCardPriceCss?.fontSize, 12);
-  const priceWeight    = toFontWeight(rawConfig?.priceWeight ?? rawConfig?.subtextWeight ?? layoutCardPriceCss?.fontWeight, "600");
-  const priceFamily    = cleanFontFamily(toStr(rawConfig?.priceFamily ?? rawConfig?.subtextFontFamily ?? layoutCardPriceCss?.fontFamily, ""));
+  const explicitImageHeight = firstNum(
+    [
+      rawConfig?.cardImageHeight,
+      rawConfig?.productImageHeight,
+      rawConfig?.imageHeight,
+      layoutCardImageCss?.height,
+      layoutCardImageCss?.minHeight,
+    ],
+    undefined
+  );
+  const imageAspectRatio =
+    parseAspectRatio(rawConfig?.cardImageAspectRatio) ||
+    parseAspectRatio(rawConfig?.productImageAspectRatio) ||
+    parseAspectRatio(rawConfig?.imageAspectRatio) ||
+    parseAspectRatio(layoutCardImageCss?.aspectRatio) ||
+    DEFAULT_IMAGE_ASPECT_RATIO;
+  const priceSize      = firstNum(
+    [
+      rawConfig?.productPriceSize,
+      rawConfig?.cardPriceSize,
+      rawConfig?.priceFontSize,
+      rawConfig?.standardPriceFontSize,
+      rawConfig?.priceSize,
+      layoutCardPriceCss?.fontSize,
+    ],
+    12
+  );
+  const priceWeight    = toFontWeight(
+    rawConfig?.productPriceWeight ??
+      rawConfig?.cardPriceWeight ??
+      rawConfig?.priceWeight ??
+      layoutCardPriceCss?.fontWeight,
+    "600"
+  );
+  const priceFamily    = cleanFontFamily(toStr(
+    rawConfig?.productPriceFamily ??
+      rawConfig?.cardPriceFamily ??
+      rawConfig?.priceFamily ??
+      rawConfig?.priceFontFamily ??
+      layoutCardPriceCss?.fontFamily,
+    ""
+  ));
   const priceAlignRaw  = toStr(
     rawConfig?.priceAlign ??
       rawConfig?.cardPriceAlign ??
@@ -393,7 +511,7 @@ export default function TabProductGrid({ section }) {
   const atcAlign = atcAlignRaw === "center" ? "center" : atcAlignRaw === "right" ? "right" : "left";
   const atcAvailableText = toStr(rawConfig?.atcAvailableText ?? layoutAddToCartCss?.label ?? layoutAddToCartCss?.text, "Add To Cart");
   const atcSoldOutText = toStr(rawConfig?.atcSoldOutText ?? rawConfig?.unavailableText ?? layoutAddToCartCss?.soldOutLabel, "Unavailable");
-  const atcSize = toNum(rawConfig?.atcSize ?? layoutAddToCartCss?.fontSize, 12);
+  const atcSize = firstNum([rawConfig?.atcSize, rawConfig?.atcFontSize, layoutAddToCartCss?.fontSize], 12);
   const atcBgColor = toStr(rawConfig?.atcBgColor ?? layoutAddToCartCss?.backgroundColor, "#096d70");
   const atcTextColor = toStr(rawConfig?.atcTextColor ?? layoutAddToCartCss?.color, "#FFFFFF");
   const atcSoldOutBgColor = toStr(rawConfig?.atcSoldOutBgColor ?? rawConfig?.unavailableBgColor, "#7A7A7A");
@@ -401,14 +519,35 @@ export default function TabProductGrid({ section }) {
   const atcFontFamily = cleanFontFamily(toStr(rawConfig?.atcFamily ?? layoutAddToCartCss?.fontFamily, ""));
   const atcFontWeight = toFontWeight(rawConfig?.atcWeight ?? layoutAddToCartCss?.fontWeight, "600");
   const atcBorderRadius = toNum(rawConfig?.atcCorner ?? rawConfig?.atcBorderRadius ?? rawConfig?.buttonRadius ?? layoutAddToCartCss?.borderRadius, 6);
-  const atcPaddingTop = toNum(rawConfig?.atcPadT ?? layoutAddToCartCss?.paddingTop, undefined);
-  const atcPaddingRight = toNum(rawConfig?.atcPadR ?? layoutAddToCartCss?.paddingRight, undefined);
-  const atcPaddingBottom = toNum(rawConfig?.atcPadB ?? layoutAddToCartCss?.paddingBottom, undefined);
-  const atcPaddingLeft = toNum(rawConfig?.atcPadL ?? layoutAddToCartCss?.paddingLeft, undefined);
-  const atcPaddingX = toNum(rawConfig?.atcPadX ?? layoutAddToCartCss?.paddingHorizontal, 10);
-  const atcPaddingY = toNum(rawConfig?.atcPadY ?? layoutAddToCartCss?.paddingVertical, 6);
+  const atcPaddingTop = firstNum([rawConfig?.atcPadT, layoutAddToCartCss?.paddingTop], undefined);
+  const atcPaddingRight = firstNum([rawConfig?.atcPadR, layoutAddToCartCss?.paddingRight], undefined);
+  const atcPaddingBottom = firstNum([rawConfig?.atcPadB, layoutAddToCartCss?.paddingBottom], undefined);
+  const atcPaddingLeft = firstNum([rawConfig?.atcPadL, layoutAddToCartCss?.paddingLeft], undefined);
+  const atcPaddingX = firstNum([rawConfig?.atcPadX, layoutAddToCartCss?.paddingHorizontal], 10);
+  const atcPaddingY = firstNum([rawConfig?.atcPadY, layoutAddToCartCss?.paddingVertical], 6);
   const atcBorderLine = toStr(rawConfig?.atcBorderLine ?? layoutAddToCartCss?.borderStyle, "");
   const atcBorderColor = toStr(rawConfig?.atcBorderColor ?? layoutAddToCartCss?.borderColor, "#E5E7EB");
+  const contentPadT = firstNum([rawConfig?.contentPadT, rawConfig?.cardContentPadT, layoutCardContentCss?.paddingTop], 8);
+  const contentPadB = firstNum([rawConfig?.contentPadB, rawConfig?.cardContentPadB, layoutCardContentCss?.paddingBottom], 10);
+  const contentPadL = firstNum([rawConfig?.contentPadL, rawConfig?.cardContentPadL, layoutCardContentCss?.paddingLeft], 8);
+  const contentPadR = firstNum([rawConfig?.contentPadR, rawConfig?.cardContentPadR, layoutCardContentCss?.paddingRight], 8);
+  const contentGap = firstNum([rawConfig?.contentGap, rawConfig?.cardContentGap, layoutCardContentCss?.gap], 5);
+  const titleLineHeight = firstNum(
+    [rawConfig?.cardTitleLineHeight, rawConfig?.productTitleLineHeight, layoutCardTitleCss?.lineHeight],
+    Math.round(cardTitleSize * 1.28)
+  );
+  const priceLineHeight = firstNum(
+    [rawConfig?.priceLineHeight, rawConfig?.cardPriceLineHeight, layoutCardPriceCss?.lineHeight],
+    Math.round(priceSize * 1.28)
+  );
+  const atcLineHeight = firstNum(
+    [rawConfig?.atcLineHeight, layoutAddToCartCss?.lineHeight],
+    Math.round(atcSize * 1.25)
+  );
+  const titleLines = Math.max(1, Math.round(firstNum(
+    [rawConfig?.titleLines, rawConfig?.maxTitleLines, rawConfig?.cardTitleLines, rawConfig?.productTitleLines],
+    2
+  )));
 
   // Auto text color based on bg brightness
   const containerDark = isDark(containerBg);
@@ -429,16 +568,29 @@ export default function TabProductGrid({ section }) {
   const isCarouselMode = sectionComponent.includes("carousel");
 
   // Carousel CSS values
-  const carouselGap        = toNum(carouselCss?.gap, 12);
-  const carouselPadLeft    = toNum(carouselCss?.paddingLeft  ?? carouselCss?.paddingHorizontal, 0);
-  const carouselPadRight   = toNum(carouselCss?.paddingRight, 0);
-  const carouselPadTop     = toNum(carouselCss?.paddingTop   ?? carouselCss?.paddingVertical, 0);
-  const carouselPadBottom  = toNum(carouselCss?.paddingBottom, 0);
+  const carouselGap        = firstNum([carouselCss?.gap, rawConfig?.carouselGap], 12);
+  const carouselPadLeft    = firstNum([carouselCss?.paddingLeft, carouselCss?.paddingHorizontal], 0);
+  const carouselPadRight   = firstNum([carouselCss?.paddingRight, carouselCss?.paddingHorizontal], 0);
+  const carouselPadTop     = firstNum([carouselCss?.paddingTop, carouselCss?.paddingVertical], 0);
+  const carouselPadBottom  = firstNum([carouselCss?.paddingBottom, carouselCss?.paddingVertical], 0);
 
   // Card dimensions
   const availableW = SCREEN_W - paddingLeft - paddingRight;
-  const colGap = columns > 1 ? COL_GAP * (columns - 1) : 0;
+  const gridColGap = firstNum(
+    [rawConfig?.colGap, rawConfig?.columnGap, rawConfig?.gapX, layoutCss?.grid?.columnGap, layoutCss?.grid?.gap],
+    COL_GAP
+  );
+  const gridRowGap = firstNum(
+    [rawConfig?.rowGap, rawConfig?.gapY, layoutCss?.grid?.rowGap, layoutCss?.grid?.gap],
+    COL_GAP
+  );
+  const colGap = columns > 1 ? gridColGap * (columns - 1) : 0;
   const cardW = Math.floor((availableW - colGap) / columns);
+  const resolveImageHeight = (width) => {
+    if (explicitImageHeight !== undefined) return explicitImageHeight;
+    return Math.round(width / imageAspectRatio);
+  };
+  const gridImageHeight = resolveImageHeight(cardW);
 
   const products = productsByTab[activeTabId] || [];
   const isLoading = loadingTabId === activeTabId && products.length === 0;
@@ -572,11 +724,13 @@ export default function TabProductGrid({ section }) {
         ]}
       >
         <Text
+          allowFontScaling={false}
           style={[
             styles.cartBtnText,
             {
               color: buttonTextColor,
               fontSize: atcSize,
+              lineHeight: atcLineHeight,
               fontWeight: atcFontWeight,
               ...(atcFontFamily ? { fontFamily: atcFontFamily } : {}),
             },
@@ -648,9 +802,11 @@ export default function TabProductGrid({ section }) {
                 ]}
               >
                 <Text
+                  allowFontScaling={false}
                   style={{
                     color: isActive ? activeText : tabTextColor,
                     fontSize: tabFontSize,
+                    lineHeight: Math.round(tabFontSize * 1.25),
                     fontWeight: tabFontWt,
                     ...(tabFamily ? { fontFamily: tabFamily } : {}),
                   }}
@@ -690,6 +846,7 @@ export default function TabProductGrid({ section }) {
         >
           {products.map((product) => {
             const carouselCardW = Math.floor(SCREEN_W * 0.42);
+            const carouselImageHeight = resolveImageHeight(carouselCardW);
             const isFav = isWishlistProduct(wishlistItems, product);
             const inStock = isProductAvailable(product);
             return (
@@ -717,7 +874,7 @@ export default function TabProductGrid({ section }) {
                     styles.imageWrapper,
                     {
                       width: carouselCardW,
-                      height: carouselCardW,
+                      height: carouselImageHeight,
                       borderTopLeftRadius: cardRadius,
                       borderTopRightRadius: cardRadius,
                       borderBottomLeftRadius: imageCorner,
@@ -752,16 +909,29 @@ export default function TabProductGrid({ section }) {
                   )}
                   {showAddToCart && atcPosition === "overlay" && renderAddToCart(product, inStock)}
                 </View>
-                <View style={styles.cardContent}>
+                <View
+                  style={[
+                    styles.cardContent,
+                    {
+                      paddingTop: contentPadT,
+                      paddingBottom: contentPadB,
+                      paddingLeft: contentPadL,
+                      paddingRight: contentPadR,
+                      gap: contentGap,
+                    },
+                  ]}
+                >
                   {showAddToCart && atcPosition === "above" && renderAddToCart(product, inStock)}
                   {showTitleText && (
                     <Text
-                      numberOfLines={titleWrap ? 1 : 2}
+                      allowFontScaling={false}
+                      numberOfLines={titleLines}
                       style={[
                         styles.cardTitle,
                         {
                           color: cardTextColor,
                           fontSize: cardTitleSize,
+                          lineHeight: titleLineHeight,
                           fontWeight: cardTitleWt,
                           textAlign: titleTextAlign,
                           ...(cardTitleFamily ? { fontFamily: cardTitleFamily } : {}),
@@ -773,11 +943,13 @@ export default function TabProductGrid({ section }) {
                   )}
                   {showPrice && product.price && (
                     <Text
+                      allowFontScaling={false}
                       style={[
                         styles.priceText,
                         {
                           color: priceColor,
                           fontSize: priceSize,
+                          lineHeight: priceLineHeight,
                           fontWeight: priceWeight,
                           textAlign: priceTextAlign,
                           ...(priceFamily ? { fontFamily: priceFamily } : {}),
@@ -801,7 +973,7 @@ export default function TabProductGrid({ section }) {
               key={rowIdx}
               style={[
                 styles.row,
-                { marginBottom: rowIdx < rows.length - 1 ? COL_GAP : 0 },
+                { marginBottom: rowIdx < rows.length - 1 ? gridRowGap : 0 },
               ]}
             >
               {row.map((product, colIdx) => {
@@ -824,7 +996,7 @@ export default function TabProductGrid({ section }) {
                         width: cardW,
                         borderRadius: cardRadius,
                         backgroundColor: containerBg,
-                        marginRight: colIdx < row.length - 1 ? COL_GAP : 0,
+                        marginRight: colIdx < row.length - 1 ? gridColGap : 0,
                       },
                     ]}
                   >
@@ -834,7 +1006,7 @@ export default function TabProductGrid({ section }) {
                         styles.imageWrapper,
                         {
                           width: cardW,
-                          height: cardW,
+                          height: gridImageHeight,
                           borderTopLeftRadius: cardRadius,
                           borderTopRightRadius: cardRadius,
                           borderBottomLeftRadius: imageCorner,
@@ -873,17 +1045,30 @@ export default function TabProductGrid({ section }) {
                     </View>
 
                     {/* Card content */}
-                    <View style={styles.cardContent}>
+                    <View
+                      style={[
+                        styles.cardContent,
+                        {
+                          paddingTop: contentPadT,
+                          paddingBottom: contentPadB,
+                          paddingLeft: contentPadL,
+                          paddingRight: contentPadR,
+                          gap: contentGap,
+                        },
+                      ]}
+                    >
                       {showAddToCart && atcPosition === "above" && renderAddToCart(product, inStock)}
 
                       {showTitleText && (
                         <Text
-                          numberOfLines={titleWrap ? 1 : 2}
+                          allowFontScaling={false}
+                          numberOfLines={titleLines}
                           style={[
                             styles.cardTitle,
                             {
                               color: cardTextColor,
                               fontSize: cardTitleSize,
+                              lineHeight: titleLineHeight,
                               fontWeight: cardTitleWt,
                               textAlign: titleTextAlign,
                               ...(cardTitleFamily ? { fontFamily: cardTitleFamily } : {}),
@@ -896,11 +1081,13 @@ export default function TabProductGrid({ section }) {
 
                       {showPrice && product.price && (
                         <Text
+                          allowFontScaling={false}
                           style={[
                             styles.priceText,
                             {
                               color: priceColor,
                               fontSize: priceSize,
+                              lineHeight: priceLineHeight,
                               fontWeight: priceWeight,
                               textAlign: priceTextAlign,
                               ...(priceFamily ? { fontFamily: priceFamily } : {}),
