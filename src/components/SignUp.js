@@ -15,9 +15,8 @@ import {
 } from "react-native";
 import { useNavigation } from "@react-navigation/native";
 import { convertStyles } from "../utils/convertStyles";
-import { registerCustomer } from "../services/customerService";
-import { resolveAppId } from "../utils/appId";
-import { fetchStoreConfig } from "../services/storeService";
+import { useAuth } from "../services/AuthContext";
+import { isAuthenticatedSession } from "../utils/authGate";
 import { resolveFA4IconName } from "../utils/faIconAlias";
 import { resolveFont } from "../services/typographyService";
 import Icon from "react-native-vector-icons/FontAwesome6";
@@ -122,6 +121,8 @@ const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
 
 export default function SignUp({ section }) {
   const navigation = useNavigation();
+  const { signup: signupUser, session, initializing } = useAuth();
+  const isLoggedIn = isAuthenticatedSession(session);
   const { width: screenWidth } = useWindowDimensions();
 
   // Use useMemo to extract props so component updates when section changes
@@ -485,21 +486,10 @@ export default function SignUp({ section }) {
 
     setLoading(true);
     try {
-      const app_id = resolveAppId();
-      const storeConfig = await fetchStoreConfig();
-      const store_id = storeConfig?.id ?? null;
-      if (!store_id) {
-        throw new Error("Store not configured. Please try again.");
-      }
-
-      await registerCustomer({
-        first_name: firstName.trim(),
-        last_name: lastNameVisible ? lastName.trim() : "",
-        email: email.trim(),
-        password: password.trim(),
-        store_id,
-        app_id,
-      });
+      const fullName = [firstName.trim(), lastNameVisible ? lastName.trim() : ""]
+        .filter(Boolean)
+        .join(" ");
+      await signupUser(email.trim(), password.trim(), fullName || email.trim());
 
       // Navigate to success screen or handle success
       if (navigateTo === "screen" && selectScreen) {
@@ -511,8 +501,7 @@ export default function SignUp({ section }) {
         }
       } else {
         Alert.alert("Success", "Account created successfully!", [
-          { text: "Sign In", onPress: () => navigation.navigate("Auth", { initialMode: "login" }) },
-          { text: "OK" },
+          { text: "OK", onPress: () => navigation.navigate("LayoutScreen") },
         ]);
       }
     } catch (err) {
@@ -522,8 +511,13 @@ export default function SignUp({ section }) {
     }
   };
 
-  // "Sign In" footer link always goes to the Auth screen
+  // "Sign In" footer link opens Auth only for users who still need to sign in.
   const handleSignInLink = () => {
+    if (isLoggedIn) {
+      navigation.navigate("BottomNavScreen", { pageName: "my-account", title: "My Account", link: "my-account" });
+      return;
+    }
+    if (initializing) return;
     navigation.navigate("Auth", { initialMode: "login" });
   };
 

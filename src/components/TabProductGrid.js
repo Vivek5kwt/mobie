@@ -27,6 +27,7 @@ import Snackbar from "./Snackbar";
 import { resolveFont } from "../services/typographyService";
 import FavoriteToggleButton, { buildFavoriteToggleConfig } from "./FavoriteToggleButton";
 import { formatMoney } from "../utils/money";
+import { resolveProductImageResizeMode } from "../utils/productImageFit";
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -152,7 +153,7 @@ const COL_GAP = 8;
 export default function TabProductGrid({ section }) {
   const dispatch = useDispatch();
   const navigation = useNavigation();
-  const { session } = useAuth();
+  const { session, initializing } = useAuth();
   const wishlistItems = useSelector((state) => state?.wishlist?.items || []);
   const favoriteTapRef = useRef(false);
 
@@ -340,6 +341,28 @@ export default function TabProductGrid({ section }) {
   );
   const showPrice      = toBool(rawConfig?.showPrice ?? rawConfig?.cardPriceActive, true);
   const showTitleText  = toBool(rawConfig?.showTitle ?? rawConfig?.cardTitleActive, true);
+  const imageBgColor = toStr(
+    rawConfig?.imageBg ??
+      rawConfig?.imageBgColor ??
+      rawConfig?.imageBackgroundColor ??
+      rawConfig?.productImageBgColor ??
+      rawConfig?.productImageBackgroundColor ??
+      layoutCss?.cardImage?.backgroundColor ??
+      layoutCss?.image?.backgroundColor ??
+      layoutCss?.imageWrap?.backgroundColor,
+    "#FFFFFF"
+  );
+  const productImageResizeMode = resolveProductImageResizeMode(
+    rawConfig?.imageScale,
+    rawConfig?.scale,
+    rawConfig?.imageResizeMode,
+    layoutCss?.cardImage?.objectFit,
+    layoutCss?.cardImage?.resizeMode,
+    layoutCss?.image?.objectFit,
+    layoutCss?.image?.resizeMode,
+    layoutCss?.imageWrap?.objectFit,
+    layoutCss?.imageWrap?.resizeMode
+  );
   const priceSize      = toNum(rawConfig?.priceSize ?? rawConfig?.subtextSize ?? layoutCardPriceCss?.fontSize, 12);
   const priceWeight    = toFontWeight(rawConfig?.priceWeight ?? rawConfig?.subtextWeight ?? layoutCardPriceCss?.fontWeight, "600");
   const priceFamily    = cleanFontFamily(toStr(rawConfig?.priceFamily ?? rawConfig?.subtextFontFamily ?? layoutCardPriceCss?.fontFamily, ""));
@@ -469,7 +492,7 @@ export default function TabProductGrid({ section }) {
   }, [dispatch]);
 
   const handleToggleFavorite = useCallback(async (product, currentlyFav) => {
-    const blocked = await requireLoginForAction({ session, navigation });
+    const blocked = await requireLoginForAction({ session, navigation, initializing });
     if (blocked) return;
     const productId = String(
       product?.id || product?.variantId || product?.handle || product?.name || product?.title || ""
@@ -699,11 +722,16 @@ export default function TabProductGrid({ section }) {
                       borderTopRightRadius: cardRadius,
                       borderBottomLeftRadius: imageCorner,
                       borderBottomRightRadius: imageCorner,
+                      backgroundColor: imageBgColor,
                     },
                   ]}
                 >
                   {product.image ? (
-                    <Image source={{ uri: product.image }} style={styles.image} resizeMode="cover" />
+                    <Image
+                      source={{ uri: product.image }}
+                      style={styles.image}
+                      resizeMode={productImageResizeMode}
+                    />
                   ) : (
                     <View style={styles.imagePlaceholder} />
                   )}
@@ -811,6 +839,7 @@ export default function TabProductGrid({ section }) {
                           borderTopRightRadius: cardRadius,
                           borderBottomLeftRadius: imageCorner,
                           borderBottomRightRadius: imageCorner,
+                          backgroundColor: imageBgColor,
                         },
                       ]}
                     >
@@ -818,7 +847,7 @@ export default function TabProductGrid({ section }) {
                         <Image
                           source={{ uri: product.image }}
                           style={styles.image}
-                          resizeMode="cover"
+                          resizeMode={productImageResizeMode}
                         />
                       ) : (
                         <View style={styles.imagePlaceholder} />
@@ -941,17 +970,16 @@ const styles = StyleSheet.create({
   },
   imageWrapper: {
     overflow: "hidden",
-    backgroundColor: "#F3F4F6",
+    backgroundColor: "#FFFFFF",
     position: "relative",
   },
   image: {
     width: "100%",
     height: "100%",
-    resizeMode: "cover",
   },
   imagePlaceholder: {
     flex: 1,
-    backgroundColor: "#E5E7EB",
+    backgroundColor: "#FFFFFF",
   },
   cardContent: {
     paddingHorizontal: 8,

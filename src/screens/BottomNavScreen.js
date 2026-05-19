@@ -21,6 +21,7 @@ import SkeletonLoader from "../components/SkeletonLoader";
 import HeaderDefault from "../components/HeaderDefault";
 import { resolveAppId } from "../utils/appId";
 import { useAuth } from "../services/AuthContext";
+import { isAuthenticatedSession } from "../utils/authGate";
 import { SideMenuProvider } from "../services/SideMenuContext";
 import { setHeaderDefault } from "../services/headerDefaultService";
 import NotificationList from "../components/NotificationList";
@@ -138,7 +139,8 @@ function FallbackProfile({ session, logout, navigation }) {
 export default function BottomNavScreen() {
   const route = useRoute();
   const navigation = useNavigation();
-  const { session, logout } = useAuth();
+  const { session, logout, initializing } = useAuth();
+  const isLoggedIn = isAuthenticatedSession(session);
   const title = route?.params?.title || "Page";
   const link = route?.params?.link || "";
   const pageName = route?.params?.pageName || link || title;
@@ -538,7 +540,13 @@ export default function BottomNavScreen() {
 
         if (SIGNIN_SLUGS.has(normalizedPageName)) {
           console.log(`🔑 Sign-in page detected ("${pageName}") — redirecting to Auth screen`);
-          if (isMounted) navigation.navigate("Auth", { initialMode: "login" });
+          if (isLoggedIn) {
+            if (isMounted) {
+              navigation.setParams({ pageName: "my-account", title: "My Account", link: "my-account" });
+            }
+          } else if (!initializing) {
+            if (isMounted) navigation.navigate("Auth", { initialMode: "login" });
+          }
           return;
         }
 
@@ -581,7 +589,13 @@ export default function BottomNavScreen() {
         const dslSections = dslData.dsl?.sections || [];
         if (SIGNIN_SLUGS.has(normalizedPageName) && dslSections.length === 0) {
           console.log(`🔑 Empty signin page — redirecting to Auth screen`);
-          if (isMounted) navigation.navigate("Auth", { initialMode: "login" });
+          if (isLoggedIn) {
+            if (isMounted) {
+              navigation.setParams({ pageName: "my-account", title: "My Account", link: "my-account" });
+            }
+          } else if (!initializing) {
+            if (isMounted) navigation.navigate("Auth", { initialMode: "login" });
+          }
           return;
         }
 
@@ -611,7 +625,7 @@ export default function BottomNavScreen() {
     loadAll();
 
     return () => { isMounted = false; };
-  }, [appId, ensureHeaderSections, extractHeaderSections, isHomePage, pageName]);
+  }, [appId, ensureHeaderSections, extractHeaderSections, initializing, isHomePage, isLoggedIn, navigation, pageName]);
 
   const refreshDSL = useCallback(async () => {
     try {
@@ -695,7 +709,7 @@ export default function BottomNavScreen() {
   // Auth gate — redirect to login when a protected page is opened without a session.
   // Wait until the loading state clears so we don't redirect during session restore.
   useEffect(() => {
-    if (!loading && isProtectedPage && !session) {
+    if (!loading && !initializing && isProtectedPage && !isLoggedIn) {
       navigation.navigate("Auth", {
         initialMode: "login",
         requireAuth: true,
@@ -705,7 +719,7 @@ export default function BottomNavScreen() {
         },
       });
     }
-  }, [loading, isProtectedPage, session, navigation, route.params]);
+  }, [initializing, isLoggedIn, loading, isProtectedPage, navigation, route.params]);
 
   useEffect(() => {
     // Check for bottom navigation updates on mount

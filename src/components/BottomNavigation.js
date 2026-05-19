@@ -8,7 +8,7 @@ const BOTTOM_NAV_DEBUG = __DEV__;
 import { convertStyles } from "../utils/convertStyles";
 import { useSideMenu } from "../services/SideMenuContext";
 import { useAuth } from "../services/AuthContext";
-import { requireLoginForAction } from "../utils/authGate";
+import { isAuthenticatedSession, requireLoginForAction } from "../utils/authGate";
 import { resolveFont } from "../services/typographyService";
 
 export const BOTTOM_NAV_RESERVED_HEIGHT = 80;
@@ -246,7 +246,8 @@ const resolveNavigationTarget = (item = {}) => {
 function BottomNavigation({ section, activeIndexOverride }) {
   const navigation = useNavigation();
   const route = useRoute();
-  const { session } = useAuth();
+  const { session, initializing } = useAuth();
+  const isLoggedIn = isAuthenticatedSession(session);
   const { closeSideMenu, isOpen: isSideMenuOpen } = useSideMenu();
   const componentName =
     section?.component || section?.properties?.component?.const || section?.properties?.component;
@@ -536,6 +537,20 @@ function BottomNavigation({ section, activeIndexOverride }) {
     }
 
     const target = resolveNavigationTarget(item);
+    if (target?.name === "Auth") {
+      if (isLoggedIn) {
+        navigation.navigate("BottomNavScreen", {
+          pageName: "my-account",
+          title: "My Account",
+          link: "my-account",
+          activeIndex: index,
+          bottomNavSection: section,
+        });
+      } else if (!initializing) {
+        navigation.navigate("Auth", target.params || { initialMode: "login" });
+      }
+      return;
+    }
     const currentRoute = navigation.getState?.()?.routes?.[navigation.getState?.()?.index ?? 0];
     const currentPage = (currentRoute?.params?.pageName ?? "home").toString().trim().toLowerCase();
     const targetPage = (target?.params?.pageName ?? "home").toString().trim().toLowerCase();
@@ -565,6 +580,7 @@ function BottomNavigation({ section, activeIndexOverride }) {
       const blocked = await requireLoginForAction({
         session,
         navigation,
+        initializing,
         postLoginTarget:
           target?.type === "stack" && target?.name
             ? {

@@ -4,6 +4,7 @@ import { useNavigation } from "@react-navigation/native";
 import Icon from "react-native-vector-icons/FontAwesome6";
 import { convertStyles } from "../utils/convertStyles";
 import { useAuth } from "../services/AuthContext";
+import { isAuthenticatedSession } from "../utils/authGate";
 import { getAppNameSync } from "../utils/appInfo";
 
 const LOCAL_LOGO_IMAGE = require("../assets/logo/mobidraglogo.png");
@@ -81,8 +82,8 @@ const extractPresentation = (section = {}) => {
 
 export default function SideNavigation({ section }) {
   const navigation = useNavigation();
-  const { logout, session } = useAuth();
-  const isLoggedIn = !!session?.user;
+  const { logout, session, initializing } = useAuth();
+  const isLoggedIn = isAuthenticatedSession(session);
   const rawProps =
     section?.props || section?.properties?.props?.properties || section?.properties?.props || {};
 
@@ -141,13 +142,15 @@ export default function SideNavigation({ section }) {
 
       const authToggle = hasAuthToggle
         ? null
-        : isLoggedIn
+        : initializing
+          ? null
+          : isLoggedIn
           ? { id: "logout", label: "Logout", icon: "right-from-bracket" }
           : { id: "login", label: "Login", icon: "right-to-bracket", link: "signin" };
 
       return [...itemsArray, authToggle].filter(Boolean);
     },
-    [itemsArray, isLoggedIn]
+    [initializing, itemsArray, isLoggedIn]
   );
 
   const handleItemPress = useCallback(
@@ -155,6 +158,7 @@ export default function SideNavigation({ section }) {
       // ── Logout ───────────────────────────────────────────────────────────
       if (isLogoutItem(item)) {
         if (!isLoggedIn) {
+          if (initializing) return;
           navigation.navigate("Auth", { initialMode: "login" });
           return;
         }
@@ -200,6 +204,11 @@ export default function SideNavigation({ section }) {
 
       // ── Auth pages ────────────────────────────────────────────────────────
       if (SIGNIN_SLUGS.has(slug)) {
+        if (isLoggedIn) {
+          navigation.navigate("BottomNavScreen", { pageName: "my-account", title: "My Account", link: "my-account" });
+          return;
+        }
+        if (initializing) return;
         navigation.navigate("Auth", { initialMode: "login" });
         return;
       }
@@ -227,7 +236,7 @@ export default function SideNavigation({ section }) {
         hideBottomNav: true,
       });
     },
-    [logout, navigation, isLoggedIn]
+    [initializing, isLoggedIn, logout, navigation]
   );
 
   return (
@@ -275,7 +284,7 @@ export default function SideNavigation({ section }) {
                   style={[styles.itemText, presentation.itemText, { color: itemTextColor }]}
                   numberOfLines={1}
                 >
-                  {isLogoutItem(item) && !isLoggedIn ? "Login" : (item.label || item.title)}
+                  {isLogoutItem(item) && !isLoggedIn && !initializing ? "Login" : (item.label || item.title)}
                 </Text>
               )}
             </TouchableOpacity>

@@ -23,6 +23,8 @@ import DynamicRenderer from "../engine/DynamicRenderer";
 import { resolveFont } from "../services/typographyService";
 import FavoriteToggleButton, { buildFavoriteToggleConfig } from "../components/FavoriteToggleButton";
 import { formatMoney } from "../utils/money";
+import { isAuthenticatedSession } from "../utils/authGate";
+import { resolveProductImageResizeMode } from "../utils/productImageFit";
 
 const { width: SCREEN_W } = Dimensions.get("window");
 
@@ -54,20 +56,21 @@ const SKIP_COMPS = new Set([
 export default function WishlistScreen() {
   const navigation    = useNavigation();
   const dispatch      = useDispatch();
-  const { session }   = useAuth();
+  const { session, initializing } = useAuth();
+  const isLoggedIn = isAuthenticatedSession(session);
   const wishlistItems = useSelector((state) => dedupeWishlistProducts(state.wishlist?.items || []));
 
   // Auth gate
   useFocusEffect(
     useCallback(() => {
-      if (!session) {
+      if (!initializing && !isLoggedIn) {
         navigation.navigate("Auth", {
           initialMode: "login",
           requireAuth: true,
           postLoginTarget: { name: "Wishlist" },
         });
       }
-    }, [session, navigation])
+    }, [initializing, isLoggedIn, navigation])
   );
 
   const appId = useMemo(
@@ -134,10 +137,21 @@ export default function WishlistScreen() {
   const bgColor     = toStr(p?.bgColor,     "#FFFFFF");
   const borderColor = toStr(p?.borderColor, "#E5E7EB");
   const imageRadius = toNum(p?.imageRadius, 8);
+  const imageBgColor = toStr(
+    p?.imageBg ??
+      p?.imageBgColor ??
+      p?.imageBackgroundColor ??
+      p?.productImageBgColor ??
+      p?.productImageBackgroundColor,
+    "#FFFFFF"
+  );
 
-  const imageScale      = toStr(p?.imageScale, "Fill").toLowerCase();
-  const imageResizeMode = imageScale === "fit" || imageScale === "contain"
-    ? "contain" : imageScale === "stretch" ? "stretch" : "cover";
+  const imageResizeMode = resolveProductImageResizeMode(
+    p?.imageScale,
+    p?.scale,
+    p?.imageResizeMode,
+    p?.objectFit
+  );
 
   const imageRatioStr = toStr(p?.imageRatio, "1:1");
   const imageAspect   = (() => {
@@ -194,7 +208,7 @@ export default function WishlistScreen() {
               height:               imgH,
               borderTopLeftRadius:  imageRadius,
               borderTopRightRadius: imageRadius,
-              backgroundColor:      "#F3F4F6",
+              backgroundColor:      imageBgColor,
             }}
             resizeMode={imageResizeMode}
           />
@@ -202,7 +216,7 @@ export default function WishlistScreen() {
           <View
             style={[
               styles.imgPlaceholder,
-              { height: imgH, borderTopLeftRadius: imageRadius, borderTopRightRadius: imageRadius },
+              { height: imgH, borderTopLeftRadius: imageRadius, borderTopRightRadius: imageRadius, backgroundColor: imageBgColor },
             ]}
           >
             <Text style={styles.placeholderLetter}>
@@ -266,7 +280,7 @@ export default function WishlistScreen() {
   ]);
 
   // ── Render ────────────────────────────────────────────────────────────────
-  if (!session) return null;
+  if (initializing || !isLoggedIn) return null;
 
   return (
     <SafeArea>
@@ -344,7 +358,7 @@ const styles = StyleSheet.create({
   },
   imgPlaceholder: {
     width:           "100%",
-    backgroundColor: "#F3F4F6",
+    backgroundColor: "#FFFFFF",
     alignItems:      "center",
     justifyContent:  "center",
   },

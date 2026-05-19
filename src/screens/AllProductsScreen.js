@@ -22,6 +22,7 @@ import { fetchDSL } from "../engine/dslHandler";
 import { resolveAppId } from "../utils/appId";
 import { buildProductFilterOptions, productMatchesFilter } from "../utils/productFilters";
 import { formatMoney } from "../utils/money";
+import { resolveProductImageResizeMode } from "../utils/productImageFit";
 
 const GAP = 12;
 const H_PAD = 16;
@@ -330,7 +331,7 @@ export default function AllProductsScreen() {
                   { height: searchImageHeight },
                   isListMode && styles.searchImageList,
                 ]}
-                resizeMode="cover"
+                resizeMode={resolveProductImageResizeMode()}
               />
             ) : (
               <View
@@ -419,7 +420,7 @@ export default function AllProductsScreen() {
           <Image
             source={{ uri: item.imageUrl }}
             style={[styles.image, isListMode && styles.imageList]}
-            resizeMode="cover"
+            resizeMode={resolveProductImageResizeMode()}
           />
         ) : (
           <View style={[styles.image, isListMode && styles.imageList, styles.placeholder]}>
@@ -699,7 +700,7 @@ const styles = StyleSheet.create({
   searchSkeletonImage: {
     width: "100%",
     borderRadius: 4,
-    backgroundColor: "#EEEEEE",
+    backgroundColor: "#FFFFFF",
   },
   searchSkeletonLineWide: {
     height: 15,
@@ -743,7 +744,7 @@ const styles = StyleSheet.create({
   searchImageWrap: {
     position: "relative",
     width: "100%",
-    backgroundColor: "#F3F4F6",
+    backgroundColor: "#FFFFFF",
     overflow: "hidden",
     borderRadius: 4,
   },
@@ -753,14 +754,14 @@ const styles = StyleSheet.create({
   },
   searchImage: {
     width: "100%",
-    backgroundColor: "#F3F4F6",
+    backgroundColor: "#FFFFFF",
   },
   searchImageList: {
     width: 112,
     height: 112,
   },
   searchPlaceholder: {
-    backgroundColor: "#EEEEEE",
+    backgroundColor: "#FFFFFF",
   },
   searchInfoColumn: {
     width: "100%",
@@ -895,7 +896,7 @@ const styles = StyleSheet.create({
   image: {
     width: "100%",
     height: 160,
-    backgroundColor: "#f3f4f6",
+    backgroundColor: "#FFFFFF",
   },
   imageList: {
     width: 100,

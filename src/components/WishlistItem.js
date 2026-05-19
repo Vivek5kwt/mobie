@@ -14,6 +14,7 @@ import Snackbar from "./Snackbar";
 import { resolveFont } from "../services/typographyService";
 import FavoriteToggleButton, { buildFavoriteToggleConfig } from "./FavoriteToggleButton";
 import { formatMoney } from "../utils/money";
+import { resolveProductImageResizeMode } from "../utils/productImageFit";
 
 const unwrapValue = (value, fallback = undefined) => {
   if (value === undefined || value === null) return fallback;
@@ -72,6 +73,14 @@ export default function WishlistItem({ section }) {
   const iconSize = toNumber(raw?.iconSize, 18);
   const favoriteToggleConfig = buildFavoriteToggleConfig({ favIconSize: iconSize, favoriteIconColor: iconColor });
   const imageRadius = toNumber(raw?.imageRadius, 8);
+  const imageBgColor = toString(
+    raw?.imageBg ??
+      raw?.imageBgColor ??
+      raw?.imageBackgroundColor ??
+      raw?.productImageBgColor ??
+      raw?.productImageBackgroundColor,
+    "#FFFFFF"
+  );
   const imageRatio = toString(raw?.imageRatio, "1:1");
   const priceColor = toString(raw?.priceColor, "#16A34A");
   const titleColor = toString(raw?.titleColor, "#000000");
@@ -157,17 +166,17 @@ export default function WishlistItem({ section }) {
               <View
                 style={[
                   styles.imageWrap,
-                  { height: imageHeight, borderRadius: imageRadius },
+                  { height: imageHeight, borderRadius: imageRadius, backgroundColor: imageBgColor },
                 ]}
               >
                 {product.image ? (
                   <Image
                     source={{ uri: product.image }}
-                    style={[styles.image, { borderRadius: imageRadius }]}
-                    resizeMode="cover"
+                    style={[styles.image, { borderRadius: imageRadius, backgroundColor: imageBgColor }]}
+                    resizeMode={resolveProductImageResizeMode(raw?.imageScale, raw?.scale, raw?.imageResizeMode)}
                   />
                 ) : (
-                  <View style={[styles.imagePlaceholder, { borderRadius: imageRadius }]}>
+                  <View style={[styles.imagePlaceholder, { borderRadius: imageRadius, backgroundColor: imageBgColor }]}>
                     <FontAwesome name="image" size={28} color="#D1D5DB" />
                   </View>
                 )}
@@ -276,7 +285,7 @@ const styles = StyleSheet.create({
   imageWrap: {
     width: "100%",
     overflow: "hidden",
-    backgroundColor: "#F3F4F6",
+    backgroundColor: "#FFFFFF",
     marginBottom: 8,
   },
   image: {
@@ -287,7 +296,7 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: "#F3F4F6",
+    backgroundColor: "#FFFFFF",
   },
   info: {
     gap: 4,

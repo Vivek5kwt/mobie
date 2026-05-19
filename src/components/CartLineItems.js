@@ -13,6 +13,7 @@ import { updateQuantity, removeItem } from "../store/slices/cartSlice";
 import { resolveFA4IconName } from "../utils/faIconAlias";
 import { resolveFont } from "../services/typographyService";
 import { formatMoney } from "../utils/money";
+import { resolveProductImageResizeMode } from "../utils/productImageFit";
 import { activeDiscountRecords, cartDiscountFingerprint } from "../utils/cartDiscounts";
 
 const unwrapValue = (value, fallback = undefined) => {
@@ -143,7 +144,14 @@ export default function CartLineItems({ section }) {
   // Image
   const imageSize = toNumber(raw?.imageSize ?? raw?.imageWidth, 88);
   const imageRadius = toNumber(raw?.imageRadius ?? raw?.imageCorner, 10);
-  const imageBg = toString(raw?.imageBg, "#F3F4F6");
+  const imageBg = toString(
+    raw?.imageBg ??
+      raw?.imageBgColor ??
+      raw?.imageBackgroundColor ??
+      raw?.productImageBgColor ??
+      raw?.productImageBackgroundColor,
+    "#FFFFFF"
+  );
 
   // Variant row
   const showVariant = toBoolean(raw?.showVariant, true);
@@ -391,7 +399,7 @@ export default function CartLineItems({ section }) {
                   <Image
                     source={{ uri: itemImage }}
                     style={[styles.image, { borderRadius: imageRadius }]}
-                    resizeMode="cover"
+                    resizeMode={resolveProductImageResizeMode(raw?.imageScale, raw?.scale, raw?.imageResizeMode)}
                   />
                 ) : (
                   <View style={[styles.imagePlaceholder, { backgroundColor: imageBg }]} />

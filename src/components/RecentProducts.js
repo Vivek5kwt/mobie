@@ -16,6 +16,7 @@ import { isWishlistProduct, toggleWishlist } from "../store/slices/wishlistSlice
 import { fetchShopifyRecentProducts } from "../services/shopify";
 import { useAuth } from "../services/AuthContext";
 import { requireLoginForAction } from "../utils/authGate";
+import { resolveProductImageResizeMode } from "../utils/productImageFit";
 import { resolveFirstFont } from "../services/typographyService";
 import FavoriteToggleButton, { buildFavoriteToggleConfig } from "./FavoriteToggleButton";
 import { formatMoney } from "../utils/money";
@@ -160,7 +161,7 @@ const normalizeProducts = (value) => {
 export default function RecentProducts({ section }) {
   const navigation = useNavigation();
   const dispatch   = useDispatch();
-  const { session } = useAuth();
+  const { session, initializing } = useAuth();
   const wishlistItems = useSelector((state) => state.wishlist?.items || []);
 
   // ── DSL extraction ─────────────────────────────────────────────────────────
@@ -256,16 +257,26 @@ export default function RecentProducts({ section }) {
   const imageCss      = unwrap(css?.image, {});
   // Default height = cardWidth → square image area, shows full product photo
   const imageHeight   = parsePx(raw?.imageHeight ?? imageWrapCss?.height, cardWidth);
-  const imageBgColor  = str(raw?.imageBgColor ?? raw?.imageBackgroundColor ?? imageWrapCss?.backgroundColor ?? imageCss?.backgroundColor, "#F3F4F6");
+  const imageBgColor  = str(
+    raw?.imageBgColor ??
+      raw?.productImageBgColor ??
+      raw?.imageBackgroundColor ??
+      raw?.productImageBackgroundColor ??
+      raw?.imageBg ??
+      imageWrapCss?.backgroundColor ??
+      imageWrapCss?.background ??
+      imageCss?.backgroundColor ??
+      imageCss?.background,
+    "#FFFFFF"
+  );
   const imagePad      = parsePx(raw?.imagePad ?? raw?.imagePadding ?? imageWrapCss?.padding, 0);
-  const imageResizeMode = (() => {
-    const s = str(raw?.imageScale ?? raw?.scale ?? raw?.imageResizeMode ?? imageCss?.objectFit, "cover").toLowerCase();
-    if (s === "contain" || s === "fit") return "contain";
-    if (s === "stretch") return "stretch";
-    if (s === "center") return "center";
-    if (s === "cover") return "cover";
-    return "cover";
-  })();
+  const imageResizeMode = resolveProductImageResizeMode(
+    raw?.imageScale,
+    raw?.scale,
+    raw?.imageResizeMode,
+    imageCss?.objectFit,
+    imageCss?.resizeMode
+  );
 
   // ── Card details padding ──────────────────────────────────────────────────
   const detailsCss = unwrap(css?.details, {});
@@ -384,7 +395,7 @@ export default function RecentProducts({ section }) {
   };
 
   const handleToggleFavorite = async (product) => {
-    const blocked = await requireLoginForAction({ session, navigation });
+    const blocked = await requireLoginForAction({ session, navigation, initializing });
     if (blocked) return;
     dispatch(toggleWishlist({ product }));
   };
@@ -492,7 +503,7 @@ export default function RecentProducts({ section }) {
                     style={{
                       width:        "100%",
                       height:       imageHeight,
-                      backgroundColor: "#F3F4F6",
+                      backgroundColor: imageBgColor,
                       alignItems:   "center",
                       justifyContent: "center",
                       borderTopLeftRadius:  cardRadius,

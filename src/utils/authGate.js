@@ -29,8 +29,28 @@ export const hasSigninDsl = async () => {
   }
 };
 
-export const requireLoginForAction = async ({ session, navigation, postLoginTarget }) => {
-  if (session) return false;
+const hasAuthValue = (value) => {
+  if (value === undefined || value === null) return false;
+  return String(value).trim().length > 0;
+};
+
+export const isAuthenticatedSession = (session) => {
+  if (!session) return false;
+  const user = session?.user || {};
+  return Boolean(
+    hasAuthValue(session?.token) ||
+      hasAuthValue(session?.accessToken) ||
+      hasAuthValue(user?.id) ||
+      hasAuthValue(user?.email) ||
+      hasAuthValue(user?.userToken) ||
+      hasAuthValue(user?.customerAccessToken) ||
+      hasAuthValue(session?.customerAccessToken)
+  );
+};
+
+export const requireLoginForAction = async ({ session, navigation, postLoginTarget, initializing = false }) => {
+  if (isAuthenticatedSession(session)) return false;
+  if (initializing) return true;
   try {
     const authParams = { initialMode: "login", requireAuth: true };
     if (postLoginTarget?.name) {

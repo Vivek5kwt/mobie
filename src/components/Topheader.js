@@ -109,7 +109,7 @@ const resolveLogoSlotAlignmentStyle = (alignment, flexDirection = "column") => {
 export default function Header({ section, showBack, showNotification, onTitlePress }) {
   const { openSideMenu, hasSideNav } = useSideMenu();
   const navigation = useNavigation();
-  const { session } = useAuth();
+  const { session, initializing } = useAuth();
   const canGoBack = navigation.canGoBack();
   const cartCount = useSelector((state) =>
     (state?.cart?.items || []).reduce((sum, item) => {
@@ -327,7 +327,7 @@ export default function Header({ section, showBack, showNotification, onTitlePre
 
   const openBottomNavTarget = async (target) => {
     if (target === "cart") {
-      const blocked = await requireLoginForAction({ session, navigation });
+      const blocked = await requireLoginForAction({ session, navigation, initializing });
       if (blocked) return;
     }
     const items = resolveBottomNavItems(bottomNavSection);

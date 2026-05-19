@@ -24,6 +24,7 @@ import { buildProductFilterOptions, productMatchesFilter } from "../utils/produc
 import FavoriteToggleButton, { buildFavoriteToggleConfig } from "../components/FavoriteToggleButton";
 import { useAuth } from "../services/AuthContext";
 import { requireLoginForAction } from "../utils/authGate";
+import { resolveProductImageResizeMode } from "../utils/productImageFit";
 import { formatMoney } from "../utils/money";
 
 const PAGE_SIZE = 20;
@@ -65,7 +66,7 @@ export default function CollectionProductsScreen() {
   const navigation = useNavigation();
   const route = useRoute();
   const dispatch = useDispatch();
-  const { session } = useAuth();
+  const { session, initializing } = useAuth();
   const wishlistItems = useSelector((state) => state.wishlist?.items || []);
   const {
     collectionHandle,
@@ -214,7 +215,7 @@ export default function CollectionProductsScreen() {
             <Image
               source={{ uri: item.imageUrl }}
               style={[styles.image, isListMode && styles.imageList]}
-              resizeMode="cover"
+              resizeMode={resolveProductImageResizeMode()}
             />
           ) : (
             <View style={[styles.image, isListMode && styles.imageList, styles.placeholder]}>
@@ -230,7 +231,7 @@ export default function CollectionProductsScreen() {
             onPress={async (e) => {
               e?.stopPropagation?.();
               e?.preventDefault?.();
-              const blocked = await requireLoginForAction({ session, navigation });
+              const blocked = await requireLoginForAction({ session, navigation, initializing });
               if (blocked) return;
               favoriteTapRef.current = true;
               setTimeout(() => {
@@ -447,7 +448,7 @@ const styles = StyleSheet.create({
   image: {
     width: "100%",
     aspectRatio: 1,
-    backgroundColor: "#F3F4F6",
+    backgroundColor: "#FFFFFF",
   },
   imageList: {
     width: 100,

@@ -11,6 +11,7 @@ import { fetchShopifyProductsPage, fetchShopifyCollectionProducts, searchShopify
 import Snackbar from "./Snackbar";
 import { useAuth } from "../services/AuthContext";
 import { requireLoginForAction } from "../utils/authGate";
+import { resolveProductImageResizeMode } from "../utils/productImageFit";
 import { resolveFont } from "../services/typographyService";
 import FavoriteToggleButton, { buildFavoriteToggleConfig } from "./FavoriteToggleButton";
 import { formatMoney } from "../utils/money";
@@ -201,7 +202,7 @@ export default function ProductGrid({ section, limit = 8, title = "Products" }) 
   const navigation = useNavigation();
   const route = useRoute();
   const dispatch   = useDispatch();
-  const { session } = useAuth();
+  const { session, initializing } = useAuth();
   const wishlistItems = useSelector((state) => state.wishlist?.items || []);
   const [products,     setProducts]     = useState([]);
   const [loading,      setLoading]      = useState(false);
@@ -471,14 +472,23 @@ export default function ProductGrid({ section, limit = 8, title = "Products" }) 
     }
     return null;
   })();
-  const resolvedImageScaleRaw = toString(rawProps?.imageScale ?? rawProps?.scale ?? rawProps?.imageResizeMode, "fill").toLowerCase();
-  const imageResizeMode = (() => {
-    if (resolvedImageScaleRaw === "fit" || resolvedImageScaleRaw === "contain") return "contain";
-    if (resolvedImageScaleRaw === "stretch") return "stretch";
-    if (resolvedImageScaleRaw === "center") return "center";
-    return "cover";
-  })();
-  const resolvedImageBgColor = toString(rawProps?.imageBackgroundColor ?? rawProps?.imageBgColor ?? cardImageCss?.backgroundColor, "#f3f4f6");
+  const imageResizeMode = resolveProductImageResizeMode(
+    rawProps?.imageScale,
+    rawProps?.scale,
+    rawProps?.imageResizeMode,
+    cardImageCss?.objectFit,
+    cardImageCss?.resizeMode
+  );
+  const resolvedImageBgColor = toString(
+    rawProps?.imageBackgroundColor ??
+      rawProps?.productImageBackgroundColor ??
+      rawProps?.imageBgColor ??
+      rawProps?.productImageBgColor ??
+      rawProps?.imageBg ??
+      cardImageCss?.backgroundColor ??
+      cardImageCss?.background,
+    "#FFFFFF"
+  );
   const imagePad             = resolveFirstNumber([rawProps?.imagePad, rawProps?.imagePadding, rawProps?.imageWrapperPad], 0);
 
   // ── Card ──────────────────────────────────────────────────────────────────
@@ -1074,6 +1084,7 @@ export default function ProductGrid({ section, limit = 8, title = "Products" }) 
                       width:        "100%",
                       height:       imageHeight,
                       borderRadius: imageCorner,
+                      backgroundColor: resolvedImageBgColor,
                       marginTop:    imagePad,
                       marginBottom: imagePad,
                       marginLeft:   imagePad,
@@ -1090,7 +1101,7 @@ export default function ProductGrid({ section, limit = 8, title = "Products" }) 
                       onPress={async (e) => {
                         e?.stopPropagation?.();
                         e?.preventDefault?.();
-                        const blocked = await requireLoginForAction({ session, navigation });
+                        const blocked = await requireLoginForAction({ session, navigation, initializing });
                         if (blocked) return;
                         favoriteTapRef.current = true;
                         setTimeout(() => {

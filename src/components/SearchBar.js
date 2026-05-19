@@ -20,6 +20,7 @@ import { resolveFont } from "../services/typographyService";
 import { convertStyles } from "../utils/convertStyles";
 import { searchShopifyProducts } from "../services/shopify";
 import { formatMoney } from "../utils/money";
+import { resolveProductImageResizeMode } from "../utils/productImageFit";
 
 const unwrapValue = (value, fallback) => {
   if (value === undefined || value === null) return fallback;
@@ -688,7 +689,11 @@ export default function SearchBar({ section }) {
                 activeOpacity={0.7}
               >
                 {product.imageUrl ? (
-                  <Image source={{ uri: product.imageUrl }} style={styles.resultImage} />
+                  <Image
+                    source={{ uri: product.imageUrl }}
+                    style={styles.resultImage}
+                    resizeMode={resolveProductImageResizeMode()}
+                  />
                 ) : (
                   <View style={styles.resultImagePlaceholder}>
                     <Text style={styles.resultPlaceholderText}>Image</Text>
@@ -830,7 +835,7 @@ const styles = StyleSheet.create({
     width: 56,
     height: 56,
     borderRadius: 10,
-    backgroundColor: "#EEF0F3",
+    backgroundColor: "#FFFFFF",
   },
   skeletonInfo: {
     flex: 1,
@@ -926,7 +931,7 @@ const styles = StyleSheet.create({
     width: 56,
     height: 56,
     borderRadius: 10,
-    backgroundColor: "#F3F4F6",
+    backgroundColor: "#FFFFFF",
   },
   resultImagePlaceholder: {
     width: 56,
@@ -934,7 +939,7 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: "#F3F4F6",
+    backgroundColor: "#FFFFFF",
   },
   resultPlaceholderText: {
     fontSize: 10,

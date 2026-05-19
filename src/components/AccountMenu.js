@@ -10,6 +10,7 @@ import FontAwesome from "react-native-vector-icons/FontAwesome";
 import { useNavigation } from "@react-navigation/native";
 import { convertStyles } from "../utils/convertStyles";
 import { useAuth } from "../services/AuthContext";
+import { isAuthenticatedSession } from "../utils/authGate";
 import { resolveFont } from "../services/typographyService";
 
 // ── helpers ────────────────────────────────────────────────────────────────
@@ -62,8 +63,8 @@ const parsePx = (val, fb) => {
 
 export default function AccountMenu({ section }) {
   const navigation = useNavigation();
-  const { session, logout } = useAuth();
-  const isLoggedIn = !!session?.user;
+  const { session, logout, initializing } = useAuth();
+  const isLoggedIn = isAuthenticatedSession(session);
 
   // ── props root ───────────────────────────────────────────────────────────
   const propsRoot = useMemo(() => (
@@ -234,6 +235,7 @@ export default function AccountMenu({ section }) {
   const handlePress = (item) => {
     if (isLogoutEntry(item)) {
       if (!isLoggedIn) {
+        if (initializing) return;
         navigation.navigate("Auth", { initialMode: "login" });
         return;
       }
@@ -261,6 +263,7 @@ export default function AccountMenu({ section }) {
       navigation.navigate("BottomNavScreen", { pageName: "my-account", title: "My Account" });
       return;
     }
+    if (isLoginEntry(item) && initializing) return;
 
     const link = str(item?.link ?? item?.href ?? item?.url ?? item?.page ?? item?.navigateTo, "");
     if (!link) return;
@@ -280,6 +283,11 @@ export default function AccountMenu({ section }) {
       // Sign-in / login → Auth screen
       const signinSlugs = new Set(["signin", "sign-in", "login", "log-in", "auth"]);
       if (signinSlugs.has(normalized)) {
+        if (isLoggedIn) {
+          navigation.navigate("BottomNavScreen", { pageName: "my-account", title: "My Account" });
+          return;
+        }
+        if (initializing) return;
         navigation.navigate("Auth", { initialMode: "login" });
         return;
       }
@@ -308,7 +316,7 @@ export default function AccountMenu({ section }) {
         const rawItem  = deepUnwrap(item) || item || {};
         const baseItemLabel   = str(rawItem?.label ?? rawItem?.text ?? rawItem?.title, "");
         const itemLabel       = isLogoutEntry(rawItem)
-          ? (isLoggedIn ? "Logout" : "Login")
+          ? (isLoggedIn || initializing ? "Logout" : "Login")
           : baseItemLabel;
         const itemIconClass   = str(rawItem?.iconClass ?? rawItem?.icon ?? rawItem?.iconName, "fa-user");
         const itemIconBg      = str(rawItem?.iconBg ?? rawItem?.iconBgColor, defIconBg);

@@ -24,6 +24,7 @@ import {
   currencySymbolForCode as sharedCurrencySymbolForCode,
   formatMoney as formatSharedMoney,
 } from "../utils/money";
+import { resolveProductImageResizeMode } from "../utils/productImageFit";
 
 // ─── DSL helpers ──────────────────────────────────────────────────────────────
 
@@ -688,6 +689,14 @@ function OrderItemsSection({ section, items }) {
   const titleFontFamily = cleanFontFamily(toStr(propsNode?.titleFontFamily, ""));
   const priceFontFamily = cleanFontFamily(toStr(propsNode?.priceFontFamily ?? propsNode?.titleFontFamily, ""));
   const metaColor = toStr(propsNode?.metaColor, "#6B7280");
+  const imageBgColor = toStr(
+    propsNode?.imageBg ??
+      propsNode?.imageBgColor ??
+      propsNode?.imageBackgroundColor ??
+      propsNode?.productImageBgColor ??
+      propsNode?.productImageBackgroundColor,
+    "#FFFFFF"
+  );
   const metaFontSize = toNum(propsNode?.metaFontSize, 12);
   const padTop    = toNum(propsNode?.paddingTop,    12);
   const padLeft   = toNum(propsNode?.paddingLeft,   12);
@@ -722,11 +731,15 @@ function OrderItemsSection({ section, items }) {
           {item.imageUrl ? (
             <Image
               source={{ uri: item.imageUrl }}
-              style={styles.itemImage}
-              resizeMode="cover"
+              style={[styles.itemImage, { backgroundColor: imageBgColor }]}
+              resizeMode={resolveProductImageResizeMode(
+                propsNode?.imageScale,
+                propsNode?.scale,
+                propsNode?.imageResizeMode
+              )}
             />
           ) : (
-            <View style={[styles.itemImage, styles.itemImagePlaceholder]}>
+            <View style={[styles.itemImage, styles.itemImagePlaceholder, { backgroundColor: imageBgColor }]}>
               <FontAwesome name="image" size={28} color="#D1D5DB" />
             </View>
           )}
@@ -934,7 +947,7 @@ const styles = StyleSheet.create({
     width:           90,
     height:          90,
     borderRadius:    8,
-    backgroundColor: "#F3F4F6",
+    backgroundColor: "#FFFFFF",
     flexShrink:      0,
   },
   itemImagePlaceholder: {

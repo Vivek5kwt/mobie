@@ -17,6 +17,7 @@ import { getStoreConfigSync } from "../services/storeService";
 import { addItem } from "../store/slices/cartSlice";
 import { resolveFont } from "../services/typographyService";
 import { formatMoney as formatSharedMoney } from "../utils/money";
+import { resolveProductImageResizeMode } from "../utils/productImageFit";
 
 const deepUnwrap = (value) => {
   if (value === undefined || value === null) return value;
@@ -222,6 +223,16 @@ export default function OrderHistory({ section }) {
         fontWeight: toFontWeight(raw?.statusWeight, "700"),
         ...(fontFamily ? { fontFamily } : {}),
       },
+      image: {
+        backgroundColor: toStr(
+          raw?.imageBg ??
+            raw?.imageBgColor ??
+            raw?.imageBackgroundColor ??
+            raw?.productImageBgColor ??
+            raw?.productImageBackgroundColor,
+          "#FFFFFF"
+        ),
+      },
       price: {
         color: toStr(raw?.priceColor ?? raw?.totalColor, "#B42318"),
         fontSize: toNum(raw?.priceSize ?? raw?.totalSize ?? raw?.headlineSize, 16),
@@ -356,11 +367,15 @@ export default function OrderHistory({ section }) {
               {imageUrl ? (
                 <Image
                   source={{ uri: imageUrl }}
-                  style={[styles.image, { width: imageSize, height: imageSize }]}
-                  resizeMode="cover"
+                  style={[styles.image, stylesFromDsl.image, { width: imageSize, height: imageSize }]}
+                  resizeMode={resolveProductImageResizeMode(
+                    raw?.imageScale,
+                    raw?.scale,
+                    raw?.imageResizeMode
+                  )}
                 />
               ) : (
-                <View style={[styles.image, styles.imageFallback, { width: imageSize, height: imageSize }]}>
+                <View style={[styles.image, stylesFromDsl.image, styles.imageFallback, { width: imageSize, height: imageSize }]}>
                   <FontAwesome name="image" size={Math.max(14, imageSize * 0.38)} color="#D1D5DB" />
                 </View>
               )}
@@ -436,7 +451,7 @@ const styles = StyleSheet.create({
   },
   image: {
     borderRadius: 2,
-    backgroundColor: "#F3F4F6",
+    backgroundColor: "#FFFFFF",
   },
   imageFallback: {
     alignItems: "center",

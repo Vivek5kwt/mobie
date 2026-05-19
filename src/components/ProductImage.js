@@ -1,6 +1,9 @@
 import React, { useEffect, useRef, useState } from "react";
 import { Animated, StyleSheet, View } from "react-native";
 import FontAwesome from "react-native-vector-icons/FontAwesome";
+import { resolveProductImageResizeMode } from "../utils/productImageFit";
+
+const DEFAULT_PRODUCT_IMAGE_BG = "#FFFFFF";
 
 function ShimmerBone({ style }) {
   const anim = useRef(new Animated.Value(0)).current;
@@ -24,8 +27,8 @@ function ShimmerBone({ style }) {
 export default function ProductImage({
   uri,
   style,
-  resizeMode = "cover",
-  placeholderBg = "#EEF0F3",
+  resizeMode = resolveProductImageResizeMode(),
+  placeholderBg = DEFAULT_PRODUCT_IMAGE_BG,
   iconColor = "#C8CDD5",
   iconSize = 28,
 }) {
@@ -56,7 +59,7 @@ export default function ProductImage({
             <ShimmerBone
               style={[
                 StyleSheet.absoluteFillObject,
-                { backgroundColor: "#D4D8DF", borderRadius },
+                { backgroundColor: placeholderBg, borderRadius },
               ]}
             />
           )}
@@ -68,7 +71,7 @@ export default function ProductImage({
         <Animated.Image
           source={{ uri }}
           style={[StyleSheet.absoluteFillObject, { opacity: fadeAnim, borderRadius }]}
-          resizeMode={resizeMode}
+          resizeMode={resolveProductImageResizeMode(resizeMode)}
           onLoad={onLoad}
           onError={() => { setLoaded(false); setFailed(true); }}
         />
@@ -80,7 +83,7 @@ export default function ProductImage({
 const styles = StyleSheet.create({
   container: {
     overflow: "hidden",
-    backgroundColor: "#EEF0F3",
+    backgroundColor: DEFAULT_PRODUCT_IMAGE_BG,
   },
   overlay: {
     alignItems: "center",

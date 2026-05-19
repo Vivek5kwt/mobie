@@ -8,6 +8,7 @@ import {
   cartDiscountFingerprint,
   totalDiscountAmount as sumActiveDiscountAmount,
 } from "../utils/cartDiscounts";
+import { resolveProductImageResizeMode } from "../utils/productImageFit";
 
 const unwrapValue = (value, fallback = undefined) => {
   if (value === undefined || value === null) return fallback;
@@ -119,6 +120,14 @@ export default function OrderSummary({ section }) {
   const cardBgColor = toString(raw?.cardBgColor, "#FFFFFF");
   const cardRadius = toNumber(raw?.radius ?? raw?.cardRadius, 12);
   const cardBorderColor = toString(raw?.borderColor, "#E5E7EB");
+  const imageBgColor = toString(
+    raw?.imageBg ??
+      raw?.imageBgColor ??
+      raw?.imageBackgroundColor ??
+      raw?.productImageBgColor ??
+      raw?.productImageBackgroundColor,
+    "#FFFFFF"
+  );
 
   // Cart total from items
   const computedCartTotal = useMemo(
@@ -305,15 +314,19 @@ export default function OrderSummary({ section }) {
             ]}
           >
             {/* Product image */}
-            <View style={styles.itemImageWrap}>
+            <View style={[styles.itemImageWrap, { backgroundColor: imageBgColor }]}>
               {item?.image ? (
                 <Image
                   source={{ uri: item.image }}
                   style={styles.itemImage}
-                  resizeMode="cover"
+                  resizeMode={resolveProductImageResizeMode(
+                    raw?.imageScale,
+                    raw?.scale,
+                    raw?.imageResizeMode
+                  )}
                 />
               ) : (
-                <View style={styles.itemImagePlaceholder} />
+                <View style={[styles.itemImagePlaceholder, { backgroundColor: imageBgColor }]} />
               )}
             </View>
 
@@ -500,7 +513,7 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     overflow: "hidden",
     flexShrink: 0,
-    backgroundColor: "#F3F4F6",
+    backgroundColor: "#FFFFFF",
   },
   itemImage: {
     width: "100%",
@@ -508,7 +521,7 @@ const styles = StyleSheet.create({
   },
   itemImagePlaceholder: {
     flex: 1,
-    backgroundColor: "#E5E7EB",
+    backgroundColor: "#FFFFFF",
   },
   itemDetails: {
     flex: 1,

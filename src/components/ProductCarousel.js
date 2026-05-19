@@ -24,6 +24,7 @@ import { resolveTextDecorationLine } from "../utils/textDecoration";
 import Snackbar from "./Snackbar";
 import { useAuth } from "../services/AuthContext";
 import { requireLoginForAction } from "../utils/authGate";
+import { resolveProductImageResizeMode } from "../utils/productImageFit";
 import { resolveFont } from "../services/typographyService";
 import { formatMoney } from "../utils/money";
 
@@ -192,18 +193,10 @@ const parseAspectRatio = (ratio) => {
   return null;
 };
 
-const getImageResizeMode = (scale) => {
-  const normalized = String(scale || "").toLowerCase();
-  if (normalized === "cover" || normalized === "fill") return "cover";
-  if (normalized === "contain" || normalized === "fit") return "contain";
-  if (normalized === "stretch") return "stretch";
-  return "contain"; // Default — show full image without cropping
-};
-
 export default function ProductCarousel({ section }) {
   const navigation = useNavigation();
   const dispatch = useDispatch();
-  const { session } = useAuth();
+  const { session, initializing } = useAuth();
   const wishlistItems = useSelector((state) => state.wishlist?.items || []);
   const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -220,6 +213,12 @@ export default function ProductCarousel({ section }) {
     ? { ...rawProps, ...rawUnwrapped }
     : (rawProps || {});
   const visibilityNode = deepUnwrap(raw?.visibility?.properties ?? raw?.visibility) || {};
+  const layoutCss =
+    deepUnwrap(raw?.layout?.properties?.css?.value) ||
+    deepUnwrap(raw?.layout?.css?.value) ||
+    deepUnwrap(raw?.layout?.properties?.css) ||
+    deepUnwrap(raw?.layout?.css) ||
+    {};
 
   const _slug = (s) =>
     String(s || "").toLowerCase().trim().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
@@ -391,9 +390,26 @@ export default function ProductCarousel({ section }) {
     if (normalized === "auto" || !normalized) return null;
     return parseAspectRatio(imageRatio);
   })();
-  const imageResizeMode = getImageResizeMode(imageScale);
+  const cardImageCss = deepUnwrap(layoutCss?.cardImage ?? layoutCss?.image ?? layoutCss?.imageWrap) || {};
+  const imageResizeMode = resolveProductImageResizeMode(
+    imageScale,
+    raw?.scale,
+    raw?.imageResizeMode,
+    cardImageCss?.objectFit,
+    cardImageCss?.resizeMode
+  );
   // Fallback height used when ratio is "Auto" or unset
   const imageHeight = toNumber(raw?.imageHeight ?? raw?.productImageHeight ?? raw?.imageH, 200);
+  const imageBgColor = toString(
+    raw?.imageBackgroundColor ??
+      raw?.productImageBackgroundColor ??
+      raw?.imageBgColor ??
+      raw?.productImageBgColor ??
+      raw?.imageBg ??
+      cardImageCss?.backgroundColor ??
+      cardImageCss?.background,
+    "#FFFFFF"
+  );
 
   // Title configuration
   const cardTitleActive = toBoolean(raw?.cardTitleActive, true);
@@ -803,7 +819,7 @@ export default function ProductCarousel({ section }) {
         onPress={async (e) => {
           e?.stopPropagation?.();
           e?.preventDefault?.();
-          const blocked = await requireLoginForAction({ session, navigation });
+          const blocked = await requireLoginForAction({ session, navigation, initializing });
           if (blocked) return;
           favoriteTapRef.current = true;
           setTimeout(() => {
@@ -1032,6 +1048,7 @@ export default function ProductCarousel({ section }) {
                       styles.imageContainer,
                       {
                         borderRadius: imageCorner,
+                        backgroundColor: imageBgColor,
                         ...(imageAspectRatio
                           ? { aspectRatio: imageAspectRatio }
                           : { height: imageHeight }),
@@ -1040,8 +1057,9 @@ export default function ProductCarousel({ section }) {
                   >
                     <ProductImage
                       uri={product.imageUrl}
-                      style={[styles.image, { borderRadius: imageCorner }]}
+                      style={[styles.image, { borderRadius: imageCorner, backgroundColor: imageBgColor }]}
                       resizeMode={imageResizeMode}
+                      placeholderBg={imageBgColor}
                     />
                     {renderFavorite(product, isFavorite)}
                     {/* ATC overlaid on image */}
@@ -1195,7 +1213,7 @@ const styles = StyleSheet.create({
   imageContainer: {
     width: "100%",
     position: "relative",
-    backgroundColor: "#F3F4F6",
+    backgroundColor: "#FFFFFF",
     overflow: "hidden",
   },
   image: {

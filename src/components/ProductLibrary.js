@@ -20,6 +20,7 @@ import { getWishlistKeys, isWishlistProduct, toggleWishlist } from "../store/sli
 import Snackbar from "./Snackbar";
 import { useAuth } from "../services/AuthContext";
 import { requireLoginForAction } from "../utils/authGate";
+import { resolveProductImageResizeMode } from "../utils/productImageFit";
 import { resolveFirstFont } from "../services/typographyService";
 import FavoriteToggleButton, { buildFavoriteToggleConfig } from "./FavoriteToggleButton";
 
@@ -114,7 +115,7 @@ export default function ProductLibrary({ section }) {
   const navigation = useNavigation();
   const route = useRoute();
   const dispatch = useDispatch();
-  const { session } = useAuth();
+  const { session, initializing } = useAuth();
   const wishlistItems = useSelector((state) => state.wishlist?.items || []);
   const [isFullscreenVisible, setIsFullscreenVisible] = useState(false);
   const [currentIdx,          setCurrentIdx]          = useState(0);
@@ -207,7 +208,7 @@ export default function ProductLibrary({ section }) {
   const isFavourite = isWishlistProduct(wishlistItems, productForWishlist);
 
   const handleToggleFavourite = async () => {
-    const blocked = await requireLoginForAction({ session, navigation });
+    const blocked = await requireLoginForAction({ session, navigation, initializing });
     if (blocked) return;
     const adding = !isFavourite;
     if (!productKeys.length) return;
@@ -267,7 +268,24 @@ export default function ProductLibrary({ section }) {
     : Math.round(imageWidth * 1.0);
   const imageCorner = toNumber(imageStyles?.corner, 16);
   const imageScale = toString(imageStyles?.scale, "Fit").toLowerCase();
-  const resizeMode = imageScale === "fill" || imageScale === "cover" ? "cover" : "contain";
+  const resizeMode = resolveProductImageResizeMode(
+    imageScale,
+    raw?.imageScale,
+    raw?.scale,
+    raw?.imageResizeMode,
+    imageStyles?.objectFit,
+    imageStyles?.resizeMode
+  );
+  const imageBgColor = toString(
+    raw?.imageBackgroundColor ??
+      raw?.productImageBackgroundColor ??
+      raw?.imageBgColor ??
+      raw?.productImageBgColor ??
+      raw?.imageBg ??
+      imageStyles?.backgroundColor ??
+      imageStyles?.background,
+    "#FFFFFF"
+  );
   const imageFramePaddingY = Math.max(
     0,
     toNumber(
@@ -450,8 +468,9 @@ export default function ProductLibrary({ section }) {
             >
               <ProductImage
                 uri={uri}
-                style={{ width: imageWidth, height: imageHeight, borderRadius: imageCorner }}
+                style={{ width: imageWidth, height: imageHeight, borderRadius: imageCorner, backgroundColor: imageBgColor }}
                 resizeMode={resizeMode}
+                placeholderBg={imageBgColor}
               />
             </Pressable>
           ))}
@@ -577,9 +596,10 @@ export default function ProductLibrary({ section }) {
                 source={{ uri }}
                 style={[
                   styles.thumb,
+                  { backgroundColor: imageBgColor },
                   idx === currentIdx && styles.thumbActive,
                 ]}
-                resizeMode="cover"
+                resizeMode={resizeMode}
               />
             </TouchableOpacity>
           ))}
@@ -696,7 +716,7 @@ const styles = StyleSheet.create({
     width: 54,
     height: 54,
     borderRadius: 10,
-    backgroundColor: "#f3f4f6",
+    backgroundColor: "#FFFFFF",
     borderWidth: 2,
     borderColor: "transparent",
   },

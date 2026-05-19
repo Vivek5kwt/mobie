@@ -16,6 +16,7 @@ import { fetchDSL } from "../engine/dslHandler";
 import { fetchShopifyCollections, getShopifyDomain } from "../services/shopify";
 import { resolveAppId } from "../utils/appId";
 import { SafeArea } from "../utils/SafeAreaHandler";
+import { resolveProductImageResizeMode } from "../utils/productImageFit";
 
 const GAP = 12;
 const H_PAD = 16;
@@ -387,7 +388,7 @@ export default function SubCollectionScreen() {
       onPress={() => openProducts(item)}
     >
       {isRenderableImageUrl(item.image) ? (
-        <Image source={{ uri: item.image }} style={styles.image} resizeMode="cover" />
+        <Image source={{ uri: item.image }} style={styles.image} resizeMode={resolveProductImageResizeMode()} />
       ) : (
         <View style={[styles.image, styles.placeholder]}>
           <Text style={styles.placeholderText}>
@@ -501,7 +502,7 @@ const styles = StyleSheet.create({
   image: {
     width: "100%",
     aspectRatio: 1,
-    backgroundColor: "#F3F4F6",
+    backgroundColor: "#FFFFFF",
   },
   placeholder: {
     alignItems: "center",

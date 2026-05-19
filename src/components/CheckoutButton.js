@@ -7,6 +7,7 @@ import { createShopifyCartCheckout } from "../services/shopify";
 import Snackbar from "./Snackbar";
 import { resolveFA4IconName } from "../utils/faIconAlias";
 import { useAuth } from "../services/AuthContext";
+import { isAuthenticatedSession } from "../utils/authGate";
 import { resolveFont } from "../services/typographyService";
 import { activeDiscountCodes, cartDiscountFingerprint } from "../utils/cartDiscounts";
 
@@ -124,7 +125,8 @@ const interpolateGradientColor = (colors, ratio) => {
 
 export default function CheckoutButton({ section }) {
   const navigation = useNavigation();
-  const { session } = useAuth();
+  const { session, initializing } = useAuth();
+  const isLoggedIn = isAuthenticatedSession(session);
   const cartItems  = useSelector((state) => state?.cart?.items || []);
   const discountRecords = useSelector((state) => state?.cart?.discounts || []);
   const hasCartItems = cartItems.length > 0;
@@ -348,7 +350,8 @@ export default function CheckoutButton({ section }) {
     if (loading) return;
 
     // Require login if store owner disabled guest checkout
-    if (!session && !guestCheckoutAllowed) {
+    if (!isLoggedIn && !guestCheckoutAllowed) {
+      if (initializing) return;
       navigation.navigate("Auth", {
         initialMode: "login",
         requireAuth: true,
