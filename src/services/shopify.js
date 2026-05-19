@@ -213,7 +213,7 @@ export async function directStorefrontGraphQL({ shop, token, storeId, query, var
   try { json = await res.json(); } catch (e) { throw e; }
 
   if (!res.ok) {
-    console.error("❌ Direct Storefront HTTP Error:", res.status, json);
+    console.warn("Direct Storefront HTTP Error:", res.status, json);
     throw new Error(`Storefront HTTP Error ${res.status}`);
   }
 

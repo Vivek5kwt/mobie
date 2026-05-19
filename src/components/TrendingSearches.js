@@ -8,6 +8,10 @@ import {
 } from "react-native";
 import { useNavigation } from "@react-navigation/native";
 import { fetchShopifyTrendingSearches } from "../services/shopify";
+import {
+  fetchUserSearchTerms,
+  SEARCH_HISTORY_CHANGED_EVENT,
+} from "../services/searchHistoryService";
 import { resolveTextDecorationLine } from "../utils/textDecoration";
 import { resolveFont } from "../services/typographyService";
 
@@ -127,6 +131,19 @@ const borderStyleForSide = (side, color) => {
   return {};
 };
 
+const mergeSearches = (...groups) => {
+  const bucket = new Map();
+  groups.flat().forEach((item) => {
+    const text = String(item?.text || item?.query || "").trim();
+    if (!text) return;
+    const query = String(item?.query || text).trim();
+    const key = query.toLowerCase();
+    if (bucket.has(key)) return;
+    bucket.set(key, { text, query });
+  });
+  return [...bucket.values()];
+};
+
 export default function TrendingSearches({ section }) {
   const navigation = useNavigation();
 
@@ -168,10 +185,12 @@ export default function TrendingSearches({ section }) {
 
   const manualSearches = useMemo(() => normalizeSearches(searchesRaw), [manualKey]);
   const sourceMode = String(
-    unwrapValue(dataSource?.mode ?? rp("sourceMode") ?? rp("trendingSource"), "store")
+    unwrapValue(dataSource?.mode ?? rp("sourceMode") ?? rp("trendingSource"), "auto")
   ).toLowerCase();
-  const hasDslSearches = searchesRaw !== null && searchesRaw !== undefined;
-  const useManualSearches = hasDslSearches || ["manual", "static", "dsl"].includes(sourceMode);
+  const useManualSearches = ["manual", "static", "dsl"].includes(sourceMode);
+  const useHistoryOnly = ["history", "user", "recent", "local"].includes(sourceMode);
+  const useBackendTerms = !useHistoryOnly;
+  const allowStaticFallback = toBoolean(rp("allowStaticFallback") ?? rp("useStaticFallback"), false);
 
   const headingVisible = toBoolean(rp("headingVisible"), true);
   const headingText = unwrapValue(rp("headingText") ?? rp("title"), "Trending Searches");
@@ -255,12 +274,19 @@ export default function TrendingSearches({ section }) {
   const [loading, setLoading] = useState(() => !useManualSearches);
   const [error, setError] = useState("");
   const [activeSearchQuery, setActiveSearchQuery] = useState("");
+  const [historyVersion, setHistoryVersion] = useState(0);
 
   useEffect(() => {
-    const sub = DeviceEventEmitter.addListener("mobidrag:search:queryChanged", (payload) => {
+    const querySub = DeviceEventEmitter.addListener("mobidrag:search:queryChanged", (payload) => {
       setActiveSearchQuery(String(payload?.query || "").trim());
     });
-    return () => sub.remove();
+    const historySub = DeviceEventEmitter.addListener(SEARCH_HISTORY_CHANGED_EVENT, () => {
+      setHistoryVersion((value) => value + 1);
+    });
+    return () => {
+      querySub.remove();
+      historySub.remove();
+    };
   }, []);
 
   useEffect(() => {
@@ -278,15 +304,26 @@ export default function TrendingSearches({ section }) {
     setLoading(true);
     setError("");
 
-    fetchShopifyTrendingSearches(requestLimit)
-      .then((items) => {
+    Promise.all([
+      fetchUserSearchTerms(requestLimit).catch(() => []),
+      useBackendTerms
+        ? fetchShopifyTrendingSearches(requestLimit).catch(() => [])
+        : Promise.resolve([]),
+    ])
+      .then(([userTerms, backendTerms]) => {
         if (!alive) return;
-        setSearches(normalizeSearches(items));
+        const dynamicSearches = mergeSearches(
+          normalizeSearches(userTerms),
+          normalizeSearches(backendTerms)
+        );
+        const fallbackSearches = allowStaticFallback ? manualSearches : [];
+        setSearches(dynamicSearches.length ? dynamicSearches : fallbackSearches);
       })
       .catch(() => {
         if (!alive) return;
-        setSearches([]);
-        setError(errorText);
+        const fallbackSearches = allowStaticFallback ? manualSearches : [];
+        setSearches(fallbackSearches);
+        setError(fallbackSearches.length ? "" : errorText);
       })
       .finally(() => {
         if (alive) setLoading(false);
@@ -295,7 +332,7 @@ export default function TrendingSearches({ section }) {
     return () => {
       alive = false;
     };
-  }, [errorText, manualSearches, requestLimit, useManualSearches]);
+  }, [allowStaticFallback, errorText, historyVersion, manualSearches, requestLimit, useBackendTerms, useManualSearches]);
 
   const visibleSearches = useMemo(
     () => searches.slice(0, requestLimit),

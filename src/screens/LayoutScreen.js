@@ -71,6 +71,7 @@ export default function LayoutScreen({ route, navigation }) {
   const [homeHeaderSections, setHomeHeaderSections] = useState([]);
   const [snackbar, setSnackbar] = useState({ visible: false, message: "", type: "info" });
   const [isSideMenuOpen, setIsSideMenuOpen] = useState(false);
+  const [bottomNavHeight, setBottomNavHeight] = useState(BOTTOM_NAV_RESERVED_HEIGHT);
   const versionRef = useRef(null);
   const snackbarTimer = useRef(null);
   const lastLoginToastKeyRef = useRef(null);
@@ -671,7 +672,7 @@ export default function LayoutScreen({ route, navigation }) {
           showsVerticalScrollIndicator
           contentContainerStyle={[
             styles.scrollContent,
-            { paddingBottom: stableBottomNavSection ? BOTTOM_NAV_RESERVED_HEIGHT : 0 },
+            { paddingBottom: stableBottomNavSection ? bottomNavHeight : 0 },
           ]}
           keyboardShouldPersistTaps="handled"
           refreshControl={
@@ -755,7 +756,7 @@ export default function LayoutScreen({ route, navigation }) {
   }
 
   return (
-    <SafeArea>
+    <SafeArea edges={["top", "left", "right"]}>
       <SideMenuProvider
         value={{
           isOpen: isSideMenuOpen,
@@ -769,7 +770,10 @@ export default function LayoutScreen({ route, navigation }) {
           {mainContent}
 
           {fallbackBottomNavSection && (
-            <View style={styles.bottomNav}>
+            <View
+              style={styles.bottomNav}
+              onLayout={(event) => setBottomNavHeight(event.nativeEvent.layout.height)}
+            >
               <BottomNavigation
                 section={fallbackBottomNavSection}
                 activeIndexOverride={activeIndex}

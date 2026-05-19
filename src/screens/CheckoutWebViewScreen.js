@@ -207,6 +207,81 @@ const DETECT_ORDER_JS = `
 })();
 `;
 
+const isCheckoutAccountLoginUrl = (url = "") => {
+  const lower = String(url || "").toLowerCase();
+  return (
+    lower.includes("/account/login") ||
+    lower.includes("/account/register") ||
+    lower.includes("/customer/login") ||
+    lower.includes("/customers/sign_in")
+  );
+};
+
+const buildCheckoutSessionJs = ({ isLoggedIn, customerName, customerEmail }) => {
+  if (!isLoggedIn) return "";
+  const displayValue = customerName || customerEmail || "";
+  const displayLabel = displayValue ? `Signed in as ${displayValue}` : "Signed in";
+
+  return `
+(function() {
+  var displayLabel = ${JSON.stringify(displayLabel)};
+
+  function normalise(value) {
+    return String(value || '').replace(/\\s+/g, ' ').trim();
+  }
+
+  function looksLikeCheckoutSignIn(node) {
+    if (!node || node.getAttribute('data-mobidrag-session-state') === 'true') return false;
+    var text = normalise(node.innerText || node.textContent).toLowerCase();
+    var href = normalise(node.getAttribute && node.getAttribute('href')).toLowerCase();
+    var aria = normalise(node.getAttribute && node.getAttribute('aria-label')).toLowerCase();
+    var title = normalise(node.getAttribute && node.getAttribute('title')).toLowerCase();
+    var label = text || aria || title;
+    var loginText = /^(sign in|log in|login)$/.test(label) || /\\b(sign in|log in)\\b/.test(label);
+    var accountTarget = /account|customer|login|sign[_-]?in/.test(href + ' ' + aria + ' ' + title);
+    return loginText && (accountTarget || label.length <= 32);
+  }
+
+  function replaceSignIn(node) {
+    if (!looksLikeCheckoutSignIn(node)) return;
+    var badge = document.createElement('div');
+    badge.setAttribute('data-mobidrag-session-state', 'true');
+    badge.setAttribute('role', 'status');
+    badge.textContent = displayLabel;
+    badge.style.cssText = 'font:600 14px -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;color:#111827;line-height:20px;margin:6px 0;';
+    try {
+      node.replaceWith(badge);
+    } catch(e) {
+      try {
+        node.style.display = 'none';
+        node.parentNode && node.parentNode.appendChild(badge);
+      } catch(_) {}
+    }
+  }
+
+  function applySessionState() {
+    try {
+      var nodes = document.querySelectorAll('a, button');
+      for (var i = 0; i < nodes.length; i += 1) {
+        replaceSignIn(nodes[i]);
+      }
+    } catch(e) {}
+  }
+
+  applySessionState();
+  setTimeout(applySessionState, 500);
+  setTimeout(applySessionState, 1500);
+
+  try {
+    var observer = new MutationObserver(applySessionState);
+    observer.observe(document.documentElement, { childList: true, subtree: true });
+  } catch(e) {}
+
+  true;
+})();
+`;
+};
+
 // ── Component ─────────────────────────────────────────────────────────────────
 
 export default function CheckoutWebViewScreen() {
@@ -217,6 +292,9 @@ export default function CheckoutWebViewScreen() {
 
   const checkoutUrl = route?.params?.url;
   const headerTitle = route?.params?.title || "Checkout";
+  const checkoutCustomerEmail = route?.params?.customerEmail || session?.user?.email || "";
+  const checkoutCustomerName = route?.params?.customerName || session?.user?.name || checkoutCustomerEmail;
+  const checkoutIsLoggedIn = Boolean(route?.params?.isLoggedIn || session?.user?.email);
 
   const [isLoading,  setIsLoading]  = useState(true);
   const [loadError,  setLoadError]  = useState(false);
@@ -231,6 +309,18 @@ export default function CheckoutWebViewScreen() {
     [route?.params?.appId, session?.user?.appId, session?.user?.app_id]
   );
   const userId = session?.user?.id ?? null;
+  const checkoutSessionJs = useMemo(
+    () => buildCheckoutSessionJs({
+      isLoggedIn: checkoutIsLoggedIn,
+      customerName: checkoutCustomerName,
+      customerEmail: checkoutCustomerEmail,
+    }),
+    [checkoutCustomerEmail, checkoutCustomerName, checkoutIsLoggedIn]
+  );
+  const injectedCheckoutJs = useMemo(
+    () => `${checkoutSessionJs}\n${DETECT_ORDER_JS}\ntrue;`,
+    [checkoutSessionJs]
+  );
 
   // ── Shared order-complete handler (used by URL detection AND JS injection) ──
   const handleOrderComplete = useCallback(
@@ -336,6 +426,16 @@ export default function CheckoutWebViewScreen() {
     webViewRef.current?.reload();
   }, []);
 
+  const handleShouldStartLoadWithRequest = useCallback(
+    (request) => {
+      if (checkoutIsLoggedIn && isCheckoutAccountLoginUrl(request?.url)) {
+        return false;
+      }
+      return true;
+    },
+    [checkoutIsLoggedIn]
+  );
+
   // ── Render ────────────────────────────────────────────────────────────────
   return (
     <SafeArea>
@@ -384,7 +484,9 @@ export default function CheckoutWebViewScreen() {
               onHttpError={handleError}
               onNavigationStateChange={handleNavigationStateChange}
               onMessage={handleWebViewMessage}
-              injectedJavaScript={DETECT_ORDER_JS}
+              onShouldStartLoadWithRequest={handleShouldStartLoadWithRequest}
+              injectedJavaScriptBeforeContentLoaded={checkoutSessionJs || undefined}
+              injectedJavaScript={injectedCheckoutJs}
               startInLoadingState={false}
               javaScriptEnabled
               domStorageEnabled

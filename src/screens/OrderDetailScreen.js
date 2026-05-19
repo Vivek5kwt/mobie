@@ -286,7 +286,7 @@ export default function OrderDetailScreen() {
   const isLoading = dslLoading || fetchingOrders;
 
   return (
-    <SafeArea>
+    <SafeArea edges={["top", "left", "right"]}>
       <View style={styles.container}>
         {/* Header */}
         <View style={styles.header}>

@@ -171,7 +171,16 @@ export default function AddToCart({ section }) {
   const visibility    = mergeConfig(css?.visibility, rawWrappedVis?.visibility, raw?.visibility);
 
   const showAddToCart      = toBoolean(deepUnwrap(visibility?.addToCart),           true);
-  const showAddToCartIcon  = toBoolean(deepUnwrap(visibility?.addToCartIcon),       false);
+  const showAddToCartIconSetting = firstDefined(
+    deepUnwrap(visibility?.addToCartIcon),
+    deepUnwrap(visibility?.icon),
+    raw?.showAddToCartIcon,
+    raw?.showButtonIcon,
+    raw?.buttonIconVisible,
+    raw?.buttonIconsVisible,
+    raw?.showIcon,
+    raw?.iconActive
+  );
   const showAddToCartText  = toBoolean(deepUnwrap(visibility?.addToCartText),       true);
   const showQuantityPicker = toBoolean(deepUnwrap(visibility?.quantityPicker),      true);
   const showQuantityText   = toBoolean(deepUnwrap(visibility?.quantityPickerText),  true);
@@ -253,11 +262,16 @@ export default function AddToCart({ section }) {
     addToCartConfig?.iconId,
     addToCartConfig?.cartIcon,
     addToCartConfig?.buttonIcon,
+    raw?.buttonIcon,
+    raw?.buttonIconName,
+    raw?.iconName,
+    raw?.iconId,
+    raw?.icon,
     raw?.addToCartIcon,
-    raw?.atcIcon,
-    showAddToCartIcon ? "fa-cart-shopping" : ""
+    raw?.atcIcon
   );
   const addToCartIconName = resolveIconName(addToCartIconRaw);
+  const showAddToCartIcon = toBoolean(showAddToCartIconSetting, !!addToCartIconRaw);
   const addToCartIconAlign = toString(addToCartConfig?.iconAlign ?? addToCartConfig?.align, "left").toLowerCase();
   const addToCartIconOnRight = addToCartIconAlign === "right" || addToCartIconAlign === "end";
   const addToCartIcon = showAddToCartIcon && !!addToCartIconName ? (

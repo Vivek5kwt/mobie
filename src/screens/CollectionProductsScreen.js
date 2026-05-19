@@ -287,7 +287,7 @@ export default function CollectionProductsScreen() {
   }, []);
 
   return (
-    <SafeArea>
+    <SafeArea edges={["top", "left", "right"]}>
       <View style={styles.container}>
         {homeHeaderConfig ? (
           <HeaderDefault config={homeHeaderConfig} bottomNavSection={bottomNavSection} hideTabs showBack />

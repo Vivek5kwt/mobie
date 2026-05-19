@@ -3,6 +3,7 @@ import { Linking, StyleSheet, Text, TouchableOpacity, View } from "react-native"
 import { StackActions, useNavigation, useRoute } from "@react-navigation/native";
 import { useSelector } from "react-redux";
 import Icon from "react-native-vector-icons/FontAwesome6";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 const BOTTOM_NAV_DEBUG = __DEV__;
 import { convertStyles } from "../utils/convertStyles";
@@ -246,6 +247,7 @@ const resolveNavigationTarget = (item = {}) => {
 function BottomNavigation({ section, activeIndexOverride }) {
   const navigation = useNavigation();
   const route = useRoute();
+  const insets = useSafeAreaInsets();
   const { session, initializing } = useAuth();
   const isLoggedIn = isAuthenticatedSession(session);
   const { closeSideMenu, isOpen: isSideMenuOpen } = useSideMenu();
@@ -404,6 +406,14 @@ function BottomNavigation({ section, activeIndexOverride }) {
     paddingLeft: paddingRaw?.pl ?? raw?.pl,
     paddingRight: paddingRaw?.pr ?? raw?.pr,
   });
+  const baseBottomPadding =
+    Number(
+      paddingStyles?.paddingBottom ??
+        presentation.container?.paddingBottom ??
+        styles.container.paddingVertical ??
+        8
+    ) || 0;
+  const safeBottomPadding = baseBottomPadding + Math.max(insets.bottom, 0);
 
   const backgroundColor =
     raw?.bgColor ??
@@ -713,6 +723,7 @@ function BottomNavigation({ section, activeIndexOverride }) {
         styles.container,
         presentation.container,
         paddingStyles,
+        { paddingBottom: safeBottomPadding },
         showBg ? { backgroundColor } : { backgroundColor: "transparent" },
         containerBorderRadius != null && containerBorderRadius >= 0
           ? { borderRadius: containerBorderRadius }

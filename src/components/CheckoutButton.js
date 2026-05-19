@@ -84,6 +84,43 @@ const pickSessionCustomerAccessToken = (session) => {
   return "";
 };
 
+const pickSessionCustomerAccessTokenExpiresAt = (session) => {
+  const candidates = [
+    session?.user?.customerAccessTokenExpiresAt,
+    session?.user?.shopifyCustomerAccessTokenExpiresAt,
+    session?.user?.customer_access_token_expires_at,
+    session?.customerAccessTokenExpiresAt,
+    session?.shopifyCustomerAccessTokenExpiresAt,
+    session?.customer_access_token_expires_at,
+  ];
+  for (const candidate of candidates) {
+    const value = toStr(candidate, "");
+    if (value) return value;
+  }
+  return "";
+};
+
+const isUsableCustomerAccessToken = (token, expiresAt) => {
+  if (!toStr(token, "")) return false;
+  if (!expiresAt) return true;
+  const expiryTime = Date.parse(String(expiresAt));
+  if (Number.isNaN(expiryTime)) return true;
+  return expiryTime > Date.now() + 60 * 1000;
+};
+
+const pickSessionCustomerDisplayName = (session) =>
+  pickStr(
+    [
+      session?.user?.name,
+      session?.user?.fullName,
+      session?.user?.firstName && session?.user?.lastName
+        ? `${session.user.firstName} ${session.user.lastName}`
+        : "",
+      session?.user?.email,
+    ],
+    ""
+  );
+
 const toFontWeight = (value, fallback = "600") => {
   const v = deepUnwrap(value);
   if (!v) return fallback;
@@ -365,17 +402,34 @@ export default function CheckoutButton({ section }) {
 
     setLoading(true);
     try {
+      const customerAccessToken = pickSessionCustomerAccessToken(session);
+      const customerAccessTokenExpiresAt = pickSessionCustomerAccessTokenExpiresAt(session);
+      const usableCustomerAccessToken = isUsableCustomerAccessToken(
+        customerAccessToken,
+        customerAccessTokenExpiresAt
+      )
+        ? customerAccessToken
+        : "";
+      const customerEmail = toStr(session?.user?.email, "");
+      const customerName = pickSessionCustomerDisplayName(session);
       const checkoutUrl = await createShopifyCartCheckout({
         items: checkoutLines,
         discountCodes: checkoutDiscountCodes,
         options: {
-          customerAccessToken: pickSessionCustomerAccessToken(session),
-          email: session?.user?.email || "",
+          customerAccessToken: usableCustomerAccessToken,
+          email: customerEmail,
           countryCode: session?.user?.country || undefined,
         },
       });
       if (checkoutUrl && navigation?.navigate) {
-        navigation.navigate("CheckoutWebView", { url: checkoutUrl, title: "Checkout" });
+        navigation.navigate("CheckoutWebView", {
+          url: checkoutUrl,
+          title: "Checkout",
+          isLoggedIn,
+          customerName,
+          customerEmail,
+          hasCustomerAccessToken: !!usableCustomerAccessToken,
+        });
       } else {
         setErrorSnackbar(true);
       }

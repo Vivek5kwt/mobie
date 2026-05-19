@@ -19,6 +19,7 @@ import { useNavigation, useRoute } from "@react-navigation/native";
 import { resolveFont } from "../services/typographyService";
 import { convertStyles } from "../utils/convertStyles";
 import { searchShopifyProducts } from "../services/shopify";
+import { recordUserSearchTerm } from "../services/searchHistoryService";
 import { formatMoney } from "../utils/money";
 import { resolveProductImageResizeMode } from "../utils/productImageFit";
 
@@ -369,6 +370,16 @@ export default function SearchBar({ section }) {
   useEffect(() => {
     if (!isDedicatedSearchPage) return;
     DeviceEventEmitter.emit("mobidrag:search:queryChanged", { query: value.trim() });
+  }, [isDedicatedSearchPage, value]);
+
+  useEffect(() => {
+    if (!isDedicatedSearchPage) return undefined;
+    const term = value.trim();
+    if (!term) return undefined;
+    const timeout = setTimeout(() => {
+      recordUserSearchTerm(term).catch(() => {});
+    }, 700);
+    return () => clearTimeout(timeout);
   }, [isDedicatedSearchPage, value]);
 
   useEffect(() => {

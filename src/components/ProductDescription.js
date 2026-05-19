@@ -230,10 +230,11 @@ export default function ProductDescription({ section }) {
       : hasVisibleBorder(outerBorderLine, outerBorderWidth, outerBorderColor);
 
   // ── Header row paddingTop ─────────────────────────────────────────────────
-  const headerPT = toNumber(
-    raw?.paddingTop ?? outerNode?.paddingTop ?? layoutCss?.headerRow?.paddingTop ?? presCss?.headerRow?.paddingTop,
-    0
-  );
+  const headerNode = unwrapValue(raw?.headerRow ?? raw?.header ?? titleNode?.headerRow, {});
+  const headerPT = toNumber(firstDefined(raw?.headerPaddingTop, raw?.headerPt, headerNode?.paddingTop, headerNode?.pt), 0);
+  const headerPB = toNumber(firstDefined(raw?.headerPaddingBottom, raw?.headerPb, headerNode?.paddingBottom, headerNode?.pb), 0);
+  const headerPL = toNumber(firstDefined(raw?.headerPaddingLeft, raw?.headerPl, headerNode?.paddingLeft, headerNode?.pl), 0);
+  const headerPR = toNumber(firstDefined(raw?.headerPaddingRight, raw?.headerPr, headerNode?.paddingRight, headerNode?.pr), 0);
 
   // ── Info box ──────────────────────────────────────────────────────────────
   const infoPT = toNumber(infoNode?.paddingTop    ?? layoutCss?.infoBox?.paddingTop,    0);
@@ -296,7 +297,15 @@ export default function ProductDescription({ section }) {
     >
       {/* ── Accordion header ──────────────────────────────────────────────── */}
       <TouchableOpacity
-        style={[styles.headerRow, { paddingTop: headerPT }]}
+        style={[
+          styles.headerRow,
+          {
+            paddingTop: headerPT,
+            paddingBottom: headerPB,
+            paddingLeft: headerPL,
+            paddingRight: headerPR,
+          },
+        ]}
         activeOpacity={0.75}
         onPress={() => setOpen((v) => !v)}
         accessibilityRole="button"
@@ -341,7 +350,7 @@ export default function ProductDescription({ section }) {
         <View
           style={{
             backgroundColor: infoBg,
-            paddingTop:      infoPT || 10,
+            paddingTop:      infoPT,
             paddingBottom:   infoPB,
             paddingLeft:     infoPL,
             paddingRight:    infoPR,
@@ -399,8 +408,6 @@ const styles = StyleSheet.create({
     flexDirection:  "row",
     alignItems:     "center",
     justifyContent: "space-between",
-    paddingBottom:  16,
-    paddingHorizontal: 16,
   },
   titleRow: {
     flexDirection: "row",

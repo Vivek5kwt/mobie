@@ -775,7 +775,7 @@ export default function BottomNavScreen() {
   }, [appId, ensureHeaderSections, isHomePage, pageName, checkAndUpdateBottomNav]);
 
   return (
-    <SafeArea>
+    <SafeArea edges={["top", "left", "right"]}>
       <SideMenuProvider
         value={{
           isOpen: isSideMenuOpen,

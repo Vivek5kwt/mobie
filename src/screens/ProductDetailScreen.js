@@ -415,7 +415,7 @@ export default function ProductDetailScreen() {
   );
 
   return (
-    <SafeAreaView style={styles.safeArea} edges={["left", "right", "bottom"]}>
+    <SafeAreaView style={styles.safeArea} edges={["left", "right"]}>
       <View style={styles.container}>
         <View style={[styles.headerWrapper, { paddingTop: insets.top }]}>
           {headerDefaultConfig ? (

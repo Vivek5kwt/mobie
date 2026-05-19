@@ -30,7 +30,10 @@ type UserProfile = {
   updatedAt?: string;
   userToken?: string;
   customerAccessToken?: string;
+  shopifyCustomerAccessToken?: string;
+  customer_access_token?: string;
   customerAccessTokenExpiresAt?: string;
+  customer_access_token_expires_at?: string;
   shopifyCustomerId?: string | number;
 };
 
@@ -131,26 +134,64 @@ const parseMaybeJson = (value: unknown): any => {
 };
 
 const extractCustomerAccessToken = (payload: any) => {
-  const shopifyCustomer = parseMaybeJson(payload?.shopify_customer) || payload?.shopify_customer || {};
+  const payloadUser = payload?.user || {};
+  const payloadCustomer = payload?.customer || {};
+  const shopifyCustomer =
+    parseMaybeJson(payload?.shopify_customer) ||
+    parseMaybeJson(payloadUser?.shopify_customer) ||
+    parseMaybeJson(payloadCustomer?.shopify_customer) ||
+    payload?.shopify_customer ||
+    payloadUser?.shopify_customer ||
+    payloadCustomer?.shopify_customer ||
+    {};
   const candidates = [
+    payload?.customerAccessToken?.accessToken,
     payload?.customerAccessToken,
     payload?.customer_access_token,
+    payload?.shopifyCustomerAccessToken,
     payload?.accessToken,
     payload?.access_token,
     payload?.token?.accessToken,
+    payloadUser?.customerAccessToken?.accessToken,
+    payloadUser?.customerAccessToken,
+    payloadUser?.customer_access_token,
+    payloadUser?.shopifyCustomerAccessToken,
+    payloadUser?.accessToken,
+    payloadUser?.access_token,
+    payloadUser?.token?.accessToken,
+    payloadCustomer?.customerAccessToken?.accessToken,
     payload?.customer?.customerAccessToken,
     payload?.customer?.customer_access_token,
+    payloadCustomer?.customerAccessToken,
+    payloadCustomer?.customer_access_token,
+    payloadCustomer?.shopifyCustomerAccessToken,
+    payloadCustomer?.accessToken,
+    payloadCustomer?.access_token,
     shopifyCustomer?.customerAccessToken?.accessToken,
+    shopifyCustomer?.customerAccessToken,
     shopifyCustomer?.customer_access_token,
+    shopifyCustomer?.shopifyCustomerAccessToken,
     shopifyCustomer?.accessToken,
     shopifyCustomer?.access_token,
+    shopifyCustomer?.token?.accessToken,
     shopifyCustomer?.token,
   ];
   const accessToken = candidates.find((candidate) => typeof candidate === 'string' && candidate.trim());
   const expiresAt =
+    payload?.customerAccessToken?.expiresAt ||
     payload?.customerAccessTokenExpiresAt ||
     payload?.customer_access_token_expires_at ||
+    payload?.shopifyCustomerAccessTokenExpiresAt ||
+    payloadUser?.customerAccessToken?.expiresAt ||
+    payloadUser?.customerAccessTokenExpiresAt ||
+    payloadUser?.customer_access_token_expires_at ||
+    payloadUser?.shopifyCustomerAccessTokenExpiresAt ||
+    payloadCustomer?.customerAccessToken?.expiresAt ||
+    payloadCustomer?.customerAccessTokenExpiresAt ||
+    payloadCustomer?.customer_access_token_expires_at ||
+    payloadCustomer?.shopifyCustomerAccessTokenExpiresAt ||
     shopifyCustomer?.customerAccessToken?.expiresAt ||
+    shopifyCustomer?.customerAccessTokenExpiresAt ||
     shopifyCustomer?.expiresAt ||
     shopifyCustomer?.expires_at ||
     undefined;
@@ -193,7 +234,7 @@ export const login = async (email: string, password: string): Promise<AuthSessio
     }
 
     const sessionToken = payload?.token || generateToken();
-    const customerToken = await resolveShopifyCustomerToken(email, password).catch(() => ({
+    const customerToken = await resolveShopifyCustomerToken(email, password, payload).catch(() => ({
       accessToken: '',
       expiresAt: undefined,
     }));
@@ -222,7 +263,10 @@ export const login = async (email: string, password: string): Promise<AuthSessio
         updatedAt: user.updated_at,
         userToken: user.token,
         customerAccessToken: customerToken.accessToken || undefined,
+        shopifyCustomerAccessToken: customerToken.accessToken || undefined,
+        customer_access_token: customerToken.accessToken || undefined,
         customerAccessTokenExpiresAt: customerToken.expiresAt,
+        customer_access_token_expires_at: customerToken.expiresAt,
       },
     };
 
@@ -267,7 +311,10 @@ export const login = async (email: string, password: string): Promise<AuthSessio
             status: liveStore?.status,
             userToken: customerPayload?.token,
             customerAccessToken: customerToken.accessToken || undefined,
+            shopifyCustomerAccessToken: customerToken.accessToken || undefined,
+            customer_access_token: customerToken.accessToken || undefined,
             customerAccessTokenExpiresAt: customerToken.expiresAt,
+            customer_access_token_expires_at: customerToken.expiresAt,
             shopifyCustomerId: customer?.shopify_customer_id,
           },
         };
@@ -374,7 +421,10 @@ export const signup = async (
         createdAt:      returnedUser.created_at,
         updatedAt:      returnedUser.updated_at,
         customerAccessToken: customerToken.accessToken || undefined,
+        shopifyCustomerAccessToken: customerToken.accessToken || undefined,
+        customer_access_token: customerToken.accessToken || undefined,
         customerAccessTokenExpiresAt: customerToken.expiresAt,
+        customer_access_token_expires_at: customerToken.expiresAt,
         shopifyCustomerId: registeredCustomer?.shopify_customer_id,
       },
     };

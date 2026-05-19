@@ -14,6 +14,7 @@ import FontAwesome from "react-native-vector-icons/FontAwesome";
 import { useNavigation, useRoute } from "@react-navigation/native";
 import { useSelector } from "react-redux";
 import { fetchShopifyProductsPage, searchShopifyProducts } from "../services/shopify";
+import { recordUserSearchTerm } from "../services/searchHistoryService";
 import { SafeArea } from "../utils/SafeAreaHandler";
 import HeaderDefault from "../components/HeaderDefault";
 import FilterSortHeader from "../components/FilterSortHeader";
@@ -141,6 +142,11 @@ export default function AllProductsScreen() {
   useEffect(() => {
     setSearchInput(searchTerm);
   }, [searchTerm]);
+
+  useEffect(() => {
+    if (!isSearchMode || !searchTerm) return;
+    recordUserSearchTerm(searchTerm).catch(() => {});
+  }, [isSearchMode, searchTerm]);
 
   const updateSearchParams = useCallback(
     (nextSearchTerm) => {
@@ -473,7 +479,7 @@ export default function AllProductsScreen() {
   );
 
   return (
-    <SafeArea>
+    <SafeArea edges={["top", "left", "right"]}>
       <View style={styles.container}>
         {isSearchMode ? (
           <View style={styles.searchTop}>
