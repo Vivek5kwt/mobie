@@ -131,6 +131,13 @@ const resolveLineHeight = (value, fontSize, fallback = undefined) => {
   return parsed;
 };
 
+const resolveFlexAlignment = (value, fallback = "center") => {
+  const raw = toString(value, fallback).trim().toLowerCase();
+  if (raw === "left" || raw === "start" || raw === "flex-start") return "flex-start";
+  if (raw === "right" || raw === "end" || raw === "flex-end") return "flex-end";
+  return "center";
+};
+
 const buildTextAttributesStyle = (attributes, decorationOverrides = {}) => {
   if (!attributes || typeof attributes !== "object") return null;
 
@@ -1004,6 +1011,18 @@ export default function HeroBanner({ section }) {
     ) ||
     textAlign
   ).toLowerCase();
+
+  const buttonHorizontalAlign = resolveFlexAlignment(
+    buttonAttrs?.align ??
+    buttonAttrs?.buttonAlign ??
+    rawProps?.buttonAlign ??
+    flatPropsNode?.buttonAlign ??
+    button?.properties?.align ??
+    button?.properties?.buttonAlign ??
+    button?.align ??
+    button?.buttonAlign,
+    align || textAlign || "center"
+  );
   
   // Extract padding from paddingRaw or padding string
   const paddingRaw = alignmentAndPadding?.paddingRaw?.properties || alignmentAndPadding?.paddingRaw || {};
@@ -1209,19 +1228,33 @@ export default function HeroBanner({ section }) {
         ]}
       >
         {showHeadline && headline ? (
-          <Text style={[styles.headline, headlineStyle, { textAlign: headlineTextAlign || "center" }]}>
+          <Text
+            allowFontScaling={false}
+            style={[styles.headline, headlineStyle, { textAlign: headlineTextAlign || "center" }]}
+          >
             {headline}
           </Text>
         ) : null}
 
         {showSubtext && subtext ? (
-          <Text style={[styles.subtext, subtextStyle, { textAlign: subtextTextAlign || "center" }]}>
+          <Text
+            allowFontScaling={false}
+            style={[styles.subtext, subtextStyle, { textAlign: subtextTextAlign || "center" }]}
+          >
             {subtext}
           </Text>
         ) : null}
 
         {showButton && buttonLabel ? (
-          <View style={styles.buttonWrapper}>
+          <View
+            style={[
+              styles.buttonWrapper,
+              {
+                alignItems: buttonHorizontalAlign,
+                justifyContent: buttonHorizontalAlign,
+              },
+            ]}
+          >
             <TouchableOpacity onPress={handleButtonPress} activeOpacity={0.8}>
               <View style={[styles.buttonInner, btnViewDynStyle]}>
                 {!!buttonIconName && buttonIconPosition !== "right" && (
@@ -1231,7 +1264,9 @@ export default function HeroBanner({ section }) {
                     color={buttonIconColor}
                   />
                 )}
-                <Text style={[styles.buttonText, btnTextDynStyle]}>{buttonLabel}</Text>
+                <Text allowFontScaling={false} style={[styles.buttonText, btnTextDynStyle]}>
+                  {buttonLabel}
+                </Text>
                 {!!buttonIconName && buttonIconPosition === "right" && (
                   <FontAwesome
                     name={buttonIconName}
