@@ -1989,7 +1989,7 @@ export async function createShopifyCheckout({ variantId, quantity = 1, options =
   });
 
   if (!merchandiseId) {
-    console.error(`${CHECKOUT_LOG} invalid variant for single checkout`, {
+    console.warn(`${CHECKOUT_LOG} invalid variant for single checkout`, {
       variantId: String(variantId || ""),
       options: {
         productId: options.productId || options.id || "",
@@ -2032,7 +2032,7 @@ export async function createShopifyCheckout({ variantId, quantity = 1, options =
   });
 
   if (json?.errors?.length) {
-    console.error(`${CHECKOUT_LOG} single checkout GraphQL errors`, JSON.stringify(json.errors));
+    console.warn(`${CHECKOUT_LOG} single checkout GraphQL errors`, JSON.stringify(json.errors));
     throw new Error(json.errors.map((error) => error.message).join(" "));
   }
 
@@ -2040,13 +2040,13 @@ export async function createShopifyCheckout({ variantId, quantity = 1, options =
   const errors = payload?.userErrors || [];
 
   if (errors.length) {
-    console.error(`${CHECKOUT_LOG} single checkout user errors`, JSON.stringify(errors));
+    console.warn(`${CHECKOUT_LOG} single checkout user errors`, JSON.stringify(errors));
     throw new Error(errors.map((error) => error.message).join(" "));
   }
 
   const checkoutUrl = payload?.cart?.checkoutUrl ?? payload?.cart?.checckoutUrl;
   if (!checkoutUrl) {
-    console.error(`${CHECKOUT_LOG} single checkout missing URL`, { merchandiseId });
+    console.warn(`${CHECKOUT_LOG} single checkout missing URL`, { merchandiseId });
     throw new Error("Checkout URL not returned.");
   }
 
@@ -2065,7 +2065,7 @@ export async function createShopifyCartCheckout({ items = [], discountCodes = []
   const initialDirectCartLines = buildDirectCartLines(items);
 
   if (!Array.isArray(items) || !items.length) {
-    console.error(`${CHECKOUT_LOG} checkout requested with empty cart`);
+    console.warn(`${CHECKOUT_LOG} checkout requested with empty cart`);
     throw new Error("No valid cart items for checkout.");
   }
 
@@ -2120,25 +2120,16 @@ export async function createShopifyCartCheckout({ items = [], discountCodes = []
     }
 
     if (!lines.length && !directCartLines.length) {
-      console.error(`${CHECKOUT_LOG} no valid checkout lines`, {
+      console.warn(`${CHECKOUT_LOG} no valid checkout lines`, {
         items: (items || []).map(checkoutItemSummary),
       });
       throw new Error("No valid cart items for checkout.");
     }
 
-    if (!customerAccessToken && directCartLines.length) {
-      const discountQuery = requestedDiscountCodes.length
-        ? `?discount=${encodeURIComponent(requestedDiscountCodes.join(","))}`
-        : "";
-      const url = `https://${shop}/cart/${directCartLines.join(",")}${discountQuery}`;
-      console.log(`${CHECKOUT_LOG} checkout via direct cart URL`, {
-        url,
-        lines: directCartLines,
-      });
-      return url;
-    }
-
   // ── Attempt 1: cartCreate mutation (Storefront API 2021-07+) ──────────────
+  let directCartFallbackAllowed = true;
+  let checkoutFailureReason = "";
+
   if (lines.length) {
     const cartCreateMutation = `
       mutation CreateCart($input: CartInput!) {
@@ -2170,6 +2161,8 @@ export async function createShopifyCartCheckout({ items = [], discountCodes = []
         const payload = json?.data?.cartCreate;
         if (payload?.userErrors?.length) {
           console.warn(`${CHECKOUT_LOG} cartCreate user errors`, JSON.stringify(payload.userErrors));
+          directCartFallbackAllowed = false;
+          checkoutFailureReason = payload.userErrors.map((error) => error?.message).filter(Boolean).join(" ");
         }
         if (!payload?.userErrors?.length) {
           if (requestedDiscountCodes.length) {
@@ -2230,6 +2223,8 @@ export async function createShopifyCartCheckout({ items = [], discountCodes = []
         const payload = json?.data?.checkoutCreate;
         if (payload?.checkoutUserErrors?.length) {
           console.warn(`${CHECKOUT_LOG} checkoutCreate user errors`, JSON.stringify(payload.checkoutUserErrors));
+          directCartFallbackAllowed = false;
+          checkoutFailureReason = payload.checkoutUserErrors.map((error) => error?.message).filter(Boolean).join(" ");
         }
         if (!payload?.checkoutUserErrors?.length) {
           const url = payload?.checkout?.webUrl;
@@ -2246,7 +2241,7 @@ export async function createShopifyCartCheckout({ items = [], discountCodes = []
   }
 
   // ── Attempt 3: direct Shopify cart URL (no API call needed) ─────────────
-  if (directCartLines.length) {
+  if (directCartFallbackAllowed && directCartLines.length) {
     const discountQuery = requestedDiscountCodes.length
       ? `?discount=${encodeURIComponent(requestedDiscountCodes.join(","))}`
       : "";
@@ -2258,7 +2253,11 @@ export async function createShopifyCartCheckout({ items = [], discountCodes = []
     return url;
   }
 
-  console.error(`${CHECKOUT_LOG} checkout URL not returned`, {
+  if (!directCartFallbackAllowed) {
+    throw new Error(checkoutFailureReason || "Some cart items cannot be checked out.");
+  }
+
+  console.warn(`${CHECKOUT_LOG} checkout URL not returned`, {
     lines: checkoutLineSummary(lines),
     directCartLines,
   });

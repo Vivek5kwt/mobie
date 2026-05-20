@@ -50,8 +50,10 @@ const IOS_FONT_NAME_MAP = {
   'open sans':       'OpenSans-Regular',
   'opensans':        'OpenSans-Regular',
   'lato':            'Lato-Regular',
-  'playfair display':'PlayfairDisplay-Regular',
-  'playfairdisplay': 'PlayfairDisplay-Regular',
+  // Playfair is bundled as a variable font. Use the iOS family name so
+  // React Native can apply the Builder's requested fontWeight dynamically.
+  'playfair display':'Playfair Display',
+  'playfairdisplay': 'Playfair Display',
 };
 
 const GENERIC_FONT_NAMES = new Set([

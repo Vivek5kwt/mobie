@@ -90,6 +90,26 @@ const toString = (value, fallback = "") => {
   return String(resolved);
 };
 
+const pickResolvedValue = (...candidates) => {
+  for (const candidate of candidates) {
+    const resolved = unwrapValue(candidate, undefined);
+    if (resolved === undefined || resolved === null || resolved === "") continue;
+    if (typeof resolved === "object") continue;
+    return resolved;
+  }
+  return undefined;
+};
+
+const pickNumber = (...candidates) => {
+  const resolved = pickResolvedValue(...candidates);
+  return resolved === undefined ? undefined : toNumber(resolved, undefined);
+};
+
+const pickFontFamily = (...candidates) => {
+  const resolved = pickResolvedValue(...candidates);
+  return resolved === undefined ? undefined : resolveFont(String(resolved));
+};
+
 const toFontWeight = (value, bold = false) => {
   if (bold) return "700";
   if (!value) return undefined;
@@ -254,20 +274,62 @@ export default function HeroBanner({ section }) {
     underline: rawProps?.headlineUnderline,
     strikethrough: rawProps?.headlineStrikethrough,
   }) || {};
+  const headlineAliasFontFamily = pickFontFamily(
+    rawProps?.headlineFontFamily,
+    rawProps?.titleFontFamily,
+    rawProps?.fontFamily,
+    flatPropsNode?.headlineFontFamily,
+    flatPropsNode?.titleFontFamily,
+    flatPropsNode?.fontFamily
+  );
+  const headlineAliasFontSize = pickNumber(
+    rawProps?.headlineSize,
+    rawProps?.headlineSSize,
+    rawProps?.titleSize,
+    flatPropsNode?.headlineSize,
+    flatPropsNode?.headlineSSize,
+    flatPropsNode?.titleSize
+  );
+  const headlineAliasFontWeight = toFontWeight(
+    pickResolvedValue(
+      rawProps?.headlineWeight,
+      rawProps?.titleWeight,
+      rawProps?.fontWeight,
+      flatPropsNode?.headlineWeight,
+      flatPropsNode?.titleWeight,
+      flatPropsNode?.fontWeight
+    ),
+    toBoolean(
+      pickResolvedValue(rawProps?.headlineBold, rawProps?.titleBold, flatPropsNode?.headlineBold, flatPropsNode?.titleBold),
+      false
+    )
+  );
+  const headlineAliasLetterSpacing = pickNumber(
+    rawProps?.headlineLetterSpacing,
+    rawProps?.titleLetterSpacing,
+    flatPropsNode?.headlineLetterSpacing,
+    flatPropsNode?.titleLetterSpacing
+  );
 
   const headlineStyle = {
     ...headlineCssStyle,
     ...headlineAttrStyle,
     // Live attribute values (from builder) take priority over frozen CSS snapshot
     color: headlineAttrStyle.color || headlineCssStyle?.color,
-    fontSize: headlineAttrStyle.fontSize || headlineCssStyle?.fontSize,
-    fontFamily: headlineAttrStyle.fontFamily || headlineCssStyle?.fontFamily,
-    fontWeight: headlineAttrStyle.fontWeight || headlineCssStyle?.fontWeight,
+    fontSize: headlineAttrStyle.fontSize || headlineAliasFontSize || headlineCssStyle?.fontSize,
+    fontFamily: headlineAttrStyle.fontFamily || headlineAliasFontFamily || headlineCssStyle?.fontFamily,
+    fontWeight: headlineAttrStyle.fontWeight || headlineAliasFontWeight || headlineCssStyle?.fontWeight,
+    letterSpacing:
+      headlineAttrStyle.letterSpacing !== undefined
+        ? headlineAttrStyle.letterSpacing
+        : headlineAliasLetterSpacing !== undefined
+          ? headlineAliasLetterSpacing
+          : headlineCssStyle?.letterSpacing,
     lineHeight:
       headlineAttrStyle.lineHeight ||
       resolveLineHeight(
         layoutCss?.headline?.lineHeight ?? headlineCssStyle?.lineHeight,
-        headlineAttrStyle.fontSize || headlineCssStyle?.fontSize || 16,
+        headlineAttrStyle.fontSize || headlineAliasFontSize || headlineCssStyle?.fontSize || 16,
         headlineCssStyle?.lineHeight
       ),
     // Explicit line-height token applied last, using attr fontSize as base (not CSS snapshot)
@@ -275,7 +337,7 @@ export default function HeroBanner({ section }) {
       ? {
           lineHeight:
             headlineLineHeightToken > 0 && headlineLineHeightToken <= 10
-              ? (headlineAttrStyle.fontSize || headlineCssStyle?.fontSize || 16) *
+              ? (headlineAttrStyle.fontSize || headlineAliasFontSize || headlineCssStyle?.fontSize || 16) *
                   headlineLineHeightToken
               : headlineLineHeightToken,
         }
@@ -287,20 +349,62 @@ export default function HeroBanner({ section }) {
     underline: rawProps?.subtextUnderline,
     strikethrough: rawProps?.subtextStrikethrough,
   }) || {};
+  const subtextAliasFontFamily = pickFontFamily(
+    rawProps?.subtextFontFamily,
+    rawProps?.subtitleFontFamily,
+    rawProps?.fontFamily,
+    flatPropsNode?.subtextFontFamily,
+    flatPropsNode?.subtitleFontFamily,
+    flatPropsNode?.fontFamily
+  );
+  const subtextAliasFontSize = pickNumber(
+    rawProps?.subtextSize,
+    rawProps?.subtextsize,
+    rawProps?.subtitleSize,
+    flatPropsNode?.subtextSize,
+    flatPropsNode?.subtextsize,
+    flatPropsNode?.subtitleSize
+  );
+  const subtextAliasFontWeight = toFontWeight(
+    pickResolvedValue(
+      rawProps?.subtextWeight,
+      rawProps?.subtitleWeight,
+      rawProps?.fontWeight,
+      flatPropsNode?.subtextWeight,
+      flatPropsNode?.subtitleWeight,
+      flatPropsNode?.fontWeight
+    ),
+    toBoolean(
+      pickResolvedValue(rawProps?.subtextBold, rawProps?.subtitleBold, flatPropsNode?.subtextBold, flatPropsNode?.subtitleBold),
+      false
+    )
+  );
+  const subtextAliasLetterSpacing = pickNumber(
+    rawProps?.subtextLetterSpacing,
+    rawProps?.subtitleLetterSpacing,
+    flatPropsNode?.subtextLetterSpacing,
+    flatPropsNode?.subtitleLetterSpacing
+  );
 
   const subtextStyle = {
     ...subtextCssStyle,
     ...subtextAttrStyle,
     // Live attribute values (from builder) take priority over frozen CSS snapshot
     color: subtextAttrStyle.color || subtextCssStyle?.color,
-    fontSize: subtextAttrStyle.fontSize || subtextCssStyle?.fontSize,
-    fontFamily: subtextAttrStyle.fontFamily || subtextCssStyle?.fontFamily,
-    fontWeight: subtextAttrStyle.fontWeight || subtextCssStyle?.fontWeight,
+    fontSize: subtextAttrStyle.fontSize || subtextAliasFontSize || subtextCssStyle?.fontSize,
+    fontFamily: subtextAttrStyle.fontFamily || subtextAliasFontFamily || subtextCssStyle?.fontFamily,
+    fontWeight: subtextAttrStyle.fontWeight || subtextAliasFontWeight || subtextCssStyle?.fontWeight,
+    letterSpacing:
+      subtextAttrStyle.letterSpacing !== undefined
+        ? subtextAttrStyle.letterSpacing
+        : subtextAliasLetterSpacing !== undefined
+          ? subtextAliasLetterSpacing
+          : subtextCssStyle?.letterSpacing,
     lineHeight:
       subtextAttrStyle.lineHeight ||
       resolveLineHeight(
         layoutCss?.subtext?.lineHeight ?? subtextCssStyle?.lineHeight,
-        subtextAttrStyle.fontSize || subtextCssStyle?.fontSize || 16,
+        subtextAttrStyle.fontSize || subtextAliasFontSize || subtextCssStyle?.fontSize || 16,
         subtextCssStyle?.lineHeight
       ),
     marginTop: toNumber(subtextAttributes?.marginTop, undefined) ?? subtextCssStyle?.marginTop ?? 8,
@@ -310,7 +414,7 @@ export default function HeroBanner({ section }) {
       ? {
           lineHeight:
             subtextLineHeightToken > 0 && subtextLineHeightToken <= 10
-              ? (subtextAttrStyle.fontSize || subtextCssStyle?.fontSize || 16) *
+              ? (subtextAttrStyle.fontSize || subtextAliasFontSize || subtextCssStyle?.fontSize || 16) *
                   subtextLineHeightToken
               : subtextLineHeightToken,
         }

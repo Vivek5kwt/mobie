@@ -496,7 +496,7 @@ export default function CheckoutWebViewScreen() {
   const handleError = useCallback((event) => {
     const summary = summarizeWebViewEvent(event);
     lastWebViewErrorRef.current = summary;
-    console.error(`${CHECKOUT_WEBVIEW_LOG} load error`, summary);
+    console.warn(`${CHECKOUT_WEBVIEW_LOG} load error`, summary);
     setIsLoading(false);
     setLoadError(true);
   }, []);
@@ -504,7 +504,7 @@ export default function CheckoutWebViewScreen() {
   const handleHttpError = useCallback((event) => {
     const summary = summarizeWebViewEvent(event);
     lastWebViewErrorRef.current = summary;
-    console.error(`${CHECKOUT_WEBVIEW_LOG} HTTP error`, summary);
+    console.warn(`${CHECKOUT_WEBVIEW_LOG} HTTP error`, summary);
     setIsLoading(false);
     setLoadError(true);
   }, []);

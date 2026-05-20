@@ -484,11 +484,11 @@ export default function CheckoutButton({ section }) {
           hasCustomerAccessToken: !!usableCustomerAccessToken,
         });
       } else {
-        console.error(`${CHECKOUT_BUTTON_LOG} checkout URL missing from service`);
+        console.warn(`${CHECKOUT_BUTTON_LOG} checkout URL missing from service`);
         setErrorSnackbar(true);
       }
     } catch (error) {
-      console.error(`${CHECKOUT_BUTTON_LOG} checkout failed`, {
+      console.warn(`${CHECKOUT_BUTTON_LOG} checkout failed`, {
         message: error?.message || String(error),
         itemCount: checkoutLines.length,
       });
