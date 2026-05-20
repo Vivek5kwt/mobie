@@ -788,7 +788,6 @@ export default function BottomNavScreen() {
         <View
           style={[
             styles.container,
-            isHomePage && styles.homeContainer,
             (isCartPage || isProfilePage) ? styles.cartContainer : null,
           ]}
         >
@@ -829,8 +828,8 @@ export default function BottomNavScreen() {
             )}
 
             <ScrollView
-              style={{ flex: 1 }}
-              contentContainerStyle={{ flexGrow: 1 }}
+              style={styles.scrollView}
+              contentContainerStyle={styles.notificationScrollContent}
               showsVerticalScrollIndicator={false}
               refreshControl={
                 <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
@@ -849,11 +848,10 @@ export default function BottomNavScreen() {
 
           <ScrollView
             contentInsetAdjustmentBehavior="automatic"
-            style={[styles.scrollView, isHomePage && styles.homeScrollView]}
+            style={styles.scrollView}
             showsVerticalScrollIndicator
             contentContainerStyle={[
               styles.scrollContent,
-              isHomePage && styles.homeScrollContent,
               (isCartPage || isProfilePage) ? styles.cartScrollContent : null,
               { paddingBottom: resolvedBottomNavSection && !hideBottomNav ? bottomNavHeight : 0 },
             ]}
@@ -956,9 +954,6 @@ export default function BottomNavScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#F7F7F7",
-  },
-  homeContainer: {
     backgroundColor: "#FFFFFF",
   },
   cartContainer: {
@@ -987,16 +982,16 @@ const styles = StyleSheet.create({
   },
   scrollView: {
     flex: 1,
-  },
-  homeScrollView: {
     backgroundColor: "#FFFFFF",
   },
   scrollContent: {
     flexGrow: 1,
     paddingHorizontal: 0,
     paddingBottom: 24,
+    backgroundColor: "#FFFFFF",
   },
-  homeScrollContent: {
+  notificationScrollContent: {
+    flexGrow: 1,
     backgroundColor: "#FFFFFF",
   },
   cartScrollContent: {

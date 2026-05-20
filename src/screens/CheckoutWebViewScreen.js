@@ -12,7 +12,6 @@ import { useSelector } from "react-redux";
 import FontAwesome from "react-native-vector-icons/FontAwesome";
 import { WebView } from "react-native-webview";
 import { SafeArea } from "../utils/SafeAreaHandler";
-import Header from "../components/Topheader";
 import { useAuth } from "../services/AuthContext";
 import { resolveAppId } from "../utils/appId";
 import { triggerOrderNotification, ORDER_EVENTS } from "../services/notificationService";
@@ -24,6 +23,30 @@ import {
 } from "../utils/money";
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
+
+const CHECKOUT_WEBVIEW_LOG = "[CheckoutWebView]";
+
+const normalizeCheckoutUrl = (url) => {
+  const raw = String(url || "").trim();
+  if (!raw) return "";
+  if (/^https?:\/\//i.test(raw)) return raw;
+  if (/^\/\//.test(raw)) return `https:${raw}`;
+  if (/^www\./i.test(raw)) return `https://${raw}`;
+  return raw;
+};
+
+const summarizeWebViewEvent = (event) => {
+  const nativeEvent = event?.nativeEvent || event || {};
+  return {
+    url: nativeEvent.url || "",
+    code: nativeEvent.code,
+    statusCode: nativeEvent.statusCode,
+    description: nativeEvent.description || "",
+    domain: nativeEvent.domain || "",
+    canGoBack: nativeEvent.canGoBack,
+    loading: nativeEvent.loading,
+  };
+};
 
 const extractOrderNumber = (url) => {
   if (!url) return "";
@@ -290,7 +313,11 @@ export default function CheckoutWebViewScreen() {
   const { session }       = useAuth();
   const cartItems         = useSelector((state) => state.cart?.items || []);
 
-  const checkoutUrl = route?.params?.url;
+  const rawCheckoutUrl = route?.params?.url;
+  const checkoutUrl = useMemo(
+    () => normalizeCheckoutUrl(rawCheckoutUrl),
+    [rawCheckoutUrl]
+  );
   const headerTitle = route?.params?.title || "Checkout";
   const checkoutCustomerEmail = route?.params?.customerEmail || session?.user?.email || "";
   const checkoutCustomerName = route?.params?.customerName || session?.user?.name || checkoutCustomerEmail;
@@ -303,6 +330,8 @@ export default function CheckoutWebViewScreen() {
   const webViewRef           = useRef(null);
   const hasCompletedOrderRef = useRef(false);
   const capturedItemsRef     = useRef(cartItems);
+  const lastWebViewUrlRef    = useRef("");
+  const lastWebViewErrorRef  = useRef(null);
 
   const resolvedAppId = useMemo(
     () => resolveAppId(route?.params?.appId ?? session?.user?.appId ?? session?.user?.app_id),
@@ -321,6 +350,38 @@ export default function CheckoutWebViewScreen() {
     () => `${checkoutSessionJs}\n${DETECT_ORDER_JS}\ntrue;`,
     [checkoutSessionJs]
   );
+
+  useEffect(() => {
+    console.log(`${CHECKOUT_WEBVIEW_LOG} open`, {
+      rawUrl: rawCheckoutUrl || "",
+      url: checkoutUrl || "",
+      title: headerTitle,
+      itemCount: cartItems.length,
+      appId: resolvedAppId || "",
+      isLoggedIn: checkoutIsLoggedIn,
+      hasCustomerEmail: !!checkoutCustomerEmail,
+    });
+    if (rawCheckoutUrl && rawCheckoutUrl !== checkoutUrl) {
+      console.log(`${CHECKOUT_WEBVIEW_LOG} normalized checkout URL`, {
+        rawUrl: rawCheckoutUrl,
+        url: checkoutUrl,
+      });
+    }
+    if (!checkoutUrl) {
+      console.warn(`${CHECKOUT_WEBVIEW_LOG} missing checkout URL`, {
+        routeParams: Object.keys(route?.params || {}),
+      });
+    }
+  }, [
+    cartItems.length,
+    checkoutCustomerEmail,
+    checkoutIsLoggedIn,
+    checkoutUrl,
+    headerTitle,
+    rawCheckoutUrl,
+    resolvedAppId,
+    route?.params,
+  ]);
 
   // ── Shared order-complete handler (used by URL detection AND JS injection) ──
   const handleOrderComplete = useCallback(
@@ -367,13 +428,17 @@ export default function CheckoutWebViewScreen() {
 
   // ── Back handling ─────────────────────────────────────────────────────────
   const handleBack = useCallback(() => {
-    if (canGoBack && webViewRef.current) {
-      webViewRef.current.goBack();
-      return true;
+    console.log(`${CHECKOUT_WEBVIEW_LOG} close checkout`, {
+      canGoBack,
+      lastUrl: lastWebViewUrlRef.current || checkoutUrl || "",
+    });
+    if (navigation.canGoBack?.()) {
+      navigation.goBack();
+    } else {
+      navigation.navigate("LayoutScreen", { pageName: "home", activeIndex: 0 });
     }
-    navigation.goBack();
     return true;
-  }, [canGoBack, navigation]);
+  }, [canGoBack, checkoutUrl, navigation]);
 
   useEffect(() => {
     const sub = BackHandler.addEventListener("hardwareBackPress", handleBack);
@@ -384,6 +449,15 @@ export default function CheckoutWebViewScreen() {
   const handleNavigationStateChange = useCallback(
     (navState) => {
       setCanGoBack(!!navState?.canGoBack);
+      if (navState?.url && navState.url !== lastWebViewUrlRef.current) {
+        lastWebViewUrlRef.current = navState.url;
+        console.log(`${CHECKOUT_WEBVIEW_LOG} navigation`, {
+          url: navState.url,
+          canGoBack: !!navState?.canGoBack,
+          loading: !!navState?.loading,
+          title: navState?.title || "",
+        });
+      }
       if (!navState?.url || hasCompletedOrderRef.current) return;
       if (isOrderCompleteUrl(navState.url)) {
         handleOrderComplete(navState.url);
@@ -406,29 +480,51 @@ export default function CheckoutWebViewScreen() {
   );
 
   // ── WebView loading states ────────────────────────────────────────────────
-  const handleLoadStart = useCallback(() => {
+  const handleLoadStart = useCallback((event) => {
+    const summary = summarizeWebViewEvent(event);
+    if (summary.url) lastWebViewUrlRef.current = summary.url;
+    console.log(`${CHECKOUT_WEBVIEW_LOG} load start`, summary);
     setIsLoading(true);
     setLoadError(false);
   }, []);
 
-  const handleLoadEnd = useCallback(() => {
+  const handleLoadEnd = useCallback((event) => {
+    console.log(`${CHECKOUT_WEBVIEW_LOG} load end`, summarizeWebViewEvent(event));
     setIsLoading(false);
   }, []);
 
-  const handleError = useCallback(() => {
+  const handleError = useCallback((event) => {
+    const summary = summarizeWebViewEvent(event);
+    lastWebViewErrorRef.current = summary;
+    console.error(`${CHECKOUT_WEBVIEW_LOG} load error`, summary);
+    setIsLoading(false);
+    setLoadError(true);
+  }, []);
+
+  const handleHttpError = useCallback((event) => {
+    const summary = summarizeWebViewEvent(event);
+    lastWebViewErrorRef.current = summary;
+    console.error(`${CHECKOUT_WEBVIEW_LOG} HTTP error`, summary);
     setIsLoading(false);
     setLoadError(true);
   }, []);
 
   const handleRetry = useCallback(() => {
+    console.log(`${CHECKOUT_WEBVIEW_LOG} retry`, {
+      url: lastWebViewUrlRef.current || checkoutUrl || "",
+      lastError: lastWebViewErrorRef.current,
+    });
     setLoadError(false);
     setIsLoading(true);
     webViewRef.current?.reload();
-  }, []);
+  }, [checkoutUrl]);
 
   const handleShouldStartLoadWithRequest = useCallback(
     (request) => {
       if (checkoutIsLoggedIn && isCheckoutAccountLoginUrl(request?.url)) {
+        console.log(`${CHECKOUT_WEBVIEW_LOG} blocked checkout login redirect`, {
+          url: request?.url || "",
+        });
         return false;
       }
       return true;
@@ -440,9 +536,6 @@ export default function CheckoutWebViewScreen() {
   return (
     <SafeArea>
       <View style={styles.container}>
-        <Header showBack={false} />
-
-        {/* Custom header with smart back button */}
         <View style={styles.header}>
           <TouchableOpacity
             onPress={handleBack}
@@ -461,7 +554,7 @@ export default function CheckoutWebViewScreen() {
           <View style={styles.centreWrap}>
             <FontAwesome name="exclamation-circle" size={40} color="#EF4444" />
             <Text style={styles.errorText}>Checkout link unavailable.</Text>
-            <TouchableOpacity style={styles.retryBtn} onPress={() => navigation.goBack()}>
+            <TouchableOpacity style={styles.retryBtn} onPress={handleBack}>
               <Text style={styles.retryBtnText}>Go Back</Text>
             </TouchableOpacity>
           </View>
@@ -481,7 +574,7 @@ export default function CheckoutWebViewScreen() {
               onLoadStart={handleLoadStart}
               onLoadEnd={handleLoadEnd}
               onError={handleError}
-              onHttpError={handleError}
+              onHttpError={handleHttpError}
               onNavigationStateChange={handleNavigationStateChange}
               onMessage={handleWebViewMessage}
               onShouldStartLoadWithRequest={handleShouldStartLoadWithRequest}
@@ -518,20 +611,24 @@ const styles = StyleSheet.create({
     flexDirection:     "row",
     alignItems:        "center",
     justifyContent:    "space-between",
-    paddingHorizontal: 16,
-    paddingVertical:   12,
+    minHeight:         58,
+    paddingHorizontal: 18,
+    paddingVertical:   7,
     borderBottomWidth: 1,
     borderBottomColor: "#E5E7EB",
+    backgroundColor:   "#ffffff",
   },
   backButton: {
-    width:      36,
-    alignItems: "center",
+    width:          44,
+    height:         44,
+    alignItems:     "center",
+    justifyContent: "center",
   },
   title: {
     flex:       1,
     textAlign:  "center",
-    fontSize:   16,
-    fontWeight: "600",
+    fontSize:   20,
+    fontWeight: "700",
     color:      "#111827",
   },
   webViewContainer: {

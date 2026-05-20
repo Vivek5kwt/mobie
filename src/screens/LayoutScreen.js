@@ -668,11 +668,10 @@ export default function LayoutScreen({ route, navigation }) {
         {/* RENDER SORTED DSL COMPONENTS */}
         <ScrollView
           contentInsetAdjustmentBehavior="automatic"
-          style={[styles.scrollView, isHomePage && styles.homeScrollView]}
+          style={styles.scrollView}
           showsVerticalScrollIndicator
           contentContainerStyle={[
             styles.scrollContent,
-            isHomePage && styles.homeScrollContent,
             { paddingBottom: stableBottomNavSection ? bottomNavHeight : 0 },
           ]}
           keyboardShouldPersistTaps="handled"
@@ -767,7 +766,7 @@ export default function LayoutScreen({ route, navigation }) {
           closeSideMenu,
         }}
       >
-        <View style={[styles.screen, isHomePage && styles.homeScreen]}>
+        <View style={styles.screen}>
           {mainContent}
 
           {fallbackBottomNavSection && (
@@ -810,22 +809,15 @@ export default function LayoutScreen({ route, navigation }) {
 const styles = StyleSheet.create({
   screen: {
     flex: 1,
-    backgroundColor: "#F7F7F7",
-  },
-  homeScreen: {
     backgroundColor: "#FFFFFF",
   },
   scrollView: {
     flex: 1,
-  },
-  homeScrollView: {
     backgroundColor: "#FFFFFF",
   },
   scrollContent: {
     paddingHorizontal: 0,
     paddingBottom: 0,
-  },
-  homeScrollContent: {
     backgroundColor: "#FFFFFF",
   },
   bottomNav: {

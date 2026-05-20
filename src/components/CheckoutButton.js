@@ -48,6 +48,7 @@ const toBool = (value, fallback = false) => {
 };
 
 const cleanFontFamily = (family) => resolveFont(family) || "";
+const CHECKOUT_BUTTON_LOG = "[CheckoutButton]";
 
 // First non-empty string wins
 const pickStr = (candidates, fallback) => {
@@ -422,8 +423,28 @@ export default function CheckoutButton({ section }) {
   useEffect(() => {
     if (!hasCartItems || initializing) return;
     if (!isLoggedIn && !guestCheckoutAllowed) return;
-    createShopifyCartCheckout(checkoutRequest).catch(() => {});
-  }, [checkoutRequest, guestCheckoutAllowed, hasCartItems, initializing, isLoggedIn]);
+    console.log(`${CHECKOUT_BUTTON_LOG} prewarm checkout`, {
+      itemCount: checkoutLines.length,
+      discountCodes: checkoutDiscountCodes,
+      isLoggedIn,
+      hasCustomerAccessToken: !!usableCustomerAccessToken,
+    });
+    createShopifyCartCheckout(checkoutRequest).catch((error) => {
+      console.warn(`${CHECKOUT_BUTTON_LOG} prewarm checkout failed`, {
+        message: error?.message || String(error),
+        itemCount: checkoutLines.length,
+      });
+    });
+  }, [
+    checkoutDiscountCodes,
+    checkoutLines.length,
+    checkoutRequest,
+    guestCheckoutAllowed,
+    hasCartItems,
+    initializing,
+    isLoggedIn,
+    usableCustomerAccessToken,
+  ]);
 
   const handleCheckout = async () => {
     if (!hasCartItems) { setEmptySnackbar(true); return; }
@@ -445,8 +466,15 @@ export default function CheckoutButton({ section }) {
 
     setLoading(true);
     try {
+      console.log(`${CHECKOUT_BUTTON_LOG} checkout pressed`, {
+        itemCount: checkoutLines.length,
+        discountCodes: checkoutDiscountCodes,
+        isLoggedIn,
+        hasCustomerAccessToken: !!usableCustomerAccessToken,
+      });
       const checkoutUrl = await createShopifyCartCheckout(checkoutRequest);
       if (checkoutUrl && navigation?.navigate) {
+        console.log(`${CHECKOUT_BUTTON_LOG} opening checkout`, { checkoutUrl });
         navigation.navigate("CheckoutWebView", {
           url: checkoutUrl,
           title: "Checkout",
@@ -456,9 +484,14 @@ export default function CheckoutButton({ section }) {
           hasCustomerAccessToken: !!usableCustomerAccessToken,
         });
       } else {
+        console.error(`${CHECKOUT_BUTTON_LOG} checkout URL missing from service`);
         setErrorSnackbar(true);
       }
-    } catch {
+    } catch (error) {
+      console.error(`${CHECKOUT_BUTTON_LOG} checkout failed`, {
+        message: error?.message || String(error),
+        itemCount: checkoutLines.length,
+      });
       setErrorSnackbar(true);
     } finally {
       setLoading(false);

@@ -799,6 +799,204 @@ const buildDirectCartLines = (items = []) =>
     })
     .filter(Boolean);
 
+const CHECKOUT_LOG = "[ShopifyCheckout]";
+
+const checkoutItemSummary = (item = {}, index = 0) => ({
+  index,
+  id: item?.id ? String(item.id) : "",
+  variantId: item?.variantId ? String(item.variantId) : "",
+  productId: item?.productId ? String(item.productId) : "",
+  handle: item?.handle || "",
+  title: item?.title || item?.name || "",
+  quantity: Math.max(1, Number(item?.quantity) || 1),
+});
+
+const checkoutLineSummary = (lines = []) =>
+  (lines || []).map((line, index) => ({
+    index,
+    merchandiseId: line?.merchandiseId || "",
+    quantity: line?.quantity || 1,
+  }));
+
+const productGidFromValue = (value) => {
+  const raw = String(value || "").trim();
+  return raw.startsWith("gid://") && raw.includes("Product/") && !raw.includes("ProductVariant/")
+    ? raw
+    : "";
+};
+
+const pickVariantFromProductNode = (productNode = {}) => {
+  const edges = productNode?.variants?.edges || [];
+  const variants = edges.map((edge) => edge?.node).filter(Boolean);
+  return variants.find((variant) => variant.availableForSale !== false) || variants[0] || null;
+};
+
+const resolveCheckoutVariantFromProductId = async ({ productId, shop, token, storeId }) => {
+  if (!productId) return "";
+  const query = `
+    query ResolveCheckoutVariantByProductId($id: ID!) {
+      node(id: $id) {
+        ... on Product {
+          variants(first: 20) {
+            edges {
+              node {
+                id
+                availableForSale
+              }
+            }
+          }
+        }
+        ... on ProductVariant {
+          id
+          availableForSale
+        }
+      }
+    }
+  `;
+
+  const json = await directStorefrontGraphQL({
+    shop,
+    token,
+    storeId,
+    query,
+    variables: { id: productId },
+  });
+
+  if (json?.errors?.length) {
+    console.warn(`${CHECKOUT_LOG} variant resolve by product id GraphQL errors`, JSON.stringify(json.errors));
+    return "";
+  }
+
+  const node = json?.data?.node;
+  if (node?.id && String(node.id).includes("ProductVariant/")) {
+    return node.id;
+  }
+  return pickVariantFromProductNode(node)?.id || "";
+};
+
+const resolveCheckoutVariantFromHandle = async ({ handle, shop, token, storeId }) => {
+  const safeHandle = String(handle || "").trim();
+  if (!safeHandle) return "";
+  const query = `
+    query ResolveCheckoutVariantByHandle($handle: String!) {
+      product(handle: $handle) {
+        variants(first: 20) {
+          edges {
+            node {
+              id
+              availableForSale
+            }
+          }
+        }
+      }
+    }
+  `;
+
+  const json = await directStorefrontGraphQL({
+    shop,
+    token,
+    storeId,
+    query,
+    variables: { handle: safeHandle },
+  });
+
+  if (json?.errors?.length) {
+    console.warn(`${CHECKOUT_LOG} variant resolve by handle GraphQL errors`, JSON.stringify(json.errors));
+    return "";
+  }
+
+  return pickVariantFromProductNode(json?.data?.product)?.id || "";
+};
+
+const resolveCheckoutVariantForItem = async (item = {}, context = {}) => {
+  const directVariant = [
+    item?.variantId,
+    item?.merchandiseId,
+    item?.id,
+  ].map(ensureVariantGid).find(Boolean);
+  if (directVariant) {
+    return {
+      merchandiseId: directVariant,
+      source: "direct",
+    };
+  }
+
+  const productId = [
+    item?.productId,
+    item?.product_id,
+    item?.variantId,
+    item?.id,
+  ].map(productGidFromValue).find(Boolean);
+
+  try {
+    const resolvedById = productId
+      ? await resolveCheckoutVariantFromProductId({ productId, ...context })
+      : "";
+    if (resolvedById) {
+      return {
+        merchandiseId: resolvedById,
+        source: "product-id",
+      };
+    }
+
+    const resolvedByHandle = await resolveCheckoutVariantFromHandle({
+      handle: item?.handle,
+      ...context,
+    });
+    if (resolvedByHandle) {
+      return {
+        merchandiseId: resolvedByHandle,
+        source: "handle",
+      };
+    }
+  } catch (error) {
+    console.warn(`${CHECKOUT_LOG} variant resolve failed`, {
+      item: checkoutItemSummary(item),
+      message: error?.message || String(error),
+    });
+  }
+
+  return {
+    merchandiseId: "",
+    source: "unresolved",
+  };
+};
+
+const buildResolvedCheckoutLines = async (items = [], context = {}) => {
+  const results = await Promise.all(
+    (items || []).map(async (item, index) => {
+      const resolved = await resolveCheckoutVariantForItem(item, context);
+      const quantity = Math.max(1, Number(item?.quantity) || 1);
+      return {
+        index,
+        item,
+        quantity,
+        ...resolved,
+      };
+    })
+  );
+
+  return {
+    lines: results
+      .filter((entry) => entry.merchandiseId)
+      .map((entry) => ({
+        merchandiseId: entry.merchandiseId,
+        quantity: entry.quantity,
+      })),
+    resolved: results.filter((entry) => entry.merchandiseId && entry.source !== "direct"),
+    invalid: results.filter((entry) => !entry.merchandiseId),
+  };
+};
+
+const buildDirectCartLinesFromCheckoutLines = (lines = []) =>
+  (lines || [])
+    .map((line) => {
+      const match = String(line?.merchandiseId || "").match(/ProductVariant\/(\d+)/);
+      if (!match) return null;
+      return `${match[1]}:${Math.max(1, Number(line?.quantity) || 1)}`;
+    })
+    .filter(Boolean);
+
 const sumDiscountAllocations = (cart, requestedCodes = []) => {
   const requested = new Set(requestedCodes);
   const amounts = new Map();
@@ -1760,10 +1958,44 @@ export async function createShopifyCheckout({ variantId, quantity = 1, options =
   const shop = options.shop || creds.shop;
   const token = options.token || creds.token;
   const storeId = options.storeId || creds.storeId;
-  const merchandiseId = ensureVariantGid(variantId);
+  let merchandiseId = ensureVariantGid(variantId);
   const buyerIdentity = buildBuyerIdentity(options);
 
   if (!merchandiseId) {
+    const resolved = await resolveCheckoutVariantForItem(
+      {
+        variantId,
+        id: options.productId || options.id,
+        handle: options.handle,
+        quantity,
+      },
+      { shop, token, storeId }
+    );
+    merchandiseId = resolved.merchandiseId;
+    if (merchandiseId) {
+      console.log(`${CHECKOUT_LOG} resolved single product variant`, {
+        source: resolved.source,
+        merchandiseId,
+      });
+    }
+  }
+
+  console.log(`${CHECKOUT_LOG} create single checkout`, {
+    variantId: String(variantId || ""),
+    merchandiseId,
+    quantity: Math.max(1, quantity),
+    shop,
+    hasCustomerAccessToken: !!resolveCustomerAccessToken(options),
+  });
+
+  if (!merchandiseId) {
+    console.error(`${CHECKOUT_LOG} invalid variant for single checkout`, {
+      variantId: String(variantId || ""),
+      options: {
+        productId: options.productId || options.id || "",
+        handle: options.handle || "",
+      },
+    });
     throw new Error("Invalid variant ID for checkout.");
   }
 
@@ -1800,6 +2032,7 @@ export async function createShopifyCheckout({ variantId, quantity = 1, options =
   });
 
   if (json?.errors?.length) {
+    console.error(`${CHECKOUT_LOG} single checkout GraphQL errors`, JSON.stringify(json.errors));
     throw new Error(json.errors.map((error) => error.message).join(" "));
   }
 
@@ -1807,14 +2040,17 @@ export async function createShopifyCheckout({ variantId, quantity = 1, options =
   const errors = payload?.userErrors || [];
 
   if (errors.length) {
+    console.error(`${CHECKOUT_LOG} single checkout user errors`, JSON.stringify(errors));
     throw new Error(errors.map((error) => error.message).join(" "));
   }
 
   const checkoutUrl = payload?.cart?.checkoutUrl ?? payload?.cart?.checckoutUrl;
   if (!checkoutUrl) {
+    console.error(`${CHECKOUT_LOG} single checkout missing URL`, { merchandiseId });
     throw new Error("Checkout URL not returned.");
   }
 
+  console.log(`${CHECKOUT_LOG} single checkout URL created`, { checkoutUrl });
   return checkoutUrl;
 }
 
@@ -1823,19 +2059,21 @@ export async function createShopifyCartCheckout({ items = [], discountCodes = []
     discountCodes.length ? discountCodes : options.discountCodes || []
   );
 
-  const lines = buildCheckoutLines(items);
+  const initialLines = buildCheckoutLines(items);
 
   // Build numeric variant IDs for direct cart URL fallback (no API needed)
-  const directCartLines = buildDirectCartLines(items);
+  const initialDirectCartLines = buildDirectCartLines(items);
 
-  if (!lines.length && !directCartLines.length) {
+  if (!Array.isArray(items) || !items.length) {
+    console.error(`${CHECKOUT_LOG} checkout requested with empty cart`);
     throw new Error("No valid cart items for checkout.");
   }
 
   const customerAccessToken = resolveCustomerAccessToken(options);
   const checkoutCacheKey = buildCacheKey("cartCheckout", {
-    lines,
-    directCartLines,
+    lines: initialLines,
+    directCartLines: initialDirectCartLines,
+    items: (items || []).map(checkoutItemSummary),
     discountCodes: requestedDiscountCodes,
     buyerIdentity: {
       customerAccessToken,
@@ -1852,13 +2090,51 @@ export async function createShopifyCartCheckout({ items = [], discountCodes = []
     const token = options.token || creds.token;
     const storeId = options.storeId || creds.storeId;
     const buyerIdentity = buildBuyerIdentity(options);
+    const resolvedCheckout = await buildResolvedCheckoutLines(items, { shop, token, storeId });
+    const lines = resolvedCheckout.lines.length ? resolvedCheckout.lines : initialLines;
+    const directCartLines = buildDirectCartLinesFromCheckoutLines(lines);
+
+    console.log(`${CHECKOUT_LOG} create cart checkout`, {
+      itemCount: items.length,
+      lineCount: lines.length,
+      directCartLineCount: directCartLines.length,
+      discountCodes: requestedDiscountCodes,
+      shop,
+      hasCustomerAccessToken: !!customerAccessToken,
+      buyerCountryCode: buyerIdentity?.countryCode || "",
+    });
+
+    if (resolvedCheckout.resolved.length) {
+      console.log(`${CHECKOUT_LOG} resolved checkout variants`, resolvedCheckout.resolved.map((entry) => ({
+        source: entry.source,
+        merchandiseId: entry.merchandiseId,
+        item: checkoutItemSummary(entry.item, entry.index),
+      })));
+    }
+
+    if (resolvedCheckout.invalid.length) {
+      console.warn(`${CHECKOUT_LOG} cart items without valid variant`, resolvedCheckout.invalid.map((entry) =>
+        checkoutItemSummary(entry.item, entry.index)
+      ));
+      throw new Error("Some cart items are missing valid Shopify variants.");
+    }
+
+    if (!lines.length && !directCartLines.length) {
+      console.error(`${CHECKOUT_LOG} no valid checkout lines`, {
+        items: (items || []).map(checkoutItemSummary),
+      });
+      throw new Error("No valid cart items for checkout.");
+    }
 
     if (!customerAccessToken && directCartLines.length) {
       const discountQuery = requestedDiscountCodes.length
         ? `?discount=${encodeURIComponent(requestedDiscountCodes.join(","))}`
         : "";
       const url = `https://${shop}/cart/${directCartLines.join(",")}${discountQuery}`;
-      console.log("âœ… Checkout via direct cart URL:", url);
+      console.log(`${CHECKOUT_LOG} checkout via direct cart URL`, {
+        url,
+        lines: directCartLines,
+      });
       return url;
     }
 
@@ -1887,8 +2163,14 @@ export async function createShopifyCartCheckout({ items = [], discountCodes = []
           },
         },
       });
+      if (json?.errors?.length) {
+        console.warn(`${CHECKOUT_LOG} cartCreate GraphQL errors`, JSON.stringify(json.errors));
+      }
       if (!json?.errors?.length) {
         const payload = json?.data?.cartCreate;
+        if (payload?.userErrors?.length) {
+          console.warn(`${CHECKOUT_LOG} cartCreate user errors`, JSON.stringify(payload.userErrors));
+        }
         if (!payload?.userErrors?.length) {
           if (requestedDiscountCodes.length) {
             const returnedCodes = payload?.cart?.discountCodes || [];
@@ -1941,8 +2223,14 @@ export async function createShopifyCartCheckout({ items = [], discountCodes = []
           },
         },
       });
+      if (json?.errors?.length) {
+        console.warn(`${CHECKOUT_LOG} checkoutCreate GraphQL errors`, JSON.stringify(json.errors));
+      }
       if (!json?.errors?.length) {
         const payload = json?.data?.checkoutCreate;
+        if (payload?.checkoutUserErrors?.length) {
+          console.warn(`${CHECKOUT_LOG} checkoutCreate user errors`, JSON.stringify(payload.checkoutUserErrors));
+        }
         if (!payload?.checkoutUserErrors?.length) {
           const url = payload?.checkout?.webUrl;
           if (url) {
@@ -1963,10 +2251,17 @@ export async function createShopifyCartCheckout({ items = [], discountCodes = []
       ? `?discount=${encodeURIComponent(requestedDiscountCodes.join(","))}`
       : "";
     const url = `https://${shop}/cart/${directCartLines.join(",")}${discountQuery}`;
-    console.log("✅ Checkout via direct cart URL:", url);
+    console.log(`${CHECKOUT_LOG} checkout via direct cart URL`, {
+      url,
+      lines: directCartLines,
+    });
     return url;
   }
 
+  console.error(`${CHECKOUT_LOG} checkout URL not returned`, {
+    lines: checkoutLineSummary(lines),
+    directCartLines,
+  });
   throw new Error("Checkout URL not returned. Please try again.");
   });
 }

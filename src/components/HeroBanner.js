@@ -43,11 +43,14 @@ const getRawProps = (section) => {
 // Read layout CSS from both 'layout' and 'presentation' DSL paths
 const getLayoutCss = (rawProps) => {
   const fromLayout = rawProps?.layout?.properties?.css || rawProps?.layout?.css || {};
+  const flatProps = deepUnwrap(rawProps?.flatProps) || {};
+  const fromFlatLayout = flatProps?.layout?.properties?.css || flatProps?.layout?.css || {};
   const presUnwrapped = deepUnwrap(rawProps?.presentation) || {};
   const fromPres = presUnwrapped?.properties?.css || presUnwrapped?.css || {};
   const fromCss = deepUnwrap(rawProps?.css) || {};
   const merge = (key) => ({
     ...(fromLayout[key] || {}),
+    ...(fromFlatLayout[key] || {}),
     ...(fromPres[key]   || {}),
     ...(fromCss[key]    || {}),
   });
@@ -97,6 +100,15 @@ const toFontWeight = (value, bold = false) => {
   if (raw === "regular" || raw === "normal") return "400";
   if (/^\d+$/.test(raw)) return raw;
   return undefined;
+};
+
+const resolveLineHeight = (value, fontSize, fallback = undefined) => {
+  const resolved = unwrapValue(value, undefined);
+  if (resolved === undefined || resolved === null || resolved === "") return fallback;
+  const parsed = typeof resolved === "number" ? resolved : parseFloat(resolved);
+  if (!Number.isFinite(parsed) || parsed <= 0) return fallback;
+  if (fontSize && parsed <= 4) return fontSize * parsed;
+  return parsed;
 };
 
 const buildTextAttributesStyle = (attributes, decorationOverrides = {}) => {
@@ -180,6 +192,7 @@ export default function HeroBanner({ section }) {
   const navigation = useNavigation();
   // Merge .raw sub-object so DSL data nested inside raw is accessible at top level
   const rawProps = getRawProps(section);
+  const flatPropsNode = deepUnwrap(rawProps?.flatProps) || {};
 
   // Extract layout CSS from all possible DSL sources (layout / presentation / css)
   const layoutCss = getLayoutCss(rawProps);
@@ -228,13 +241,13 @@ export default function HeroBanner({ section }) {
 
   // Extract text attributes
   const headlineAttributes =
-    rawProps?.headlineAttributes?.properties || rawProps?.headlineAttributes || {};
+    rawProps?.headlineAttributes?.properties || rawProps?.headlineAttributes || flatPropsNode?.headlineAttributes || {};
   const subtextAttributes =
-    rawProps?.subtextAttributes?.properties || rawProps?.subtextAttributes || {};
+    rawProps?.subtextAttributes?.properties || rawProps?.subtextAttributes || flatPropsNode?.subtextAttributes || {};
 
   // Optional explicit line-height overrides from schema
-  const headlineLineHeightToken = toNumber(rawProps?.headlineLineHeight, undefined);
-  const subtextLineHeightToken = toNumber(rawProps?.subtextLineHeight, undefined);
+  const headlineLineHeightToken = toNumber(rawProps?.headlineLineHeight ?? flatPropsNode?.headlineLineHeight, undefined);
+  const subtextLineHeightToken = toNumber(rawProps?.subtextLineHeight ?? flatPropsNode?.subtextLineHeight, undefined);
 
   // Build headline style from CSS and attributes
   const headlineAttrStyle = buildTextAttributesStyle(headlineAttributes, {
@@ -250,6 +263,13 @@ export default function HeroBanner({ section }) {
     fontSize: headlineAttrStyle.fontSize || headlineCssStyle?.fontSize,
     fontFamily: headlineAttrStyle.fontFamily || headlineCssStyle?.fontFamily,
     fontWeight: headlineAttrStyle.fontWeight || headlineCssStyle?.fontWeight,
+    lineHeight:
+      headlineAttrStyle.lineHeight ||
+      resolveLineHeight(
+        layoutCss?.headline?.lineHeight ?? headlineCssStyle?.lineHeight,
+        headlineAttrStyle.fontSize || headlineCssStyle?.fontSize || 16,
+        headlineCssStyle?.lineHeight
+      ),
     // Explicit line-height token applied last, using attr fontSize as base (not CSS snapshot)
     ...(headlineLineHeightToken
       ? {
@@ -276,6 +296,13 @@ export default function HeroBanner({ section }) {
     fontSize: subtextAttrStyle.fontSize || subtextCssStyle?.fontSize,
     fontFamily: subtextAttrStyle.fontFamily || subtextCssStyle?.fontFamily,
     fontWeight: subtextAttrStyle.fontWeight || subtextCssStyle?.fontWeight,
+    lineHeight:
+      subtextAttrStyle.lineHeight ||
+      resolveLineHeight(
+        layoutCss?.subtext?.lineHeight ?? subtextCssStyle?.lineHeight,
+        subtextAttrStyle.fontSize || subtextCssStyle?.fontSize || 16,
+        subtextCssStyle?.lineHeight
+      ),
     marginTop: toNumber(subtextAttributes?.marginTop, undefined) ?? subtextCssStyle?.marginTop ?? 8,
     marginBottom: toNumber(subtextAttributes?.marginBottom, undefined) ?? subtextCssStyle?.marginBottom ?? 12,
     // Explicit line-height token applied last, using attr fontSize as base (not CSS snapshot)
@@ -291,13 +318,15 @@ export default function HeroBanner({ section }) {
   };
 
   // Image attributes and settings
-  const imageAttributes = rawProps?.imageAttributes?.properties || rawProps?.imageAttributes || {};
+  const imageAttributes =
+    rawProps?.imageAttributes?.properties || rawProps?.imageAttributes || flatPropsNode?.imageAttributes || {};
   const imageSettingsEnabled = toBoolean(rawProps?.imageSettingsEnabled, true);
   // Read scale from imageAttributes first, then top-level DSL aliases
   const imageScale = toString(
     imageAttributes?.scale ??
     rawProps?.imageScale ??
     rawProps?.scale ??
+    flatPropsNode?.scale ??
     rawProps?.imageFit ??
     rawProps?.imageResizeMode,
     "Cover"
@@ -334,7 +363,7 @@ export default function HeroBanner({ section }) {
     return undefined;
   };
 
-  const imageAspectRatio = parseImageRatio(imageAttributes?.imageRatio);
+  const imageAspectRatio = parseImageRatio(imageAttributes?.imageRatio ?? rawProps?.ratio ?? flatPropsNode?.ratio);
   
   // Map image scale to React Native resizeMode.
   // The user's explicit builder setting (imageScale) always wins over the
@@ -342,7 +371,8 @@ export default function HeroBanner({ section }) {
   const cssObjectFit = toString(layoutCss?.image?.objectFit, "").toLowerCase();
   const resizeMode = (() => {
     // User's builder scale setting — checked first
-    if (imageScale === "stretch" || imageScale === "fill") return "stretch";
+    if (imageScale === "stretch") return "stretch";
+    if (imageScale === "fill") return cssObjectFit === "contain" ? "contain" : "cover";
     if (imageScale === "contain" || imageScale === "fit") return "contain";
     if (imageScale === "cover") return "cover";
     // Presentation CSS fallback (web snapshot)
@@ -354,7 +384,6 @@ export default function HeroBanner({ section }) {
   })();
 
   // Text content – prefer top-level props, but fall back to flatProps snapshot
-  const flatPropsNode = rawProps?.flatProps?.value || rawProps?.flatProps || {};
   const headline =
     unwrapValue(rawProps?.headline, undefined) ??
     unwrapValue(flatPropsNode?.headline, undefined) ??
@@ -377,7 +406,8 @@ export default function HeroBanner({ section }) {
   // buttonAttributes — dedicated DSL node sent by the builder with more specific button config
   // keys: bgColor, textColor, fontFamily, fontWeight, fontSize, letterSpacing,
   //       icon, iconSize, iconColor, borderRadius, borderColor, borderSide, pt/pb/pl/pr
-  const buttonAttrs = rawProps?.buttonAttributes?.properties || rawProps?.buttonAttributes || {};
+  const buttonAttrs =
+    rawProps?.buttonAttributes?.properties || rawProps?.buttonAttributes || flatPropsNode?.buttonAttributes || {};
 
   const buttonEnabled = button?.properties?.enabled || button?.enabled;
   const showButtonFromEnabled = buttonEnabled === "yes" || buttonEnabled === true || toBoolean(buttonEnabled, false);
@@ -777,13 +807,15 @@ export default function HeroBanner({ section }) {
 
   // Content settings
   const contentSettingsEnabled = toBoolean(rawProps?.contentSettingsEnabled, true);
-  const contentProps = rawProps?.content?.properties || rawProps?.content || {};
+  const contentProps = rawProps?.content?.properties || rawProps?.content || flatPropsNode?.content || {};
   
   // Image source - check multiple possible property names and nested structures
   // Filter out empty strings and whitespace-only strings
   const rawImageSrc =
     unwrapValue(rawProps?.uploadImage, "") ||
+    unwrapValue(flatPropsNode?.uploadImage, "") ||
     unwrapValue(rawProps?.imageLink, "") ||
+    unwrapValue(flatPropsNode?.imageLink, "") ||
     unwrapValue(rawProps?.image, "") ||
     unwrapValue(rawProps?.imageUrl, "") ||
     unwrapValue(rawProps?.imageURL, "") ||
@@ -819,7 +851,8 @@ export default function HeroBanner({ section }) {
 
   // Alignment and padding
   const alignSettingsEnabled = toBoolean(rawProps?.alignSettingsEnabled, true);
-  const alignmentAndPadding = rawProps?.alignmentAndPadding?.properties || rawProps?.alignmentAndPadding || {};
+  const alignmentAndPadding =
+    rawProps?.alignmentAndPadding?.properties || rawProps?.alignmentAndPadding || flatPropsNode?.alignmentAndPadding || {};
   const textAlign = toString(alignmentAndPadding?.textAlign, "center").toLowerCase();
   const align = toString(alignmentAndPadding?.align, "Center").toLowerCase();
   const alignItems = align === "left" ? "flex-start" : align === "right" ? "flex-end" : "center";
@@ -878,7 +911,7 @@ export default function HeroBanner({ section }) {
 
   // Background settings
   const bgSettingsEnabled = toBoolean(rawProps?.bgSettingsEnabled, true);
-  const styleProps = rawProps?.style?.properties || rawProps?.style || {};
+  const styleProps = rawProps?.style?.properties || rawProps?.style || flatPropsNode?.style || {};
   const backgroundColor = toString(styleProps?.backgroundColor || layoutCss?.container?.background, "#ebeef4");
   const backgroundOpacity =
     toNumber(styleProps?.backgroundOpacity, undefined) ??
