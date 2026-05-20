@@ -19,7 +19,7 @@ import {
   fetchShopifyCollectionProducts,
 } from "../services/shopify";
 import { addItem } from "../store/slices/cartSlice";
-import { isWishlistProduct, toggleWishlist } from "../store/slices/wishlistSlice";
+import { getWishlistUserKey, isWishlistProduct, toggleWishlist } from "../store/slices/wishlistSlice";
 import { resolveTextDecorationLine } from "../utils/textDecoration";
 import Snackbar from "./Snackbar";
 import { useAuth } from "../services/AuthContext";
@@ -197,6 +197,7 @@ export default function ProductCarousel({ section }) {
   const navigation = useNavigation();
   const dispatch = useDispatch();
   const { session, initializing } = useAuth();
+  const wishlistUserKey = useMemo(() => getWishlistUserKey(session), [session]);
   const wishlistItems = useSelector((state) => state.wishlist?.items || []);
   const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -455,12 +456,27 @@ export default function ProductCarousel({ section }) {
     ],
     false
   );
-  const favoriteIconId = toString(raw?.favoriteIconId, "fa-heart");
-  const favoriteIconSize = toNumber(raw?.favIconSize, 18);
-  const favoriteIconColor = toString(raw?.favIconColor, "#EF4444");
-  const unfavoriteIconId = toString(raw?.unfavoriteIconId, "fa-heart-o");
-  const unfavoriteIconSize = toNumber(raw?.unfavoriteIconSize, 18);
-  const unfavoriteIconColor = toString(raw?.unfavoriteIconColor, "#9CA3AF");
+  const favoriteIconId = toString(raw?.favoriteIconId ?? raw?.favoriteIcon ?? raw?.favIcon, "fa-heart");
+  const favoriteIconSize = toNumber(raw?.favIconSize ?? raw?.favoriteIconSize, 18);
+  const favoriteIconColor = toString(
+    raw?.favoriteIconColor ?? raw?.favoriteColor ?? raw?.favIconColor ?? raw?.favColor,
+    "#EF4444"
+  );
+  const unfavoriteIconId = toString(
+    raw?.unfavoriteIconId ?? raw?.unfavoriteIcon ?? raw?.unfavIcon,
+    "fa-heart-o"
+  );
+  const unfavoriteIconSize = toNumber(raw?.unfavoriteIconSize ?? raw?.unfavIconSize, favoriteIconSize);
+  const resolvedUnfavoriteIconColor = toString(
+    raw?.unfavoriteIconColor ?? raw?.unfavoriteColor ?? raw?.favIconInactiveColor,
+    "#9CA3AF"
+  );
+  const inactiveFavoriteFallbackColor =
+    favoriteIconColor.trim().toLowerCase() === "#9ca3af" ? "#D1D5DB" : "#9CA3AF";
+  const unfavoriteIconColor =
+    resolvedUnfavoriteIconColor.trim().toLowerCase() === favoriteIconColor.trim().toLowerCase()
+      ? inactiveFavoriteFallbackColor
+      : resolvedUnfavoriteIconColor;
   const favPosition = toString(raw?.favPosition, "top-right").toLowerCase();
   const favBubbleBgColor = toString(raw?.favBubbleBgColor, "#FFFFFF");
   const favBubblePadT = toNumber(raw?.favBubblePadT, 0);
@@ -832,6 +848,7 @@ export default function ProductCarousel({ section }) {
           const adding = !isFavorite;
           dispatch(
             toggleWishlist({
+              userKey: wishlistUserKey,
               product: {
                 id,
                 title: product?.title || "",

@@ -201,6 +201,7 @@ export default function OrderSummary({ section }) {
   // Cart total row
   const showCartTotal = toBoolean(raw?.showCartTotal, true);
   const cartTotalLabel = toString(raw?.cartTotalLabel, usesDslItems ? "Subtotal" : "Cart Total");
+  const showCartTotalRow = showCartTotal && cartTotalLabel.trim().toLowerCase() !== "total";
   const cartTotalColor = toString(raw?.cartTotalColor, "#111827");
   const cartTotalWeight = toFontWeight(raw?.cartTotalWeight, "700");
 
@@ -355,7 +356,7 @@ export default function OrderSummary({ section }) {
       })}
 
       {/* Cart Total */}
-      {showCartTotal && (
+      {showCartTotalRow && (
         <SummaryRow
           label={cartTotalLabel}
           value={fmt(cartTotal, currencyLabel)}

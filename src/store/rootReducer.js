@@ -12,10 +12,17 @@ const cartPersistConfig = {
   whitelist: ["items"],
 };
 
+const wishlistPersistConfig = {
+  key: "wishlist",
+  version: 1,
+  storage: AsyncStorage,
+  whitelist: ["items", "activeUserKey", "itemsByUser"],
+};
+
 const rootReducer = combineReducers({
   json: jsonReducer,
   cart: persistReducer(cartPersistConfig, cartReducer),
-  wishlist: wishlistReducer,
+  wishlist: persistReducer(wishlistPersistConfig, wishlistReducer),
 });
 
 export default rootReducer;

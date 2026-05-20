@@ -288,17 +288,6 @@ export default function CartLineItems({ section }) {
   const cartFingerprint = useMemo(() => cartDiscountFingerprint(cartItems), [cartItems]);
   const discountCount = activeDiscountRecords(appliedDiscounts, cartFingerprint).length;
 
-  // Total (shown if DSL enables it)
-  const showTotal = toBoolean(raw?.showTotal, false);
-  const totalLabel = toString(raw?.totalLabel, "Total");
-  const totalColor = toString(raw?.totalLabelColor, "#111827");
-  const totalValueColor = toString(raw?.totalValueColor, "#111827");
-
-  const total = useMemo(
-    () => sourceItems.reduce((sum, item) => sum + toNumber(item?.price, 0) * toNumber(item?.quantity, 1), 0),
-    [sourceItems]
-  );
-
   if (sourceItems.length === 0) {
     return (
       <View style={[styles.emptyContainer, { backgroundColor: bgColor, paddingHorizontal: padL }]}>
@@ -613,16 +602,6 @@ export default function CartLineItems({ section }) {
           </View>
         );
       })}
-
-      {/* Cart total */}
-      {showTotal && sourceItems.length > 0 && (
-        <View style={styles.totalRow}>
-          <Text style={[styles.totalLabel, { color: totalColor }]}>{totalLabel}</Text>
-          <Text style={[styles.totalValue, { color: totalValueColor }]}>
-            {fmtPrice(total, currencyLabel)}
-          </Text>
-        </View>
-      )}
     </View>
   );
 }
@@ -732,20 +711,5 @@ const styles = StyleSheet.create({
   divider: {
     height: 1,
     marginVertical: 4,
-  },
-  totalRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    paddingTop: 8,
-    borderTopWidth: 1,
-    borderTopColor: "#F3F4F6",
-  },
-  totalLabel: {
-    fontSize: 14,
-    fontWeight: "600",
-  },
-  totalValue: {
-    fontSize: 16,
-    fontWeight: "700",
   },
 });

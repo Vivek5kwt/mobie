@@ -7,7 +7,9 @@ import React, {
   useMemo,
   useState,
 } from 'react';
+import { useDispatch } from 'react-redux';
 import { AuthSession, clearSession, login, restoreSession, signup } from './authService';
+import { setWishlistUser } from '../store/slices/wishlistSlice';
 import tokenLogger from '../utils/tokenLogger';
 
 export type AuthContextValue = {
@@ -21,6 +23,7 @@ export type AuthContextValue = {
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
 
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
+  const dispatch = useDispatch();
   const [session, setSession] = useState<AuthSession | null>(null);
   const [initializing, setInitializing] = useState(true);
 
@@ -30,11 +33,14 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         const storedSession = await restoreSession();
         if (storedSession) {
           setSession(storedSession);
+          dispatch(setWishlistUser({ session: storedSession }));
           if (storedSession?.user?.id) {
             tokenLogger
               .updateTokenForUser(storedSession.user.id, storedSession.user.appId)
               .catch(() => {});
           }
+        } else {
+          dispatch(setWishlistUser({ session: null }));
         }
       } finally {
         setInitializing(false);
@@ -42,35 +48,38 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     };
 
     bootstrap();
-  }, []);
+  }, [dispatch]);
 
   const handleLogin = useCallback(async (email: string, password: string) => {
     const newSession = await login(email, password);
     setSession(newSession);
+    dispatch(setWishlistUser({ session: newSession }));
     // Associate FCM token with the logged-in user
     if (newSession?.user?.id) {
       tokenLogger.updateTokenForUser(newSession.user.id, newSession.user.appId).catch(() => {});
     }
-  }, []);
+  }, [dispatch]);
 
   const handleSignup = useCallback(
     async (email: string, password: string, fullName?: string) => {
       const newSession = await signup(email, password, fullName);
       setSession(newSession);
+      dispatch(setWishlistUser({ session: newSession }));
       // Associate FCM token with the newly registered user
       if (newSession?.user?.id) {
         tokenLogger.updateTokenForUser(newSession.user.id, newSession.user.appId).catch(() => {});
       }
     },
-    []
+    [dispatch]
   );
 
   const handleLogout = useCallback(async () => {
     await clearSession();
     setSession(null);
+    dispatch(setWishlistUser({ session: null }));
     // Clear stored FCM record ID so next login gets a fresh token association
     tokenLogger.clearToken().catch(() => {});
-  }, []);
+  }, [dispatch]);
 
   const value = useMemo(
     () => ({ session, initializing, login: handleLogin, signup: handleSignup, logout: handleLogout }),

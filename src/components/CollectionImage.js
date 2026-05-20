@@ -1,11 +1,11 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
-  Dimensions,
   FlatList,
   Image,
   StyleSheet,
   Text,
   TouchableOpacity,
+  useWindowDimensions,
   View,
 } from "react-native";
 import { useNavigation, useRoute } from "@react-navigation/native";
@@ -151,8 +151,6 @@ const mergeCollectionItems = (dslItems, storeItems) => {
   });
 };
 
-const SCREEN_W = Dimensions.get("window").width;
-
 const cleanFontFamily = (family) => resolveFont(family) || "";
 
 const toArray = (value) => {
@@ -182,6 +180,7 @@ const isRenderableImageUrl = (url) => {
 export default function CollectionImage({ section }) {
   const navigation = useNavigation();
   const route = useRoute();
+  const { width: screenW } = useWindowDimensions();
 
   const rawProps = useMemo(
     () =>
@@ -275,12 +274,23 @@ export default function CollectionImage({ section }) {
   const sliderCfg           = layoutCss?.slider || {};
   const hGap                = asNumber(generalNode?.hGap ?? rawSnapshot?.hGap ?? sliderCfg?.gapPx, 12);
   const vGap                = asNumber(generalNode?.vGap ?? rawSnapshot?.vGap, 12);
-  const availableW          = SCREEN_W - containerPl - containerPr;
+  const availableW          = screenW - containerPl - containerPr;
   const gridColumns         = Math.max(2, rawColumns || 2);
   const gridCardW           = (availableW - hGap * (gridColumns - 1)) / gridColumns;
 
+  // layoutMode drives horizontal slider vs grid
+  const layoutMode = asString(unwrapValue(behavior?.layoutMode ?? layoutCss?.slider?.layout, rawColumns ? "grid" : "horizontal")).toLowerCase();
+  const isGrid     = layoutMode === "grid";
+  const shouldFitHorizontalRow = !isGrid && items.length > 0 && items.length <= 4;
+  const fitRowCardW = shouldFitHorizontalRow
+    ? Math.max(40, (availableW - hGap * Math.max(items.length - 1, 0)) / items.length)
+    : null;
+
   // Image dimensions from card config
-  const cardImageSize       = asNumber(cardCfg?.imageSize ?? rawSnapshot?.imageSize, Math.max(72, gridCardW));
+  const configuredImageSize = asNumber(cardCfg?.imageSize ?? rawSnapshot?.imageSize, Math.max(72, gridCardW));
+  const cardImageSize       = shouldFitHorizontalRow
+    ? Math.max(28, Math.min(configuredImageSize, fitRowCardW))
+    : configuredImageSize;
   const cardImageBorder     = asNumber(cardCfg?.imageBorder, 0);
   const cardImageBorderColor = asString(unwrapValue(cardCfg?.imageBorderColor, "#A8A7AE"));
   const imageShape          = asString(unwrapValue(cardCfg?.imageShape, rawSnapshot?.imageRadius != null ? "rounded" : "circle")).toLowerCase();
@@ -296,10 +306,6 @@ export default function CollectionImage({ section }) {
   const autoScrollEnabled = asBoolean(behavior?.autoScroll ?? layoutCss?.slider?.autoScroll, true);
   const scrollSpeedSec    = Math.max(asNumber(behavior?.scrollSpeed ?? layoutCss?.slider?.speedSec, 3), 1);
   const showArrows        = asBoolean(behavior?.showArrows ?? layoutCss?.slider?.showArrows, false);
-
-  // layoutMode drives horizontal slider vs grid
-  const layoutMode = asString(unwrapValue(behavior?.layoutMode ?? layoutCss?.slider?.layout, rawColumns ? "grid" : "horizontal")).toLowerCase();
-  const isGrid     = layoutMode === "grid";
 
   const routePageSlug = normalizeKey(
     route?.params?.pageName ||
@@ -354,8 +360,9 @@ export default function CollectionImage({ section }) {
       ? gridCardW
       : cardImageSize + 20
   );
-  const cardW    = Math.max(40, Math.min(rawCardW, availableW));
+  const cardW    = shouldFitHorizontalRow ? fitRowCardW : Math.max(40, Math.min(rawCardW, availableW));
   const stepSize = cardW + hGap;
+  const isScrollable = !shouldFitHorizontalRow && items.length > 1;
 
   // ── State ────────────────────────────────────────────────────────────────────
   const listRef       = useRef(null);
@@ -373,7 +380,7 @@ export default function CollectionImage({ section }) {
 
   // ── Auto-scroll ───────────────────────────────────────────────────────────────
   useEffect(() => {
-    if (isGrid || !autoScrollEnabled || items.length < 2) return;
+    if (isGrid || !isScrollable || !autoScrollEnabled || items.length < 2) return;
     const timer = setInterval(() => {
       const next = (indexRef.current + 1) % items.length;
       autoScrollRef.current = true;
@@ -382,7 +389,7 @@ export default function CollectionImage({ section }) {
       setTimeout(() => { autoScrollRef.current = false; }, 500);
     }, scrollSpeedSec * 1000);
     return () => clearInterval(timer);
-  }, [isGrid, autoScrollEnabled, items.length, scrollSpeedSec, updateIndex]);
+  }, [isGrid, isScrollable, autoScrollEnabled, items.length, scrollSpeedSec, updateIndex]);
 
   // ── Shopify fallback ──────────────────────────────────────────────────────────
   useEffect(() => {
@@ -561,8 +568,6 @@ export default function CollectionImage({ section }) {
 
   if (!items.length) return null;
 
-  const isScrollable = items.length > 1;
-
   return (
     <View
       style={[
@@ -605,15 +610,21 @@ export default function CollectionImage({ section }) {
         numColumns={isGrid ? columns : 1}
         showsHorizontalScrollIndicator={false}
         scrollEnabled={!isGrid ? isScrollable : false}
-        snapToInterval={!isGrid ? stepSize : undefined}
-        snapToAlignment={!isGrid ? "start" : undefined}
-        decelerationRate={!isGrid ? "fast" : "normal"}
-        disableIntervalMomentum={!isGrid}
-        getItemLayout={!isGrid ? getItemLayout : undefined}
-        onMomentumScrollEnd={!isGrid ? onMomentumScrollEnd : undefined}
+        snapToInterval={!isGrid && isScrollable ? stepSize : undefined}
+        snapToAlignment={!isGrid && isScrollable ? "start" : undefined}
+        decelerationRate={!isGrid && isScrollable ? "fast" : "normal"}
+        disableIntervalMomentum={!isGrid && isScrollable}
+        getItemLayout={!isGrid && isScrollable ? getItemLayout : undefined}
+        onMomentumScrollEnd={!isGrid && isScrollable ? onMomentumScrollEnd : undefined}
         scrollEventThrottle={32}
         columnWrapperStyle={isGrid ? { columnGap: hGap, marginBottom: vGap } : undefined}
-        contentContainerStyle={isGrid ? { rowGap: vGap } : undefined}
+        contentContainerStyle={
+          isGrid
+            ? { rowGap: vGap }
+            : shouldFitHorizontalRow
+            ? { width: availableW }
+            : undefined
+        }
       />
 
     </View>
