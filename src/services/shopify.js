@@ -1819,11 +1819,6 @@ export async function createShopifyCheckout({ variantId, quantity = 1, options =
 }
 
 export async function createShopifyCartCheckout({ items = [], discountCodes = [], options = {} }) {
-  const creds = await getShopifyCredentials();
-  const shop = options.shop || creds.shop;
-  const token = options.token || creds.token;
-  const storeId = options.storeId || creds.storeId;
-  const buyerIdentity = buildBuyerIdentity(options);
   const requestedDiscountCodes = normalizeDiscountCodes(
     discountCodes.length ? discountCodes : options.discountCodes || []
   );
@@ -1836,6 +1831,36 @@ export async function createShopifyCartCheckout({ items = [], discountCodes = []
   if (!lines.length && !directCartLines.length) {
     throw new Error("No valid cart items for checkout.");
   }
+
+  const customerAccessToken = resolveCustomerAccessToken(options);
+  const checkoutCacheKey = buildCacheKey("cartCheckout", {
+    lines,
+    directCartLines,
+    discountCodes: requestedDiscountCodes,
+    buyerIdentity: {
+      customerAccessToken,
+      email: options.email || "",
+      countryCode: resolveBuyerCountryCode(options),
+    },
+    shop: options.shop || "",
+    storeId: options.storeId || "",
+  });
+
+  return withRequestCache(checkoutCacheKey, async () => {
+    const creds = await getShopifyCredentials();
+    const shop = options.shop || creds.shop;
+    const token = options.token || creds.token;
+    const storeId = options.storeId || creds.storeId;
+    const buyerIdentity = buildBuyerIdentity(options);
+
+    if (!customerAccessToken && directCartLines.length) {
+      const discountQuery = requestedDiscountCodes.length
+        ? `?discount=${encodeURIComponent(requestedDiscountCodes.join(","))}`
+        : "";
+      const url = `https://${shop}/cart/${directCartLines.join(",")}${discountQuery}`;
+      console.log("âœ… Checkout via direct cart URL:", url);
+      return url;
+    }
 
   // ── Attempt 1: cartCreate mutation (Storefront API 2021-07+) ──────────────
   if (lines.length) {
@@ -1943,6 +1968,7 @@ export async function createShopifyCartCheckout({ items = [], discountCodes = []
   }
 
   throw new Error("Checkout URL not returned. Please try again.");
+  });
 }
 
 // ----------------------

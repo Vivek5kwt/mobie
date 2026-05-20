@@ -60,11 +60,26 @@ export const buildFavoriteToggleConfig = (raw = {}, styleNode = {}) => {
     favoriteIconSize,
     unfavoriteIconSize,
     favoriteIconColor: toString(
-      firstDefined(raw.favoriteIconColor, raw.favoriteColor, raw.favIconColor, raw.favColor, styleNode?.activeColor, styleNode?.color),
+      firstDefined(
+        raw.favoriteIconColor,
+        raw.favoriteColor,
+        raw.likedIconColor,
+        raw.likedFavoriteIconColor,
+        raw.wishlistActiveIconColor,
+        styleNode?.activeColor
+      ),
       "#EF4444"
     ),
     unfavoriteIconColor: toString(
-      firstDefined(raw.unfavoriteIconColor, raw.unfavoriteColor, raw.favIconInactiveColor, styleNode?.inactiveColor),
+      firstDefined(
+        raw.unfavoriteIconColor,
+        raw.unfavoriteColor,
+        raw.favIconInactiveColor,
+        raw.favIconColor,
+        raw.favColor,
+        styleNode?.inactiveColor,
+        styleNode?.color
+      ),
       "#9CA3AF"
     ),
     bubbleColor: toString(

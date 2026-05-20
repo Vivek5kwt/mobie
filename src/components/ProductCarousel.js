@@ -459,7 +459,11 @@ export default function ProductCarousel({ section }) {
   const favoriteIconId = toString(raw?.favoriteIconId ?? raw?.favoriteIcon ?? raw?.favIcon, "fa-heart");
   const favoriteIconSize = toNumber(raw?.favIconSize ?? raw?.favoriteIconSize, 18);
   const favoriteIconColor = toString(
-    raw?.favoriteIconColor ?? raw?.favoriteColor ?? raw?.favIconColor ?? raw?.favColor,
+    raw?.favoriteIconColor ??
+      raw?.favoriteColor ??
+      raw?.likedIconColor ??
+      raw?.likedFavoriteIconColor ??
+      raw?.wishlistActiveIconColor,
     "#EF4444"
   );
   const unfavoriteIconId = toString(
@@ -468,7 +472,11 @@ export default function ProductCarousel({ section }) {
   );
   const unfavoriteIconSize = toNumber(raw?.unfavoriteIconSize ?? raw?.unfavIconSize, favoriteIconSize);
   const resolvedUnfavoriteIconColor = toString(
-    raw?.unfavoriteIconColor ?? raw?.unfavoriteColor ?? raw?.favIconInactiveColor,
+    raw?.unfavoriteIconColor ??
+      raw?.unfavoriteColor ??
+      raw?.favIconInactiveColor ??
+      raw?.favIconColor ??
+      raw?.favColor,
     "#9CA3AF"
   );
   const inactiveFavoriteFallbackColor =

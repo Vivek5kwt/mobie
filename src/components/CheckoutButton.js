@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { ActivityIndicator, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import FontAwesome from "react-native-vector-icons/FontAwesome";
 import { useNavigation } from "@react-navigation/native";
@@ -382,6 +382,49 @@ export default function CheckoutButton({ section }) {
   const [errorSnackbar, setErrorSnackbar] = useState(false);
   const [loading,       setLoading]       = useState(false);
 
+  const customerAccessToken = useMemo(
+    () => pickSessionCustomerAccessToken(session),
+    [session]
+  );
+  const customerAccessTokenExpiresAt = useMemo(
+    () => pickSessionCustomerAccessTokenExpiresAt(session),
+    [session]
+  );
+  const usableCustomerAccessToken = useMemo(
+    () =>
+      isUsableCustomerAccessToken(customerAccessToken, customerAccessTokenExpiresAt)
+        ? customerAccessToken
+        : "",
+    [customerAccessToken, customerAccessTokenExpiresAt]
+  );
+  const customerEmail = toStr(session?.user?.email, "");
+  const customerName = useMemo(
+    () => pickSessionCustomerDisplayName(session),
+    [session]
+  );
+  const checkoutOptions = useMemo(
+    () => ({
+      customerAccessToken: usableCustomerAccessToken,
+      email: customerEmail,
+      countryCode: session?.user?.country || undefined,
+    }),
+    [customerEmail, session?.user?.country, usableCustomerAccessToken]
+  );
+  const checkoutRequest = useMemo(
+    () => ({
+      items: checkoutLines,
+      discountCodes: checkoutDiscountCodes,
+      options: checkoutOptions,
+    }),
+    [checkoutDiscountCodes, checkoutLines, checkoutOptions]
+  );
+
+  useEffect(() => {
+    if (!hasCartItems || initializing) return;
+    if (!isLoggedIn && !guestCheckoutAllowed) return;
+    createShopifyCartCheckout(checkoutRequest).catch(() => {});
+  }, [checkoutRequest, guestCheckoutAllowed, hasCartItems, initializing, isLoggedIn]);
+
   const handleCheckout = async () => {
     if (!hasCartItems) { setEmptySnackbar(true); return; }
     if (loading) return;
@@ -402,25 +445,7 @@ export default function CheckoutButton({ section }) {
 
     setLoading(true);
     try {
-      const customerAccessToken = pickSessionCustomerAccessToken(session);
-      const customerAccessTokenExpiresAt = pickSessionCustomerAccessTokenExpiresAt(session);
-      const usableCustomerAccessToken = isUsableCustomerAccessToken(
-        customerAccessToken,
-        customerAccessTokenExpiresAt
-      )
-        ? customerAccessToken
-        : "";
-      const customerEmail = toStr(session?.user?.email, "");
-      const customerName = pickSessionCustomerDisplayName(session);
-      const checkoutUrl = await createShopifyCartCheckout({
-        items: checkoutLines,
-        discountCodes: checkoutDiscountCodes,
-        options: {
-          customerAccessToken: usableCustomerAccessToken,
-          email: customerEmail,
-          countryCode: session?.user?.country || undefined,
-        },
-      });
+      const checkoutUrl = await createShopifyCartCheckout(checkoutRequest);
       if (checkoutUrl && navigation?.navigate) {
         navigation.navigate("CheckoutWebView", {
           url: checkoutUrl,
