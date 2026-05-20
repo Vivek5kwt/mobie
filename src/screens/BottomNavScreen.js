@@ -785,7 +785,13 @@ export default function BottomNavScreen() {
           closeSideMenu,
         }}
       >
-        <View style={[styles.container, (isCartPage || isProfilePage) ? styles.cartContainer : null]}>
+        <View
+          style={[
+            styles.container,
+            isHomePage && styles.homeContainer,
+            (isCartPage || isProfilePage) ? styles.cartContainer : null,
+          ]}
+        >
           {/* Single standalone header for pages opened without the bottom nav. */}
           {hideBottomNav && (
             <View style={styles.standaloneHeader}>
@@ -843,10 +849,11 @@ export default function BottomNavScreen() {
 
           <ScrollView
             contentInsetAdjustmentBehavior="automatic"
-            style={{ flex: 1 }}
+            style={[styles.scrollView, isHomePage && styles.homeScrollView]}
             showsVerticalScrollIndicator
             contentContainerStyle={[
               styles.scrollContent,
+              isHomePage && styles.homeScrollContent,
               (isCartPage || isProfilePage) ? styles.cartScrollContent : null,
               { paddingBottom: resolvedBottomNavSection && !hideBottomNav ? bottomNavHeight : 0 },
             ]}
@@ -951,6 +958,9 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: "#F7F7F7",
   },
+  homeContainer: {
+    backgroundColor: "#FFFFFF",
+  },
   cartContainer: {
     backgroundColor: "#FFFFFF",
   },
@@ -975,10 +985,19 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     color: "#111827",
   },
+  scrollView: {
+    flex: 1,
+  },
+  homeScrollView: {
+    backgroundColor: "#FFFFFF",
+  },
   scrollContent: {
     flexGrow: 1,
     paddingHorizontal: 0,
     paddingBottom: 24,
+  },
+  homeScrollContent: {
+    backgroundColor: "#FFFFFF",
   },
   cartScrollContent: {
     backgroundColor: "#FFFFFF",

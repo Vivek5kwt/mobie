@@ -67,6 +67,17 @@ const parseFontWeight = (value, fallback = "700") => {
   return String(value);
 };
 
+const resolveLineHeight = (value, fontSize, fallbackMultiplier = 1.3) => {
+  const parsed = asNumber(value, undefined);
+  if (parsed === undefined || parsed <= 0) {
+    return Math.round(fontSize * fallbackMultiplier);
+  }
+  if (parsed <= 4) {
+    return Math.round(fontSize * parsed);
+  }
+  return parsed;
+};
+
 const clamp = (value, min, max) => Math.min(Math.max(value, min), max);
 
 const parseAspectRatio = (value) => {
@@ -177,20 +188,29 @@ export default function BannerSlider({ section }) {
     [rawProps, rp?.buttonText, rp?.buttonLabel]
   );
 
-  // CSS snapshot (from layout.css) — secondary source for style tokens
-  const layoutCss = rawProps?.layout?.css ?? {};
+  // CSS snapshot from the Builder. Some payloads send it at layout.css,
+  // older exports keep the same snapshot under rawProps.styles.
+  const layoutCss = rawProps?.layout?.css ?? rp?.styles ?? {};
+  const layoutMetrics = rawProps?.layout?.metrics ?? layoutCss?.metrics ?? {};
 
   // ── Container ──
   const styleProp = rawProps?.style || {};
   const bgColor = rp?.bgColor || styleProp?.bgColor || "transparent";
   const requestedBannerHeight = asNumber(
-    rp?.bannerHeight ?? layoutCss?.slider?.bannerHeight ?? styleProp?.height,
+    layoutCss?.slider?.bannerHeight ??
+      styleProp?.height ??
+      layoutMetrics?.container?.height ??
+      layoutMetrics?.elements?.slider?.height ??
+      rp?.bannerHeight,
     undefined
   );
   const bannerRatio = parseAspectRatio(
-    rp?.ratio ?? layoutCss?.slider?.ratio ?? styleProp?.ratio
+    layoutCss?.slider?.ratio ?? rawProps?.ratio ?? rp?.ratio ?? styleProp?.ratio
   );
-  const bannerRadius = asNumber(rp?.bannerRadius ?? rp?.imageCorner ?? layoutCss?.slider?.bannerRadius, 0);
+  const bannerRadius = asNumber(
+    layoutCss?.slider?.bannerRadius ?? rp?.bannerRadius ?? rp?.imageCorner,
+    0
+  );
 
   const paddingRaw = styleProp?.paddingRaw || {};
   const outerMt = 0;
@@ -241,7 +261,7 @@ export default function BannerSlider({ section }) {
 
   // ── Heading ──
   const headingColor  = rp?.headingColor  || layoutCss?.heading?.color  || "#FFFFFF";
-  const headingSize   = asNumber(rp?.headingSize ?? layoutCss?.heading?.fontSize, 18);
+  const headingSize   = asNumber(layoutCss?.heading?.fontSize ?? rp?.headingSize, 18);
   // textAlign is the correct CSS property name; also support legacy "align" key
   const headingAlignRaw = (
     rp?.headingAlign ||
@@ -251,7 +271,12 @@ export default function BannerSlider({ section }) {
     "left"
   ).toLowerCase();
   const headingAlign  = headingAlignRaw;
-  const headingWeight = parseFontWeight(rp?.headingWeight ?? layoutCss?.heading?.fontWeight, "700");
+  const headingWeight = parseFontWeight(layoutCss?.heading?.fontWeight ?? rp?.headingWeight, "700");
+  const headingLineHeight = resolveLineHeight(
+    layoutCss?.heading?.lineHeight ?? rp?.headingLineHeight,
+    headingSize,
+    1.25
+  );
   const headingItalic = asBoolean(rp?.headingItalic, false);
   const headingUnderline = asBoolean(rp?.headingUnderline, false);
   const headingStrikethrough = asBoolean(rp?.headingStrikethrough, false);
@@ -269,7 +294,7 @@ export default function BannerSlider({ section }) {
 
   // ── Subheading ──
   const subheadingColor  = rp?.subheadingColor  || layoutCss?.subheading?.color  || "#E5E7EB";
-  const subheadingSize   = asNumber(rp?.subheadingSize ?? layoutCss?.subheading?.fontSize, 13);
+  const subheadingSize   = asNumber(layoutCss?.subheading?.fontSize ?? rp?.subheadingSize, 13);
   const subheadingAlign  = (
     rp?.subheadingAlign ||
     layoutCss?.subheading?.textAlign ||
@@ -277,7 +302,12 @@ export default function BannerSlider({ section }) {
     layoutCss?.subheading?.align ||
     headingAlignRaw   // inherit from heading direction
   ).toLowerCase();
-  const subheadingWeight = parseFontWeight(rp?.subheadingWeight ?? layoutCss?.subheading?.fontWeight, "400");
+  const subheadingWeight = parseFontWeight(layoutCss?.subheading?.fontWeight ?? rp?.subheadingWeight, "400");
+  const subheadingLineHeight = resolveLineHeight(
+    layoutCss?.subheading?.lineHeight ?? rp?.subheadingLineHeight ?? rp?.subtextLineHeight,
+    subheadingSize,
+    1.4
+  );
   const subheadingFontFamily = resolveFont(
     rp?.subheadingFontFamily || rp?.subtitleFontFamily ||
     layoutCss?.subheading?.fontFamily ||
@@ -301,11 +331,11 @@ export default function BannerSlider({ section }) {
   const buttonTextColor =
     rp?.buttonTextColor || layoutCss?.button?.color || "#FFFFFF";
   const buttonFontSize = asNumber(
-    rp?.buttonFontSize ?? layoutCss?.button?.fontSize,
+    layoutCss?.button?.fontSize ?? rp?.buttonFontSize,
     12
   );
   const buttonFontWeight = parseFontWeight(
-    rp?.buttonWeight ?? rp?.buttonFontWeight ?? layoutCss?.button?.fontWeight,
+    layoutCss?.button?.fontWeight ?? rp?.buttonWeight ?? rp?.buttonFontWeight,
     "600"
   );
   const buttonFontFamily = resolveFont(
@@ -406,14 +436,16 @@ export default function BannerSlider({ section }) {
   const indicatorSelectedColor = rp?.indicatorSelectedColor || "#016D77";
   const indicatorBgColor = rp?.indicatorBgColor || rp?.dotsBgColor || "transparent";
   const indicatorBorderWidth = asNumber(rp?.indicatorBorderWidth, 1.5);
-  // "inside" = dots overlaid at the bottom of the banner image; "bottom" = below the banner
+  // Builder "bottom" metrics place dots inside the slider at the bottom edge.
   const indicatorPosition = (
     rp?.indicatorPosition ||
     layoutCss?.slider?.indicatorPosition ||
     "bottom"
   ).toLowerCase();
   const indicatorsInside =
-    indicatorPosition === "inside" || indicatorPosition === "inside-bottom";
+    indicatorPosition === "inside" ||
+    indicatorPosition === "inside-bottom" ||
+    indicatorPosition === "bottom";
 
   // ── Scroll state ──
   const scrollRef = useRef(null);
@@ -586,7 +618,7 @@ export default function BannerSlider({ section }) {
                     {
                       color: headingColor,
                       fontSize: headingSize,
-                      lineHeight: Math.round(headingSize * 1.25),
+                      lineHeight: headingLineHeight,
                       fontWeight: headingWeight,
                       textAlign: headingAlign,
                       fontStyle: headingItalic ? "italic" : "normal",
@@ -610,7 +642,7 @@ export default function BannerSlider({ section }) {
                     {
                       color: subheadingColor,
                       fontSize: subheadingSize,
-                      lineHeight: Math.round(subheadingSize * 1.4),
+                      lineHeight: subheadingLineHeight,
                       fontWeight: subheadingWeight,
                       textAlign: subheadingAlign,
                       width: "100%",
