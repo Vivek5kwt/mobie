@@ -23,6 +23,14 @@ const cartSlice = createSlice({
 
       if (existing) {
         existing.quantity = Math.max(1, (existing.quantity || 0) + quantity);
+        existing.title = existing.title && existing.title !== "Product" ? existing.title : item.title || "Product";
+        existing.image = existing.image || item.image || item.imageUrl || "";
+        existing.handle = existing.handle || item.handle || "";
+        existing.vendor = existing.vendor || item.vendor || "";
+        existing.variant = existing.variant || item.variant || "";
+        existing.currency = existing.currency || item.currency || "";
+        existing.price = existing.price ?? item.price ?? 0;
+        existing.compareAtPrice = existing.compareAtPrice || item.compareAtPrice || item.originalPrice || 0;
       } else {
         state.items.push({
           id,

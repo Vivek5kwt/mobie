@@ -184,12 +184,11 @@ export default function CartLineItems({ section }) {
   // Title
   const titleVisibilityOverride = firstDefined(
     visibility?.productTitle,
-    visibility?.title,
     visibility?.itemTitle,
     visibility?.productName,
-    visibility?.name,
     raw?.titleVisible,
-    raw?.showTitle,
+    raw?.productTitleVisible,
+    raw?.itemTitleVisible,
     raw?.showProductTitle,
     raw?.showItemTitle,
     raw?.productNameVisible
@@ -317,7 +316,7 @@ export default function CartLineItems({ section }) {
             item?.name ??
             item?.product?.title ??
             item?.merchandise?.product?.title,
-          ""
+          "Product"
         );
         const itemImage = toString(
           item?.image ??
