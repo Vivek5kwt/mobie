@@ -189,7 +189,17 @@ export default function ProductDescription({ section }) {
   );
 
   // ── Container (outer) ─────────────────────────────────────────────────────
-  const outerPT = toNumber(raw?.paddingTop    ?? outerNode?.paddingTop    ?? layoutCss?.container?.paddingTop,    0);
+  const outerPT = toNumber(
+    firstDefined(
+      raw?.paddingTop,
+      raw?.pt,
+      outerNode?.paddingTop,
+      outerNode?.pt,
+      layoutCss?.container?.paddingTop,
+      presCss?.container?.paddingTop
+    ),
+    12
+  );
   const outerPB = toNumber(raw?.paddingBottom ?? outerNode?.paddingBottom ?? layoutCss?.container?.paddingBottom, 0);
   const outerPL = toNumber(raw?.paddingLeft   ?? outerNode?.paddingLeft   ?? layoutCss?.container?.paddingLeft,   0);
   const outerPR = toNumber(raw?.paddingRight  ?? outerNode?.paddingRight  ?? layoutCss?.container?.paddingRight,  0);
@@ -237,7 +247,15 @@ export default function ProductDescription({ section }) {
   const headerPR = toNumber(firstDefined(raw?.headerPaddingRight, raw?.headerPr, headerNode?.paddingRight, headerNode?.pr), 0);
 
   // ── Info box ──────────────────────────────────────────────────────────────
-  const infoPT = toNumber(infoNode?.paddingTop    ?? layoutCss?.infoBox?.paddingTop,    0);
+  const infoPT = toNumber(
+    firstDefined(
+      infoNode?.paddingTop,
+      infoNode?.pt,
+      layoutCss?.infoBox?.paddingTop,
+      presCss?.infoBox?.paddingTop
+    ),
+    8
+  );
   const infoPB = toNumber(infoNode?.paddingBottom ?? layoutCss?.infoBox?.paddingBottom, 0);
   const infoPL = toNumber(infoNode?.paddingLeft   ?? layoutCss?.infoBox?.paddingLeft,   0);
   const infoPR = toNumber(infoNode?.paddingRight  ?? layoutCss?.infoBox?.paddingRight,  0);

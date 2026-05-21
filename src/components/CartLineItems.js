@@ -385,6 +385,7 @@ export default function CartLineItems({ section }) {
         const variantParts = variantText
           ? variantText.split(/\s*(?:\/|\|)\s*/).map((v) => v.trim()).filter(Boolean)
           : [];
+        const identityText = itemVendor.trim() || (!showTitle ? itemTitle.trim() : "");
 
         const handleCardPress = () => {
           if (!item?.id && !item?.handle) return;
@@ -481,12 +482,12 @@ export default function CartLineItems({ section }) {
                 )}
 
                 {/* Vendor */}
-                {showVendor && !!itemVendor && (
+                {showVendor && !!identityText && (
                   <Text
                     style={[styles.vendor, { color: vendorColor, fontSize: vendorSize, fontWeight: vendorWeight, lineHeight: vendorLineHeight, textTransform: vendorTextTransform, ...(vendorFontFamily ? { fontFamily: vendorFontFamily } : {}) }]}
                     numberOfLines={1}
                   >
-                    {itemVendor}
+                    {identityText}
                   </Text>
                 )}
 

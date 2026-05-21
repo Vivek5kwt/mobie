@@ -27,6 +27,7 @@ import { requireLoginForAction } from "../utils/authGate";
 import { resolveProductImageResizeMode } from "../utils/productImageFit";
 import { resolveFont } from "../services/typographyService";
 import { formatMoney } from "../utils/money";
+import { convertStyles } from "../utils/convertStyles";
 
 const unwrapValue = (value, fallback = undefined) => {
   if (value === undefined || value === null) return fallback;
@@ -44,6 +45,15 @@ const toNumber = (value, fallback) => {
   if (typeof resolved === "number") return resolved;
   const parsed = parseFloat(resolved);
   return Number.isNaN(parsed) ? fallback : parsed;
+};
+
+const resolveFirstNumber = (values, fallback) => {
+  for (const value of values) {
+    if (!hasExplicitValue(value)) continue;
+    const resolved = toNumber(value, undefined);
+    if (resolved !== undefined && Number.isFinite(resolved)) return resolved;
+  }
+  return fallback;
 };
 
 const toString = (value, fallback = "") => {
@@ -148,6 +158,66 @@ const deepUnwrap = (v) => {
   return v;
 };
 
+const deepUnwrapSchema = (value) => {
+  if (value === undefined || value === null) return value;
+  if (Array.isArray(value)) return value.map((item) => deepUnwrapSchema(item));
+  if (typeof value !== "object") return value;
+  if (value.value !== undefined) return deepUnwrapSchema(value.value);
+  if (value.const !== undefined) return deepUnwrapSchema(value.const);
+  if (value.properties !== undefined) return deepUnwrapSchema(value.properties);
+
+  return Object.entries(value).reduce((acc, [key, next]) => {
+    acc[key] = deepUnwrapSchema(next);
+    return acc;
+  }, {});
+};
+
+const extractPresentationBundle = (section, rawProps, raw) => {
+  const candidates = [
+    rawProps?.presentation,
+    raw?.presentation,
+    section?.presentation,
+    section?.properties?.presentation,
+    section?.properties?.presentation?.properties,
+  ];
+
+  const source =
+    candidates
+      .map((candidate) => deepUnwrapSchema(candidate))
+      .find((candidate) => candidate && typeof candidate === "object" && (candidate.css || candidate.metrics)) || {};
+
+  return {
+    css: deepUnwrapSchema(source.css) || {},
+    metrics: deepUnwrapSchema(source.metrics) || {},
+  };
+};
+
+const metricNumber = (node, key, fallback = undefined) => {
+  if (!node || typeof node !== "object") return fallback;
+  return toNumber(node[key], fallback);
+};
+
+const parseGapPart = (value, index = 0, fallback = undefined) => {
+  const resolved = unwrapValue(value, undefined);
+  if (resolved === undefined || resolved === null || resolved === "") return fallback;
+  if (typeof resolved === "number") return resolved;
+  const parts = String(resolved)
+    .trim()
+    .split(/\s+/)
+    .map((part) => toNumber(part, undefined))
+    .filter((part) => part !== undefined);
+  if (!parts.length) return fallback;
+  return parts[Math.min(index, parts.length - 1)] ?? fallback;
+};
+
+const stripNonStyleObjects = (style = {}) =>
+  Object.entries(style || {}).reduce((acc, [key, value]) => {
+    const keepObject = key === "shadowOffset" || key === "transform";
+    if (value && typeof value === "object" && !Array.isArray(value) && !keepObject) return acc;
+    acc[key] = value;
+    return acc;
+  }, {});
+
 // Strip web CSS fallback fonts ("Poppins, sans-serif" → "Poppins")
 const cleanFontFamily = (family) => resolveFont(family) || "";
 
@@ -214,12 +284,40 @@ export default function ProductCarousel({ section }) {
     ? { ...rawProps, ...rawUnwrapped }
     : (rawProps || {});
   const visibilityNode = deepUnwrap(raw?.visibility?.properties ?? raw?.visibility) || {};
+  const presentation = extractPresentationBundle(section, rawProps, raw);
+  const presentationCss = presentation.css || {};
+  const presentationMetrics = presentation.metrics || {};
   const layoutCss =
     deepUnwrap(raw?.layout?.properties?.css?.value) ||
     deepUnwrap(raw?.layout?.css?.value) ||
     deepUnwrap(raw?.layout?.properties?.css) ||
     deepUnwrap(raw?.layout?.css) ||
     {};
+  const containerCss = deepUnwrapSchema(presentationCss?.container ?? layoutCss?.container) || {};
+  const headerWrapCss = deepUnwrapSchema(
+    presentationCss?.headerContainer ?? presentationCss?.headerRow ?? layoutCss?.headerContainer
+  ) || {};
+  const headerCss = deepUnwrapSchema(
+    presentationCss?.header ?? presentationCss?.sectionTitle ?? presentationCss?.titleHeader ?? layoutCss?.header
+  ) || {};
+  const carouselCss = deepUnwrapSchema(
+    presentationCss?.carousel ?? presentationCss?.track ?? presentationCss?.row ?? layoutCss?.carousel
+  ) || {};
+  const cardCss = deepUnwrapSchema(presentationCss?.card ?? presentationCss?.productCard ?? layoutCss?.card) || {};
+  const cardContentCss = deepUnwrapSchema(
+    presentationCss?.cardContent ??
+      presentationCss?.content ??
+      presentationCss?.foot ??
+      cardCss?.content ??
+      cardCss?.foot ??
+      layoutCss?.cardContent
+  ) || {};
+  const cardTitleCss = deepUnwrapSchema(
+    presentationCss?.cardTitle ?? presentationCss?.titleText ?? cardCss?.title ?? layoutCss?.cardTitle
+  ) || {};
+  const cardPriceCss = deepUnwrapSchema(
+    presentationCss?.cardPrice ?? presentationCss?.priceText ?? cardCss?.price ?? layoutCss?.cardPrice
+  ) || {};
 
   const _slug = (s) =>
     String(s || "").toLowerCase().trim().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
@@ -274,17 +372,55 @@ export default function ProductCarousel({ section }) {
   const columns = Math.max(1, toNumber(grid?.columns, 2));
   const itemsShown = toNumber(grid?.itemsShown, 3);
 
+  const containerStyleFromCss = stripNonStyleObjects(convertStyles(containerCss));
+  const headerWrapStyleFromCss = stripNonStyleObjects(convertStyles(headerWrapCss));
+  const carouselStyleFromCss = stripNonStyleObjects(convertStyles(carouselCss));
+  const cardStyleFromCss = stripNonStyleObjects(convertStyles(cardCss));
+  const cardContentStyleFromCss = stripNonStyleObjects(convertStyles(cardContentCss));
+  const cardImageCss = deepUnwrapSchema(
+    presentationCss?.cardImage ??
+      presentationCss?.imageWrap ??
+      presentationCss?.image ??
+      cardCss?.image ??
+      layoutCss?.cardImage ??
+      layoutCss?.image ??
+      layoutCss?.imageWrap ??
+      {}
+  );
+  const cardImageStyleFromCss = stripNonStyleObjects(convertStyles(cardImageCss));
+  const cardImageFrameStyle = { ...cardImageStyleFromCss };
+  delete cardImageFrameStyle.width;
+  delete cardImageFrameStyle.height;
+  delete cardImageFrameStyle.aspectRatio;
+  delete cardImageFrameStyle.resizeMode;
+
   // Background padding
-  const bgPadT = toNumber(raw?.bgPadT, 8);
-  const bgPadR = toNumber(raw?.bgPadR, 12);
-  const bgPadB = toNumber(raw?.bgPadB, 8);
-  const bgPadL = toNumber(raw?.bgPadL, 12);
-  const bgColor = toString(raw?.bgColor, "#FFFFFF");
+  const showBgPadding = toBoolean(
+    visibilityNode?.bgPadding ?? visibilityNode?.padding ?? raw?.showBackgroundPadding,
+    true
+  );
+  const bgPadT = showBgPadding ? resolveFirstNumber([raw?.bgPadT, raw?.paddingTop, raw?.pt, containerStyleFromCss?.paddingTop], 8) : 0;
+  const bgPadR = showBgPadding ? resolveFirstNumber([raw?.bgPadR, raw?.paddingRight, raw?.pr, containerStyleFromCss?.paddingRight], 12) : 0;
+  const bgPadB = showBgPadding ? resolveFirstNumber([raw?.bgPadB, raw?.paddingBottom, raw?.pb, containerStyleFromCss?.paddingBottom], 8) : 0;
+  const bgPadL = showBgPadding ? resolveFirstNumber([raw?.bgPadL, raw?.paddingLeft, raw?.pl, containerStyleFromCss?.paddingLeft], 12) : 0;
+  const bgColor = toString(raw?.bgColor ?? containerStyleFromCss?.backgroundColor, "#FFFFFF");
   const backgroundActive = toBoolean(raw?.backgroundActive, true);
 
   // Gaps
-  const colGap = toNumber(raw?.colGap, 10);
-  const rowGap = toNumber(raw?.rowGap, 12);
+  const colGap = resolveFirstNumber(
+    [
+      raw?.colGap,
+      raw?.horizontalGap,
+      raw?.columnGap,
+      carouselCss?.columnGap,
+      parseGapPart(carouselCss?.gap, 1),
+    ],
+    10
+  );
+  const rowGap = resolveFirstNumber(
+    [raw?.rowGap, raw?.verticalGap, carouselCss?.rowGap, parseGapPart(carouselCss?.gap, 0)],
+    12
+  );
 
   // Header configuration
   const headerGroupActive = resolveVisibilitySetting(
@@ -302,10 +438,13 @@ export default function ProductCarousel({ section }) {
   const headerText = Array.isArray(header)
     ? header.map((h) => unwrapValue(h)).join(" ")
     : toString(header, "");
-  const headerSize = toNumber(raw?.headerSize, 14);
-  const headerColor = toString(raw?.headerColor, "#000000");
-  const headerFamily = cleanFontFamily(toString(raw?.headerFamily, ""));
-  const headerWeight = toFontWeight(raw?.headerWeight, "700");
+  const headerSize = resolveFirstNumber(
+    [raw?.headerSize, raw?.headerFontSize, raw?.titleSize, headerCss?.fontSize],
+    14
+  );
+  const headerColor = toString(raw?.headerColor ?? raw?.headerTextColor ?? headerCss?.color, "#000000");
+  const headerFamily = cleanFontFamily(toString(raw?.headerFamily ?? raw?.headerFontFamily ?? raw?.fontFamily ?? headerCss?.fontFamily, ""));
+  const headerWeight = toFontWeight(raw?.headerWeight ?? raw?.headerFontWeight ?? headerCss?.fontWeight, "700");
   const headerBold = toBoolean(raw?.headerBold, false);
   const headerItalic = toBoolean(raw?.headerItalic, false);
   const headerUnderline = toBoolean(raw?.headerUnderline, false);
@@ -315,7 +454,7 @@ export default function ProductCarousel({ section }) {
     strikethrough: headerStrikethrough,
   });
   const headerAlign = toTextAlign(
-    raw?.headerAlign ?? raw?.sectionTitleAlign ?? raw?.headerTextAlign ?? raw?.titleTextAlign ?? raw?.layoutAlign,
+    raw?.headerAlign ?? raw?.sectionTitleAlign ?? raw?.headerTextAlign ?? raw?.titleTextAlign ?? raw?.layoutAlign ?? headerCss?.textAlign,
     "left"
   );
   const headerLinkHref = toString(raw?.headerLinkHref, "");
@@ -355,10 +494,11 @@ export default function ProductCarousel({ section }) {
     true
   );
   const viewAllText = unwrapValue(raw?.viewAllText, "View all");
-  const viewAllSize = toNumber(raw?.viewAllSize, 14);
-  const viewAllColor = toString(raw?.viewAllColor, "#000000");
-  const viewAllFamily = cleanFontFamily(toString(raw?.viewAllFamily, ""));
-  const viewAllWeight = toFontWeight(raw?.viewAllWeight, "700");
+  const viewAllCss = deepUnwrapSchema(presentationCss?.viewAll ?? layoutCss?.viewAll) || {};
+  const viewAllSize = resolveFirstNumber([raw?.viewAllSize, raw?.viewAllFontSize, viewAllCss?.fontSize], 14);
+  const viewAllColor = toString(raw?.viewAllColor ?? raw?.viewAllTextColor ?? viewAllCss?.color, "#000000");
+  const viewAllFamily = cleanFontFamily(toString(raw?.viewAllFamily ?? raw?.viewAllFontFamily ?? raw?.fontFamily ?? viewAllCss?.fontFamily, ""));
+  const viewAllWeight = toFontWeight(raw?.viewAllWeight ?? raw?.viewAllFontWeight ?? viewAllCss?.fontWeight, "700");
   const viewAllBold = toBoolean(raw?.viewAllBold, false);
   const viewAllItalic = toBoolean(raw?.viewAllItalic, false);
   const viewAllUnderline = toBoolean(raw?.viewAllUnderline, false);
@@ -383,7 +523,10 @@ export default function ProductCarousel({ section }) {
   const cardImageActive = toBoolean(raw?.cardImageActive, true);
   const imageRatio = toString(raw?.imageRatio ?? raw?.ratio, "");
   const imageScale = toString(raw?.imageScale, "Fit");
-  const imageCorner = toNumber(raw?.imageCorner, 6);
+  const imageCorner = resolveFirstNumber(
+    [raw?.imageCorner, raw?.imageRadius, raw?.imageBorderRadius, cardImageStyleFromCss?.borderRadius],
+    6
+  );
   // Parse ratio string → aspectRatio (w/h). "Auto" or empty → null (use explicit height instead)
   const imageAspectRatio = (() => {
     if (!imageRatio) return null;
@@ -391,34 +534,35 @@ export default function ProductCarousel({ section }) {
     if (normalized === "auto" || !normalized) return null;
     return parseAspectRatio(imageRatio);
   })();
-  const cardImageCss = deepUnwrap(layoutCss?.cardImage ?? layoutCss?.image ?? layoutCss?.imageWrap) || {};
   const imageResizeMode = resolveProductImageResizeMode(
     imageScale,
     raw?.scale,
     raw?.imageResizeMode,
-    cardImageCss?.objectFit,
-    cardImageCss?.resizeMode
+    cardImageStyleFromCss?.objectFit ?? cardImageCss?.objectFit,
+    cardImageStyleFromCss?.resizeMode ?? cardImageCss?.resizeMode
   );
   // Fallback height used when ratio is "Auto" or unset
-  const imageHeight = toNumber(raw?.imageHeight ?? raw?.productImageHeight ?? raw?.imageH, 200);
+  const explicitImageHeight = resolveFirstNumber(
+    [raw?.imageHeight, raw?.productImageHeight, raw?.imageH, cardImageStyleFromCss?.height],
+    undefined
+  );
   const imageBgColor = toString(
     raw?.imageBackgroundColor ??
       raw?.productImageBackgroundColor ??
       raw?.imageBgColor ??
       raw?.productImageBgColor ??
       raw?.imageBg ??
-      cardImageCss?.backgroundColor ??
-      cardImageCss?.background,
+      cardImageStyleFromCss?.backgroundColor,
     "#FFFFFF"
   );
 
   // Title configuration
   const cardTitleActive = toBoolean(raw?.cardTitleActive, true);
-  const titleSize = toNumber(raw?.titleSize, 14);
-  const titleColor = toString(raw?.titleColor, "#000000");
-  const titleFamily = cleanFontFamily(toString(raw?.titleFamily, ""));
-  const titleWeight = toFontWeight(raw?.titleWeight, "700");
-  const titleAlign = toTextAlign(raw?.titleAlign, "Left");
+  const titleSize = resolveFirstNumber([raw?.titleSize, raw?.productTitleSize, raw?.cardTitleSize, cardTitleCss?.fontSize], 14);
+  const titleColor = toString(raw?.titleColor ?? raw?.productTitleColor ?? cardTitleCss?.color, "#000000");
+  const titleFamily = cleanFontFamily(toString(raw?.titleFamily ?? raw?.titleFontFamily ?? raw?.fontFamily ?? cardTitleCss?.fontFamily, ""));
+  const titleWeight = toFontWeight(raw?.titleWeight ?? raw?.productTitleWeight ?? cardTitleCss?.fontWeight, "700");
+  const titleAlign = toTextAlign(raw?.titleAlign ?? cardTitleCss?.textAlign, "Left");
   const titleWrap = toBoolean(
     raw?.titleWrap ?? raw?.textWrap ?? raw?.productTitleWrap ?? raw?.cardTitleWrap,
     false
@@ -426,11 +570,11 @@ export default function ProductCarousel({ section }) {
 
   // Price configuration
   const cardPriceActive = toBoolean(raw?.cardPriceActive, true);
-  const priceSize = toNumber(raw?.priceSize, 14);
-  const priceColor = toString(raw?.priceColor, "#000000");
-  const priceFamily = cleanFontFamily(toString(raw?.priceFamily, ""));
-  const priceWeight = toFontWeight(raw?.priceWeight, "700");
-  const priceAlign = toTextAlign(raw?.priceAlign, "Left");
+  const priceSize = resolveFirstNumber([raw?.priceSize, raw?.productPriceSize, raw?.cardPriceSize, cardPriceCss?.fontSize], 14);
+  const priceColor = toString(raw?.priceColor ?? raw?.productPriceColor ?? cardPriceCss?.color, "#000000");
+  const priceFamily = cleanFontFamily(toString(raw?.priceFamily ?? raw?.priceFontFamily ?? raw?.fontFamily ?? cardPriceCss?.fontFamily, ""));
+  const priceWeight = toFontWeight(raw?.priceWeight ?? raw?.productPriceWeight ?? cardPriceCss?.fontWeight, "700");
+  const priceAlign = toTextAlign(raw?.priceAlign ?? cardPriceCss?.textAlign, "Left");
   const priceStrike = toBoolean(raw?.priceStrike, false);
   const strikeSize = toNumber(raw?.strikeSize, 14);
   const strikeColor = toString(raw?.strikeColor, "#6B7280");
@@ -575,16 +719,113 @@ export default function ProductCarousel({ section }) {
 
   // Card configuration
   const productCardGroupActive = toBoolean(raw?.productCardGroupActive, true);
-  const borderSize = toNumber(raw?.borderSize, 1);
-  const borderColor = toString(raw?.borderColor, "#E5E7EB");
+  const borderSize = resolveFirstNumber([raw?.borderSize, raw?.cardBorderWidth, cardStyleFromCss?.borderWidth], 0);
+  const borderColor = toString(raw?.borderColor ?? raw?.cardBorderColor ?? cardStyleFromCss?.borderColor, "transparent");
   const borderLine = toString(raw?.borderLine, "");
-  const outerCorners = toNumber(raw?.outerCorners, 0);
+  const outerCorners = resolveFirstNumber([raw?.outerCorners, raw?.cardCorner, raw?.cardRadius, cardStyleFromCss?.borderRadius], 0);
   const layoutAlign = toTextAlign(raw?.layoutAlign, "Left");
 
-  // Horizontal carousel: show ~2.3 cards at a time (peek of 3rd card)
+  const metricElements = presentationMetrics?.elements || presentationMetrics || {};
+  const metricCards = Array.isArray(metricElements?.cards)
+    ? metricElements.cards
+    : Array.isArray(metricElements?.items)
+      ? metricElements.items
+      : [];
+  const firstMetricCard = metricCards[0] || {};
+  const secondMetricCard = metricCards[1] || {};
+  const firstCardMetric = firstMetricCard.card || firstMetricCard.container || firstMetricCard;
+  const secondCardMetric = secondMetricCard.card || secondMetricCard.container || secondMetricCard;
+  const imageMetric = firstMetricCard.image || firstMetricCard.cardImage || firstMetricCard.imageWrap || {};
+  const titleMetric = firstMetricCard.title || firstMetricCard.cardTitle || {};
+  const priceMetric = firstMetricCard.price || firstMetricCard.cardPrice || {};
+  const metricContainer = presentationMetrics?.container || metricElements?.container || {};
+  const metricTrack =
+    metricElements?.carousel ||
+    metricElements?.track ||
+    metricElements?.grid ||
+    metricElements?.row ||
+    {};
+
+  // Horizontal carousel: size cards from DSL/Builder first, then fall back responsively.
   const screenWidth = Dimensions.get("window").width;
   const horizontalPadding = bgPadL + bgPadR;
-  const cardWidth = Math.floor((screenWidth - horizontalPadding - colGap) / 2.3);
+  const availableWidth = Math.max(0, screenWidth - horizontalPadding);
+  const metricTrackWidth =
+    metricNumber(metricTrack, "width") ||
+    metricNumber(metricContainer, "width") ||
+    undefined;
+  const metricScale = metricTrackWidth ? availableWidth / metricTrackWidth : 1;
+  const metricCardWidth = metricNumber(firstCardMetric, "width");
+  const metricGap =
+    metricNumber(secondCardMetric, "x") !== undefined &&
+    metricNumber(firstCardMetric, "x") !== undefined &&
+    metricCardWidth !== undefined
+      ? Math.max(0, metricNumber(secondCardMetric, "x", 0) - metricNumber(firstCardMetric, "x", 0) - metricCardWidth)
+      : undefined;
+  const effectiveColGap = resolveFirstNumber([raw?.colGap, raw?.horizontalGap, metricGap !== undefined ? metricGap * metricScale : undefined, colGap], colGap);
+  const visibleCards = Math.max(
+    1,
+    resolveFirstNumber([raw?.visibleItems, raw?.itemsPerView, raw?.cardsPerView, grid?.columns, columns], columns || 2)
+  );
+  const fallbackCardWidth = Math.floor(
+    (availableWidth - effectiveColGap * Math.max(0, visibleCards - 1)) / visibleCards
+  );
+  const cardWidth = Math.max(
+    0,
+    Math.floor(resolveFirstNumber(
+      [
+        raw?.cardWidth,
+        raw?.productCardWidth,
+        raw?.itemWidth,
+        cardStyleFromCss?.width,
+        metricCardWidth !== undefined ? metricCardWidth * metricScale : undefined,
+      ],
+      fallbackCardWidth
+    ))
+  );
+  const metricImageHeight =
+    metricNumber(imageMetric, "height") !== undefined && metricNumber(imageMetric, "width") > 0
+      ? Math.round(cardWidth * (metricNumber(imageMetric, "height", 0) / metricNumber(imageMetric, "width", 1)))
+      : undefined;
+  const imageHeight = resolveFirstNumber(
+    [explicitImageHeight, metricImageHeight],
+    imageAspectRatio ? Math.round(cardWidth / imageAspectRatio) : cardWidth
+  );
+  const useImageAspectRatio = explicitImageHeight === undefined && metricImageHeight === undefined && !!imageAspectRatio;
+  const metricContentPadTop =
+    metricNumber(titleMetric, "y") !== undefined &&
+    metricNumber(imageMetric, "y") !== undefined &&
+    metricNumber(imageMetric, "height") !== undefined
+      ? Math.max(0, Math.round((metricNumber(titleMetric, "y", 0) - metricNumber(imageMetric, "y", 0) - metricNumber(imageMetric, "height", 0)) * metricScale))
+      : undefined;
+  const metricContentPadLeft =
+    metricNumber(titleMetric, "x") !== undefined && metricNumber(firstCardMetric, "x") !== undefined
+      ? Math.max(0, Math.round((metricNumber(titleMetric, "x", 0) - metricNumber(firstCardMetric, "x", 0)) * metricScale))
+      : undefined;
+  const metricTitlePriceGap =
+    metricNumber(priceMetric, "y") !== undefined &&
+    metricNumber(titleMetric, "y") !== undefined &&
+    metricNumber(titleMetric, "height") !== undefined
+      ? Math.max(0, Math.round((metricNumber(priceMetric, "y", 0) - metricNumber(titleMetric, "y", 0) - metricNumber(titleMetric, "height", 0)) * metricScale))
+      : undefined;
+  const headerMetric = metricElements?.header || metricElements?.sectionTitle || {};
+  const firstVisualMetric = imageMetric || firstCardMetric;
+  const metricHeaderBottomGap =
+    metricNumber(firstVisualMetric, "y") !== undefined &&
+    metricNumber(headerMetric, "y") !== undefined &&
+    metricNumber(headerMetric, "height") !== undefined
+      ? Math.max(0, Math.round((metricNumber(firstVisualMetric, "y", 0) - metricNumber(headerMetric, "y", 0) - metricNumber(headerMetric, "height", 0)) * metricScale))
+      : undefined;
+  const contentPadT = resolveFirstNumber([raw?.contentPadT, raw?.cardPadT, cardContentStyleFromCss?.paddingTop, metricContentPadTop], 0);
+  const contentPadR = resolveFirstNumber([raw?.contentPadR, raw?.cardPadR, cardContentStyleFromCss?.paddingRight], 0);
+  const contentPadB = resolveFirstNumber([raw?.contentPadB, raw?.cardPadB, cardContentStyleFromCss?.paddingBottom], 0);
+  const contentPadL = resolveFirstNumber([raw?.contentPadL, raw?.cardPadL, cardContentStyleFromCss?.paddingLeft, metricContentPadLeft], 0);
+  const contentGap = resolveFirstNumber([raw?.contentGap, raw?.cardContentGap, cardContentCss?.gap, metricTitlePriceGap], 0);
+  const titleMarginBottom = resolveFirstNumber([raw?.titleMarginBottom, raw?.titleMb, metricTitlePriceGap], 0);
+  const headerBottomGap = resolveFirstNumber(
+    [raw?.headerGap, raw?.headerMarginBottom, raw?.titleMarginBottom, headerWrapStyleFromCss?.marginBottom, metricHeaderBottomGap],
+    8
+  );
 
   const isMountedRef = useRef(true);
   const didInitialLoadRef = useRef(false);
@@ -963,6 +1204,7 @@ export default function ProductCarousel({ section }) {
     <View
       style={[
         styles.container,
+        containerStyleFromCss,
         {
           paddingTop: bgPadT,
           paddingRight: bgPadR,
@@ -973,7 +1215,7 @@ export default function ProductCarousel({ section }) {
       ]}
     >
       {headerGroupActive && (
-        <View style={styles.headerContainer}>
+        <View style={[styles.headerContainer, headerWrapStyleFromCss, { marginBottom: headerBottomGap }]}>
           {headerAlign === "right" ? (
             <>
               {renderViewAll()}
@@ -993,23 +1235,18 @@ export default function ProductCarousel({ section }) {
           horizontal
           showsHorizontalScrollIndicator={false}
           scrollEnabled={false}
-          contentContainerStyle={{ flexDirection: "row", gap: colGap, paddingBottom: 4 }}
+          contentContainerStyle={{ flexDirection: "row", gap: effectiveColGap, paddingBottom: rowGap }}
         >
           {Array.from({ length: Math.min(3, Math.max(1, itemsShown)) }).map((_, i) => {
-            const imgH = imageAspectRatio ? cardWidth / imageAspectRatio : imageHeight;
+            const imgH = useImageAspectRatio ? cardWidth / imageAspectRatio : imageHeight;
             return (
               <View
                 key={i}
                 style={{
                   width: cardWidth,
-                  borderRadius: outerCorners || 8,
+                  borderRadius: outerCorners,
                   overflow: "hidden",
-                  backgroundColor: "#FFFFFF",
-                  elevation: 2,
-                  shadowColor: "#000",
-                  shadowOffset: { width: 0, height: 1 },
-                  shadowOpacity: 0.07,
-                  shadowRadius: 4,
+                  backgroundColor: cardStyleFromCss?.backgroundColor || "#FFFFFF",
                 }}
               >
                 <ShimmerBone
@@ -1040,7 +1277,7 @@ export default function ProductCarousel({ section }) {
         <ScrollView
           horizontal
           showsHorizontalScrollIndicator={false}
-          contentContainerStyle={[styles.carousel, { gap: colGap }]}
+          contentContainerStyle={[styles.carousel, carouselStyleFromCss, { gap: effectiveColGap, paddingBottom: rowGap }]}
         >
           {products.slice(0, itemsShown).map((product, index) => {
             const isFavorite = isWishlistProduct(wishlistItems, product);
@@ -1051,10 +1288,11 @@ export default function ProductCarousel({ section }) {
                 key={product.id || index}
                 style={({ pressed }) => [
                   styles.card,
+                  cardStyleFromCss,
                   pressed && { opacity: 0.85 },
                   {
                     width: cardWidth,
-                    borderRadius: outerCorners || 8,
+                    borderRadius: outerCorners,
                     borderWidth: borderSize,
                     borderColor: borderColor,
                   },
@@ -1071,10 +1309,11 @@ export default function ProductCarousel({ section }) {
                   <View
                     style={[
                       styles.imageContainer,
+                      cardImageFrameStyle,
                       {
                         borderRadius: imageCorner,
                         backgroundColor: imageBgColor,
-                        ...(imageAspectRatio
+                        ...(useImageAspectRatio
                           ? { aspectRatio: imageAspectRatio }
                           : { height: imageHeight }),
                       },
@@ -1097,7 +1336,19 @@ export default function ProductCarousel({ section }) {
                 )}
                 {!cardImageActive && renderFavorite(product, isFavorite)}
 
-                <View style={styles.cardContent}>
+                <View
+                  style={[
+                    styles.cardContent,
+                    cardContentStyleFromCss,
+                    {
+                      paddingTop: contentPadT,
+                      paddingRight: contentPadR,
+                      paddingBottom: contentPadB,
+                      paddingLeft: contentPadL,
+                      gap: contentGap,
+                    },
+                  ]}
+                >
                   {/* ATC above product info (title / price) */}
                   {atcPosition === "above" && renderAddToCart(product, isSoldOut)}
 
@@ -1111,6 +1362,7 @@ export default function ProductCarousel({ section }) {
                           color: titleColor,
                           fontWeight: titleWeight,
                           textAlign: titleAlign,
+                          marginBottom: titleMarginBottom,
                           ...(titleFamily ? { fontFamily: titleFamily } : {}),
                         },
                       ]}
@@ -1130,6 +1382,7 @@ export default function ProductCarousel({ section }) {
                               : priceAlign === "right"
                               ? "flex-end"
                               : "flex-start",
+                          gap: contentGap,
                         },
                       ]}
                     >
@@ -1195,8 +1448,6 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    marginBottom: 16,
-    paddingHorizontal: 8,
   },
   headerTextWrapper: {
     flex: 1,
@@ -1224,16 +1475,10 @@ const styles = StyleSheet.create({
   carousel: {
     flexDirection: "row",
     alignItems: "stretch",
-    paddingBottom: 4,
   },
   card: {
     backgroundColor: "#FFFFFF",
     overflow: "hidden",
-    elevation: 2,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.08,
-    shadowRadius: 4,
   },
   imageContainer: {
     width: "100%",
@@ -1252,16 +1497,12 @@ const styles = StyleSheet.create({
     borderRadius: 20,
   },
   cardContent: {
-    padding: 12,
-    gap: 8,
   },
   title: {
-    marginBottom: 4,
   },
   priceContainer: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 8,
   },
   price: {},
   strikePrice: {

@@ -6,17 +6,62 @@ import { convertStyles } from "../utils/convertStyles";
 import { useAuth } from "../services/AuthContext";
 import { isAuthenticatedSession } from "../utils/authGate";
 import { getAppNameSync } from "../utils/appInfo";
+import { resolveFont } from "../services/typographyService";
 
 const LOCAL_LOGO_IMAGE = require("../assets/logo/mobidraglogo.png");
+const DEFAULT_DRAWER_WIDTH = 260;
+
+const isObject = (value) =>
+  value !== null && typeof value === "object" && !Array.isArray(value);
 
 const unwrapValue = (value, fallback = undefined) => {
   if (value === undefined || value === null) return fallback;
-  if (typeof value === "object") {
+  if (isObject(value)) {
     if (value.value !== undefined) return value.value;
     if (value.const !== undefined) return value.const;
     if (value.properties !== undefined) return value.properties;
   }
   return value;
+};
+
+const unwrapDeep = (value, fallback = undefined) => {
+  if (value === undefined || value === null) return fallback;
+  if (Array.isArray(value)) return value.map((item) => unwrapDeep(item));
+  if (!isObject(value)) return value;
+  if (value.value !== undefined) return unwrapDeep(value.value, fallback);
+  if (value.const !== undefined) return unwrapDeep(value.const, fallback);
+  if (value.properties !== undefined) return unwrapDeep(value.properties, fallback);
+
+  return Object.entries(value).reduce((acc, [key, next]) => {
+    acc[key] = unwrapDeep(next);
+    return acc;
+  }, {});
+};
+
+const firstDefined = (...values) => {
+  for (const value of values) {
+    const resolved = unwrapValue(value);
+    if (resolved !== undefined && resolved !== null && resolved !== "") return resolved;
+  }
+  return undefined;
+};
+
+const toNumber = (value, fallback = undefined) => {
+  const resolved = unwrapValue(value);
+  if (typeof resolved === "number" && Number.isFinite(resolved)) return resolved;
+  if (typeof resolved === "string") {
+    const trimmed = resolved.trim();
+    if (!trimmed || trimmed.endsWith("%")) return fallback;
+    const parsed = parseFloat(trimmed.replace(/px$/i, ""));
+    if (Number.isFinite(parsed)) return parsed;
+  }
+  return fallback;
+};
+
+const toStringValue = (value, fallback = "") => {
+  const resolved = unwrapValue(value);
+  if (resolved === undefined || resolved === null) return fallback;
+  return String(resolved);
 };
 
 const asBoolean = (value, fallback = true) => {
@@ -33,12 +78,56 @@ const asBoolean = (value, fallback = true) => {
 
 const normalizeIconName = (name) => {
   if (!name) return "circle";
-  const cleaned = String(name).replace(/^fa[srldb]?[-_]?/, "");
+  const cleaned = String(name)
+    .trim()
+    .replace(/^fa-(solid|regular|brands)\s+/i, "")
+    .replace(/^fa[srldb]?[-_]?/i, "");
   return cleaned || "circle";
 };
 
-const isLogoutItem = (item) =>
-  String(item?.label || item?.title || "").trim().toLowerCase() === "logout";
+const normalizeTextAlign = (align, fallback = "left") => {
+  const lowered = String(align || "").trim().toLowerCase();
+  if (lowered === "center") return "center";
+  if (lowered === "right" || lowered === "end") return "right";
+  return fallback;
+};
+
+const alignToJustify = (align, fallback = "flex-start") => {
+  const lowered = String(align || "").trim().toLowerCase();
+  if (lowered === "center") return "center";
+  if (lowered === "right" || lowered === "end") return "flex-end";
+  return fallback;
+};
+
+const normalizeWeight = (value, fallback = undefined) => {
+  const converted = convertStyles({ fontWeight: value || fallback });
+  return converted.fontWeight || fallback;
+};
+
+const resolveFontFamily = (...values) => {
+  for (const value of values) {
+    const resolved = resolveFont(toStringValue(value, ""));
+    if (resolved) return resolved;
+  }
+  return undefined;
+};
+
+const textDecorationFor = ({ underline, strikethrough }, fallback = "none") => {
+  const next = [];
+  if (asBoolean(underline, false)) next.push("underline");
+  if (asBoolean(strikethrough, false)) next.push("line-through");
+  return next.length ? next.join(" ") : fallback;
+};
+
+const isLogoutItem = (item) => {
+  const label = String(item?.label || item?.title || item?.text || "").trim().toLowerCase();
+  return ["logout", "log out"].includes(label);
+};
+
+const isAuthToggleItem = (item) => {
+  const label = String(item?.label || item?.title || item?.text || "").trim().toLowerCase();
+  return ["logout", "log out", "login", "log in", "signin", "sign in"].includes(label);
+};
 
 const SIGNIN_SLUGS = new Set(["signin", "sign-in", "login", "log-in", "auth"]);
 
@@ -55,107 +144,211 @@ const resolveLogoSource = (logoUrl) => {
   return { uri: logoUrl };
 };
 
+const getPropsNode = (section = {}) =>
+  section?.props || section?.properties?.props?.properties || section?.properties?.props || {};
+
 const buildRawProps = (rawProps = {}) => {
-  const rawBlock = unwrapValue(rawProps.raw, {});
-  if (rawBlock && typeof rawBlock === "object" && rawBlock.value !== undefined) {
-    return rawBlock.value;
+  const flatProps = unwrapDeep(rawProps, {});
+  const rawBlock = unwrapDeep(flatProps?.raw, {});
+  if (rawBlock && typeof rawBlock === "object") {
+    return { ...flatProps, ...rawBlock };
   }
-  return rawBlock || {};
+  return flatProps || {};
 };
 
-const extractPresentation = (section = {}) => {
-  const fromSection =
-    section.presentation ||
-    section.properties?.presentation?.properties ||
-    section.properties?.presentation ||
-    {};
+const splitPaddingStyles = (style = {}) => {
+  const root = { ...style };
+  const content = {};
+  [
+    "padding",
+    "paddingTop",
+    "paddingRight",
+    "paddingBottom",
+    "paddingLeft",
+    "paddingHorizontal",
+    "paddingVertical",
+  ].forEach((key) => {
+    if (root[key] !== undefined) {
+      content[key] = root[key];
+      delete root[key];
+    }
+  });
+  ["position", "top", "right", "bottom", "left"].forEach((key) => {
+    delete root[key];
+  });
+  return { root, content };
+};
 
-  const css = fromSection.css?.properties || fromSection.css || {};
+const extractPresentation = (section = {}, rawProps = {}) => {
+  const candidates = [
+    section?.presentation,
+    section?.properties?.presentation,
+    section?.properties?.presentation?.properties,
+    rawProps?.presentation,
+    rawProps?.presentation?.value,
+    rawProps?.presentation?.properties,
+  ];
+
+  const source =
+    candidates
+      .map((candidate) => unwrapDeep(candidate, null))
+      .find((candidate) => candidate && typeof candidate === "object" && (candidate.css || candidate.metrics)) || {};
+
+  const css = unwrapDeep(source.css, {});
+  const drawerSplit = splitPaddingStyles(convertStyles(css.drawer || {}));
+
   return {
-    drawer: convertStyles(css.drawer || {}),
+    drawer: drawerSplit.root,
+    drawerPadding: drawerSplit.content,
     headerRow: convertStyles(css.headerRow || {}),
     itemRow: convertStyles(css.itemRow || {}),
     itemIcon: convertStyles(css.itemIcon || {}),
     itemText: convertStyles(css.itemText || {}),
+    metrics: unwrapDeep(source.metrics, {}),
   };
+};
+
+export const getSideNavigationWidth = (section = {}, fallback = DEFAULT_DRAWER_WIDTH) => {
+  const rawProps = getPropsNode(section);
+  const raw = buildRawProps(rawProps);
+  const presentation = extractPresentation(section, rawProps);
+  return toNumber(
+    firstDefined(raw.drawerWidth, raw.width, presentation.drawer?.width),
+    fallback
+  );
+};
+
+const getItems = (raw, rawProps) => {
+  if (Array.isArray(raw?.items)) return raw.items;
+  if (Array.isArray(raw?.items?.items)) return raw.items.items;
+  if (Array.isArray(rawProps?.items)) return unwrapDeep(rawProps.items, []);
+  return [];
 };
 
 export default function SideNavigation({ section }) {
   const navigation = useNavigation();
   const { logout, session, initializing } = useAuth();
   const isLoggedIn = isAuthenticatedSession(session);
-  const rawProps =
-    section?.props || section?.properties?.props?.properties || section?.properties?.props || {};
-
+  const rawProps = getPropsNode(section);
   const raw = buildRawProps(rawProps);
-  const presentation = extractPresentation(section);
-
-  const itemsArray = Array.isArray(raw?.items)
-    ? raw.items
-    : Array.isArray(raw?.items?.items)
-      ? raw.items.items
-      : Array.isArray(rawProps?.items)
-        ? rawProps.items
-        : [];
+  const presentation = extractPresentation(section, rawProps);
+  const metrics = presentation.metrics || {};
+  const itemsArray = getItems(raw, rawProps);
 
   const visibility = raw?.visibility || {};
   const showHeader = asBoolean(visibility.header, true);
+  const showHeaderText = asBoolean(visibility.headerText, true);
   const showItems = asBoolean(visibility.items, true);
-  const showLogo = asBoolean(visibility.headerLogo ?? visibility.logo, true);
   const showItemIcons = asBoolean(visibility.itemsIcons, true);
   const showItemText = asBoolean(visibility.itemsText, true);
-  const backgroundImage = unwrapValue(raw?.bgImage || raw?.backgroundImageUrl, "");
-  const backgroundFit = unwrapValue(raw?.bgImageFit, "cover");
 
-  const paddingStyles = convertStyles({
-    paddingTop: raw?.pt ?? raw?.paddingTop,
-    paddingBottom: raw?.pb ?? raw?.paddingBottom,
-    paddingLeft: raw?.pl ?? raw?.paddingLeft,
-    paddingRight: raw?.pr ?? raw?.paddingRight,
-  });
+  const backgroundImage = toStringValue(firstDefined(raw?.backgroundImageUrl, raw?.bgImage), "");
+  const backgroundFit = toStringValue(firstDefined(raw?.bgImageFit, raw?.bgImageScale), "cover");
+  const drawerWidth = getSideNavigationWidth(section);
+  const drawerBgColor = firstDefined(raw?.backgroundColor, raw?.bgColor, presentation.drawer?.backgroundColor, "#FFFFFF");
 
-  const drawerStyle = [
-    styles.drawer,
-    presentation.drawer,
-    backgroundImage ? styles.drawerWithBackground : null,
-    backgroundImage ? { backgroundColor: "transparent" } : { backgroundColor: raw?.bgColor },
-  ];
+  const contentPadding = {
+    paddingTop: toNumber(firstDefined(raw?.paddingTop, presentation.drawerPadding?.paddingTop, raw?.pt), 0),
+    paddingRight: toNumber(firstDefined(raw?.paddingRight, presentation.drawerPadding?.paddingRight, raw?.pr), 0),
+    paddingBottom: toNumber(firstDefined(raw?.paddingBottom, presentation.drawerPadding?.paddingBottom, raw?.pb), 0),
+    paddingLeft: toNumber(firstDefined(raw?.paddingLeft, presentation.drawerPadding?.paddingLeft, raw?.pl), 0),
+  };
 
-  const headerTitle = unwrapValue(raw?.headerTitle, getAppNameSync());
-  const subtitle = unwrapValue(raw?.subtitle, "");
-  const logoUrl = unwrapValue(raw?.logoUrl, "");
-  const logoSource = logoUrl ? resolveLogoSource(logoUrl) : LOCAL_LOGO_IMAGE;
+  const headerMetrics = metrics?.header || metrics?.elements?.header || {};
+  const firstItemMetrics = Array.isArray(metrics?.items)
+    ? metrics.items[0]?.row
+    : metrics?.elements?.items?.[0]?.row;
+  const headerHeight = toNumber(firstDefined(raw?.headerHeight, headerMetrics?.height, presentation.headerRow?.height), undefined);
+  const dividerHeight = toNumber(firstDefined(raw?.dividerSize, raw?.dividerHeight), 1);
+  const measuredDividerGap =
+    toNumber(firstItemMetrics?.y, undefined) !== undefined &&
+    toNumber(headerMetrics?.y, undefined) !== undefined &&
+    headerHeight !== undefined
+      ? Math.max(0, toNumber(firstItemMetrics.y, 0) - (toNumber(headerMetrics.y, 0) + headerHeight) - dividerHeight)
+      : undefined;
 
-  const itemIconColor = raw?.iconColor || presentation.itemIcon?.color || "#111827";
-  const itemIconSize = unwrapValue(raw?.iconSize, presentation.itemIcon?.width || 18);
-  const itemTextColor = raw?.itemColor || presentation.itemText?.color || "#111827";
+  const headerTitle = toStringValue(
+    firstDefined(raw?.headerTextValue, raw?.headerTitle, raw?.logoText),
+    getAppNameSync()
+  );
+  const subtitle = toStringValue(raw?.subtitle, "");
+  const logoUrl = toStringValue(raw?.logoUrl, "");
+  const logoSource = logoUrl ? resolveLogoSource(logoUrl) : null;
+  const showLogo = asBoolean(visibility.headerLogo ?? visibility.logo, Boolean(logoSource));
 
-  if (!showHeader && !showItems) return null;
+  const headerFontSize = toNumber(firstDefined(raw?.headerFontSize, raw?.fontSize), 18);
+  const headerTextStyle = {
+    color: firstDefined(raw?.headerTextColor, raw?.headerColor, "#111827"),
+    fontSize: headerFontSize,
+    fontWeight: asBoolean(raw?.headerBold, false)
+      ? "700"
+      : normalizeWeight(firstDefined(raw?.headerFontWeight, raw?.fontWeight), "400"),
+    fontStyle: asBoolean(raw?.headerItalic, false) ? "italic" : "normal",
+    textAlign: normalizeTextAlign(raw?.headerAlign, "left"),
+    textDecorationLine: textDecorationFor({
+      underline: raw?.headerUnderline,
+      strikethrough: raw?.headerStrikethrough,
+    }),
+    ...(resolveFontFamily(raw?.headerFontFamily, raw?.fontFamily) ? {
+      fontFamily: resolveFontFamily(raw?.headerFontFamily, raw?.fontFamily),
+    } : {}),
+  };
+
+  const rowHeight = toNumber(firstDefined(raw?.itemRowHeight, presentation.itemRow?.height), 44);
+  const rowGap = toNumber(firstDefined(raw?.itemGap, presentation.itemRow?.gap), 12);
+  const iconBoxWidth = toNumber(firstDefined(presentation.itemIcon?.width, raw?.iconSize, raw?.iconWidth), 24);
+  const iconBoxHeight = toNumber(firstDefined(presentation.itemIcon?.height, raw?.iconSize, raw?.iconHeight), iconBoxWidth);
+  const itemIconSize = toNumber(firstDefined(raw?.iconWidth, raw?.iconHeight, raw?.iconSize, presentation.itemIcon?.width), Math.min(iconBoxWidth, iconBoxHeight));
+  const itemIconColor = firstDefined(raw?.iconColor, presentation.itemIcon?.color, "#111827");
+  const itemTextColor = firstDefined(raw?.itemColor, presentation.itemText?.color, "#111827");
+  const itemFontFamily = resolveFontFamily(raw?.itemFontFamily, raw?.itemsFontFamily, raw?.fontFamily, presentation.itemText?.fontFamily);
+  const itemFontSize = toNumber(
+    firstDefined(raw?.itemFontSize, raw?.itemsFontSize, presentation.itemText?.fontSize, raw?.fontSize),
+    14
+  );
+  const itemFontWeight = normalizeWeight(
+    firstDefined(raw?.itemFontWeight, raw?.itemsFontWeight, presentation.itemText?.fontWeight, raw?.fontWeight),
+    "400"
+  );
+
+  const showDivider = asBoolean(raw?.dividerLine, false) && showHeader && showItems;
+  const dividerColor = firstDefined(raw?.dividerColor, raw?.headerColor, "#E5E7EB");
+  const dividerStyle = {
+    height: dividerHeight,
+    backgroundColor: dividerColor,
+    marginBottom: toNumber(firstDefined(raw?.dividerGap, raw?.dividerSpacing, measuredDividerGap), 0),
+  };
 
   const DrawerWrapper = backgroundImage ? ImageBackground : View;
   const items = useMemo(
     () => {
-      const hasAuthToggle = itemsArray.some((item) => {
-        const label = String(item?.label || item?.title || "").trim().toLowerCase();
-        return ["logout", "log out", "login", "log in", "signin", "sign in"].includes(label);
-      });
-
+      const hasAuthToggle = itemsArray.some((item) => isAuthToggleItem(item));
       const authToggle = hasAuthToggle
         ? null
         : initializing
           ? null
           : isLoggedIn
-          ? { id: "logout", label: "Logout", icon: "right-from-bracket" }
-          : { id: "login", label: "Login", icon: "right-to-bracket", link: "signin" };
+            ? {
+              id: "logout",
+              label: toStringValue(firstDefined(raw?.logoutText, raw?.logoutLabel), "Logout"),
+              icon: toStringValue(firstDefined(raw?.logoutIcon, "right-from-bracket"), "right-from-bracket"),
+              __authToggle: true,
+            }
+            : {
+              id: "login",
+              label: toStringValue(firstDefined(raw?.loginText, raw?.loginLabel), "Login"),
+              icon: toStringValue(firstDefined(raw?.loginIcon, "right-to-bracket"), "right-to-bracket"),
+              link: "signin",
+              __authToggle: true,
+            };
 
       return [...itemsArray, authToggle].filter(Boolean);
     },
-    [initializing, itemsArray, isLoggedIn]
+    [initializing, isLoggedIn, itemsArray, raw?.loginIcon, raw?.loginLabel, raw?.loginText, raw?.logoutIcon, raw?.logoutLabel, raw?.logoutText]
   );
 
   const handleItemPress = useCallback(
     (item) => {
-      // ── Logout ───────────────────────────────────────────────────────────
       if (isLogoutItem(item)) {
         if (!isLoggedIn) {
           if (initializing) return;
@@ -181,28 +374,24 @@ export default function SideNavigation({ section }) {
         return;
       }
 
-      // ── Resolve link target ───────────────────────────────────────────────
       const link = String(
         item?.link ?? item?.href ?? item?.url ?? item?.page ?? item?.navigateTo ?? ""
       ).trim();
 
-      // Derive slug: prefer explicit link, fall back to label → slug
       const slug = link
         ? link.replace(/^\//, "").toLowerCase().replace(/[^a-z0-9-]+/g, "-")
-        : labelToSlug(item?.label || item?.title || "");
+        : labelToSlug(item?.label || item?.title || item?.text || "");
 
       if (!slug) return;
 
-      // ── External URL ──────────────────────────────────────────────────────
       if (/^https?:\/\//i.test(link)) {
         navigation.navigate("CheckoutWebView", {
           url: link,
-          title: String(item?.label || item?.title || "Page"),
+          title: String(item?.label || item?.title || item?.text || "Page"),
         });
         return;
       }
 
-      // ── Auth pages ────────────────────────────────────────────────────────
       if (SIGNIN_SLUGS.has(slug)) {
         if (isLoggedIn) {
           navigation.navigate("BottomNavScreen", { pageName: "my-account", title: "My Account", link: "my-account" });
@@ -213,82 +402,152 @@ export default function SideNavigation({ section }) {
         return;
       }
 
-      // ── Home ──────────────────────────────────────────────────────────────
       if (slug === "home" || slug === "index") {
         navigation.navigate("LayoutScreen");
         return;
       }
 
-      // ── Settings ─────────────────────────────────────────────────────────
       if (slug === "settings" || slug === "setting") {
         navigation.navigate("Settings");
         return;
       }
 
-      // ── All other DSL pages ───────────────────────────────────────────────
-      // Use push() — not navigate() — so a NEW stack entry is always created.
-      // This guarantees the back button in BottomNavScreen works, even when
-      // BottomNavScreen is already the current screen (side menu opened there).
-      // hideBottomNav:true shows the back-button header row in BottomNavScreen.
       navigation.push("BottomNavScreen", {
         pageName: slug,
-        title: String(item?.label || item?.title || slug),
+        title: String(item?.label || item?.title || item?.text || slug),
         hideBottomNav: true,
       });
     },
     [initializing, isLoggedIn, logout, navigation]
   );
 
+  const itemTextOverrides = useCallback(
+    (item) => ({
+      fontWeight: asBoolean(item?.titleBold, false) ? "700" : itemFontWeight,
+      fontStyle: asBoolean(item?.titleItalic, false) ? "italic" : "normal",
+      textDecorationLine: textDecorationFor({
+        underline: item?.titleUnderline,
+        strikethrough: item?.titleStrikethrough,
+      }),
+    }),
+    [itemFontWeight]
+  );
+
+  if (!showHeader && !showItems) return null;
+
   return (
     <DrawerWrapper
       source={backgroundImage ? { uri: backgroundImage } : undefined}
-      style={drawerStyle}
-      imageStyle={backgroundImage ? [styles.drawerImage, presentation.drawer] : undefined}
+      style={[
+        styles.drawer,
+        presentation.drawer,
+        {
+          width: drawerWidth,
+          minWidth: drawerWidth,
+          backgroundColor: backgroundImage ? "transparent" : drawerBgColor,
+        },
+        backgroundImage ? styles.drawerWithBackground : null,
+      ]}
+      imageStyle={backgroundImage ? styles.drawerImage : undefined}
       resizeMode={backgroundImage ? backgroundFit : undefined}
     >
-      <View style={[styles.drawerContent, paddingStyles]}>
+      <View style={[styles.drawerContent, contentPadding]}>
         {showHeader && (
-          <View style={[styles.headerRow, presentation.headerRow]}>
-            {showLogo && logoSource ? <Image source={logoSource} style={styles.logoImage} /> : null}
-            <View style={{ flex: 1 }}>
-              <Text style={styles.headerTitle} numberOfLines={1}>
-                {headerTitle}
-              </Text>
-              <Text style={styles.subtitle} numberOfLines={1}>
-                {subtitle}
-              </Text>
+          <>
+            <View
+              style={[
+                styles.headerRow,
+                presentation.headerRow,
+                {
+                  minHeight: headerHeight,
+                  justifyContent: alignToJustify(raw?.headerAlign, "flex-start"),
+                },
+              ]}
+            >
+              {showLogo && logoSource ? <Image source={logoSource} style={styles.logoImage} /> : null}
+              {showHeaderText && (
+                <View style={styles.headerTextWrap}>
+                  <Text style={[styles.headerTitle, headerTextStyle]} numberOfLines={1}>
+                    {headerTitle}
+                  </Text>
+                  {!!subtitle && (
+                    <Text
+                      style={[
+                        styles.subtitle,
+                        {
+                          color: firstDefined(raw?.subtextColor, raw?.headerTextColor, raw?.headerColor, "#6B7280"),
+                          ...(resolveFontFamily(raw?.subtextFontFamily, raw?.fontFamily) ? {
+                            fontFamily: resolveFontFamily(raw?.subtextFontFamily, raw?.fontFamily),
+                          } : {}),
+                        },
+                      ]}
+                      numberOfLines={1}
+                    >
+                      {subtitle}
+                    </Text>
+                  )}
+                </View>
+              )}
             </View>
-          </View>
+            {showDivider && <View style={dividerStyle} />}
+          </>
         )}
 
         {showItems &&
-          items.map((item) => (
-            <TouchableOpacity
-              key={item.id || item.label}
-              style={[styles.itemRow, presentation.itemRow]}
-              onPress={() => handleItemPress(item)}
-              accessibilityRole="button"
-              accessibilityLabel={item.label || item.title}
-              activeOpacity={0.7}
-            >
-              {showItemIcons && (
-                <Icon
-                  name={normalizeIconName(item.icon)}
-                  size={itemIconSize}
-                  color={itemIconColor}
-                  style={[styles.itemIcon, presentation.itemIcon]}
-                />
-              )}
-              {showItemText && (
-                <Text
-                  style={[styles.itemText, presentation.itemText, { color: itemTextColor }]}
-                  numberOfLines={1}
-                >
-                  {isLogoutItem(item) && !isLoggedIn && !initializing ? "Login" : (item.label || item.title)}
-                </Text>
-              )}
-            </TouchableOpacity>
-          ))}
+          items.map((item) => {
+            const itemLabel =
+              isLogoutItem(item) && !isLoggedIn && !initializing
+                ? toStringValue(firstDefined(raw?.loginText, raw?.loginLabel), "Login")
+                : (item.label || item.title || item.text);
+            const hideAuthIcon = item.__authToggle && asBoolean(raw?.showLogoutIcon, true) === false;
+
+            return (
+              <TouchableOpacity
+                key={item.id || itemLabel}
+                style={[
+                  styles.itemRow,
+                  presentation.itemRow,
+                  {
+                    minHeight: rowHeight,
+                    gap: rowGap,
+                    justifyContent: alignToJustify(raw?.itemsAlign, "flex-start"),
+                  },
+                ]}
+                onPress={() => handleItemPress(item)}
+                accessibilityRole="button"
+                accessibilityLabel={itemLabel}
+                activeOpacity={0.7}
+              >
+                {showItemIcons && !hideAuthIcon && (
+                  <View style={[styles.itemIconWrap, { width: iconBoxWidth, height: iconBoxHeight }]}>
+                    <Icon
+                      name={normalizeIconName(item.icon)}
+                      size={itemIconSize}
+                      color={itemIconColor}
+                    />
+                  </View>
+                )}
+                {showItemText && (
+                  <Text
+                    style={[
+                      styles.itemText,
+                      presentation.itemText,
+                      {
+                        color: itemTextColor,
+                        fontSize: itemFontSize,
+                        fontWeight: itemFontWeight,
+                        ...(itemFontFamily ? { fontFamily: itemFontFamily } : {}),
+                      },
+                      itemTextOverrides(item),
+                    ]}
+                    numberOfLines={1}
+                  >
+                    {itemLabel}
+                  </Text>
+                )}
+              </TouchableOpacity>
+            );
+          })}
       </View>
     </DrawerWrapper>
   );
@@ -296,8 +555,7 @@ export default function SideNavigation({ section }) {
 
 const styles = StyleSheet.create({
   drawer: {
-    width: "100%",
-    minWidth: 260,
+    height: "100%",
     alignSelf: "stretch",
     backgroundColor: "#FFFFFF",
   },
@@ -309,22 +567,21 @@ const styles = StyleSheet.create({
     height: "100%",
   },
   drawerContent: {
-    padding: 16,
+    flex: 1,
   },
   headerRow: {
     flexDirection: "row",
     alignItems: "center",
     gap: 10,
-    marginBottom: 16,
+  },
+  headerTextWrap: {
+    flex: 1,
+    minWidth: 0,
   },
   headerTitle: {
-    fontSize: 18,
-    fontWeight: "700",
     color: "#111827",
   },
   subtitle: {
-    fontSize: 13,
-    color: "#6B7280",
     marginTop: 2,
   },
   logoImage: {
@@ -335,16 +592,14 @@ const styles = StyleSheet.create({
   itemRow: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 12,
-    paddingVertical: 6,
   },
-  itemIcon: {
-    width: 18,
-    height: 18,
+  itemIconWrap: {
+    alignItems: "center",
+    justifyContent: "center",
+    flexShrink: 0,
   },
   itemText: {
-    fontSize: 14,
-    color: "#111827",
     flex: 1,
+    minWidth: 0,
   },
 });

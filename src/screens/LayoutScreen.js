@@ -17,7 +17,7 @@ import HeaderDefault from "../components/HeaderDefault";
 import { fetchDSL } from "../engine/dslHandler";
 import { shouldRenderSectionOnMobile } from "../engine/visibility";
 import { SafeArea } from "../utils/SafeAreaHandler";
-import SideNavigation from "../components/SideNavigation";
+import SideNavigation, { getSideNavigationWidth } from "../components/SideNavigation";
 import { SideMenuProvider } from "../services/SideMenuContext";
 import bottomNavigationStyle1Section from "../data/bottomNavigationStyle1";
 import header2Section from "../data/header2Section";
@@ -25,6 +25,7 @@ import BottomNavigation, { BOTTOM_NAV_RESERVED_HEIGHT } from "../components/Bott
 import { resolveAppId } from "../utils/appId";
 import { useAuth } from "../services/AuthContext";
 import { setHeaderDefault } from "../services/headerDefaultService";
+import { getHomeSectionMarginBottom } from "../utils/sectionSpacing";
 
 // ── Module-level cache ────────────────────────────────────────────────────────
 // Survives re-mounts within the same JS session.
@@ -79,8 +80,8 @@ export default function LayoutScreen({ route, navigation }) {
   const loadingRef = useRef(!cached?.dsl);
   const dslRequestInFlightRef = useRef(false);
   const lastDslFetchAtRef = useRef(cached?.dsl ? Date.now() : 0);
-  const SIDE_MENU_WIDTH = 280;
-  const sideMenuTranslateX = useRef(new Animated.Value(-SIDE_MENU_WIDTH)).current;
+  const DEFAULT_SIDE_MENU_WIDTH = 280;
+  const sideMenuTranslateX = useRef(new Animated.Value(-DEFAULT_SIDE_MENU_WIDTH)).current;
   // Store bottom navigation section separately to prevent it from refreshing
   const bottomNavSectionRef = useRef(null);
   // Initialize bottom nav from cache immediately — never shows blank on remount
@@ -209,6 +210,10 @@ export default function LayoutScreen({ route, navigation }) {
         (section) => getComponentName(section).toLowerCase() === "side_navigation"
       ) || null,
     [dsl]
+  );
+  const sideMenuWidth = useMemo(
+    () => getSideNavigationWidth(sideNavSection, DEFAULT_SIDE_MENU_WIDTH),
+    [sideNavSection]
   );
 
   // Helper function to deep compare two objects (simple JSON stringify comparison)
@@ -616,15 +621,15 @@ export default function LayoutScreen({ route, navigation }) {
 
   useEffect(() => {
     Animated.spring(sideMenuTranslateX, {
-      toValue: isSideMenuOpen ? 0 : -SIDE_MENU_WIDTH,
+      toValue: isSideMenuOpen ? 0 : -sideMenuWidth,
       useNativeDriver: true,
       speed: 16,
       bounciness: 6,
     }).start();
-  }, [SIDE_MENU_WIDTH, isSideMenuOpen, sideMenuTranslateX]);
+  }, [isSideMenuOpen, sideMenuTranslateX, sideMenuWidth]);
 
   const overlayOpacity = sideMenuTranslateX.interpolate({
-    inputRange: [-SIDE_MENU_WIDTH, 0],
+    inputRange: [-sideMenuWidth, 0],
     outputRange: [0, 0.35],
     extrapolate: "clamp",
   });
@@ -685,6 +690,7 @@ export default function LayoutScreen({ route, navigation }) {
               const nextComponentName = visibleSections[i + 1]
                 ? getComponentName(visibleSections[i + 1]).toLowerCase()
                 : null;
+              const nextSection = visibleSections[i + 1] || null;
               const collapseHeaderGap =
                 componentName === "header" && nextComponentName === "header_2";
               const isBannerSlider = componentName === "banner_slider" || componentName === "hero_banner";
@@ -709,16 +715,25 @@ export default function LayoutScreen({ route, navigation }) {
               const sectionWithNav = shouldAttachBottomNav
                 ? { ...s, bottomNavSection: stableBottomNavSection }
                 : s;
+              const homeSectionMarginBottom = isHomePage
+                ? getHomeSectionMarginBottom({
+                    section: s,
+                    componentName,
+                    nextComponentName,
+                    nextSection,
+                  })
+                : undefined;
 
               return (
                 <View
                   key={i}
                   style={[
                     styles.sectionWrapper,
-                    (componentName === "header_2" || collapseHeaderGap || collapseBannerGap) &&
+                    !isHomePage && (componentName === "header_2" || collapseHeaderGap || collapseBannerGap) &&
                       styles.sectionWrapperTight,
-                    isBannerSlider && styles.sectionWrapperBanner,
-                    isProductSection && styles.sectionWrapperProduct,
+                    !isHomePage && isBannerSlider && styles.sectionWrapperBanner,
+                    !isHomePage && isProductSection && styles.sectionWrapperProduct,
+                    isHomePage && { marginBottom: homeSectionMarginBottom },
                   ]}
                 >
                   <DynamicRenderer section={sectionWithNav} />
@@ -742,7 +757,7 @@ export default function LayoutScreen({ route, navigation }) {
               <Animated.View
                 style={[
                   styles.sideMenuContainer,
-                  { transform: [{ translateX: sideMenuTranslateX }] },
+                  { width: sideMenuWidth, maxWidth: sideMenuWidth, transform: [{ translateX: sideMenuTranslateX }] },
                 ]}
               >
                 <SideNavigation section={sideNavSection || {}} />
@@ -846,8 +861,6 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(0,0,0,0.3)",
   },
   sideMenuContainer: {
-    width: 280,
-    maxWidth: "80%",
     backgroundColor: "#fff",
     shadowColor: "#000",
     shadowOpacity: 0.25,
