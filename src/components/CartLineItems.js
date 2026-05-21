@@ -309,14 +309,98 @@ export default function CartLineItems({ section }) {
   const vendorLineHeight = toNumber(raw?.vendorLineHeight, lineHeightFor(vendorSize, 1.35));
   const priceLineHeight = toNumber(raw?.priceLineHeight, lineHeightFor(priceSize, 1.25));
   const contentGap = toNumber(raw?.contentGap ?? raw?.textGap, Math.max(2, Math.round(cardInnerGap * 0.25)));
+  const emptyTitle = toString(raw?.emptyTitle ?? raw?.emptyCartTitle, "Your Cart is Empty");
+  const emptySubtitle = toString(
+    raw?.emptySubtitle ?? raw?.emptyCartSubtitle ?? raw?.emptyDescription,
+    "Looks like you haven't added anything to your cart yet"
+  );
+  const emptyButtonText = toString(raw?.emptyButtonText ?? raw?.continueShoppingText, "Continue Shopping");
+  const emptyIconName = resolveFA4IconName(toString(raw?.emptyIcon ?? raw?.emptyCartIcon, "shopping-bag")) || "shopping-bag";
+  const emptyIconColor = toString(raw?.emptyIconColor, "#B6B6B6");
+  const emptyIconSize = toNumber(raw?.emptyIconSize, 88);
+  const emptyTitleColor = toString(raw?.emptyTitleColor ?? raw?.titleColor, "#111827");
+  const emptySubtitleColor = toString(raw?.emptySubtitleColor ?? raw?.subtitleColor, "#6B7280");
+  const emptyButtonBgColor = toString(raw?.emptyButtonBgColor ?? raw?.emptyActionBgColor ?? raw?.buttonBgColor, "#0F9FA3");
+  const emptyButtonTextColor = toString(raw?.emptyButtonTextColor ?? raw?.buttonTextColor, "#FFFFFF");
+  const emptyButtonRadius = toNumber(raw?.emptyButtonRadius ?? raw?.buttonRadius, 4);
+  const emptyButtonHeight = toNumber(raw?.emptyButtonHeight ?? raw?.buttonHeight, 44);
+  const emptyButtonWidth = toNumber(raw?.emptyButtonWidth, responsiveSize(0.5, 180, 220));
+  const emptyTitleFontSize = toNumber(raw?.emptyTitleFontSize ?? raw?.headlineSize, 22);
+  const emptySubtitleFontSize = toNumber(raw?.emptySubtitleFontSize ?? raw?.subtextSize, 14);
+  const emptyButtonFontSize = toNumber(raw?.emptyButtonFontSize ?? raw?.buttonTextSize, 16);
+  const emptyTitleFontFamily = cleanFontFamily(toString(raw?.emptyTitleFontFamily ?? raw?.headlineFontFamily ?? raw?.fontFamily, ""));
+  const emptySubtitleFontFamily = cleanFontFamily(toString(raw?.emptySubtitleFontFamily ?? raw?.subtextFontFamily ?? raw?.fontFamily, ""));
+  const emptyButtonFontFamily = cleanFontFamily(toString(raw?.emptyButtonFontFamily ?? raw?.buttonTextFontFamily ?? raw?.fontFamily, ""));
 
   const cartFingerprint = useMemo(() => cartDiscountFingerprint(cartItems), [cartItems]);
   const discountCount = activeDiscountRecords(appliedDiscounts, cartFingerprint).length;
 
   if (sourceItems.length === 0) {
     return (
-      <View style={[styles.emptyContainer, { backgroundColor: bgColor, paddingHorizontal: padL }]}>
-        <Text style={styles.emptyText}>Your cart is empty</Text>
+      <View
+        style={[
+          styles.emptyContainer,
+          {
+            backgroundColor: bgColor,
+            paddingTop: Math.max(padT, responsiveSize(0.16, 56, 82)),
+            paddingBottom: Math.max(padB, responsiveSize(0.18, 68, 96)),
+            paddingHorizontal: Math.max(padL, padR),
+          },
+        ]}
+      >
+        <FontAwesome name={emptyIconName} size={emptyIconSize} color={emptyIconColor} />
+        <Text
+          style={[
+            styles.emptyTitle,
+            {
+              color: emptyTitleColor,
+              fontSize: emptyTitleFontSize,
+              lineHeight: lineHeightFor(emptyTitleFontSize, 1.25),
+              ...(emptyTitleFontFamily ? { fontFamily: emptyTitleFontFamily } : {}),
+            },
+          ]}
+        >
+          {emptyTitle}
+        </Text>
+        <Text
+          style={[
+            styles.emptySubtitle,
+            {
+              color: emptySubtitleColor,
+              fontSize: emptySubtitleFontSize,
+              lineHeight: lineHeightFor(emptySubtitleFontSize, 1.35),
+              ...(emptySubtitleFontFamily ? { fontFamily: emptySubtitleFontFamily } : {}),
+            },
+          ]}
+        >
+          {emptySubtitle}
+        </Text>
+        <TouchableOpacity
+          activeOpacity={0.85}
+          style={[
+            styles.emptyButton,
+            {
+              width: emptyButtonWidth,
+              minHeight: emptyButtonHeight,
+              borderRadius: emptyButtonRadius,
+              backgroundColor: emptyButtonBgColor,
+            },
+          ]}
+          onPress={() => navigation.navigate("LayoutScreen", { pageName: "home" })}
+        >
+          <Text
+            style={[
+              styles.emptyButtonText,
+              {
+                color: emptyButtonTextColor,
+                fontSize: emptyButtonFontSize,
+                ...(emptyButtonFontFamily ? { fontFamily: emptyButtonFontFamily } : {}),
+              },
+            ]}
+          >
+            {emptyButtonText}
+          </Text>
+        </TouchableOpacity>
       </View>
     );
   }
@@ -639,12 +723,26 @@ const styles = StyleSheet.create({
     width: "100%",
   },
   emptyContainer: {
-    paddingVertical: 32,
     alignItems: "center",
+    justifyContent: "center",
   },
-  emptyText: {
-    color: "#6B7280",
-    fontSize: 14,
+  emptyTitle: {
+    marginTop: 22,
+    textAlign: "center",
+    fontWeight: "700",
+  },
+  emptySubtitle: {
+    marginTop: 14,
+    maxWidth: 280,
+    textAlign: "center",
+  },
+  emptyButton: {
+    marginTop: 36,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  emptyButtonText: {
+    fontWeight: "600",
   },
   card: {
     flexDirection: "row",

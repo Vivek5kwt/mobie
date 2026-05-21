@@ -11,6 +11,7 @@ import {
 import { Animated, InteractionManager, TouchableOpacity } from "react-native";
 import FontAwesome from "react-native-vector-icons/FontAwesome";
 import { useFocusEffect, useNavigation, useRoute } from "@react-navigation/native";
+import { useSelector } from "react-redux";
 import { SafeArea } from "../utils/SafeAreaHandler";
 import BottomNavigation, { BOTTOM_NAV_RESERVED_HEIGHT } from "../components/BottomNavigation";
 import SideNavigation, { getSideNavigationWidth } from "../components/SideNavigation";
@@ -30,6 +31,15 @@ import { getHomeSectionMarginBottom } from "../utils/sectionSpacing";
 
 // Slugs that should redirect to the Auth screen instead of rendering empty DSL content
 const SIGNIN_SLUGS = new Set(["signin", "sign-in", "login", "log-in", "auth"]);
+const CART_EMPTY_HIDDEN_COMPONENTS = new Set([
+  "free_shipping",
+  "free_shipping_banner",
+  "discount_code",
+  "discount_coupons",
+  "order_summary",
+  "price_line",
+  "checkout_button",
+]);
 
 // ── Default profile menu items shown when DSL has no account_menu sections ───
 const DEFAULT_PROFILE_MENU = [
@@ -141,6 +151,7 @@ export default function BottomNavScreen() {
   const route = useRoute();
   const navigation = useNavigation();
   const { session, logout, initializing } = useAuth();
+  const cartItems = useSelector((state) => state?.cart?.items || []);
   const isLoggedIn = isAuthenticatedSession(session);
   const title = route?.params?.title || "Page";
   const link = route?.params?.link || "";
@@ -185,6 +196,7 @@ export default function BottomNavScreen() {
   const isProtectedPage = isProfilePage || isWishlistPage || isOrdersPage;
   const isAutoRefreshPage = isCartPage || isNotificationPage || isProfilePage;
   const isHomePage = normalizedPageName === "home";
+  const isCartEmpty = cartItems.length === 0;
   const [dsl, setDsl] = useState(null);
   const [loading, setLoading] = useState(true);
   const [heavySectionsReady, setHeavySectionsReady] = useState(() => !isHomePage);
@@ -894,6 +906,9 @@ export default function BottomNavScreen() {
                   "recent_products",
                 ].includes(compName);
                 if (isHomePage && !heavySectionsReady && index > 3 && isHeavyHomeSection) {
+                  return null;
+                }
+                if (isCartPage && isCartEmpty && CART_EMPTY_HIDDEN_COMPONENTS.has(compName)) {
                   return null;
                 }
                 const homeSectionMarginBottom = isHomePage

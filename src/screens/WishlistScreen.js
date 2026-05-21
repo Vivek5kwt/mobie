@@ -39,6 +39,12 @@ const unwrap = (v, fallback) => {
 };
 const toStr = (v, fb = "")  => { const r = unwrap(v, fb); return (r === undefined || r === null) ? fb : String(r); };
 const toNum = (v, fb = 0)   => { const r = unwrap(v, fb); const n = parseFloat(r); return Number.isNaN(n) ? fb : n; };
+const toAlign = (value, fallback = "left") => {
+  const normalized = toStr(value, fallback).trim().toLowerCase();
+  if (normalized === "center") return "center";
+  if (normalized === "right" || normalized === "flex-end") return "right";
+  return "left";
+};
 
 const normalizeComp = (s) =>
   String(
@@ -133,9 +139,13 @@ export default function WishlistScreen() {
   const pb          = toNum(p?.pb,          12);
   const pl          = toNum(p?.pl,          12);
   const pr          = toNum(p?.pr,          12);
+  const outerPL     = toNum(p?.pl2 ?? p?.outerPl ?? p?.containerPl ?? p?.gridPl, pl);
+  const outerPR     = toNum(p?.pr2 ?? p?.outerPr ?? p?.containerPr ?? p?.gridPr, pr);
   const radius      = toNum(p?.radius,      12);
   const bgColor     = toStr(p?.bgColor,     "#FFFFFF");
   const borderColor = toStr(p?.borderColor, "#E5E7EB");
+  const borderSide  = toStr(p?.borderSide, "all").trim().toLowerCase();
+  const borderWidth = toNum(p?.borderWidth ?? p?.borderSize, borderSide === "none" ? 0 : 1);
   const imageRadius = toNum(p?.imageRadius, 8);
   const imageBgColor = toStr(
     p?.imageBg ??
@@ -178,15 +188,29 @@ export default function WishlistScreen() {
   const priceColor      = toStr(p?.priceColor,      "#16A34A");
   const priceFontSize   = toNum(p?.priceFontSize,   14);
   const priceFontWeight = toStr(p?.priceFontWeight, "500");
-  const priceAlign      = toStr(p?.priceAlign,      "left");
+  const priceAlign      = toAlign(p?.priceAlign,      "left");
+  const priceFontFamily = resolveFont(toStr(p?.priceFontFamily ?? p?.fontFamily, ""));
+  const countColor = toStr(p?.countColor ?? p?.labelColor ?? p?.titleColor, titleColor);
+  const countFontSize = toNum(p?.countFontSize ?? p?.labelFontSize, titleFontSize);
+  const countFontWeight = toStr(p?.countFontWeight ?? p?.labelFontWeight, titleFontWeight);
+  const countFontFamily = resolveFont(toStr(p?.countFontFamily ?? p?.labelFontFamily ?? p?.titleFontFamily ?? p?.fontFamily, ""));
 
   const strikeColor           = toStr(p?.strikeColor,           "#9CA3AF");
   const strikeFontSize        = toNum(p?.strikeFontSize,        12);
   const strikepriceFontWeight = toStr(p?.strikepriceFontWeight, "400");
 
   // ── Layout math ───────────────────────────────────────────────────────────
-  const GAP   = 12;
-  const cardW = (SCREEN_W - pl - pr - GAP) / 2;
+  const columns = Math.max(1, Math.floor(toNum(p?.columns ?? p?.itemsPerRow, 2)));
+  const gridGap = toNum(
+    p?.gap ?? p?.gridGap ?? p?.itemGap ?? p?.columnGap,
+    Math.max(0, Math.round((outerPL + outerPR) / 3))
+  );
+  const rowGap = toNum(p?.rowGap ?? p?.verticalGap, gridGap);
+  const contentGap = toNum(p?.contentGap ?? p?.textGap, Math.max(0, Math.round(gridGap / 3)));
+  const countMarginBottom = toNum(p?.countMarginBottom ?? p?.labelMarginBottom, gridGap);
+  const titleLineHeight = toNum(p?.titleLineHeight, Math.ceil(titleFontSize * 1.35));
+  const priceLineHeight = toNum(p?.priceLineHeight, Math.ceil(priceFontSize * 1.25));
+  const cardW = (SCREEN_W - outerPL - outerPR - gridGap * (columns - 1)) / columns;
   const imgH  = cardW * imageAspect;
 
   // ── Single product card ───────────────────────────────────────────────────
@@ -194,7 +218,13 @@ export default function WishlistScreen() {
     <TouchableOpacity
       style={[
         styles.card,
-        { width: cardW, borderRadius: radius, backgroundColor: bgColor, borderColor },
+        {
+          width: cardW,
+          borderRadius: radius,
+          backgroundColor: bgColor,
+          borderColor,
+          borderWidth,
+        },
       ]}
       activeOpacity={0.88}
       onPress={() => navigation.navigate("ProductDetail", { product: item })}
@@ -238,21 +268,55 @@ export default function WishlistScreen() {
         />
       </View>
 
-      <View style={styles.cardBody}>
+      <View
+        style={[
+          styles.cardBody,
+          {
+            paddingTop: pt,
+            paddingBottom: pb,
+            paddingLeft: pl,
+            paddingRight: pr,
+            gap: contentGap,
+          },
+        ]}
+      >
         <Text
           numberOfLines={2}
           style={{
             fontSize:   titleFontSize,
             fontWeight: titleFontWeight,
             color:      titleColor,
+            lineHeight:  titleLineHeight,
             ...(titleFontFamily ? { fontFamily: titleFontFamily } : null),
           }}
         >
           {item.title}
         </Text>
 
-        <View style={styles.priceRow}>
-          <Text style={{ color: priceColor, fontSize: priceFontSize, fontWeight: priceFontWeight, textAlign: priceAlign }}>
+        <View
+          style={[
+            styles.priceRow,
+            {
+              justifyContent:
+                priceAlign === "center"
+                  ? "center"
+                  : priceAlign === "right"
+                    ? "flex-end"
+                    : "flex-start",
+              gap: contentGap,
+            },
+          ]}
+        >
+          <Text
+            style={{
+              color: priceColor,
+              fontSize: priceFontSize,
+              fontWeight: priceFontWeight,
+              lineHeight: priceLineHeight,
+              textAlign: priceAlign,
+              ...(priceFontFamily ? { fontFamily: priceFontFamily } : null),
+            }}
+          >
             {formatMoney(item.price, item.currency || item.priceCurrency || item.currencySymbol)}
           </Text>
           {!!item.compareAtPrice && parseFloat(item.compareAtPrice) > parseFloat(item.price || 0) && (
@@ -262,7 +326,7 @@ export default function WishlistScreen() {
                 fontSize:           strikeFontSize,
                 fontWeight:         strikepriceFontWeight,
                 textDecorationLine: "line-through",
-                marginLeft:         6,
+                lineHeight:         priceLineHeight,
               }}
             >
               {formatMoney(item.compareAtPrice, item.currency || item.priceCurrency || item.currencySymbol)}
@@ -272,9 +336,10 @@ export default function WishlistScreen() {
       </View>
     </TouchableOpacity>
   ), [
-    cardW, radius, bgColor, borderColor, imgH, imageRadius, imageResizeMode,
+    cardW, radius, bgColor, borderColor, borderWidth, imgH, imageRadius, imageResizeMode,
     favoriteToggleConfig, titleFontSize, titleFontWeight, titleColor, titleFontFamily,
-    priceColor, priceFontSize, priceFontWeight, priceAlign,
+    titleLineHeight, priceColor, priceFontSize, priceFontWeight, priceAlign, priceFontFamily,
+    priceLineHeight, pt, pb, pl, pr, contentGap,
     strikeColor, strikeFontSize, strikepriceFontWeight,
     dispatch, navigation,
   ]);
@@ -318,11 +383,22 @@ export default function WishlistScreen() {
             </View>
           ) : (
             /* ── Product grid ────────────────────────────────────────────── */
-            <View style={{ paddingTop: pt, paddingBottom: pb + 24, paddingLeft: pl, paddingRight: pr }}>
-              <Text style={styles.countLabel}>
+            <View style={{ paddingTop: pt, paddingBottom: pb + rowGap, paddingLeft: outerPL, paddingRight: outerPR }}>
+              <Text
+                style={[
+                  styles.countLabel,
+                  {
+                    color: countColor,
+                    fontSize: countFontSize,
+                    fontWeight: countFontWeight,
+                    marginBottom: countMarginBottom,
+                    ...(countFontFamily ? { fontFamily: countFontFamily } : null),
+                  },
+                ]}
+              >
                 {wishlistItems.length} {wishlistItems.length === 1 ? "item" : "items"} saved
               </Text>
-              <View style={styles.gridRow}>
+              <View style={[styles.gridRow, { columnGap: gridGap, rowGap }]}>
                 {wishlistItems.map((item, idx) => (
                   <React.Fragment key={String(item.id ?? idx)}>
                     {renderCard(item)}
@@ -353,7 +429,6 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   card: {
-    borderWidth: 1,
     overflow:    "hidden",
   },
   imgPlaceholder: {
@@ -368,8 +443,6 @@ const styles = StyleSheet.create({
     color:      "#9CA3AF",
   },
   cardBody: {
-    padding: 10,
-    gap:     4,
   },
   priceRow: {
     flexDirection: "row",
@@ -377,15 +450,10 @@ const styles = StyleSheet.create({
     flexWrap:      "wrap",
   },
   countLabel: {
-    fontSize:     13,
-    color:        "#6B7280",
-    marginBottom: 12,
-    fontWeight:   "500",
   },
   gridRow: {
     flexDirection: "row",
     flexWrap:      "wrap",
-    gap:           12,
   },
   emptyWrap: {
     flex:              1,
