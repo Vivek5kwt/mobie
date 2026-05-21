@@ -442,17 +442,25 @@ export default function HeroBanner({ section }) {
     rawProps?.imageResizeMode,
     "Cover"
   ).toLowerCase();
-  // Read image corner radius from imageAttributes OR top-level DSL aliases
-  const imageCornerRadius = toNumber(
-    imageAttributes?.imageCorner ??
-    imageAttributes?.cornerRadius ??
-    imageAttributes?.borderRadius ??
-    rawProps?.imageCorner ??
-    rawProps?.imageCornerRadius ??
-    rawProps?.imageRadius ??
+  // Read image corner radius from the Builder image controls first. This must
+  // win over older container/style snapshots, especially when Builder sends 0.
+  const explicitImageCornerRadius = pickNumber(
+    imageAttributes?.imageCorner,
+    imageAttributes?.cornerRadius,
+    imageAttributes?.borderRadius,
+    rawProps?.imageCorner,
+    rawProps?.imageCornerRadius,
+    rawProps?.imageRadius,
     rawProps?.imageRoundedCorner,
-    0
+    flatPropsNode?.imageCorner,
+    flatPropsNode?.imageCornerRadius,
+    flatPropsNode?.imageRadius,
+    flatPropsNode?.imageRoundedCorner
   );
+  const imageCornerRadius =
+    explicitImageCornerRadius !== undefined
+      ? explicitImageCornerRadius
+      : toNumber(layoutCss?.image?.borderRadius, 0);
   
   // Parse image ratio
   const parseImageRatio = (value) => {
@@ -1044,20 +1052,21 @@ export default function HeroBanner({ section }) {
     toString(rawProps?.containerBgGradiantColor, "") ||
     toString(flatPropsNode?.containerBgGradiantColor, "");
   // Container border radius — fully DSL-driven, defaults to 0 (sharp corners).
-  // Priority: style prop > raw prop aliases > layout CSS > CSS post-convert > 0
+  // Priority: explicit container/image controls > legacy style aliases > CSS snapshot > 0.
   // _cBrFromCss is stripped from containerStyle above so it cannot override this value later.
+  const explicitContainerBorderRadius = pickNumber(
+    rawProps?.containerBorderRadius,
+    flatPropsNode?.containerBorderRadius,
+    rawProps?.containerRadius,
+    flatPropsNode?.containerRadius,
+    rawProps?.cornerRadius,
+    flatPropsNode?.cornerRadius
+  );
   const containerBorderRadius = (() => {
-    const fromStyle = toNumber(styleProps?.borderRadius, undefined);
+    if (explicitContainerBorderRadius !== undefined) return explicitContainerBorderRadius;
+    if (explicitImageCornerRadius !== undefined) return explicitImageCornerRadius;
+    const fromStyle = pickNumber(styleProps?.borderRadius, rawProps?.borderRadius, flatPropsNode?.borderRadius);
     if (fromStyle !== undefined) return fromStyle;
-    const fromRaw = toNumber(
-      rawProps?.containerRadius ??
-      rawProps?.cornerRadius ??
-      rawProps?.borderRadius,
-      undefined
-    );
-    if (fromRaw !== undefined) return fromRaw;
-    // imageCornerRadius drives the container clip when no explicit container radius is set
-    if (imageCornerRadius > 0) return imageCornerRadius;
     const fromCss = toNumber(layoutCss?.container?.borderRadius, undefined);
     if (fromCss !== undefined) return fromCss;
     if (_cBrFromCss !== undefined && _cBrFromCss !== null) {
@@ -1070,7 +1079,10 @@ export default function HeroBanner({ section }) {
   const outerBgColor = toString(rawProps?.containerBgColor, "transparent");
   const outerBorderColor = toString(rawProps?.containerBorderColor, "transparent");
   const outerBorderSide = toString(rawProps?.containerBorderSide, "none").toLowerCase();
-  const outerBorderRadius = toNumber(rawProps?.containerBorderRadius, containerBorderRadius);
+  const outerBorderRadius =
+    explicitContainerBorderRadius !== undefined
+      ? explicitContainerBorderRadius
+      : containerBorderRadius;
 
   const outerBorderStyle =
     outerBorderSide === "none"
@@ -1188,6 +1200,7 @@ export default function HeroBanner({ section }) {
           source={{ uri: imageSrc }}
           style={[
             imageCssStyle,
+            { borderRadius: imageCornerRadius },
             styles.image, // base style last so position/top/left/right/bottom always win
           ]}
           resizeMode={resizeMode}

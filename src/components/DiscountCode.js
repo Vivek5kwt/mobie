@@ -43,6 +43,14 @@ const toString = (value, fallback = "") => {
   return String(resolved);
 };
 
+const firstDefined = (...values) => {
+  for (const value of values) {
+    const resolved = unwrapValue(value, undefined);
+    if (resolved !== undefined && resolved !== null && resolved !== "") return value;
+  }
+  return undefined;
+};
+
 const cleanFontFamily = (family) => resolveFont(family) || "";
 
 const toBoolean = (value, fallback = false) => {
@@ -66,6 +74,15 @@ const toFontWeight = (value, fallback = "400") => {
   if (w === "regular" || w === "normal") return "400";
   if (/^\d+$/.test(w)) return w;
   return fallback;
+};
+
+const borderWidthFromLine = (value, fallback = 0) => {
+  const line = toString(value, "").trim().toLowerCase();
+  if (!line) return fallback;
+  if (line === "none" || line === "hidden") return 0;
+  const parsed = parseFloat(line);
+  if (Number.isFinite(parsed)) return parsed;
+  return 1;
 };
 
 export default function DiscountCode({ section }) {
@@ -117,12 +134,52 @@ export default function DiscountCode({ section }) {
 
   // Apply button
   const applyText = toString(raw?.applyButtonText ?? raw?.applyText ?? raw?.buttonText ?? raw?.btnText, "Apply");
-  const applyBg = toString(raw?.applyBg ?? raw?.buttonBg ?? raw?.btnBg, "#111827");
-  const applyTextColor = toString(raw?.applyTextColor ?? raw?.buttonTextColor, "#FFFFFF");
-  const applyBorderRadius = toNumber(raw?.applyBorderRadius ?? raw?.btnRadius, 8);
-  const applyFontSize = toNumber(raw?.applyFontSize ?? raw?.buttonFontSize, 14);
-  const applyFontWeight = toFontWeight(raw?.applyFontWeight ?? raw?.buttonFontWeight, "600");
+  const applyBg = toString(
+    firstDefined(
+      raw?.applyBgColor,
+      raw?.applyBackgroundColor,
+      raw?.buttonBgColor,
+      raw?.buttonBackgroundColor,
+      raw?.buttonFillColor,
+      raw?.applyBg,
+      raw?.buttonBg,
+      raw?.btnBg
+    ),
+    undefined
+  );
+  const applyTextColor = toString(
+    firstDefined(raw?.applyTextColor, raw?.buttonTextColor, raw?.buttonColor),
+    undefined
+  );
+  const applyBorderColor = toString(
+    firstDefined(raw?.applyBorderColor, raw?.buttonBorderColor, raw?.borderColor),
+    undefined
+  );
+  const applyBorderWidth = borderWidthFromLine(
+    firstDefined(raw?.applyBorderLine, raw?.buttonBorderLine, raw?.borderLine),
+    applyBorderColor ? 1 : 0
+  );
+  const applyBorderRadius = toNumber(
+    firstDefined(raw?.applyBorderRadius, raw?.buttonRadius, raw?.buttonBorderRadius, raw?.btnRadius),
+    8
+  );
+  const applyFontSize = toNumber(
+    firstDefined(raw?.applyFontSize, raw?.buttonTextSize, raw?.buttonTextFontSize, raw?.buttonFontSize),
+    14
+  );
+  const applyFontWeight = toFontWeight(
+    firstDefined(raw?.applyFontWeight, raw?.buttonTextFontWeight, raw?.buttonFontWeight),
+    "600"
+  );
   const applyHeight = toNumber(raw?.buttonHeight ?? raw?.applyHeight, 44);
+  const applyPadL = toNumber(
+    firstDefined(raw?.applyPadL, raw?.applyPaddingLeft, raw?.buttonPaddingLeft, raw?.buttonPadL, raw?.buttonPaddingX, raw?.buttonPadX),
+    Math.round(applyHeight * 0.4)
+  );
+  const applyPadR = toNumber(
+    firstDefined(raw?.applyPadR, raw?.applyPaddingRight, raw?.buttonPaddingRight, raw?.buttonPadR, raw?.buttonPaddingX, raw?.buttonPadX),
+    Math.round(applyHeight * 0.4)
+  );
 
   // Applied code chips
   const chipBg = toString(raw?.chipBg ?? raw?.codeBg, "#F3F4F6");
@@ -134,8 +191,8 @@ export default function DiscountCode({ section }) {
 
   // Font families
   const titleFontFamily = cleanFontFamily(toString(raw?.titleFontFamily ?? raw?.fontFamily, ""));
-  const inputFontFamily = cleanFontFamily(toString(raw?.inputFontFamily ?? raw?.fontFamily, ""));
-  const applyFontFamily = cleanFontFamily(toString(raw?.applyFontFamily ?? raw?.buttonFontFamily ?? raw?.fontFamily, ""));
+  const inputFontFamily = cleanFontFamily(toString(raw?.inputTextFontFamily ?? raw?.inputFontFamily ?? raw?.fontFamily, ""));
+  const applyFontFamily = cleanFontFamily(toString(raw?.applyFontFamily ?? raw?.buttonTextFontFamily ?? raw?.buttonFontFamily ?? raw?.fontFamily, ""));
   const chipFontFamily  = cleanFontFamily(toString(raw?.chipFontFamily ?? raw?.fontFamily, ""));
   const successColor = toString(raw?.successColor ?? raw?.validMessageColor, "#047857");
   const errorColor = toString(raw?.errorColor ?? raw?.invalidMessageColor, "#DC2626");
@@ -269,8 +326,12 @@ export default function DiscountCode({ section }) {
             styles.applyButton,
             {
               backgroundColor: applyBg,
+              borderColor: applyBorderColor,
+              borderWidth: applyBorderWidth,
               borderRadius: applyBorderRadius,
               height: applyHeight,
+              paddingLeft: applyPadL,
+              paddingRight: applyPadR,
               opacity: validating ? 0.75 : 1,
             },
           ]}

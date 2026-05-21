@@ -1,93 +1,192 @@
-import React from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
+  RefreshControl,
+  ScrollView,
   StyleSheet,
   Text,
   TouchableOpacity,
   View,
 } from "react-native";
-import { useNavigation } from "@react-navigation/native";
+import { useNavigation, useRoute } from "@react-navigation/native";
 import FontAwesome from "react-native-vector-icons/FontAwesome";
 import { SafeArea } from "../utils/SafeAreaHandler";
-import Header from "../components/Topheader";
+import { useAuth } from "../services/AuthContext";
+import { resolveAppId } from "../utils/appId";
+import { fetchDSL } from "../engine/dslHandler";
+import { shouldRenderSectionOnMobile } from "../engine/visibility";
+import DynamicRenderer from "../engine/DynamicRenderer";
+import HeaderDefault from "../components/HeaderDefault";
+import SkeletonLoader from "../components/SkeletonLoader";
 
-const SETTINGS_ITEMS = [
-  {
-    id: "faq-testimonials",
-    label: "FAQ & Testimonials",
-    icon: "question-circle",
-    description: "Frequently asked questions & customer reviews",
-    pageName: "faq-testimonials",
-  },
-  {
-    id: "about-us",
-    label: "About Us",
-    icon: "info-circle",
-    description: "Learn more about our brand and story",
-    pageName: "about-us",
-  },
-];
+const normalizeSlug = (value = "") =>
+  String(value || "")
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+
+const getComponentName = (section) =>
+  section?.component?.const ||
+  section?.component ||
+  section?.properties?.component?.const ||
+  section?.properties?.component ||
+  "";
+
+const hasRenderableSections = (dsl) => Array.isArray(dsl?.sections) && dsl.sections.length > 0;
+
+const isHeaderDefaultEnabled = (config) => {
+  if (!config) return false;
+  const raw = config?.enabled;
+  const value = raw && typeof raw === "object" ? (raw.value ?? raw.const ?? raw) : raw;
+  return value === true || value === "true" || value === 1;
+};
 
 export default function SettingsScreen() {
   const navigation = useNavigation();
+  const route = useRoute();
+  const { session } = useAuth();
+  const appId = useMemo(
+    () => resolveAppId(route?.params?.appId ?? session?.user?.appId ?? session?.user?.app_id),
+    [route?.params?.appId, session?.user?.appId, session?.user?.app_id]
+  );
 
-  const handleItemPress = (item) => {
-    navigation.navigate("BottomNavScreen", {
-      pageName: item.pageName,
-      title: item.label,
-      hideBottomNav: true,
-    });
-  };
+  const routePageName = route?.params?.pageName || route?.params?.link || "settings";
+  const routeTitle = route?.params?.title || "Settings";
+
+  const [dsl, setDsl] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [error, setError] = useState("");
+
+  const pageCandidates = useMemo(() => {
+    const names = [routePageName, "settings", "my-account"];
+    const seen = new Set();
+    return names
+      .map(normalizeSlug)
+      .filter((name) => {
+        if (!name || seen.has(name)) return false;
+        seen.add(name);
+        return true;
+      });
+  }, [routePageName]);
+
+  const loadSettingsDsl = useCallback(
+    async ({ asRefresh = false } = {}) => {
+      if (asRefresh) {
+        setRefreshing(true);
+      } else {
+        setLoading(true);
+      }
+      setError("");
+
+      try {
+        let selected = null;
+        for (const pageName of pageCandidates) {
+          const result = await fetchDSL(appId, pageName);
+          if (hasRenderableSections(result?.dsl)) {
+            selected = result.dsl;
+            break;
+          }
+        }
+        setDsl(selected || { sections: [] });
+      } catch (err) {
+        setError(err?.message || "Unable to load settings.");
+        setDsl({ sections: [] });
+      } finally {
+        setLoading(false);
+        setRefreshing(false);
+      }
+    },
+    [appId, pageCandidates]
+  );
+
+  useEffect(() => {
+    loadSettingsDsl();
+  }, [loadSettingsDsl]);
+
+  const headerDefaultConfig = dsl?.headerdefault || null;
+  const useHeaderDefault = isHeaderDefaultEnabled(headerDefaultConfig);
+
+  const visibleSections = useMemo(
+    () =>
+      (dsl?.sections || [])
+        .filter(Boolean)
+        .filter(shouldRenderSectionOnMobile)
+        .filter((section) => {
+          const component = getComponentName(section).toLowerCase();
+          if (["bottom_navigation", "bottom_navigation_style_1", "bottom_navigation_style_2", "side_navigation"].includes(component)) {
+            return false;
+          }
+          if (useHeaderDefault && (component === "header" || component === "header_mobile")) {
+            return false;
+          }
+          return true;
+        }),
+    [dsl, useHeaderDefault]
+  );
+
+  const pageTitle = dsl?.page?.name || dsl?.page?.handle || routeTitle;
 
   return (
-    <SafeArea>
+    <SafeArea edges={["top", "left", "right"]}>
       <View style={styles.container}>
-        <Header showBack={false} />
-
-        {/* Page header row */}
-        <View style={styles.pageHeader}>
-          <TouchableOpacity
-            onPress={() => navigation.goBack()}
-            style={styles.backBtn}
-            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+        {loading ? (
+          <SkeletonLoader />
+        ) : (
+          <ScrollView
+            style={styles.scrollView}
+            contentContainerStyle={styles.scrollContent}
+            showsVerticalScrollIndicator
+            keyboardShouldPersistTaps="handled"
+            refreshControl={
+              <RefreshControl refreshing={refreshing} onRefresh={() => loadSettingsDsl({ asRefresh: true })} />
+            }
           >
-            <FontAwesome name="angle-left" size={24} color="#111827" />
-          </TouchableOpacity>
-          <Text style={styles.pageTitle}>Settings</Text>
-        </View>
-
-        {/* Options list */}
-        <View style={styles.section}>
-          <Text style={styles.sectionLabel}>MORE</Text>
-          {SETTINGS_ITEMS.map((item, index) => (
-            <TouchableOpacity
-              key={item.id}
-              style={[
-                styles.row,
-                index < SETTINGS_ITEMS.length - 1 && styles.rowBorder,
-              ]}
-              onPress={() => handleItemPress(item)}
-              activeOpacity={0.7}
-            >
-              {/* Left icon */}
-              <View style={styles.iconWrap}>
-                <FontAwesome name={item.icon} size={20} color="#0D9488" />
+            {useHeaderDefault ? (
+              <HeaderDefault config={headerDefaultConfig} hideTabs />
+            ) : (
+              <View style={styles.fallbackHeader}>
+                <TouchableOpacity
+                  onPress={() => (navigation.canGoBack() ? navigation.goBack() : navigation.navigate("BottomNavScreen", { pageName: "my-account", title: "My Account" }))}
+                  style={styles.fallbackBack}
+                  activeOpacity={0.7}
+                  hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                >
+                  <FontAwesome name="angle-left" size={24} color="#111827" />
+                </TouchableOpacity>
+                <Text style={styles.fallbackTitle} numberOfLines={1}>
+                  {pageTitle}
+                </Text>
+                <View style={styles.fallbackBack} />
               </View>
+            )}
 
-              {/* Label + description */}
-              <View style={styles.rowText}>
-                <Text style={styles.rowLabel}>{item.label}</Text>
-                {!!item.description && (
-                  <Text style={styles.rowDesc} numberOfLines={1}>
-                    {item.description}
-                  </Text>
-                )}
+            {visibleSections.length ? (
+              visibleSections.map((section, index) => {
+                const component = getComponentName(section).toLowerCase();
+                const isAccountSection = [
+                  "account_profile",
+                  "account_menu",
+                  "profile_header",
+                  "account_profile_header",
+                  "text_block",
+                ].includes(component);
+                return (
+                  <View
+                    key={`${component || "section"}-${index}`}
+                    style={[styles.sectionWrapper, isAccountSection && styles.sectionWrapperTight]}
+                  >
+                    <DynamicRenderer section={section} />
+                  </View>
+                );
+              })
+            ) : (
+              <View style={styles.emptyState}>
+                <Text style={styles.emptyTitle}>{error || "No settings available yet."}</Text>
               </View>
-
-              {/* Chevron */}
-              <FontAwesome name="angle-right" size={18} color="#9CA3AF" />
-            </TouchableOpacity>
-          ))}
-        </View>
+            )}
+          </ScrollView>
+        )}
       </View>
     </SafeArea>
   );
@@ -96,81 +195,50 @@ export default function SettingsScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#F5F5F5",
+    backgroundColor: "#ffffff",
   },
-
-  // ── Page header ────────────────────────────────────────────────────────────
-  pageHeader: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: "#FFFFFF",
-    paddingHorizontal: 16,
-    paddingVertical: 14,
+  scrollView: {
+    flex: 1,
+    backgroundColor: "#ffffff",
+  },
+  scrollContent: {
+    paddingBottom: 24,
+  },
+  sectionWrapper: {
+    width: "100%",
+  },
+  sectionWrapperTight: {
+    marginBottom: 0,
+  },
+  fallbackHeader: {
+    minHeight: 58,
+    paddingHorizontal: 18,
+    paddingVertical: 7,
     borderBottomWidth: 1,
     borderBottomColor: "#E5E7EB",
-    gap: 12,
-  },
-  backBtn: {
-    paddingRight: 4,
-  },
-  pageTitle: {
-    fontSize: 18,
-    fontWeight: "700",
-    color: "#111827",
-  },
-
-  // ── Section ────────────────────────────────────────────────────────────────
-  section: {
-    marginTop: 24,
-    marginHorizontal: 16,
-    backgroundColor: "#FFFFFF",
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: "#E5E7EB",
-    overflow: "hidden",
-  },
-  sectionLabel: {
-    fontSize: 11,
-    fontWeight: "600",
-    color: "#6B7280",
-    letterSpacing: 0.8,
-    paddingHorizontal: 16,
-    paddingTop: 14,
-    paddingBottom: 8,
-  },
-
-  // ── Row ────────────────────────────────────────────────────────────────────
-  row: {
+    backgroundColor: "#ffffff",
     flexDirection: "row",
     alignItems: "center",
-    paddingHorizontal: 16,
-    paddingVertical: 14,
-    gap: 14,
+    justifyContent: "space-between",
   },
-  rowBorder: {
-    borderBottomWidth: 1,
-    borderBottomColor: "#F3F4F6",
-  },
-  iconWrap: {
-    width: 36,
-    height: 36,
-    borderRadius: 10,
-    backgroundColor: "#CCFBF1",
+  fallbackBack: {
+    width: 44,
+    height: 44,
     alignItems: "center",
     justifyContent: "center",
-    flexShrink: 0,
   },
-  rowText: {
+  fallbackTitle: {
     flex: 1,
-  },
-  rowLabel: {
-    fontSize: 15,
-    fontWeight: "600",
+    textAlign: "center",
     color: "#111827",
+    fontSize: 18,
+    fontWeight: "700",
   },
-  rowDesc: {
-    fontSize: 12,
-    color: "#6B7280",
-    marginTop: 2,
+  emptyState: {
+    padding: 24,
+  },
+  emptyTitle: {
+    color: "#4B5563",
+    fontSize: 14,
   },
 });

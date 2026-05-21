@@ -366,7 +366,6 @@ export default function BottomNavScreen() {
     "order_summary",
     "checkout_button",
     "account_profile",
-    "account_menu",
     "profile_header",
     "account_profile_header",
     "sign_up",
@@ -870,6 +869,7 @@ export default function BottomNavScreen() {
             {visibleSections.length ? (
               visibleSections.map((section, index) => {
                 const compName = getComponentName(section).toLowerCase();
+                const isBannerSection = compName === "banner_slider" || compName === "hero_banner";
                 const isProductSection = [
                   "product_grid", "product_carousel",
                   "tab_product_grid", "tab_product_carousel",
@@ -896,6 +896,7 @@ export default function BottomNavScreen() {
                       styles.sectionWrapper,
                       isSearchPage && styles.sectionWrapperTight,
                       isAccountDslPage && styles.sectionWrapperTight,
+                      isBannerSection && styles.sectionWrapperBanner,
                       isProductSection && !isSearchPage && styles.sectionWrapperProduct,
                     ]}
                   >
@@ -1034,6 +1035,13 @@ const styles = StyleSheet.create({
   },
   sectionWrapperTight: {
     marginBottom: 0,
+  },
+  sectionWrapperBanner: {
+    marginTop: 0,
+    marginBottom: 0,
+    paddingTop: 0,
+    paddingBottom: 0,
+    backgroundColor: "transparent",
   },
   sideMenuOverlay: {
     backgroundColor: "rgba(0,0,0,0.3)",

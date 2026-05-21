@@ -375,7 +375,7 @@ export default function ProductCarousel({ section }) {
     raw?.viewAllIconSelection,
     raw?.viewAll?.icon,
     raw?.iconSelection
-  ) || "fa-chevron-right";
+  );
   const viewAllIconSize = toNumber(raw?.viewAllIconSize, 14);
   const viewAllIconColor = toString(raw?.viewAllIconColor, "#000000");
 

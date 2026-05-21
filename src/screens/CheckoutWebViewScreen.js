@@ -240,6 +240,152 @@ const isCheckoutAccountLoginUrl = (url = "") => {
   );
 };
 
+const isCheckoutCartPageUrl = (url = "") => {
+  const raw = String(url || "").trim();
+  if (!raw || /^(about:blank|data:|javascript:)/i.test(raw)) return false;
+  try {
+    const parsed = new URL(raw);
+    return /^\/cart\/?$/i.test(parsed.pathname);
+  } catch (_) {
+    return /(^|https?:\/\/[^/]+)\/cart\/?([?#]|$)/i.test(raw);
+  }
+};
+
+const HIDE_CHECKOUT_CART_JS = `
+(function() {
+  if (window.__MOBIDRAG_CHECKOUT_CART_GUARD__) {
+    try { window.__MOBIDRAG_CHECKOUT_CART_GUARD__.apply(); } catch(e) {}
+    return true;
+  }
+
+  function normalise(value) {
+    return String(value || '').replace(/\\s+/g, ' ').trim();
+  }
+
+  function postBlocked(reason, href) {
+    try {
+      window.ReactNativeWebView && window.ReactNativeWebView.postMessage(
+        JSON.stringify({
+          type: 'MOBIDRAG_CHECKOUT_CART_SUPPRESSED',
+          reason: reason || '',
+          href: href || window.location.href
+        })
+      );
+    } catch(e) {}
+  }
+
+  function isCartPageHref(href) {
+    var raw = normalise(href);
+    if (!raw || /^(#|javascript:|mailto:|tel:)/i.test(raw)) return false;
+    try {
+      var url = new URL(raw, window.location.href);
+      return /^\\/cart\\/?$/i.test(url.pathname);
+    } catch(e) {
+      return /(^|https?:\\/\\/[^/]+)\\/cart\\/?([?#]|$)/i.test(raw);
+    }
+  }
+
+  function isCheckoutHeaderControl(node) {
+    if (!node || !node.closest) return false;
+    if (node.closest('header, [role="banner"], [class*="header"], [class*="Header"], [data-testid*="header"], [data-testid*="Header"], .banner, [class*="banner"], [class*="Banner"]')) {
+      return true;
+    }
+    try {
+      var rect = node.getBoundingClientRect && node.getBoundingClientRect();
+      var viewportWidth = window.innerWidth || document.documentElement.clientWidth || 0;
+      var headerLimit = Math.max(96, Math.min(220, (window.innerHeight || 0) * 0.22 || 160));
+      return !!rect &&
+        rect.top >= -4 &&
+        rect.top <= headerLimit &&
+        rect.left >= viewportWidth * 0.55 &&
+        rect.width <= 120 &&
+        rect.height <= 120;
+    } catch(e) {
+      return false;
+    }
+  }
+
+  function looksLikeCartControl(node) {
+    if (!node) return false;
+    var href = normalise(node.getAttribute && node.getAttribute('href'));
+    var action = normalise(node.getAttribute && node.getAttribute('action'));
+    var aria = normalise(node.getAttribute && node.getAttribute('aria-label')).toLowerCase();
+    var title = normalise(node.getAttribute && node.getAttribute('title')).toLowerCase();
+    var data = normalise(node.getAttribute && node.getAttribute('data-testid')).toLowerCase();
+    var classes = normalise(node.className && node.className.baseVal ? node.className.baseVal : node.className).toLowerCase();
+    var id = normalise(node.id).toLowerCase();
+    var label = [aria, title, data, classes, id].join(' ');
+    var cartTarget = isCartPageHref(href) || isCartPageHref(action);
+    var cartLabel = /\\b(cart|bag|basket)\\b/.test(label);
+    return (cartTarget || cartLabel) && isCheckoutHeaderControl(node);
+  }
+
+  function hideNode(node) {
+    if (!node || node.getAttribute('data-mobidrag-checkout-cart-hidden') === 'true') return;
+    try {
+      node.setAttribute('data-mobidrag-checkout-cart-hidden', 'true');
+      node.setAttribute('aria-hidden', 'true');
+      node.style.setProperty('display', 'none', 'important');
+      node.style.setProperty('visibility', 'hidden', 'important');
+      node.style.setProperty('pointer-events', 'none', 'important');
+    } catch(e) {}
+  }
+
+  function ensureStyle() {
+    try {
+      if (document.getElementById('mobidrag-checkout-cart-hide-style')) return;
+      var style = document.createElement('style');
+      style.id = 'mobidrag-checkout-cart-hide-style';
+      style.textContent = [
+        'header a[href="/cart"], header a[href^="/cart?"], header a[href$="/cart"] { display: none !important; visibility: hidden !important; pointer-events: none !important; }',
+        '[role="banner"] a[href="/cart"], [role="banner"] a[href^="/cart?"], [role="banner"] a[href$="/cart"] { display: none !important; visibility: hidden !important; pointer-events: none !important; }'
+      ].join('\\n');
+      (document.head || document.documentElement).appendChild(style);
+    } catch(e) {}
+  }
+
+  function applyCheckoutCartGuard() {
+    ensureStyle();
+    try {
+      var nodes = document.querySelectorAll('a[href], button, [role="button"], form[action]');
+      for (var i = 0; i < nodes.length; i += 1) {
+        if (looksLikeCartControl(nodes[i])) hideNode(nodes[i]);
+      }
+    } catch(e) {}
+  }
+
+  function interceptClick(event) {
+    try {
+      var target = event.target && event.target.closest && event.target.closest('a[href], button, [role="button"], form[action]');
+      if (!looksLikeCartControl(target)) return;
+      event.preventDefault();
+      event.stopPropagation();
+      event.stopImmediatePropagation && event.stopImmediatePropagation();
+      postBlocked('checkout-header-cart-click', target.getAttribute('href') || target.getAttribute('action') || '');
+    } catch(e) {}
+  }
+
+  window.__MOBIDRAG_CHECKOUT_CART_GUARD__ = { apply: applyCheckoutCartGuard };
+  document.addEventListener('click', interceptClick, true);
+  applyCheckoutCartGuard();
+  setTimeout(applyCheckoutCartGuard, 250);
+  setTimeout(applyCheckoutCartGuard, 1000);
+  setTimeout(applyCheckoutCartGuard, 2500);
+
+  try {
+    var observer = new MutationObserver(applyCheckoutCartGuard);
+    observer.observe(document.documentElement, {
+      childList: true,
+      subtree: true,
+      attributes: true,
+      attributeFilter: ['href', 'action', 'aria-label', 'class', 'data-testid']
+    });
+  } catch(e) {}
+
+  true;
+})();
+`;
+
 const buildCheckoutSessionJs = ({ isLoggedIn, customerName, customerEmail }) => {
   if (!isLoggedIn) return "";
   const displayValue = customerName || customerEmail || "";
@@ -346,9 +492,13 @@ export default function CheckoutWebViewScreen() {
     }),
     [checkoutCustomerEmail, checkoutCustomerName, checkoutIsLoggedIn]
   );
-  const injectedCheckoutJs = useMemo(
-    () => `${checkoutSessionJs}\n${DETECT_ORDER_JS}\ntrue;`,
+  const checkoutBeforeContentJs = useMemo(
+    () => `${checkoutSessionJs}\n${HIDE_CHECKOUT_CART_JS}\ntrue;`,
     [checkoutSessionJs]
+  );
+  const injectedCheckoutJs = useMemo(
+    () => `${checkoutBeforeContentJs}\n${DETECT_ORDER_JS}\ntrue;`,
+    [checkoutBeforeContentJs]
   );
 
   useEffect(() => {
@@ -471,6 +621,13 @@ export default function CheckoutWebViewScreen() {
     (event) => {
       try {
         const data = JSON.parse(event.nativeEvent.data);
+        if (data?.type === "MOBIDRAG_CHECKOUT_CART_SUPPRESSED") {
+          console.log(`${CHECKOUT_WEBVIEW_LOG} blocked checkout cart control`, {
+            reason: data.reason || "",
+            href: data.href || "",
+          });
+          return;
+        }
         if (data?.type === "SHOPIFY_ORDER_COMPLETE") {
           handleOrderComplete(data.url || checkoutUrl || "");
         }
@@ -521,6 +678,13 @@ export default function CheckoutWebViewScreen() {
 
   const handleShouldStartLoadWithRequest = useCallback(
     (request) => {
+      const requestedUrl = normalizeCheckoutUrl(request?.url);
+      if (isCheckoutCartPageUrl(requestedUrl) && requestedUrl !== checkoutUrl) {
+        console.log(`${CHECKOUT_WEBVIEW_LOG} blocked checkout cart navigation`, {
+          url: requestedUrl || "",
+        });
+        return false;
+      }
       if (checkoutIsLoggedIn && isCheckoutAccountLoginUrl(request?.url)) {
         console.log(`${CHECKOUT_WEBVIEW_LOG} blocked checkout login redirect`, {
           url: request?.url || "",
@@ -529,7 +693,7 @@ export default function CheckoutWebViewScreen() {
       }
       return true;
     },
-    [checkoutIsLoggedIn]
+    [checkoutIsLoggedIn, checkoutUrl]
   );
 
   // ── Render ────────────────────────────────────────────────────────────────
@@ -578,7 +742,7 @@ export default function CheckoutWebViewScreen() {
               onNavigationStateChange={handleNavigationStateChange}
               onMessage={handleWebViewMessage}
               onShouldStartLoadWithRequest={handleShouldStartLoadWithRequest}
-              injectedJavaScriptBeforeContentLoaded={checkoutSessionJs || undefined}
+              injectedJavaScriptBeforeContentLoaded={checkoutBeforeContentJs}
               injectedJavaScript={injectedCheckoutJs}
               startInLoadingState={false}
               javaScriptEnabled

@@ -14,6 +14,7 @@ import {
   Platform,
 } from "react-native";
 import { useNavigation } from "@react-navigation/native";
+import LinearGradient from "react-native-linear-gradient";
 import { convertStyles } from "../utils/convertStyles";
 import { useAuth } from "../services/AuthContext";
 import { isAuthenticatedSession } from "../utils/authGate";
@@ -58,6 +59,14 @@ const toString = (value, fallback = "") => {
   return String(resolved);
 };
 
+const firstDefined = (...values) => {
+  for (const value of values) {
+    const resolved = unwrapValue(value, undefined);
+    if (resolved !== undefined && resolved !== null && resolved !== "") return resolved;
+  }
+  return undefined;
+};
+
 const toFontWeight = (value) => {
   if (!value) return undefined;
   const raw = String(value).trim().toLowerCase();
@@ -90,6 +99,43 @@ const resolveColor = (...values) => {
     }
   }
   return undefined;
+};
+
+const splitGradientParts = (value) => {
+  const parts = [];
+  let depth = 0;
+  let current = "";
+  for (const char of value) {
+    if (char === "(") depth += 1;
+    if (char === ")") depth = Math.max(0, depth - 1);
+    if (char === "," && depth === 0) {
+      parts.push(current.trim());
+      current = "";
+      continue;
+    }
+    current += char;
+  }
+  if (current.trim()) parts.push(current.trim());
+  return parts;
+};
+
+const resolveGradient = (value) => {
+  const resolved = unwrapValue(value, "");
+  if (typeof resolved !== "string" || !resolved.trim().startsWith("linear-gradient")) {
+    return null;
+  }
+  const match = resolved.match(/linear-gradient\((.*)\)/);
+  if (!match) return null;
+  const parts = splitGradientParts(match[1]);
+  const angleMatch = parts[0]?.match(/(-?\d+(?:\.\d+)?)deg/);
+  const colors = parts
+    .map((part) => part.match(/rgba?\([^)]+\)|#[0-9a-fA-F]{3,8}/)?.[0])
+    .filter(Boolean);
+  if (colors.length < 2) return null;
+  return {
+    colors,
+    angle: angleMatch ? Number(angleMatch[1]) : 180,
+  };
 };
 
 const resolveBorderWidth = (line, color, fallback = 1) => {
@@ -203,7 +249,10 @@ export default function SignUp({ section }) {
     // Colors
     const titleColor = toString(raw.titleColor, "#027579");
     const headerTitleColor = toString(raw.headerTitleColor, "#000000");
-    const buttonTextColor = toString(raw.buttontextColor ?? raw.buttonTextColor, "#000000");
+    const buttonTextColor = toString(
+      firstDefined(raw.buttontextColor, raw.buttonTextColor, raw.buttonColor, raw.textColor),
+      "#000000"
+    );
     const buttonIconColor = toString(raw.buttonIconColor, "#FFFFFF");
     const footerTextColor = toString(raw.footerTextColor, "#0a0a0a");
     const footerLinkColor = toString(raw.footerLinkColor, "#027579");
@@ -228,7 +277,10 @@ export default function SignUp({ section }) {
     // Font sizes (DSL-driven, no hard clamps)
     const fs = (val, def) => toNumber(val, def);
     const headerTitleFontSize = fs(raw.headerTitleFontSize, 18);
-    const buttonFontSize = fs(raw.buttonfontSize ?? raw.buttonFontSize, 16);
+    const buttonFontSize = fs(
+      firstDefined(raw.buttonfontSize, raw.buttonFontSize, raw.buttonTextFontSize, raw.fontSize),
+      16
+    );
     const buttonIconSize = toNumber(raw.buttonIconSize, 16);
     const footerTextFontSize = fs(raw.footerTextfontSize ?? raw.footerTextFontSize, 13);
     const footerLinkFontSize = fs(raw.footerLinkfontSize ?? raw.footerLinkFontSize, 14);
@@ -248,7 +300,10 @@ export default function SignUp({ section }) {
     // Font families
     const baseFontFamily = toString(raw.fontFamily, "Inter");
     const headerTitleFontFamily = resolveFont(toString(raw.headerTitleFontFamily, baseFontFamily));
-    const buttonFontFamily = resolveFont(toString(raw.buttonFontFamily, baseFontFamily));
+    const buttonFontFamily = resolveFont(toString(
+      firstDefined(raw.buttonfontFamily, raw.buttonFontFamily, raw.buttonTextFontFamily, raw.fontFamily),
+      baseFontFamily
+    ));
     const footerLinkFontFamily = resolveFont(toString(raw.footerLinkFontFamily, baseFontFamily));
     const firstNameLabelFontFamily = resolveFont(toString(raw.firstNameLabelFontFamily, baseFontFamily));
     const lastNameLabelFontFamily = resolveFont(toString(raw.lastNameLabelFontFamily, baseFontFamily));
@@ -265,7 +320,9 @@ export default function SignUp({ section }) {
 
     // Font weights
     const headerTitleFontWeight = toFontWeight(raw.headerTitleFontWeight) || "700";
-    const buttonFontWeight = toFontWeight(raw.buttonfontWeight ?? raw.buttonFontWeight) || "700";
+    const buttonFontWeight = toFontWeight(
+      firstDefined(raw.buttonfontWeight, raw.buttonFontWeight, raw.buttonTextFontWeight, raw.fontWeight)
+    ) || "700";
     const footerLinkFontWeight = toFontWeight(raw.footerLinkFontWeight) || "700";
     const firstNameLabelFontWeight = toFontWeight(raw.firstNameLabelFontWeight) || "700";
     const lastNameLabelFontWeight = toFontWeight(raw.lastNameLabelFontWeight) || "700";
@@ -296,7 +353,15 @@ export default function SignUp({ section }) {
     const buttonWidth = toNumber(raw.buttonWidth, 100);
     const buttonHeight = toNumber(raw.buttonHeight, 50);
     const buttonRadius = toNumber(raw.buttonRadius, 8);
-    const buttonBgColor = resolveColor(raw.buttonbgColor, raw.buttonBgColor, "#FFFFFF") || "#FFFFFF";
+    const buttonBgSource = firstDefined(
+      raw.buttonbgColor,
+      raw.buttonBgColor,
+      raw.buttonBackgroundColor,
+      raw.buttonFillColor,
+      raw.buttonColor
+    );
+    const buttonBgColor = resolveColor(buttonBgSource, "#FFFFFF") || "#FFFFFF";
+    const buttonGradient = resolveGradient(buttonBgSource);
     const buttonBorderColor = toString(raw.buttonBorderColor, "#0c9297");
     const buttonBorderWidth = resolveBorderWidth(raw.buttonBorderLine, buttonBorderColor, 1);
     const buttonAutoUppercase = toBoolean(raw.buttonAutoUppercase, false);
@@ -374,7 +439,7 @@ export default function SignUp({ section }) {
       firstNameAlignment, lastNameAlignment, emailAlignment, passwordAlignment,
       firstNameInputTextAlignment, lastNameInputTextAlignment, emailInputTextAlignment,
       passwordInputTextAlignment, footerLinkAlignment, buttonIconAlignment,
-      buttonWidth, buttonHeight, buttonRadius, buttonBgColor, buttonBorderColor, buttonBorderWidth, buttonAutoUppercase, buttonIcon,
+      buttonWidth, buttonHeight, buttonRadius, buttonBgColor, buttonGradient, buttonBorderColor, buttonBorderWidth, buttonAutoUppercase, buttonIcon,
       profilePictureUrl, profilePictureSize, navigateTo, selectScreen,
       footerPt, footerPb, footerPl, footerPr, signInLinkPt, signInLinkPb,
       signInLinkPl, signInLinkPr, footerBorderRadius, signInLinkBorderRadius,
@@ -421,7 +486,7 @@ export default function SignUp({ section }) {
     firstNameAlignment, lastNameAlignment, emailAlignment, passwordAlignment,
     firstNameInputTextAlignment, lastNameInputTextAlignment, emailInputTextAlignment,
     passwordInputTextAlignment, footerLinkAlignment, buttonIconAlignment,
-    buttonWidth, buttonHeight, buttonRadius, buttonBgColor, buttonBorderColor, buttonBorderWidth, buttonAutoUppercase, buttonIcon,
+    buttonWidth, buttonHeight, buttonRadius, buttonBgColor, buttonGradient, buttonBorderColor, buttonBorderWidth, buttonAutoUppercase, buttonIcon,
     profilePictureUrl, profilePictureSize, navigateTo, selectScreen,
     footerPt, footerPb, footerPl, footerPr, signInLinkPt, signInLinkPb,
     signInLinkPl, signInLinkPr, footerBorderRadius, signInLinkBorderRadius,
@@ -540,6 +605,32 @@ export default function SignUp({ section }) {
   const shouldShowProfilePicture =
     logoVisible && showProfilePicture && Boolean(String(profilePictureUrl || "").trim());
   const shouldShowHeaderTitle = Boolean(String(headerTitle || "").trim()) && !authTitle;
+  const submitButtonContent = loading ? (
+    <ActivityIndicator color={buttonTextColor} />
+  ) : (
+    <View style={styles.buttonContent}>
+      {buttonIconsVisible && resolvedButtonIcon && buttonIconAlignment === "left" && (
+        <Icon name={resolvedButtonIcon} size={buttonIconSize} color={buttonIconColor} style={styles.buttonIcon} />
+      )}
+      <Text
+        allowFontScaling={false}
+        style={[
+          styles.buttonText,
+          {
+            color: buttonTextColor,
+            fontSize: mobileButtonFontSize,
+            fontFamily: buttonFontFamily,
+            fontWeight: buttonFontWeight,
+          },
+        ]}
+      >
+        {displayButtonText}
+      </Text>
+      {buttonIconsVisible && resolvedButtonIcon && buttonIconAlignment === "right" && (
+        <Icon name={resolvedButtonIcon} size={buttonIconSize} color={buttonIconColor} style={styles.buttonIcon} />
+      )}
+    </View>
+  );
 
   return (
     <KeyboardAvoidingView
@@ -787,41 +878,29 @@ export default function SignUp({ section }) {
             style={[
               styles.button,
               {
-                backgroundColor: buttonBgColor,
+                backgroundColor: buttonGradient ? "transparent" : buttonBgColor,
                 borderColor: buttonBorderColor,
                 borderWidth: buttonBorderWidth,
                 width: `${mobileButtonWidthPct}%`,
                 height: mobileButtonHeight,
                 borderRadius: buttonRadius,
+                overflow: "hidden",
               },
             ]}
             onPress={handleSubmit}
             disabled={loading}
           >
-            {loading ? (
-              <ActivityIndicator color={buttonTextColor} />
+            {buttonGradient ? (
+              <LinearGradient
+                colors={buttonGradient.colors}
+                angle={buttonGradient.angle}
+                useAngle
+                style={[styles.buttonGradient, { borderRadius: buttonRadius }]}
+              >
+                {submitButtonContent}
+              </LinearGradient>
             ) : (
-              <View style={styles.buttonContent}>
-                {buttonIconsVisible && resolvedButtonIcon && buttonIconAlignment === "left" && (
-                  <Icon name={resolvedButtonIcon} size={buttonIconSize} color={buttonIconColor} style={styles.buttonIcon} />
-                )}
-                <Text
-                  style={[
-                    styles.buttonText,
-                    {
-                      color: buttonTextColor,
-                      fontSize: mobileButtonFontSize,
-                      fontFamily: buttonFontFamily,
-                      fontWeight: buttonFontWeight,
-                    },
-                  ]}
-                >
-                  {displayButtonText}
-                </Text>
-                {buttonIconsVisible && resolvedButtonIcon && buttonIconAlignment === "right" && (
-                  <Icon name={resolvedButtonIcon} size={buttonIconSize} color={buttonIconColor} style={styles.buttonIcon} />
-                )}
-              </View>
+              submitButtonContent
             )}
           </TouchableOpacity>
         )}
@@ -967,6 +1046,12 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     paddingHorizontal: 8,
+  },
+  buttonGradient: {
+    width: "100%",
+    height: "100%",
+    alignItems: "center",
+    justifyContent: "center",
   },
   buttonIcon: {
     marginHorizontal: 6,

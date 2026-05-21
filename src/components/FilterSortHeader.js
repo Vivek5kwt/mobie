@@ -165,15 +165,6 @@ export default function FilterSortHeader({
           >
             <Icon name="th-large" size={14} color={viewMode === "grid" ? "#111827" : "#D1D5DB"} />
           </TouchableOpacity>
-          {compactControls ? (
-            <TouchableOpacity
-              style={[styles.toggleBtn, styles.compactToggleBtn]}
-              activeOpacity={0.75}
-              onPress={() => handleViewMode("grid")}
-            >
-              <Icon name="th" size={14} color="#D1D5DB" />
-            </TouchableOpacity>
-          ) : null}
         </View>
       </View>
 

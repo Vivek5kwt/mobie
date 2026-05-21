@@ -259,6 +259,14 @@ const toBoolean = (value: unknown, fallback: boolean): boolean => {
   return fallback;
 };
 
+const firstDefined = (...values: unknown[]): unknown => {
+  for (const value of values) {
+    const resolved = unwrapValue(value as unknown, undefined as unknown);
+    if (resolved !== undefined && resolved !== null && resolved !== '') return resolved;
+  }
+  return undefined;
+};
+
 const toFontFamily = (value: unknown, fallback = 'System'): string => {
   const resolved = unwrapValue(value as string | null | undefined, fallback);
   if (typeof resolved !== 'string') return fallback;
@@ -310,6 +318,47 @@ const resolveButtonGradient = (value: unknown): ButtonGradient | null => {
   };
 };
 
+const getButtonBgValue = (rawProps: Record<string, unknown>): unknown =>
+  firstDefined(
+    rawProps?.buttonbgColor,
+    rawProps?.buttonBgColor,
+    rawProps?.buttonBackgroundColor,
+    rawProps?.buttonFillColor,
+    rawProps?.buttonColor
+  );
+
+const getButtonTextColorValue = (rawProps: Record<string, unknown>): unknown =>
+  firstDefined(
+    rawProps?.buttontextColor,
+    rawProps?.buttonTextColor,
+    rawProps?.buttonColor,
+    rawProps?.textColor
+  );
+
+const getButtonFontSizeValue = (rawProps: Record<string, unknown>): unknown =>
+  firstDefined(
+    rawProps?.buttonfontSize,
+    rawProps?.buttonFontSize,
+    rawProps?.buttonTextFontSize,
+    rawProps?.fontSize
+  );
+
+const getButtonFontFamilyValue = (rawProps: Record<string, unknown>): unknown =>
+  firstDefined(
+    rawProps?.buttonfontFamily,
+    rawProps?.buttonFontFamily,
+    rawProps?.buttonTextFontFamily,
+    rawProps?.fontFamily
+  );
+
+const getButtonFontWeightValue = (rawProps: Record<string, unknown>): unknown =>
+  firstDefined(
+    rawProps?.buttonfontWeight,
+    rawProps?.buttonFontWeight,
+    rawProps?.buttonTextFontWeight,
+    rawProps?.fontWeight
+  );
+
 const resolveBorderWidth = (line: unknown, color: unknown, fallback: number): number => {
   const rawLine = String(unwrapValue(line as string | null | undefined, '') || '').trim().toLowerCase();
   if (rawLine === 'none' || rawLine === '0' || rawLine === '0px') return 0;
@@ -346,6 +395,24 @@ const hasAuthSections = (
   sections: Record<string, unknown>[],
   matcher: (section: Record<string, unknown>) => boolean
 ): boolean => sections.some((section) => matcher(section));
+
+const buildButtonStyleTokens = (
+  rawProps: Record<string, unknown>,
+  defaults: Pick<
+    SignInTokens,
+    'buttonTextColor' | 'buttonFillColor' | 'buttonFontSize' | 'buttonFontFamily' | 'buttonFontWeight'
+  >
+) => {
+  const bgValue = getButtonBgValue(rawProps);
+  return {
+    buttonTextColor: (getButtonTextColorValue(rawProps) as string | undefined) ?? defaults.buttonTextColor,
+    buttonFillColor: resolveButtonColor(bgValue, defaults.buttonFillColor),
+    buttonGradient: resolveButtonGradient(bgValue),
+    buttonFontSize: toNumber(getButtonFontSizeValue(rawProps), defaults.buttonFontSize),
+    buttonFontFamily: toFontFamily(getButtonFontFamilyValue(rawProps), defaults.buttonFontFamily),
+    buttonFontWeight: toFontWeight(getButtonFontWeightValue(rawProps), defaults.buttonFontWeight),
+  };
+};
 
 const getSectionRawProps = (section: Record<string, unknown> | null | undefined): Record<string, unknown> => {
   const propsNode: Record<string, unknown> =
@@ -646,11 +713,9 @@ const buildSignInTokens = (rawProps: Record<string, unknown>): SignInTokens => (
   inputHeight: toNumber(rawProps?.inputHeight ?? rawProps?.fieldHeight, defaultSignInTokens.inputHeight),
   footerTextColor: (rawProps?.footerTextColor as string) ?? defaultSignInTokens.footerTextColor,
   footerLinkColor: (rawProps?.footerLinkColor as string) ?? defaultSignInTokens.footerLinkColor,
-  buttonTextColor: (rawProps?.buttontextColor as string) ?? (rawProps?.buttonTextColor as string) ?? defaultSignInTokens.buttonTextColor,
+  ...buildButtonStyleTokens(rawProps, defaultSignInTokens),
   buttonBorderColor: (rawProps?.buttonBorderColor as string) ?? defaultSignInTokens.buttonBorderColor,
   buttonBorderWidth: resolveBorderWidth(rawProps?.buttonBorderLine, rawProps?.buttonBorderColor, defaultSignInTokens.buttonBorderWidth),
-  buttonFillColor: resolveButtonColor(rawProps?.buttonBgColor ?? rawProps?.buttonbgColor, defaultSignInTokens.buttonFillColor),
-  buttonGradient: resolveButtonGradient(rawProps?.buttonBgColor ?? rawProps?.buttonbgColor),
   buttonPaddingTop: toNumber(rawProps?.buttonPaddingTop, defaultSignInTokens.buttonPaddingTop),
   buttonPaddingBottom: toNumber(rawProps?.buttonPaddingBottom, defaultSignInTokens.buttonPaddingBottom),
   buttonAutoUppercase: (rawProps?.buttonAutoUppercase as boolean) ?? defaultSignInTokens.buttonAutoUppercase,
@@ -690,9 +755,6 @@ const buildSignInTokens = (rawProps: Record<string, unknown>): SignInTokens => (
   passwordPlaceholderFontFamily: toFontFamily(rawProps?.passwordPlaceholderFontFamily ?? rawProps?.placeholderFontFamily ?? rawProps?.fontFamily, defaultSignInTokens.passwordPlaceholderFontFamily),
   emailPlaceholderFontWeight: toFontWeight(rawProps?.emailPlaceholderFontWeight ?? rawProps?.placeholderFontWeight ?? rawProps?.fontWeight, defaultSignInTokens.emailPlaceholderFontWeight),
   passwordPlaceholderFontWeight: toFontWeight(rawProps?.passwordPlaceholderFontWeight ?? rawProps?.placeholderFontWeight ?? rawProps?.fontWeight, defaultSignInTokens.passwordPlaceholderFontWeight),
-  buttonFontSize: toNumber(rawProps?.buttonfontSize ?? rawProps?.buttonFontSize, defaultSignInTokens.buttonFontSize),
-  buttonFontFamily: toFontFamily(rawProps?.buttonFontFamily ?? rawProps?.fontFamily, defaultSignInTokens.buttonFontFamily),
-  buttonFontWeight: toFontWeight(rawProps?.buttonfontWeight ?? rawProps?.buttonFontWeight, defaultSignInTokens.buttonFontWeight),
   buttonHeight: toNumber(rawProps?.buttonHeight, defaultSignInTokens.buttonHeight),
   buttonWidth: toNumber(rawProps?.buttonWidth, defaultSignInTokens.buttonWidth),
   footerTextFontSize: toNumber(rawProps?.footerTextFontSize ?? rawProps?.subtextSize ?? rawProps?.fontSize, defaultSignInTokens.footerTextFontSize),
@@ -839,19 +901,14 @@ const buildSignUpTokens = (rawProps: Record<string, unknown>): SignUpTokens => (
   passwordPlaceholderFontFamily: toFontFamily(rawProps?.passwordPlaceholderFontFamily ?? rawProps?.placeholderFontFamily ?? rawProps?.fontFamily, defaultSignUpTokens.passwordPlaceholderFontFamily),
   emailPlaceholderFontWeight: toFontWeight(rawProps?.emailPlaceholderFontWeight ?? rawProps?.placeholderFontWeight ?? rawProps?.fontWeight, defaultSignUpTokens.emailPlaceholderFontWeight),
   passwordPlaceholderFontWeight: toFontWeight(rawProps?.passwordPlaceholderFontWeight ?? rawProps?.placeholderFontWeight ?? rawProps?.fontWeight, defaultSignUpTokens.passwordPlaceholderFontWeight),
-  buttonTextColor: (rawProps?.buttontextColor as string) ?? (rawProps?.buttonTextColor as string) ?? defaultSignUpTokens.buttonTextColor,
+  ...buildButtonStyleTokens(rawProps, defaultSignUpTokens),
   buttonBorderColor: (rawProps?.buttonBorderColor as string) ?? defaultSignUpTokens.buttonBorderColor,
   buttonBorderWidth: resolveBorderWidth(rawProps?.buttonBorderLine, rawProps?.buttonBorderColor, defaultSignUpTokens.buttonBorderWidth),
-  buttonFillColor: resolveButtonColor(rawProps?.buttonBgColor ?? rawProps?.buttonbgColor, defaultSignUpTokens.buttonFillColor),
-  buttonGradient: resolveButtonGradient(rawProps?.buttonBgColor ?? rawProps?.buttonbgColor),
   buttonPaddingTop: toNumber(rawProps?.buttonPaddingTop, defaultSignUpTokens.buttonPaddingTop),
   buttonPaddingBottom: toNumber(rawProps?.buttonPaddingBottom, defaultSignUpTokens.buttonPaddingBottom),
   buttonAutoUppercase: (rawProps?.buttonAutoUppercase as boolean) ?? defaultSignUpTokens.buttonAutoUppercase,
   buttonHeight: toNumber(rawProps?.buttonHeight, defaultSignUpTokens.buttonHeight),
   buttonWidth: toNumber(rawProps?.buttonWidth, defaultSignUpTokens.buttonWidth),
-  buttonFontSize: toNumber(rawProps?.buttonfontSize ?? rawProps?.buttonFontSize, defaultSignUpTokens.buttonFontSize),
-  buttonFontFamily: toFontFamily(rawProps?.buttonFontFamily ?? rawProps?.fontFamily, defaultSignUpTokens.buttonFontFamily),
-  buttonFontWeight: toFontWeight(rawProps?.buttonfontWeight ?? rawProps?.buttonFontWeight, defaultSignUpTokens.buttonFontWeight),
   footerTextColor: (rawProps?.footerTextColor as string) ?? defaultSignUpTokens.footerTextColor,
   footerLinkColor: (rawProps?.footerLinkColor as string) ?? defaultSignUpTokens.footerLinkColor,
   footerTextFontSize: capFontSize(toNumber(rawProps?.footerTextFontSize ?? rawProps?.subtextSize ?? rawProps?.fontSize, defaultSignUpTokens.footerTextFontSize), 14),
@@ -1193,6 +1250,7 @@ const AuthScreen = () => {
     <ActivityIndicator color={t.buttonTextColor} />
   ) : (
     <Text
+      allowFontScaling={false}
       style={{
         color: t.buttonTextColor,
         fontSize: t.buttonFontSize,

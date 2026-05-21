@@ -46,6 +46,14 @@ function sortProducts(products, sortKey) {
   }
 }
 
+const normalizePageInfo = (info, products = []) => {
+  const endCursor = info?.endCursor || null;
+  return {
+    hasNextPage: Boolean(info?.hasNextPage && endCursor && products.length > 0),
+    endCursor,
+  };
+};
+
 function isProductAvailable(product) {
   if (!product || typeof product !== "object") return true;
   if (product.availableForSale === false) return false;
@@ -116,7 +124,7 @@ export default function CollectionProductsScreen() {
             after,
           });
           const next     = payload?.products || [];
-          const nextPage = payload?.pageInfo || { hasNextPage: false, endCursor: null };
+          const nextPage = normalizePageInfo(payload?.pageInfo, next);
 
           setIsFallback(false);
           setProducts((prev) => (append ? [...prev, ...next] : next));
@@ -126,15 +134,13 @@ export default function CollectionProductsScreen() {
         }
 
         // Only the generic product-list route falls back to all products.
-        if (!append) {
-          setIsFallback(true);
-          const fallback = await fetchShopifyProductsPage({ first: PAGE_SIZE });
-          const next     = fallback?.products || [];
-          const nextPage = fallback?.pageInfo || { hasNextPage: false, endCursor: null };
-          setProducts(next);
-          setFilterOptions(buildProductFilterOptions(next));
-          setPageInfo(nextPage);
-        }
+        setIsFallback(true);
+        const fallback = await fetchShopifyProductsPage({ first: PAGE_SIZE, after });
+        const next     = fallback?.products || [];
+        const nextPage = normalizePageInfo(fallback?.pageInfo, next);
+        setProducts((prev) => (append ? [...prev, ...next] : next));
+        if (!append) setFilterOptions(buildProductFilterOptions(next));
+        setPageInfo(nextPage);
       } catch (_) {
         setError("Unable to load products right now.");
       } finally {
@@ -191,6 +197,12 @@ export default function CollectionProductsScreen() {
     }
     return list;
   }, [products, sortKey, activeFilter]);
+
+  const hasNextProductPage = Boolean(pageInfo?.hasNextPage && pageInfo?.endCursor);
+  const handleLoadMore = useCallback(() => {
+    if (!hasNextProductPage || loading || loadingMore) return;
+    loadProducts({ after: pageInfo.endCursor, append: true });
+  }, [hasNextProductPage, loadProducts, loading, loadingMore, pageInfo?.endCursor]);
 
   const renderItem = ({ item }) => {
     const inStock = isProductAvailable(item);
@@ -305,13 +317,6 @@ export default function CollectionProductsScreen() {
               </Text>
             )}
           </View>
-          {pageInfo.hasNextPage && (
-            <TouchableOpacity
-              onPress={() => loadProducts({ after: pageInfo.endCursor, append: true })}
-            >
-              <Text style={styles.viewAll}>View all &gt;</Text>
-            </TouchableOpacity>
-          )}
         </View>
 
         {/* Filter + Sort header bar */}
@@ -346,11 +351,11 @@ export default function CollectionProductsScreen() {
                 <Text style={styles.empty}>No products in this collection.</Text>
               }
               ListFooterComponent={
-                pageInfo.hasNextPage ? (
+                hasNextProductPage ? (
                   <TouchableOpacity
                     style={styles.loadMoreBtn}
-                    onPress={() => loadProducts({ after: pageInfo.endCursor, append: true })}
-                    disabled={loadingMore}
+                    onPress={handleLoadMore}
+                    disabled={loading || loadingMore}
                     activeOpacity={0.85}
                   >
                     <Text style={styles.loadMoreText}>
@@ -409,12 +414,6 @@ const styles = StyleSheet.create({
     color: "#9CA3AF",
     marginTop: 2,
   },
-  viewAll: {
-    fontSize: 13,
-    fontWeight: "600",
-    color: "#016D77",
-  },
-
   body: {
     flex: 1,
     paddingHorizontal: H_PAD,

@@ -74,6 +74,16 @@ const toFontWeight = (value, fallback = "400") => {
   return fallback;
 };
 
+const toTextTransform = (value, fallback = "none") => {
+  const normalized = toString(value, fallback).trim().toLowerCase();
+  if (normalized === "uppercase" || normalized === "upper") return "uppercase";
+  if (normalized === "lowercase" || normalized === "lower") return "lowercase";
+  if (normalized === "capitalize" || normalized === "capitalized") return "capitalize";
+  return "none";
+};
+
+const lineHeightFor = (size, ratio = 1.35) => Math.ceil(toNumber(size, 14) * ratio);
+
 const normalizeCurrencyLabel = (value, fallback = "") => {
   const label = toString(value, fallback).trim();
   if (!label) return "";
@@ -148,10 +158,11 @@ export default function CartLineItems({ section }) {
   const cardBorderLine = toString(raw?.cardBorderLine ?? raw?.borderLine ?? raw?.borderStyle, "all").toLowerCase();
   const cardBorderWidth = cardBorderLine === "none" ? 0 : toNumber(raw?.cardBorderWidth ?? raw?.borderSize, 1);
   const cardGap = toNumber(raw?.cardGap ?? raw?.gap, 12);
-  const cardPadT = toNumber(raw?.cardPadT ?? raw?.cardPt ?? raw?.itemPadT, 0);
-  const cardPadR = toNumber(raw?.cardPadR ?? raw?.cardPr ?? raw?.itemPadR, 0);
-  const cardPadB = toNumber(raw?.cardPadB ?? raw?.cardPb ?? raw?.itemPadB, 0);
-  const cardPadL = toNumber(raw?.cardPadL ?? raw?.cardPl ?? raw?.itemPadL, 0);
+  const derivedCardPad = Math.max(0, Math.round(cardBorderRadius * 0.75));
+  const cardPadT = toNumber(raw?.cardPadT ?? raw?.cardPt ?? raw?.itemPadT, derivedCardPad);
+  const cardPadR = toNumber(raw?.cardPadR ?? raw?.cardPr ?? raw?.itemPadR, derivedCardPad);
+  const cardPadB = toNumber(raw?.cardPadB ?? raw?.cardPb ?? raw?.itemPadB, derivedCardPad);
+  const cardPadL = toNumber(raw?.cardPadL ?? raw?.cardPl ?? raw?.itemPadL, derivedCardPad);
   const cardInnerGap = toNumber(raw?.cardInnerGap ?? raw?.itemGap, responsiveSize(0.02, 8, 12));
 
   // Image
@@ -173,6 +184,7 @@ export default function CartLineItems({ section }) {
   const showVariant = toBoolean(raw?.showVariant, true);
   const variantColor = toString(raw?.variantColor, "#0D9488");
   const variantSize = toNumber(raw?.variantSize ?? raw?.variantFontSize, 12);
+  const variantWeight = toFontWeight(raw?.variantWeight ?? raw?.variantFontWeight, "400");
   const variantSeparator = toString(raw?.variantSeparator, " | ");
 
   // Vendor
@@ -180,6 +192,7 @@ export default function CartLineItems({ section }) {
   const vendorColor = toString(raw?.vendorColor, "#111827");
   const vendorSize = toNumber(raw?.vendorSize ?? raw?.vendorFontSize, 12);
   const vendorWeight = toFontWeight(raw?.vendorWeight ?? raw?.vendorFontWeight, "600");
+  const vendorTextTransform = toTextTransform(raw?.vendorTextTransform ?? raw?.vendorTransform, "none");
 
   // Title
   const titleVisibilityOverride = firstDefined(
@@ -187,6 +200,7 @@ export default function CartLineItems({ section }) {
     visibility?.itemTitle,
     visibility?.productName,
     raw?.titleVisible,
+    raw?.showTitle,
     raw?.productTitleVisible,
     raw?.itemTitleVisible,
     raw?.showProductTitle,
@@ -198,11 +212,12 @@ export default function CartLineItems({ section }) {
       ? toBoolean(titleVisibilityOverride, true)
       : true;
   const titleColor = toString(raw?.titleColor, "#111827");
-  const titleSize = toNumber(raw?.titleSize, 14);
-  const titleWeight = toFontWeight(raw?.titleWeight, "600");
+  const titleSize = toNumber(raw?.titleSize ?? raw?.titleFontSize, 14);
+  const titleWeight = toFontWeight(raw?.titleWeight ?? raw?.titleFontWeight, "600");
 
   // Price
-  const showPrice = toBoolean(raw?.showPrice, true);
+  const showPrice = toBoolean(raw?.showPrice ?? raw?.showStandardPrice, true);
+  const showTotal = toBoolean(raw?.showTotal ?? raw?.showLineTotal, false);
   const priceColor = toString(raw?.priceColor, "#111827");
   const priceSize = toNumber(raw?.priceSize ?? raw?.priceFontSize, 14);
   const priceWeight = toFontWeight(raw?.priceWeight ?? raw?.priceFontWeight, "700");
@@ -254,6 +269,12 @@ export default function CartLineItems({ section }) {
   const qtyTextSize = toNumber(raw?.qtyTextSize, 12);
   const qtyIconSize = toNumber(raw?.qtyIconSize, 10);
   const qtyIconColor = toString(raw?.qtyIconColor, "#111827");
+  const qtyAlignRaw = toString(raw?.qtyAlign ?? raw?.quantityAlign ?? raw?.quantityAlignment, "left").toLowerCase();
+  const qtyJustifyContent = qtyAlignRaw === "right" || qtyAlignRaw === "flex-end"
+    ? "flex-end"
+    : qtyAlignRaw === "center"
+      ? "center"
+      : "flex-start";
 
   // Delete button
   const showDelete = toBoolean(raw?.showDelete ?? raw?.showDeleteButton, true);
@@ -283,6 +304,11 @@ export default function CartLineItems({ section }) {
   const priceFontFamily    = cleanFontFamily(toString(raw?.priceFontFamily    ?? raw?.fontFamily, ""));
   const savingsFontFamily  = cleanFontFamily(toString(raw?.savingsFontFamily  ?? raw?.fontFamily, ""));
   const qtyFontFamily      = cleanFontFamily(toString(raw?.qtyFontFamily      ?? raw?.fontFamily, ""));
+  const titleLineHeight = toNumber(raw?.titleLineHeight, lineHeightFor(titleSize, 1.3));
+  const variantLineHeight = toNumber(raw?.variantLineHeight, lineHeightFor(variantSize, 1.35));
+  const vendorLineHeight = toNumber(raw?.vendorLineHeight, lineHeightFor(vendorSize, 1.35));
+  const priceLineHeight = toNumber(raw?.priceLineHeight, lineHeightFor(priceSize, 1.25));
+  const contentGap = toNumber(raw?.contentGap ?? raw?.textGap, Math.max(2, Math.round(cardInnerGap * 0.25)));
 
   const cartFingerprint = useMemo(() => cartDiscountFingerprint(cartItems), [cartItems]);
   const discountCount = activeDiscountRecords(appliedDiscounts, cartFingerprint).length;
@@ -344,6 +370,8 @@ export default function CartLineItems({ section }) {
         const quantity = toNumber(item?.quantity, 1);
         const price = toNumber(item?.price, 0);
         const compareAt = toNumber(item?.compareAtPrice, 0);
+        const displayPrice = showTotal ? price * quantity : price;
+        const displayCompareAt = showTotal ? compareAt * quantity : compareAt;
         const savings = compareAt > price ? (compareAt - price) * quantity : 0;
         const itemCurrency = resolveCurrencyLabel(
           item?.currency,
@@ -430,12 +458,12 @@ export default function CartLineItems({ section }) {
               )}
 
               {/* Right content */}
-              <View style={styles.info}>
+              <View style={[styles.info, { minHeight: imageSize, gap: contentGap }]}>
 
                 {/* Title */}
                 {showTitle && !!itemTitle && (
                   <Text
-                    style={[styles.title, { color: titleColor, fontSize: titleSize, fontWeight: titleWeight, ...(titleFontFamily ? { fontFamily: titleFontFamily } : {}) }]}
+                    style={[styles.title, { color: titleColor, fontSize: titleSize, fontWeight: titleWeight, lineHeight: titleLineHeight, ...(titleFontFamily ? { fontFamily: titleFontFamily } : {}) }]}
                     numberOfLines={2}
                   >
                     {itemTitle}
@@ -445,7 +473,7 @@ export default function CartLineItems({ section }) {
                 {/* Variant row: Size: M | Color: Blue */}
                 {showVariant && variantParts.length > 0 && (
                   <Text
-                    style={[styles.variant, { color: variantColor, fontSize: variantSize, ...(variantFontFamily ? { fontFamily: variantFontFamily } : {}) }]}
+                    style={[styles.variant, { color: variantColor, fontSize: variantSize, fontWeight: variantWeight, lineHeight: variantLineHeight, ...(variantFontFamily ? { fontFamily: variantFontFamily } : {}) }]}
                     numberOfLines={1}
                   >
                     {variantParts.join(variantSeparator)}
@@ -455,7 +483,7 @@ export default function CartLineItems({ section }) {
                 {/* Vendor */}
                 {showVendor && !!itemVendor && (
                   <Text
-                    style={[styles.vendor, { color: vendorColor, fontSize: vendorSize, fontWeight: vendorWeight, ...(vendorFontFamily ? { fontFamily: vendorFontFamily } : {}) }]}
+                    style={[styles.vendor, { color: vendorColor, fontSize: vendorSize, fontWeight: vendorWeight, lineHeight: vendorLineHeight, textTransform: vendorTextTransform, ...(vendorFontFamily ? { fontFamily: vendorFontFamily } : {}) }]}
                     numberOfLines={1}
                   >
                     {itemVendor}
@@ -465,12 +493,12 @@ export default function CartLineItems({ section }) {
                 {/* Price row */}
                 {showPrice && (
                   <View style={styles.priceRow}>
-                    <Text style={[styles.price, { color: priceColor, fontSize: priceSize, fontWeight: priceWeight, ...(priceFontFamily ? { fontFamily: priceFontFamily } : {}) }]}>
-                      {fmtPrice(price, itemCurrency)}
+                    <Text style={[styles.price, { color: priceColor, fontSize: priceSize, fontWeight: priceWeight, lineHeight: priceLineHeight, ...(priceFontFamily ? { fontFamily: priceFontFamily } : {}) }]}>
+                      {fmtPrice(displayPrice, itemCurrency)}
                     </Text>
                     {showCompareAt && compareAt > 0 && (
-                      <Text style={[styles.compareAt, { color: compareAtColor, fontSize: compareAtSize, ...(priceFontFamily ? { fontFamily: priceFontFamily } : {}) }]}>
-                        {fmtPrice(compareAt, itemCurrency)}
+                      <Text style={[styles.compareAt, { color: compareAtColor, fontSize: compareAtSize, lineHeight: priceLineHeight, ...(priceFontFamily ? { fontFamily: priceFontFamily } : {}) }]}>
+                        {fmtPrice(displayCompareAt, itemCurrency)}
                       </Text>
                     )}
                   </View>
@@ -527,7 +555,7 @@ export default function CartLineItems({ section }) {
 
                 {/* Quantity + Delete row */}
                 {showQuantityControls && (
-                  <View style={styles.qtyRow}>
+                  <View style={[styles.qtyRow, { justifyContent: qtyJustifyContent }]}>
                     <View style={[styles.qtyControls, { backgroundColor: qtyWrapBgColor }]}>
                       {/* Minus */}
                       <TouchableOpacity

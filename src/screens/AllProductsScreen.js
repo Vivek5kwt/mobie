@@ -24,10 +24,146 @@ import { resolveAppId } from "../utils/appId";
 import { buildProductFilterOptions, productMatchesFilter } from "../utils/productFilters";
 import { formatMoney } from "../utils/money";
 import { resolveProductImageResizeMode } from "../utils/productImageFit";
+import { resolveFA4IconName } from "../utils/faIconAlias";
+import { resolveFont } from "../services/typographyService";
 
 const GAP = 12;
 const H_PAD = 16;
 const { width: SCREEN_W } = Dimensions.get("window");
+
+const unwrapValue = (value, fallback = undefined) => {
+  if (value === undefined || value === null) return fallback;
+  if (typeof value === "object") {
+    if (value.value !== undefined) return value.value;
+    if (value.const !== undefined) return value.const;
+  }
+  return value;
+};
+
+const deepUnwrap = (value) => {
+  if (value === undefined || value === null) return value;
+  if (typeof value !== "object") return value;
+  if (value.value !== undefined) return deepUnwrap(value.value);
+  if (value.const !== undefined) return deepUnwrap(value.const);
+  return value;
+};
+
+const getComponentName = (section = {}) =>
+  String(
+    section?.component?.const ||
+      section?.component ||
+      section?.properties?.component?.const ||
+      section?.properties?.component ||
+      ""
+  ).toLowerCase();
+
+const getRawProps = (section) => {
+  const root =
+    section?.properties?.props?.properties ||
+    section?.properties?.props ||
+    section?.props ||
+    {};
+  const rawUnwrapped = deepUnwrap(root?.raw);
+  return rawUnwrapped && typeof rawUnwrapped === "object"
+    ? { ...root, ...rawUnwrapped }
+    : root;
+};
+
+const findProductGridSection = (dsl = {}) =>
+  (dsl?.sections || []).find((section) => getComponentName(section) === "product_grid") || null;
+
+const resolveString = (value, fallback = "") => {
+  const resolved = unwrapValue(value, fallback);
+  if (resolved === undefined || resolved === null) return fallback;
+  return String(resolved);
+};
+
+const resolveNumber = (values, fallback) => {
+  for (const value of values) {
+    const resolved = unwrapValue(value, undefined);
+    if (resolved === undefined || resolved === null || resolved === "") continue;
+    const parsed = typeof resolved === "number" ? resolved : parseFloat(resolved);
+    if (Number.isFinite(parsed)) return parsed;
+  }
+  return fallback;
+};
+
+const resolveBoolean = (values, fallback = false) => {
+  for (const value of values) {
+    const resolved = unwrapValue(value, undefined);
+    if (resolved === undefined || resolved === null || resolved === "") continue;
+    if (typeof resolved === "boolean") return resolved;
+    if (typeof resolved === "number") return resolved !== 0;
+    const normalized = String(resolved).trim().toLowerCase();
+    if (["true", "yes", "1"].includes(normalized)) return true;
+    if (["false", "no", "0"].includes(normalized)) return false;
+  }
+  return fallback;
+};
+
+const resolveWeight = (value, fallback) => {
+  const resolved = unwrapValue(value, undefined);
+  if (resolved === undefined || resolved === null || resolved === "") return fallback;
+  if (typeof resolved === "number") return String(resolved);
+  const normalized = String(resolved).trim().toLowerCase();
+  if (normalized === "bold") return "700";
+  if (normalized === "semi bold" || normalized === "semibold") return "600";
+  if (normalized === "medium") return "500";
+  if (normalized === "regular" || normalized === "normal") return "400";
+  if (/^\d+$/.test(normalized)) return normalized;
+  return fallback;
+};
+
+const parseAspectRatio = (value) => {
+  const raw = resolveString(value, "").trim().toLowerCase();
+  if (!raw || raw === "auto") return null;
+  const parts = raw.split(":");
+  if (parts.length === 2) {
+    const w = parseFloat(parts[0]);
+    const h = parseFloat(parts[1]);
+    if (w > 0 && h > 0) return w / h;
+  }
+  const parsed = parseFloat(raw);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
+};
+
+const findCartHeaderItem = (header = {}) => {
+  const items = Array.isArray(header?.right) ? header.right : [];
+  return items.find((item) => {
+    const haystack = [
+      item?.id,
+      item?.title,
+      item?.label,
+      item?.icon,
+      item?.iconId,
+      item?.linkTo,
+      item?.navigateRef,
+      item?.navigateType,
+    ]
+      .map((entry) => resolveString(entry, "").toLowerCase())
+      .join(" ");
+    return haystack.includes("cart");
+  }) || null;
+};
+
+const findBackHeaderItem = (header = {}) => {
+  const items = Array.isArray(header?.left) ? header.left : [];
+  return items.find((item) => {
+    const haystack = [
+      item?.id,
+      item?.title,
+      item?.label,
+      item?.icon,
+      item?.iconId,
+      item?.linkTo,
+      item?.navigateRef,
+      item?.navigateType,
+    ]
+      .map((entry) => resolveString(entry, "").toLowerCase())
+      .join(" ");
+    return haystack.includes("__back__") || haystack.includes("previousscreen") || haystack.includes("arrow-left") || haystack.includes("back");
+  }) || null;
+};
 
 function sortProducts(products, sortKey) {
   const copy = [...products];
@@ -43,74 +179,9 @@ function sortProducts(products, sortKey) {
   }
 }
 
-const COLOR_ALIASES = {
-  black: "#050505",
-  white: "#FFFFFF",
-  blue: "#2F6DF6",
-  navy: "#1F3A5F",
-  purple: "#B25AD8",
-  pink: "#F48FB1",
-  green: "#9BE36D",
-  teal: "#25C7D9",
-  aqua: "#55DDE0",
-  red: "#EF4444",
-  orange: "#F97316",
-  yellow: "#FACC15",
-  grey: "#9CA3AF",
-  gray: "#9CA3AF",
-};
-
-const toNumber = (value) => {
-  const n = parseFloat(value);
-  return Number.isFinite(n) ? n : null;
-};
-
 const moneyAmount = (value) => {
   if (value && typeof value === "object") return value.amount ?? value.value ?? "";
   return value;
-};
-
-const priceValue = (product) =>
-  toNumber(moneyAmount(product?.priceAmount ?? product?.price ?? product?.minPrice));
-
-const comparePriceValue = (product) =>
-  toNumber(moneyAmount(product?.compareAtPrice ?? product?.originalPrice ?? product?.compareAt));
-
-const discountLabel = (product) => {
-  const price = priceValue(product);
-  const compare = comparePriceValue(product);
-  if (!price || !compare || compare <= price) return "";
-  return `${Math.round(((compare - price) / compare) * 100)}% OFF`;
-};
-
-const optionValues = (product) => {
-  const options = Array.isArray(product?.options) ? product.options : [];
-  const colorOption = options.find((option) =>
-    /color|colour|style|print|pattern/i.test(String(option?.name || ""))
-  );
-  const values = colorOption?.values || options.flatMap((option) => option?.values || []);
-  return Array.from(new Set((values || []).map((value) => String(value || "").trim()).filter(Boolean)));
-};
-
-const swatchColor = (value, index) => {
-  const normalized = String(value || "").trim().toLowerCase();
-  if (/^#([0-9a-f]{3}|[0-9a-f]{6})$/i.test(normalized)) return normalized;
-  const key = Object.keys(COLOR_ALIASES).find((name) => normalized.includes(name));
-  if (key) return COLOR_ALIASES[key];
-  const palette = ["#050505", "#B25AD8", "#4469D9", "#55DDE0", "#9BE36D", "#F48FB1"];
-  return palette[index % palette.length];
-};
-
-const productRating = (product) => {
-  const raw = product?.rating ?? product?.reviewRating ?? product?.ratingValue;
-  const parsed = toNumber(typeof raw === "object" ? raw?.value : raw);
-  return parsed && parsed > 0 ? Math.min(5, parsed) : 0;
-};
-
-const productReviewCount = (product) => {
-  const raw = product?.ratingCount ?? product?.reviewCount ?? product?.reviewsCount;
-  const parsed = parseInt(typeof raw === "object" ? raw?.value : raw, 10);
-  return Number.isFinite(parsed) && parsed > 0 ? parsed : 0;
 };
 
 const PAGE_SIZE = 20;
@@ -138,6 +209,8 @@ export default function AllProductsScreen() {
   const [bottomNavSection, setBottomNavSection] = useState(null);
   const [bottomNavHeight, setBottomNavHeight]   = useState(BOTTOM_NAV_RESERVED_HEIGHT);
   const [homeHeaderConfig, setHomeHeaderConfig] = useState(null);
+  const [productListHeaderConfig, setProductListHeaderConfig] = useState(null);
+  const [productListGridSection, setProductListGridSection] = useState(null);
 
   useEffect(() => {
     setSearchInput(searchTerm);
@@ -180,11 +253,93 @@ export default function AllProductsScreen() {
     updateSearchParams(searchInput);
   }, [searchInput, updateSearchParams]);
 
-  const numColumns = viewMode === "list" ? 1 : 2;
+  const searchGridConfig = useMemo(() => {
+    const raw = getRawProps(productListGridSection);
+    const gridObj = deepUnwrap(raw?.grid) || {};
+    const presentation = deepUnwrap(raw?.presentation) || {};
+    const presentationCss = deepUnwrap(presentation?.properties?.css || presentation?.css) || {};
+    const cardCss = deepUnwrap(presentationCss?.card) || {};
+    const imageCss = deepUnwrap(cardCss?.image) || {};
+    const titleCss = deepUnwrap(cardCss?.title) || {};
+    const priceCss = deepUnwrap(cardCss?.price) || {};
+    const containerCss = deepUnwrap(presentationCss?.container) || {};
+
+    const columns = Math.max(1, Math.round(resolveNumber([raw?.columns, gridObj?.columns], 2)));
+    const colGap = resolveNumber([raw?.colGap, raw?.columnGap, raw?.gapX], GAP);
+    const rowGap = resolveNumber([raw?.rowGap, raw?.gapY], 12);
+    const padTop = resolveNumber([raw?.bgPadT, raw?.pt, containerCss?.paddingTop], 0);
+    const padBottom = resolveNumber([raw?.bgPadB, raw?.pb, containerCss?.paddingBottom], 0);
+    const padLeft = resolveNumber([raw?.bgPadL, raw?.pl, containerCss?.paddingLeft], H_PAD);
+    const padRight = resolveNumber([raw?.bgPadR, raw?.pr, containerCss?.paddingRight], H_PAD);
+    const imageRatio = parseAspectRatio(raw?.imageRatio ?? raw?.ratio ?? imageCss?.aspectRatio);
+    const imageCorner = resolveNumber([raw?.imageCorner, raw?.corner, imageCss?.borderRadius], 0);
+    const imageBgColor = resolveString(
+      raw?.imageBgColor ?? raw?.imageBackgroundColor ?? imageCss?.backgroundColor ?? imageCss?.background,
+      "#FFFFFF"
+    );
+    const imageScale = resolveProductImageResizeMode(
+      raw?.imageScale,
+      raw?.scale,
+      raw?.imageResizeMode,
+      imageCss?.objectFit
+    );
+    const cardRadius = resolveNumber([raw?.cardCorner, raw?.cardRadius, raw?.outerCorners], imageCorner);
+    const cardBgColor = resolveString(raw?.cardBgColor ?? raw?.cardBackgroundColor ?? cardCss?.backgroundColor, "#FFFFFF");
+    const cardBorderColor = resolveString(raw?.cardBorderColor ?? raw?.borderColor ?? cardCss?.borderColor, "#FFFFFF");
+    const cardBorderWidth = resolveNumber([raw?.cardBorderWidth, raw?.borderSize, cardCss?.borderWidth], 0);
+    const titleSize = resolveNumber([raw?.titleSize, raw?.cardTitleSize, titleCss?.fontSize], 14);
+    const titleColor = resolveString(raw?.titleColor ?? titleCss?.color, "#111827");
+    const titleWeight = resolveWeight(raw?.titleWeight ?? titleCss?.fontWeight, "600");
+    const titleFamily = resolveFont(resolveString(raw?.titleFamily ?? raw?.titleFontFamily ?? titleCss?.fontFamily, ""));
+    const titleAlign = resolveString(raw?.titleAlign ?? raw?.alignText ?? titleCss?.textAlign, "left").toLowerCase();
+    const titleWrap = resolveBoolean([raw?.titleWrap, raw?.cardTitleWrap], true);
+    const priceSize = resolveNumber([raw?.priceSize, raw?.cardPriceSize, priceCss?.fontSize], 14);
+    const priceColor = resolveString(raw?.priceColor ?? priceCss?.color, "#111827");
+    const priceWeight = resolveWeight(raw?.priceWeight ?? priceCss?.fontWeight, "600");
+    const priceFamily = resolveFont(resolveString(raw?.priceFamily ?? raw?.priceFontFamily ?? priceCss?.fontFamily, ""));
+    return {
+      columns,
+      colGap,
+      rowGap,
+      padTop,
+      padBottom,
+      padLeft,
+      padRight,
+      imageRatio,
+      imageCorner,
+      imageBgColor,
+      imageScale,
+      cardRadius,
+      cardBgColor,
+      cardBorderColor,
+      cardBorderWidth,
+      titleSize,
+      titleColor,
+      titleWeight,
+      titleFamily,
+      titleAlign: titleAlign === "center" || titleAlign === "right" ? titleAlign : "left",
+      titleWrap,
+      priceSize,
+      priceColor,
+      priceWeight,
+      priceFamily,
+      bgColor: resolveString(raw?.bgColor ?? containerCss?.backgroundColor, "#FFFFFF"),
+    };
+  }, [productListGridSection]);
+
+  const numColumns = isSearchMode
+    ? (viewMode === "list" ? 1 : searchGridConfig.columns)
+    : (viewMode === "list" ? 1 : 2);
   const CARD_W = viewMode === "list"
-    ? SCREEN_W - H_PAD * 2
+    ? SCREEN_W - (isSearchMode ? searchGridConfig.padLeft + searchGridConfig.padRight : H_PAD * 2)
+    : isSearchMode
+    ? (SCREEN_W - searchGridConfig.padLeft - searchGridConfig.padRight - searchGridConfig.colGap * (numColumns - 1)) / numColumns
     : (SCREEN_W - H_PAD * 2 - GAP) / 2;
-  const searchImageHeight = viewMode === "list" ? 112 : Math.round(CARD_W * 1.42);
+  const searchImageHeight = viewMode === "list"
+    ? 112
+    : searchGridConfig.imageRatio
+    ? Math.round(CARD_W / searchGridConfig.imageRatio)
+    : Math.round(CARD_W * 1.42);
 
   const loadProducts = useCallback(async ({ after = null, append = false } = {}) => {
     if (append) {
@@ -247,10 +402,17 @@ export default function AllProductsScreen() {
   useEffect(() => {
     const appId = resolveAppId();
     let mounted = true;
-    fetchDSL(appId, "home").then((data) => {
+    Promise.all([
+      fetchDSL(appId, "home").catch(() => null),
+      fetchDSL(appId, "product-list").catch(() => null),
+    ]).then(([homeData, productListData]) => {
       if (!mounted) return;
-      setHomeHeaderConfig(data?.dsl?.headerdefault || null);
-      const nav = (data?.dsl?.sections || []).find((s) => {
+      const homeDsl = homeData?.dsl || homeData || {};
+      const productListDsl = productListData?.dsl || productListData || {};
+      setHomeHeaderConfig(homeDsl?.headerdefault || null);
+      setProductListHeaderConfig(productListDsl?.headerdefault || null);
+      setProductListGridSection(findProductGridSection(productListDsl));
+      const nav = (homeDsl?.sections || []).find((s) => {
         const c = (
           s?.component?.const || s?.component ||
           s?.properties?.component?.const || s?.properties?.component || ""
@@ -301,113 +463,124 @@ export default function AllProductsScreen() {
     openSearchPage();
   };
 
+  const searchHeaderConfig = productListHeaderConfig || homeHeaderConfig || {};
+  const searchBackConfig = findBackHeaderItem(searchHeaderConfig);
+  const searchBackIconName = resolveFA4IconName(
+    resolveString(searchBackConfig?.iconId ?? searchBackConfig?.icon, "")
+  );
+  const searchBackIconSize = resolveNumber([searchBackConfig?.iconSize], 21);
+  const searchBackIconColor = resolveString(
+    searchBackConfig?.iconColor ?? searchHeaderConfig?.iconColor,
+    "#111827"
+  );
+  const searchCartConfig = findCartHeaderItem(searchHeaderConfig);
+  const searchCartIconName = resolveFA4IconName(
+    resolveString(searchCartConfig?.iconId ?? searchCartConfig?.icon, "")
+  );
+  const searchCartIconSize = resolveNumber([searchCartConfig?.iconSize], 21);
+  const searchCartIconColor = resolveString(
+    searchCartConfig?.iconColor ?? searchHeaderConfig?.iconColor,
+    "#111827"
+  );
+
   const renderItem = ({ item }) => {
     const isListMode = viewMode === "list";
     if (isSearchMode) {
-      const swatches = optionValues(item);
-      const extraSwatches = Math.max(0, swatches.length - 4);
       const price = formatMoney(
         moneyAmount(item.priceAmount ?? item.price),
         item.priceCurrency || item.currency || item.currencySymbol
       );
-      const compare = formatMoney(
-        moneyAmount(item.compareAtPrice ?? item.originalPrice),
-        item.priceCurrency || item.currency || item.currencySymbol
-      );
-      const rating = productRating(item);
-      const reviewCount = productReviewCount(item);
-      const subtitle = item?.vendor || item?.productType || "";
-      const bundleLabel = (Array.isArray(item?.tags) ? item.tags : []).find((tag) =>
-        /bundle|save/i.test(String(tag || ""))
-      );
-      const discount = discountLabel(item);
 
       return (
         <TouchableOpacity
-          style={[styles.searchCard, { width: CARD_W }, isListMode && styles.searchCardList]}
+          style={[
+            styles.searchCard,
+            {
+              width: CARD_W,
+              marginBottom: searchGridConfig.rowGap,
+              borderRadius: searchGridConfig.cardRadius,
+              backgroundColor: searchGridConfig.cardBgColor,
+              borderColor: searchGridConfig.cardBorderColor,
+              borderWidth: searchGridConfig.cardBorderWidth,
+            },
+            isListMode && styles.searchCardList,
+          ]}
           activeOpacity={0.85}
           onPress={() => navigation.navigate("ProductDetail", { product: item, detailSections })}
         >
-          <View style={[styles.searchImageWrap, isListMode && styles.searchImageWrapList]}>
+          <View
+            style={[
+              styles.searchImageWrap,
+              {
+                backgroundColor: searchGridConfig.imageBgColor,
+                borderRadius: searchGridConfig.imageCorner,
+              },
+              isListMode && styles.searchImageWrapList,
+            ]}
+          >
             {item.imageUrl ? (
               <Image
                 source={{ uri: item.imageUrl }}
                 style={[
                   styles.searchImage,
-                  { height: searchImageHeight },
+                  {
+                    height: searchImageHeight,
+                    borderRadius: searchGridConfig.imageCorner,
+                    backgroundColor: searchGridConfig.imageBgColor,
+                  },
                   isListMode && styles.searchImageList,
                 ]}
-                resizeMode={resolveProductImageResizeMode()}
+                resizeMode={searchGridConfig.imageScale}
               />
             ) : (
               <View
                 style={[
                   styles.searchImage,
                   styles.searchPlaceholder,
-                  { height: searchImageHeight },
+                  {
+                    height: searchImageHeight,
+                    borderRadius: searchGridConfig.imageCorner,
+                    backgroundColor: searchGridConfig.imageBgColor,
+                  },
                   isListMode && styles.searchImageList,
                 ]}
               />
             )}
-            <TouchableOpacity
-              style={styles.searchHeart}
-              activeOpacity={0.75}
-              onPress={() => navigation.navigate("Wishlist")}
-            >
-              <FontAwesome name="heart-o" size={18} color="#111827" />
-            </TouchableOpacity>
-            {!!discount && (
-              <View style={styles.discountBadge}>
-                <Text style={styles.discountText}>{discount}</Text>
-              </View>
-            )}
           </View>
 
           <View style={[styles.searchInfoColumn, isListMode && styles.searchInfoColumnList]}>
-            <View style={styles.swatchRow}>
-              {swatches.slice(0, 4).map((value, index) => (
-                <View
-                  key={`${item.id}-swatch-${value}-${index}`}
-                  style={[styles.swatch, { backgroundColor: swatchColor(value, index) }]}
-                />
-              ))}
-              {extraSwatches > 0 ? <Text style={styles.swatchMore}>+{extraSwatches}</Text> : null}
-            </View>
-
             <View style={styles.searchCardBody}>
-              <Text numberOfLines={1} style={styles.searchProductTitle}>
-                {String(item.title || "").toUpperCase()}
+              <Text
+                numberOfLines={searchGridConfig.titleWrap ? 2 : 1}
+                style={[
+                  styles.searchProductTitle,
+                  {
+                    textAlign: searchGridConfig.titleAlign,
+                    color: searchGridConfig.titleColor,
+                    fontSize: searchGridConfig.titleSize,
+                    fontWeight: searchGridConfig.titleWeight,
+                    ...(searchGridConfig.titleFamily ? { fontFamily: searchGridConfig.titleFamily } : null),
+                  },
+                ]}
+              >
+                {item.title}
               </Text>
-              {!!subtitle && (
-                <Text numberOfLines={1} style={styles.searchProductVendor}>
-                  {subtitle}
-                </Text>
-              )}
               {!!price && (
-                <Text style={styles.searchPrice}>
-                  {!!compare && compare !== price ? `${compare}  |  ${price}` : price}
+                <Text
+                  style={[
+                    styles.searchPrice,
+                    {
+                      textAlign: searchGridConfig.titleAlign,
+                      color: searchGridConfig.priceColor,
+                      fontSize: searchGridConfig.priceSize,
+                      fontWeight: searchGridConfig.priceWeight,
+                      ...(searchGridConfig.priceFamily ? { fontFamily: searchGridConfig.priceFamily } : null),
+                    },
+                  ]}
+                >
+                  {price}
                 </Text>
               )}
-              {!!bundleLabel && (
-                <Text numberOfLines={1} style={styles.bundleText}>
-                  {bundleLabel}
-                </Text>
-              )}
-              {rating > 0 ? (
-                <View style={styles.ratingRow}>
-                  {Array.from({ length: 5 }).map((_, index) => (
-                    <FontAwesome
-                      key={`rating-${item.id}-${index}`}
-                      name={index < Math.round(rating) ? "star" : "star-o"}
-                      size={13}
-                      color="#111827"
-                    />
-                  ))}
-                  {reviewCount > 0 ? (
-                    <Text style={styles.reviewCount}>{reviewCount.toLocaleString()}</Text>
-                  ) : null}
-                </View>
-              ) : null}
             </View>
           </View>
         </TouchableOpacity>
@@ -449,7 +622,17 @@ export default function AllProductsScreen() {
   };
 
   const renderSearchSkeleton = () => (
-    <View style={styles.searchSkeletonGrid}>
+    <View
+      style={[
+        styles.searchSkeletonGrid,
+        {
+          paddingTop: searchGridConfig.padTop,
+          paddingLeft: searchGridConfig.padLeft,
+          paddingRight: searchGridConfig.padRight,
+          backgroundColor: searchGridConfig.bgColor,
+        },
+      ]}
+    >
       {Array.from({ length: 4 }).map((_, index) => (
         <View key={`search-result-skeleton-${index}`} style={[styles.searchSkeletonCard, { width: CARD_W }]}>
           <View style={[styles.searchSkeletonImage, { height: searchImageHeight }]} />
@@ -490,7 +673,13 @@ export default function AllProductsScreen() {
                 onPress={goBack}
                 hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
               >
-                <FontAwesome name="angle-left" size={28} color="#111827" />
+                {searchBackIconName ? (
+                  <FontAwesome
+                    name={searchBackIconName}
+                    size={searchBackIconSize}
+                    color={searchBackIconColor}
+                  />
+                ) : null}
               </TouchableOpacity>
               <View style={styles.searchHeaderSpacer} />
               <TouchableOpacity
@@ -499,14 +688,20 @@ export default function AllProductsScreen() {
                 onPress={openCart}
                 hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
               >
-                <View>
-                  <FontAwesome name="shopping-bag" size={21} color="#111827" />
-                  {cartCount > 0 ? (
-                    <View style={styles.cartBadge}>
-                      <Text style={styles.cartBadgeText}>{cartCount > 99 ? "99+" : String(cartCount)}</Text>
-                    </View>
-                  ) : null}
-                </View>
+                {searchCartIconName ? (
+                  <View>
+                    <FontAwesome
+                      name={searchCartIconName}
+                      size={searchCartIconSize}
+                      color={searchCartIconColor}
+                    />
+                    {cartCount > 0 ? (
+                      <View style={styles.cartBadge}>
+                        <Text style={styles.cartBadgeText}>{cartCount > 99 ? "99+" : String(cartCount)}</Text>
+                      </View>
+                    ) : null}
+                  </View>
+                ) : null}
               </TouchableOpacity>
             </View>
             <View
@@ -557,7 +752,7 @@ export default function AllProductsScreen() {
           onFilterChange={(filter) => setActiveFilter(filter)}
         />
 
-        <View style={styles.listArea}>
+        <View style={[styles.listArea, isSearchMode && styles.searchListArea]}>
           {error ? <Text style={styles.error}>{error}</Text> : null}
 
           {loading && isSearchMode ? renderSearchSkeleton() : null}
@@ -573,7 +768,14 @@ export default function AllProductsScreen() {
               renderItem={renderItem}
               contentContainerStyle={[
                 styles.listContent,
-                { paddingBottom: bottomNavSection ? bottomNavHeight + 16 : 24 },
+                isSearchMode && {
+                  paddingTop: searchGridConfig.padTop,
+                  paddingBottom: searchGridConfig.padBottom + (bottomNavSection ? bottomNavHeight + 16 : 24),
+                  paddingLeft: searchGridConfig.padLeft,
+                  paddingRight: searchGridConfig.padRight,
+                  backgroundColor: searchGridConfig.bgColor,
+                },
+                !isSearchMode && { paddingBottom: bottomNavSection ? bottomNavHeight + 16 : 24 },
               ]}
               ListEmptyComponent={
                 isSearchMode ? renderEmptyState : (
@@ -693,6 +895,10 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingTop: 8,
   },
+  searchListArea: {
+    paddingHorizontal: 0,
+    paddingTop: 0,
+  },
   searchSkeletonGrid: {
     flexDirection: "row",
     flexWrap: "wrap",
@@ -776,50 +982,6 @@ const styles = StyleSheet.create({
     flex: 1,
     minWidth: 0,
   },
-  searchHeart: {
-    position: "absolute",
-    right: 10,
-    top: 10,
-    width: 28,
-    height: 28,
-    borderRadius: 14,
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: "rgba(255,255,255,0.72)",
-  },
-  discountBadge: {
-    position: "absolute",
-    left: 8,
-    bottom: 8,
-    backgroundColor: "#8FEA8F",
-    paddingHorizontal: 7,
-    paddingVertical: 3,
-  },
-  discountText: {
-    color: "#111827",
-    fontSize: 12,
-    fontWeight: "700",
-  },
-  swatchRow: {
-    minHeight: 24,
-    flexDirection: "row",
-    alignItems: "center",
-    marginTop: 7,
-  },
-  swatch: {
-    width: 22,
-    height: 22,
-    borderRadius: 11,
-    borderWidth: 1,
-    borderColor: "#FFFFFF",
-    marginRight: -2,
-  },
-  swatchMore: {
-    marginLeft: 6,
-    color: "#4B5563",
-    fontSize: 12,
-    fontWeight: "500",
-  },
   searchCardBody: {
     paddingTop: 6,
     gap: 5,
@@ -829,31 +991,10 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: "800",
   },
-  searchProductVendor: {
-    color: "#111827",
-    fontSize: 13,
-    fontWeight: "400",
-  },
   searchPrice: {
     color: "#111827",
     fontSize: 13,
     fontWeight: "700",
-  },
-  bundleText: {
-    color: "#111827",
-    fontSize: 13,
-    fontWeight: "700",
-  },
-  ratingRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 2,
-  },
-  reviewCount: {
-    marginLeft: 4,
-    color: "#6B7280",
-    fontSize: 12,
-    fontWeight: "400",
   },
   noResults: {
     alignItems: "center",

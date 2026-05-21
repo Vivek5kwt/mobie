@@ -23,6 +23,8 @@ const PAGE_ALIASES = {
   "home":           ["home", "index", "main"],
   "notification":   ["notification", "notifications", "alerts", "inbox"],
   "orders":         ["orders", "my-orders", "order-history", "order"],
+  "settings":       ["settings", "setting", "my-account", "account"],
+  "setting":        ["setting", "settings", "my-account", "account"],
   "signin":         ["signin", "sign-in", "login", "log-in", "auth", "sign-in-page"],
   "sign-in":        ["sign-in", "signin", "login", "log-in", "auth"],
   "login":          ["login", "signin", "sign-in", "log-in", "auth"],
@@ -189,17 +191,24 @@ const selectDslPage = (dslData, layoutMeta, pageOverride) => {
 
   const targetName = normalizeName(pageOverride || layoutMeta?.page_name);
 
-  const match =
+  const pageCandidates = ([key, page]) => {
+    const pageInfo = page?.page || {};
+    return [
+      normalizeName(key),
+      normalizeName(pageInfo?.name),
+      normalizeName(pageInfo?.handle),
+    ];
+  };
+
+  const exactMatch =
     targetName &&
-    entries.find(([key, page]) => {
-      const pageInfo = page?.page || {};
-      const candidates = [
-        normalizeName(key),
-        normalizeName(pageInfo?.name),
-        normalizeName(pageInfo?.handle),
-      ];
-      return candidates.some((c) => isPageNameMatch(c, targetName));
-    });
+    entries.find((entry) => pageCandidates(entry).some((candidate) => candidate === targetName));
+
+  const aliasMatch =
+    targetName &&
+    entries.find((entry) => pageCandidates(entry).some((candidate) => isPageNameMatch(candidate, targetName)));
+
+  const match = exactMatch || aliasMatch;
 
   if (pageOverride && !match) {
     // Last chance: if layoutMeta confirms the right layout and the DSL has
