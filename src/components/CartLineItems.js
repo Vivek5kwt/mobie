@@ -314,6 +314,10 @@ export default function CartLineItems({ section }) {
     raw?.emptySubtitle ?? raw?.emptyCartSubtitle ?? raw?.emptyDescription,
     "Looks like you haven't added anything to your cart yet"
   );
+  const showEmptyButton = toBoolean(
+    raw?.showEmptyButton ?? raw?.emptyButtonVisible ?? raw?.continueShoppingVisible,
+    false
+  );
   const emptyButtonText = toString(raw?.emptyButtonText ?? raw?.continueShoppingText, "Continue Shopping");
   const emptyIconName = resolveFA4IconName(toString(raw?.emptyIcon ?? raw?.emptyCartIcon, "shopping-bag")) || "shopping-bag";
   const emptyIconColor = toString(raw?.emptyIconColor, "#B6B6B6");
@@ -325,8 +329,8 @@ export default function CartLineItems({ section }) {
   const emptyButtonRadius = toNumber(raw?.emptyButtonRadius ?? raw?.buttonRadius, 4);
   const emptyButtonHeight = toNumber(raw?.emptyButtonHeight ?? raw?.buttonHeight, 44);
   const emptyButtonWidth = toNumber(raw?.emptyButtonWidth, responsiveSize(0.5, 180, 220));
-  const emptyTitleFontSize = toNumber(raw?.emptyTitleFontSize ?? raw?.headlineSize, 22);
-  const emptySubtitleFontSize = toNumber(raw?.emptySubtitleFontSize ?? raw?.subtextSize, 14);
+  const emptyTitleFontSize = toNumber(raw?.emptyTitleFontSize, 18);
+  const emptySubtitleFontSize = toNumber(raw?.emptySubtitleFontSize, 13);
   const emptyButtonFontSize = toNumber(raw?.emptyButtonFontSize ?? raw?.buttonTextSize, 16);
   const emptyTitleFontFamily = cleanFontFamily(toString(raw?.emptyTitleFontFamily ?? raw?.headlineFontFamily ?? raw?.fontFamily, ""));
   const emptySubtitleFontFamily = cleanFontFamily(toString(raw?.emptySubtitleFontFamily ?? raw?.subtextFontFamily ?? raw?.fontFamily, ""));
@@ -375,32 +379,34 @@ export default function CartLineItems({ section }) {
         >
           {emptySubtitle}
         </Text>
-        <TouchableOpacity
-          activeOpacity={0.85}
-          style={[
-            styles.emptyButton,
-            {
-              width: emptyButtonWidth,
-              minHeight: emptyButtonHeight,
-              borderRadius: emptyButtonRadius,
-              backgroundColor: emptyButtonBgColor,
-            },
-          ]}
-          onPress={() => navigation.navigate("LayoutScreen", { pageName: "home" })}
-        >
-          <Text
+        {showEmptyButton && (
+          <TouchableOpacity
+            activeOpacity={0.85}
             style={[
-              styles.emptyButtonText,
+              styles.emptyButton,
               {
-                color: emptyButtonTextColor,
-                fontSize: emptyButtonFontSize,
-                ...(emptyButtonFontFamily ? { fontFamily: emptyButtonFontFamily } : {}),
+                width: emptyButtonWidth,
+                minHeight: emptyButtonHeight,
+                borderRadius: emptyButtonRadius,
+                backgroundColor: emptyButtonBgColor,
               },
             ]}
+            onPress={() => navigation.navigate("LayoutScreen", { pageName: "home" })}
           >
-            {emptyButtonText}
-          </Text>
-        </TouchableOpacity>
+            <Text
+              style={[
+                styles.emptyButtonText,
+                {
+                  color: emptyButtonTextColor,
+                  fontSize: emptyButtonFontSize,
+                  ...(emptyButtonFontFamily ? { fontFamily: emptyButtonFontFamily } : {}),
+                },
+              ]}
+            >
+              {emptyButtonText}
+            </Text>
+          </TouchableOpacity>
+        )}
       </View>
     );
   }
