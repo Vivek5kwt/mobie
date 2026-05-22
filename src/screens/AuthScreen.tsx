@@ -1100,10 +1100,31 @@ const AuthScreen = () => {
   const [dslLoaded, setDslLoaded] = useState(false);
   const isMountedRef = useRef(true);
   const loginToastPendingRef = useRef(false);
+  const currentModeRef = useRef<'login' | 'signup'>('login');
 
   useEffect(() => {
     return () => { isMountedRef.current = false; };
   }, []);
+
+  useEffect(() => {
+    currentModeRef.current = mode;
+  }, [mode]);
+
+  const resetAuthFormFields = useCallback(() => {
+    setEmail('');
+    setPassword('');
+    setFirstName('');
+    setLastName('');
+    setError('');
+    setPasswordVisible(false);
+  }, []);
+
+  const switchAuthMode = useCallback((nextMode: 'login' | 'signup') => {
+    if (currentModeRef.current === nextMode) return;
+    currentModeRef.current = nextMode;
+    resetAuthFormFields();
+    setMode(nextMode);
+  }, [resetAuthFormFields]);
 
   const loadAuthLayout = useCallback(async (showRefreshIndicator = false) => {
     if (showRefreshIndicator) setRefreshing(true);
@@ -1173,8 +1194,8 @@ const AuthScreen = () => {
 
   useEffect(() => {
     const initialMode = (route?.params as { initialMode?: string } | undefined)?.initialMode;
-    if (initialMode === 'signup' || initialMode === 'login') setMode(initialMode);
-  }, [route?.params]);
+    if (initialMode === 'signup' || initialMode === 'login') switchAuthMode(initialMode);
+  }, [route?.params, switchAuthMode]);
 
   const t = mode === 'signup' ? signUpTokens : signInTokens;
   const activeHeaderConfig = useMemo(() => {
@@ -1189,7 +1210,9 @@ const AuthScreen = () => {
     return base;
   }, [mode, signInHeaderConfig, signUpHeaderConfig]);
 
-  const toggleMode = () => { setMode((p) => (p === 'login' ? 'signup' : 'login')); setError(''); };
+  const toggleMode = () => {
+    switchAuthMode(currentModeRef.current === 'login' ? 'signup' : 'login');
+  };
 
   const validateForm = () => {
     const e = email.trim(), p = password.trim(), fn = firstName.trim(), ln = lastName.trim();
