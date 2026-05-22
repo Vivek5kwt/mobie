@@ -59,6 +59,46 @@ const parsePx = (val, fb) => {
   return Number.isNaN(p) ? fb : p;
 };
 
+const omitStyleKeys = (style = {}, keys = []) => {
+  const next = { ...style };
+  keys.forEach((key) => {
+    delete next[key];
+  });
+  return next;
+};
+
+const slugify = (value = "") =>
+  String(value || "")
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+
+const SIGNIN_SLUGS = new Set(["signin", "sign-in", "login", "log-in", "auth"]);
+const PROFILE_SLUGS = new Set(["profile", "account", "my-account", "myaccount"]);
+const ORDER_SLUGS = new Set(["orders", "order", "my-orders", "myorders", "order-history", "orderhistory", "my-order"]);
+const WISHLIST_SLUGS = new Set(["wishlist", "my-wishlist", "mywishlist", "saved", "favorites", "favourites", "favourite", "favorite"]);
+const SETTINGS_SLUGS = new Set(["settings", "setting"]);
+const ADDRESS_SLUGS = new Set(["saved-address", "saved-addresses", "address", "addresses", "address-book", "saved-address-book"]);
+
+const resolveLabel = (item = {}, fallback = "") =>
+  str(item?.label ?? item?.text ?? item?.title ?? item?.name, fallback);
+
+const resolveLink = (item = {}) =>
+  str(
+    item?.linkHref ??
+      item?.navigateTo ??
+      item?.navigateRef ??
+      item?.linkTo ??
+      item?.link ??
+      item?.href ??
+      item?.url ??
+      item?.page ??
+      item?.pageName ??
+      item?.screen,
+    ""
+  );
+
 // ── component ───────────────────────────────────────────────────────────────
 
 export default function AccountMenu({ section }) {
@@ -93,10 +133,10 @@ export default function AccountMenu({ section }) {
   }, [propsRoot]);
 
   const cssRow       = useMemo(() => convertStyles(css?.row       || {}), [css]);
-  const cssIconWrap  = useMemo(() => convertStyles(css?.iconWrap  || {}), [css]);
-  const cssLabel     = useMemo(() => convertStyles(css?.label     || {}), [css]);
+  const cssIconWrap  = useMemo(() => omitStyleKeys(convertStyles(css?.iconWrap || {}), ["placeItems"]), [css]);
+  const cssLabel     = useMemo(() => omitStyleKeys(convertStyles(css?.label || {}), ["numberOfLines", "textOverflow", "whiteSpace"]), [css]);
   const cssChevron   = useMemo(() => convertStyles(css?.chevron   || {}), [css]);
-  const cssContainer = useMemo(() => convertStyles(css?.container || {}), [css]);
+  const cssContainer = useMemo(() => omitStyleKeys(convertStyles(css?.container || {}), ["fontFamily"]), [css]);
   const visibility = useMemo(
     () => ({ ...(deepUnwrap(css?.visibility) || {}), ...(deepUnwrap(rawProps?.visibility) || {}) }),
     [css, rawProps]
@@ -113,6 +153,10 @@ export default function AccountMenu({ section }) {
     rawProps?.rowBgColor ?? rawProps?.bgColor,
     cssRow?.backgroundColor || "#FFFFFF"
   );
+  const resolvedContainerStyle = {
+    ...cssContainer,
+    backgroundColor: containerBg || cssContainer?.backgroundColor || "#FFFFFF",
+  };
 
   // ── row border ────────────────────────────────────────────────────────────
   // CSS may have "border: 1px solid #E5E7EB" as a string — parse it
@@ -199,7 +243,7 @@ export default function AccountMenu({ section }) {
         iconBg:    str(rawProps?.iconBgColor ?? rawProps?.iconBg, defIconBg),
         iconColor: str(rawProps?.iconColor, defIconColor),
         iconSize:  num(rawProps?.iconSize, defIconSize),
-        link:      str(rawProps?.linkHref ?? rawProps?.navigateTo ?? rawProps?.link ?? rawProps?.href, ""),
+        link:      resolveLink(rawProps),
       }];
     }
     return [];
@@ -207,27 +251,15 @@ export default function AccountMenu({ section }) {
   }, [rawProps]);
 
   const isLogoutEntry = (item = {}) => {
-    const label = str(item?.label ?? item?.text ?? item?.title, "").trim().toLowerCase();
-    const link = str(item?.link ?? item?.href ?? item?.url ?? item?.page ?? item?.navigateTo, "")
-      .trim()
-      .toLowerCase();
-    return label === "logout" || label === "log out" || link === "logout" || link === "log-out";
+    const label = slugify(resolveLabel(item));
+    const link = slugify(resolveLink(item));
+    return label === "logout" || label === "log-out" || link === "logout" || link === "log-out";
   };
 
   const isLoginEntry = (item = {}) => {
-    const label = str(item?.label ?? item?.text ?? item?.title, "").trim().toLowerCase();
-    const link = str(item?.link ?? item?.href ?? item?.url ?? item?.page ?? item?.navigateTo, "")
-      .trim()
-      .toLowerCase();
-    return (
-      label === "login" ||
-      label === "log in" ||
-      label === "signin" ||
-      label === "sign in" ||
-      link === "login" ||
-      link === "signin" ||
-      link === "sign-in"
-    );
+    const label = slugify(resolveLabel(item));
+    const link = slugify(resolveLink(item));
+    return SIGNIN_SLUGS.has(label) || SIGNIN_SLUGS.has(link);
   };
 
   if (!items.length || !showHeader) return null;
@@ -265,24 +297,24 @@ export default function AccountMenu({ section }) {
     }
     if (isLoginEntry(item) && initializing) return;
 
-    const link = str(item?.link ?? item?.href ?? item?.url ?? item?.page ?? item?.navigateTo, "");
-    if (!link) return;
-
-    const normalized = link.trim().toLowerCase().replace(/[^a-z0-9]+/g, "-");
+    const label = resolveLabel(item, "Page");
+    const link = resolveLink(item);
+    const target = link || label;
+    const normalized = slugify(target);
+    if (!normalized && !/^https?:\/\//i.test(target)) return;
 
     try {
       // External URL → open in CheckoutWebView
-      if (/^https?:\/\//i.test(link)) {
+      if (/^https?:\/\//i.test(target)) {
         navigation.navigate("CheckoutWebView", {
-          url: link,
-          title: str(item?.label ?? item?.text ?? item?.title, "Page"),
+          url: target,
+          title: label,
         });
         return;
       }
 
       // Sign-in / login → Auth screen
-      const signinSlugs = new Set(["signin", "sign-in", "login", "log-in", "auth"]);
-      if (signinSlugs.has(normalized)) {
+      if (SIGNIN_SLUGS.has(normalized)) {
         if (isLoggedIn) {
           navigation.navigate("BottomNavScreen", { pageName: "my-account", title: "My Account" });
           return;
@@ -297,24 +329,45 @@ export default function AccountMenu({ section }) {
         navigation.navigate("LayoutScreen");
         return;
       }
-      if (normalized === "my-account" || normalized === "myaccount" || normalized === "account") {
+      if (PROFILE_SLUGS.has(normalized)) {
         navigation.navigate("BottomNavScreen", { pageName: "my-account", title: "My Account" });
+        return;
+      }
+      if (ORDER_SLUGS.has(normalized)) {
+        navigation.navigate("BottomNavScreen", { pageName: "orders", title: label || "Orders", link: "orders" });
+        return;
+      }
+      if (WISHLIST_SLUGS.has(normalized)) {
+        navigation.navigate("Wishlist");
+        return;
+      }
+      if (SETTINGS_SLUGS.has(normalized)) {
+        navigation.navigate("Settings", { pageName: "settings", title: label || "Settings" });
+        return;
+      }
+      if (ADDRESS_SLUGS.has(normalized)) {
+        navigation.navigate("BottomNavScreen", {
+          pageName: "saved-address",
+          title: label || "Saved Address",
+          link: "saved-address",
+        });
         return;
       }
 
       // All other internal page slugs → BottomNavScreen
       navigation.navigate("BottomNavScreen", {
         pageName: normalized,
-        title: str(item?.label ?? item?.text ?? item?.title, link),
+        link: normalized,
+        title: label || target,
       });
     } catch (_) {}
   };
 
   return (
-    <View style={[styles.container, { backgroundColor: containerBg }]}>
+    <View style={[styles.container, resolvedContainerStyle]}>
       {items.map((item, index) => {
         const rawItem  = deepUnwrap(item) || item || {};
-        const baseItemLabel   = str(rawItem?.label ?? rawItem?.text ?? rawItem?.title, "");
+        const baseItemLabel   = resolveLabel(rawItem);
         const itemLabel       = isLogoutEntry(rawItem)
           ? (isLoggedIn || initializing ? "Logout" : "Login")
           : baseItemLabel;
@@ -333,6 +386,7 @@ export default function AccountMenu({ section }) {
               activeOpacity={0.65}
               style={[
                 styles.row,
+                cssRow,
                 {
                   backgroundColor: rowBg,
                   borderWidth,
@@ -352,6 +406,7 @@ export default function AccountMenu({ section }) {
                 <View
                   style={[
                     styles.iconCircle,
+                    cssIconWrap,
                     {
                       width:           iconCircleSize,
                       height:          iconCircleSize,
@@ -369,6 +424,7 @@ export default function AccountMenu({ section }) {
                 numberOfLines={1}
                 style={[
                   styles.label,
+                  cssLabel,
                   {
                     color:      labelColor,
                     fontSize:   labelSize,
@@ -394,6 +450,7 @@ export default function AccountMenu({ section }) {
                 <View
                   style={[
                     styles.iconCircle,
+                    cssIconWrap,
                     {
                       width:           iconCircleSize,
                       height:          iconCircleSize,
@@ -408,7 +465,7 @@ export default function AccountMenu({ section }) {
 
               {/* Chevron */}
               {itemShowChevron && (
-                <FontAwesome name="chevron-right" size={chevronSize} color={chevronColor} />
+                <FontAwesome name="chevron-right" size={chevronSize} color={chevronColor} style={cssChevron} />
               )}
             </TouchableOpacity>
 
@@ -419,7 +476,9 @@ export default function AccountMenu({ section }) {
                   styles.divider,
                   {
                     backgroundColor: dividerColor,
-                    marginLeft: rowPl + iconCircleSize + rowGap,
+                    marginLeft: showIcons && itemIconAlign !== "right"
+                      ? rowPl + iconCircleSize + rowGap
+                      : rowPl,
                   },
                 ]}
               />

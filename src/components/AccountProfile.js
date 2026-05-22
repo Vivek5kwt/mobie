@@ -52,6 +52,24 @@ const resolveFontWeight = (value, fallback = "400") => {
 
 const cleanFontFamily = (family) => resolveFont(family) || "";
 
+const toNumber = (value, fallback) => {
+  const resolved = resolveValue(value, fallback);
+  if (typeof resolved === "number" && Number.isFinite(resolved)) return resolved;
+  const parsed = Number.parseFloat(String(resolved ?? "").replace("px", "").trim());
+  return Number.isFinite(parsed) ? parsed : fallback;
+};
+
+const resolveAvatarCorner = (value, size) => {
+  const resolved = resolveValue(value, undefined);
+  if (resolved === undefined || resolved === null || resolved === "") return size / 2;
+  if (typeof resolved === "number") return resolved >= 99 ? size / 2 : resolved;
+  const normalized = String(resolved).trim().toLowerCase();
+  if (normalized === "circle" || normalized === "50%" || normalized.includes("999")) return size / 2;
+  if (normalized === "rounded") return Math.min(8, size / 2);
+  const parsed = Number.parseFloat(normalized.replace("px", ""));
+  return Number.isFinite(parsed) ? parsed : size / 2;
+};
+
 const parseIconName = (iconClass) => {
   if (!iconClass || typeof iconClass !== "string") return "user";
   const tokens = iconClass.split(" ").filter(Boolean);
@@ -96,11 +114,21 @@ export default function AccountProfile({ section }) {
     propsRoot?.presentation?.properties || propsRoot?.presentation, {}
   );
   const css = resolveObject(presentation?.css, {});
+  const metrics = resolveObject(presentation?.metrics, {});
+  const metricElements = resolveObject(metrics?.elements, {});
+  const avatarMetrics = resolveObject(metricElements?.avatar, null);
+  const nameMetrics = resolveObject(metricElements?.name, null);
+  const containerMetrics = resolveObject(metricElements?.container ?? metrics?.container, null);
+  const hasMetrics = resolveBoolean(metrics?.available, false) && avatarMetrics && containerMetrics;
 
   // Logged-in session must win; DSL values are fallback placeholders only.
   const name  = resolveValue(session?.user?.name,  "") || resolveValue(rawProps?.name,  "");
   const email = resolveValue(session?.user?.email, "") || resolveValue(rawProps?.email, "");
-  const avatarUrl = resolveValue(rawProps?.avatarUrl, "");
+  const avatarUrl =
+    resolveValue(session?.user?.avatarUrl, "") ||
+    resolveValue(session?.user?.avatar, "") ||
+    resolveValue(session?.user?.profilePictureUrl, "") ||
+    resolveValue(rawProps?.avatarUrl ?? rawProps?.imageUrl ?? rawProps?.profileImage, "");
 
   const containerStyle = convertStyles(css?.container || {});
   const nameStyle = convertStyles(css?.name || {});
@@ -117,10 +145,24 @@ export default function AccountProfile({ section }) {
   const bgColor = resolveValue(rawProps?.bgColor, containerStyle?.backgroundColor);
   const borderColor = resolveValue(rawProps?.borderColor, css?.container?.borderColor);
   const borderLine = resolveValue(rawProps?.borderLine, css?.container?.borderLine);
+  const metricPaddingLeft = hasMetrics ? toNumber(avatarMetrics?.x, undefined) : undefined;
+  const metricPaddingTop = hasMetrics ? toNumber(avatarMetrics?.y, undefined) : undefined;
+  const metricPaddingBottom = hasMetrics
+    ? Math.max(
+        0,
+        toNumber(containerMetrics?.height, 0) -
+          toNumber(avatarMetrics?.y, 0) -
+          toNumber(avatarMetrics?.height, 0)
+      )
+    : undefined;
 
   const resolvedContainerStyle = {
     ...containerStyle,
     backgroundColor: bgColor || containerStyle?.backgroundColor,
+    gap: 0,
+    ...(metricPaddingLeft !== undefined ? { paddingLeft: metricPaddingLeft } : {}),
+    ...(metricPaddingTop !== undefined ? { paddingTop: metricPaddingTop } : {}),
+    ...(metricPaddingBottom !== undefined ? { paddingBottom: metricPaddingBottom } : {}),
     ...(showBackgroundPadding ? {} : { padding: 0, paddingHorizontal: 0, paddingVertical: 0 }),
     ...resolveBorderStyle(borderLine, borderColor),
   };
@@ -143,10 +185,19 @@ export default function AccountProfile({ section }) {
     ...(emailFontFamily ? { fontFamily: emailFontFamily } : {}),
   };
 
-  const avatarSize = resolveValue(avatarStyle?.baseSize, 56);
-  const avatarCorner = resolveValue(avatarStyle?.corner, 0);
-  const avatarScale = String(resolveValue(avatarStyle?.scale, "fill")).toLowerCase();
+  const avatarSize = toNumber(
+    rawProps?.avatarSize ?? rawProps?.imageSize ?? rawProps?.profilePictureSize ?? avatarStyle?.baseSize ?? avatarMetrics?.width,
+    56
+  );
+  const avatarCorner = resolveAvatarCorner(
+    rawProps?.avatarCorner ?? rawProps?.imageCorner ?? rawProps?.borderRadius ?? avatarStyle?.corner ?? rawProps?.imageShape,
+    avatarSize
+  );
+  const avatarScale = String(resolveValue(rawProps?.imageScale ?? avatarStyle?.scale, "fill")).toLowerCase();
   const resizeMode = avatarScale === "fit" ? "contain" : "cover";
+  const textGap = hasMetrics
+    ? Math.max(0, toNumber(nameMetrics?.x, 0) - toNumber(avatarMetrics?.x, 0) - avatarSize)
+    : 12;
 
   const placeholderIcon = parseIconName(placeholder?.iconClass);
   const placeholderIconSize = resolveValue(placeholder?.iconSize, 22);
@@ -167,6 +218,7 @@ export default function AccountProfile({ section }) {
               width: avatarSize,
               height: avatarSize,
               borderRadius: avatarCorner,
+              backgroundColor: placeholderBg,
             },
           ]}
         >
@@ -194,7 +246,7 @@ export default function AccountProfile({ section }) {
         </View>
       )}
 
-      <View style={styles.textBlock}>
+      <View style={[styles.textBlock, { marginLeft: textGap }]}>
         {showName && !!name && (
           <Text numberOfLines={1} style={[styles.name, resolvedNameStyle]}>
             {name}
@@ -216,7 +268,6 @@ const styles = StyleSheet.create({
     alignItems: "center",
     paddingHorizontal: 12,
     paddingVertical: 8,
-    gap: 12,
   },
   avatarWrap: {
     justifyContent: "center",
