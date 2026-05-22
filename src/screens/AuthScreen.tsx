@@ -50,6 +50,7 @@ type SignInTokens = {
   buttonMarginTop: number;
   footerMarginTop: number;
   footerLinkMarginTop: number;
+  footerInline: boolean;
   pagePaddingTop: number;
   pagePaddingBottom: number;
   pagePaddingLeft: number;
@@ -193,6 +194,12 @@ type SignUpTokens = SignInTokens & {
   lastNamePlaceholder: string;
   firstNamePlaceholderVisible: boolean;
   lastNamePlaceholderVisible: boolean;
+  firstNamePlaceholderFontSize: number;
+  lastNamePlaceholderFontSize: number;
+  firstNamePlaceholderFontFamily: string;
+  lastNamePlaceholderFontFamily: string;
+  firstNamePlaceholderFontWeight: string;
+  lastNamePlaceholderFontWeight: string;
   buttonHeight: number;
   buttonWidth: number;
   buttonFontSize: number;
@@ -454,6 +461,7 @@ const defaultSignInTokens: SignInTokens = {
   buttonMarginTop: 4,
   footerMarginTop: 20,
   footerLinkMarginTop: 6,
+  footerInline: false,
   pagePaddingTop: 24,
   pagePaddingBottom: 32,
   pagePaddingLeft: 16,
@@ -573,6 +581,7 @@ const defaultSignUpTokens: SignUpTokens = {
   buttonMarginTop: 4,
   footerMarginTop: 20,
   footerLinkMarginTop: 6,
+  footerInline: true,
   inputBorderColor: '#C7DADA',
   inputHeight: 50,
   authTitle: 'Create an Account',
@@ -608,6 +617,12 @@ const defaultSignUpTokens: SignUpTokens = {
   lastNamePlaceholder: 'Enter last name',
   firstNamePlaceholderVisible: true,
   lastNamePlaceholderVisible: true,
+  firstNamePlaceholderFontSize: 15,
+  lastNamePlaceholderFontSize: 15,
+  firstNamePlaceholderFontFamily: 'System',
+  lastNamePlaceholderFontFamily: 'System',
+  firstNamePlaceholderFontWeight: '400',
+  lastNamePlaceholderFontWeight: '400',
   emailLabelColor: '#374151',
   firstNameLabelColor: '#374151',
   lastNameLabelColor: '#374151',
@@ -735,8 +750,9 @@ const buildSignInTokens = (rawProps: Record<string, unknown>): SignInTokens => (
   inputPaddingVertical: toNumber(rawProps?.inputPaddingVertical ?? rawProps?.inputPy ?? rawProps?.fieldPaddingVertical, defaultSignInTokens.inputPaddingVertical),
   formCardMarginBottom: toNumber(rawProps?.formCardMarginBottom ?? rawProps?.cardMarginBottom, defaultSignInTokens.formCardMarginBottom),
   buttonMarginTop: toNumber(rawProps?.buttonMarginTop ?? rawProps?.buttonMt, defaultSignInTokens.buttonMarginTop),
-  footerMarginTop: toNumber(rawProps?.footerMarginTop ?? rawProps?.footerMt, defaultSignInTokens.footerMarginTop),
-  footerLinkMarginTop: toNumber(rawProps?.footerLinkMarginTop ?? rawProps?.footerLinkMt, defaultSignInTokens.footerLinkMarginTop),
+  footerMarginTop: toNumber(rawProps?.footerMarginTop ?? rawProps?.footerMt ?? rawProps?.footerPt, defaultSignInTokens.footerMarginTop),
+  footerLinkMarginTop: toNumber(rawProps?.footerLinkMarginTop ?? rawProps?.footerLinkMt ?? rawProps?.signInLinkPt, defaultSignInTokens.footerLinkMarginTop),
+  footerInline: toBoolean(rawProps?.footerInline ?? rawProps?.footerSameLine, defaultSignInTokens.footerInline),
   pagePaddingTop: toNumber(rawProps?.subgpt ?? rawProps?.bgpt ?? rawProps?.pagePaddingTop, defaultSignInTokens.pagePaddingTop),
   pagePaddingBottom: toNumber(rawProps?.subgpb ?? rawProps?.bgpb ?? rawProps?.pagePaddingBottom, defaultSignInTokens.pagePaddingBottom),
   pagePaddingLeft: toNumber(rawProps?.subgpl ?? rawProps?.bgpl ?? rawProps?.pagePaddingLeft, defaultSignInTokens.pagePaddingLeft),
@@ -854,8 +870,9 @@ const buildSignUpTokens = (rawProps: Record<string, unknown>): SignUpTokens => (
   inputPaddingVertical: toNumber(rawProps?.inputPaddingVertical ?? rawProps?.inputPy ?? rawProps?.fieldPaddingVertical, defaultSignUpTokens.inputPaddingVertical),
   formCardMarginBottom: toNumber(rawProps?.formCardMarginBottom ?? rawProps?.cardMarginBottom, defaultSignUpTokens.formCardMarginBottom),
   buttonMarginTop: toNumber(rawProps?.buttonMarginTop ?? rawProps?.buttonMt, defaultSignUpTokens.buttonMarginTop),
-  footerMarginTop: toNumber(rawProps?.footerMarginTop ?? rawProps?.footerMt, defaultSignUpTokens.footerMarginTop),
-  footerLinkMarginTop: toNumber(rawProps?.footerLinkMarginTop ?? rawProps?.footerLinkMt, defaultSignUpTokens.footerLinkMarginTop),
+  footerMarginTop: toNumber(rawProps?.footerMarginTop ?? rawProps?.footerMt ?? rawProps?.footerPt, defaultSignUpTokens.footerMarginTop),
+  footerLinkMarginTop: toNumber(rawProps?.footerLinkMarginTop ?? rawProps?.footerLinkMt ?? rawProps?.signInLinkPt, defaultSignUpTokens.footerLinkMarginTop),
+  footerInline: toBoolean(rawProps?.footerInline ?? rawProps?.footerSameLine, defaultSignUpTokens.footerInline),
   pagePaddingTop: toNumber(rawProps?.subgpt ?? rawProps?.bgpt ?? rawProps?.pagePaddingTop, defaultSignUpTokens.pagePaddingTop),
   pagePaddingBottom: toNumber(rawProps?.subgpb ?? rawProps?.bgpb ?? rawProps?.pagePaddingBottom, defaultSignUpTokens.pagePaddingBottom),
   pagePaddingLeft: toNumber(rawProps?.subgpl ?? rawProps?.bgpl ?? rawProps?.pagePaddingLeft, defaultSignUpTokens.pagePaddingLeft),
@@ -936,10 +953,16 @@ const buildSignUpTokens = (rawProps: Record<string, unknown>): SignUpTokens => (
   lastNamePlaceholderColor: (rawProps?.lastNamePlaceholderColor as string) ?? defaultSignUpTokens.lastNamePlaceholderColor,
   passwordPlaceholderColor: (rawProps?.passwordPlaceholderColor as string) ?? defaultSignUpTokens.passwordPlaceholderColor,
   emailPlaceholderFontSize: toNumber(rawProps?.emailPlaceholderFontSize ?? rawProps?.placeholderFontSize ?? rawProps?.fontSize, defaultSignUpTokens.emailPlaceholderFontSize),
+  firstNamePlaceholderFontSize: toNumber(rawProps?.firstNamePlaceholderFontSize ?? rawProps?.placeholderFontSize ?? rawProps?.fontSize, defaultSignUpTokens.firstNamePlaceholderFontSize),
+  lastNamePlaceholderFontSize: toNumber(rawProps?.lastNamePlaceholderFontSize ?? rawProps?.placeholderFontSize ?? rawProps?.fontSize, defaultSignUpTokens.lastNamePlaceholderFontSize),
   passwordPlaceholderFontSize: toNumber(rawProps?.passwordPlaceholderFontSize ?? rawProps?.placeholderFontSize ?? rawProps?.fontSize, defaultSignUpTokens.passwordPlaceholderFontSize),
   emailPlaceholderFontFamily: toFontFamily(rawProps?.emailPlaceholderFontFamily ?? rawProps?.placeholderFontFamily ?? rawProps?.fontFamily, defaultSignUpTokens.emailPlaceholderFontFamily),
+  firstNamePlaceholderFontFamily: toFontFamily(rawProps?.firstNamePlaceholderFontFamily ?? rawProps?.placeholderFontFamily ?? rawProps?.fontFamily, defaultSignUpTokens.firstNamePlaceholderFontFamily),
+  lastNamePlaceholderFontFamily: toFontFamily(rawProps?.lastNamePlaceholderFontFamily ?? rawProps?.placeholderFontFamily ?? rawProps?.fontFamily, defaultSignUpTokens.lastNamePlaceholderFontFamily),
   passwordPlaceholderFontFamily: toFontFamily(rawProps?.passwordPlaceholderFontFamily ?? rawProps?.placeholderFontFamily ?? rawProps?.fontFamily, defaultSignUpTokens.passwordPlaceholderFontFamily),
   emailPlaceholderFontWeight: toFontWeight(rawProps?.emailPlaceholderFontWeight ?? rawProps?.placeholderFontWeight ?? rawProps?.fontWeight, defaultSignUpTokens.emailPlaceholderFontWeight),
+  firstNamePlaceholderFontWeight: toFontWeight(rawProps?.firstNamePlaceholderFontWeight ?? rawProps?.placeholderFontWeight ?? rawProps?.fontWeight, defaultSignUpTokens.firstNamePlaceholderFontWeight),
+  lastNamePlaceholderFontWeight: toFontWeight(rawProps?.lastNamePlaceholderFontWeight ?? rawProps?.placeholderFontWeight ?? rawProps?.fontWeight, defaultSignUpTokens.lastNamePlaceholderFontWeight),
   passwordPlaceholderFontWeight: toFontWeight(rawProps?.passwordPlaceholderFontWeight ?? rawProps?.placeholderFontWeight ?? rawProps?.fontWeight, defaultSignUpTokens.passwordPlaceholderFontWeight),
   ...buildButtonStyleTokens(rawProps, defaultSignUpTokens),
   buttonBorderColor: (rawProps?.buttonBorderColor as string) ?? defaultSignUpTokens.buttonBorderColor,
@@ -1474,6 +1497,9 @@ const AuthScreen = () => {
                 placeholder={signUpTokens.firstNamePlaceholder}
                 placeholderVisible={signUpTokens.firstNamePlaceholderVisible}
                 placeholderColor={signUpTokens.firstNamePlaceholderColor}
+                placeholderFontSize={signUpTokens.firstNamePlaceholderFontSize}
+                placeholderFontFamily={signUpTokens.firstNamePlaceholderFontFamily}
+                placeholderFontWeight={signUpTokens.firstNamePlaceholderFontWeight}
                 value={firstName}
                 onChangeText={setFirstName}
                 inputColor={signUpTokens.firstNameInputTextColor}
@@ -1505,6 +1531,9 @@ const AuthScreen = () => {
                 placeholder={signUpTokens.lastNamePlaceholder}
                 placeholderVisible={signUpTokens.lastNamePlaceholderVisible}
                 placeholderColor={signUpTokens.lastNamePlaceholderColor}
+                placeholderFontSize={signUpTokens.lastNamePlaceholderFontSize}
+                placeholderFontFamily={signUpTokens.lastNamePlaceholderFontFamily}
+                placeholderFontWeight={signUpTokens.lastNamePlaceholderFontWeight}
                 value={lastName}
                 onChangeText={setLastName}
                 inputColor={signUpTokens.lastNameInputTextColor}
@@ -1656,7 +1685,19 @@ const AuthScreen = () => {
 
             {/* Footer switcher */}
             {t.footerVisible ? (
-              <View style={{ marginTop: t.footerMarginTop, alignItems: toFlexAlign(t.footerLinkAlignment, 'center') }}>
+              <View
+                style={{
+                  marginTop: t.footerMarginTop,
+                  alignItems: toFlexAlign(t.footerLinkAlignment, 'center'),
+                  flexDirection: t.footerInline ? 'row' : 'column',
+                  justifyContent: toFlexAlign(t.footerLinkAlignment, 'center') === 'flex-start'
+                    ? 'flex-start'
+                    : toFlexAlign(t.footerLinkAlignment, 'center') === 'flex-end'
+                      ? 'flex-end'
+                      : 'center',
+                  flexWrap: 'wrap',
+                }}
+              >
                 <Text
                   style={{
                     color: t.footerTextColor,
@@ -1668,7 +1709,14 @@ const AuthScreen = () => {
                   {mode === 'login' ? signInTokens.footerText : signUpTokens.footerText}
                 </Text>
                 {(mode === 'login' || signUpTokens.signInLinkVisible) ? (
-                  <TouchableOpacity onPress={toggleMode} accessibilityRole="button" style={{ marginTop: t.footerLinkMarginTop }}>
+                  <TouchableOpacity
+                    onPress={toggleMode}
+                    accessibilityRole="button"
+                    style={{
+                      marginTop: t.footerInline ? 0 : t.footerLinkMarginTop,
+                      marginLeft: t.footerInline ? 4 : 0,
+                    }}
+                  >
                     <Text
                       style={{
                         color: t.footerLinkColor,

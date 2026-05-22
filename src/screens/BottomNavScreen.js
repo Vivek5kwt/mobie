@@ -34,6 +34,7 @@ import { PageEmptyStateProvider } from "../services/PageEmptyStateContext";
 const SIGNIN_SLUGS = new Set(["signin", "sign-in", "login", "log-in", "auth"]);
 const CART_EMPTY_VISIBLE_COMPONENTS = new Set(["cart_line_items"]);
 const ORDERS_EMPTY_VISIBLE_COMPONENTS = new Set(["order_history", "orderhistory", "orders", "my_orders"]);
+const WISHLIST_EMPTY_VISIBLE_COMPONENTS = new Set(["wishlist", "wishlist_item", "wishlist-item"]);
 
 // ── Default profile menu items shown when DSL has no account_menu sections ───
 const DEFAULT_PROFILE_MENU = [
@@ -522,6 +523,7 @@ export default function BottomNavScreen() {
   }, []);
 
   const isOrdersEmpty = pageEmptyState.order_history === true;
+  const isWishlistEmpty = pageEmptyState.wishlist === true;
 
   // Side menu helpers
   const closeSideMenu = () => setIsSideMenuOpen(false);
@@ -924,6 +926,9 @@ export default function BottomNavScreen() {
                   return null;
                 }
                 if (isOrdersPage && isOrdersEmpty && !ORDERS_EMPTY_VISIBLE_COMPONENTS.has(compName)) {
+                  return null;
+                }
+                if (isWishlistPage && isWishlistEmpty && !WISHLIST_EMPTY_VISIBLE_COMPONENTS.has(compName)) {
                   return null;
                 }
                 const homeSectionMarginBottom = isHomePage

@@ -15,6 +15,7 @@ import { resolveFont } from "../services/typographyService";
 import FavoriteToggleButton, { buildFavoriteToggleConfig } from "./FavoriteToggleButton";
 import { formatMoney } from "../utils/money";
 import { resolveProductImageResizeMode } from "../utils/productImageFit";
+import { usePageEmptyStateReporter } from "../services/PageEmptyStateContext";
 
 const unwrapValue = (value, fallback = undefined) => {
   if (value === undefined || value === null) return fallback;
@@ -60,6 +61,8 @@ export default function WishlistItem({ section }) {
     section?.properties?.props ||
     {};
   const raw = buildRawProps(rawProps);
+  const isWishlistEmpty = wishlistItems.length === 0;
+  usePageEmptyStateReporter("wishlist", isWishlistEmpty);
 
   // ── DSL styling props ──────────────────────────────────────────────────────
   const pt = toNumber(raw?.pt ?? raw?.paddingTop, 12);
@@ -69,6 +72,15 @@ export default function WishlistItem({ section }) {
   const radius = toNumber(raw?.radius, 12);
   const bgColor = toString(raw?.bgColor, "#FFFFFF");
   const emptyBgColor = toString(raw?.emptyBgColor ?? raw?.emptyBackgroundColor, "#FFFFFF");
+  const emptyTitle = toString(raw?.emptyTitle ?? raw?.emptyWishlistTitle, "Personal Collection");
+  const emptySubtitle = toString(
+    raw?.emptySubtitle ?? raw?.emptyWishlistSubtitle,
+    "Save your favorite products here."
+  );
+  const removeSnackbarMessage = toString(
+    raw?.removeSnackbarMessage ?? raw?.wishlistRemoveSnackbarMessage ?? raw?.snackbarRemoveMessage,
+    "Removed from Personal Collection"
+  );
   const borderColor = toString(raw?.borderColor, "#E5E7EB");
   const iconColor = toString(raw?.iconColor, "#EF4444");
   const iconSize = toNumber(raw?.iconSize, 18);
@@ -103,14 +115,12 @@ export default function WishlistItem({ section }) {
   };
   const imageAspect = resolveAspectRatio(imageRatio);
 
-  if (!wishlistItems.length) {
+  if (isWishlistEmpty) {
     return (
       <View style={[styles.empty, { backgroundColor: emptyBgColor }]}>
         <FontAwesome name="heart-o" size={48} color="#D1D5DB" />
-        <Text style={styles.emptyTitle}>Your wishlist is empty</Text>
-        <Text style={styles.emptySubtitle}>
-          Tap the heart icon on any product to save it here
-        </Text>
+        <Text style={styles.emptyTitle}>{emptyTitle}</Text>
+        <Text style={styles.emptySubtitle}>{emptySubtitle}</Text>
       </View>
     );
   }
@@ -246,7 +256,7 @@ export default function WishlistItem({ section }) {
       </View>
       <Snackbar
         visible={snackVisible}
-        message="Product removed from wishlist successfully."
+        message={removeSnackbarMessage}
         onDismiss={() => setSnackVisible(false)}
         duration={2500}
         type="info"

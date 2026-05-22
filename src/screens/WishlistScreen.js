@@ -39,6 +39,7 @@ const unwrap = (v, fallback) => {
 };
 const toStr = (v, fb = "")  => { const r = unwrap(v, fb); return (r === undefined || r === null) ? fb : String(r); };
 const toNum = (v, fb = 0)   => { const r = unwrap(v, fb); const n = parseFloat(r); return Number.isNaN(n) ? fb : n; };
+const firstDefined = (...values) => values.find((value) => value !== undefined && value !== null && value !== "");
 const toAlign = (value, fallback = "left") => {
   const normalized = toStr(value, fallback).trim().toLowerCase();
   if (normalized === "center") return "center";
@@ -194,6 +195,16 @@ export default function WishlistScreen() {
   const countFontSize = toNum(p?.countFontSize ?? p?.labelFontSize, titleFontSize);
   const countFontWeight = toStr(p?.countFontWeight ?? p?.labelFontWeight, titleFontWeight);
   const countFontFamily = resolveFont(toStr(p?.countFontFamily ?? p?.labelFontFamily ?? p?.titleFontFamily ?? p?.fontFamily, ""));
+  const emptyBgColor = toStr(firstDefined(p?.emptyBgColor, p?.emptyBackgroundColor, p?.bgColor), "#FFFFFF");
+  const emptyTitle = toStr(firstDefined(p?.emptyTitle, p?.emptyWishlistTitle), "Personal Collection");
+  const emptySubtitle = toStr(
+    firstDefined(p?.emptySubtitle, p?.emptyWishlistSubtitle),
+    "Save your favorite products here."
+  );
+  const removeSnackbarMessage = toStr(
+    firstDefined(p?.removeSnackbarMessage, p?.wishlistRemoveSnackbarMessage, p?.snackbarRemoveMessage),
+    "Removed from Personal Collection"
+  );
 
   const strikeColor           = toStr(p?.strikeColor,           "#9CA3AF");
   const strikeFontSize        = toNum(p?.strikeFontSize,        12);
@@ -368,10 +379,10 @@ export default function WishlistScreen() {
 
           {wishlistItems.length === 0 ? (
             /* ── Empty state ──────────────────────────────────────────────── */
-            <View style={styles.emptyWrap}>
+            <View style={[styles.emptyWrap, { backgroundColor: emptyBgColor }]}>
               <Icon name="heart" size={52} color="#E5E7EB" />
-              <Text style={styles.emptyTitle}>Your wishlist is empty</Text>
-              <Text style={styles.emptySubtitle}>Save items you love and find them here.</Text>
+              <Text style={styles.emptyTitle}>{emptyTitle}</Text>
+              <Text style={styles.emptySubtitle}>{emptySubtitle}</Text>
             </View>
           ) : (
             /* ── Product grid ────────────────────────────────────────────── */
@@ -404,7 +415,7 @@ export default function WishlistScreen() {
 
       <Snackbar
         visible={snackVisible}
-        message="Product removed from wishlist successfully."
+        message={removeSnackbarMessage}
         onDismiss={() => setSnackVisible(false)}
         duration={2500}
         type="info"
