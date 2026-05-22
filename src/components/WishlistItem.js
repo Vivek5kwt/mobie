@@ -68,6 +68,7 @@ export default function WishlistItem({ section }) {
   const pr = toNumber(raw?.pr ?? raw?.paddingRight, 12);
   const radius = toNumber(raw?.radius, 12);
   const bgColor = toString(raw?.bgColor, "#FFFFFF");
+  const emptyBgColor = toString(raw?.emptyBgColor ?? raw?.emptyBackgroundColor, "#FFFFFF");
   const borderColor = toString(raw?.borderColor, "#E5E7EB");
   const iconColor = toString(raw?.iconColor, "#EF4444");
   const iconSize = toNumber(raw?.iconSize, 18);
@@ -104,19 +105,12 @@ export default function WishlistItem({ section }) {
 
   if (!wishlistItems.length) {
     return (
-      <View style={styles.empty}>
+      <View style={[styles.empty, { backgroundColor: emptyBgColor }]}>
         <FontAwesome name="heart-o" size={48} color="#D1D5DB" />
         <Text style={styles.emptyTitle}>Your wishlist is empty</Text>
         <Text style={styles.emptySubtitle}>
           Tap the heart icon on any product to save it here
         </Text>
-        <TouchableOpacity
-          style={styles.browseBtn}
-          activeOpacity={0.8}
-          onPress={() => navigation.navigate("LayoutScreen")}
-        >
-          <Text style={styles.browseBtnText}>Browse Products</Text>
-        </TouchableOpacity>
       </View>
     );
   }

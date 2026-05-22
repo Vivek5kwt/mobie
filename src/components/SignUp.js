@@ -202,6 +202,9 @@ export default function SignUp({ section }) {
     const inputBorderColor = toString(raw.inputBorderColor, "#027579");
     const inputBorderRadius = toNumber(raw.inputBorderRadius ?? raw.inputRadius, 6);
     const inputHeight = toNumber(raw.inputHeight ?? raw.fieldHeight, 46);
+    const fieldGap = toNumber(firstDefined(raw.fieldGap, raw.inputGap, raw.fieldMarginBottom), 14);
+    const inputPaddingHorizontal = toNumber(firstDefined(raw.inputPaddingHorizontal, raw.inputPx, raw.fieldPaddingHorizontal), 12);
+    const inputPaddingVertical = toNumber(firstDefined(raw.inputPaddingVertical, raw.inputPy, raw.fieldPaddingVertical), 0);
 
     // Visibility flags
     const authVisible = toBoolean(raw.authVisible, true);
@@ -405,6 +408,7 @@ export default function SignUp({ section }) {
 
     return {
       pt, pb, pl, pr, subgpt, subgpb, subgpl, subgpr, bgColor, cardBgColor, cardBorderColor, cardBorderWidth, borderRadius, inputBorderColor, inputBorderRadius, inputHeight,
+      fieldGap, inputPaddingHorizontal, inputPaddingVertical,
       authVisible, logoVisible, bgPadVisible, buttonVisible, footerVisible, signInLinkVisible,
       showMenuIcon, showProfilePicture, firstNameVisible, lastNameVisible, emailInputVisible,
       passwordInputVisible, emailLabelVisible, firstNameLabelVisible, lastNameLabelVisible,
@@ -452,6 +456,7 @@ export default function SignUp({ section }) {
   // Destructure all props from extractedProps
   const {
     pt, pb, pl, pr, subgpt, subgpb, subgpl, subgpr, bgColor, cardBgColor, cardBorderColor, cardBorderWidth, borderRadius, inputBorderColor, inputBorderRadius, inputHeight,
+    fieldGap, inputPaddingHorizontal, inputPaddingVertical,
     authVisible, logoVisible, bgPadVisible, buttonVisible, footerVisible, signInLinkVisible,
     showMenuIcon, showProfilePicture, firstNameVisible, lastNameVisible, emailInputVisible,
     passwordInputVisible, emailLabelVisible, firstNameLabelVisible, lastNameLabelVisible,
@@ -732,7 +737,7 @@ export default function SignUp({ section }) {
 
         {/* First Name Field */}
         {firstNameVisible && (
-          <View style={styles.fieldContainer}>
+          <View style={[styles.fieldContainer, { marginBottom: fieldGap }]}>
             {shouldShowFieldLabel(firstNameLabelVisible, firstNamePlaceholderVisible) && (
               <Text style={[styles.label, { color: firstNameLabelColor, fontSize: firstNameLabelFontSize, fontFamily: firstNameLabelFontFamily, fontWeight: firstNameLabelFontWeight }]}>
                 {firstNameLabelText}
@@ -751,6 +756,8 @@ export default function SignUp({ section }) {
                   textAlignVertical: "center",
                   borderRadius: inputBorderRadius,
                   minHeight: inputHeight,
+                  paddingHorizontal: inputPaddingHorizontal,
+                  paddingVertical: inputPaddingVertical,
                 },
               ]}
               placeholder={firstNamePlaceholderVisible ? firstNamePlaceholder : ""}
@@ -766,7 +773,7 @@ export default function SignUp({ section }) {
 
         {/* Last Name Field */}
         {lastNameVisible && (
-          <View style={styles.fieldContainer}>
+          <View style={[styles.fieldContainer, { marginBottom: fieldGap }]}>
             {shouldShowFieldLabel(lastNameLabelVisible, lastNamePlaceholderVisible) && (
               <Text style={[styles.label, { color: lastNameLabelColor, fontSize: lastNameLabelFontSize, fontFamily: lastNameLabelFontFamily, fontWeight: lastNameLabelFontWeight }]}>
                 {lastNameLabelText}
@@ -785,6 +792,8 @@ export default function SignUp({ section }) {
                   textAlignVertical: "center",
                   borderRadius: inputBorderRadius,
                   minHeight: inputHeight,
+                  paddingHorizontal: inputPaddingHorizontal,
+                  paddingVertical: inputPaddingVertical,
                 },
               ]}
               placeholder={lastNamePlaceholderVisible ? lastNamePlaceholder : ""}
@@ -800,7 +809,7 @@ export default function SignUp({ section }) {
 
         {/* Email Field */}
         {emailInputVisible && (
-          <View style={styles.fieldContainer}>
+          <View style={[styles.fieldContainer, { marginBottom: fieldGap }]}>
             {shouldShowFieldLabel(emailLabelVisible, emailPlaceholderVisible) && (
               <Text style={[styles.label, { color: emailLabelColor, fontSize: emailLabelFontSize, fontFamily: emailLabelFontFamily, fontWeight: emailLabelFontWeight }]}>
                 {emailLabelText}
@@ -819,6 +828,8 @@ export default function SignUp({ section }) {
                   textAlignVertical: "center",
                   borderRadius: inputBorderRadius,
                   minHeight: inputHeight,
+                  paddingHorizontal: inputPaddingHorizontal,
+                  paddingVertical: inputPaddingVertical,
                 },
               ]}
               placeholder={emailPlaceholderVisible ? emailPlaceholder : ""}
@@ -836,7 +847,7 @@ export default function SignUp({ section }) {
 
         {/* Password Field */}
         {passwordInputVisible && (
-          <View style={styles.fieldContainer}>
+          <View style={[styles.fieldContainer, { marginBottom: fieldGap }]}>
             {shouldShowFieldLabel(passwordLabelVisible, passwordPlaceholderVisible) && (
               <Text style={[styles.label, { color: passwordLabelColor, fontSize: passwordLabelFontSize, fontFamily: passwordLabelFontFamily, fontWeight: passwordLabelFontWeight }]}>
                 {passwordLabelText}
@@ -855,6 +866,8 @@ export default function SignUp({ section }) {
                   textAlignVertical: "center",
                   borderRadius: inputBorderRadius,
                   minHeight: inputHeight,
+                  paddingHorizontal: inputPaddingHorizontal,
+                  paddingVertical: inputPaddingVertical,
                 },
               ]}
               placeholder={passwordPlaceholderVisible ? passwordPlaceholder : ""}
@@ -1013,7 +1026,6 @@ const styles = StyleSheet.create({
     marginBottom: 20,
   },
   fieldContainer: {
-    marginBottom: 14,
     width: "100%",
   },
   label: {
@@ -1023,8 +1035,6 @@ const styles = StyleSheet.create({
   },
   input: {
     borderWidth: 1,
-    paddingHorizontal: 12,
-    paddingVertical: 11,
     fontSize: 15,
     textAlign: "left",
     textAlignVertical: "center",

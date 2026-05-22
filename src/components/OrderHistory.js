@@ -18,6 +18,7 @@ import { addItem } from "../store/slices/cartSlice";
 import { resolveFont } from "../services/typographyService";
 import { formatMoney as formatSharedMoney } from "../utils/money";
 import { resolveProductImageResizeMode } from "../utils/productImageFit";
+import { usePageEmptyStateReporter } from "../services/PageEmptyStateContext";
 
 const deepUnwrap = (value) => {
   if (value === undefined || value === null) return value;
@@ -263,6 +264,8 @@ export default function OrderHistory({ section }) {
       ? "When your store orders are available, they will appear here."
       : "Please sign in again to sync your store orders."
   );
+  const emptyBgColor = toStr(raw?.emptyBgColor ?? raw?.emptyBackgroundColor, "#FFFFFF");
+  usePageEmptyStateReporter("order_history", !loading && orders.length === 0);
 
   const openOrder = (order) => {
     navigation.navigate("OrderDetail", { order, title: "Order Details" });
@@ -311,7 +314,7 @@ export default function OrderHistory({ section }) {
 
   if (!orders.length) {
     return (
-      <View style={[styles.container, stylesFromDsl.container, styles.emptyWrap]}>
+      <View style={[styles.container, stylesFromDsl.container, styles.emptyWrap, { backgroundColor: emptyBgColor }]}>
         <FontAwesome
           name={toStr(raw?.emptyIcon, "shopping-bag")}
           size={toNum(raw?.emptyIconSize, 42)}
@@ -412,7 +415,7 @@ const styles = StyleSheet.create({
   emptyWrap: {
     alignItems: "center",
     justifyContent: "center",
-    minHeight: 180,
+    minHeight: 360,
     gap: 8,
   },
   emptyTitle: {

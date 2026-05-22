@@ -362,8 +362,7 @@ export default function WishlistScreen() {
           showsVerticalScrollIndicator={false}
           contentContainerStyle={{ flexGrow: 1 }}
         >
-          {/* All non-wishlist DSL sections (text blocks, banners, spacers, etc.) */}
-          {otherSections.map((section, i) => (
+          {wishlistItems.length > 0 && otherSections.map((section, i) => (
             <DynamicRenderer key={i} section={section} />
           ))}
 
@@ -373,13 +372,6 @@ export default function WishlistScreen() {
               <Icon name="heart" size={52} color="#E5E7EB" />
               <Text style={styles.emptyTitle}>Your wishlist is empty</Text>
               <Text style={styles.emptySubtitle}>Save items you love and find them here.</Text>
-              <TouchableOpacity
-                style={styles.browseBtn}
-                activeOpacity={0.85}
-                onPress={() => navigation.navigate("LayoutScreen")}
-              >
-                <Text style={styles.browseBtnText}>Browse Products</Text>
-              </TouchableOpacity>
             </View>
           ) : (
             /* ── Product grid ────────────────────────────────────────────── */
@@ -457,6 +449,7 @@ const styles = StyleSheet.create({
   },
   emptyWrap: {
     flex:              1,
+    minHeight:         360,
     alignItems:        "center",
     justifyContent:    "center",
     paddingHorizontal: 32,

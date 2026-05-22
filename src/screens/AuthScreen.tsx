@@ -42,6 +42,14 @@ type SignInTokens = {
   cardPaddingBottom: number;
   cardPaddingLeft: number;
   cardPaddingRight: number;
+  formGap: number;
+  fieldGap: number;
+  inputPaddingHorizontal: number;
+  inputPaddingVertical: number;
+  formCardMarginBottom: number;
+  buttonMarginTop: number;
+  footerMarginTop: number;
+  footerLinkMarginTop: number;
   pagePaddingTop: number;
   pagePaddingBottom: number;
   pagePaddingLeft: number;
@@ -438,6 +446,14 @@ const defaultSignInTokens: SignInTokens = {
   cardPaddingBottom: 20,
   cardPaddingLeft: 20,
   cardPaddingRight: 20,
+  formGap: 6,
+  fieldGap: 14,
+  inputPaddingHorizontal: 14,
+  inputPaddingVertical: 0,
+  formCardMarginBottom: 16,
+  buttonMarginTop: 4,
+  footerMarginTop: 20,
+  footerLinkMarginTop: 6,
   pagePaddingTop: 24,
   pagePaddingBottom: 32,
   pagePaddingLeft: 16,
@@ -545,10 +561,18 @@ const defaultSignUpTokens: SignUpTokens = {
   cardBgColor: '#FFFFFF',
   cardBorderColor: '#D1E7E7',
   cardBorderRadius: 16,
-  cardPaddingTop: 24,
-  cardPaddingBottom: 24,
+  cardPaddingTop: 20,
+  cardPaddingBottom: 20,
   cardPaddingLeft: 20,
   cardPaddingRight: 20,
+  formGap: 6,
+  fieldGap: 14,
+  inputPaddingHorizontal: 14,
+  inputPaddingVertical: 0,
+  formCardMarginBottom: 16,
+  buttonMarginTop: 4,
+  footerMarginTop: 20,
+  footerLinkMarginTop: 6,
   inputBorderColor: '#C7DADA',
   inputHeight: 50,
   authTitle: 'Create an Account',
@@ -705,6 +729,14 @@ const buildSignInTokens = (rawProps: Record<string, unknown>): SignInTokens => (
   cardPaddingBottom: toNumber(rawProps?.pb ?? rawProps?.paddingBottom, defaultSignInTokens.cardPaddingBottom),
   cardPaddingLeft: toNumber(rawProps?.pl ?? rawProps?.paddingLeft, defaultSignInTokens.cardPaddingLeft),
   cardPaddingRight: toNumber(rawProps?.pr ?? rawProps?.paddingRight, defaultSignInTokens.cardPaddingRight),
+  formGap: toNumber(rawProps?.formGap ?? rawProps?.titleFormGap ?? rawProps?.headerBottomGap, defaultSignInTokens.formGap),
+  fieldGap: toNumber(rawProps?.fieldGap ?? rawProps?.inputGap ?? rawProps?.fieldMarginBottom, defaultSignInTokens.fieldGap),
+  inputPaddingHorizontal: toNumber(rawProps?.inputPaddingHorizontal ?? rawProps?.inputPx ?? rawProps?.fieldPaddingHorizontal, defaultSignInTokens.inputPaddingHorizontal),
+  inputPaddingVertical: toNumber(rawProps?.inputPaddingVertical ?? rawProps?.inputPy ?? rawProps?.fieldPaddingVertical, defaultSignInTokens.inputPaddingVertical),
+  formCardMarginBottom: toNumber(rawProps?.formCardMarginBottom ?? rawProps?.cardMarginBottom, defaultSignInTokens.formCardMarginBottom),
+  buttonMarginTop: toNumber(rawProps?.buttonMarginTop ?? rawProps?.buttonMt, defaultSignInTokens.buttonMarginTop),
+  footerMarginTop: toNumber(rawProps?.footerMarginTop ?? rawProps?.footerMt, defaultSignInTokens.footerMarginTop),
+  footerLinkMarginTop: toNumber(rawProps?.footerLinkMarginTop ?? rawProps?.footerLinkMt, defaultSignInTokens.footerLinkMarginTop),
   pagePaddingTop: toNumber(rawProps?.subgpt ?? rawProps?.bgpt ?? rawProps?.pagePaddingTop, defaultSignInTokens.pagePaddingTop),
   pagePaddingBottom: toNumber(rawProps?.subgpb ?? rawProps?.bgpb ?? rawProps?.pagePaddingBottom, defaultSignInTokens.pagePaddingBottom),
   pagePaddingLeft: toNumber(rawProps?.subgpl ?? rawProps?.bgpl ?? rawProps?.pagePaddingLeft, defaultSignInTokens.pagePaddingLeft),
@@ -816,6 +848,14 @@ const buildSignUpTokens = (rawProps: Record<string, unknown>): SignUpTokens => (
   cardPaddingBottom: toNumber(rawProps?.pb ?? rawProps?.paddingBottom, defaultSignUpTokens.cardPaddingBottom),
   cardPaddingLeft: toNumber(rawProps?.pl ?? rawProps?.paddingLeft, defaultSignUpTokens.cardPaddingLeft),
   cardPaddingRight: toNumber(rawProps?.pr ?? rawProps?.paddingRight, defaultSignUpTokens.cardPaddingRight),
+  formGap: toNumber(rawProps?.formGap ?? rawProps?.titleFormGap ?? rawProps?.headerBottomGap, defaultSignUpTokens.formGap),
+  fieldGap: toNumber(rawProps?.fieldGap ?? rawProps?.inputGap ?? rawProps?.fieldMarginBottom, defaultSignUpTokens.fieldGap),
+  inputPaddingHorizontal: toNumber(rawProps?.inputPaddingHorizontal ?? rawProps?.inputPx ?? rawProps?.fieldPaddingHorizontal, defaultSignUpTokens.inputPaddingHorizontal),
+  inputPaddingVertical: toNumber(rawProps?.inputPaddingVertical ?? rawProps?.inputPy ?? rawProps?.fieldPaddingVertical, defaultSignUpTokens.inputPaddingVertical),
+  formCardMarginBottom: toNumber(rawProps?.formCardMarginBottom ?? rawProps?.cardMarginBottom, defaultSignUpTokens.formCardMarginBottom),
+  buttonMarginTop: toNumber(rawProps?.buttonMarginTop ?? rawProps?.buttonMt, defaultSignUpTokens.buttonMarginTop),
+  footerMarginTop: toNumber(rawProps?.footerMarginTop ?? rawProps?.footerMt, defaultSignUpTokens.footerMarginTop),
+  footerLinkMarginTop: toNumber(rawProps?.footerLinkMarginTop ?? rawProps?.footerLinkMt, defaultSignUpTokens.footerLinkMarginTop),
   pagePaddingTop: toNumber(rawProps?.subgpt ?? rawProps?.bgpt ?? rawProps?.pagePaddingTop, defaultSignUpTokens.pagePaddingTop),
   pagePaddingBottom: toNumber(rawProps?.subgpb ?? rawProps?.bgpb ?? rawProps?.pagePaddingBottom, defaultSignUpTokens.pagePaddingBottom),
   pagePaddingLeft: toNumber(rawProps?.subgpl ?? rawProps?.bgpl ?? rawProps?.pagePaddingLeft, defaultSignUpTokens.pagePaddingLeft),
@@ -963,6 +1003,9 @@ type FieldProps = {
   inputBorderColor: string;
   inputBorderRadius: number;
   inputHeight: number;
+  fieldGap: number;
+  inputPaddingHorizontal: number;
+  inputPaddingVertical: number;
   cardBgColor: string;
   keyboardType?: 'default' | 'email-address';
   autoCapitalize?: 'none' | 'words' | 'sentences';
@@ -995,6 +1038,9 @@ const FormField: React.FC<FieldProps> = ({
   inputBorderColor,
   inputBorderRadius,
   inputHeight,
+  fieldGap,
+  inputPaddingHorizontal,
+  inputPaddingVertical,
   cardBgColor,
   keyboardType = 'default',
   autoCapitalize = 'sentences',
@@ -1008,7 +1054,7 @@ const FormField: React.FC<FieldProps> = ({
   const resolvedInputFontFamily = usePlaceholderTypography ? placeholderFontFamily ?? inputFontFamily : inputFontFamily;
   const resolvedInputFontWeight = usePlaceholderTypography ? placeholderFontWeight ?? inputFontWeight : inputFontWeight;
   return (
-  <View style={fieldStyles.group}>
+  <View style={[fieldStyles.group, { marginBottom: fieldGap }]}>
     {shouldShowLabel ? (
       <Text
         style={[
@@ -1045,7 +1091,10 @@ const FormField: React.FC<FieldProps> = ({
             textAlign: inputAlign,
             textAlignVertical: 'center',
             flex: rightSlot ? 1 : undefined,
+            width: rightSlot ? undefined : '100%',
             minHeight: inputHeight,
+            paddingHorizontal: inputPaddingHorizontal,
+            paddingVertical: inputPaddingVertical,
           },
         ]}
       />
@@ -1056,19 +1105,19 @@ const FormField: React.FC<FieldProps> = ({
 };
 
 const fieldStyles = StyleSheet.create({
-  group: { marginBottom: 14 },
+  group: { width: '100%' },
   label: { marginBottom: 6 },
   inputWrap: {
     flexDirection: 'row',
     alignItems: 'center',
     borderWidth: 1,
     overflow: 'hidden',
+    width: '100%',
     minHeight: 50,
   },
   input: {
-    paddingHorizontal: 14,
-    paddingVertical: 12,
     minHeight: 50,
+    width: '100%',
     textAlign: 'left',
     textAlignVertical: 'center',
   },
@@ -1343,7 +1392,7 @@ const AuthScreen = () => {
               <DynamicRenderer key={`${mode}-dsl-${index}`} section={section as any} />
             ))
           ) : (
-          <View style={{ paddingLeft: pagePadLeft, paddingRight: pagePadRight, paddingTop: pagePadTop, paddingBottom: mode === 'signup' ? 4 : 6 }}>
+          <View style={{ paddingLeft: pagePadLeft, paddingRight: pagePadRight, paddingTop: pagePadTop, paddingBottom: t.formGap }}>
             {mode === 'login' && t.authVisible ? (
               <Text
                 style={{
@@ -1385,7 +1434,7 @@ const AuthScreen = () => {
               paddingRight: t.cardPaddingRight,
               paddingTop: cardPadTop,
               paddingBottom: t.cardPaddingBottom,
-              marginBottom: 16,
+              marginBottom: t.formCardMarginBottom,
             }}
           >
             {/* Profile picture (signup only) */}
@@ -1435,6 +1484,9 @@ const AuthScreen = () => {
                 inputBorderColor={signUpTokens.inputBorderColor}
                 inputBorderRadius={signUpTokens.inputBorderRadius}
                 inputHeight={signUpTokens.inputHeight}
+                fieldGap={signUpTokens.fieldGap}
+                inputPaddingHorizontal={signUpTokens.inputPaddingHorizontal}
+                inputPaddingVertical={signUpTokens.inputPaddingVertical}
                 cardBgColor={signUpTokens.cardBgColor}
                 autoCapitalize="words"
               />
@@ -1463,6 +1515,9 @@ const AuthScreen = () => {
                 inputBorderColor={signUpTokens.inputBorderColor}
                 inputBorderRadius={signUpTokens.inputBorderRadius}
                 inputHeight={signUpTokens.inputHeight}
+                fieldGap={signUpTokens.fieldGap}
+                inputPaddingHorizontal={signUpTokens.inputPaddingHorizontal}
+                inputPaddingVertical={signUpTokens.inputPaddingVertical}
                 cardBgColor={signUpTokens.cardBgColor}
                 autoCapitalize="words"
               />
@@ -1494,6 +1549,9 @@ const AuthScreen = () => {
                 inputBorderColor={t.inputBorderColor}
                 inputBorderRadius={t.inputBorderRadius}
                 inputHeight={t.inputHeight}
+                fieldGap={t.fieldGap}
+                inputPaddingHorizontal={t.inputPaddingHorizontal}
+                inputPaddingVertical={t.inputPaddingVertical}
                 cardBgColor={t.cardBgColor}
                 keyboardType="email-address"
                 autoCapitalize="none"
@@ -1528,6 +1586,9 @@ const AuthScreen = () => {
                 inputBorderColor={t.inputBorderColor}
                 inputBorderRadius={t.inputBorderRadius}
                 inputHeight={t.inputHeight}
+                fieldGap={t.fieldGap}
+                inputPaddingHorizontal={t.inputPaddingHorizontal}
+                inputPaddingVertical={t.inputPaddingVertical}
                 cardBgColor={t.cardBgColor}
                 autoCapitalize="none"
                 autoCorrect={false}
@@ -1566,7 +1627,7 @@ const AuthScreen = () => {
                     height: t.buttonHeight,
                     justifyContent: 'center',
                     alignItems: 'center',
-                    marginTop: 4,
+                    marginTop: t.buttonMarginTop,
                     overflow: 'hidden',
                   },
                   buttonWidthStyle,
@@ -1595,7 +1656,7 @@ const AuthScreen = () => {
 
             {/* Footer switcher */}
             {t.footerVisible ? (
-              <View style={{ marginTop: 20, alignItems: toFlexAlign(t.footerLinkAlignment, 'center') }}>
+              <View style={{ marginTop: t.footerMarginTop, alignItems: toFlexAlign(t.footerLinkAlignment, 'center') }}>
                 <Text
                   style={{
                     color: t.footerTextColor,
@@ -1607,7 +1668,7 @@ const AuthScreen = () => {
                   {mode === 'login' ? signInTokens.footerText : signUpTokens.footerText}
                 </Text>
                 {(mode === 'login' || signUpTokens.signInLinkVisible) ? (
-                  <TouchableOpacity onPress={toggleMode} accessibilityRole="button" style={{ marginTop: 6 }}>
+                  <TouchableOpacity onPress={toggleMode} accessibilityRole="button" style={{ marginTop: t.footerLinkMarginTop }}>
                     <Text
                       style={{
                         color: t.footerLinkColor,

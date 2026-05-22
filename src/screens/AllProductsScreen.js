@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Dimensions,
@@ -12,7 +12,7 @@ import {
 } from "react-native";
 import FontAwesome from "react-native-vector-icons/FontAwesome";
 import { useNavigation, useRoute } from "@react-navigation/native";
-import { useSelector } from "react-redux";
+import { useDispatch, useSelector } from "react-redux";
 import { fetchShopifyProductsPage, searchShopifyProducts } from "../services/shopify";
 import { recordUserSearchTerm } from "../services/searchHistoryService";
 import { SafeArea } from "../utils/SafeAreaHandler";
@@ -26,6 +26,11 @@ import { formatMoney } from "../utils/money";
 import { resolveProductImageResizeMode } from "../utils/productImageFit";
 import { resolveFA4IconName } from "../utils/faIconAlias";
 import { resolveFont } from "../services/typographyService";
+import { addItem } from "../store/slices/cartSlice";
+import { isWishlistProduct, toggleWishlist } from "../store/slices/wishlistSlice";
+import FavoriteToggleButton, { buildFavoriteToggleConfig } from "../components/FavoriteToggleButton";
+import { useAuth } from "../services/AuthContext";
+import { requireLoginForAction } from "../utils/authGate";
 
 const GAP = 12;
 const H_PAD = 16;
@@ -184,17 +189,36 @@ const moneyAmount = (value) => {
   return value;
 };
 
+function isProductAvailable(product) {
+  if (!product || typeof product !== "object") return true;
+  if (product.availableForSale === false) return false;
+  const inventory =
+    product.inventoryQuantity ??
+    product.totalInventory ??
+    product.stockQuantity ??
+    product.quantityAvailable;
+  if (typeof inventory === "number" && inventory <= 0) return false;
+  if (Array.isArray(product.variants) && product.variants.length > 0) {
+    return product.variants.some((variant) => variant?.availableForSale !== false);
+  }
+  return true;
+}
+
 const PAGE_SIZE = 20;
 
 export default function AllProductsScreen() {
   const navigation = useNavigation();
   const route = useRoute();
+  const dispatch = useDispatch();
+  const { session, initializing } = useAuth();
   const { title, detailSections } = route?.params || {};
   const searchTerm = String(route?.params?.query ?? route?.params?.searchQuery ?? "").trim();
   const isSearchMode = searchTerm.length > 0;
   const cartCount = useSelector((state) =>
     (state?.cart?.items || []).reduce((sum, item) => sum + (Number(item?.quantity) || 1), 0)
   );
+  const wishlistItems = useSelector((state) => state.wishlist?.items || []);
+  const favoriteTapRef = useRef(false);
 
   const [products, setProducts]       = useState([]);
   const [pageInfo, setPageInfo]       = useState({ hasNextPage: false, endCursor: null });
@@ -211,6 +235,7 @@ export default function AllProductsScreen() {
   const [homeHeaderConfig, setHomeHeaderConfig] = useState(null);
   const [productListHeaderConfig, setProductListHeaderConfig] = useState(null);
   const [productListGridSection, setProductListGridSection] = useState(null);
+  const favoriteToggleConfig = useMemo(() => buildFavoriteToggleConfig(), []);
 
   useEffect(() => {
     setSearchInput(searchTerm);
@@ -283,10 +308,10 @@ export default function AllProductsScreen() {
       raw?.imageResizeMode,
       imageCss?.objectFit
     );
-    const cardRadius = resolveNumber([raw?.cardCorner, raw?.cardRadius, raw?.outerCorners], imageCorner);
+    const cardRadius = resolveNumber([raw?.cardCorner, raw?.cardRadius, raw?.outerCorners], 10);
     const cardBgColor = resolveString(raw?.cardBgColor ?? raw?.cardBackgroundColor ?? cardCss?.backgroundColor, "#FFFFFF");
-    const cardBorderColor = resolveString(raw?.cardBorderColor ?? raw?.borderColor ?? cardCss?.borderColor, "#FFFFFF");
-    const cardBorderWidth = resolveNumber([raw?.cardBorderWidth, raw?.borderSize, cardCss?.borderWidth], 0);
+    const cardBorderColor = resolveString(raw?.cardBorderColor ?? raw?.borderColor ?? cardCss?.borderColor, "#E5E7EB");
+    const cardBorderWidth = resolveNumber([raw?.cardBorderWidth, raw?.borderSize, cardCss?.borderWidth], 1);
     const titleSize = resolveNumber([raw?.titleSize, raw?.cardTitleSize, titleCss?.fontSize], 14);
     const titleColor = resolveString(raw?.titleColor ?? titleCss?.color, "#111827");
     const titleWeight = resolveWeight(raw?.titleWeight ?? titleCss?.fontWeight, "600");
@@ -335,11 +360,7 @@ export default function AllProductsScreen() {
     : isSearchMode
     ? (SCREEN_W - searchGridConfig.padLeft - searchGridConfig.padRight - searchGridConfig.colGap * (numColumns - 1)) / numColumns
     : (SCREEN_W - H_PAD * 2 - GAP) / 2;
-  const searchImageHeight = viewMode === "list"
-    ? 112
-    : searchGridConfig.imageRatio
-    ? Math.round(CARD_W / searchGridConfig.imageRatio)
-    : Math.round(CARD_W * 1.42);
+  const searchImageHeight = viewMode === "list" ? 100 : Math.round(CARD_W);
 
   const loadProducts = useCallback(async ({ after = null, append = false } = {}) => {
     if (append) {
@@ -463,6 +484,24 @@ export default function AllProductsScreen() {
     openSearchPage();
   };
 
+  const handleAddToCart = (product) => {
+    dispatch(
+      addItem({
+        item: {
+          id: product.variantId || product.id,
+          variantId: product.variantId || "",
+          handle: product.handle || "",
+          title: product.title || "",
+          image: product.imageUrl || "",
+          price: parseFloat(product.priceAmount ?? product.price) || 0,
+          variant: "",
+          currency: product.priceCurrency || product.currency || product.currencySymbol || "",
+          quantity: 1,
+        },
+      })
+    );
+  };
+
   const searchHeaderConfig = productListHeaderConfig || homeHeaderConfig || {};
   const searchBackConfig = findBackHeaderItem(searchHeaderConfig);
   const searchBackIconName = resolveFA4IconName(
@@ -486,6 +525,8 @@ export default function AllProductsScreen() {
   const renderItem = ({ item }) => {
     const isListMode = viewMode === "list";
     if (isSearchMode) {
+      const inStock = isProductAvailable(item);
+      const isFav = isWishlistProduct(wishlistItems, item);
       const price = formatMoney(
         moneyAmount(item.priceAmount ?? item.price),
         item.priceCurrency || item.currency || item.currencySymbol
@@ -499,61 +540,80 @@ export default function AllProductsScreen() {
               width: CARD_W,
               marginBottom: searchGridConfig.rowGap,
               borderRadius: searchGridConfig.cardRadius,
-              backgroundColor: searchGridConfig.cardBgColor,
+              backgroundColor: "#FFFFFF",
               borderColor: searchGridConfig.cardBorderColor,
               borderWidth: searchGridConfig.cardBorderWidth,
             },
             isListMode && styles.searchCardList,
           ]}
           activeOpacity={0.85}
-          onPress={() => navigation.navigate("ProductDetail", { product: item, detailSections })}
+          onPress={() => {
+            if (favoriteTapRef.current) {
+              favoriteTapRef.current = false;
+              return;
+            }
+            navigation.navigate("ProductDetail", { product: item, detailSections });
+          }}
         >
           <View
             style={[
-              styles.searchImageWrap,
-              {
-                backgroundColor: searchGridConfig.imageBgColor,
-                borderRadius: searchGridConfig.imageCorner,
-              },
-              isListMode && styles.searchImageWrapList,
+              styles.productResultImageWrap,
+              isListMode && styles.productResultImageWrapList,
             ]}
           >
             {item.imageUrl ? (
               <Image
                 source={{ uri: item.imageUrl }}
                 style={[
-                  styles.searchImage,
+                  styles.productResultImage,
                   {
                     height: searchImageHeight,
                     borderRadius: searchGridConfig.imageCorner,
-                    backgroundColor: searchGridConfig.imageBgColor,
                   },
-                  isListMode && styles.searchImageList,
+                  isListMode && styles.productResultImageList,
                 ]}
-                resizeMode={searchGridConfig.imageScale}
+                resizeMode={searchGridConfig.imageScale || resolveProductImageResizeMode()}
               />
             ) : (
               <View
                 style={[
-                  styles.searchImage,
-                  styles.searchPlaceholder,
+                  styles.productResultImage,
+                  styles.productResultPlaceholder,
                   {
                     height: searchImageHeight,
                     borderRadius: searchGridConfig.imageCorner,
-                    backgroundColor: searchGridConfig.imageBgColor,
                   },
-                  isListMode && styles.searchImageList,
+                  isListMode && styles.productResultImageList,
                 ]}
-              />
+              >
+                <Text style={styles.productResultPlaceholderText}>
+                  {(item.title || "?").charAt(0).toUpperCase()}
+                </Text>
+              </View>
             )}
+            <FavoriteToggleButton
+              isFavorite={isFav}
+              config={favoriteToggleConfig}
+              onPress={async (e) => {
+                e?.stopPropagation?.();
+                e?.preventDefault?.();
+                const blocked = await requireLoginForAction({ session, navigation, initializing });
+                if (blocked) return;
+                favoriteTapRef.current = true;
+                setTimeout(() => {
+                  favoriteTapRef.current = false;
+                }, 0);
+                dispatch(toggleWishlist({ product: item }));
+              }}
+            />
           </View>
 
           <View style={[styles.searchInfoColumn, isListMode && styles.searchInfoColumnList]}>
-            <View style={styles.searchCardBody}>
+            <View style={styles.productResultCardBody}>
               <Text
                 numberOfLines={searchGridConfig.titleWrap ? 2 : 1}
                 style={[
-                  styles.searchProductTitle,
+                  styles.productResultTitle,
                   {
                     textAlign: searchGridConfig.titleAlign,
                     color: searchGridConfig.titleColor,
@@ -568,7 +628,7 @@ export default function AllProductsScreen() {
               {!!price && (
                 <Text
                   style={[
-                    styles.searchPrice,
+                    styles.productResultPrice,
                     {
                       textAlign: searchGridConfig.titleAlign,
                       color: searchGridConfig.priceColor,
@@ -581,6 +641,20 @@ export default function AllProductsScreen() {
                   {price}
                 </Text>
               )}
+              <TouchableOpacity
+                style={inStock ? styles.productResultCartBtnActive : styles.productResultCartBtnSoldOut}
+                activeOpacity={inStock ? 0.8 : 1}
+                disabled={!inStock}
+                onPress={(e) => {
+                  e?.stopPropagation?.();
+                  e?.preventDefault?.();
+                  if (inStock) handleAddToCart(item);
+                }}
+              >
+                <Text style={styles.productResultCartBtnText}>
+                  {inStock ? "Add To Cart" : "Unavailable"}
+                </Text>
+              </TouchableOpacity>
             </View>
           </View>
         </TouchableOpacity>
@@ -773,7 +847,7 @@ export default function AllProductsScreen() {
                   paddingBottom: searchGridConfig.padBottom + (bottomNavSection ? bottomNavHeight + 16 : 24),
                   paddingLeft: searchGridConfig.padLeft,
                   paddingRight: searchGridConfig.padRight,
-                  backgroundColor: searchGridConfig.bgColor,
+                  backgroundColor: "#FFFFFF",
                 },
                 !isSearchMode && { paddingBottom: bottomNavSection ? bottomNavHeight + 16 : 24 },
               ]}
@@ -948,10 +1022,74 @@ const styles = StyleSheet.create({
   searchCard: {
     backgroundColor: "#FFFFFF",
     marginBottom: 20,
+    overflow: "hidden",
   },
   searchCardList: {
     flexDirection: "row",
     alignItems: "flex-start",
+  },
+  productResultImageWrap: {
+    position: "relative",
+    width: "100%",
+    backgroundColor: "#FFFFFF",
+    overflow: "hidden",
+  },
+  productResultImageWrapList: {
+    width: 100,
+    flexShrink: 0,
+  },
+  productResultImage: {
+    width: "100%",
+    backgroundColor: "#FFFFFF",
+  },
+  productResultImageList: {
+    width: 100,
+    height: 100,
+  },
+  productResultPlaceholder: {
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  productResultPlaceholderText: {
+    fontSize: 28,
+    fontWeight: "700",
+    color: "#9CA3AF",
+  },
+  productResultCardBody: {
+    padding: 10,
+    gap: 4,
+  },
+  productResultTitle: {
+    color: "#111827",
+    fontSize: 12,
+    fontWeight: "600",
+    lineHeight: 16,
+  },
+  productResultPrice: {
+    color: "#111827",
+    fontSize: 13,
+    fontWeight: "700",
+  },
+  productResultCartBtnActive: {
+    marginTop: 4,
+    backgroundColor: "#111111",
+    borderRadius: 6,
+    paddingVertical: 7,
+    paddingHorizontal: 8,
+    alignItems: "center",
+  },
+  productResultCartBtnSoldOut: {
+    marginTop: 4,
+    backgroundColor: "#7A7A7A",
+    borderRadius: 6,
+    paddingVertical: 7,
+    paddingHorizontal: 8,
+    alignItems: "center",
+  },
+  productResultCartBtnText: {
+    fontSize: 11,
+    fontWeight: "700",
+    color: "#FFFFFF",
   },
   searchImageWrap: {
     position: "relative",

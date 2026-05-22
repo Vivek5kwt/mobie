@@ -101,7 +101,7 @@ const resolveCurrencyLabel = (...values) => {
 const fmtPrice = (amount, currency) =>
   formatMoney(Math.abs(toNumber(amount, 0)), currency);
 
-const { width: SCREEN_W } = Dimensions.get("window");
+const { width: SCREEN_W, height: SCREEN_H } = Dimensions.get("window");
 const responsiveSize = (ratio, min, max) => {
   const value = Math.round(SCREEN_W * ratio);
   return Math.max(min, Math.min(max, value));
@@ -146,6 +146,7 @@ export default function CartLineItems({ section }) {
 
   // Container
   const bgColor = toString(raw?.bgColor ?? raw?.backgroundColor, "#FFFFFF");
+  const emptyBgColor = toString(raw?.emptyBgColor ?? raw?.emptyBackgroundColor, "#FFFFFF");
   const padT = toNumber(raw?.padT ?? raw?.pt, 12);
   const padR = toNumber(raw?.padR ?? raw?.pr, 16);
   const padB = toNumber(raw?.padB ?? raw?.pb, 12);
@@ -314,10 +315,7 @@ export default function CartLineItems({ section }) {
     raw?.emptySubtitle ?? raw?.emptyCartSubtitle ?? raw?.emptyDescription,
     "Looks like you haven't added anything to your cart yet"
   );
-  const showEmptyButton = toBoolean(
-    raw?.showEmptyButton ?? raw?.emptyButtonVisible ?? raw?.continueShoppingVisible,
-    false
-  );
+  const showEmptyButton = false;
   const emptyButtonText = toString(raw?.emptyButtonText ?? raw?.continueShoppingText, "Continue Shopping");
   const emptyIconName = resolveFA4IconName(toString(raw?.emptyIcon ?? raw?.emptyCartIcon, "shopping-bag")) || "shopping-bag";
   const emptyIconColor = toString(raw?.emptyIconColor, "#B6B6B6");
@@ -345,10 +343,11 @@ export default function CartLineItems({ section }) {
         style={[
           styles.emptyContainer,
           {
-            backgroundColor: bgColor,
+            backgroundColor: emptyBgColor,
             paddingTop: Math.max(padT, responsiveSize(0.16, 56, 82)),
             paddingBottom: Math.max(padB, responsiveSize(0.18, 68, 96)),
             paddingHorizontal: Math.max(padL, padR),
+            minHeight: Math.max(320, Math.round(SCREEN_H * 0.58)),
           },
         ]}
       >

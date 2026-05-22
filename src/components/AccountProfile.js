@@ -37,6 +37,11 @@ const resolveBoolean = (input, fallback = true) => {
   return fallback;
 };
 
+const hasResolvedValue = (input) => {
+  const value = resolveValue(input, undefined);
+  return value !== undefined && value !== null && value !== "";
+};
+
 const resolveFontWeight = (value, fallback = "400") => {
   const resolved = resolveValue(value, fallback);
   if (typeof resolved === "number") return String(resolved);
@@ -59,15 +64,22 @@ const toNumber = (value, fallback) => {
   return Number.isFinite(parsed) ? parsed : fallback;
 };
 
-const resolveAvatarCorner = (value, size) => {
+const resolveAvatarCorner = (value, size, options = {}) => {
   const resolved = resolveValue(value, undefined);
   if (resolved === undefined || resolved === null || resolved === "") return size / 2;
-  if (typeof resolved === "number") return resolved >= 99 ? size / 2 : resolved;
+  const fromBuilderScale = !!options.fromBuilderScale;
+  const normalizeNumber = (radius) => {
+    if (fromBuilderScale && radius > 0 && radius <= 10) {
+      return radius >= 7 ? size / 2 : Math.min(size / 2, (radius / 10) * (size / 2));
+    }
+    return radius >= 99 ? size / 2 : Math.min(radius, size / 2);
+  };
+  if (typeof resolved === "number") return normalizeNumber(resolved);
   const normalized = String(resolved).trim().toLowerCase();
   if (normalized === "circle" || normalized === "50%" || normalized.includes("999")) return size / 2;
-  if (normalized === "rounded") return Math.min(8, size / 2);
+  if (normalized === "rounded" || normalized === "round") return size / 2;
   const parsed = Number.parseFloat(normalized.replace("px", ""));
-  return Number.isFinite(parsed) ? parsed : size / 2;
+  return Number.isFinite(parsed) ? normalizeNumber(parsed) : size / 2;
 };
 
 const parseIconName = (iconClass) => {
@@ -189,9 +201,13 @@ export default function AccountProfile({ section }) {
     rawProps?.avatarSize ?? rawProps?.imageSize ?? rawProps?.profilePictureSize ?? avatarStyle?.baseSize ?? avatarMetrics?.width,
     56
   );
+  const rawAvatarCorner = rawProps?.avatarCorner ?? rawProps?.avatarRadius ?? rawProps?.imageCorner ?? rawProps?.imageRadius ?? rawProps?.borderRadius;
+  const builderAvatarCorner = avatarStyle?.corner ?? avatarStyle?.borderRadius ?? avatarStyle?.radius;
+  const hasRawAvatarCorner = hasResolvedValue(rawAvatarCorner);
   const avatarCorner = resolveAvatarCorner(
-    rawProps?.avatarCorner ?? rawProps?.imageCorner ?? rawProps?.borderRadius ?? avatarStyle?.corner ?? rawProps?.imageShape,
-    avatarSize
+    hasRawAvatarCorner ? rawAvatarCorner : builderAvatarCorner ?? rawProps?.avatarShape ?? rawProps?.imageShape ?? avatarStyle?.shape,
+    avatarSize,
+    { fromBuilderScale: !hasRawAvatarCorner && hasResolvedValue(builderAvatarCorner) }
   );
   const avatarScale = String(resolveValue(rawProps?.imageScale ?? avatarStyle?.scale, "fill")).toLowerCase();
   const resizeMode = avatarScale === "fit" ? "contain" : "cover";
@@ -225,7 +241,10 @@ export default function AccountProfile({ section }) {
           {avatarUrl ? (
             <Image
               source={{ uri: avatarUrl }}
-              style={{ width: avatarSize, height: avatarSize, borderRadius: avatarCorner }}
+              style={[
+                styles.avatarImage,
+                { width: avatarSize, height: avatarSize, borderRadius: avatarCorner },
+              ]}
               resizeMode={resizeMode}
             />
           ) : (
@@ -272,6 +291,9 @@ const styles = StyleSheet.create({
   avatarWrap: {
     justifyContent: "center",
     alignItems: "center",
+    overflow: "hidden",
+  },
+  avatarImage: {
     overflow: "hidden",
   },
   placeholder: {

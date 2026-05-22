@@ -53,6 +53,38 @@ const asString = (value, fallback = "") => {
   return String(resolved);
 };
 
+const firstDefined = (...values) =>
+  values.find((value) => {
+    const resolved = unwrapValue(value, undefined);
+    return resolved !== undefined && resolved !== null && resolved !== "";
+  });
+
+const parseAspectRatio = (value, fallback = 1) => {
+  const resolved = asString(value, "").trim();
+  if (!resolved) return fallback;
+  const ratioMatch = resolved.match(/^(\d+(?:\.\d+)?)\s*[:/]\s*(\d+(?:\.\d+)?)$/);
+  if (ratioMatch) {
+    const width = Number.parseFloat(ratioMatch[1]);
+    const height = Number.parseFloat(ratioMatch[2]);
+    return width > 0 && height > 0 ? width / height : fallback;
+  }
+  const parsed = Number.parseFloat(resolved);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
+};
+
+const buildBorderStyle = (side, color) => {
+  const normalized = asString(side, "").trim().toLowerCase();
+  if (!normalized || normalized === "none" || normalized === "false" || normalized === "0") return {};
+  const resolvedColor = asString(color, "#E5E7EB");
+  if (["all", "full", "solid"].includes(normalized)) return { borderWidth: 1, borderColor: resolvedColor };
+  const style = { borderColor: resolvedColor };
+  if (normalized === "top") style.borderTopWidth = 1;
+  if (normalized === "bottom") style.borderBottomWidth = 1;
+  if (normalized === "left") style.borderLeftWidth = 1;
+  if (normalized === "right") style.borderRightWidth = 1;
+  return style;
+};
+
 const deriveFontWeight = (input, fallback = "700") => {
   if (!input) return fallback;
   const value = unwrapValue(input, fallback);
@@ -225,11 +257,36 @@ export default function CollectionImage({ section }) {
   );
 
   // ── Container ────────────────────────────────────────────────────────────────
-  const containerPt = asNumber(containerCfg?.pt, 8);
-  const containerPb = asNumber(containerCfg?.pb, 8);
-  const containerPl = asNumber(containerCfg?.pl, 0);
-  const containerPr = asNumber(containerCfg?.pr, 0);
-  const bgColor     = asString(unwrapValue(containerCfg?.bgColor, "#FFFFFF"));
+  const containerPt = asNumber(
+    firstDefined(containerCfg?.pt, containerCfg?.paddingTop, rawSnapshot?.Pt, rawSnapshot?.pt, rawSnapshot?.paddingTop, layoutCss?.container?.paddingTop),
+    0
+  );
+  const containerPb = asNumber(
+    firstDefined(containerCfg?.pb, containerCfg?.paddingBottom, rawSnapshot?.Pb, rawSnapshot?.pb, rawSnapshot?.paddingBottom, layoutCss?.container?.paddingBottom),
+    0
+  );
+  const containerPl = asNumber(
+    firstDefined(containerCfg?.pl, containerCfg?.paddingLeft, rawSnapshot?.Pl, rawSnapshot?.pl, rawSnapshot?.paddingLeft, layoutCss?.container?.paddingLeft),
+    0
+  );
+  const containerPr = asNumber(
+    firstDefined(containerCfg?.pr, containerCfg?.paddingRight, rawSnapshot?.Pr, rawSnapshot?.pr, rawSnapshot?.paddingRight, layoutCss?.container?.paddingRight),
+    0
+  );
+  const bgColor = asString(
+    unwrapValue(
+      firstDefined(containerCfg?.bgColor, containerCfg?.backgroundColor, rawSnapshot?.bgColor, rawSnapshot?.backgroundColor, layoutCss?.container?.backgroundColor),
+      "#FFFFFF"
+    )
+  );
+  const containerRadius = asNumber(
+    firstDefined(containerCfg?.borderRadius, containerCfg?.radius, rawSnapshot?.bgBorderRadius, rawSnapshot?.borderRadius, layoutCss?.container?.borderRadius),
+    0
+  );
+  const containerBorderStyle = buildBorderStyle(
+    firstDefined(containerCfg?.borderLine, containerCfg?.borderSide, rawSnapshot?.bgBorderSide, rawSnapshot?.borderLine),
+    firstDefined(containerCfg?.borderColor, rawSnapshot?.bgBorderColor, rawSnapshot?.borderColor, layoutCss?.container?.borderColor)
+  );
 
   // ── Header ───────────────────────────────────────────────────────────────────
   const showHeader   = asBoolean(rawProps?.showHeader ?? rawSnapshot?.showHeader, false);
@@ -242,6 +299,7 @@ export default function CollectionImage({ section }) {
   );
   const headerSize        = asNumber(headerCfg?.headerSize, 16);
   const headerColor       = asString(unwrapValue(headerCfg?.headerColor, "#000000"));
+  const headerMarginBottom = asNumber(firstDefined(headerCfg?.marginBottom, headerCfg?.mb, rawSnapshot?.headerMarginBottom, layoutCss?.header?.marginBottom), 8);
   const headerBold        = asBoolean(headerCfg?.headerBold, false);
   const headerWeight      = headerBold ? "700" : deriveFontWeight(headerCfg?.headerWeight, "700");
   const headerItalic      = asBoolean(headerCfg?.headerItalic, false);
@@ -269,13 +327,21 @@ export default function CollectionImage({ section }) {
   ) || cleanFontFamily(convertStyles(layoutCss?.card?.text || {})?.fontFamily);
   const cardTextAlign       = asString(unwrapValue(titleNode?.align ?? rawSnapshot?.titleAlign ?? cardCfg?.textAlign, "center")).toLowerCase();
   const titlePosition       = asString(unwrapValue(titleNode?.position ?? rawSnapshot?.titlePosition ?? cardCfg?.titlePosition, "below")).toLowerCase();
+  const cardTitleMarginTop  = asNumber(firstDefined(titleNode?.marginTop, titleNode?.mt, rawSnapshot?.titleMarginTop, cardCfg?.titleMarginTop, layoutCss?.cardTitle?.marginTop), 6);
+  const cardTitleLineHeight = asNumber(firstDefined(titleNode?.lineHeight, rawSnapshot?.titleLineHeight, cardCfg?.titleLineHeight, layoutCss?.cardTitle?.lineHeight), Math.round(cardTextSize * 1.35));
+  const cardPaddingTop      = asNumber(firstDefined(cardCfg?.paddingTop, cardCfg?.pt, rawSnapshot?.cardPt, layoutCss?.card?.paddingTop), 0);
+  const cardPaddingBottom   = asNumber(firstDefined(cardCfg?.paddingBottom, cardCfg?.pb, rawSnapshot?.cardPb, layoutCss?.card?.paddingBottom), 0);
+  const cardPaddingLeft     = asNumber(firstDefined(cardCfg?.paddingLeft, cardCfg?.pl, rawSnapshot?.cardPl, layoutCss?.card?.paddingLeft), 0);
+  const cardPaddingRight    = asNumber(firstDefined(cardCfg?.paddingRight, cardCfg?.pr, rawSnapshot?.cardPr, layoutCss?.card?.paddingRight), 0);
+  const cardBackgroundColor = asString(unwrapValue(firstDefined(cardCfg?.bgColor, cardCfg?.backgroundColor, rawSnapshot?.cardBgColor, layoutCss?.card?.backgroundColor), "transparent"));
+  const cardBorderRadius    = asNumber(firstDefined(cardCfg?.borderRadius, cardCfg?.radius, rawSnapshot?.cardBorderRadius, layoutCss?.card?.borderRadius), 0);
 
   const rawColumns          = asNumber(generalNode?.columns ?? rawSnapshot?.columns, 0);
   const sliderCfg           = layoutCss?.slider || {};
   const hGap                = asNumber(generalNode?.hGap ?? rawSnapshot?.hGap ?? sliderCfg?.gapPx, 12);
   const vGap                = asNumber(generalNode?.vGap ?? rawSnapshot?.vGap, 12);
   const availableW          = screenW - containerPl - containerPr;
-  const gridColumns         = Math.max(2, rawColumns || 2);
+  const gridColumns         = Math.max(1, rawColumns || 2);
   const gridCardW           = (availableW - hGap * (gridColumns - 1)) / gridColumns;
 
   // layoutMode drives horizontal slider vs grid
@@ -293,13 +359,20 @@ export default function CollectionImage({ section }) {
     : configuredImageSize;
   const cardImageBorder     = asNumber(cardCfg?.imageBorder, 0);
   const cardImageBorderColor = asString(unwrapValue(cardCfg?.imageBorderColor, "#A8A7AE"));
+  const cardImageBgColor    = asString(unwrapValue(firstDefined(imageNode?.bgColor, imageNode?.backgroundColor, rawSnapshot?.imageBgColor, cardCfg?.imageBgColor), "#FFFFFF"));
+  const placeholderBgColor  = asString(unwrapValue(firstDefined(rawSnapshot?.placeholderBgColor, cardCfg?.placeholderBgColor, imageNode?.placeholderBgColor), "#E0F2F1"));
+  const placeholderTextColor = asString(unwrapValue(firstDefined(rawSnapshot?.placeholderTextColor, cardCfg?.placeholderTextColor, imageNode?.placeholderTextColor), "#096D70"));
   const imageShape          = asString(unwrapValue(cardCfg?.imageShape, rawSnapshot?.imageRadius != null ? "rounded" : "circle")).toLowerCase();
   const imageScale          = asString(unwrapValue(imageNode?.scale ?? rawSnapshot?.imageScale, "cover")).toLowerCase();
+  const imageAspectRatio    = parseAspectRatio(firstDefined(imageNode?.ratio, rawSnapshot?.imageRatio, cardCfg?.imageRatio), 1);
+  const cardImageWidth      = asNumber(firstDefined(imageNode?.width, rawSnapshot?.imageWidth, cardCfg?.imageWidth), cardImageSize);
+  const cardImageHeight     = asNumber(firstDefined(imageNode?.height, rawSnapshot?.imageHeight, cardCfg?.imageHeight), cardImageWidth / imageAspectRatio);
+  const imageCircleRadius   = Math.min(cardImageWidth, cardImageHeight) / 2;
   const imageRadius         = rawSnapshot?.imageRadius != null || imageNode?.radius != null
     ? asNumber(imageNode?.radius ?? rawSnapshot?.imageRadius, 16)
     : imageShape === "square" ? 0
-    : imageShape === "circle" ? cardImageSize / 2
-    : Math.max(8, Math.round(cardImageSize * 0.2));
+    : imageShape === "circle" ? imageCircleRadius
+    : Math.max(8, Math.round(Math.min(cardImageWidth, cardImageHeight) * 0.2));
 
   // ── Behavior ─────────────────────────────────────────────────────────────────
   // behavior props use "default" keys in the DSL schema — unwrapValue now handles this
@@ -449,13 +522,23 @@ export default function CollectionImage({ section }) {
 
   // ── Render item ───────────────────────────────────────────────────────────────
   // Image inner size excludes the border width on each side
-  const imageInnerSize = Math.max(0, cardImageSize - cardImageBorder * 2);
+  const imageInnerWidth = Math.max(0, cardImageWidth - cardImageBorder * 2);
+  const imageInnerHeight = Math.max(0, cardImageHeight - cardImageBorder * 2);
 
   const renderItem = useCallback(({ item }) => (
     <TouchableOpacity
       style={[
         styles.card,
-        { width: cardW, marginRight: isGrid ? 0 : hGap },
+        {
+          width: cardW,
+          marginRight: isGrid ? 0 : hGap,
+          paddingTop: cardPaddingTop,
+          paddingBottom: cardPaddingBottom,
+          paddingLeft: cardPaddingLeft,
+          paddingRight: cardPaddingRight,
+          backgroundColor: cardBackgroundColor,
+          borderRadius: cardBorderRadius,
+        },
       ]}
       activeOpacity={0.82}
       onPress={() => onItemPress(item)}
@@ -464,15 +547,15 @@ export default function CollectionImage({ section }) {
       {showCardImage && (
         <View
           style={{
-            width: cardImageSize,
-            height: cardImageSize,
+            width: cardImageWidth,
+            height: cardImageHeight,
             borderRadius: imageRadius,
             borderWidth: cardImageBorder,
             borderColor: cardImageBorderColor,
             overflow: "hidden",
             alignItems: "center",
             justifyContent: "center",
-            backgroundColor: "#FFFFFF",
+            backgroundColor: cardImageBgColor,
           }}
         >
           {isRenderableImageUrl(item.image) ? (
@@ -482,8 +565,8 @@ export default function CollectionImage({ section }) {
                   html: `<!DOCTYPE html><html><head><meta name="viewport" content="width=device-width,initial-scale=1"><style>*{margin:0;padding:0;box-sizing:border-box}body{background:transparent}img{width:100%;height:100%;object-fit:contain;display:block}</style></head><body><img src="${item.image}" /></body></html>`,
                 }}
                 style={{
-                  width: imageInnerSize,
-                  height: imageInnerSize,
+                  width: imageInnerWidth,
+                  height: imageInnerHeight,
                   borderRadius: imageRadius,
                   backgroundColor: "transparent",
                 }}
@@ -495,8 +578,8 @@ export default function CollectionImage({ section }) {
               <Image
                 source={{ uri: item.image }}
                 style={{
-                  width: imageInnerSize,
-                  height: imageInnerSize,
+                  width: imageInnerWidth,
+                  height: imageInnerHeight,
                   borderRadius: imageRadius,
                 }}
                 resizeMode={imageScale === "contain" ? "contain" : "cover"}
@@ -505,15 +588,15 @@ export default function CollectionImage({ section }) {
           ) : (
             <View
               style={{
-                width: imageInnerSize,
-                height: imageInnerSize,
+                width: imageInnerWidth,
+                height: imageInnerHeight,
                 borderRadius: imageRadius,
                 alignItems: "center",
                 justifyContent: "center",
-                backgroundColor: "#e0f2f1",
+                backgroundColor: placeholderBgColor,
               }}
             >
-              <Text style={{ color: "#096d70", fontSize: cardImageSize * 0.35, fontWeight: "700" }}>
+              <Text style={{ color: placeholderTextColor, fontSize: Math.min(cardImageWidth, cardImageHeight) * 0.35, fontWeight: "700" }}>
                 {(item.title || "?").charAt(0).toUpperCase()}
               </Text>
             </View>
@@ -530,6 +613,7 @@ export default function CollectionImage({ section }) {
                     fontSize: cardTextSize,
                     fontWeight: cardTextWeight,
                     textAlign: cardTextAlign,
+                    lineHeight: cardTitleLineHeight,
                     ...(cardFontFamily ? { fontFamily: cardFontFamily } : {}),
                   },
                 ]}
@@ -551,7 +635,9 @@ export default function CollectionImage({ section }) {
               fontSize: cardTextSize,
               fontWeight: cardTextWeight,
               textAlign: cardTextAlign,
+              lineHeight: cardTitleLineHeight,
               maxWidth: cardW,
+              marginTop: cardTitleMarginTop,
               ...(cardFontFamily ? { fontFamily: cardFontFamily } : {}),
             },
           ]}
@@ -562,8 +648,11 @@ export default function CollectionImage({ section }) {
     </TouchableOpacity>
   ), [
     cardW, hGap, isGrid, onItemPress,
-    showCardImage, cardImageSize, imageRadius, cardImageBorder, cardImageBorderColor, imageInnerSize,
-    showCardText, titlePosition, imageScale, cardTextColor, cardTextSize, cardTextWeight, cardTextAlign, cardFontFamily,
+    cardPaddingTop, cardPaddingBottom, cardPaddingLeft, cardPaddingRight, cardBackgroundColor, cardBorderRadius,
+    showCardImage, cardImageWidth, cardImageHeight, imageRadius, cardImageBorder, cardImageBorderColor, cardImageBgColor,
+    imageInnerWidth, imageInnerHeight, placeholderBgColor, placeholderTextColor,
+    showCardText, titlePosition, imageScale, cardTextColor, cardTextSize, cardTextWeight,
+    cardTextAlign, cardTitleLineHeight, cardTitleMarginTop, cardFontFamily,
   ]);
 
   if (!items.length) return null;
@@ -578,6 +667,8 @@ export default function CollectionImage({ section }) {
           paddingBottom: containerPb,
           paddingLeft: containerPl,
           paddingRight: containerPr,
+          borderRadius: containerRadius,
+          ...containerBorderStyle,
         },
       ]}
     >
@@ -592,6 +683,7 @@ export default function CollectionImage({ section }) {
               fontWeight: headerWeight,
               fontStyle: headerItalic ? "italic" : "normal",
               textDecorationLine: headerDecorationLine,
+              marginBottom: headerMarginBottom,
               ...(headerFontFamily ? { fontFamily: headerFontFamily } : {}),
             },
           ]}

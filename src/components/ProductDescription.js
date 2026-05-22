@@ -265,6 +265,26 @@ export default function ProductDescription({ section }) {
     "#FFFFFF"
   );
 
+  const explicitHeaderBodyGap = firstDefined(
+    raw?.headerBodyGap,
+    raw?.descriptionHeaderGap,
+    raw?.descriptionGap,
+    raw?.infoTopGap,
+    raw?.infoBoxGap,
+    infoNode?.marginTop,
+    infoNode?.mt,
+    layoutCss?.infoBox?.marginTop,
+    presCss?.infoBox?.marginTop
+  );
+  const minimumHeaderBodyGap = toNumber(
+    firstDefined(raw?.minimumHeaderBodyGap, raw?.minHeaderBodyGap, raw?.minDescriptionGap),
+    10
+  );
+  const headerBodyGap =
+    showTitle && hasDescription
+      ? Math.max(toNumber(explicitHeaderBodyGap, 0), Math.max(0, minimumHeaderBodyGap - Math.max(infoPT, 0)))
+      : 0;
+
   // ── Title style ────────────────────────────────────────────────────────────
   const titleStyle     = unwrapValue(titleNode?.style, {});
   const titleFontSize  = toNumber(titleStyle?.fontSize ?? layoutCss?.title?.fontSize, 14);
@@ -368,6 +388,7 @@ export default function ProductDescription({ section }) {
         <View
           style={{
             backgroundColor: infoBg,
+            marginTop:       headerBodyGap,
             paddingTop:      infoPT,
             paddingBottom:   infoPB,
             paddingLeft:     infoPL,

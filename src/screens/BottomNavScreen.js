@@ -28,18 +28,12 @@ import { setHeaderDefault } from "../services/headerDefaultService";
 import NotificationList from "../components/NotificationList";
 import { fetchNotifications } from "../services/notificationFetchService";
 import { getHomeSectionMarginBottom } from "../utils/sectionSpacing";
+import { PageEmptyStateProvider } from "../services/PageEmptyStateContext";
 
 // Slugs that should redirect to the Auth screen instead of rendering empty DSL content
 const SIGNIN_SLUGS = new Set(["signin", "sign-in", "login", "log-in", "auth"]);
-const CART_EMPTY_HIDDEN_COMPONENTS = new Set([
-  "free_shipping",
-  "free_shipping_banner",
-  "discount_code",
-  "discount_coupons",
-  "order_summary",
-  "price_line",
-  "checkout_button",
-]);
+const CART_EMPTY_VISIBLE_COMPONENTS = new Set(["cart_line_items"]);
+const ORDERS_EMPTY_VISIBLE_COMPONENTS = new Set(["order_history", "orderhistory", "orders", "my_orders"]);
 
 // ── Default profile menu items shown when DSL has no account_menu sections ───
 const DEFAULT_PROFILE_MENU = [
@@ -216,6 +210,7 @@ export default function BottomNavScreen() {
   // Measured height of the rendered bottom nav — used to pad the scroll content
   // so the last section is never hidden behind the nav bar.
   const [bottomNavHeight, setBottomNavHeight] = useState(BOTTOM_NAV_RESERVED_HEIGHT);
+  const [pageEmptyState, setPageEmptyState] = useState({});
   // Side menu state (same pattern as LayoutScreen)
   const DEFAULT_SIDE_MENU_WIDTH = 280;
   const [isSideMenuOpen, setIsSideMenuOpen] = useState(false);
@@ -512,6 +507,22 @@ export default function BottomNavScreen() {
     [sortedSections, isHeaderDefaultEnabled]
   );
 
+  const reportPageEmptyState = useCallback((key, isEmpty) => {
+    setPageEmptyState((prev) => {
+      const normalizedKey = String(key || "").trim();
+      if (!normalizedKey) return prev;
+      const next = { ...prev };
+      if (isEmpty === undefined || isEmpty === null) {
+        delete next[normalizedKey];
+      } else {
+        next[normalizedKey] = Boolean(isEmpty);
+      }
+      return next;
+    });
+  }, []);
+
+  const isOrdersEmpty = pageEmptyState.order_history === true;
+
   // Side menu helpers
   const closeSideMenu = () => setIsSideMenuOpen(false);
 
@@ -801,12 +812,13 @@ export default function BottomNavScreen() {
           closeSideMenu,
         }}
       >
-        <View
-          style={[
-            styles.container,
-            (isCartPage || isProfilePage) ? styles.cartContainer : null,
-          ]}
-        >
+        <PageEmptyStateProvider reportEmptyState={reportPageEmptyState}>
+          <View
+            style={[
+              styles.container,
+              (isCartPage || isProfilePage) ? styles.cartContainer : null,
+            ]}
+          >
           {/* Single standalone header for pages opened without the bottom nav. */}
           {hideBottomNav && (
             <View style={styles.standaloneHeader}>
@@ -908,7 +920,10 @@ export default function BottomNavScreen() {
                 if (isHomePage && !heavySectionsReady && index > 3 && isHeavyHomeSection) {
                   return null;
                 }
-                if (isCartPage && isCartEmpty && CART_EMPTY_HIDDEN_COMPONENTS.has(compName)) {
+                if (isCartPage && isCartEmpty && !CART_EMPTY_VISIBLE_COMPONENTS.has(compName)) {
+                  return null;
+                }
+                if (isOrdersPage && isOrdersEmpty && !ORDERS_EMPTY_VISIBLE_COMPONENTS.has(compName)) {
                   return null;
                 }
                 const homeSectionMarginBottom = isHomePage
@@ -969,15 +984,16 @@ export default function BottomNavScreen() {
           </View>
         )}
 
-        {resolvedBottomNavSection && !hideBottomNav && (
-          <View
-            style={styles.bottomNav}
-            onLayout={(e) => setBottomNavHeight(e.nativeEvent.layout.height)}
-          >
-            <BottomNavigation section={resolvedBottomNavSection} activeIndexOverride={activeIndex} />
+          {resolvedBottomNavSection && !hideBottomNav && (
+            <View
+              style={styles.bottomNav}
+              onLayout={(e) => setBottomNavHeight(e.nativeEvent.layout.height)}
+            >
+              <BottomNavigation section={resolvedBottomNavSection} activeIndexOverride={activeIndex} />
+            </View>
+          )}
           </View>
-        )}
-      </View>
+        </PageEmptyStateProvider>
       </SideMenuProvider>
     </SafeArea>
   );
