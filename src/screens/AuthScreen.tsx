@@ -1076,7 +1076,7 @@ const FormField: React.FC<FieldProps> = ({
   const resolvedInputFontSize = usePlaceholderTypography ? placeholderFontSize ?? inputFontSize : inputFontSize;
   const resolvedInputFontFamily = usePlaceholderTypography ? placeholderFontFamily ?? inputFontFamily : inputFontFamily;
   const resolvedInputFontWeight = usePlaceholderTypography ? placeholderFontWeight ?? inputFontWeight : inputFontWeight;
-  const resolvedInputAlign = usePlaceholderTypography ? 'left' : inputAlign;
+  const resolvedInputAlign = 'left';
   return (
   <View style={[fieldStyles.group, { marginBottom: fieldGap }]}>
     {shouldShowLabel ? (
