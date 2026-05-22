@@ -17,7 +17,7 @@ import { Platform } from 'react-native';
  * all three locations and picks whichever value is found first.
  *
  * Supported fonts (TTF files must exist in the configured app fonts asset path):
- *   Inter, Manrope, Poppins, Roboto, Montserrat, OpenSans, Lato, PlayfairDisplay
+ *   Inter, Manrope, Merriweather, Poppins, Roboto, Montserrat, OpenSans, Lato, PlayfairDisplay
  *
  * Font name normalisation:
  *   "Open Sans"        → "OpenSans"
@@ -34,6 +34,8 @@ const FONT_NAME_MAP = {
   'poppins':         'Poppins',
   'roboto':          'Roboto',
   'montserrat':      'Montserrat',
+  'merriweather':    'Merriweather',
+  'merriweather light': 'Merriweather',
   'open sans':       'OpenSans',
   'opensans':        'OpenSans',
   'lato':            'Lato',
@@ -47,6 +49,8 @@ const IOS_FONT_NAME_MAP = {
   'poppins':         'Poppins-Regular',
   'roboto':          'Roboto-Regular',
   'montserrat':      'Montserrat-Regular',
+  'merriweather':    'Merriweather',
+  'merriweather light': 'Merriweather',
   'open sans':       'OpenSans-Regular',
   'opensans':        'OpenSans-Regular',
   'lato':            'Lato-Regular',
@@ -115,6 +119,25 @@ export function setTypography(dsl) {
 
   const typo      = dsl.typography     || {};
   const hDefault  = dsl.headerdefault  || {};
+  const brandTypo = dsl.brandKit?.typography || {};
+
+  const read = (value) => {
+    if (value && typeof value === 'object') {
+      if (value.value !== undefined) return value.value;
+      if (value.const !== undefined) return value.const;
+    }
+    return value;
+  };
+
+  const headerTextItem = Array.isArray(hDefault.center)
+    ? hDefault.center
+        .map(read)
+        .find((item) => {
+          if (!item || typeof item !== 'object') return false;
+          const type = String(read(item.type) || '').toLowerCase();
+          return type === 'text' || read(item.title) || read(item.text);
+        })
+    : null;
 
   const pick = (...candidates) => {
     for (const v of candidates) {
@@ -127,21 +150,30 @@ export function setTypography(dsl) {
     headlineFontFamily: pick(
       typo.headlineFontFamily,
       dsl.headlineFontFamily,
-      hDefault.headlineFontFamily,
+      read(headerTextItem?.textFontFamily),
+      read(headerTextItem?.fontFamily),
+      read(headerTextItem?.titleFontFamily),
+      read(hDefault.textFontFamily),
+      read(hDefault.titleFontFamily),
+      read(hDefault.headerFontFamily),
+      read(hDefault.headlineFontFamily),
+      read(brandTypo.headline?.fontFamily),
     ),
     subtextFontFamily: pick(
       typo.subtextFontFamily,
       typo.subHeadlineFontFamily,
       dsl.subtextFontFamily,
       dsl.subHeadlineFontFamily,
-      hDefault.subtextFontFamily,
+      read(hDefault.subtextFontFamily),
+      read(brandTypo.subHeadline?.fontFamily),
     ),
     bodyFontFamily: pick(
       typo.bodyFontFamily,
       typo.bodyTextFontFamily,
       dsl.bodyFontFamily,
       dsl.bodyTextFontFamily,
-      hDefault.bodyFontFamily,
+      read(hDefault.bodyFontFamily),
+      read(brandTypo.body?.fontFamily),
     ),
   };
 }

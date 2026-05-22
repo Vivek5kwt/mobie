@@ -22,7 +22,7 @@ import { getAppLogoSync } from "../utils/appInfo";
 import { resolveTextDecorationLine } from "../utils/textDecoration";
 import { resolveFA4IconName } from "../utils/faIconAlias";
 import { resolveProductImageResizeMode } from "../utils/productImageFit";
-import { resolveFont } from "../services/typographyService";
+import { getTypography, resolveFirstFont } from "../services/typographyService";
 import { formatMoney } from "../utils/money";
 
 const unwrapValue = (value, fallback = undefined) => {
@@ -66,8 +66,6 @@ const normalizeIconName = (name, fallback = "bars") => {
   const cleaned = String(name).replace(/^fa[srldb]?[-_]?/, "");
   return cleaned || fallback;
 };
-
-const cleanFontFamily = (family) => resolveFont(family) || "";
 
 const resolveFontWeight = (value, fallback = "400") => {
   const resolved = unwrapValue(value, fallback);
@@ -169,6 +167,7 @@ export default function Header2({ section }) {
   const { openSideMenu, toggleSideMenu, hasSideNav } = useSideMenu();
   const navigation = useNavigation();
   const bottomNavSection = section?.bottomNavSection || bottomNavigationStyle1Section;
+  const typography = getTypography() || {};
   const cartCount = useSelector((state) =>
     (state?.cart?.items || []).reduce((sum, item) => {
       const quantity = Number(item?.quantity);
@@ -810,7 +809,14 @@ export default function Header2({ section }) {
       strikethrough: headerTextStrikethrough,
     });
     const headerTextAlign = String(resolveValue(rawPropsNode.headerTextAlign, "center")).toLowerCase();
-    const headerFontFamily = cleanFontFamily(resolveValue(rawPropsNode.headerFontFamily, undefined));
+    const headerFontFamily = resolveFirstFont(
+      resolveValue(rawPropsNode.headerFontFamily, undefined),
+      resolveValue(rawPropsNode.textFontFamily, undefined),
+      resolveValue(rawPropsNode.titleFontFamily, undefined),
+      resolveValue(rawPropsNode.fontFamily, undefined),
+      typography.headlineFontFamily,
+      typography.bodyFontFamily
+    ) || "";
     const headerFontWeight = resolveFontWeight(
       rawPropsNode.headerFontWeight,
       headerTextBold ? "700" : "400"

@@ -5,7 +5,7 @@ import Icon from "react-native-vector-icons/FontAwesome6";
 import { useSelector } from "react-redux";
 import bottomNavigationStyle1Section from "../data/bottomNavigationStyle1";
 import { useSideMenu } from "../services/SideMenuContext";
-import { resolveFont } from "../services/typographyService";
+import { getTypography, resolveFirstFont } from "../services/typographyService";
 import { dedupeWishlistProducts } from "../store/slices/wishlistSlice";
 
 const normalizeIconName = (name) => {
@@ -25,6 +25,41 @@ const resolveVal = (v) => {
 const resolveArray = (v) => {
   const u = resolveVal(v);
   return Array.isArray(u) ? u : [];
+};
+
+const getHeaderTextItem = (items) =>
+  (items || [])
+    .map((item) => resolveVal(item) || item)
+    .find((item) => {
+      if (!item || typeof item !== "object") return false;
+      const type = String(resolveVal(item.type) || "").toLowerCase();
+      return type === "text" || resolveVal(item.title) || resolveVal(item.text);
+    }) || null;
+
+const normalizeFontWeight = (value, fallback = "400") => {
+  const resolved = resolveVal(value);
+  if (resolved === undefined || resolved === null || resolved === "") return fallback;
+  if (typeof resolved === "number" && Number.isFinite(resolved)) return String(resolved);
+  const normalized = String(resolved).trim().toLowerCase();
+  if (!normalized) return fallback;
+  if (/^\d+$/.test(normalized)) return normalized;
+  const map = {
+    thin: "100",
+    extralight: "200",
+    "extra light": "200",
+    light: "300",
+    regular: "400",
+    normal: "400",
+    medium: "500",
+    semibold: "600",
+    "semi bold": "600",
+    "semi-bold": "600",
+    bold: "700",
+    extrabold: "800",
+    "extra bold": "800",
+    black: "900",
+  };
+  return map[normalized] || fallback;
 };
 
 const normalizeNavKey = (value) =>
@@ -68,13 +103,14 @@ export default function HeaderDefault({ config, bottomNavSection, hideTabs = fal
   // enabled check
   const enabledRaw = resolveVal(config.enabled);
   if (enabledRaw !== true && enabledRaw !== "true" && enabledRaw !== 1) return null;
+  const typography = getTypography() || {};
 
   // ── Global style tokens ───────────────────────────────────────────────────
   // bgColor falls back to bgColor field in case backgroundColor is absent
   const bgColor   = resolveVal(config.backgroundColor) || resolveVal(config.bgColor) || "#e6d7cd";
   const textColor = resolveVal(config.textColor)       || "#111111";
   const iconColor = resolveVal(config.iconColor)       || "#000000";
-  const titleText = resolveVal(config.title)           || "";
+  const titleText = resolveVal(config.title) || resolveVal(config.headerText) || resolveVal(config.text) || "";
 
   // ── Bottom divider ───────────────────────────────────────────────────────
   const _dividerRaw = resolveVal(
@@ -121,6 +157,26 @@ export default function HeaderDefault({ config, bottomNavSection, hideTabs = fal
   const inactiveTabColor = resolveVal(config.inactiveTextColor) || _mutedFallback;
   // Underline indicator color — separate from text color so it can be an accent
   const activeIndicatorColor = resolveVal(config.activeIndicatorColor) || resolveVal(config.activeBorderColor) || activeTabColor;
+
+  // Flat header uses config.title; array header uses left/center/right items.
+  const leftItems   = resolveArray(config.left);
+  const centerItems = resolveArray(config.center);
+  const rightItems  = resolveArray(config.right);
+  const centerTextItem = getHeaderTextItem(centerItems);
+  const headerFontFamily = resolveFirstFont(
+    resolveVal(centerTextItem?.textFontFamily),
+    resolveVal(centerTextItem?.fontFamily),
+    resolveVal(centerTextItem?.titleFontFamily),
+    resolveVal(centerTextItem?.headerFontFamily),
+    resolveVal(centerTextItem?.family),
+    resolveVal(config.textFontFamily),
+    resolveVal(config.titleFontFamily),
+    resolveVal(config.headerFontFamily),
+    resolveVal(config.fontFamily),
+    resolveVal(config.titleFamily),
+    typography.headlineFontFamily,
+    typography.bodyFontFamily
+  ) || "";
 
   // ── Nav helpers ───────────────────────────────────────────────────────────
   const resolveNavItems = (rawSection) => {
@@ -201,6 +257,16 @@ export default function HeaderDefault({ config, bottomNavSection, hideTabs = fal
   // ── Tab bar (shared between flat and array mode) ──────────────────────────
   // Tab bar uses the same bgColor as the appbar. Active/inactive colors come
   // directly from DSL activeTextColor / inactiveTextColor.
+  const tabFontFamily = resolveFirstFont(
+    resolveVal(config.tabFontFamily),
+    resolveVal(config.tabsFontFamily),
+    resolveVal(config.textFontFamily),
+    resolveVal(config.fontFamily),
+    typography.bodyFontFamily,
+    headerFontFamily
+  ) || "";
+  const activeTabWeight = normalizeFontWeight(resolveVal(config.activeTabFontWeight), "700");
+  const inactiveTabWeight = normalizeFontWeight(resolveVal(config.inactiveTabFontWeight), "500");
   const tabBar = showTabs ? (
     <View style={{ flexDirection: "row", backgroundColor: bgColor, borderBottomWidth: 1, borderBottomColor: _isLightBg ? "rgba(0,0,0,0.08)" : "rgba(255,255,255,0.12)" }}>
       {tabs.map((tab, idx) => {
@@ -222,9 +288,10 @@ export default function HeaderDefault({ config, bottomNavSection, hideTabs = fal
             <Text
               style={{
                 fontSize: 14,
-                fontWeight: isActive ? "700" : "500",
+                fontWeight: isActive ? activeTabWeight : inactiveTabWeight,
                 color: isActive ? activeTabColor : inactiveTabColor,
                 letterSpacing: 0.2,
+                ...(tabFontFamily ? { fontFamily: tabFontFamily } : {}),
               }}
             >
               {label}
@@ -237,9 +304,6 @@ export default function HeaderDefault({ config, bottomNavSection, hideTabs = fal
 
   // ── Flat DSL structure: { title, showBell, showCart, iconColor, textColor, bgColor }
   // ── Array DSL structure: { left: [...], center: [...], right: [...] }
-  const leftItems   = resolveArray(config.left);
-  const centerItems = resolveArray(config.center);
-  const rightItems  = resolveArray(config.right);
   const useFlatMode = leftItems.length === 0 && centerItems.length === 0 && rightItems.length === 0;
 
   if (useFlatMode) {
@@ -259,22 +323,24 @@ export default function HeaderDefault({ config, bottomNavSection, hideTabs = fal
       : 40;
 
     // ── Title text styling (DSL-driven) ──────────────────────────────────────
-    const cleanFontFamily = (family) => resolveFont(family) || "";
     const _fsr = resolveVal(config.titleFontSize) ?? resolveVal(config.fontSize);
     const titleFontSize   = Number.isFinite(Number(_fsr)) && Number(_fsr) > 0 ? Number(_fsr) : 18;
-    const titleFontFamily = cleanFontFamily(
-      resolveVal(config.titleFontFamily) ??
-      resolveVal(config.fontFamily) ??
-      resolveVal(config.titleFamily)
-    );
-    const _fwr = String(
+    const titleFontFamily = resolveFirstFont(
+      resolveVal(config.titleFontFamily),
+      resolveVal(config.textFontFamily),
+      resolveVal(config.headerFontFamily),
+      resolveVal(config.fontFamily),
+      resolveVal(config.titleFamily),
+      headerFontFamily
+    ) || "";
+    const titleFontWeight = normalizeFontWeight(
       resolveVal(config.titleFontWeight) ??
+      resolveVal(config.textWeight) ??
+      resolveVal(config.headerFontWeight) ??
       resolveVal(config.fontWeight) ??
-      resolveVal(config.titleWeight) ??
+      resolveVal(config.titleWeight),
       "700"
     );
-    const _fwMap = { thin: "100", extralight: "200", light: "300", regular: "400", medium: "500", semibold: "600", bold: "700", extrabold: "800", black: "900" };
-    const titleFontWeight = _fwMap[_fwr.toLowerCase()] || _fwr;
     const titleColor = resolveVal(config.titleColor) ?? resolveVal(config.titleTextColor) ?? textColor;
 
     // ── Title box / border styling ─────────────────────────────────────────
@@ -546,25 +612,22 @@ export default function HeaderDefault({ config, bottomNavSection, hideTabs = fal
     const itemFontSize = _txtSz != null ? Number(_txtSz) : 13;
 
     // Normalise font-weight: builder may send "Medium", "Bold", "700", etc.
-    const _fwNormMap = {
-      thin: "100", extralight: "200", light: "300",
-      regular: "400", normal: "400",
-      medium: "500",
-      semibold: "600", "semi bold": "600", "semi-bold": "600",
-      bold: "700",
-      extrabold: "800", "extra bold": "800",
-      black: "900",
-    };
     const _fwRaw = rv(item.textBold) || rv(item.bold)
       ? "700"
       : String(
           rv(item.textWeight) || rv(item.fontWeight) || rv(item.weight) || "600"
         );
-    const itemFontWeight = _fwNormMap[_fwRaw.trim().toLowerCase()] || _fwRaw;
+    const itemFontWeight = normalizeFontWeight(_fwRaw, "600");
 
     // Font family — cover textFontFamily / fontFamily / family
-    const _rawFamily = rv(item.textFontFamily) || rv(item.fontFamily) || rv(item.family) || "";
-    const itemFontFamily = resolveFont(_rawFamily) || undefined;
+    const itemFontFamily = resolveFirstFont(
+      rv(item.textFontFamily),
+      rv(item.titleFontFamily),
+      rv(item.headerFontFamily),
+      rv(item.fontFamily),
+      rv(item.family),
+      headerFontFamily
+    ) || undefined;
 
     // Font style & decoration — cover both prefixed and unprefixed keys
     const itemFontStyle = (rv(item.textItalic) || rv(item.italic)) ? "italic" : "normal";

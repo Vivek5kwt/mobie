@@ -10,7 +10,7 @@ import { getAppLogoSync } from "../utils/appInfo";
 import { getHeaderDefault } from "../services/headerDefaultService";
 import { resolveTextDecorationLine } from "../utils/textDecoration";
 import { useAuth } from "../services/AuthContext";
-import { resolveFont } from "../services/typographyService";
+import { getTypography, resolveFirstFont } from "../services/typographyService";
 import { requireLoginForAction } from "../utils/authGate";
 
 const LOCAL_LOGO_IMAGE = require("../assets/logo/mobidraglogo.png");
@@ -36,6 +36,15 @@ const resolveBoolean = (value, fallback = false) => {
   if (typeof resolved === "number") return resolved !== 0;
   return fallback;
 };
+
+const getHeaderTextItem = (items) =>
+  (Array.isArray(items) ? items : [])
+    .map((item) => unwrapValue(item, item))
+    .find((item) => {
+      if (!item || typeof item !== "object") return false;
+      const type = String(unwrapValue(item.type, "")).toLowerCase();
+      return type === "text" || unwrapValue(item.title) || unwrapValue(item.text);
+    }) || null;
 
 const normalizeIconName = (name, fallback = "bars") => {
   if (!name) return fallback;
@@ -143,6 +152,8 @@ export default function Header({ section, showBack, showNotification, onTitlePre
   // IMPORTANT: must be declared before any use of defaultConfig below
   const isStandalone = !section?.component && !section?.props;
   const defaultConfig = isStandalone ? getHeaderDefault() : null;
+  const defaultCenterTextItem = isStandalone ? getHeaderTextItem(defaultConfig?.center) : null;
+  const typography = getTypography() || {};
 
   const sideMenuProps = props?.sideMenu?.properties || props?.sideMenu || {};
   const sideMenuVisible = resolveBoolean(sideMenuProps?.visible, true);
@@ -178,29 +189,60 @@ export default function Header({ section, showBack, showNotification, onTitlePre
     isStandalone
       ? resolveBoolean(
           defaultConfig?.enableHeaderText ?? defaultConfig?.showTitle,
-          !!defaultConfig?.title,
+          !!(defaultCenterTextItem?.title || defaultCenterTextItem?.text || defaultConfig?.title),
         )
       : false,
   );
   const headerTextValue = unwrapValue(
     props?.headerText,
-    isStandalone ? (defaultConfig?.title ?? defaultConfig?.headerText ?? "") : "",
+    isStandalone
+      ? (
+          unwrapValue(defaultCenterTextItem?.title) ??
+          unwrapValue(defaultCenterTextItem?.text) ??
+          defaultConfig?.title ??
+          defaultConfig?.headerText ??
+          ""
+        )
+      : "",
   );
   const headerTextSize = unwrapValue(
     props?.headerTextSize,
-    isStandalone ? (defaultConfig?.fontSize ?? defaultConfig?.titleFontSize ?? 14) : 14,
+    isStandalone
+      ? (
+          unwrapValue(defaultCenterTextItem?.textSize) ??
+          unwrapValue(defaultCenterTextItem?.fontSize) ??
+          defaultConfig?.fontSize ??
+          defaultConfig?.titleFontSize ??
+          14
+        )
+      : 14,
   );
   const headerTextColor = unwrapValue(
     props?.headerTextColor,
-    defaultConfig?.textColor ?? defaultConfig?.titleColor ?? "#0C1C2C",
+    unwrapValue(defaultCenterTextItem?.textColor) ??
+      unwrapValue(defaultCenterTextItem?.color) ??
+      defaultConfig?.textColor ??
+      defaultConfig?.titleColor ??
+      "#0C1C2C",
   );
   const headerTextBold = resolveBoolean(
     props?.headerTextBold,
-    isStandalone ? resolveBoolean(defaultConfig?.bold ?? defaultConfig?.titleBold, false) : false,
+    isStandalone
+      ? resolveBoolean(defaultCenterTextItem?.textBold ?? defaultCenterTextItem?.bold ?? defaultConfig?.bold ?? defaultConfig?.titleBold, false)
+      : false,
   );
-  const headerTextItalic = resolveBoolean(props?.headerTextItalic, false);
-  const headerTextUnderline = resolveBoolean(props?.headerTextUnderline, false);
-  const headerTextStrikethrough = resolveBoolean(props?.headerTextStrikethrough, false);
+  const headerTextItalic = resolveBoolean(
+    props?.headerTextItalic,
+    isStandalone ? resolveBoolean(defaultCenterTextItem?.textItalic ?? defaultCenterTextItem?.italic, false) : false,
+  );
+  const headerTextUnderline = resolveBoolean(
+    props?.headerTextUnderline,
+    isStandalone ? resolveBoolean(defaultCenterTextItem?.textUnderline ?? defaultCenterTextItem?.underline, false) : false,
+  );
+  const headerTextStrikethrough = resolveBoolean(
+    props?.headerTextStrikethrough,
+    isStandalone ? resolveBoolean(defaultCenterTextItem?.textStrikethrough ?? defaultCenterTextItem?.strikethrough, false) : false,
+  );
   const headerTextDecorationLine = resolveTextDecorationLine({
     underline: headerTextUnderline,
     strikethrough: headerTextStrikethrough,
@@ -208,17 +250,41 @@ export default function Header({ section, showBack, showNotification, onTitlePre
   const headerTextAlign = String(
     unwrapValue(
       props?.headerTextAlign,
-      isStandalone ? (defaultConfig?.textAlign ?? defaultConfig?.titleAlign ?? "center") : "center",
+      isStandalone
+        ? (
+            unwrapValue(defaultCenterTextItem?.textAlign) ??
+            unwrapValue(defaultCenterTextItem?.titleAlign) ??
+            defaultConfig?.textAlign ??
+            defaultConfig?.titleAlign ??
+            "center"
+          )
+        : "center",
     ),
   ).toLowerCase();
-  const headerFontFamily = resolveFont(unwrapValue(
-    props?.headerFontFamily,
-    isStandalone ? (defaultConfig?.fontFamily ?? undefined) : undefined,
-  ));
+  const headerFontFamily = resolveFirstFont(
+    unwrapValue(props?.headerFontFamily),
+    unwrapValue(props?.textFontFamily),
+    isStandalone ? unwrapValue(defaultCenterTextItem?.textFontFamily) : undefined,
+    isStandalone ? unwrapValue(defaultCenterTextItem?.fontFamily) : undefined,
+    isStandalone ? unwrapValue(defaultCenterTextItem?.titleFontFamily) : undefined,
+    isStandalone ? unwrapValue(defaultConfig?.textFontFamily) : undefined,
+    isStandalone ? unwrapValue(defaultConfig?.titleFontFamily) : undefined,
+    isStandalone ? unwrapValue(defaultConfig?.headerFontFamily) : undefined,
+    isStandalone ? unwrapValue(defaultConfig?.fontFamily) : undefined,
+    typography.headlineFontFamily,
+    typography.bodyFontFamily
+  );
   const headerFontWeight = resolveFontWeight(
     props?.headerFontWeight,
     isStandalone
-      ? resolveFontWeight(defaultConfig?.fontWeight ?? defaultConfig?.titleFontWeight, headerTextBold ? "700" : "400")
+      ? resolveFontWeight(
+          defaultCenterTextItem?.textWeight ??
+            defaultCenterTextItem?.fontWeight ??
+            defaultConfig?.textWeight ??
+            defaultConfig?.fontWeight ??
+            defaultConfig?.titleFontWeight,
+          headerTextBold ? "700" : "400"
+        )
       : headerTextBold ? "700" : "400",
   );
   const logoAlignment = resolveLogoAlignment(props?.logoAlign);
@@ -235,7 +301,7 @@ export default function Header({ section, showBack, showNotification, onTitlePre
     fontStyle: headerTextItalic ? "italic" : "normal",
     textDecorationLine: headerTextDecorationLine,
     textAlign: headerTextAlign,
-    fontFamily: headerFontFamily,
+    ...(headerFontFamily ? { fontFamily: headerFontFamily } : {}),
   };
 
   const cartProps = props?.cart?.properties || props?.cart || {};
