@@ -116,9 +116,13 @@ const toTextDecorationLine = ({ underline, strikethrough }) => {
   return "none";
 };
 
+const isVariantAvailable = (variant) =>
+  variant?.availableForSale !== false &&
+  String(variant?.availableForSale).trim().toLowerCase() !== "false";
+
 const isProductAvailable = (product) => {
   if (!product || typeof product !== "object") return true;
-  if (product.availableForSale === false) return false;
+  if (product.availableForSale === false || String(product.availableForSale).trim().toLowerCase() === "false") return false;
   const inventory =
     product.inventoryQuantity ??
     product.totalInventory ??
@@ -126,7 +130,7 @@ const isProductAvailable = (product) => {
     product.quantityAvailable;
   if (typeof inventory === "number" && inventory <= 0) return false;
   if (Array.isArray(product.variants) && product.variants.length > 0) {
-    const anyVariantAvailable = product.variants.some((variant) => variant?.availableForSale !== false);
+    const anyVariantAvailable = product.variants.some(isVariantAvailable);
     if (!anyVariantAvailable) return false;
   }
   return true;
@@ -327,7 +331,7 @@ export default function RecentProducts({ section }) {
   const unavailCss    = unwrap(css?.atcUnavailable, {});
   const unavailBg     = str(unavailCss?.backgroundColor, "#7A7A7A");
   const unavailColor  = str(unavailCss?.color, "#FFFFFF");
-  const unavailText   = str(raw?.unavailableText ?? raw?.soldOutText, "Unavailable");
+  const unavailText   = str(raw?.unavailableText ?? raw?.soldOutText, "Item Not Available");
   const atcDecorationUnavailable = toDecorationLine(raw?.atcStrikethroughUnavailable, unavailCss?.textDecoration);
 
   // Visibility / eye toggles
@@ -372,10 +376,14 @@ export default function RecentProducts({ section }) {
 
   // ── Handlers ──────────────────────────────────────────────────────────────
   const handleAddToCart = (product) => {
+    const availableVariant =
+      product?.variants?.find(isVariantAvailable) ||
+      product?.variants?.[0];
+    const variantId = product.variantId || availableVariant?.id || "";
     dispatch(addItem({
       item: {
-        id:             product.variantId || product.id,
-        variantId:      String(product.variantId || ""),
+        id:             variantId || product.id,
+        variantId:      String(variantId || ""),
         handle:         product.handle || "",
         title:          product.title || "",
         image:          product.imageUrl || product.image || "",
@@ -575,7 +583,7 @@ export default function RecentProducts({ section }) {
                   )}
 
                   {/* ATC / Unavailable */}
-                  {showAtc && (
+                  {(showAtc || !isAvailable) && (
                     <TouchableOpacity
                       style={{
                         backgroundColor: isAvailable ? atcBg : unavailBg,

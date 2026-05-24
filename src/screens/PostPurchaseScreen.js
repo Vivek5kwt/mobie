@@ -18,6 +18,8 @@ import { fetchDSL } from "../engine/dslHandler";
 import { resolveAppId } from "../utils/appId";
 import { useAuth } from "../services/AuthContext";
 import { clearCart } from "../store/slices/cartSlice";
+import { fetchShopifyOrderDetails } from "../services/shopify";
+import { saveCompletedOrder } from "../services/orderHistoryService";
 
 const PAGE_HANDLE = "post-purchase";
 const REFRESH_INTERVAL_MS = 5000;
@@ -27,10 +29,40 @@ const fingerprint = (sections) => JSON.stringify(sections);
 // Replace {order_number} / {orderNumber} placeholders in any string
 const fillPlaceholders = (text, orderNumber) => {
   if (!text || !orderNumber) return text;
+  const displayNumber = normalizeOrderNumber(orderNumber);
   return String(text)
     .replace(/\{order_number\}/gi, orderNumber)
     .replace(/\{orderNumber\}/gi, orderNumber)
-    .replace(/\{order\}/gi, orderNumber);
+    .replace(/\{order\}/gi, orderNumber)
+    .replace(/(order\s*(?:number|no\.?)\s*)#?\s*[A-Za-z0-9-]+/gi, `$1${displayNumber}`)
+    .replace(/(order\s*#\s*)[A-Za-z0-9-]+/gi, `Order ${displayNumber}`)
+    .replace(/#\s*[A-Za-z0-9-]+/g, displayNumber);
+};
+
+const normalizeOrderNumber = (value = "") => {
+  const raw = String(value || "").trim();
+  if (!raw) return "";
+  const orderPhrase =
+    raw.match(/order\s*(?:number|no\.?)?\s*#\s*([A-Za-z0-9-]+)/i) ||
+    raw.match(/order\s*(?:number|no\.?)\s+([A-Za-z0-9-]+)/i);
+  const hash = raw.match(/#\s*([A-Za-z0-9-]+)/);
+  const plain = raw.match(/^#?\s*([A-Za-z0-9-]+)\s*$/);
+  const valuePart = orderPhrase?.[1] || hash?.[1] || plain?.[1] || "";
+  return valuePart ? `#${valuePart}` : "";
+};
+
+const pickSessionCustomerAccessToken = (session) => {
+  const candidates = [
+    session?.user?.customerAccessToken,
+    session?.user?.shopifyCustomerAccessToken,
+    session?.user?.customer_access_token,
+    session?.customerAccessToken,
+    session?.shopifyCustomerAccessToken,
+    session?.user?.userToken,
+    session?.accessToken,
+    session?.token,
+  ];
+  return candidates.map((value) => String(value || "").trim()).find(Boolean) || "";
 };
 
 // Inject real cart items into order_summary and real order number into confirmation_header
@@ -136,7 +168,10 @@ const injectOrderData = (sections = [], capturedItems = [], orderNumber = "", or
         : null;
 
       if (subtextKey) {
-        rawValue[subtextKey] = fillPlaceholders(rawValue[subtextKey], orderNumber);
+        const filled = fillPlaceholders(rawValue[subtextKey], orderNumber);
+        rawValue[subtextKey] = String(filled || "").includes(orderNumber)
+          ? filled
+          : `Your Order ${orderNumber} Is Confirmed`;
       } else {
         rawValue.subtext     = `Your Order ${orderNumber} Is Confirmed`;
         rawValue.showSubtext = true;
@@ -165,8 +200,19 @@ export default function PostPurchaseScreen() {
     [route?.params?.capturedItems]
   );
 
-  const orderNumber = route?.params?.orderNumber || "";
-  const orderTotal  = route?.params?.orderTotal  || 0;
+  const routeOrder = route?.params?.order || null;
+  const [syncedOrder, setSyncedOrder] = useState(routeOrder);
+  const orderNumber = normalizeOrderNumber(
+    syncedOrder?.orderNumber ||
+      syncedOrder?.name ||
+      route?.params?.orderNumber ||
+      ""
+  );
+  const orderTotal  = route?.params?.orderTotal || syncedOrder?.total || 0;
+  const customerAccessToken = useMemo(
+    () => pickSessionCustomerAccessToken(session),
+    [session]
+  );
 
   const appId = useMemo(
     () => resolveAppId(route?.params?.appId ?? session?.user?.appId ?? session?.user?.app_id),
@@ -180,6 +226,7 @@ export default function PostPurchaseScreen() {
   const fingerprintRef = useRef(null);
   const timerRef       = useRef(null);
   const isNavigatingHomeRef = useRef(false);
+  const syncedOrderKeyRef = useRef("");
 
   const snackbarMessage = "Your order has been placed successfully.";
 
@@ -205,6 +252,73 @@ export default function PostPurchaseScreen() {
   useEffect(() => {
     dispatch(clearCart());
   }, [dispatch]);
+
+  useEffect(() => {
+    setSyncedOrder(routeOrder);
+  }, [routeOrder]);
+
+  useEffect(() => {
+    const candidate =
+      syncedOrder ||
+      (orderNumber
+        ? {
+            orderNumber,
+            name: orderNumber,
+            total: orderTotal,
+            lineItems: capturedItems,
+            needsStoreRefresh: true,
+          }
+        : null);
+    if (!candidate) return undefined;
+
+    const syncKey = String(
+      candidate.adminOrderId ||
+        candidate.adminGraphqlApiId ||
+        candidate.id ||
+        candidate.orderNumber ||
+        candidate.name ||
+        `${candidate.total || ""}:${candidate.placedAt || candidate.orderDate || ""}`
+    );
+    if (!syncKey || syncedOrderKeyRef.current === syncKey) return undefined;
+    if (
+      candidate.needsStoreRefresh === false &&
+      (candidate.adminOrderId || candidate.adminGraphqlApiId) &&
+      normalizeOrderNumber(candidate.orderNumber || candidate.name)
+    ) {
+      syncedOrderKeyRef.current = syncKey;
+      return undefined;
+    }
+
+    let mounted = true;
+    syncedOrderKeyRef.current = syncKey;
+    (async () => {
+      try {
+        const latest = await fetchShopifyOrderDetails({
+          order: candidate,
+          customerAccessToken,
+        });
+        if (!mounted || !latest) return;
+        const latestOrderNumber = normalizeOrderNumber(latest.orderNumber || latest.name);
+        const nextOrder = {
+          ...candidate,
+          ...latest,
+          orderNumber: latestOrderNumber || normalizeOrderNumber(candidate.orderNumber || candidate.name),
+          needsStoreRefresh: !latestOrderNumber && !latest.adminOrderId && !latest.adminGraphqlApiId,
+        };
+        setSyncedOrder(nextOrder);
+        saveCompletedOrder({
+          appId,
+          userId: session?.user?.id ?? null,
+          email: session?.user?.email || "",
+          order: nextOrder,
+        }).catch(() => {});
+      } catch (_) {}
+    })();
+
+    return () => {
+      mounted = false;
+    };
+  }, [appId, capturedItems, customerAccessToken, orderNumber, orderTotal, session?.user?.email, session?.user?.id, syncedOrder]);
 
   const loadPage = async (silent = false) => {
     try {

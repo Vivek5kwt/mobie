@@ -238,9 +238,13 @@ function ShimmerBone({ style }) {
   return <Animated.View style={[style, { opacity }]} />;
 }
 
+const isVariantAvailable = (variant) =>
+  variant?.availableForSale !== false &&
+  String(variant?.availableForSale).trim().toLowerCase() !== "false";
+
 const isProductAvailable = (product) => {
   if (!product || typeof product !== "object") return true;
-  if (product.availableForSale === false) return false;
+  if (product.availableForSale === false || String(product.availableForSale).trim().toLowerCase() === "false") return false;
   const inventory =
     product.inventoryQuantity ??
     product.totalInventory ??
@@ -248,7 +252,7 @@ const isProductAvailable = (product) => {
     product.quantityAvailable;
   if (typeof inventory === "number" && inventory <= 0) return false;
   if (Array.isArray(product.variants) && product.variants.length > 0) {
-    const anyVariantAvailable = product.variants.some((variant) => variant?.availableForSale !== false);
+    const anyVariantAvailable = product.variants.some(isVariantAvailable);
     if (!anyVariantAvailable) return false;
   }
   return true;
@@ -656,7 +660,7 @@ export default function ProductCarousel({ section }) {
     true
   );
   const atcAvailableText = unwrapValue(raw?.atcAvailableText, "Add To Cart");
-  const atcSoldOutText = unwrapValue(raw?.atcSoldOutText ?? raw?.unavailableText, "Unavailable");
+  const atcSoldOutText = unwrapValue(raw?.atcSoldOutText ?? raw?.unavailableText, "Item Not Available");
   // Normalise ATC position: "above"/"top"/"before" → "above", "overlay"/"on-image" → "overlay", else "below"
   const atcPositionRaw = toString(
     raw?.atcPosition ??
@@ -913,8 +917,10 @@ export default function ProductCarousel({ section }) {
   }, [loadProducts]);
 
   const handleAddToCart = async (product) => {
-    // Extract variant ID from product ID if needed
-    const variantId = product.variantId || product.id || "";
+    const availableVariant =
+      product?.variants?.find(isVariantAvailable) ||
+      product?.variants?.[0];
+    const variantId = product.variantId || availableVariant?.id || product.id || "";
     
     dispatch(
       addItem({
@@ -1125,9 +1131,9 @@ export default function ProductCarousel({ section }) {
   };
 
   const renderAddToCart = (product, isSoldOut = false) => {
-    if (!atcActive) return null;
-
     const isAvailable = !isSoldOut;
+    if (isAvailable && !atcActive) return null;
+
     const buttonText = isAvailable ? atcAvailableText : atcSoldOutText;
     const buttonBgColor = isAvailable ? atcBgColor : atcSoldOutBgColor;
     const buttonTextColor = isAvailable ? atcTextColor : atcSoldOutTextColor;

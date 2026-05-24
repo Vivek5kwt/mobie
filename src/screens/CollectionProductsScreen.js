@@ -56,7 +56,7 @@ const normalizePageInfo = (info, products = []) => {
 
 function isProductAvailable(product) {
   if (!product || typeof product !== "object") return true;
-  if (product.availableForSale === false) return false;
+  if (product.availableForSale === false || String(product.availableForSale).trim().toLowerCase() === "false") return false;
   const inventory =
     product.inventoryQuantity ??
     product.totalInventory ??
@@ -64,10 +64,17 @@ function isProductAvailable(product) {
     product.quantityAvailable;
   if (typeof inventory === "number" && inventory <= 0) return false;
   if (Array.isArray(product.variants) && product.variants.length > 0) {
-    const anyVariantAvailable = product.variants.some((variant) => variant?.availableForSale !== false);
+    const anyVariantAvailable = product.variants.some(isVariantAvailable);
     if (!anyVariantAvailable) return false;
   }
   return true;
+}
+
+function isVariantAvailable(variant) {
+  return (
+    variant?.availableForSale !== false &&
+    String(variant?.availableForSale).trim().toLowerCase() !== "false"
+  );
 }
 
 export default function CollectionProductsScreen() {
@@ -172,11 +179,15 @@ export default function CollectionProductsScreen() {
   }, [resolvedCollectionHandle]);
 
   const handleAddToCart = (product) => {
+    const availableVariant =
+      product?.variants?.find(isVariantAvailable) ||
+      product?.variants?.[0];
+    const variantId = product.variantId || availableVariant?.id || "";
     dispatch(
       addItem({
         item: {
-          id: product.variantId || product.id,
-          variantId: product.variantId || "",
+          id: variantId || product.id,
+          variantId,
           handle: product.handle || "",
           title: product.title || "",
           image: product.imageUrl || "",
@@ -272,7 +283,7 @@ export default function CollectionProductsScreen() {
             onPress={() => inStock && handleAddToCart(item)}
           >
             <Text style={inStock ? styles.cartBtnTextActive : styles.cartBtnTextSoldOut}>
-              {inStock ? "Add To Cart" : "Unavailable"}
+              {inStock ? "Add To Cart" : "Item Not Available"}
             </Text>
           </TouchableOpacity>
         </View>

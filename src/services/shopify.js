@@ -72,6 +72,19 @@ const withRequestCache = async (key, producer, { cacheEmpty = false } = {}) => {
   return task;
 };
 
+const variantNodesFromEdges = (edges = []) =>
+  (edges || []).map((edge) => edge?.node).filter(Boolean);
+
+const isAvailableVariant = (variant = {}) =>
+  variant?.availableForSale !== false &&
+  String(variant?.availableForSale).trim().toLowerCase() !== "false";
+
+const pickAvailableVariant = (variants = []) =>
+  variants.find(isAvailableVariant) || variants[0] || null;
+
+const productAvailableFromVariants = (variants = []) =>
+  variants.length ? variants.some(isAvailableVariant) : true;
+
 /**
  * Async: awaits the GetStore result so we always use the live credentials.
  * Returns { shop, token, storeId } — storeId sent to proxy for server-side auth lookup.
@@ -108,10 +121,12 @@ export const QUERY_RECENT_PRODUCTS = `
           featuredImage { url altText }
           images(first: 1) { edges { node { url altText } } }
           priceRangeV2 { minVariantPrice { amount currencyCode } }
-          variants(first: 1) {
+          variants(first: 10) {
             edges {
               node {
                 id
+                title
+                availableForSale
                 compareAtPrice
               }
             }
@@ -259,14 +274,16 @@ export async function fetchShopifyRecentProducts(limit = 10, options = {}) {
 
     const edges = json?.data?.products?.edges || [];
     return edges.map(({ node }) => {
-      const variant = node?.variants?.edges?.[0]?.node;
+      const variants = variantNodesFromEdges(node?.variants?.edges);
+      const variant = pickAvailableVariant(variants);
       const price = node?.priceRangeV2?.minVariantPrice;
       return {
         id: node?.id,
         name: node?.title,
         title: node?.title,
         handle: node?.handle,
-        availableForSale: node?.availableForSale ?? true,
+        availableForSale: productAvailableFromVariants(variants),
+        variants,
         image: node?.featuredImage?.url || node?.images?.edges?.[0]?.node?.url || null,
         imageUrl: node?.featuredImage?.url || node?.images?.edges?.[0]?.node?.url || null,
         price: price?.amount || null,
@@ -496,10 +513,12 @@ export async function fetchShopifyProductsPage({
             featuredImage { url }
             images(first: 1) { edges { node { url } } }
             priceRangeV2 { minVariantPrice { amount currencyCode } }
-            variants(first: 1) {
+            variants(first: 10) {
               edges {
                 node {
                   id
+                  title
+                  availableForSale
                   compareAtPrice
                 }
               }
@@ -531,7 +550,8 @@ export async function fetchShopifyProductsPage({
     };
 
     const products = edges.map((edge) => {
-      const variant = edge?.node?.variants?.edges?.[0]?.node;
+      const variants = variantNodesFromEdges(edge?.node?.variants?.edges);
+      const variant = pickAvailableVariant(variants);
       const price = edge?.node?.priceRangeV2?.minVariantPrice;
 
       return {
@@ -542,7 +562,8 @@ export async function fetchShopifyProductsPage({
         productType: edge?.node?.productType || "",
         tags: edge?.node?.tags || [],
         options: edge?.node?.options || [],
-        availableForSale: true,
+        availableForSale: productAvailableFromVariants(variants),
+        variants,
         variantId: variant?.id || null,
         imageUrl:
           edge?.node?.featuredImage?.url ||
@@ -595,10 +616,12 @@ export async function fetchShopifyProductDetails({ handle, id, options = {} }) {
           values
         }
         priceRangeV2 { minVariantPrice { amount currencyCode } }
-        variants(first: 1) {
+        variants(first: 20) {
           edges {
             node {
               id
+              title
+              availableForSale
             }
           }
         }
@@ -632,10 +655,12 @@ export async function fetchShopifyProductDetails({ handle, id, options = {} }) {
           values
         }
         priceRangeV2 { minVariantPrice { amount currencyCode } }
-        variants(first: 1) {
+        variants(first: 20) {
           edges {
             node {
               id
+              title
+              availableForSale
             }
           }
         }
@@ -670,7 +695,9 @@ export async function fetchShopifyProductDetails({ handle, id, options = {} }) {
     if (!product) return null;
 
     const priceNode = product?.priceRangeV2?.minVariantPrice;
-    const variantId = product?.variants?.edges?.[0]?.node?.id;
+    const variants = variantNodesFromEdges(product?.variants?.edges);
+    const variant = pickAvailableVariant(variants);
+    const variantId = variant?.id;
     const variantOptions =
       product?.options?.flatMap((option) =>
         (option?.values || []).map((value) => ({
@@ -713,6 +740,8 @@ export async function fetchShopifyProductDetails({ handle, id, options = {} }) {
       images: images.length > 0 ? images : (firstImageUrl ? [firstImageUrl] : []),
       priceAmount: priceNode?.amount,
       priceCurrency: priceNode?.currencyCode,
+      variants,
+      availableForSale: productAvailableFromVariants(variants),
       variantOptions,
       variantId,
       rating: ratingValue,
@@ -825,11 +854,8 @@ const productGidFromValue = (value) => {
     : "";
 };
 
-const pickVariantFromProductNode = (productNode = {}) => {
-  const edges = productNode?.variants?.edges || [];
-  const variants = edges.map((edge) => edge?.node).filter(Boolean);
-  return variants.find((variant) => variant.availableForSale !== false) || variants[0] || null;
-};
+const pickVariantFromProductNode = (productNode = {}) =>
+  pickAvailableVariant(variantNodesFromEdges(productNode?.variants?.edges));
 
 const resolveCheckoutVariantFromProductId = async ({ productId, shop, token, storeId }) => {
   if (!productId) return "";
@@ -2349,7 +2375,7 @@ export async function searchShopifyProducts(searchTerm, limit = 10, options = {}
       const variants = (node?.variants?.edges || [])
         .map((edge) => edge?.node)
         .filter(Boolean);
-      const variant = variants[0];
+      const variant = pickAvailableVariant(variants);
       const priceNode = node?.priceRangeV2?.minVariantPrice;
       return {
         id: node?.id,
@@ -2360,7 +2386,7 @@ export async function searchShopifyProducts(searchTerm, limit = 10, options = {}
         tags: node?.tags || [],
         description: node?.description || "",
         options: node?.options || [],
-        availableForSale: variants.length ? variants.some((item) => item?.availableForSale !== false) : true,
+        availableForSale: productAvailableFromVariants(variants),
         variants,
         variantId: variant?.id || null,
         imageUrl: node?.featuredImage?.url || node?.images?.edges?.[0]?.node?.url || null,
@@ -2484,10 +2510,12 @@ export async function fetchShopifyCollectionProducts({
                   featuredImage { url }
                   images(first: 1) { edges { node { url } } }
                   priceRangeV2 { minVariantPrice { amount currencyCode } }
-                  variants(first: 1) {
+                  variants(first: 10) {
                     edges {
                       node {
                         id
+                        title
+                        availableForSale
                         compareAtPrice
                       }
                     }
@@ -2529,7 +2557,8 @@ export async function fetchShopifyCollectionProducts({
 
     const products = edges.map(({ node }) => {
       const priceNode = node?.priceRangeV2?.minVariantPrice;
-      const variant = node?.variants?.edges?.[0]?.node;
+      const variants = variantNodesFromEdges(node?.variants?.edges);
+      const variant = pickAvailableVariant(variants);
       return {
         id: node?.id,
         title: node?.title,
@@ -2538,7 +2567,8 @@ export async function fetchShopifyCollectionProducts({
         productType: node?.productType || "",
         tags: node?.tags || [],
         options: node?.options || [],
-        availableForSale: true,
+        availableForSale: productAvailableFromVariants(variants),
+        variants,
         variantId: variant?.id || null,
         imageUrl:
           node?.featuredImage?.url ||

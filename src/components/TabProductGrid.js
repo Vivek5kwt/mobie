@@ -156,9 +156,13 @@ const normalizeTabs = (rawTabs = []) => {
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
+const isVariantAvailable = (variant) =>
+  variant?.availableForSale !== false &&
+  String(variant?.availableForSale).trim().toLowerCase() !== "false";
+
 const isProductAvailable = (product) => {
   if (!product || typeof product !== "object") return true;
-  if (product.availableForSale === false) return false;
+  if (product.availableForSale === false || String(product.availableForSale).trim().toLowerCase() === "false") return false;
   const inventory =
     product.inventoryQuantity ??
     product.totalInventory ??
@@ -166,7 +170,7 @@ const isProductAvailable = (product) => {
     product.quantityAvailable;
   if (typeof inventory === "number" && inventory <= 0) return false;
   if (Array.isArray(product.variants) && product.variants.length > 0) {
-    const anyVariantAvailable = product.variants.some((variant) => variant?.availableForSale !== false);
+    const anyVariantAvailable = product.variants.some(isVariantAvailable);
     if (!anyVariantAvailable) return false;
   }
   return true;
@@ -510,7 +514,7 @@ export default function TabProductGrid({ section }) {
   ).toLowerCase();
   const atcAlign = atcAlignRaw === "center" ? "center" : atcAlignRaw === "right" ? "right" : "left";
   const atcAvailableText = toStr(rawConfig?.atcAvailableText ?? layoutAddToCartCss?.label ?? layoutAddToCartCss?.text, "Add To Cart");
-  const atcSoldOutText = toStr(rawConfig?.atcSoldOutText ?? rawConfig?.unavailableText ?? layoutAddToCartCss?.soldOutLabel, "Unavailable");
+  const atcSoldOutText = toStr(rawConfig?.atcSoldOutText ?? rawConfig?.unavailableText ?? layoutAddToCartCss?.soldOutLabel, "Item Not Available");
   const atcSize = firstNum([rawConfig?.atcSize, rawConfig?.atcFontSize, layoutAddToCartCss?.fontSize], 12);
   const atcBgColor = toStr(rawConfig?.atcBgColor ?? layoutAddToCartCss?.backgroundColor, "#096d70");
   const atcTextColor = toStr(rawConfig?.atcTextColor ?? layoutAddToCartCss?.color, "#FFFFFF");
@@ -624,11 +628,15 @@ export default function TabProductGrid({ section }) {
   }, [navigation]);
 
   const handleAddToCart = useCallback(async (product) => {
+    const availableVariant =
+      product?.variants?.find(isVariantAvailable) ||
+      product?.variants?.[0];
+    const variantId = product.variantId || availableVariant?.id || "";
     dispatch(
       addItem({
         item: {
-          id: product.variantId || product.id,
-          variantId: product.variantId || "",
+          id: variantId || product.id,
+          variantId,
           handle: product.handle || "",
           title: product.name || product.title || "",
           image: product.image || "",
@@ -675,9 +683,9 @@ export default function TabProductGrid({ section }) {
 
   // ── Render ─────────────────────────────────────────────────────────────────
   const renderAddToCart = (product, inStock = true) => {
-    if (!showAddToCart) return null;
-
     const isAvailable = !!inStock;
+    if (isAvailable && !showAddToCart) return null;
+
     const buttonText = isAvailable ? atcAvailableText : atcSoldOutText;
     const buttonBgColor = isAvailable ? atcBgColor : atcSoldOutBgColor;
     const buttonTextColor = isAvailable ? atcTextColor : atcSoldOutTextColor;
@@ -907,7 +915,7 @@ export default function TabProductGrid({ section }) {
                       accessibilityLabel={isFav ? "Remove from wishlist" : "Add to wishlist"}
                     />
                   )}
-                  {showAddToCart && atcPosition === "overlay" && renderAddToCart(product, inStock)}
+                  {(showAddToCart || !inStock) && atcPosition === "overlay" && renderAddToCart(product, inStock)}
                 </View>
                 <View
                   style={[
@@ -921,7 +929,7 @@ export default function TabProductGrid({ section }) {
                     },
                   ]}
                 >
-                  {showAddToCart && atcPosition === "above" && renderAddToCart(product, inStock)}
+                  {(showAddToCart || !inStock) && atcPosition === "above" && renderAddToCart(product, inStock)}
                   {showTitleText && (
                     <Text
                       allowFontScaling={false}
@@ -959,7 +967,7 @@ export default function TabProductGrid({ section }) {
                       {formatMoney(product.price, product.currency || product.priceCurrency)}
                     </Text>
                   )}
-                  {showAddToCart && atcPosition === "below" && renderAddToCart(product, inStock)}
+                  {(showAddToCart || !inStock) && atcPosition === "below" && renderAddToCart(product, inStock)}
                 </View>
               </Pressable>
             );
@@ -1041,7 +1049,7 @@ export default function TabProductGrid({ section }) {
                         />
                       )}
 
-                      {showAddToCart && atcPosition === "overlay" && renderAddToCart(product, inStock)}
+                      {(showAddToCart || !inStock) && atcPosition === "overlay" && renderAddToCart(product, inStock)}
                     </View>
 
                     {/* Card content */}
@@ -1057,7 +1065,7 @@ export default function TabProductGrid({ section }) {
                         },
                       ]}
                     >
-                      {showAddToCart && atcPosition === "above" && renderAddToCart(product, inStock)}
+                      {(showAddToCart || !inStock) && atcPosition === "above" && renderAddToCart(product, inStock)}
 
                       {showTitleText && (
                         <Text
@@ -1098,7 +1106,7 @@ export default function TabProductGrid({ section }) {
                         </Text>
                       )}
 
-                      {showAddToCart && atcPosition === "below" && renderAddToCart(product, inStock)}
+                      {(showAddToCart || !inStock) && atcPosition === "below" && renderAddToCart(product, inStock)}
                     </View>
                   </Pressable>
                 );

@@ -52,6 +52,8 @@ const buildProductDefaults = (product = {}) => {
     descriptionText: product?.descriptionHtml || product?.description,
     variantOptions: product?.variantOptions,
     variantId: product?.variantId,
+    variants: product?.variants,
+    availableForSale: product?.availableForSale,
     handle: product?.handle,
     // Rating from Shopify metafields (populated by review apps)
     rating: product?.rating || undefined,

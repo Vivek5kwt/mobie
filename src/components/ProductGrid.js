@@ -158,9 +158,13 @@ const toFontWeight = (value, fallback) => {
   return fallback;
 };
 
+const isVariantAvailable = (variant) =>
+  variant?.availableForSale !== false &&
+  String(variant?.availableForSale).trim().toLowerCase() !== "false";
+
 const isProductAvailable = (product) => {
   if (!product || typeof product !== "object") return true;
-  if (product.availableForSale === false) return false;
+  if (product.availableForSale === false || String(product.availableForSale).trim().toLowerCase() === "false") return false;
   const inventory =
     product.inventoryQuantity ??
     product.totalInventory ??
@@ -168,7 +172,7 @@ const isProductAvailable = (product) => {
     product.quantityAvailable;
   if (typeof inventory === "number" && inventory <= 0) return false;
   if (Array.isArray(product.variants) && product.variants.length > 0) {
-    const anyVariantAvailable = product.variants.some((variant) => variant?.availableForSale !== false);
+    const anyVariantAvailable = product.variants.some(isVariantAvailable);
     if (!anyVariantAvailable) return false;
   }
   return true;
@@ -620,7 +624,7 @@ export default function ProductGrid({ section, limit = 8, title = "Products" }) 
   const atcIconColor       = toString(rawProps?.atcIconColor ?? rawProps?.iconColor, "");
 
   // ── Unavailable / sold-out button ─────────────────────────────────────────
-  const unavailableLabel     = toString(rawProps?.unavailableText ?? rawProps?.soldOutText ?? rawProps?.unavailLabel, "Unavailable");
+  const unavailableLabel     = toString(rawProps?.unavailableText ?? rawProps?.soldOutText ?? rawProps?.unavailLabel, "Item Not Available");
   const unavailableBgColor   = toString(rawProps?.unavailableBgColor ?? rawProps?.soldOutBgColor, "#7A7A7A");
   const unavailableTextColor = toString(rawProps?.unavailableColor ?? rawProps?.soldOutColor, "#FFFFFF");
 
@@ -688,9 +692,12 @@ export default function ProductGrid({ section, limit = 8, title = "Products" }) 
   // ── Handlers ─────────────────────────────────────────────────────────────
   const handleAddToCart = useCallback(async (product, e) => {
     if (e?.stopPropagation) e.stopPropagation();
+    const availableVariant =
+      product?.variants?.find(isVariantAvailable) ||
+      product?.variants?.[0];
     const variantId =
       product?.variantId ||
-      product?.variants?.[0]?.id ||
+      availableVariant?.id ||
       product?.defaultVariantId ||
       product?.id ||
       "";
@@ -1045,6 +1052,7 @@ export default function ProductGrid({ section, limit = 8, title = "Products" }) 
             const prodId = String(product?.id || product?.variantId || product?.handle || product?.title || "").trim();
             const isInWishlist = isWishlistProduct(wishlistItems, product);
             const isAvailable = isProductAvailable(product);
+            const shouldRenderAddToCart = showAddToCart || !isAvailable;
 
             // Suppress marginBottom on last-row cards so no phantom gap appears
             // below the grid (CSS gap never applies after the last row; RN marginBottom does).
@@ -1128,7 +1136,7 @@ export default function ProductGrid({ section, limit = 8, title = "Products" }) 
                 </View>
 
                 {/* Add to Cart — rendered above card body when position = "above" */}
-                {showAddToCart && atcAbove && (() => {
+                {shouldRenderAddToCart && atcAbove && (() => {
                   const btnIconName = isAvailable
                     ? resolveFA4IconName(atcAvailableIconWithFallback)
                     : resolveFA4IconName(atcSoldOutIconId);
@@ -1231,7 +1239,7 @@ export default function ProductGrid({ section, limit = 8, title = "Products" }) 
                 </View>
 
                 {/* Add to Cart — rendered below card body when position = "below" (default) */}
-                {showAddToCart && !atcAbove && (() => {
+                {shouldRenderAddToCart && !atcAbove && (() => {
                   const btnIconName = isAvailable
                     ? resolveFA4IconName(atcAvailableIconWithFallback)
                     : resolveFA4IconName(atcSoldOutIconId);

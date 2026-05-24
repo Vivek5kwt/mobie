@@ -17,6 +17,7 @@ import { resolveAppId } from "../utils/appId";
 import { triggerOrderNotification, ORDER_EVENTS } from "../services/notificationService";
 import { saveCompletedOrder } from "../services/orderHistoryService";
 import { getStoreConfigSync } from "../services/storeService";
+import { fetchShopifyOrderDetails } from "../services/shopify";
 import {
   currencySymbolForCode as sharedCurrencySymbolForCode,
   formatMoney as formatSharedMoney,
@@ -50,16 +51,41 @@ const summarizeWebViewEvent = (event) => {
 
 const extractOrderNumber = (url) => {
   if (!url) return "";
-  const longMatch = url.match(/\/(\d{6,})\/orders\//);
-  if (longMatch) return `#${longMatch[1].slice(-6)}`;
-  const simpleMatch = url.match(/\/orders\/(\d+)/);
-  if (simpleMatch) return `#${simpleMatch[1]}`;
   try {
     const u = new URL(url);
-    const n = u.searchParams.get("order_number") || u.searchParams.get("order");
-    if (n) return `#${n}`;
+    const n =
+      u.searchParams.get("order_number") ||
+      u.searchParams.get("order_name") ||
+      u.searchParams.get("name");
+    if (n) return normalizeOrderNumber(n);
   } catch (_) {}
   return "";
+};
+
+const normalizeOrderNumber = (value = "") => {
+  const raw = String(value || "").trim();
+  if (!raw) return "";
+  const orderPhrase =
+    raw.match(/order\s*(?:number|no\.?)?\s*#\s*([A-Za-z0-9-]+)/i) ||
+    raw.match(/order\s*(?:number|no\.?)\s+([A-Za-z0-9-]+)/i);
+  const hash = raw.match(/#\s*([A-Za-z0-9-]+)/);
+  const plain = raw.match(/^#?\s*([A-Za-z0-9-]+)\s*$/);
+  const valuePart = orderPhrase?.[1] || hash?.[1] || plain?.[1] || "";
+  return valuePart ? `#${valuePart}` : "";
+};
+
+const pickSessionCustomerAccessToken = (session) => {
+  const candidates = [
+    session?.user?.customerAccessToken,
+    session?.user?.shopifyCustomerAccessToken,
+    session?.user?.customer_access_token,
+    session?.customerAccessToken,
+    session?.shopifyCustomerAccessToken,
+    session?.user?.userToken,
+    session?.accessToken,
+    session?.token,
+  ];
+  return candidates.map((value) => String(value || "").trim()).find(Boolean) || "";
 };
 
 const looksLikeCurrencyCode = (value = "") =>
@@ -78,7 +104,7 @@ const resolveItemCurrencyCode = (item = {}, fallbackCode = "") => {
   return String(fallbackCode || "").trim().toUpperCase();
 };
 
-const buildOrderFromCart = (capturedItems, url, storeCurrencyCode = "") => {
+const buildOrderFromCart = (capturedItems, url, storeCurrencyCode = "", explicitOrderNumber = "") => {
   const today   = new Date();
   const fmt     = (d) => d.toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric" });
   const firstCurrencyCode = (capturedItems || [])
@@ -114,12 +140,14 @@ const buildOrderFromCart = (capturedItems, url, storeCurrencyCode = "") => {
     0
   );
   const total = parseFloat(subtotal.toFixed(2));
-  const orderNumber = extractOrderNumber(url);
+  const orderNumber = normalizeOrderNumber(explicitOrderNumber) || extractOrderNumber(url);
   const currencySymbol = sharedCurrencySymbolForCode(firstCurrencyCode);
 
   return {
-    id:             orderNumber,
+    id:             orderNumber || String(url || ""),
     orderNumber,
+    name:           orderNumber,
+    statusUrl:      String(url || ""),
     orderDate:      fmt(today),
     placedAt:       today.toISOString(),
     placedOn:       fmt(today),
@@ -132,6 +160,39 @@ const buildOrderFromCart = (capturedItems, url, storeCurrencyCode = "") => {
     currencySymbol,
     needsStoreRefresh: true,
     lineItems,
+  };
+};
+
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+const syncShopifyOrderWithRetry = async ({ order, customerAccessToken, attempts = 4 } = {}) => {
+  let latest = null;
+  for (let attempt = 0; attempt < attempts; attempt += 1) {
+    try {
+      latest = await fetchShopifyOrderDetails({ order, customerAccessToken });
+      const syncedOrderNumber = normalizeOrderNumber(latest?.orderNumber || latest?.name);
+      if (syncedOrderNumber || latest?.adminOrderId || latest?.adminGraphqlApiId) {
+        return {
+          ...order,
+          ...latest,
+          orderNumber: syncedOrderNumber || order.orderNumber || latest?.orderNumber || "",
+          name: latest?.name || syncedOrderNumber || order.name || "",
+          needsStoreRefresh: false,
+        };
+      }
+    } catch (error) {
+      console.warn(`${CHECKOUT_WEBVIEW_LOG} Shopify order sync failed`, {
+        attempt: attempt + 1,
+        message: error?.message || String(error),
+      });
+    }
+    await sleep(900 * (attempt + 1));
+  }
+  return {
+    ...order,
+    ...(latest || {}),
+    orderNumber: normalizeOrderNumber(latest?.orderNumber || latest?.name || order?.orderNumber),
+    name: latest?.name || order?.name || "",
   };
 };
 
@@ -169,10 +230,56 @@ const isOrderCompleteUrl = (url) => {
 // without a URL change — which is exactly what newer Shopify checkout does.
 const DETECT_ORDER_JS = `
 (function() {
+  function normalizeOrderName(value) {
+    var raw = String(value || '').replace(/\\s+/g, ' ').trim();
+    if (!raw) return '';
+    var match =
+      raw.match(/order\\s*(?:number|no\\.?)?\\s*#\\s*([A-Za-z0-9-]+)/i) ||
+      raw.match(/order\\s*(?:number|no\\.?)\\s+([A-Za-z0-9-]+)/i) ||
+      raw.match(/#\\s*([A-Za-z0-9-]+)/);
+    if (!match) return '';
+    return '#' + match[1];
+  }
+
+  function extractOrderName() {
+    try {
+      var attrNode = document.querySelector('[data-order-number], [data-order-name], [data-testid*="order-number"], [class*="order-number"], .os-order-number');
+      var attrValue = attrNode && (
+        attrNode.getAttribute('data-order-number') ||
+        attrNode.getAttribute('data-order-name') ||
+        attrNode.getAttribute('aria-label') ||
+        attrNode.textContent
+      );
+      var fromAttr = normalizeOrderName(attrValue);
+      if (fromAttr) return fromAttr;
+
+      var candidates = [];
+      var selectors = ['h1', 'h2', '.os-header__title', '.os-header__heading', '.os-order-number', '[role="heading"]', 'main'];
+      for (var i = 0; i < selectors.length; i += 1) {
+        var nodes = document.querySelectorAll(selectors[i]);
+        for (var j = 0; j < nodes.length; j += 1) {
+          candidates.push(nodes[j].innerText || nodes[j].textContent || '');
+        }
+      }
+      var bodyText = document.body ? (document.body.innerText || '') : '';
+      candidates.push(bodyText.slice(0, 2000));
+      for (var k = 0; k < candidates.length; k += 1) {
+        var found = normalizeOrderName(candidates[k]);
+        if (found) return found;
+      }
+    } catch(e) {}
+    return '';
+  }
+
   function postComplete(url) {
     try {
+      var orderNumber = extractOrderName();
       window.ReactNativeWebView && window.ReactNativeWebView.postMessage(
-        JSON.stringify({ type: 'SHOPIFY_ORDER_COMPLETE', url: url || window.location.href })
+        JSON.stringify({
+          type: 'SHOPIFY_ORDER_COMPLETE',
+          url: url || window.location.href,
+          orderNumber: orderNumber
+        })
       );
     } catch(e) {}
   }
@@ -535,17 +642,28 @@ export default function CheckoutWebViewScreen() {
 
   // ── Shared order-complete handler (used by URL detection AND JS injection) ──
   const handleOrderComplete = useCallback(
-    (completedUrl) => {
+    async (completedUrl, detectedOrderNumber = "") => {
       if (hasCompletedOrderRef.current) return;
       hasCompletedOrderRef.current = true;
 
       const capturedItems = capturedItemsRef.current || [];
       const storeCurrency = getStoreConfigSync()?.currency || "";
-      const order         = buildOrderFromCart(capturedItems, completedUrl || "", storeCurrency);
+      const fallbackOrder = buildOrderFromCart(
+        capturedItems,
+        completedUrl || "",
+        storeCurrency,
+        detectedOrderNumber
+      );
+      const customerAccessToken = pickSessionCustomerAccessToken(session);
+      const order = await syncShopifyOrderWithRetry({
+        order: fallbackOrder,
+        customerAccessToken,
+      });
+      const orderNumber = normalizeOrderNumber(order.orderNumber || order.name);
 
       triggerOrderNotification({
         type:        ORDER_EVENTS.ORDER_PLACED,
-        orderNumber: order.orderNumber,
+        orderNumber,
         appId:       resolvedAppId,
         userId,
       }).catch(() => {});
@@ -566,14 +684,15 @@ export default function CheckoutWebViewScreen() {
             params: {
               capturedItems: capturedItemsRef.current || [],
               appId:         resolvedAppId,
-              orderNumber:   order.orderNumber,
+              order,
+              orderNumber,
               orderTotal:    order.total,
             },
           }],
         });
       }, 600);
     },
-    [navigation, resolvedAppId, session?.user?.email, userId]
+    [navigation, resolvedAppId, session, userId]
   );
 
   // ── Back handling ─────────────────────────────────────────────────────────
@@ -629,7 +748,7 @@ export default function CheckoutWebViewScreen() {
           return;
         }
         if (data?.type === "SHOPIFY_ORDER_COMPLETE") {
-          handleOrderComplete(data.url || checkoutUrl || "");
+          handleOrderComplete(data.url || checkoutUrl || "", data.orderNumber || "");
         }
       } catch (_) {}
     },

@@ -121,6 +121,15 @@ const resolveIconName = (iconName) => {
 
 const firstDefined = (...values) => values.find((value) => hasValue(value));
 
+const normalizeVariants = (value) => {
+  const resolved = deepUnwrap(value);
+  return Array.isArray(resolved) ? resolved.filter(Boolean) : [];
+};
+
+const isVariantAvailable = (variant) =>
+  variant?.availableForSale !== false &&
+  String(variant?.availableForSale).trim().toLowerCase() !== "false";
+
 const extractVariantIdentifiers = (value) => {
   if (!value) return { gid: "", numeric: "" };
   const raw = String(value);
@@ -200,6 +209,28 @@ export default function AddToCart({ section }) {
   const productVendor = toString(raw?.vendor ?? raw?.vendorName, "");
   const productVariantText = toString(raw?.variantText, "");
   const productCurrency = toString(raw?.currency || raw?.priceCurrency || raw?.currencySymbol, "").trim();
+  const productVariants = normalizeVariants(raw?.variants);
+  const rawAvailableForSale = unwrapValue(raw?.availableForSale, undefined);
+  const productExplicitlyUnavailable =
+    rawAvailableForSale === false ||
+    String(rawAvailableForSale).trim().toLowerCase() === "false";
+  const productAvailable = productExplicitlyUnavailable
+    ? false
+    : productVariants.length
+      ? productVariants.some(isVariantAvailable)
+      : true;
+  const unavailableText = toString(
+    addToCartConfig?.unavailableText ?? raw?.unavailableText ?? raw?.soldOutText,
+    "Item Not Available"
+  );
+  const unavailableBgColor = toString(
+    addToCartConfig?.unavailableBgColor ?? raw?.unavailableBgColor ?? raw?.soldOutBgColor,
+    "#7A7A7A"
+  );
+  const unavailableTextColor = toString(
+    addToCartConfig?.unavailableTextColor ?? raw?.unavailableTextColor ?? raw?.soldOutTextColor,
+    "#FFFFFF"
+  );
   const { gid: productVariantGid, numeric: productVariantNumericId } = extractVariantIdentifiers(
     toString(raw?.variantId || raw?.defaultVariantId, "")
   );
@@ -207,7 +238,13 @@ export default function AddToCart({ section }) {
   const [quantity, setQuantity] = useState(1);
   const [snackbarVisible, setSnackbarVisible] = useState(false);
 
-  const addToCartButtonStyle = useMemo(() => buildButtonStyles(addToCartConfig, "#1F2937"), [addToCartConfig]);
+  const addToCartButtonStyle = useMemo(
+    () => ({
+      ...buildButtonStyles(addToCartConfig, "#1F2937"),
+      ...(!productAvailable ? { backgroundColor: unavailableBgColor } : null),
+    }),
+    [addToCartConfig, productAvailable, unavailableBgColor]
+  );
   const addToCartUrl = useMemo(
     () =>
       buildCheckoutUrl({
@@ -228,7 +265,7 @@ export default function AddToCart({ section }) {
   const atcTextAlign = resolveTextAlign(addToCartConfig, raw);
 
   const addToCartTextStyle = {
-    color: addToCartFg,
+    color: productAvailable ? addToCartFg : unavailableTextColor,
     fontSize: toNumber(addToCartConfig?.textSize, 15),
     fontWeight: toString(addToCartConfig?.textWeight, "600"),
     fontFamily: resolveFirstFont(addToCartConfig?.textFamily, addToCartConfig?.fontFamily, raw?.buttonFontFamily, raw?.fontFamily) || undefined,
@@ -332,6 +369,7 @@ export default function AddToCart({ section }) {
     productTitle || productHandle || productVariantGid || productVariantNumericId;
 
   const handleAddToCart = async () => {
+    if (!productAvailable) return;
     if (!addToCartUrl && !productVariantGid && !canAddLocally) return;
 
     dispatch(
@@ -439,18 +477,18 @@ export default function AddToCart({ section }) {
       )}
 
       {/* ── Add to Cart button (full-width) ── */}
-      {showAddToCart && (
+      {(showAddToCart || !productAvailable) && (
         <TouchableOpacity
           style={[styles.fullButton, addToCartButtonStyle]}
           onPress={handleAddToCart}
-          disabled={!addToCartUrl && !productVariantGid && !canAddLocally}
-          activeOpacity={0.8}
+          disabled={!productAvailable || (!addToCartUrl && !productVariantGid && !canAddLocally)}
+          activeOpacity={productAvailable ? 0.8 : 1}
         >
-          {!addToCartIconOnRight && addToCartIcon}
-          {showAddToCartText && (
-            <Text style={addToCartTextStyle}>{addToCartText}</Text>
+          {productAvailable && !addToCartIconOnRight && addToCartIcon}
+          {(showAddToCartText || !productAvailable) && (
+            <Text style={addToCartTextStyle}>{productAvailable ? addToCartText : unavailableText}</Text>
           )}
-          {addToCartIconOnRight && addToCartIcon}
+          {productAvailable && addToCartIconOnRight && addToCartIcon}
         </TouchableOpacity>
       )}
 

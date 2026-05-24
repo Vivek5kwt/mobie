@@ -191,7 +191,7 @@ const moneyAmount = (value) => {
 
 function isProductAvailable(product) {
   if (!product || typeof product !== "object") return true;
-  if (product.availableForSale === false) return false;
+  if (product.availableForSale === false || String(product.availableForSale).trim().toLowerCase() === "false") return false;
   const inventory =
     product.inventoryQuantity ??
     product.totalInventory ??
@@ -199,9 +199,16 @@ function isProductAvailable(product) {
     product.quantityAvailable;
   if (typeof inventory === "number" && inventory <= 0) return false;
   if (Array.isArray(product.variants) && product.variants.length > 0) {
-    return product.variants.some((variant) => variant?.availableForSale !== false);
+    return product.variants.some(isVariantAvailable);
   }
   return true;
+}
+
+function isVariantAvailable(variant) {
+  return (
+    variant?.availableForSale !== false &&
+    String(variant?.availableForSale).trim().toLowerCase() !== "false"
+  );
 }
 
 const PAGE_SIZE = 20;
@@ -288,6 +295,7 @@ export default function AllProductsScreen() {
     const titleCss = deepUnwrap(cardCss?.title) || {};
     const priceCss = deepUnwrap(cardCss?.price) || {};
     const containerCss = deepUnwrap(presentationCss?.container) || {};
+    const visibility = deepUnwrap(raw?.visibility) || deepUnwrap(presentationCss?.visibility) || {};
 
     const columns = Math.max(1, Math.round(resolveNumber([raw?.columns, gridObj?.columns], 2)));
     const colGap = resolveNumber([raw?.colGap, raw?.columnGap, raw?.gapX], GAP);
@@ -322,6 +330,20 @@ export default function AllProductsScreen() {
     const priceColor = resolveString(raw?.priceColor ?? priceCss?.color, "#111827");
     const priceWeight = resolveWeight(raw?.priceWeight ?? priceCss?.fontWeight, "600");
     const priceFamily = resolveFont(resolveString(raw?.priceFamily ?? raw?.priceFontFamily ?? priceCss?.fontFamily, ""));
+    const showAddToCart = resolveBoolean(
+      [
+        raw?.atcActive,
+        raw?.addToCartActive,
+        raw?.showAddToCart,
+        raw?.showCartButton,
+        raw?.addToCartVisible,
+        raw?.addToCartEnabled,
+        visibility?.addToCart,
+        visibility?.atc,
+        visibility?.button,
+      ],
+      true
+    );
     return {
       columns,
       colGap,
@@ -348,6 +370,7 @@ export default function AllProductsScreen() {
       priceColor,
       priceWeight,
       priceFamily,
+      showAddToCart,
       bgColor: resolveString(raw?.bgColor ?? containerCss?.backgroundColor, "#FFFFFF"),
     };
   }, [productListGridSection]);
@@ -485,11 +508,15 @@ export default function AllProductsScreen() {
   };
 
   const handleAddToCart = (product) => {
+    const availableVariant =
+      product?.variants?.find(isVariantAvailable) ||
+      product?.variants?.[0];
+    const variantId = product.variantId || availableVariant?.id || "";
     dispatch(
       addItem({
         item: {
-          id: product.variantId || product.id,
-          variantId: product.variantId || "",
+          id: variantId || product.id,
+          variantId,
           handle: product.handle || "",
           title: product.title || "",
           image: product.imageUrl || "",
@@ -641,20 +668,22 @@ export default function AllProductsScreen() {
                   {price}
                 </Text>
               )}
-              <TouchableOpacity
-                style={inStock ? styles.productResultCartBtnActive : styles.productResultCartBtnSoldOut}
-                activeOpacity={inStock ? 0.8 : 1}
-                disabled={!inStock}
-                onPress={(e) => {
-                  e?.stopPropagation?.();
-                  e?.preventDefault?.();
-                  if (inStock) handleAddToCart(item);
-                }}
-              >
-                <Text style={styles.productResultCartBtnText}>
-                  {inStock ? "Add To Cart" : "Unavailable"}
-                </Text>
-              </TouchableOpacity>
+              {(searchGridConfig.showAddToCart || !inStock) && (
+                <TouchableOpacity
+                  style={inStock ? styles.productResultCartBtnActive : styles.productResultCartBtnSoldOut}
+                  activeOpacity={inStock ? 0.8 : 1}
+                  disabled={!inStock}
+                  onPress={(e) => {
+                    e?.stopPropagation?.();
+                    e?.preventDefault?.();
+                    if (inStock) handleAddToCart(item);
+                  }}
+                >
+                  <Text style={styles.productResultCartBtnText}>
+                    {inStock ? "Add To Cart" : "Item Not Available"}
+                  </Text>
+                </TouchableOpacity>
+              )}
             </View>
           </View>
         </TouchableOpacity>
