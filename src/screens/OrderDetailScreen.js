@@ -122,6 +122,35 @@ const formatAddressForDisplay = (address) => {
 
 // ─── Main Screen ──────────────────────────────────────────────────────────────
 
+const getOrderDisplayName = (order = {}) =>
+  toStr(order?.orderNumber || order?.name || order?.adminOrderId || order?.id, "");
+
+const fillOrderCopy = (template, order = {}, fallback = "") => {
+  const orderNumber = getOrderDisplayName(order);
+  const status = toStr(order?.status || order?.financialStatus, "");
+  return toStr(template, fallback)
+    .replace(/\{order_number\}/gi, orderNumber)
+    .replace(/\{orderNumber\}/gi, orderNumber)
+    .replace(/\{order\}/gi, orderNumber)
+    .replace(/\{status\}/gi, status);
+};
+
+const resolveLocalCancelBlockReason = (order = {}) => {
+  if (order?.cancellationBlockReason) return toStr(order.cancellationBlockReason, "");
+  const status = String(order?.status || order?.financialStatus || "").trim().toLowerCase();
+  if (order?.cancelledAt || status === "canceled" || status === "cancelled") {
+    return getOrderDisplayName(order)
+      ? `Order ${getOrderDisplayName(order)} is already canceled.`
+      : "This order is already canceled.";
+  }
+  if (status === "voided" || status === "refunded") {
+    return getOrderDisplayName(order)
+      ? `Order ${getOrderDisplayName(order)} cannot be canceled because its payment status is ${status}.`
+      : `This order cannot be canceled because its payment status is ${status}.`;
+  }
+  return "";
+};
+
 export default function OrderDetailScreen() {
   const navigation = useNavigation();
   const route = useRoute();
@@ -570,9 +599,34 @@ function CancelOrderSection({ section, order, appId, userId, email, customerAcce
   const outerPl = toNum(boxBg.paddingLeft, 0);
   const outerPr = toNum(boxBg.paddingRight, 0);
   const status = String(order?.status || order?.financialStatus || "").trim().toLowerCase();
-  const alreadyCanceled = !!order?.cancelledAt || status === "canceled" || status === "cancelled" || status === "voided";
-  const canCancel = !alreadyCanceled && order?.cancellable !== false;
+  const orderName = getOrderDisplayName(order);
+  const alreadyCanceled = !!order?.cancelledAt || status === "canceled" || status === "cancelled";
+  const localBlockReason = resolveLocalCancelBlockReason(order);
+  const nonCancellableReason = localBlockReason || (!alreadyCanceled && order?.cancellable === false
+    ? (orderName ? `Order ${orderName} cannot be canceled from Shopify right now.` : "This order cannot be canceled from Shopify right now.")
+    : "");
+  const canCancel = !alreadyCanceled && order?.cancellable !== false && !nonCancellableReason;
   const disabled = submitting || !canCancel;
+  const cancelReason = toStr(raw.cancelReason, "customer");
+  const confirmTitle = fillOrderCopy(
+    raw.confirmTitle ?? raw.cancelConfirmTitle,
+    order,
+    orderName ? `Cancel ${orderName}` : "Cancel order"
+  );
+  const confirmMessage = fillOrderCopy(
+    raw.confirmMessage ?? raw.cancelConfirmMessage,
+    order,
+    orderName
+      ? `Please confirm that you want to cancel order ${orderName}.`
+      : "Please confirm that you want to cancel this order."
+  );
+  const keepOrderLabel = fillOrderCopy(raw.keepOrderLabel ?? raw.cancelDismissLabel, order, "Keep order");
+  const confirmActionLabel = fillOrderCopy(raw.confirmActionLabel ?? raw.cancelActionLabel, order, label);
+  const alreadyCanceledLabel = fillOrderCopy(
+    raw.alreadyCanceledLabel ?? raw.canceledLabel,
+    order,
+    orderName ? `${orderName} canceled` : "Order canceled"
+  );
 
   const performCancel = async () => {
     setSubmitting(true);
@@ -580,7 +634,7 @@ function CancelOrderSection({ section, order, appId, userId, email, customerAcce
     try {
       const result = await cancelShopifyOrder({
         order,
-        reason: toStr(raw.cancelReason, "customer"),
+        reason: cancelReason,
         notifyCustomer: toBool(raw.notifyCustomer, true),
         customerAccessToken,
       });
@@ -609,17 +663,40 @@ function CancelOrderSection({ section, order, appId, userId, email, customerAcce
       }).catch(() => {});
 
       Alert.alert(
-        result?.alreadyCanceled ? "Order already canceled" : "Order canceled",
-        result?.alreadyCanceled
-          ? "This order was already canceled in the store."
-          : "Your order has been canceled successfully."
+        fillOrderCopy(
+          result?.alreadyCanceled ? raw.alreadyCanceledTitle : raw.successTitle,
+          updatedOrder,
+          result?.alreadyCanceled
+            ? (getOrderDisplayName(updatedOrder) ? `${getOrderDisplayName(updatedOrder)} already canceled` : "Order already canceled")
+            : (getOrderDisplayName(updatedOrder) ? `${getOrderDisplayName(updatedOrder)} canceled` : "Order canceled")
+        ),
+        fillOrderCopy(
+          result?.alreadyCanceled ? raw.alreadyCanceledMessage : raw.successMessage,
+          updatedOrder,
+          result?.message ||
+            (getOrderDisplayName(updatedOrder)
+              ? `Order ${getOrderDisplayName(updatedOrder)} has been canceled in Shopify.`
+              : "This order has been canceled in Shopify.")
+        )
       );
     } catch (error) {
-      const message =
-        error?.message ||
-        "Unable to cancel this order right now. Please try again.";
+      const message = fillOrderCopy(
+        raw.errorMessage ?? raw.failureMessage,
+        order,
+        error?.userMessage || error?.message || nonCancellableReason ||
+          (orderName
+            ? `Order ${orderName} could not be canceled.`
+            : "This order could not be canceled.")
+      );
       setErrorText(message);
-      Alert.alert("Cancel order failed", message);
+      Alert.alert(
+        fillOrderCopy(
+          raw.errorTitle ?? raw.failureTitle,
+          order,
+          orderName ? `Could not cancel ${orderName}` : "Could not cancel order"
+        ),
+        message
+      );
     } finally {
       setSubmitting(false);
     }
@@ -628,12 +705,12 @@ function CancelOrderSection({ section, order, appId, userId, email, customerAcce
   const handleCancel = () => {
     if (disabled) return;
     Alert.alert(
-      "Cancel Order",
-      "Are you sure you want to cancel this order?",
+      confirmTitle,
+      confirmMessage,
       [
-        { text: "Keep Order", style: "cancel" },
+        { text: keepOrderLabel, style: "cancel" },
         {
-          text: "Cancel Order",
+          text: confirmActionLabel,
           style: "destructive",
           onPress: performCancel,
         },
@@ -661,10 +738,13 @@ function CancelOrderSection({ section, order, appId, userId, email, customerAcce
           <ActivityIndicator size="small" color={textColor} />
         ) : (
           <Text style={{ color: disabled ? "#6B7280" : textColor, fontSize, fontWeight, ...(fontFamily ? { fontFamily } : {}) }}>
-            {alreadyCanceled ? "Order canceled" : label}
+            {alreadyCanceled ? alreadyCanceledLabel : label}
           </Text>
         )}
       </TouchableOpacity>
+      {!submitting && nonCancellableReason && !alreadyCanceled ? (
+        <Text style={styles.cancelHelpText}>{nonCancellableReason}</Text>
+      ) : null}
       {errorText ? <Text style={styles.cancelErrorText}>{errorText}</Text> : null}
     </View>
   );
@@ -926,6 +1006,13 @@ const styles = StyleSheet.create({
     alignItems:     "center",
     justifyContent: "center",
     paddingVertical: 16,
+  },
+  cancelHelpText: {
+    marginTop: 8,
+    color: "#6B7280",
+    fontSize: 12,
+    lineHeight: 17,
+    textAlign: "center",
   },
 
   // ── Order Items

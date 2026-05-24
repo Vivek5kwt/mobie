@@ -1571,10 +1571,58 @@ const getShopifyAdminCredentials = async () => {
   return { shop, accessToken, storeId, currency: config?.currency || "" };
 };
 
+const compact = (value) => String(value || "").trim();
+
+const humanizeErrorField = (value = "") =>
+  compact(value).replace(/_/g, " ").replace(/\b\w/g, (char) => char.toUpperCase());
+
+const flattenShopifyErrorMessages = (value, field = "") => {
+  if (value === undefined || value === null || value === "") return [];
+  if (typeof value === "string" || typeof value === "number" || typeof value === "boolean") {
+    const text = compact(value);
+    return text ? [field ? `${humanizeErrorField(field)}: ${text}` : text] : [];
+  }
+  if (Array.isArray(value)) {
+    return value.flatMap((item) => flattenShopifyErrorMessages(item, field));
+  }
+  if (typeof value === "object") {
+    return Object.entries(value).flatMap(([key, item]) =>
+      flattenShopifyErrorMessages(item, key)
+    );
+  }
+  return [];
+};
+
+const createShopifyAdminError = ({ status, json = {}, text = "", path = "", method = "GET" } = {}) => {
+  const messages = [
+    ...flattenShopifyErrorMessages(json?.errors),
+    ...flattenShopifyErrorMessages(json?.error),
+    ...flattenShopifyErrorMessages(json?.message),
+    ...flattenShopifyErrorMessages(text),
+  ].filter(Boolean);
+  const uniqueMessages = [...new Set(messages)];
+  const fallback = `Shopify Admin API returned HTTP ${status || "error"}`;
+  const message = uniqueMessages.join(" ") || fallback;
+  const error = new Error(message);
+  error.name = "ShopifyAdminApiError";
+  error.status = status;
+  error.path = path;
+  error.method = method;
+  error.payload = json;
+  error.rawText = text;
+  error.messages = uniqueMessages;
+  error.userMessage = message;
+  return error;
+};
+
 const shopifyAdminRequest = async ({ path, method = "GET", body }) => {
   const { shop, accessToken } = await getShopifyAdminCredentials();
   if (!accessToken) {
-    throw new Error("Store Admin API token is unavailable.");
+    const error = new Error("This store is missing the Shopify Admin access token required for order management.");
+    error.name = "ShopifyAdminConfigError";
+    error.code = "SHOPIFY_ADMIN_TOKEN_MISSING";
+    error.userMessage = error.message;
+    throw error;
   }
 
   const response = await fetch(`https://${shop}/admin/api/${ADMIN_API_VERSION}${path}`, {
@@ -1595,13 +1643,7 @@ const shopifyAdminRequest = async ({ path, method = "GET", body }) => {
   }
 
   if (!response.ok) {
-    const message =
-      json?.errors ||
-      json?.error ||
-      json?.message ||
-      text ||
-      `Shopify Admin API HTTP ${response.status}`;
-    throw new Error(typeof message === "string" ? message : JSON.stringify(message));
+    throw createShopifyAdminError({ status: response.status, json, text, path, method });
   }
 
   return json;
@@ -1610,7 +1652,11 @@ const shopifyAdminRequest = async ({ path, method = "GET", body }) => {
 async function shopifyAdminGraphQL({ query, variables = {} }) {
   const { shop, accessToken } = await getShopifyAdminCredentials();
   if (!accessToken) {
-    throw new Error("Store Admin API token is unavailable.");
+    const error = new Error("This store is missing the Shopify Admin access token required for order management.");
+    error.name = "ShopifyAdminConfigError";
+    error.code = "SHOPIFY_ADMIN_TOKEN_MISSING";
+    error.userMessage = error.message;
+    throw error;
   }
 
   const response = await fetch(`https://${shop}/admin/api/${ADMIN_API_VERSION}/graphql.json`, {
@@ -1631,16 +1677,89 @@ async function shopifyAdminGraphQL({ query, variables = {} }) {
   }
 
   if (!response.ok) {
-    const message = json?.errors || json?.error || json?.message || text || `Shopify Admin API HTTP ${response.status}`;
-    throw new Error(typeof message === "string" ? message : JSON.stringify(message));
+    throw createShopifyAdminError({
+      status: response.status,
+      json,
+      text,
+      path: "/graphql.json",
+      method: "POST",
+    });
   }
 
   if (json?.errors?.length) {
-    throw new Error(json.errors.map((error) => error.message).join(" "));
+    throw createShopifyAdminError({
+      status: response.status,
+      json,
+      text,
+      path: "/graphql.json",
+      method: "POST",
+    });
   }
 
   return json;
 }
+
+const normalizeCancelReason = (reason) => {
+  const value = compact(reason).toLowerCase();
+  return ["customer", "inventory", "fraud", "declined", "other"].includes(value)
+    ? value
+    : "other";
+};
+
+const getOrderReference = (order = {}) =>
+  compact(order?.name || order?.orderNumber || order?.order_number || order?.adminOrderId || order?.id);
+
+const hasCompletedFulfillment = (order = {}) => {
+  const fulfillments = Array.isArray(order?.fulfillments) ? order.fulfillments : [];
+  if (fulfillments.some((fulfillment) => {
+    const status = compact(fulfillment?.status).toLowerCase();
+    return status && !["cancelled", "canceled", "failure", "failed", "closed"].includes(status);
+  })) {
+    return true;
+  }
+  const fulfillmentStatus = compact(order?.fulfillment_status || order?.fulfillmentStatus).toLowerCase();
+  return ["fulfilled", "partial", "restocked"].includes(fulfillmentStatus);
+};
+
+const getOrderCancellationBlockReason = (order = {}, fallback = {}) => {
+  const cancelledAt = order?.cancelled_at || fallback?.cancelledAt;
+  if (cancelledAt) return "This order is already canceled in Shopify.";
+
+  const financialStatus = compact(order?.financial_status || fallback?.financialStatus).toLowerCase();
+  if (["refunded", "voided"].includes(financialStatus)) {
+    return `This order cannot be canceled because its payment status is ${financialStatus}.`;
+  }
+
+  const isPaid = ["paid", "partially_refunded"].includes(financialStatus);
+  if (isPaid && hasCompletedFulfillment(order)) {
+    return "Shopify does not allow paid orders with fulfillments to be canceled.";
+  }
+
+  return "";
+};
+
+const createOrderCancellationError = ({ message, code, order, adminOrder } = {}) => {
+  const reference = getOrderReference(adminOrder) || getOrderReference(order);
+  const text = compact(message) || (reference
+    ? `Shopify could not cancel order ${reference}.`
+    : "Shopify could not cancel this order.");
+  const error = new Error(text);
+  error.name = "ShopifyOrderCancellationError";
+  error.code = code || "ORDER_CANCELLATION_FAILED";
+  error.userMessage = text;
+  error.orderReference = reference;
+  return error;
+};
+
+const rethrowFatalAdminLookupError = (error) => {
+  if (
+    error?.code === "SHOPIFY_ADMIN_TOKEN_MISSING" ||
+    error?.status === 401 ||
+    error?.status === 403
+  ) {
+    throw error;
+  }
+};
 
 const mapAdminOrder = (adminOrder = {}, fallback = {}) => {
   if (!adminOrder || typeof adminOrder !== "object") return fallback;
@@ -1658,6 +1777,7 @@ const mapAdminOrder = (adminOrder = {}, fallback = {}) => {
   const financialStatus = adminOrder.financial_status || fallback.financialStatus || "";
   const fulfillmentStatus = adminOrder.fulfillment_status || fallback.fulfillmentStatus || "";
   const cancelledAt = adminOrder.cancelled_at || fallback.cancelledAt || "";
+  const cancellationBlockReason = getOrderCancellationBlockReason(adminOrder, fallback);
   const status = cancelledAt
     ? "Canceled"
     : formatOrderStatus(fulfillmentStatus, financialStatus) || fallback.status || "";
@@ -1677,6 +1797,7 @@ const mapAdminOrder = (adminOrder = {}, fallback = {}) => {
     fulfillmentStatus,
     cancelledAt,
     cancelReason: adminOrder.cancel_reason || fallback.cancelReason || "",
+    cancellationBlockReason,
     statusUrl: adminOrder.order_status_url || fallback.statusUrl || "",
     deliveryMethod: shippingLine?.title || shippingLine?.code || fallback.deliveryMethod || "",
     shippingAddress: adminOrder.shipping_address || fallback.shippingAddress || null,
@@ -1692,7 +1813,7 @@ const mapAdminOrder = (adminOrder = {}, fallback = {}) => {
     total: parseFloat(adminOrder.current_total_price || adminOrder.total_price || fallback.total || 0),
     currencyCode: currency,
     currencySymbol,
-    cancellable: !cancelledAt && !["refunded", "voided"].includes(String(financialStatus).toLowerCase()),
+    cancellable: !cancellationBlockReason,
     lineItems: Array.isArray(fallback.lineItems) && fallback.lineItems.length
       ? fallback.lineItems
       : (adminOrder.line_items || []).map((line) => ({
@@ -1728,8 +1849,10 @@ const findAdminOrderForCustomerOrder = async (order = {}) => {
     "created_at",
     "cancelled_at",
     "cancel_reason",
+    "closed_at",
     "financial_status",
     "fulfillment_status",
+    "fulfillments",
     "currency",
     "current_total_price",
     "total_price",
@@ -1751,7 +1874,9 @@ const findAdminOrderForCustomerOrder = async (order = {}) => {
         path: `/orders/${numericId}.json?fields=${encodeURIComponent(fields)}`,
       });
       if (json?.order) return json.order;
-    } catch (_) {}
+    } catch (error) {
+      rethrowFatalAdminLookupError(error);
+    }
   }
 
   const rawNameCandidates = [
@@ -1771,7 +1896,9 @@ const findAdminOrderForCustomerOrder = async (order = {}) => {
         path: `/orders.json?status=any&limit=1&name=${encodeURIComponent(name)}&fields=${encodeURIComponent(fields)}`,
       });
       if (Array.isArray(json?.orders) && json.orders[0]) return json.orders[0];
-    } catch (_) {}
+    } catch (error) {
+      rethrowFatalAdminLookupError(error);
+    }
   }
 
   const orderNumber = rawNameCandidates
@@ -1783,7 +1910,9 @@ const findAdminOrderForCustomerOrder = async (order = {}) => {
         path: `/orders.json?status=any&limit=5&order_number=${encodeURIComponent(orderNumber)}&fields=${encodeURIComponent(fields)}`,
       });
       if (Array.isArray(json?.orders) && json.orders[0]) return json.orders[0];
-    } catch (_) {}
+    } catch (error) {
+      rethrowFatalAdminLookupError(error);
+    }
   }
 
   try {
@@ -1808,7 +1937,9 @@ const findAdminOrderForCustomerOrder = async (order = {}) => {
       );
     });
     if (matched) return matched;
-  } catch (_) {}
+  } catch (error) {
+    rethrowFatalAdminLookupError(error);
+  }
 
   return null;
 };
@@ -1873,7 +2004,10 @@ export async function fetchShopifyOrderDetails({ order, customerAccessToken } = 
 
 export async function cancelShopifyOrder({ order, reason = "customer", notifyCustomer = true, customerAccessToken } = {}) {
   if (!order) {
-    throw new Error("Order is required.");
+    throw createOrderCancellationError({
+      code: "ORDER_REQUIRED",
+      message: "Select an order before requesting cancellation.",
+    });
   }
   const { adminOrder, lookupOrder } = await findAdminOrderWithCustomerFallback({
     order,
@@ -1881,34 +2015,73 @@ export async function cancelShopifyOrder({ order, reason = "customer", notifyCus
   });
   const adminOrderId = adminOrder?.id || extractShopifyNumericId(lookupOrder?.adminOrderId || lookupOrder?.id);
   if (!adminOrderId) {
-    throw new Error("Unable to sync this order from Shopify. Please reopen order history and try again.");
+    throw createOrderCancellationError({
+      code: "ORDER_NOT_FOUND_IN_SHOPIFY",
+      order: lookupOrder,
+      message: getOrderReference(lookupOrder)
+        ? `Order ${getOrderReference(lookupOrder)} could not be matched with a Shopify order. Refresh order history and try again.`
+        : "This order could not be matched with a Shopify order. Refresh order history and try again.",
+    });
   }
   if (adminOrder?.cancelled_at) {
+    const mapped = mapAdminOrder(adminOrder, lookupOrder);
     return {
       success: true,
-      order: mapAdminOrder(adminOrder, lookupOrder),
+      order: mapped,
       alreadyCanceled: true,
+      message: getOrderReference(mapped)
+        ? `Order ${getOrderReference(mapped)} is already canceled in Shopify.`
+        : "This order is already canceled in Shopify.",
     };
   }
 
-  const json = await shopifyAdminRequest({
-    path: `/orders/${adminOrderId}/cancel.json`,
-    method: "POST",
-    body: {
-      reason,
-      email: notifyCustomer,
-    },
-  });
+  const cancellationBlockReason = getOrderCancellationBlockReason(adminOrder, lookupOrder);
+  if (cancellationBlockReason) {
+    throw createOrderCancellationError({
+      code: "ORDER_CANCELLATION_NOT_ALLOWED",
+      order: lookupOrder,
+      adminOrder,
+      message: getOrderReference(adminOrder) || getOrderReference(lookupOrder)
+        ? `Order ${getOrderReference(adminOrder) || getOrderReference(lookupOrder)} cannot be canceled. ${cancellationBlockReason}`
+        : cancellationBlockReason,
+    });
+  }
+
+  let json;
+  try {
+    json = await shopifyAdminRequest({
+      path: `/orders/${adminOrderId}/cancel.json`,
+      method: "POST",
+      body: {
+        reason: normalizeCancelReason(reason),
+        email: !!notifyCustomer,
+      },
+    });
+  } catch (error) {
+    const serverMessage = error?.userMessage || error?.message || "";
+    throw createOrderCancellationError({
+      code: error?.code || "SHOPIFY_CANCEL_REQUEST_FAILED",
+      order: lookupOrder,
+      adminOrder,
+      message: getOrderReference(adminOrder) || getOrderReference(lookupOrder)
+        ? `Order ${getOrderReference(adminOrder) || getOrderReference(lookupOrder)} could not be canceled. ${serverMessage}`
+        : serverMessage,
+    });
+  }
 
   const canceledOrder = json?.order || {
     ...adminOrder,
     cancelled_at: new Date().toISOString(),
-    cancel_reason: reason,
+    cancel_reason: normalizeCancelReason(reason),
   };
+  const mapped = mapAdminOrder(canceledOrder, lookupOrder);
 
   return {
     success: true,
-    order: mapAdminOrder(canceledOrder, lookupOrder),
+    order: mapped,
+    message: getOrderReference(mapped)
+      ? `Order ${getOrderReference(mapped)} has been canceled in Shopify.`
+      : "This order has been canceled in Shopify.",
   };
 }
 
