@@ -10,7 +10,7 @@ import FontAwesome from "react-native-vector-icons/FontAwesome";
 import { useNavigation } from "@react-navigation/native";
 import { convertStyles } from "../utils/convertStyles";
 import { useAuth } from "../services/AuthContext";
-import { isAuthenticatedSession } from "../utils/authGate";
+import { isAuthenticatedSession, requireLoginForAction } from "../utils/authGate";
 import { resolveFont } from "../services/typographyService";
 
 // ── helpers ────────────────────────────────────────────────────────────────
@@ -264,7 +264,7 @@ export default function AccountMenu({ section }) {
 
   if (!items.length || !showHeader) return null;
 
-  const handlePress = (item) => {
+  const handlePress = async (item) => {
     if (isLogoutEntry(item)) {
       if (!isLoggedIn) {
         if (initializing) return;
@@ -338,7 +338,13 @@ export default function AccountMenu({ section }) {
         return;
       }
       if (WISHLIST_SLUGS.has(normalized)) {
-        navigation.navigate("Wishlist");
+        const blocked = await requireLoginForAction({
+          session,
+          navigation,
+          initializing,
+          postLoginTarget: { name: "Wishlist" },
+        });
+        if (!blocked) navigation.navigate("Wishlist");
         return;
       }
       if (SETTINGS_SLUGS.has(normalized)) {

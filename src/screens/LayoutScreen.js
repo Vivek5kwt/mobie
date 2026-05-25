@@ -14,6 +14,7 @@ import { useFocusEffect } from "@react-navigation/native";
 import DynamicRenderer from "../engine/DynamicRenderer";
 import SkeletonLoader from "../components/SkeletonLoader";
 import HeaderDefault from "../components/HeaderDefault";
+import Snackbar from "../components/Snackbar";
 import { fetchDSL } from "../engine/dslHandler";
 import { shouldRenderSectionOnMobile } from "../engine/visibility";
 import { SafeArea } from "../utils/SafeAreaHandler";
@@ -33,6 +34,7 @@ import { getHomeSectionMarginBottom } from "../utils/sectionSpacing";
 // This prevents a blank screen + missing bottom nav when LayoutScreen remounts
 // (e.g. tapping Home tab causes navigate() to push a new instance on some paths).
 const _pageCache = {};
+const LIVE_DSL_REFRESH_INTERVAL_MS = 3000;
 
 function _cacheKey(appId, pageName) {
   return `${appId}:${String(pageName || "home").trim().toLowerCase()}`;
@@ -74,7 +76,6 @@ export default function LayoutScreen({ route, navigation }) {
   const [isSideMenuOpen, setIsSideMenuOpen] = useState(false);
   const [bottomNavHeight, setBottomNavHeight] = useState(BOTTOM_NAV_RESERVED_HEIGHT);
   const versionRef = useRef(null);
-  const snackbarTimer = useRef(null);
   const lastLoginToastKeyRef = useRef(null);
   const dslRef = useRef(cached?.dsl ?? null);
   const loadingRef = useRef(!cached?.dsl);
@@ -225,6 +226,46 @@ export default function LayoutScreen({ route, navigation }) {
     }
   };
 
+  const getDslFingerprint = useCallback((incomingDsl) => {
+    try {
+      return JSON.stringify({
+        headerdefault: incomingDsl?.headerdefault ?? null,
+        brandKit: incomingDsl?.brandKit ?? null,
+        sections: incomingDsl?.sections || [],
+      });
+    } catch (_) {
+      return [
+        incomingDsl?.headerdefault ? "headerdefault" : "no-headerdefault",
+        incomingDsl?.brandKit ? "brandKit" : "no-brandKit",
+        (incomingDsl?.sections || []).map((section) => getComponentName(section)).join(","),
+      ].join("|");
+    }
+  }, []);
+
+  const isBottomNavigationSection = useCallback((section) => {
+    const component = getComponentName(section).toLowerCase();
+    return [
+      "bottom_navigation",
+      "bottom_navigation_style_1",
+      "bottom_navigation_style_2",
+    ].includes(component);
+  }, []);
+
+  const extractBottomNavigationSection = useCallback(
+    (incomingDsl) => (incomingDsl?.sections || []).find(isBottomNavigationSection) || null,
+    [isBottomNavigationSection]
+  );
+
+  const stripBottomNavigationSections = useCallback(
+    (incomingDsl) => ({
+      ...incomingDsl,
+      sections: (incomingDsl?.sections || []).filter(
+        (section) => !isBottomNavigationSection(section)
+      ),
+    }),
+    [isBottomNavigationSection]
+  );
+
   // Initialize bottom nav section on first load only - never recalculate
   useEffect(() => {
     if (!bottomNavSectionRef.current && sortedSections.length > 0) {
@@ -277,12 +318,6 @@ export default function LayoutScreen({ route, navigation }) {
 
   const showSnackbar = (message, type = "info") => {
     setSnackbar({ visible: true, message, type });
-
-    if (snackbarTimer.current) clearTimeout(snackbarTimer.current);
-
-    snackbarTimer.current = setTimeout(() => {
-      setSnackbar((prev) => ({ ...prev, visible: false }));
-    }, 3200);
   };
 
   useEffect(() => {
@@ -334,13 +369,7 @@ export default function LayoutScreen({ route, navigation }) {
     loadHomeHeaderSections();
   }, [loadHomeHeaderSections]);
 
-  useEffect(() => {
-    return () => {
-      if (snackbarTimer.current) clearTimeout(snackbarTimer.current);
-    };
-  }, []);
-
-  // Reload DSL - bottom navigation will update dynamically if JSON changes
+  // Reload DSL from the live Builder payload.
   const refreshDSL = async (withFeedback = false) => {
     if (dslRequestInFlightRef.current) return;
     dslRequestInFlightRef.current = true;
@@ -349,71 +378,31 @@ export default function LayoutScreen({ route, navigation }) {
     try {
       const dslData = await fetchDSL(appId, pageName);
       if (dslData?.dsl) {
-        // Check if bottom navigation section has changed
-        const incomingBottomNav = (dslData.dsl.sections || []).find(
-          (section) => {
-            const component = getComponentName(section).toLowerCase();
-            return [
-              "bottom_navigation",
-              "bottom_navigation_style_1",
-              "bottom_navigation_style_2",
-            ].includes(component);
-          }
-        );
-        
-        // If bottom nav section exists and is different, update the cache and state
-        // But DON'T update DSL to prevent home screen refresh
-        let bottomNavUpdated = false;
-        if (incomingBottomNav) {
-          if (!bottomNavSectionRef.current || !deepEqual(incomingBottomNav, bottomNavSectionRef.current)) {
-            bottomNavSectionRef.current = incomingBottomNav;
-            setStableBottomNavSection(incomingBottomNav); // Update state to trigger re-render of bottom nav only
-            bottomNavUpdated = true;
-            console.log("🔄 Bottom navigation updated from JSON");
-            // Don't update DSL here - only update the cache and state
-            // The bottom nav will update via state, but home screen won't refresh
-          }
+        const incomingBottomNav = extractBottomNavigationSection(dslData.dsl);
+        if (!deepEqual(incomingBottomNav, bottomNavSectionRef.current)) {
+          bottomNavSectionRef.current = incomingBottomNav;
+          setStableBottomNavSection(incomingBottomNav);
+          console.log("Bottom navigation synced from JSON");
         }
-        
-        // Only update DSL if bottom nav didn't change
-        // This prevents home screen from refreshing when only bottom nav updates
-        if (!bottomNavUpdated) {
-          // Remove bottom nav from sections to prevent it from affecting the refresh
-          const sectionsWithoutBottomNav = (dslData.dsl.sections || []).filter(
-            (section) => {
-              const component = getComponentName(section).toLowerCase();
-              return ![
-                "bottom_navigation",
-                "bottom_navigation_style_1",
-                "bottom_navigation_style_2",
-              ].includes(component);
-            }
-          );
-          
-          const dslWithoutBottomNav = {
-            ...dslData.dsl,
-            sections: sectionsWithoutBottomNav,
-          };
-          
-          const baseDsl = ensureBottomNavigationSection(dslWithoutBottomNav);
-          const nextDsl = isHomePage
-            ? baseDsl
-            : ensureHeaderSections(baseDsl, homeHeaderSections);
-          setDsl(nextDsl);
-          if (dslData.dsl?.headerdefault !== undefined) {
-            setHeaderDefault(dslData.dsl.headerdefault);
-            setHeaderDefaultConfig(dslData.dsl.headerdefault);
-          }
-        }
-        versionRef.current = dslData.versionNumber ?? null;
 
-        // Keep module-level cache in sync so future remounts are instant
+        const baseDsl = ensureBottomNavigationSection(
+          stripBottomNavigationSections(dslData.dsl)
+        );
+        const nextDsl = isHomePage
+          ? baseDsl
+          : ensureHeaderSections(baseDsl, homeHeaderSections);
+        const hdrDefault = dslData.dsl?.headerdefault ?? null;
+
+        setDsl(nextDsl);
+        setHeaderDefault(hdrDefault);
+        setHeaderDefaultConfig(hdrDefault);
+        versionRef.current = dslData.versionNumber ?? null;
+        sectionsFpRef.current = getDslFingerprint(dslData.dsl);
+
         _pageCache[cacheKey] = {
-          ..._pageCache[cacheKey],
-          dsl: _pageCache[cacheKey]?.dsl ?? null,
-          bottomNavSection: bottomNavUpdated
-            ? bottomNavSectionRef.current
-            : (_pageCache[cacheKey]?.bottomNavSection ?? null),
+          dsl: nextDsl,
+          bottomNavSection: incomingBottomNav,
+          headerDefaultConfig: hdrDefault,
         };
       }
     } catch (e) {
@@ -450,35 +439,22 @@ export default function LayoutScreen({ route, navigation }) {
         return;
       }
 
-      const baseDsl = ensureBottomNavigationSection(dslData.dsl);
+      const bottomNav = extractBottomNavigationSection(dslData.dsl);
+      const baseDsl = ensureBottomNavigationSection(
+        stripBottomNavigationSections(dslData.dsl)
+      );
       const nextDsl = isHomePage
         ? baseDsl
         : ensureHeaderSections(baseDsl, homeHeaderSections);
       setDsl(nextDsl);
-      const hdrDefault = dslData.dsl?.headerdefault;
-      if (hdrDefault !== undefined) {
-        setHeaderDefault(hdrDefault);
-        setHeaderDefaultConfig(hdrDefault);
-      }
+      const hdrDefault = dslData.dsl?.headerdefault ?? null;
+      setHeaderDefault(hdrDefault);
+      setHeaderDefaultConfig(hdrDefault);
       versionRef.current = dslData.versionNumber ?? null;
       // Seed the fingerprint so the first interval poll doesn't falsely detect a change
-      sectionsFpRef.current = (nextDsl.sections || [])
-        .map((s) => getComponentName(s))
-        .filter(Boolean)
-        .join(",");
+      sectionsFpRef.current = getDslFingerprint(dslData.dsl);
 
-      // Cache the bottom navigation section on initial load
-      const bottomNav = (nextDsl.sections || []).find(
-        (section) => {
-          const component = getComponentName(section).toLowerCase();
-          return [
-            "bottom_navigation",
-            "bottom_navigation_style_1",
-            "bottom_navigation_style_2",
-          ].includes(component);
-        }
-      );
-      if (bottomNav) {
+      if (!deepEqual(bottomNav, bottomNavSectionRef.current)) {
         bottomNavSectionRef.current = bottomNav;
         setStableBottomNavSection(bottomNav);
       }
@@ -486,8 +462,8 @@ export default function LayoutScreen({ route, navigation }) {
       // ── Persist to module-level cache so remounts show instantly ──
       _pageCache[cacheKey] = {
         dsl: nextDsl,
-        bottomNavSection: bottomNav ?? _pageCache[cacheKey]?.bottomNavSection ?? null,
-        headerDefaultConfig: hdrDefault !== undefined ? hdrDefault : (_pageCache[cacheKey]?.headerDefaultConfig ?? null),
+        bottomNavSection: bottomNav,
+        headerDefaultConfig: hdrDefault,
       };
 
       if (__DEV__) {
@@ -509,77 +485,76 @@ export default function LayoutScreen({ route, navigation }) {
   }, [appId, pageName]);
 
   // ── Single auto-refresh interval ─────────────────────────────────────────
-  // Polls every 3 seconds. Detects changes via version number OR section
-  // fingerprint (component list) so updates fire even when versionNumber is null.
+  // Polls the live Builder payload and compares the full DSL surface, so same-section
+  // edits like spacing, images, product data, typography, and settings update too.
   const sectionsFpRef = useRef(null);
 
   useEffect(() => {
-    const getSectionsFp = (dsl) =>
-      (dsl?.sections || [])
-        .map((s) => getComponentName(s))
-        .filter(Boolean)
-        .join(",");
-
     const intervalId = setInterval(async () => {
+      if (dslRequestInFlightRef.current) return;
+      dslRequestInFlightRef.current = true;
+      lastDslFetchAtRef.current = Date.now();
+
       try {
         const latest = await fetchDSL(appId, pageName);
         if (!latest?.dsl) return;
 
         const incomingVersion = latest.versionNumber ?? null;
-        const incomingFp = getSectionsFp(latest.dsl);
+        const incomingFp = getDslFingerprint(latest.dsl);
 
-        // Detect change: version differs OR section fingerprint differs
+        // Detect change: version differs OR the actual DSL payload differs.
         const versionChanged = incomingVersion !== null && incomingVersion !== versionRef.current;
         const contentChanged = incomingFp !== sectionsFpRef.current;
 
-        // 1) Always check bottom nav — update independently of content change
-        const incomingBottomNav = (latest.dsl.sections || []).find((section) => {
-          const component = getComponentName(section).toLowerCase();
-          return [
-            "bottom_navigation",
-            "bottom_navigation_style_1",
-            "bottom_navigation_style_2",
-          ].includes(component);
-        });
+        if (!versionChanged && !contentChanged) return;
 
-        if (incomingBottomNav && !deepEqual(incomingBottomNav, bottomNavSectionRef.current)) {
+        const incomingBottomNav = extractBottomNavigationSection(latest.dsl);
+        if (!deepEqual(incomingBottomNav, bottomNavSectionRef.current)) {
           bottomNavSectionRef.current = incomingBottomNav;
           setStableBottomNavSection(incomingBottomNav);
-          console.log("🔄 Bottom navigation updated from JSON");
+          console.log("Bottom navigation synced from JSON");
         }
 
-        // 2) Refresh page DSL when anything changed
-        if (versionChanged || contentChanged) {
-          const sectionsWithoutBottomNav = (latest.dsl.sections || []).filter((section) => {
-            const component = getComponentName(section).toLowerCase();
-            return ![
-              "bottom_navigation",
-              "bottom_navigation_style_1",
-              "bottom_navigation_style_2",
-            ].includes(component);
-          });
-          const nextDsl = isHomePage
-            ? { ...latest.dsl, sections: sectionsWithoutBottomNav }
-            : ensureHeaderSections(
-                { ...latest.dsl, sections: sectionsWithoutBottomNav },
-                homeHeaderSections
-              );
-          setDsl(nextDsl);
-          if (latest.dsl?.headerdefault !== undefined) {
-            setHeaderDefault(latest.dsl.headerdefault);
-            setHeaderDefaultConfig(latest.dsl.headerdefault);
-          }
-          versionRef.current = incomingVersion;
-          sectionsFpRef.current = incomingFp;
-          console.log("🔄 DSL auto-refreshed (version:", incomingVersion, ")");
-        }
+        const baseDsl = ensureBottomNavigationSection(
+          stripBottomNavigationSections(latest.dsl)
+        );
+        const nextDsl = isHomePage
+          ? baseDsl
+          : ensureHeaderSections(baseDsl, homeHeaderSections);
+        const hdrDefault = latest.dsl?.headerdefault ?? null;
+
+        setDsl(nextDsl);
+        setHeaderDefault(hdrDefault);
+        setHeaderDefaultConfig(hdrDefault);
+        versionRef.current = incomingVersion;
+        sectionsFpRef.current = incomingFp;
+
+        _pageCache[cacheKey] = {
+          dsl: nextDsl,
+          bottomNavSection: incomingBottomNav,
+          headerDefaultConfig: hdrDefault,
+        };
+
+        console.log("DSL auto-refreshed (version:", incomingVersion, ")");
       } catch (e) {
         console.log("❌ Auto-refresh error:", e);
+      } finally {
+        dslRequestInFlightRef.current = false;
       }
-    }, 30000); // 30s — aggressive 3s polling caused infinite re-render loop
+    }, LIVE_DSL_REFRESH_INTERVAL_MS);
 
     return () => clearInterval(intervalId);
-  }, [appId, pageName, isHomePage, ensureHeaderSections, homeHeaderSections]);
+  }, [
+    appId,
+    cacheKey,
+    extractBottomNavigationSection,
+    getDslFingerprint,
+    homeHeaderSections,
+    isHomePage,
+    pageName,
+    stripBottomNavigationSections,
+    ensureHeaderSections,
+  ]);
 
   // Keep a ref to the latest refreshDSL so useFocusEffect doesn't re-subscribe on every render
   const refreshDSLRef = useRef(null);
@@ -591,7 +566,7 @@ export default function LayoutScreen({ route, navigation }) {
       if (
         !dslRef.current ||
         loadingRef.current ||
-        Date.now() - lastDslFetchAtRef.current < 10000
+        Date.now() - lastDslFetchAtRef.current < LIVE_DSL_REFRESH_INTERVAL_MS
       ) {
         return undefined;
       }
@@ -796,23 +771,14 @@ export default function LayoutScreen({ route, navigation }) {
             </View>
           )}
 
-          {snackbar.visible && (
-            <View
-              style={[
-                styles.snackbar,
-                snackbar.type === "success"
-                  ? styles.snackbarSuccess
-                  : snackbar.type === "info"
-                    ? styles.snackbarInfo
-                    : styles.snackbarError,
-              ]}
-            >
-              <Text style={styles.snackbarText}>{snackbar.message}</Text>
-              <TouchableOpacity onPress={() => setSnackbar((prev) => ({ ...prev, visible: false }))}>
-                <Text style={styles.snackbarAction}>Dismiss</Text>
-              </TouchableOpacity>
-            </View>
-          )}
+          <Snackbar
+            visible={snackbar.visible}
+            message={snackbar.message}
+            type={snackbar.type}
+            actionLabel="Dismiss"
+            onAction={() => setSnackbar((prev) => ({ ...prev, visible: false }))}
+            onDismiss={() => setSnackbar((prev) => ({ ...prev, visible: false }))}
+          />
         </View>
       </SideMenuProvider>
     </SafeArea>
@@ -913,47 +879,5 @@ const styles = StyleSheet.create({
   subtle: {
     fontSize: 14,
     color: "#666",
-  },
-  snackbar: {
-    position: "absolute",
-    bottom: 20,
-    left: 16,
-    right: 16,
-    paddingVertical: 14,
-    paddingHorizontal: 16,
-    borderRadius: 14,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    shadowColor: "#000",
-    shadowOpacity: 0.18,
-    shadowOffset: { width: 0, height: 12 },
-    shadowRadius: 18,
-    elevation: 8,
-  },
-  snackbarSuccess: {
-    backgroundColor: "#0F172A",
-    borderColor: "#22C55E",
-    borderWidth: 1,
-  },
-  snackbarInfo: {
-    backgroundColor: "#0F172A",
-    borderColor: "#60A5FA",
-    borderWidth: 1,
-  },
-  snackbarError: {
-    backgroundColor: "#0F172A",
-    borderColor: "#F87171",
-    borderWidth: 1,
-  },
-  snackbarText: {
-    color: "#E5E7EB",
-    fontWeight: "600",
-    flex: 1,
-    marginRight: 16,
-  },
-  snackbarAction: {
-    color: "#A5B4FC",
-    fontWeight: "700",
   },
 });

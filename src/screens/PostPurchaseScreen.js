@@ -22,9 +22,13 @@ import { fetchShopifyOrderDetails } from "../services/shopify";
 import { saveCompletedOrder } from "../services/orderHistoryService";
 
 const PAGE_HANDLE = "post-purchase";
-const REFRESH_INTERVAL_MS = 5000;
+const REFRESH_INTERVAL_MS = 3000;
 
-const fingerprint = (sections) => JSON.stringify(sections);
+const fingerprint = (dsl) => JSON.stringify({
+  headerdefault: dsl?.headerdefault ?? null,
+  brandKit: dsl?.brandKit ?? null,
+  sections: dsl?.sections || [],
+});
 
 // Replace {order_number} / {orderNumber} placeholders in any string
 const fillPlaceholders = (text, orderNumber) => {
@@ -328,8 +332,9 @@ export default function PostPurchaseScreen() {
       }
       // fetchDSL returns { dsl: <page-dsl>, versionNumber } — extract sections from dsl.sections
       const result   = await fetchDSL(appId, PAGE_HANDLE);
-      const incoming = result?.dsl?.sections || [];
-      const fp       = fingerprint(incoming);
+      const incomingDsl = result?.dsl || {};
+      const incoming = incomingDsl?.sections || [];
+      const fp       = fingerprint(incomingDsl);
       if (fp !== fingerprintRef.current) {
         fingerprintRef.current = fp;
         setSections(incoming);

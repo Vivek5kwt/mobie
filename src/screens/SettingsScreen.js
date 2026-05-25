@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   RefreshControl,
   ScrollView,
@@ -32,6 +32,20 @@ const getComponentName = (section) =>
   section?.properties?.component ||
   "";
 
+const LIVE_DSL_REFRESH_INTERVAL_MS = 3000;
+
+const getDslFingerprint = (incomingDsl) => {
+  try {
+    return JSON.stringify({
+      headerdefault: incomingDsl?.headerdefault ?? null,
+      brandKit: incomingDsl?.brandKit ?? null,
+      sections: incomingDsl?.sections || [],
+    });
+  } catch (_) {
+    return (incomingDsl?.sections || []).map(getComponentName).join(",");
+  }
+};
+
 const hasRenderableSections = (dsl) => Array.isArray(dsl?.sections) && dsl.sections.length > 0;
 
 const isHeaderDefaultEnabled = (config) => {
@@ -57,6 +71,7 @@ export default function SettingsScreen() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState("");
+  const dslFingerprintRef = useRef(null);
 
   const pageCandidates = useMemo(() => {
     const names = [routePageName, "settings", "my-account"];
@@ -71,13 +86,13 @@ export default function SettingsScreen() {
   }, [routePageName]);
 
   const loadSettingsDsl = useCallback(
-    async ({ asRefresh = false } = {}) => {
+    async ({ asRefresh = false, silent = false } = {}) => {
       if (asRefresh) {
         setRefreshing(true);
-      } else {
+      } else if (!silent) {
         setLoading(true);
       }
-      setError("");
+      if (!silent) setError("");
 
       try {
         let selected = null;
@@ -88,13 +103,20 @@ export default function SettingsScreen() {
             break;
           }
         }
-        setDsl(selected || { sections: [] });
+        const nextDsl = selected || { sections: [] };
+        const fp = getDslFingerprint(nextDsl);
+        if (fp !== dslFingerprintRef.current) {
+          dslFingerprintRef.current = fp;
+          setDsl(nextDsl);
+        }
       } catch (err) {
-        setError(err?.message || "Unable to load settings.");
-        setDsl({ sections: [] });
+        if (!silent) {
+          setError(err?.message || "Unable to load settings.");
+          setDsl({ sections: [] });
+        }
       } finally {
-        setLoading(false);
-        setRefreshing(false);
+        if (!silent) setLoading(false);
+        if (asRefresh) setRefreshing(false);
       }
     },
     [appId, pageCandidates]
@@ -102,6 +124,14 @@ export default function SettingsScreen() {
 
   useEffect(() => {
     loadSettingsDsl();
+  }, [loadSettingsDsl]);
+
+  useEffect(() => {
+    const id = setInterval(
+      () => loadSettingsDsl({ silent: true }),
+      LIVE_DSL_REFRESH_INTERVAL_MS
+    );
+    return () => clearInterval(id);
   }, [loadSettingsDsl]);
 
   const headerDefaultConfig = dsl?.headerdefault || null;

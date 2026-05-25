@@ -10,7 +10,7 @@ import {
 } from "react-native";
 import { Animated, InteractionManager, TouchableOpacity } from "react-native";
 import FontAwesome from "react-native-vector-icons/FontAwesome";
-import { useFocusEffect, useNavigation, useRoute } from "@react-navigation/native";
+import { StackActions, useFocusEffect, useNavigation, useRoute } from "@react-navigation/native";
 import { useSelector } from "react-redux";
 import { SafeArea } from "../utils/SafeAreaHandler";
 import BottomNavigation, { BOTTOM_NAV_RESERVED_HEIGHT } from "../components/BottomNavigation";
@@ -35,6 +35,7 @@ const SIGNIN_SLUGS = new Set(["signin", "sign-in", "login", "log-in", "auth"]);
 const CART_EMPTY_VISIBLE_COMPONENTS = new Set(["cart_line_items"]);
 const ORDERS_EMPTY_VISIBLE_COMPONENTS = new Set(["order_history", "orderhistory", "orders", "my_orders"]);
 const WISHLIST_EMPTY_VISIBLE_COMPONENTS = new Set(["wishlist", "wishlist_item", "wishlist-item"]);
+const LIVE_DSL_REFRESH_INTERVAL_MS = 3000;
 
 // ── Default profile menu items shown when DSL has no account_menu sections ───
 const DEFAULT_PROFILE_MENU = [
@@ -71,6 +72,14 @@ function FallbackProfile({ session, logout, navigation }) {
 
   const handleMenuPress = (item) => {
     if (item.link === "wishlist") {
+      if (!isAuthenticatedSession(session)) {
+        navigation.dispatch(StackActions.replace("Auth", {
+          initialMode: "login",
+          requireAuth: true,
+          postLoginTarget: { name: "Wishlist" },
+        }));
+        return;
+      }
       navigation.navigate("Wishlist");
       return;
     }
@@ -189,7 +198,6 @@ export default function BottomNavScreen() {
     normalizedTitle === "orders" ||
     normalizedTitle === "my orders";
   const isProtectedPage = isProfilePage || isWishlistPage || isOrdersPage;
-  const isAutoRefreshPage = isCartPage || isNotificationPage || isProfilePage;
   const isHomePage = normalizedPageName === "home";
   const isCartEmpty = cartItems.length === 0;
   const [dsl, setDsl] = useState(null);
@@ -200,11 +208,11 @@ export default function BottomNavScreen() {
   // Notification-page data
   const [notifications, setNotifications]           = useState([]);
   const [notificationsLoading, setNotificationsLoading] = useState(false);
-  const [homeHeaderSections, setHomeHeaderSections] = useState([]);
   const [headerDefaultConfig, setHeaderDefaultConfig] = useState(null);
   // Mirror state in a ref so callbacks always read the latest value (no stale closures)
   const homeHeaderSectionsRef = useRef([]);
   const versionRef = useRef(null);
+  const dslRequestInFlightRef = useRef(false);
   // Store bottom navigation section separately to update dynamically
   const [bottomNavSection, setBottomNavSection] = useState(bottomNavSectionProp);
   const bottomNavSectionRef = useRef(bottomNavSectionProp);
@@ -256,6 +264,22 @@ export default function BottomNavScreen() {
       return false;
     }
   };
+
+  const getDslFingerprint = useCallback((incomingDsl) => {
+    try {
+      return JSON.stringify({
+        headerdefault: incomingDsl?.headerdefault ?? null,
+        brandKit: incomingDsl?.brandKit ?? null,
+        sections: incomingDsl?.sections || [],
+      });
+    } catch (_) {
+      return [
+        incomingDsl?.headerdefault ? "headerdefault" : "no-headerdefault",
+        incomingDsl?.brandKit ? "brandKit" : "no-brandKit",
+        (incomingDsl?.sections || []).map((section) => getComponentName(section)).join(","),
+      ].join("|");
+    }
+  }, []);
 
   // True when this screen was opened with an explicit bottom nav section (bottom nav tab
   // navigation). False when opened from a header icon (cart / notification).
@@ -316,30 +340,40 @@ export default function BottomNavScreen() {
       console.log("❌ Error checking bottom nav update:", error);
     }
   }, [appId, pageName, hasInitialBottomNav]);
-  // Only true header components — header_2 is excluded so it never gets
-  // injected on non-home pages. Non-home pages get a synthetic standalone
-  // header built from headerdefault instead.
-  const primaryHeaderNames = useMemo(
-    () => new Set(["header", "header_mobile"]),
+  // Reuse Home's drawer DSL on child pages. Visible headers stay page-specific
+  // through each page's own headerdefault config.
+  const reusableChromeNames = useMemo(
+    () => new Set(["side_navigation"]),
     []
   );
-
-  // Synthetic standalone header section — triggers Topheader's defaultConfig
-  // path which reads getHeaderDefault() for title/colors/cart icon.
-  const STANDALONE_HEADER_SECTION = useMemo(() => ({
-    component: { const: "header" },
-    _synthetic: true,
-  }), []);
 
   const extractHeaderSections = useCallback(
     (incomingDsl) =>
       (incomingDsl?.sections || []).filter((section) =>
-        primaryHeaderNames.has(getComponentName(section).toLowerCase())
+        reusableChromeNames.has(getComponentName(section).toLowerCase())
       ),
-    [primaryHeaderNames]
+    [reusableChromeNames]
   );
 
-  const ensureHeaderSections = useCallback((incomingDsl) => incomingDsl, []);
+  const ensureHeaderSections = useCallback((incomingDsl, fallbackSections = []) => {
+    if (!incomingDsl || !Array.isArray(incomingDsl.sections)) return incomingDsl;
+    if (!Array.isArray(fallbackSections) || fallbackSections.length === 0) return incomingDsl;
+
+    const existingNames = new Set(
+      incomingDsl.sections.map((section) => getComponentName(section).toLowerCase())
+    );
+    const missingSections = fallbackSections.filter((section) => {
+      const component = getComponentName(section).toLowerCase();
+      return component && !existingNames.has(component);
+    });
+
+    if (missingSections.length === 0) return incomingDsl;
+
+    return {
+      ...incomingDsl,
+      sections: [...missingSections, ...incomingDsl.sections],
+    };
+  }, []);
 
   const mobileSections = useMemo(
     () => (dsl?.sections || []).filter(shouldRenderSectionOnMobile),
@@ -389,7 +423,7 @@ export default function BottomNavScreen() {
     // Step 1: filter by mobile visibility
     const filtered = mobileSections.filter((section) => {
       const component = getComponentName(section).toLowerCase();
-      // header_2 only shows on home page — other tabs get the synthetic standalone header
+      // header_2 only shows on Home; child pages use their page-level headerdefault.
       if (component === "header_2") return isHomePage;
       // side_navigation is rendered separately (slide-out drawer), not inline
       if (component === "side_navigation") return false;
@@ -529,12 +563,12 @@ export default function BottomNavScreen() {
   const closeSideMenu = () => setIsSideMenuOpen(false);
 
   const openSideMenu = () => {
-    // Always allow opening the side menu from the app bar
+    if (!sideNavSection) return;
     setIsSideMenuOpen(true);
   };
 
   const toggleSideMenu = () => {
-    // Always toggle, even if DSL has no explicit side_navigation section
+    if (!sideNavSection) return;
     setIsSideMenuOpen((prev) => !prev);
   };
 
@@ -553,9 +587,9 @@ export default function BottomNavScreen() {
     extrapolate: "clamp",
   });
 
-  const showOverlay = isSideMenuOpen;
+  const showOverlay = isSideMenuOpen && !!sideNavSection;
 
-  // Single sequential load: home headers first → then page DSL.
+  // Single sequential load: reusable Home chrome first → then page DSL.
   // This eliminates the race condition where loadDSL ran before
   // homeHeaderSectionsRef was populated.
   useEffect(() => {
@@ -579,24 +613,17 @@ export default function BottomNavScreen() {
           return;
         }
 
-        // Step 1: fetch home DSL to get headerdefault + real header sections.
-        // Skip on home page itself.
+        // Step 1: fetch Home DSL to reuse the real drawer section on child pages.
+        // Visible headers come from the current page's own headerdefault.
         let headers = homeHeaderSectionsRef.current;
         if (!isHomePage && headers.length === 0) {
           try {
             const homeDslData = await fetchDSL(appId, "home");
-            // Try real header sections first (header / header_mobile)
             headers = extractHeaderSections(homeDslData?.dsl || {});
-            // If home page only has header_2, fall back to synthetic standalone header
-            if (headers.length === 0) {
-              headers = [STANDALONE_HEADER_SECTION];
-            }
             homeHeaderSectionsRef.current = headers;
-            if (isMounted) setHomeHeaderSections(headers);
           } catch (err) {
-            console.log("❌ Failed to fetch home header sections:", err);
-            // Even on error, inject a synthetic header
-            headers = [STANDALONE_HEADER_SECTION];
+            console.log("❌ Failed to fetch home drawer section:", err);
+            headers = [];
             homeHeaderSectionsRef.current = headers;
           }
         }
@@ -608,7 +635,7 @@ export default function BottomNavScreen() {
         if (!isMounted) return;
 
         if (!dslData?.dsl) {
-          // Page not found — show home header with empty body
+          // Page not found — keep only reusable chrome with an empty body.
           setHeaderDefaultConfig(null);
           setDsl({ sections: headers });
           return;
@@ -631,19 +658,13 @@ export default function BottomNavScreen() {
         const nextDsl = isHomePage
           ? dslData.dsl
           : ensureHeaderSections(dslData.dsl, headers);
-        if (dslData.dsl?.headerdefault !== undefined) {
-          setHeaderDefault(dslData.dsl.headerdefault);
-          setHeaderDefaultConfig(dslData.dsl.headerdefault);
-        } else {
-          setHeaderDefaultConfig(null);
-        }
+        const hdrDefault = dslData.dsl?.headerdefault ?? null;
+        setHeaderDefault(hdrDefault);
+        setHeaderDefaultConfig(hdrDefault);
         setDsl(nextDsl);
         versionRef.current = dslData.versionNumber ?? null;
         // Seed fingerprint so the first interval poll doesn't falsely trigger an update
-        sectionsFpRef.current = (nextDsl.sections || [])
-          .map((s) => getComponentName(s))
-          .filter(Boolean)
-          .join(",");
+        sectionsFpRef.current = getDslFingerprint(dslData.dsl);
       } catch (error) {
         if (isMounted) setErr(error.message);
       } finally {
@@ -654,23 +675,22 @@ export default function BottomNavScreen() {
     loadAll();
 
     return () => { isMounted = false; };
-  }, [appId, ensureHeaderSections, extractHeaderSections, initializing, isHomePage, isLoggedIn, navigation, pageName]);
+  }, [appId, ensureHeaderSections, extractHeaderSections, getDslFingerprint, initializing, isHomePage, isLoggedIn, navigation, pageName]);
 
   const refreshDSL = useCallback(async () => {
+    if (dslRequestInFlightRef.current) return;
+    dslRequestInFlightRef.current = true;
+
     try {
-      // Re-fetch home headers if not loaded yet
+      // Re-fetch reusable Home drawer chrome if not loaded yet.
       let headers = homeHeaderSectionsRef.current;
       if (!isHomePage && headers.length === 0) {
         try {
           const homeDslData = await fetchDSL(appId, "home");
           headers = extractHeaderSections(homeDslData?.dsl || {});
-          if (headers.length === 0) {
-            headers = [STANDALONE_HEADER_SECTION];
-          }
           homeHeaderSectionsRef.current = headers;
-          setHomeHeaderSections(headers);
         } catch (_) {
-          headers = [STANDALONE_HEADER_SECTION];
+          headers = [];
           homeHeaderSectionsRef.current = headers;
         }
       }
@@ -680,20 +700,20 @@ export default function BottomNavScreen() {
         const nextDsl = isHomePage
           ? dslData.dsl
           : ensureHeaderSections(dslData.dsl, headers);
-        if (dslData.dsl?.headerdefault !== undefined) {
-          setHeaderDefault(dslData.dsl.headerdefault);
-          setHeaderDefaultConfig(dslData.dsl.headerdefault);
-        } else {
-          setHeaderDefaultConfig(null);
-        }
+        const hdrDefault = dslData.dsl?.headerdefault ?? null;
+        setHeaderDefault(hdrDefault);
+        setHeaderDefaultConfig(hdrDefault);
         setDsl(nextDsl);
         versionRef.current = dslData.versionNumber ?? null;
+        sectionsFpRef.current = getDslFingerprint(dslData.dsl);
       }
       await checkAndUpdateBottomNav();
     } catch (error) {
       console.log("❌ Refresh error:", error);
+    } finally {
+      dslRequestInFlightRef.current = false;
     }
-  }, [appId, ensureHeaderSections, extractHeaderSections, isHomePage, pageName, checkAndUpdateBottomNav]);
+  }, [appId, ensureHeaderSections, extractHeaderSections, getDslFingerprint, isHomePage, pageName, checkAndUpdateBottomNav]);
 
   const onRefresh = async () => {
     setRefreshing(true);
@@ -722,11 +742,10 @@ export default function BottomNavScreen() {
 
   useFocusEffect(
     useCallback(() => {
-      if (!isAutoRefreshPage) return undefined;
       refreshDSL();
       if (isNotificationPage) loadNotifications();
       return undefined;
-    }, [isAutoRefreshPage, isNotificationPage, loadNotifications, refreshDSL])
+    }, [isNotificationPage, loadNotifications, refreshDSL])
   );
 
   // Load notifications once on mount when this is the notification page
@@ -739,14 +758,14 @@ export default function BottomNavScreen() {
   // Wait until the loading state clears so we don't redirect during session restore.
   useEffect(() => {
     if (!loading && !initializing && isProtectedPage && !isLoggedIn) {
-      navigation.navigate("Auth", {
+      navigation.dispatch(StackActions.replace("Auth", {
         initialMode: "login",
         requireAuth: true,
         postLoginTarget: {
           name: "BottomNavScreen",
           params: route.params,
         },
-      });
+      }));
     }
   }, [initializing, isLoggedIn, loading, isProtectedPage, navigation, route.params]);
 
@@ -757,23 +776,20 @@ export default function BottomNavScreen() {
     checkAndUpdateBottomNav();
   }, [checkAndUpdateBottomNav, hasInitialBottomNav, isSearchPage, loading]);
 
-  // Auto-refresh: polls every 30 s. Updates when version OR section fingerprint changes.
+  // Auto-refresh: polls live Builder DSL and updates when any page data changes.
   const sectionsFpRef = useRef(null);
 
   useEffect(() => {
-    const getSectionsFp = (dsl) =>
-      (dsl?.sections || [])
-        .map((s) => getComponentName(s))
-        .filter(Boolean)
-        .join(",");
-
     const intervalId = setInterval(async () => {
+      if (dslRequestInFlightRef.current) return;
+      dslRequestInFlightRef.current = true;
+
       try {
         const latest = await fetchDSL(appId, pageName);
         if (!latest?.dsl) return;
 
         const incomingVersion = latest.versionNumber ?? null;
-        const incomingFp = getSectionsFp(latest.dsl);
+        const incomingFp = getDslFingerprint(latest.dsl);
 
         const versionChanged = incomingVersion !== null && incomingVersion !== versionRef.current;
         const contentChanged = incomingFp !== sectionsFpRef.current;
@@ -783,25 +799,24 @@ export default function BottomNavScreen() {
           const nextDsl = isHomePage
             ? latest.dsl
             : ensureHeaderSections(latest.dsl, headers);
-          if (latest.dsl?.headerdefault !== undefined) {
-            setHeaderDefault(latest.dsl.headerdefault);
-            setHeaderDefaultConfig(latest.dsl.headerdefault);
-          } else {
-            setHeaderDefaultConfig(null);
-          }
+          const hdrDefault = latest.dsl?.headerdefault ?? null;
+          setHeaderDefault(hdrDefault);
+          setHeaderDefaultConfig(hdrDefault);
           setDsl(nextDsl);
           versionRef.current = incomingVersion;
           sectionsFpRef.current = incomingFp;
-          console.log("🔄 DSL auto-refreshed on", pageName);
+          console.log("DSL auto-refreshed on", pageName);
         }
         await checkAndUpdateBottomNav();
       } catch (error) {
         console.log("❌ Auto-refresh error:", error);
+      } finally {
+        dslRequestInFlightRef.current = false;
       }
-    }, 30000);
+    }, LIVE_DSL_REFRESH_INTERVAL_MS);
 
     return () => clearInterval(intervalId);
-  }, [appId, ensureHeaderSections, isHomePage, pageName, checkAndUpdateBottomNav]);
+  }, [appId, ensureHeaderSections, getDslFingerprint, isHomePage, pageName, checkAndUpdateBottomNav]);
 
   return (
     <SafeArea edges={["top", "left", "right"]}>
@@ -822,7 +837,7 @@ export default function BottomNavScreen() {
             ]}
           >
           {/* Single standalone header for pages opened without the bottom nav. */}
-          {hideBottomNav && (
+          {hideBottomNav && !loading && !isHeaderDefaultEnabled && (
             <View style={styles.standaloneHeader}>
               <TouchableOpacity
                 onPress={handleStandaloneBack}
@@ -848,12 +863,13 @@ export default function BottomNavScreen() {
         ) : isNotificationPage ? (
           /* ── Notification tab: shows real notification records from backend ── */
           <View style={{ flex: 1 }}>
-            {/* Same HeaderDefault as Home / Search — no back button */}
-            {isHeaderDefaultEnabled && !hideBottomNav && (
+            {/* Dynamic page header from DSL headerdefault. */}
+            {isHeaderDefaultEnabled && (
               <HeaderDefault
                 config={headerDefaultConfig}
                 bottomNavSection={resolvedBottomNavSection}
                 hideTabs
+                showBack={hideBottomNav}
               />
             )}
 
@@ -890,11 +906,12 @@ export default function BottomNavScreen() {
               <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
             }
           >
-            {isHeaderDefaultEnabled && !hideBottomNav && (
+            {isHeaderDefaultEnabled && (
               <HeaderDefault
                 config={headerDefaultConfig}
                 bottomNavSection={resolvedBottomNavSection}
                 hideTabs={isProfilePage || isNotificationPage || isSearchPage || isCartPage}
+                showBack={hideBottomNav}
               />
             )}
             {visibleSections.length ? (

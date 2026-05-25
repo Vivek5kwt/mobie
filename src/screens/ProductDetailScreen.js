@@ -11,6 +11,8 @@ import { useAuth } from "../services/AuthContext";
 import HeaderDefault from "../components/HeaderDefault";
 import BottomNavigation, { BOTTOM_NAV_RESERVED_HEIGHT } from "../components/BottomNavigation";
 
+const LIVE_DSL_REFRESH_INTERVAL_MS = 3000;
+
 const unwrapValue = (value, fallback = undefined) => {
   if (value === undefined || value === null) return fallback;
   if (typeof value === "object") {
@@ -25,6 +27,18 @@ const resolveSections = (detailSections) => {
   if (Array.isArray(detailSections)) return detailSections;
   if (Array.isArray(detailSections?.sections)) return detailSections.sections;
   return [];
+};
+
+const getDslFingerprint = (incomingDsl) => {
+  try {
+    return JSON.stringify({
+      headerdefault: incomingDsl?.headerdefault ?? null,
+      brandKit: incomingDsl?.brandKit ?? null,
+      sections: incomingDsl?.sections || [],
+    });
+  } catch (_) {
+    return (incomingDsl?.sections || []).map((section) => section?.component?.const || section?.component || "").join(",");
+  }
 };
 
 const hasProductIdentity = (product = {}) => !!(product?.handle || product?.id);
@@ -236,6 +250,7 @@ export default function ProductDetailScreen() {
   const [stickyAtcHeight, setStickyAtcHeight] = useState(130);
   const isMountedRef = useRef(true);
   const dslVersionRef = useRef(null);
+  const dslFingerprintRef = useRef(null);
   const productRef = useRef(product);
 
   const loadProductDetails = useCallback(async (overrideProduct) => {
@@ -324,6 +339,7 @@ export default function ProductDetailScreen() {
       if (nextSections.length) {
         setDslSections(nextSections);
         dslVersionRef.current = liveDsl?.versionNumber ?? null;
+        dslFingerprintRef.current = getDslFingerprint(liveDsl?.dsl);
       }
       setDslLoading(false);
     };
@@ -335,7 +351,7 @@ export default function ProductDetailScreen() {
     };
   }, [appId, detailSections]);
 
-  // Auto-refresh DSL periodically to pick up newly published versions
+  // Auto-refresh DSL periodically to pick up any live Builder changes
   useEffect(() => {
     const intervalId = setInterval(async () => {
       try {
@@ -343,7 +359,13 @@ export default function ProductDetailScreen() {
         if (!latest?.dsl) return;
 
         const incomingVersion = latest.versionNumber ?? null;
-        if (incomingVersion === dslVersionRef.current) return;
+        const incomingFingerprint = getDslFingerprint(latest.dsl);
+        if (
+          incomingVersion === dslVersionRef.current &&
+          incomingFingerprint === dslFingerprintRef.current
+        ) {
+          return;
+        }
 
         const nextSections = resolveSections(latest.dsl);
         if (!nextSections.length) return;
@@ -355,10 +377,11 @@ export default function ProductDetailScreen() {
         }
         setDslSections(nextSections);
         dslVersionRef.current = incomingVersion;
+        dslFingerprintRef.current = incomingFingerprint;
       } catch (e) {
         console.log("❌ Auto-refresh error:", e);
       }
-    }, 5000);
+    }, LIVE_DSL_REFRESH_INTERVAL_MS);
 
     return () => clearInterval(intervalId);
   }, [appId, detailSections]);

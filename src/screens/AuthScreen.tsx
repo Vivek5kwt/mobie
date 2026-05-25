@@ -26,6 +26,8 @@ import { getHeaderDefault } from '../services/headerDefaultService';
 import { getAppNameSync } from '../utils/appInfo';
 import { resolveFont } from '../services/typographyService';
 
+const LIVE_DSL_REFRESH_INTERVAL_MS = 3000;
+
 type ButtonGradient = {
   colors: string[];
   angle: number;
@@ -1259,7 +1261,7 @@ const AuthScreen = () => {
   useEffect(() => { loadAuthLayout(); }, [loadAuthLayout]);
 
   useEffect(() => {
-    const id = setInterval(() => { loadAuthLayout(); }, 5000);
+    const id = setInterval(() => { loadAuthLayout(); }, LIVE_DSL_REFRESH_INTERVAL_MS);
     return () => clearInterval(id);
   }, [loadAuthLayout]);
 

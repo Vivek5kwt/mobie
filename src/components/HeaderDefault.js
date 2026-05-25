@@ -5,8 +5,10 @@ import Icon from "react-native-vector-icons/FontAwesome6";
 import { useSelector } from "react-redux";
 import bottomNavigationStyle1Section from "../data/bottomNavigationStyle1";
 import { useSideMenu } from "../services/SideMenuContext";
+import { useAuth } from "../services/AuthContext";
 import { getTypography, resolveFirstFont } from "../services/typographyService";
 import { dedupeWishlistProducts } from "../store/slices/wishlistSlice";
+import { requireLoginForAction } from "../utils/authGate";
 
 const normalizeIconName = (name) => {
   if (!name) return "";
@@ -81,6 +83,7 @@ const isBackNavigationTarget = (navRef, navType) => {
 export default function HeaderDefault({ config, bottomNavSection, hideTabs = false, showBack = false }) {
   const navigation = useNavigation();
   const { openSideMenu, toggleSideMenu } = useSideMenu();
+  const { session, initializing } = useAuth();
   const canGoBack = navigation.canGoBack();
   const navSection = bottomNavSection || bottomNavigationStyle1Section;
 
@@ -192,6 +195,16 @@ export default function HeaderDefault({ config, bottomNavSection, hideTabs = fal
     return Array.isArray(items) ? items : [];
   };
 
+  const openWishlist = async () => {
+    const blocked = await requireLoginForAction({
+      session,
+      navigation,
+      initializing,
+      postLoginTarget: { name: "Wishlist" },
+    });
+    if (!blocked) navigation.navigate("Wishlist");
+  };
+
   const openNavTarget = (target) => {
     const headerNavRef = String(
       resolveVal(
@@ -222,7 +235,7 @@ export default function HeaderDefault({ config, bottomNavSection, hideTabs = fal
             bottomNavSection: navSection,
           });
         } else if (key === "wishlist") {
-          navigation.navigate("Wishlist");
+          openWishlist();
         } else {
           navigation.navigate(headerNavRef);
         }
@@ -476,7 +489,7 @@ export default function HeaderDefault({ config, bottomNavSection, hideTabs = fal
             {showWishlist && (
               <TouchableOpacity
                 activeOpacity={0.7}
-                onPress={() => navigation.navigate("Wishlist")}
+                onPress={openWishlist}
                 style={{ position: "relative" }}
               >
                 <Icon name="heart" size={20} color={iconColor} />
@@ -528,7 +541,6 @@ export default function HeaderDefault({ config, bottomNavSection, hideTabs = fal
       else navigation.navigate("LayoutScreen");
       return;
     }
-    if (!ref) return;
     const key = normalizeNavKey(ref);
     const isSideNavigationTarget =
       key === "sidenavigation" ||
@@ -548,6 +560,12 @@ export default function HeaderDefault({ config, bottomNavSection, hideTabs = fal
       return;
     }
 
+    if (!ref) return;
+    if (key === "wishlist" || key === "mywishlist" || key === "my-wishlist") {
+      openWishlist();
+      return;
+    }
+
     if (type === "screen") {
       // Map common DSL screen names to actual navigator screen names
       const screenMap = {
@@ -559,7 +577,6 @@ export default function HeaderDefault({ config, bottomNavSection, hideTabs = fal
         shop:         "AllProducts",
         collection:   "AllProducts",
         cart:         "BottomNavScreen",
-        wishlist:     "Wishlist",
         profile:      "BottomNavScreen",
       };
       const screen = screenMap[key] || ref;
@@ -797,7 +814,7 @@ export default function HeaderDefault({ config, bottomNavSection, hideTabs = fal
             } else if (hasCustomNav) executeNavigation(effectiveNavRef, effectiveNavType);
             else if (isCart)        openNavTarget("cart");
             else if (isBell)        openNavTarget("notification");
-            else if (isWishlist)    navigation.navigate("Wishlist");
+            else if (isWishlist)    openWishlist();
           }}
         >
           {inner}

@@ -303,6 +303,7 @@ export default function SubCollectionScreen() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [homeHeaderConfig, setHomeHeaderConfig] = useState(null);
+  const [pageHeaderConfig, setPageHeaderConfig] = useState(null);
   const [bottomNavSection, setBottomNavSection] = useState(null);
   const [bottomNavHeight, setBottomNavHeight] = useState(BOTTOM_NAV_RESERVED_HEIGHT);
 
@@ -335,6 +336,9 @@ export default function SubCollectionScreen() {
 
         const homeDsl = homeData?.dsl || homeData || {};
         const productListDsl = productListData?.dsl || productListData || {};
+        const matchedPageHeaderConfig = (pageResults || [])
+          .map((pageData) => (pageData?.dsl || pageData || {})?.headerdefault)
+          .find(Boolean);
         const routedItems = asArray(parentCollection?.subCollections).map(normalizeItem).filter(Boolean);
         const collectionDslItems = (pageResults || [])
           .flatMap((pageData) => findCollectionSectionItems(pageData?.dsl || pageData || {}))
@@ -349,6 +353,7 @@ export default function SubCollectionScreen() {
           .filter((item) => item.title || item.handle);
 
         setHomeHeaderConfig(homeDsl?.headerdefault || null);
+        setPageHeaderConfig(matchedPageHeaderConfig || productListDsl?.headerdefault || null);
         setBottomNavSection(findBottomNavSection(homeDsl));
         setItems(mergeWithStoreCollections(dslItems, storeItems));
       } catch (_) {
@@ -411,8 +416,8 @@ export default function SubCollectionScreen() {
   return (
     <SafeArea edges={["top", "left", "right"]}>
       <View style={styles.container}>
-        {homeHeaderConfig ? (
-          <HeaderDefault config={homeHeaderConfig} bottomNavSection={bottomNavSection} hideTabs showBack />
+        {(pageHeaderConfig || homeHeaderConfig) ? (
+          <HeaderDefault config={pageHeaderConfig || homeHeaderConfig} bottomNavSection={bottomNavSection} hideTabs showBack />
         ) : null}
 
         <View style={styles.heading}>

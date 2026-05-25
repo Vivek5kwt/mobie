@@ -69,6 +69,10 @@ const FA5_TO_FA4 = {
   "location-pin":           "map-pin",
 
   // Arrows / angles
+  "arrow-right-long":      "long-arrow-right",
+  "arrow-left-long":       "long-arrow-left",
+  "arrow-up-long":         "long-arrow-up",
+  "arrow-down-long":       "long-arrow-down",
   "right-long":             "long-arrow-right",
   "left-long":              "long-arrow-left",
   "up-long":                "long-arrow-up",

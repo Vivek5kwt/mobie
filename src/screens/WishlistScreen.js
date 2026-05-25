@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Dimensions,
@@ -9,7 +9,7 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
-import { useFocusEffect, useNavigation } from "@react-navigation/native";
+import { StackActions, useFocusEffect, useNavigation } from "@react-navigation/native";
 import { useDispatch, useSelector } from "react-redux";
 import Icon from "react-native-vector-icons/FontAwesome6";
 import { dedupeWishlistProducts, toggleWishlist } from "../store/slices/wishlistSlice";
@@ -27,6 +27,7 @@ import { isAuthenticatedSession } from "../utils/authGate";
 import { resolveProductImageResizeMode } from "../utils/productImageFit";
 
 const { width: SCREEN_W } = Dimensions.get("window");
+const LIVE_DSL_REFRESH_INTERVAL_MS = 3000;
 
 // ── DSL helpers ───────────────────────────────────────────────────────────────
 const unwrap = (v, fallback) => {
@@ -52,6 +53,18 @@ const normalizeComp = (s) =>
     s?.component?.const || s?.component || s?.properties?.component?.const || ""
   ).trim().toLowerCase().replace(/[\s-]+/g, "_");
 
+const getDslFingerprint = (incomingDsl) => {
+  try {
+    return JSON.stringify({
+      headerdefault: incomingDsl?.headerdefault ?? null,
+      brandKit: incomingDsl?.brandKit ?? null,
+      sections: incomingDsl?.sections || [],
+    });
+  } catch (_) {
+    return (incomingDsl?.sections || []).map(normalizeComp).join(",");
+  }
+};
+
 // Components that should NOT be rendered as free DSL sections on this screen
 const SKIP_COMPS = new Set([
   "wishlist_item", "wishlist", "wishlist-item",
@@ -71,11 +84,11 @@ export default function WishlistScreen() {
   useFocusEffect(
     useCallback(() => {
       if (!initializing && !isLoggedIn) {
-        navigation.navigate("Auth", {
+        navigation.dispatch(StackActions.replace("Auth", {
           initialMode: "login",
           requireAuth: true,
           postLoginTarget: { name: "Wishlist" },
-        });
+        }));
       }
     }, [initializing, isLoggedIn, navigation])
   );
@@ -91,14 +104,18 @@ export default function WishlistScreen() {
   const [headerConfig,  setHeaderConfig]  = useState(null);
   const [otherSections, setOtherSections] = useState([]);
   const [snackVisible,  setSnackVisible]  = useState(false);
+  const dslFingerprintRef = useRef(null);
 
-  const loadDSL = useCallback(async () => {
+  const loadDSL = useCallback(async ({ silent = false } = {}) => {
     try {
-      setDslLoading(true);
+      if (!silent) setDslLoading(true);
       const result = await fetchDSL(appId, "wishlist");
       const dsl    = result?.dsl || result;
+      const fp = getDslFingerprint(dsl);
+      if (fp === dslFingerprintRef.current) return;
 
-      if (dsl?.headerdefault) setHeaderConfig(dsl.headerdefault);
+      dslFingerprintRef.current = fp;
+      setHeaderConfig(dsl?.headerdefault || null);
 
       const sections = dsl?.sections || [];
 
@@ -108,14 +125,15 @@ export default function WishlistScreen() {
         return c === "wishlist_item" || c === "wishlist";
       });
 
-      if (wishlistSection) {
-        const propsNode =
-          wishlistSection?.properties?.props?.properties ||
-          wishlistSection?.properties?.props ||
-          wishlistSection?.props ||
-          {};
-        setWishlistProps(propsNode);
-      }
+      const propsNode = wishlistSection
+        ? (
+            wishlistSection?.properties?.props?.properties ||
+            wishlistSection?.properties?.props ||
+            wishlistSection?.props ||
+            {}
+          )
+        : null;
+      setWishlistProps(propsNode);
 
       // All other renderable sections (text blocks, banners, spacers, etc.)
       setOtherSections(
@@ -127,11 +145,19 @@ export default function WishlistScreen() {
     } catch (_) {
       // DSL fetch failed — renders with defaults
     } finally {
-      setDslLoading(false);
+      if (!silent) setDslLoading(false);
     }
   }, [appId]);
 
   useEffect(() => { loadDSL(); }, [loadDSL]);
+
+  useEffect(() => {
+    const id = setInterval(
+      () => loadDSL({ silent: true }),
+      LIVE_DSL_REFRESH_INTERVAL_MS
+    );
+    return () => clearInterval(id);
+  }, [loadDSL]);
 
   // ── Resolve DSL card-styling tokens ──────────────────────────────────────
   const p = wishlistProps || {};

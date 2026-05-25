@@ -9,6 +9,7 @@ import {
   View,
 } from "react-native";
 import Icon from "react-native-vector-icons/FontAwesome";
+import { resolveFA4IconName } from "../utils/faIconAlias";
 
 const SORT_OPTIONS = ["Popular", "Newest", "Price: Low", "Price: High"];
 
@@ -22,6 +23,34 @@ function resolveProp(obj, key, fallback) {
   return raw;
 }
 
+function deepUnwrap(value) {
+  if (value === undefined || value === null) return value;
+  if (typeof value !== "object" || Array.isArray(value)) return value;
+  if (value.value !== undefined) return deepUnwrap(value.value);
+  if (value.const !== undefined) return deepUnwrap(value.const);
+  return value;
+}
+
+function getSectionProps(section) {
+  const root =
+    section?.properties?.props?.properties ||
+    section?.properties?.props ||
+    section?.props ||
+    {};
+  const raw = deepUnwrap(root?.raw);
+  return raw && typeof raw === "object" && !Array.isArray(raw)
+    ? { ...root, ...raw }
+    : root;
+}
+
+function resolveIconName(raw, keys, fallback) {
+  for (const key of keys) {
+    const icon = resolveFA4IconName(resolveProp(raw, key, ""));
+    if (icon) return icon;
+  }
+  return resolveFA4IconName(fallback) || fallback;
+}
+
 export default function FilterSortHeader({
   section,
   filterItems: filterItemsProp,
@@ -29,7 +58,7 @@ export default function FilterSortHeader({
   onViewModeChange,
   onFilterChange,
 }) {
-  const raw = section?.props || section?.properties?.props || {};
+  const raw = getSectionProps(section);
 
   const bgColor      = resolveProp(raw, "bgColor", "#ffffff");
   const pt           = resolveProp(raw, "pt", 10);
@@ -41,6 +70,26 @@ export default function FilterSortHeader({
     resolveProp(raw, "compactSearchControls", false) === true ||
     resolveProp(raw, "compactControls", false) === true ||
     resolveProp(raw, "variant", "") === "searchResults";
+  const dropdownIconColor = resolveProp(
+    raw,
+    "dropdownIconColor",
+    resolveProp(raw, "arrowIconColor", "#111827")
+  );
+  const dropdownIconSize = Number(
+    resolveProp(raw, "dropdownIconSize", resolveProp(raw, "arrowIconSize", 12))
+  ) || 12;
+  const sortDropdownIcon = resolveIconName(
+    raw,
+    ["sortDropdownIcon", "sortArrowIcon", "dropdownIcon", "arrowIcon", "chevronIcon"],
+    "chevron-down"
+  );
+  const filterDropdownIcon = resolveIconName(
+    raw,
+    ["filterDropdownIcon", "filterArrowIcon", "dropdownIcon", "arrowIcon", "chevronIcon"],
+    "chevron-down"
+  );
+  const listIconName = resolveIconName(raw, ["listIcon", "listViewIcon"], "bars");
+  const gridIconName = resolveIconName(raw, ["gridIcon", "gridViewIcon"], "th-large");
 
   // Filter items from DSL (for the filter modal)
   const rawItems    = resolveProp(raw, "items", []);
@@ -97,7 +146,7 @@ export default function FilterSortHeader({
               onPress={() => setSortVisible(true)}
             >
               <Text style={styles.compactPillText} numberOfLines={1}>Sort</Text>
-              <Icon name="angle-down" size={12} color="#111827" />
+              <Icon name={sortDropdownIcon} size={dropdownIconSize} color={dropdownIconColor} />
             </TouchableOpacity>
             <TouchableOpacity
               style={styles.compactPill}
@@ -107,7 +156,7 @@ export default function FilterSortHeader({
               <Text style={styles.compactPillText} numberOfLines={1}>
                 {activeFilter?.label || "Filter"}
               </Text>
-              <Icon name="angle-down" size={12} color="#111827" />
+              <Icon name={filterDropdownIcon} size={dropdownIconSize} color={dropdownIconColor} />
             </TouchableOpacity>
           </View>
         ) : (
@@ -156,14 +205,14 @@ export default function FilterSortHeader({
             activeOpacity={0.75}
             onPress={() => handleViewMode("list")}
           >
-            <Icon name="bars" size={14} color={viewMode === "list" ? "#111827" : "#D1D5DB"} />
+            <Icon name={listIconName} size={14} color={viewMode === "list" ? "#111827" : "#D1D5DB"} />
           </TouchableOpacity>
           <TouchableOpacity
             style={[styles.toggleBtn, compactControls && styles.compactToggleBtn, viewMode === "grid" && styles.toggleBtnActive]}
             activeOpacity={0.75}
             onPress={() => handleViewMode("grid")}
           >
-            <Icon name="th-large" size={14} color={viewMode === "grid" ? "#111827" : "#D1D5DB"} />
+            <Icon name={gridIconName} size={14} color={viewMode === "grid" ? "#111827" : "#D1D5DB"} />
           </TouchableOpacity>
         </View>
       </View>

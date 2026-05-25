@@ -77,6 +77,12 @@ const getRawProps = (section) => {
 const findProductGridSection = (dsl = {}) =>
   (dsl?.sections || []).find((section) => getComponentName(section) === "product_grid") || null;
 
+const findFilterSortSection = (dsl = {}) =>
+  (dsl?.sections || []).find((section) => {
+    const component = getComponentName(section);
+    return component === "filter_sort_header" || component === "filter_sort";
+  }) || null;
+
 const resolveString = (value, fallback = "") => {
   const resolved = unwrapValue(value, fallback);
   if (resolved === undefined || resolved === null) return fallback;
@@ -189,6 +195,16 @@ const moneyAmount = (value) => {
   return value;
 };
 
+const productCurrency = (product = {}) =>
+  product.priceCurrency ||
+  product.currency ||
+  product.currencySymbol ||
+  product.priceAmount?.currencyCode ||
+  product.priceAmount?.currency ||
+  product.price?.currencyCode ||
+  product.price?.currency ||
+  "";
+
 function isProductAvailable(product) {
   if (!product || typeof product !== "object") return true;
   if (product.availableForSale === false || String(product.availableForSale).trim().toLowerCase() === "false") return false;
@@ -242,6 +258,7 @@ export default function AllProductsScreen() {
   const [homeHeaderConfig, setHomeHeaderConfig] = useState(null);
   const [productListHeaderConfig, setProductListHeaderConfig] = useState(null);
   const [productListGridSection, setProductListGridSection] = useState(null);
+  const [productListFilterSortSection, setProductListFilterSortSection] = useState(null);
   const favoriteToggleConfig = useMemo(() => buildFavoriteToggleConfig(), []);
 
   useEffect(() => {
@@ -323,13 +340,19 @@ export default function AllProductsScreen() {
     const titleSize = resolveNumber([raw?.titleSize, raw?.cardTitleSize, titleCss?.fontSize], 14);
     const titleColor = resolveString(raw?.titleColor ?? titleCss?.color, "#111827");
     const titleWeight = resolveWeight(raw?.titleWeight ?? titleCss?.fontWeight, "600");
-    const titleFamily = resolveFont(resolveString(raw?.titleFamily ?? raw?.titleFontFamily ?? titleCss?.fontFamily, ""));
+    const titleFamily = resolveFont(resolveString(
+      raw?.titleFamily ?? raw?.titleFontFamily ?? raw?.productTitleFontFamily ?? raw?.fontFamily ?? titleCss?.fontFamily,
+      ""
+    ));
     const titleAlign = resolveString(raw?.titleAlign ?? raw?.alignText ?? titleCss?.textAlign, "left").toLowerCase();
     const titleWrap = resolveBoolean([raw?.titleWrap, raw?.cardTitleWrap], true);
-    const priceSize = resolveNumber([raw?.priceSize, raw?.cardPriceSize, priceCss?.fontSize], 14);
-    const priceColor = resolveString(raw?.priceColor ?? priceCss?.color, "#111827");
-    const priceWeight = resolveWeight(raw?.priceWeight ?? priceCss?.fontWeight, "600");
-    const priceFamily = resolveFont(resolveString(raw?.priceFamily ?? raw?.priceFontFamily ?? priceCss?.fontFamily, ""));
+    const priceSize = resolveNumber([raw?.priceSize, raw?.productPriceSize, raw?.cardPriceSize, priceCss?.fontSize], 14);
+    const priceColor = resolveString(raw?.priceColor ?? raw?.productPriceColor ?? priceCss?.color, "#111827");
+    const priceWeight = resolveWeight(raw?.priceWeight ?? raw?.productPriceWeight ?? priceCss?.fontWeight, "600");
+    const priceFamily = resolveFont(resolveString(
+      raw?.priceFamily ?? raw?.priceFontFamily ?? raw?.productPriceFontFamily ?? raw?.fontFamily ?? priceCss?.fontFamily,
+      ""
+    ));
     const showAddToCart = resolveBoolean(
       [
         raw?.atcActive,
@@ -456,6 +479,7 @@ export default function AllProductsScreen() {
       setHomeHeaderConfig(homeDsl?.headerdefault || null);
       setProductListHeaderConfig(productListDsl?.headerdefault || null);
       setProductListGridSection(findProductGridSection(productListDsl));
+      setProductListFilterSortSection(findFilterSortSection(productListDsl));
       const nav = (homeDsl?.sections || []).find((s) => {
         const c = (
           s?.component?.const || s?.component ||
@@ -522,19 +546,20 @@ export default function AllProductsScreen() {
           image: product.imageUrl || "",
           price: parseFloat(product.priceAmount ?? product.price) || 0,
           variant: "",
-          currency: product.priceCurrency || product.currency || product.currencySymbol || "",
+          currency: productCurrency(product),
           quantity: 1,
         },
       })
     );
   };
 
-  const searchHeaderConfig = productListHeaderConfig || homeHeaderConfig || {};
+  const resultHeaderConfig = productListHeaderConfig || homeHeaderConfig;
+  const searchHeaderConfig = resultHeaderConfig || {};
   const searchBackConfig = findBackHeaderItem(searchHeaderConfig);
   const searchBackIconName = resolveFA4IconName(
     resolveString(searchBackConfig?.iconId ?? searchBackConfig?.icon, "")
-  );
-  const searchBackIconSize = resolveNumber([searchBackConfig?.iconSize], 21);
+  ) || "long-arrow-left";
+  const searchBackIconSize = resolveNumber([searchBackConfig?.iconSize], 16);
   const searchBackIconColor = resolveString(
     searchBackConfig?.iconColor ?? searchHeaderConfig?.iconColor,
     "#111827"
@@ -542,8 +567,8 @@ export default function AllProductsScreen() {
   const searchCartConfig = findCartHeaderItem(searchHeaderConfig);
   const searchCartIconName = resolveFA4IconName(
     resolveString(searchCartConfig?.iconId ?? searchCartConfig?.icon, "")
-  );
-  const searchCartIconSize = resolveNumber([searchCartConfig?.iconSize], 21);
+  ) || "shopping-cart";
+  const searchCartIconSize = resolveNumber([searchCartConfig?.iconSize], 16);
   const searchCartIconColor = resolveString(
     searchCartConfig?.iconColor ?? searchHeaderConfig?.iconColor,
     "#111827"
@@ -556,7 +581,7 @@ export default function AllProductsScreen() {
       const isFav = isWishlistProduct(wishlistItems, item);
       const price = formatMoney(
         moneyAmount(item.priceAmount ?? item.price),
-        item.priceCurrency || item.currency || item.currencySymbol
+        productCurrency(item)
       );
 
       return (
@@ -715,8 +740,8 @@ export default function AllProductsScreen() {
           </Text>
           <Text style={styles.price}>
             {formatMoney(
-              item.priceAmount ?? item.price,
-              item.priceCurrency || item.currency || item.currencySymbol
+              moneyAmount(item.priceAmount ?? item.price),
+              productCurrency(item)
             )}
           </Text>
         </View>
@@ -763,6 +788,19 @@ export default function AllProductsScreen() {
       </TouchableOpacity>
     </View>
   );
+
+  const productListFilterSortProps = getRawProps(productListFilterSortSection);
+  const resultFilterSortSection = isSearchMode
+    ? {
+        props: {
+          ...productListFilterSortProps,
+          variant: "searchResults",
+          compactSearchControls: true,
+          pt: productListFilterSortProps?.pt ?? 6,
+          pb: productListFilterSortProps?.pb ?? 8,
+        },
+      }
+    : (productListFilterSortSection || {});
 
   return (
     <SafeArea edges={["top", "left", "right"]}>
@@ -835,8 +873,8 @@ export default function AllProductsScreen() {
               ) : null}
             </View>
           </View>
-        ) : homeHeaderConfig ? (
-          <HeaderDefault config={homeHeaderConfig} bottomNavSection={bottomNavSection} hideTabs showBack />
+        ) : resultHeaderConfig ? (
+          <HeaderDefault config={resultHeaderConfig} bottomNavSection={bottomNavSection} hideTabs showBack />
         ) : null}
         {!isSearchMode && (
           <View style={styles.headerSection}>
@@ -848,7 +886,7 @@ export default function AllProductsScreen() {
 
         {/* Filter + Sort bar */}
         <FilterSortHeader
-          section={isSearchMode ? { props: { variant: "searchResults", compactSearchControls: true, pt: 6, pb: 8 } } : {}}
+          section={resultFilterSortSection}
           filterItems={filterOptions}
           onSortChange={(opt) => setSortKey(opt)}
           onViewModeChange={(mode) => setViewMode(mode)}

@@ -26,6 +26,20 @@ import {
 } from "../utils/money";
 import { resolveProductImageResizeMode } from "../utils/productImageFit";
 
+const LIVE_DSL_REFRESH_INTERVAL_MS = 3000;
+
+const getDslFingerprint = (incomingDsl) => {
+  try {
+    return JSON.stringify({
+      headerdefault: incomingDsl?.headerdefault ?? null,
+      brandKit: incomingDsl?.brandKit ?? null,
+      sections: incomingDsl?.sections || [],
+    });
+  } catch (_) {
+    return (incomingDsl?.sections || []).map((section) => section?.component?.const || section?.component || "").join(",");
+  }
+};
+
 // ─── DSL helpers ──────────────────────────────────────────────────────────────
 
 const unwrap = (v, fb) => {
@@ -172,6 +186,7 @@ export default function OrderDetailScreen() {
   const [bottomNavSection, setBottomNavSection] = useState(null);
   const [bottomNavHeight,  setBottomNavHeight]  = useState(BOTTOM_NAV_RESERVED_HEIGHT);
   const versionRef = useRef(null);
+  const dslFingerprintRef = useRef(null);
   const enrichedOrderRef = useRef("");
   const customerAccessToken =
     session?.user?.customerAccessToken ||
@@ -191,6 +206,7 @@ export default function OrderDetailScreen() {
       if (dslData?.dsl?.sections?.length) {
         setSections(dslData.dsl.sections);
         versionRef.current = dslData.versionNumber ?? null;
+        dslFingerprintRef.current = getDslFingerprint(dslData.dsl);
       }
     } catch (_) {}
     finally { setDslLoading(false); }
@@ -205,12 +221,14 @@ export default function OrderDetailScreen() {
         const latest = await fetchDSL(appId, "order-details");
         if (!latest?.dsl?.sections?.length) return;
         const v = latest.versionNumber ?? null;
-        if (v !== versionRef.current) {
+        const fp = getDslFingerprint(latest.dsl);
+        if (v !== versionRef.current || fp !== dslFingerprintRef.current) {
           setSections(latest.dsl.sections);
           versionRef.current = v;
+          dslFingerprintRef.current = fp;
         }
       } catch (_) {}
-    }, 3000);
+    }, LIVE_DSL_REFRESH_INTERVAL_MS);
     return () => clearInterval(id);
   }, [appId]);
 

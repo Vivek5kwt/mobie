@@ -32,6 +32,36 @@ const GAP = 12;
 const H_PAD = 16;
 const { width: SCREEN_W } = Dimensions.get("window");
 
+const getComponentName = (section = {}) =>
+  String(
+    section?.component?.const ||
+      section?.component ||
+      section?.properties?.component?.const ||
+      section?.properties?.component ||
+      ""
+  ).toLowerCase();
+
+const findFilterSortSection = (dsl = {}) =>
+  (dsl?.sections || []).find((section) => {
+    const component = getComponentName(section);
+    return component === "filter_sort_header" || component === "filter_sort";
+  }) || null;
+
+const productCurrency = (product = {}) =>
+  product.priceCurrency ||
+  product.currency ||
+  product.currencySymbol ||
+  product.priceAmount?.currencyCode ||
+  product.priceAmount?.currency ||
+  product.price?.currencyCode ||
+  product.price?.currency ||
+  "";
+
+const moneyAmount = (value) => {
+  if (value && typeof value === "object") return value.amount ?? value.value ?? "";
+  return value;
+};
+
 function sortProducts(products, sortKey) {
   const copy = [...products];
   switch (sortKey) {
@@ -89,6 +119,7 @@ export default function CollectionProductsScreen() {
     collectionTitle,
     title,
     label,
+    sourcePageName,
   } = route?.params || {};
   const resolvedCollectionHandle = collectionHandle || handle || "";
   const resolvedCollectionTitle = collectionTitle || title || label || "Products";
@@ -102,6 +133,8 @@ export default function CollectionProductsScreen() {
   const [bottomNavSection, setBottomNavSection] = useState(null);
   const [bottomNavHeight, setBottomNavHeight]   = useState(BOTTOM_NAV_RESERVED_HEIGHT);
   const [homeHeaderConfig, setHomeHeaderConfig] = useState(null);
+  const [productListHeaderConfig, setProductListHeaderConfig] = useState(null);
+  const [productListFilterSortSection, setProductListFilterSortSection] = useState(null);
   const [filterOptions, setFilterOptions] = useState([]);
   const favoriteTapRef = useRef(false);
 
@@ -272,8 +305,8 @@ export default function CollectionProductsScreen() {
           </Text>
           <Text style={styles.price}>
             {formatMoney(
-              item.priceAmount ?? item.price,
-              item.priceCurrency || item.currency || item.currencySymbol
+              moneyAmount(item.priceAmount ?? item.price),
+              productCurrency(item)
             )}
           </Text>
           <TouchableOpacity
@@ -294,9 +327,27 @@ export default function CollectionProductsScreen() {
   useEffect(() => {
     const appId = resolveAppId();
     let mounted = true;
-    fetchDSL(appId, "home").then((data) => {
+    const pageCandidates = Array.from(new Set([
+      sourcePageName,
+      resolvedCollectionHandle,
+      resolvedCollectionTitle,
+      "collections",
+      "collection",
+      "product-list",
+    ].filter(Boolean)));
+    Promise.all([
+      fetchDSL(appId, "home").catch(() => null),
+      fetchDSL(appId, "product-list").catch(() => null),
+      Promise.all(pageCandidates.map((page) => fetchDSL(appId, page).catch(() => null))),
+    ]).then(([data, productListData, pageResults]) => {
       if (!mounted) return;
+      const productListDsl = productListData?.dsl || productListData || {};
+      const matchedPageHeaderConfig = (pageResults || [])
+        .map((pageData) => (pageData?.dsl || pageData || {})?.headerdefault)
+        .find(Boolean);
       setHomeHeaderConfig(data?.dsl?.headerdefault || null);
+      setProductListHeaderConfig(matchedPageHeaderConfig || productListDsl?.headerdefault || null);
+      setProductListFilterSortSection(findFilterSortSection(productListDsl));
       const nav = (data?.dsl?.sections || []).find((s) => {
         const c = (
           s?.component?.const || s?.component ||
@@ -307,13 +358,18 @@ export default function CollectionProductsScreen() {
       if (nav) setBottomNavSection(nav);
     }).catch(() => {});
     return () => { mounted = false; };
-  }, []);
+  }, [resolvedCollectionHandle, resolvedCollectionTitle, sourcePageName]);
 
   return (
     <SafeArea edges={["top", "left", "right"]}>
       <View style={styles.container}>
-        {homeHeaderConfig ? (
-          <HeaderDefault config={homeHeaderConfig} bottomNavSection={bottomNavSection} hideTabs showBack />
+        {(productListHeaderConfig || homeHeaderConfig) ? (
+          <HeaderDefault
+            config={productListHeaderConfig || homeHeaderConfig}
+            bottomNavSection={bottomNavSection}
+            hideTabs
+            showBack
+          />
         ) : null}
 
         {/* Section title row */}
@@ -332,7 +388,7 @@ export default function CollectionProductsScreen() {
 
         {/* Filter + Sort header bar */}
         <FilterSortHeader
-          section={{}}
+          section={productListFilterSortSection || {}}
           filterItems={filterOptions}
           onSortChange={(opt) => setSortKey(opt)}
           onViewModeChange={(mode) => setViewMode(mode)}
