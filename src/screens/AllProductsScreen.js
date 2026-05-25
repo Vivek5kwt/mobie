@@ -19,6 +19,7 @@ import { SafeArea } from "../utils/SafeAreaHandler";
 import HeaderDefault from "../components/HeaderDefault";
 import FilterSortHeader from "../components/FilterSortHeader";
 import BottomNavigation, { BOTTOM_NAV_RESERVED_HEIGHT } from "../components/BottomNavigation";
+import Snackbar from "../components/Snackbar";
 import { fetchDSL } from "../engine/dslHandler";
 import { resolveAppId } from "../utils/appId";
 import { buildProductFilterOptions, productMatchesFilter } from "../utils/productFilters";
@@ -259,7 +260,14 @@ export default function AllProductsScreen() {
   const [productListHeaderConfig, setProductListHeaderConfig] = useState(null);
   const [productListGridSection, setProductListGridSection] = useState(null);
   const [productListFilterSortSection, setProductListFilterSortSection] = useState(null);
+  const [cartSnackbarVisible, setCartSnackbarVisible] = useState(false);
+  const [cartSnackbarMessage, setCartSnackbarMessage] = useState("");
   const favoriteToggleConfig = useMemo(() => buildFavoriteToggleConfig(), []);
+  const cartSnackbarTimerRef = useRef(null);
+
+  useEffect(() => () => {
+    if (cartSnackbarTimerRef.current) clearTimeout(cartSnackbarTimerRef.current);
+  }, []);
 
   useEffect(() => {
     setSearchInput(searchTerm);
@@ -551,6 +559,10 @@ export default function AllProductsScreen() {
         },
       })
     );
+    if (cartSnackbarTimerRef.current) clearTimeout(cartSnackbarTimerRef.current);
+    setCartSnackbarVisible(false);
+    setCartSnackbarMessage(`${product?.title || "Product"} added to cart successfully.`);
+    cartSnackbarTimerRef.current = setTimeout(() => setCartSnackbarVisible(true), 0);
   };
 
   const resultHeaderConfig = productListHeaderConfig || homeHeaderConfig;
@@ -949,6 +961,14 @@ export default function AllProductsScreen() {
             <BottomNavigation section={bottomNavSection} />
           </View>
         )}
+
+        <Snackbar
+          visible={cartSnackbarVisible}
+          message={cartSnackbarMessage}
+          onDismiss={() => setCartSnackbarVisible(false)}
+          duration={2500}
+          type="success"
+        />
       </View>
     </SafeArea>
   );

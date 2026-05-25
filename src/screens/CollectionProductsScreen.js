@@ -18,6 +18,7 @@ import { isWishlistProduct, toggleWishlist } from "../store/slices/wishlistSlice
 import HeaderDefault from "../components/HeaderDefault";
 import FilterSortHeader from "../components/FilterSortHeader";
 import BottomNavigation, { BOTTOM_NAV_RESERVED_HEIGHT } from "../components/BottomNavigation";
+import Snackbar from "../components/Snackbar";
 import { fetchDSL } from "../engine/dslHandler";
 import { resolveAppId } from "../utils/appId";
 import { buildProductFilterOptions, productMatchesFilter } from "../utils/productFilters";
@@ -136,7 +137,10 @@ export default function CollectionProductsScreen() {
   const [productListHeaderConfig, setProductListHeaderConfig] = useState(null);
   const [productListFilterSortSection, setProductListFilterSortSection] = useState(null);
   const [filterOptions, setFilterOptions] = useState([]);
+  const [cartSnackbarVisible, setCartSnackbarVisible] = useState(false);
+  const [cartSnackbarMessage, setCartSnackbarMessage] = useState("");
   const favoriteTapRef = useRef(false);
+  const cartSnackbarTimerRef = useRef(null);
 
   // FilterSortHeader state
   const [sortKey, setSortKey]       = useState("Popular");
@@ -148,6 +152,10 @@ export default function CollectionProductsScreen() {
     ? SCREEN_W - H_PAD * 2
     : (SCREEN_W - H_PAD * 2 - GAP) / 2;
   const favoriteToggleConfig = buildFavoriteToggleConfig();
+
+  useEffect(() => () => {
+    if (cartSnackbarTimerRef.current) clearTimeout(cartSnackbarTimerRef.current);
+  }, []);
 
   const loadProducts = useCallback(
     async ({ after = null, append = false } = {}) => {
@@ -231,6 +239,10 @@ export default function CollectionProductsScreen() {
         },
       })
     );
+    if (cartSnackbarTimerRef.current) clearTimeout(cartSnackbarTimerRef.current);
+    setCartSnackbarVisible(false);
+    setCartSnackbarMessage(`${product?.title || "Product"} added to cart successfully.`);
+    cartSnackbarTimerRef.current = setTimeout(() => setCartSnackbarVisible(true), 0);
   };
 
   // Apply sort + optional filter
@@ -313,7 +325,11 @@ export default function CollectionProductsScreen() {
             style={inStock ? styles.cartBtnActive : styles.cartBtnSoldOut}
             activeOpacity={inStock ? 0.8 : 1}
             disabled={!inStock}
-            onPress={() => inStock && handleAddToCart(item)}
+            onPress={(e) => {
+              e?.stopPropagation?.();
+              e?.preventDefault?.();
+              if (inStock) handleAddToCart(item);
+            }}
           >
             <Text style={inStock ? styles.cartBtnTextActive : styles.cartBtnTextSoldOut}>
               {inStock ? "Add To Cart" : "Item Not Available"}
@@ -443,6 +459,14 @@ export default function CollectionProductsScreen() {
             <BottomNavigation section={bottomNavSection} />
           </View>
         )}
+
+        <Snackbar
+          visible={cartSnackbarVisible}
+          message={cartSnackbarMessage}
+          onDismiss={() => setCartSnackbarVisible(false)}
+          duration={2500}
+          type="success"
+        />
       </View>
     </SafeArea>
   );
