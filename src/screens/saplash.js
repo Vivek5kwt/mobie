@@ -302,8 +302,8 @@ export default function SplashScreen() {
   const showBrandIcon = asBoolean(brandAssets?.splashShowBrandIcon, true);
   const primarySplashSource = splashSource || (showBrandIcon ? logoSource : null);
   const primarySplashKind = splashSource ? "splash" : "logo";
-  const splashBgColor = brandAssets?.splashBgColor || "#0A0A14";
-  const splashGradStart = brandAssets?.splashGradStart || splashBgColor;
+  const splashBgColor = brandAssets?.splashBgColor || brandAssets?.splashGradStart || "#0A0A14";
+  const splashGradStart = splashBgColor;
   const splashGradEnd = brandAssets?.splashGradEnd || splashBgColor;
 
   return (
