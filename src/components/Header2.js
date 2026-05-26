@@ -105,12 +105,12 @@ const resolveLogoSource = (logoImage) => {
   if (!logoImage) {
     const appLogo = getAppLogoSync();
     if (appLogo && appLogo.trim() !== "") return { uri: appLogo };
-    return require("../assets/logo/mobidraglogo.png");
+    return null;
   }
   if (logoImage === "/images/mobidrag.png") {
     const appLogo = getAppLogoSync();
     if (appLogo && appLogo.trim() !== "") return { uri: appLogo };
-    return require("../assets/logo/mobidraglogo.png");
+    return null;
   }
   return { uri: logoImage };
 };
@@ -790,7 +790,7 @@ export default function Header2({ section }) {
     const logoEnabled = resolveBooleanSetting(rawPropsNode.enableLogo, true);
     const logoImageProp = resolveValue(rawPropsNode.logoImage, "");
     const logoSource = simpleHeaderLogoFallback
-      ? require("../assets/logo/mobidraglogo.png")
+      ? null
       : resolveLogoSource(logoImageProp);
 
     const headerTextEnabled = resolveBooleanSetting(

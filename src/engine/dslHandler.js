@@ -3,6 +3,7 @@ import LAYOUT_VERSION_QUERY from "../graphql/queries/layoutVersionQuery";
 import authLayoutFallback from "../data/authLayoutFallback";
 import { resolveAppId } from "../utils/appId";
 import { setTypography } from "../services/typographyService";
+import { setBrandKitAssetsFromDsl } from "../services/brandKitService";
 
 const normalizeName = (value) =>
   value
@@ -289,6 +290,7 @@ export async function fetchLiveDSL(appId, pageName) {
 
     const latestVersion = sortedVersions[0];
     const fullDsl = latestVersion?.dsl;
+    setBrandKitAssetsFromDsl(fullDsl, appIdInt);
     const dslData = sanitizeSections(selectDslPage(fullDsl, layout, pageName));
     // Preserve headerdefault from the full DSL even if selectDslPage picked a nested page
     const headerDefault = dslData?.headerdefault ?? fullDsl?.headerdefault ?? null;

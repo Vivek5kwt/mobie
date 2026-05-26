@@ -31,6 +31,7 @@ const query = `
       layout_versions {
         metadata
         dsl
+        version_number
       }
     }
   }
@@ -49,6 +50,75 @@ const options = {
     'Content-Type': 'application/json',
     'Content-Length': Buffer.byteLength(postData),
   },
+};
+
+const isObject = (value) =>
+  value !== null && typeof value === 'object' && !Array.isArray(value);
+
+const unwrapDeep = (value) => {
+  if (value === undefined || value === null) return value;
+  if (Array.isArray(value)) return value.map((item) => unwrapDeep(item));
+  if (!isObject(value)) return value;
+  if (value.value !== undefined) return unwrapDeep(value.value);
+  if (value.const !== undefined) return unwrapDeep(value.const);
+  if (value.properties !== undefined) return unwrapDeep(value.properties);
+  return Object.entries(value).reduce((acc, [key, next]) => {
+    acc[key] = unwrapDeep(next);
+    return acc;
+  }, {});
+};
+
+const parseMaybeJson = (value) => {
+  if (typeof value !== 'string') return value;
+  try {
+    return JSON.parse(value);
+  } catch (e) {
+    return value;
+  }
+};
+
+const cleanString = (value) => {
+  const resolved = unwrapDeep(value);
+  if (resolved === undefined || resolved === null) return '';
+  return String(resolved).trim();
+};
+
+const firstNonEmpty = (...values) => {
+  for (const value of values) {
+    const resolved = cleanString(value);
+    if (resolved) return resolved;
+  }
+  return '';
+};
+
+const collectBrandCandidates = (node, candidates = [], depth = 0, seen = new Set()) => {
+  if (!isObject(node) && !Array.isArray(node)) return candidates;
+  if (seen.has(node) || depth > 10) return candidates;
+  seen.add(node);
+
+  if (isObject(node)) {
+    if (node.brandKit?.brand_assets) candidates.push(node.brandKit.brand_assets);
+    if (node.brand_assets) candidates.push(node.brand_assets);
+    if (node._brandKitAssets) candidates.push(node._brandKitAssets);
+    if (node.logoUrl || node.faviconUrl || node.splashImageUrl) candidates.push(node);
+  }
+
+  const values = Array.isArray(node) ? node : Object.values(node);
+  values.forEach((value) => collectBrandCandidates(value, candidates, depth + 1, seen));
+  return candidates;
+};
+
+const extractBrandAssets = (dsl) => {
+  const root = unwrapDeep(parseMaybeJson(dsl));
+  if (!isObject(root)) return {};
+
+  return collectBrandCandidates(root).reduce((assets, candidate) => {
+    const source = unwrapDeep(candidate) || {};
+    if (!assets.logoUrl) assets.logoUrl = firstNonEmpty(source.logoUrl, source.logo, source.appLogo, source.appIcon);
+    if (!assets.faviconUrl) assets.faviconUrl = firstNonEmpty(source.faviconUrl, source.favicon, source.iconUrl);
+    if (!assets.splashImageUrl) assets.splashImageUrl = firstNonEmpty(source.splashImageUrl, source.splashImage);
+    return assets;
+  }, {});
 };
 
 // Add authorization header if provided
@@ -106,7 +176,10 @@ const req = https.request(GRAPHQL_ENDPOINT, options, (res) => {
 
         // Check layout versions metadata and DSL
         if (layout.layout_versions && Array.isArray(layout.layout_versions)) {
-          for (const version of layout.layout_versions) {
+          const sortedVersions = [...layout.layout_versions].sort(
+            (a, b) => (b?.version_number || 0) - (a?.version_number || 0)
+          );
+          for (const version of sortedVersions) {
             if (version.metadata) {
               try {
                 const metadata = typeof version.metadata === 'string'
@@ -124,15 +197,20 @@ const req = https.request(GRAPHQL_ENDPOINT, options, (res) => {
               }
             }
 
-            // Check DSL for app name/icon in sections
-            if (version.dsl && !appName) {
+            // Check DSL for app name/icon and brand kit assets
+            if (version.dsl && (!appName || !appIcon)) {
               try {
-                const dsl = typeof version.dsl === 'string' ? JSON.parse(version.dsl) : version.dsl;
-                if (dsl.appName || dsl.name) {
+                const dsl = parseMaybeJson(version.dsl);
+                const brandAssets = extractBrandAssets(dsl);
+                if (!appName && (dsl.appName || dsl.name)) {
                   appName = dsl.appName || dsl.name;
                 }
-                if (dsl.appIcon || dsl.icon) {
-                  appIcon = dsl.appIcon || dsl.icon;
+                if (!appIcon) {
+                  appIcon = brandAssets.logoUrl ||
+                    brandAssets.faviconUrl ||
+                    dsl.appIcon ||
+                    dsl.icon ||
+                    null;
                 }
               } catch (e) {
                 // DSL might not be JSON or might not have app info

@@ -10,17 +10,39 @@ import {
   View,
 } from "react-native";
 import { useNavigation } from "@react-navigation/native";
+import LinearGradient from "react-native-linear-gradient";
 import { useAuth } from "../services/AuthContext";
 import { fetchStoreConfig } from "../services/storeService";
+import {
+  fetchBrandKitAssets,
+  getBrandKitAssetsSync,
+  getSplashImageSync,
+} from "../services/brandKitService";
 import { getAppNameSync, getAppLogoSync } from "../utils/appInfo";
 
 const { width: W, height: H } = Dimensions.get("window");
-const DEFAULT_LOGO = require("../assets/logo/mobidraglogo.png");
 
 // Minimum time the splash is visible — long enough to show the brand,
 // short enough not to annoy users. Navigation happens when BOTH this
 // flag AND auth initialisation are done (whichever takes longer).
 const MIN_SPLASH_MS = 1200;
+const BRAND_ASSET_WAIT_MS = 2200;
+
+const toRemoteImageSource = (url) => {
+  if (typeof url !== "string" || !url.trim()) return null;
+  return { uri: url.trim() };
+};
+
+const asBoolean = (value, fallback = true) => {
+  if (typeof value === "boolean") return value;
+  if (typeof value === "string") {
+    const lowered = value.trim().toLowerCase();
+    if (["true", "1", "yes", "y"].includes(lowered)) return true;
+    if (["false", "0", "no", "n"].includes(lowered)) return false;
+  }
+  if (typeof value === "number") return value !== 0;
+  return fallback;
+};
 
 // ── Animated particles ────────────────────────────────────────────────────────
 // Reduced from 18 → 8 to cut animation overhead on cold start.
@@ -102,28 +124,47 @@ export default function SplashScreen() {
   const { initializing } = useAuth();
 
   // ── Branding ──────────────────────────────────────────────────────────────
-  const [appName,    setAppName]    = useState(getAppNameSync() || "MobiDrag");
-  const [shopName,   setShopName]   = useState("");
-  const [logoSource, setLogoSource] = useState(() => {
-    const url = getAppLogoSync();
-    return url ? { uri: url } : DEFAULT_LOGO;
-  });
+  const [brandAssets, setBrandAssets] = useState(() => getBrandKitAssetsSync() || {});
+  const [appName] = useState(getAppNameSync() || "MobiDrag");
+  const [shopName, setShopName] = useState("");
+  const [logoSource, setLogoSource] = useState(() => toRemoteImageSource(getAppLogoSync()));
+  const [splashSource, setSplashSource] = useState(() => toRemoteImageSource(getSplashImageSync()));
+  const [brandReady, setBrandReady] = useState(() => Boolean(getBrandKitAssetsSync()));
 
-  // fetchStoreConfig is cosmetic only (shop name / logo) — never block navigation on it.
+  // Brand assets come from the DSL/API, with a short timeout so startup stays smooth.
   useEffect(() => {
     let cancelled = false;
-    const t = setTimeout(() => { cancelled = true; }, 3000); // hard cut-off
+    const brandWaitTimer = setTimeout(() => {
+      if (!cancelled) setBrandReady(true);
+    }, BRAND_ASSET_WAIT_MS);
 
-    fetchStoreConfig().then((store) => {
-      if (cancelled || !store) return;
-      if (store.shop_name) setShopName(store.shop_name);
-      const logo = getAppLogoSync();
-      if (!logo && store.shopify_domain) {
-        setLogoSource({ uri: `https://${store.shopify_domain}/favicon.ico` });
-      }
-    }).catch(() => {});
+    Promise.allSettled([fetchBrandKitAssets(), fetchStoreConfig()])
+      .then(([brandResult, storeResult]) => {
+        if (cancelled) return;
 
-    return () => { cancelled = true; clearTimeout(t); };
+        if (brandResult.status === "fulfilled" && brandResult.value) {
+          const assets = brandResult.value;
+          setBrandAssets(assets);
+          setLogoSource(toRemoteImageSource(assets.logoUrl || assets.faviconUrl));
+          setSplashSource(toRemoteImageSource(assets.splashImageUrl));
+        }
+
+        if (storeResult.status === "fulfilled" && storeResult.value?.shop_name) {
+          setShopName(storeResult.value.shop_name);
+        }
+      })
+      .catch(() => {})
+      .finally(() => {
+        if (!cancelled) {
+          clearTimeout(brandWaitTimer);
+          setBrandReady(true);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+      clearTimeout(brandWaitTimer);
+    };
   }, []);
 
   // ── Animation values ──────────────────────────────────────────────────────
@@ -250,22 +291,51 @@ export default function SplashScreen() {
   }, []);
 
   useEffect(() => {
-    if (authReady && minTimeReady) {
+    if (authReady && minTimeReady && brandReady) {
       navigation.reset({ index: 0, routes: [{ name: "LayoutScreen" }] });
     }
-  }, [authReady, minTimeReady, navigation]);
+  }, [authReady, brandReady, minTimeReady, navigation]);
 
   const glowOpacity = logoGlow.interpolate({ inputRange: [0, 1], outputRange: [0.3, 0.9] });
   const displayName = shopName || appName;
+  const hasLogo = Boolean(logoSource);
+  const hasSplashImage = Boolean(splashSource);
+  const showBrandIcon = asBoolean(brandAssets?.splashShowBrandIcon, true);
+  const splashBgColor = brandAssets?.splashBgColor || "#0A0A14";
+  const splashGradStart = brandAssets?.splashGradStart || splashBgColor;
+  const splashGradEnd = brandAssets?.splashGradEnd || splashBgColor;
 
   return (
     <View style={styles.container}>
       <StatusBar barStyle="light-content" backgroundColor="transparent" translucent />
 
       {/* Background layers */}
-      <Animated.View style={[styles.bgLayer1, { transform: [{ scale: bgScale }] }]} />
-      <View style={styles.bgLayer2} />
-      <View style={styles.bgLayer3} />
+      <LinearGradient
+        colors={[splashGradStart, splashGradEnd]}
+        style={StyleSheet.absoluteFillObject}
+      />
+      {hasSplashImage ? (
+        <Animated.View style={[styles.splashImageLayer, { transform: [{ scale: bgScale }] }]}>
+          <Image
+            source={splashSource}
+            style={styles.splashImage}
+            resizeMode="cover"
+            onError={() => setSplashSource(null)}
+          />
+        </Animated.View>
+      ) : (
+        <>
+          <Animated.View
+            style={[
+              styles.bgLayer1,
+              { backgroundColor: splashBgColor, transform: [{ scale: bgScale }] },
+            ]}
+          />
+          <View style={styles.bgLayer2} />
+          <View style={styles.bgLayer3} />
+        </>
+      )}
+      <View style={[styles.splashScrim, hasSplashImage ? styles.splashScrimImage : null]} />
 
       {/* Floating particles (8) */}
       {PARTICLES.map((p) => (
@@ -280,16 +350,20 @@ export default function SplashScreen() {
 
       {/* Center content */}
       <View style={styles.centerBlock}>
-        <Animated.View style={[styles.logoHalo, { opacity: glowOpacity }]} />
+        {showBrandIcon && hasLogo ? (
+          <>
+            <Animated.View style={[styles.logoHalo, { opacity: glowOpacity }]} />
 
-        <Animated.View style={[styles.logoCard, { opacity: logoOpacity, transform: [{ scale: logoScale }] }]}>
-          <Image
-            source={logoSource}
-            style={styles.logoImage}
-            resizeMode="contain"
-            onError={() => setLogoSource(DEFAULT_LOGO)}
-          />
-        </Animated.View>
+            <Animated.View style={[styles.logoCard, { opacity: logoOpacity, transform: [{ scale: logoScale }] }]}>
+              <Image
+                source={logoSource}
+                style={styles.logoImage}
+                resizeMode="contain"
+                onError={() => setLogoSource(null)}
+              />
+            </Animated.View>
+          </>
+        ) : null}
 
         <Animated.Text
           style={[styles.appName, { opacity: titleOpacity, transform: [{ translateY: titleY }] }]}
@@ -329,6 +403,21 @@ const styles = StyleSheet.create({
     backgroundColor: "#0A0A14",
     alignItems: "center",
     justifyContent: "center",
+  },
+
+  splashImageLayer: {
+    ...StyleSheet.absoluteFillObject,
+  },
+  splashImage: {
+    width: "100%",
+    height: "100%",
+  },
+  splashScrim: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: "rgba(0,0,0,0.18)",
+  },
+  splashScrimImage: {
+    backgroundColor: "rgba(0,0,0,0.32)",
   },
 
   bgLayer1: {

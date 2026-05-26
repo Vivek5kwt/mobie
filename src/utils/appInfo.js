@@ -2,6 +2,7 @@
  * Utility to read app information from app.json
  * This file is copied to Android assets during build, so we can read it at runtime
  */
+import { getBrandLogoSync } from '../services/brandKitService';
 
 let cachedAppInfo = null;
 
@@ -44,6 +45,9 @@ export const getAppNameSync = () => {
  * Gets app logo URL from app.json (synchronous)
  */
 export const getAppLogoSync = () => {
+  const brandLogo = getBrandLogoSync();
+  if (brandLogo) return brandLogo;
+
   const appInfo = getAppInfoSync();
   return appInfo?.logo || null;
 };

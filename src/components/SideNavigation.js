@@ -5,10 +5,9 @@ import Icon from "react-native-vector-icons/FontAwesome6";
 import { convertStyles } from "../utils/convertStyles";
 import { useAuth } from "../services/AuthContext";
 import { isAuthenticatedSession } from "../utils/authGate";
-import { getAppNameSync } from "../utils/appInfo";
+import { getAppLogoSync, getAppNameSync } from "../utils/appInfo";
 import { resolveFont } from "../services/typographyService";
 
-const LOCAL_LOGO_IMAGE = require("../assets/logo/mobidraglogo.png");
 const DEFAULT_DRAWER_WIDTH = 260;
 
 const isObject = (value) =>
@@ -139,9 +138,9 @@ const labelToSlug = (label) =>
     .replace(/^-|-$/g, "");
 
 const resolveLogoSource = (logoUrl) => {
-  if (!logoUrl) return null;
-  if (logoUrl === "/images/mobidrag.png") return LOCAL_LOGO_IMAGE;
-  return { uri: logoUrl };
+  const appLogo = getAppLogoSync();
+  const resolvedLogo = logoUrl && logoUrl !== "/images/mobidrag.png" ? logoUrl : appLogo;
+  return resolvedLogo ? { uri: resolvedLogo } : null;
 };
 
 const getPropsNode = (section = {}) =>
@@ -273,7 +272,7 @@ export default function SideNavigation({ section }) {
   );
   const subtitle = toStringValue(raw?.subtitle, "");
   const logoUrl = toStringValue(raw?.logoUrl, "");
-  const logoSource = logoUrl ? resolveLogoSource(logoUrl) : null;
+  const logoSource = resolveLogoSource(logoUrl);
   const showLogo = asBoolean(visibility.headerLogo ?? visibility.logo, Boolean(logoSource));
 
   const headerFontSize = toNumber(firstDefined(raw?.headerFontSize, raw?.fontSize), 18);

@@ -13,6 +13,7 @@ import {
 import FontAwesome from "react-native-vector-icons/FontAwesome";
 import { useNavigation, useRoute } from "@react-navigation/native";
 import { useDispatch, useSelector } from "react-redux";
+import HeaderIcon from "react-native-vector-icons/FontAwesome6";
 import { fetchShopifyProductsPage, searchShopifyProducts } from "../services/shopify";
 import { recordUserSearchTerm } from "../services/searchHistoryService";
 import { SafeArea } from "../utils/SafeAreaHandler";
@@ -25,7 +26,6 @@ import { resolveAppId } from "../utils/appId";
 import { buildProductFilterOptions, productMatchesFilter } from "../utils/productFilters";
 import { formatMoney } from "../utils/money";
 import { resolveProductImageResizeMode } from "../utils/productImageFit";
-import { resolveFA4IconName } from "../utils/faIconAlias";
 import { resolveFont } from "../services/typographyService";
 import { addItem } from "../store/slices/cartSlice";
 import { isWishlistProduct, toggleWishlist } from "../store/slices/wishlistSlice";
@@ -177,6 +177,15 @@ const findBackHeaderItem = (header = {}) => {
   }) || null;
 };
 
+const normalizeHeaderIconName = (value, fallback = "") => {
+  const raw = resolveString(value, "").trim();
+  if (!raw) return fallback;
+  const cleaned = raw
+    .replace(/^fa-(solid|regular|brands)\s+/i, "")
+    .replace(/^fa[srldb]?[-_]?/i, "");
+  return cleaned || fallback;
+};
+
 function sortProducts(products, sortKey) {
   const copy = [...products];
   switch (sortKey) {
@@ -258,6 +267,7 @@ export default function AllProductsScreen() {
   const [bottomNavHeight, setBottomNavHeight]   = useState(BOTTOM_NAV_RESERVED_HEIGHT);
   const [homeHeaderConfig, setHomeHeaderConfig] = useState(null);
   const [productListHeaderConfig, setProductListHeaderConfig] = useState(null);
+  const [commonBackHeaderConfig, setCommonBackHeaderConfig] = useState(null);
   const [productListGridSection, setProductListGridSection] = useState(null);
   const [productListFilterSortSection, setProductListFilterSortSection] = useState(null);
   const [cartSnackbarVisible, setCartSnackbarVisible] = useState(false);
@@ -480,12 +490,15 @@ export default function AllProductsScreen() {
     Promise.all([
       fetchDSL(appId, "home").catch(() => null),
       fetchDSL(appId, "product-list").catch(() => null),
-    ]).then(([homeData, productListData]) => {
+      fetchDSL(appId, "product-detail").catch(() => null),
+    ]).then(([homeData, productListData, productDetailData]) => {
       if (!mounted) return;
       const homeDsl = homeData?.dsl || homeData || {};
       const productListDsl = productListData?.dsl || productListData || {};
+      const productDetailDsl = productDetailData?.dsl || productDetailData || {};
       setHomeHeaderConfig(homeDsl?.headerdefault || null);
       setProductListHeaderConfig(productListDsl?.headerdefault || null);
+      setCommonBackHeaderConfig(productDetailDsl?.headerdefault || null);
       setProductListGridSection(findProductGridSection(productListDsl));
       setProductListFilterSortSection(findFilterSortSection(productListDsl));
       const nav = (homeDsl?.sections || []).find((s) => {
@@ -567,22 +580,31 @@ export default function AllProductsScreen() {
 
   const resultHeaderConfig = productListHeaderConfig || homeHeaderConfig;
   const searchHeaderConfig = resultHeaderConfig || {};
-  const searchBackConfig = findBackHeaderItem(searchHeaderConfig);
-  const searchBackIconName = resolveFA4IconName(
-    resolveString(searchBackConfig?.iconId ?? searchBackConfig?.icon, "")
-  ) || "long-arrow-left";
+  const searchCommonHeaderConfig = productListHeaderConfig || commonBackHeaderConfig || homeHeaderConfig || {};
+  const searchBackConfig =
+    findBackHeaderItem(productListHeaderConfig) ||
+    findBackHeaderItem(commonBackHeaderConfig) ||
+    findBackHeaderItem(homeHeaderConfig);
+  const searchBackIconName = normalizeHeaderIconName(
+    searchBackConfig?.iconId ?? searchBackConfig?.icon,
+    "arrow-left-long"
+  );
   const searchBackIconSize = resolveNumber([searchBackConfig?.iconSize], 16);
   const searchBackIconColor = resolveString(
-    searchBackConfig?.iconColor ?? searchHeaderConfig?.iconColor,
+    searchBackConfig?.iconColor ?? searchCommonHeaderConfig?.iconColor ?? searchHeaderConfig?.iconColor,
     "#111827"
   );
-  const searchCartConfig = findCartHeaderItem(searchHeaderConfig);
-  const searchCartIconName = resolveFA4IconName(
-    resolveString(searchCartConfig?.iconId ?? searchCartConfig?.icon, "")
-  ) || "shopping-cart";
+  const searchCartConfig =
+    findCartHeaderItem(productListHeaderConfig) ||
+    findCartHeaderItem(commonBackHeaderConfig) ||
+    findCartHeaderItem(homeHeaderConfig);
+  const searchCartIconName = normalizeHeaderIconName(
+    searchCartConfig?.iconId ?? searchCartConfig?.icon,
+    "cart-shopping"
+  );
   const searchCartIconSize = resolveNumber([searchCartConfig?.iconSize], 16);
   const searchCartIconColor = resolveString(
-    searchCartConfig?.iconColor ?? searchHeaderConfig?.iconColor,
+    searchCartConfig?.iconColor ?? searchCommonHeaderConfig?.iconColor ?? searchHeaderConfig?.iconColor,
     "#111827"
   );
 
@@ -827,7 +849,7 @@ export default function AllProductsScreen() {
                 hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
               >
                 {searchBackIconName ? (
-                  <FontAwesome
+                  <HeaderIcon
                     name={searchBackIconName}
                     size={searchBackIconSize}
                     color={searchBackIconColor}
@@ -843,7 +865,7 @@ export default function AllProductsScreen() {
               >
                 {searchCartIconName ? (
                   <View>
-                    <FontAwesome
+                    <HeaderIcon
                       name={searchCartIconName}
                       size={searchCartIconSize}
                       color={searchCartIconColor}
