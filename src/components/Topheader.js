@@ -13,8 +13,6 @@ import { useAuth } from "../services/AuthContext";
 import { getTypography, resolveFirstFont } from "../services/typographyService";
 import { requireLoginForAction } from "../utils/authGate";
 
-const LOCAL_LOGO_IMAGE = require("../assets/logo/mobidraglogo.png");
-
 const unwrapValue = (value, fallback = undefined) => {
   if (value === undefined || value === null) return fallback;
   if (typeof value === "object") {

@@ -298,9 +298,10 @@ export default function SplashScreen() {
 
   const glowOpacity = logoGlow.interpolate({ inputRange: [0, 1], outputRange: [0.3, 0.9] });
   const displayName = shopName || appName;
-  const hasLogo = Boolean(logoSource);
   const hasSplashImage = Boolean(splashSource);
   const showBrandIcon = asBoolean(brandAssets?.splashShowBrandIcon, true);
+  const primarySplashSource = splashSource || (showBrandIcon ? logoSource : null);
+  const primarySplashKind = splashSource ? "splash" : "logo";
   const splashBgColor = brandAssets?.splashBgColor || "#0A0A14";
   const splashGradStart = brandAssets?.splashGradStart || splashBgColor;
   const splashGradEnd = brandAssets?.splashGradEnd || splashBgColor;
@@ -314,28 +315,19 @@ export default function SplashScreen() {
         colors={[splashGradStart, splashGradEnd]}
         style={StyleSheet.absoluteFillObject}
       />
-      {hasSplashImage ? (
-        <Animated.View style={[styles.splashImageLayer, { transform: [{ scale: bgScale }] }]}>
-          <Image
-            source={splashSource}
-            style={styles.splashImage}
-            resizeMode="cover"
-            onError={() => setSplashSource(null)}
-          />
-        </Animated.View>
-      ) : (
+      <Animated.View
+        style={[
+          styles.bgLayer1,
+          { backgroundColor: splashBgColor, transform: [{ scale: bgScale }] },
+        ]}
+      />
+      {!hasSplashImage ? (
         <>
-          <Animated.View
-            style={[
-              styles.bgLayer1,
-              { backgroundColor: splashBgColor, transform: [{ scale: bgScale }] },
-            ]}
-          />
           <View style={styles.bgLayer2} />
           <View style={styles.bgLayer3} />
         </>
-      )}
-      <View style={[styles.splashScrim, hasSplashImage ? styles.splashScrimImage : null]} />
+      ) : null}
+      <View style={styles.splashScrim} />
 
       {/* Floating particles (8) */}
       {PARTICLES.map((p) => (
@@ -350,16 +342,19 @@ export default function SplashScreen() {
 
       {/* Center content */}
       <View style={styles.centerBlock}>
-        {showBrandIcon && hasLogo ? (
+        {primarySplashSource ? (
           <>
             <Animated.View style={[styles.logoHalo, { opacity: glowOpacity }]} />
 
             <Animated.View style={[styles.logoCard, { opacity: logoOpacity, transform: [{ scale: logoScale }] }]}>
               <Image
-                source={logoSource}
-                style={styles.logoImage}
+                source={primarySplashSource}
+                style={[styles.logoImage, hasSplashImage && styles.splashArtImage]}
                 resizeMode="contain"
-                onError={() => setLogoSource(null)}
+                onError={() => {
+                  if (primarySplashKind === "splash") setSplashSource(null);
+                  else setLogoSource(null);
+                }}
               />
             </Animated.View>
           </>
@@ -405,19 +400,9 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
 
-  splashImageLayer: {
-    ...StyleSheet.absoluteFillObject,
-  },
-  splashImage: {
-    width: "100%",
-    height: "100%",
-  },
   splashScrim: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: "rgba(0,0,0,0.18)",
-  },
-  splashScrimImage: {
-    backgroundColor: "rgba(0,0,0,0.32)",
+    backgroundColor: "rgba(0,0,0,0.08)",
   },
 
   bgLayer1: {
@@ -486,8 +471,8 @@ const styles = StyleSheet.create({
   },
 
   logoCard: {
-    width: 104,
-    height: 104,
+    width: 132,
+    height: 132,
     borderRadius: 28,
     backgroundColor: "rgba(255,255,255,0.08)",
     alignItems: "center",
@@ -502,8 +487,12 @@ const styles = StyleSheet.create({
     marginBottom: 28,
   },
   logoImage: {
-    width: 68,
-    height: 68,
+    width: 88,
+    height: 88,
+  },
+  splashArtImage: {
+    width: 116,
+    height: 116,
   },
 
   appName: {

@@ -23,6 +23,15 @@ const unwrapDeep = (value, fallback = undefined) => {
   }, {});
 };
 
+const parseMaybeJson = (value) => {
+  if (typeof value !== "string") return value;
+  try {
+    return JSON.parse(value);
+  } catch (_) {
+    return value;
+  }
+};
+
 const cleanString = (value) => {
   const resolved = unwrapDeep(value, "");
   if (resolved === undefined || resolved === null) return "";
@@ -99,7 +108,7 @@ const collectBrandCandidates = (node, candidates = [], depth = 0, seen = new Set
 };
 
 export const extractBrandKitAssets = (dsl) => {
-  const root = unwrapDeep(dsl, {});
+  const root = unwrapDeep(parseMaybeJson(dsl), {});
   if (!isObject(root)) return null;
 
   const candidates = collectBrandCandidates(root);

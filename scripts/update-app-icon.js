@@ -11,7 +11,7 @@ const https = require('https');
 const http = require('http');
 const fs = require('fs');
 const path = require('path');
-const { execSync } = require('child_process');
+const { execFileSync } = require('child_process');
 
 let APP_LOGO_URL = process.env.APP_LOGO || process.env.APP_ICON;
 const APP_ID = process.env.APP_ID || process.env.REACT_APP_APP_ID || '132';
@@ -71,7 +71,9 @@ const collectBrandCandidates = (node, candidates = [], depth = 0, seen = new Set
 
   if (isObject(node)) {
     if (node.brandKit?.brand_assets) candidates.push(node.brandKit.brand_assets);
+    if (node.brandKit?.brandAssets) candidates.push(node.brandKit.brandAssets);
     if (node.brand_assets) candidates.push(node.brand_assets);
+    if (node.brandAssets) candidates.push(node.brandAssets);
     if (node._brandKitAssets) candidates.push(node._brandKitAssets);
     if (node.logoUrl || node.faviconUrl || node.splashImageUrl) candidates.push(node);
   }
@@ -89,7 +91,7 @@ const extractBrandAssets = (dsl) => {
     const source = unwrapDeep(candidate) || {};
     if (!assets.logoUrl) assets.logoUrl = firstNonEmpty(source.logoUrl, source.logo, source.appLogo, source.appIcon);
     if (!assets.faviconUrl) assets.faviconUrl = firstNonEmpty(source.faviconUrl, source.favicon, source.iconUrl);
-    if (!assets.splashImageUrl) assets.splashImageUrl = firstNonEmpty(source.splashImageUrl, source.splashImage);
+    if (!assets.splashImageUrl) assets.splashImageUrl = firstNonEmpty(source.splashImageUrl, source.splashImage, source.splashUrl);
     return assets;
   }, {});
 };
@@ -214,20 +216,52 @@ const resizeImage = async (inputPath, outputPath, size) => {
     }
 
     try {
-      execSync(`convert "${inputPath}" -resize ${size}x${size} "${outputPath}"`, { stdio: 'ignore' });
+      execFileSync('magick', [inputPath, '-resize', `${size}x${size}`, outputPath], { stdio: 'ignore' });
       console.log(`Created icon: ${outputPath} (${size}x${size}) using ImageMagick`);
       return true;
-    } catch (convertError) {
+    } catch (magickError) {
       try {
-        execSync(`ffmpeg -i "${inputPath}" -vf scale=${size}:${size} "${outputPath}" -y`, { stdio: 'ignore' });
+        if (process.platform !== 'win32') {
+          execFileSync('convert', [inputPath, '-resize', `${size}x${size}`, outputPath], { stdio: 'ignore' });
+          console.log(`Created icon: ${outputPath} (${size}x${size}) using ImageMagick convert`);
+          return true;
+        }
+      } catch (convertError) {}
+
+      try {
+        execFileSync('ffmpeg', ['-i', inputPath, '-vf', `scale=${size}:${size}`, outputPath, '-y'], { stdio: 'ignore' });
         console.log(`Created icon: ${outputPath} (${size}x${size}) using ffmpeg`);
         return true;
       } catch (ffmpegError) {
-        fs.copyFileSync(inputPath, outputPath);
-        console.log(`Created icon: ${outputPath} (copied, not resized - install ImageMagick for proper resizing)`);
-        return true;
+        try {
+          if (process.platform === 'win32') {
+            const script = [
+              'Add-Type -AssemblyName System.Drawing;',
+              `$inputPath = ${JSON.stringify(inputPath)};`,
+              `$outputPath = ${JSON.stringify(outputPath)};`,
+              `$size = ${size};`,
+              '$src = [System.Drawing.Image]::FromFile($inputPath);',
+              '$bmp = New-Object System.Drawing.Bitmap($size, $size);',
+              '$gfx = [System.Drawing.Graphics]::FromImage($bmp);',
+              '$gfx.InterpolationMode = [System.Drawing.Drawing2D.InterpolationMode]::HighQualityBicubic;',
+              '$gfx.SmoothingMode = [System.Drawing.Drawing2D.SmoothingMode]::HighQuality;',
+              '$gfx.PixelOffsetMode = [System.Drawing.Drawing2D.PixelOffsetMode]::HighQuality;',
+              '$gfx.Clear([System.Drawing.Color]::Transparent);',
+              '$gfx.DrawImage($src, 0, 0, $size, $size);',
+              '$bmp.Save($outputPath, [System.Drawing.Imaging.ImageFormat]::Png);',
+              '$gfx.Dispose(); $bmp.Dispose(); $src.Dispose();',
+            ].join(' ');
+            execFileSync('powershell', ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-Command', script], { stdio: 'ignore' });
+            console.log(`Created icon: ${outputPath} (${size}x${size}) using PowerShell`);
+            return true;
+          }
+        } catch (powershellError) {}
       }
     }
+
+    fs.copyFileSync(inputPath, outputPath);
+    console.log(`Created icon: ${outputPath} (copied, not resized - install ImageMagick for proper resizing)`);
+    return true;
   } catch (error) {
     console.error(`Error resizing image: ${error.message}`);
     return false;

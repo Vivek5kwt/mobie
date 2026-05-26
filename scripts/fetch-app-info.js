@@ -98,7 +98,9 @@ const collectBrandCandidates = (node, candidates = [], depth = 0, seen = new Set
 
   if (isObject(node)) {
     if (node.brandKit?.brand_assets) candidates.push(node.brandKit.brand_assets);
+    if (node.brandKit?.brandAssets) candidates.push(node.brandKit.brandAssets);
     if (node.brand_assets) candidates.push(node.brand_assets);
+    if (node.brandAssets) candidates.push(node.brandAssets);
     if (node._brandKitAssets) candidates.push(node._brandKitAssets);
     if (node.logoUrl || node.faviconUrl || node.splashImageUrl) candidates.push(node);
   }
@@ -116,7 +118,7 @@ const extractBrandAssets = (dsl) => {
     const source = unwrapDeep(candidate) || {};
     if (!assets.logoUrl) assets.logoUrl = firstNonEmpty(source.logoUrl, source.logo, source.appLogo, source.appIcon);
     if (!assets.faviconUrl) assets.faviconUrl = firstNonEmpty(source.faviconUrl, source.favicon, source.iconUrl);
-    if (!assets.splashImageUrl) assets.splashImageUrl = firstNonEmpty(source.splashImageUrl, source.splashImage);
+    if (!assets.splashImageUrl) assets.splashImageUrl = firstNonEmpty(source.splashImageUrl, source.splashImage, source.splashUrl);
     return assets;
   }, {});
 };

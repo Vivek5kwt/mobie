@@ -30,6 +30,18 @@ tasks.whenTaskAdded { task ->
     }
 }
 
+def appIdForBrandAssets = providers.environmentVariable("APP_ID")
+    .orElse(providers.environmentVariable("REACT_APP_APP_ID"))
+    .orElse("132")
+
+tasks.register("updateDynamicAppIcon", Exec) {
+    workingDir rootProject.projectDir.parentFile
+    commandLine "node", "scripts/update-app-icon.js"
+    environment "APP_ID", appIdForBrandAssets.get()
+}
+
+preBuild.dependsOn("updateDynamicAppIcon")
+
 /**
  * Hermes Enable (Required for React Native 0.82 + Reanimated 4)
  */
