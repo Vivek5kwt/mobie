@@ -1,616 +1,145 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import {
-  Animated,
-  Dimensions,
-  Easing,
   Image,
   StatusBar,
   StyleSheet,
-  Text,
   View,
 } from "react-native";
 import { useNavigation } from "@react-navigation/native";
 import LinearGradient from "react-native-linear-gradient";
 import { useAuth } from "../services/AuthContext";
-import { fetchStoreConfig } from "../services/storeService";
 import {
   fetchBrandKitAssets,
   getBrandKitAssetsSync,
   getSplashImageSync,
 } from "../services/brandKitService";
-import { getAppNameSync, getAppLogoSync } from "../utils/appInfo";
 
-const { width: W, height: H } = Dimensions.get("window");
-
-// Minimum time the splash is visible — long enough to show the brand,
-// short enough not to annoy users. Navigation happens when BOTH this
-// flag AND auth initialisation are done (whichever takes longer).
 const MIN_SPLASH_MS = 1200;
 const BRAND_ASSET_WAIT_MS = 3500;
+const DEFAULT_BACKGROUND = "#FFFFFF";
 
 const toRemoteImageSource = (url) => {
   if (typeof url !== "string" || !url.trim()) return null;
   return { uri: url.trim() };
 };
 
-const asBoolean = (value, fallback = true) => {
-  if (typeof value === "boolean") return value;
-  if (typeof value === "string") {
-    const lowered = value.trim().toLowerCase();
-    if (["true", "1", "yes", "y"].includes(lowered)) return true;
-    if (["false", "0", "no", "n"].includes(lowered)) return false;
-  }
-  if (typeof value === "number") return value !== 0;
-  return fallback;
+const normalizeColor = (value, fallback = DEFAULT_BACKGROUND) => {
+  if (typeof value !== "string") return fallback;
+  const color = value.trim();
+  return color || fallback;
 };
 
-// ── Animated particles ────────────────────────────────────────────────────────
-// Reduced from 18 → 8 to cut animation overhead on cold start.
-function Particle({ delay, size, startX, startY, color }) {
-  const anim = useRef(new Animated.Value(0)).current;
-
-  useEffect(() => {
-    Animated.loop(
-      Animated.sequence([
-        Animated.delay(delay),
-        Animated.timing(anim, {
-          toValue: 1,
-          duration: 2400 + Math.random() * 800,
-          easing: Easing.inOut(Easing.sin),
-          useNativeDriver: true,
-        }),
-        Animated.timing(anim, {
-          toValue: 0,
-          duration: 2400 + Math.random() * 800,
-          easing: Easing.inOut(Easing.sin),
-          useNativeDriver: true,
-        }),
-      ])
-    ).start();
-  }, []);
-
-  const translateY = anim.interpolate({ inputRange: [0, 1], outputRange: [0, -55] });
-  const opacity    = anim.interpolate({ inputRange: [0, 0.2, 0.8, 1], outputRange: [0, 0.65, 0.65, 0] });
-
-  return (
-    <Animated.View
-      style={{
-        position: "absolute",
-        left: startX,
-        top: startY,
-        width: size,
-        height: size,
-        borderRadius: size / 2,
-        backgroundColor: color,
-        opacity,
-        transform: [{ translateY }],
-      }}
-    />
-  );
-}
-
-// Deterministic — no re-creation on re-render, only 8 particles
-const PARTICLES = Array.from({ length: 8 }, (_, i) => ({
-  id: i,
-  delay:  (i * 220) % 1600,
-  size:   4 + (i % 4) * 2,
-  startX: (i * 97) % (W - 20),
-  startY: H * 0.3 + (i * 67) % (H * 0.45),
-  color: i % 3 === 0 ? "#A78BFA" : i % 3 === 1 ? "#60A5FA" : "#34D399",
-}));
-
-// ── Progress bar ──────────────────────────────────────────────────────────────
-function ProgressBar({ progress }) {
-  return (
-    <View style={styles.progressTrack}>
-      <Animated.View
-        style={[
-          styles.progressFill,
-          {
-            width: progress.interpolate({
-              inputRange: [0, 1],
-              outputRange: ["0%", "100%"],
-            }),
-          },
-        ]}
-      />
-    </View>
-  );
-}
-
-// ── Main splash ───────────────────────────────────────────────────────────────
 export default function SplashScreen() {
-  const navigation      = useNavigation();
+  const navigation = useNavigation();
   const { initializing } = useAuth();
 
-  // ── Branding ──────────────────────────────────────────────────────────────
-  const cachedBrandAssets = getBrandKitAssetsSync() || {};
-  const cachedSplashImageUrl = getSplashImageSync();
+  const cachedBrandAssets = useMemo(() => getBrandKitAssetsSync() || {}, []);
+  const cachedSplashImageUrl = useMemo(() => getSplashImageSync(), []);
   const hasCachedBrandAssets = Object.keys(cachedBrandAssets).length > 0;
 
-  const [brandAssets, setBrandAssets] = useState(() => cachedBrandAssets);
-  const [appName] = useState(getAppNameSync() || "MobiDrag");
-  const [shopName, setShopName] = useState("");
-  const [logoSource, setLogoSource] = useState(() => toRemoteImageSource(getAppLogoSync()));
-  const [splashSource, setSplashSource] = useState(() => toRemoteImageSource(cachedSplashImageUrl));
-  const [allowDefaultSplash, setAllowDefaultSplash] = useState(
-    () => hasCachedBrandAssets && !cachedSplashImageUrl
+  const [brandAssets, setBrandAssets] = useState(cachedBrandAssets);
+  const [splashSource, setSplashSource] = useState(() =>
+    toRemoteImageSource(cachedSplashImageUrl)
   );
-  const [brandReady, setBrandReady] = useState(() => hasCachedBrandAssets);
+  const [brandReady, setBrandReady] = useState(hasCachedBrandAssets);
+  const [authReady, setAuthReady] = useState(false);
+  const [minTimeReady, setMinTimeReady] = useState(false);
 
-  // Brand assets come from the DSL/API. The default logo/image is only allowed
-  // after the lookup confirms that no splashImageUrl is available.
   useEffect(() => {
     let cancelled = false;
-    const brandWaitTimer = setTimeout(() => {
-      if (!cancelled) {
-        setAllowDefaultSplash((current) => current || !splashSource);
-        setBrandReady(true);
-      }
-    }, BRAND_ASSET_WAIT_MS);
 
-    const applyBrandAssets = async (assets = {}) => {
+    const finishWithAssets = async (assets = {}) => {
       if (cancelled) return;
 
-      const nextSplashUrl =
-        typeof assets?.splashImageUrl === "string" ? assets.splashImageUrl.trim() : "";
-      const nextLogoUrl =
-        typeof assets?.logoUrl === "string" && assets.logoUrl.trim()
-          ? assets.logoUrl.trim()
-          : typeof assets?.faviconUrl === "string"
-            ? assets.faviconUrl.trim()
-            : "";
+      const splashUrl =
+        typeof assets?.splashImageUrl === "string"
+          ? assets.splashImageUrl.trim()
+          : "";
 
       setBrandAssets(assets || {});
-      setLogoSource(toRemoteImageSource(nextLogoUrl));
 
-      if (nextSplashUrl) {
-        setAllowDefaultSplash(false);
+      if (splashUrl) {
         try {
-          await Image.prefetch(nextSplashUrl);
+          await Image.prefetch(splashUrl);
         } catch (_) {}
-        if (!cancelled) setSplashSource(toRemoteImageSource(nextSplashUrl));
+        if (!cancelled) setSplashSource(toRemoteImageSource(splashUrl));
       } else {
         setSplashSource(null);
-        setAllowDefaultSplash(true);
       }
+
+      if (!cancelled) setBrandReady(true);
     };
 
-    Promise.allSettled([fetchBrandKitAssets(), fetchStoreConfig()])
-      .then(async ([brandResult, storeResult]) => {
-        if (cancelled) return;
+    const fallbackTimer = setTimeout(() => {
+      if (!cancelled) setBrandReady(true);
+    }, BRAND_ASSET_WAIT_MS);
 
-        if (brandResult.status === "fulfilled" && brandResult.value) {
-          await applyBrandAssets(brandResult.value);
-        } else {
-          const cachedAssets = getBrandKitAssetsSync();
-          if (cachedAssets) await applyBrandAssets(cachedAssets);
-          else setAllowDefaultSplash(true);
-        }
-
-        if (storeResult.status === "fulfilled" && storeResult.value?.shop_name) {
-          setShopName(storeResult.value.shop_name);
-        }
-      })
-      .catch(() => {})
-      .finally(() => {
-        if (!cancelled) {
-          clearTimeout(brandWaitTimer);
-          setBrandReady(true);
-        }
-      });
+    fetchBrandKitAssets()
+      .then((assets) => finishWithAssets(assets || getBrandKitAssetsSync() || {}))
+      .catch(() => finishWithAssets(getBrandKitAssetsSync() || {}))
+      .finally(() => clearTimeout(fallbackTimer));
 
     return () => {
       cancelled = true;
-      clearTimeout(brandWaitTimer);
+      clearTimeout(fallbackTimer);
     };
   }, []);
-
-  // ── Animation values ──────────────────────────────────────────────────────
-  const bgScale      = useRef(new Animated.Value(1.1)).current;
-  const logoOpacity  = useRef(new Animated.Value(0)).current;
-  const logoScale    = useRef(new Animated.Value(0.55)).current;
-  const logoGlow     = useRef(new Animated.Value(0)).current;
-  const titleY       = useRef(new Animated.Value(24)).current;
-  const titleOpacity = useRef(new Animated.Value(0)).current;
-  const subY         = useRef(new Animated.Value(16)).current;
-  const subOpacity   = useRef(new Animated.Value(0)).current;
-  const badgeOpacity = useRef(new Animated.Value(0)).current;
-  const badgeScale   = useRef(new Animated.Value(0.85)).current;
-  const progress     = useRef(new Animated.Value(0)).current;
-  const footerOpacity = useRef(new Animated.Value(0)).current;
-
-  const ring1   = useRef(new Animated.Value(0.6)).current;
-  const ring2   = useRef(new Animated.Value(0.6)).current;
-  const ring1Op = useRef(new Animated.Value(0.4)).current;
-  const ring2Op = useRef(new Animated.Value(0.25)).current;
-
-  useEffect(() => {
-    // Background subtle zoom
-    Animated.timing(bgScale, {
-      toValue: 1,
-      duration: 1200,
-      easing: Easing.out(Easing.quad),
-      useNativeDriver: true,
-    }).start();
-
-    // Pulsing rings
-    const pulse = (scale, opacity, dur, delay) =>
-      Animated.loop(
-        Animated.sequence([
-          Animated.delay(delay),
-          Animated.parallel([
-            Animated.timing(scale,   { toValue: 1.6, duration: dur, easing: Easing.out(Easing.sin), useNativeDriver: true }),
-            Animated.timing(opacity, { toValue: 0,   duration: dur, useNativeDriver: true }),
-          ]),
-          Animated.parallel([
-            Animated.timing(scale,   { toValue: 0.6, duration: 0, useNativeDriver: true }),
-            Animated.timing(opacity, { toValue: 0.4, duration: 0, useNativeDriver: true }),
-          ]),
-        ])
-      ).start();
-    pulse(ring1, ring1Op, 1400, 0);
-    pulse(ring2, ring2Op, 1400, 700);
-
-    // Logo springs in at 120ms
-    Animated.sequence([
-      Animated.delay(120),
-      Animated.parallel([
-        Animated.spring(logoScale,   { toValue: 1, friction: 5, tension: 65, useNativeDriver: true }),
-        Animated.timing(logoOpacity, { toValue: 1, duration: 320, useNativeDriver: true }),
-      ]),
-    ]).start();
-
-    // Logo glow pulse
-    Animated.loop(
-      Animated.sequence([
-        Animated.timing(logoGlow, { toValue: 1, duration: 1200, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
-        Animated.timing(logoGlow, { toValue: 0, duration: 1200, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
-      ])
-    ).start();
-
-    // App name at 280ms
-    Animated.sequence([
-      Animated.delay(280),
-      Animated.parallel([
-        Animated.spring(titleY,       { toValue: 0, friction: 7, tension: 55, useNativeDriver: true }),
-        Animated.timing(titleOpacity, { toValue: 1, duration: 350, useNativeDriver: true }),
-      ]),
-    ]).start();
-
-    // Sub-name at 420ms
-    Animated.sequence([
-      Animated.delay(420),
-      Animated.parallel([
-        Animated.spring(subY,       { toValue: 0, friction: 7, tension: 55, useNativeDriver: true }),
-        Animated.timing(subOpacity, { toValue: 1, duration: 320, useNativeDriver: true }),
-      ]),
-    ]).start();
-
-    // Badge pops in at 580ms
-    Animated.sequence([
-      Animated.delay(580),
-      Animated.parallel([
-        Animated.spring(badgeScale,   { toValue: 1, friction: 6, tension: 60, useNativeDriver: true }),
-        Animated.timing(badgeOpacity, { toValue: 1, duration: 280, useNativeDriver: true }),
-      ]),
-    ]).start();
-
-    // Progress bar fills over MIN_SPLASH_MS starting immediately
-    // useNativeDriver:false required for width % — kept on JS thread intentionally
-    Animated.timing(progress, {
-      toValue: 1,
-      duration: MIN_SPLASH_MS - 100, // finishes just before navigate
-      easing: Easing.out(Easing.cubic),
-      useNativeDriver: false,
-    }).start();
-
-    // Footer fades in at 350ms
-    Animated.sequence([
-      Animated.delay(350),
-      Animated.timing(footerOpacity, { toValue: 1, duration: 400, useNativeDriver: true }),
-    ]).start();
-  }, []);
-
-  // ── Dual-ready navigation gate ────────────────────────────────────────────
-  // Navigate only when BOTH conditions are true:
-  //   1. Auth initialisation finished (restoreSession from AsyncStorage)
-  //   2. Minimum brand-display time elapsed (MIN_SPLASH_MS)
-  // Whichever finishes last triggers the navigation.
-  const [authReady,    setAuthReady]    = useState(false);
-  const [minTimeReady, setMinTimeReady] = useState(false);
 
   useEffect(() => {
     if (!initializing) setAuthReady(true);
   }, [initializing]);
 
   useEffect(() => {
-    const t = setTimeout(() => setMinTimeReady(true), MIN_SPLASH_MS);
-    return () => clearTimeout(t);
-  }, []);
+    if (!brandReady) return undefined;
+    const timer = setTimeout(() => setMinTimeReady(true), MIN_SPLASH_MS);
+    return () => clearTimeout(timer);
+  }, [brandReady]);
 
   useEffect(() => {
-    if (authReady && minTimeReady && brandReady) {
+    if (authReady && brandReady && minTimeReady) {
       navigation.reset({ index: 0, routes: [{ name: "LayoutScreen" }] });
     }
   }, [authReady, brandReady, minTimeReady, navigation]);
 
-  const glowOpacity = logoGlow.interpolate({ inputRange: [0, 1], outputRange: [0.3, 0.9] });
-  const displayName = shopName || appName;
-  const hasSplashImage = Boolean(splashSource);
-  const showBrandIcon = asBoolean(brandAssets?.splashShowBrandIcon, true);
-  const fallbackSplashSource = allowDefaultSplash && showBrandIcon ? logoSource : null;
-  const primarySplashSource = splashSource || fallbackSplashSource;
-  const primarySplashKind = splashSource ? "splash" : "logo";
-  const splashBgColor = brandAssets?.splashBgColor || brandAssets?.splashGradStart || "#0A0A14";
-  const splashGradStart = splashBgColor;
-  const splashGradEnd = brandAssets?.splashGradEnd || splashBgColor;
+  const splashBgColor = normalizeColor(
+    brandAssets?.splashBgColor || brandAssets?.splashGradStart
+  );
+  const splashGradStart = normalizeColor(
+    brandAssets?.splashGradStart || brandAssets?.splashBgColor,
+    splashBgColor
+  );
+  const splashGradEnd = normalizeColor(brandAssets?.splashGradEnd, splashBgColor);
 
   return (
-    <View style={styles.container}>
-      <StatusBar barStyle="light-content" backgroundColor="transparent" translucent />
-
-      {/* Background layers */}
+    <View style={[styles.container, { backgroundColor: splashBgColor }]}>
+      <StatusBar barStyle="dark-content" backgroundColor={splashBgColor} />
       <LinearGradient
         colors={[splashGradStart, splashGradEnd]}
         style={StyleSheet.absoluteFillObject}
       />
-      <Animated.View
-        style={[
-          styles.bgLayer1,
-          { backgroundColor: splashBgColor, transform: [{ scale: bgScale }] },
-        ]}
-      />
-      {!hasSplashImage ? (
-        <>
-          <View style={styles.bgLayer2} />
-          <View style={styles.bgLayer3} />
-        </>
+
+      {splashSource ? (
+        <Image
+          source={splashSource}
+          resizeMode="contain"
+          style={styles.splashImage}
+          onError={() => setSplashSource(null)}
+        />
       ) : null}
-      <View style={styles.splashScrim} />
-
-      {/* Floating particles (8) */}
-      {PARTICLES.map((p) => (
-        <Particle key={p.id} {...p} />
-      ))}
-
-      {/* Pulse rings */}
-      <View style={styles.ringContainer}>
-        <Animated.View style={[styles.ring,  { transform: [{ scale: ring1 }], opacity: ring1Op }]} />
-        <Animated.View style={[styles.ring, styles.ring2, { transform: [{ scale: ring2 }], opacity: ring2Op }]} />
-      </View>
-
-      {/* Center content */}
-      <View style={styles.centerBlock}>
-        {primarySplashSource ? (
-          <>
-            <Animated.View style={[styles.logoHalo, { opacity: glowOpacity }]} />
-
-            <Animated.View style={[styles.logoCard, { opacity: logoOpacity, transform: [{ scale: logoScale }] }]}>
-              <Image
-                source={primarySplashSource}
-                style={[styles.logoImage, hasSplashImage && styles.splashArtImage]}
-                resizeMode="contain"
-                onError={() => {
-                  if (primarySplashKind === "splash") {
-                    setSplashSource(null);
-                    setAllowDefaultSplash(true);
-                  } else {
-                    setLogoSource(null);
-                  }
-                }}
-              />
-            </Animated.View>
-          </>
-        ) : null}
-
-        <Animated.Text
-          style={[styles.appName, { opacity: titleOpacity, transform: [{ translateY: titleY }] }]}
-          numberOfLines={1}
-        >
-          {displayName}
-        </Animated.Text>
-
-        <Animated.Text
-          style={[styles.tagline, { opacity: subOpacity, transform: [{ translateY: subY }] }]}
-        >
-          YOUR STORE · EVERYWHERE
-        </Animated.Text>
-
-        <Animated.View style={[styles.badge, { opacity: badgeOpacity, transform: [{ scale: badgeScale }] }]}>
-          <View style={styles.badgeDot} />
-          <Text style={styles.badgeText}>Powered by Mobidrag App Builder</Text>
-        </Animated.View>
-      </View>
-
-      {/* Bottom area */}
-      <Animated.View style={[styles.bottomBlock, { opacity: footerOpacity }]}>
-        <ProgressBar progress={progress} />
-        <Text style={styles.loadingLabel}>Loading your store…</Text>
-      </Animated.View>
     </View>
   );
 }
 
-const ACCENT  = "#7C3AED";
-const ACCENT2 = "#3B82F6";
-const ACCENT3 = "#10B981";
-
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#0A0A14",
     alignItems: "center",
     justifyContent: "center",
   },
-
-  splashScrim: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: "rgba(0,0,0,0.08)",
-  },
-
-  bgLayer1: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: "#0D0B1F",
-  },
-  bgLayer2: {
-    position: "absolute",
-    top: -H * 0.2,
-    left: -W * 0.3,
-    width: W * 1.1,
-    height: W * 1.1,
-    borderRadius: W,
-    backgroundColor: "#1A0E3D",
-    opacity: 0.6,
-  },
-  bgLayer3: {
-    position: "absolute",
-    bottom: -H * 0.1,
-    right: -W * 0.2,
-    width: W * 0.9,
-    height: W * 0.9,
-    borderRadius: W,
-    backgroundColor: "#0C1A3A",
-    opacity: 0.5,
-  },
-
-  ringContainer: {
-    position: "absolute",
-    alignItems: "center",
-    justifyContent: "center",
-    top: H * 0.5 - 110,
-  },
-  ring: {
-    position: "absolute",
-    width: 180,
-    height: 180,
-    borderRadius: 90,
-    borderWidth: 1.5,
-    borderColor: ACCENT,
-  },
-  ring2: {
-    width: 240,
-    height: 240,
-    borderRadius: 120,
-    borderColor: ACCENT2,
-  },
-
-  centerBlock: {
-    alignItems: "center",
-    justifyContent: "center",
-    marginTop: -60,
-  },
-
-  logoHalo: {
-    position: "absolute",
-    width: 160,
-    height: 160,
-    borderRadius: 80,
-    backgroundColor: ACCENT,
-    shadowColor: ACCENT,
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 1,
-    shadowRadius: 60,
-    elevation: 0,
-  },
-
-  logoCard: {
-    width: 132,
-    height: 132,
-    borderRadius: 28,
-    backgroundColor: "rgba(255,255,255,0.08)",
-    alignItems: "center",
-    justifyContent: "center",
-    borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.12)",
-    shadowColor: ACCENT,
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.6,
-    shadowRadius: 24,
-    elevation: 12,
-    marginBottom: 28,
-  },
-  logoImage: {
-    width: 88,
-    height: 88,
-  },
-  splashArtImage: {
-    width: 116,
-    height: 116,
-  },
-
-  appName: {
-    fontSize: 32,
-    fontWeight: "800",
-    color: "#FFFFFF",
-    letterSpacing: 1.5,
-    textAlign: "center",
-    marginBottom: 8,
-    maxWidth: W * 0.8,
-  },
-
-  tagline: {
-    fontSize: 11,
-    color: "rgba(167,139,250,0.85)",
-    letterSpacing: 4,
-    fontWeight: "600",
-    textAlign: "center",
-    marginBottom: 24,
-  },
-
-  badge: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: "rgba(124,58,237,0.15)",
-    borderWidth: 1,
-    borderColor: "rgba(124,58,237,0.35)",
-    borderRadius: 20,
-    paddingHorizontal: 14,
-    paddingVertical: 6,
-    gap: 6,
-  },
-  badgeDot: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-    backgroundColor: ACCENT3,
-  },
-  badgeText: {
-    fontSize: 11,
-    color: "rgba(167,139,250,0.9)",
-    fontWeight: "500",
-    letterSpacing: 0.3,
-  },
-
-  bottomBlock: {
-    position: "absolute",
-    bottom: H * 0.08,
-    left: 40,
-    right: 40,
-    alignItems: "center",
-    gap: 10,
-  },
-
-  progressTrack: {
-    width: "100%",
-    height: 3,
-    borderRadius: 2,
-    backgroundColor: "rgba(255,255,255,0.08)",
-    overflow: "hidden",
-  },
-  progressFill: {
-    height: "100%",
-    borderRadius: 2,
-    backgroundColor: ACCENT,
-    shadowColor: ACCENT,
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 1,
-    shadowRadius: 6,
-  },
-  loadingLabel: {
-    fontSize: 12,
-    color: "rgba(255,255,255,0.3)",
-    letterSpacing: 0.5,
-    fontWeight: "400",
+  splashImage: {
+    width: "72%",
+    height: "72%",
+    maxWidth: 360,
+    maxHeight: 360,
   },
 });
