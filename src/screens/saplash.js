@@ -26,7 +26,7 @@ const { width: W, height: H } = Dimensions.get("window");
 // short enough not to annoy users. Navigation happens when BOTH this
 // flag AND auth initialisation are done (whichever takes longer).
 const MIN_SPLASH_MS = 1200;
-const BRAND_ASSET_WAIT_MS = 2200;
+const BRAND_ASSET_WAIT_MS = 3500;
 
 const toRemoteImageSource = (url) => {
   if (typeof url !== "string" || !url.trim()) return null;
@@ -124,29 +124,68 @@ export default function SplashScreen() {
   const { initializing } = useAuth();
 
   // ── Branding ──────────────────────────────────────────────────────────────
-  const [brandAssets, setBrandAssets] = useState(() => getBrandKitAssetsSync() || {});
+  const cachedBrandAssets = getBrandKitAssetsSync() || {};
+  const cachedSplashImageUrl = getSplashImageSync();
+  const hasCachedBrandAssets = Object.keys(cachedBrandAssets).length > 0;
+
+  const [brandAssets, setBrandAssets] = useState(() => cachedBrandAssets);
   const [appName] = useState(getAppNameSync() || "MobiDrag");
   const [shopName, setShopName] = useState("");
   const [logoSource, setLogoSource] = useState(() => toRemoteImageSource(getAppLogoSync()));
-  const [splashSource, setSplashSource] = useState(() => toRemoteImageSource(getSplashImageSync()));
-  const [brandReady, setBrandReady] = useState(() => Boolean(getBrandKitAssetsSync()));
+  const [splashSource, setSplashSource] = useState(() => toRemoteImageSource(cachedSplashImageUrl));
+  const [allowDefaultSplash, setAllowDefaultSplash] = useState(
+    () => hasCachedBrandAssets && !cachedSplashImageUrl
+  );
+  const [brandReady, setBrandReady] = useState(() => hasCachedBrandAssets);
 
-  // Brand assets come from the DSL/API, with a short timeout so startup stays smooth.
+  // Brand assets come from the DSL/API. The default logo/image is only allowed
+  // after the lookup confirms that no splashImageUrl is available.
   useEffect(() => {
     let cancelled = false;
     const brandWaitTimer = setTimeout(() => {
-      if (!cancelled) setBrandReady(true);
+      if (!cancelled) {
+        setAllowDefaultSplash((current) => current || !splashSource);
+        setBrandReady(true);
+      }
     }, BRAND_ASSET_WAIT_MS);
 
+    const applyBrandAssets = async (assets = {}) => {
+      if (cancelled) return;
+
+      const nextSplashUrl =
+        typeof assets?.splashImageUrl === "string" ? assets.splashImageUrl.trim() : "";
+      const nextLogoUrl =
+        typeof assets?.logoUrl === "string" && assets.logoUrl.trim()
+          ? assets.logoUrl.trim()
+          : typeof assets?.faviconUrl === "string"
+            ? assets.faviconUrl.trim()
+            : "";
+
+      setBrandAssets(assets || {});
+      setLogoSource(toRemoteImageSource(nextLogoUrl));
+
+      if (nextSplashUrl) {
+        setAllowDefaultSplash(false);
+        try {
+          await Image.prefetch(nextSplashUrl);
+        } catch (_) {}
+        if (!cancelled) setSplashSource(toRemoteImageSource(nextSplashUrl));
+      } else {
+        setSplashSource(null);
+        setAllowDefaultSplash(true);
+      }
+    };
+
     Promise.allSettled([fetchBrandKitAssets(), fetchStoreConfig()])
-      .then(([brandResult, storeResult]) => {
+      .then(async ([brandResult, storeResult]) => {
         if (cancelled) return;
 
         if (brandResult.status === "fulfilled" && brandResult.value) {
-          const assets = brandResult.value;
-          setBrandAssets(assets);
-          setLogoSource(toRemoteImageSource(assets.logoUrl || assets.faviconUrl));
-          setSplashSource(toRemoteImageSource(assets.splashImageUrl));
+          await applyBrandAssets(brandResult.value);
+        } else {
+          const cachedAssets = getBrandKitAssetsSync();
+          if (cachedAssets) await applyBrandAssets(cachedAssets);
+          else setAllowDefaultSplash(true);
         }
 
         if (storeResult.status === "fulfilled" && storeResult.value?.shop_name) {
@@ -300,7 +339,8 @@ export default function SplashScreen() {
   const displayName = shopName || appName;
   const hasSplashImage = Boolean(splashSource);
   const showBrandIcon = asBoolean(brandAssets?.splashShowBrandIcon, true);
-  const primarySplashSource = splashSource || (showBrandIcon ? logoSource : null);
+  const fallbackSplashSource = allowDefaultSplash && showBrandIcon ? logoSource : null;
+  const primarySplashSource = splashSource || fallbackSplashSource;
   const primarySplashKind = splashSource ? "splash" : "logo";
   const splashBgColor = brandAssets?.splashBgColor || brandAssets?.splashGradStart || "#0A0A14";
   const splashGradStart = splashBgColor;
@@ -352,8 +392,12 @@ export default function SplashScreen() {
                 style={[styles.logoImage, hasSplashImage && styles.splashArtImage]}
                 resizeMode="contain"
                 onError={() => {
-                  if (primarySplashKind === "splash") setSplashSource(null);
-                  else setLogoSource(null);
+                  if (primarySplashKind === "splash") {
+                    setSplashSource(null);
+                    setAllowDefaultSplash(true);
+                  } else {
+                    setLogoSource(null);
+                  }
                 }}
               />
             </Animated.View>
