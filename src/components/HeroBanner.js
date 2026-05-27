@@ -1,5 +1,5 @@
 import React from "react";
-import { Dimensions, Image, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { Image, StyleSheet, Text, TouchableOpacity, useWindowDimensions, View } from "react-native";
 import LinearGradient from "react-native-linear-gradient";
 import FontAwesome from "react-native-vector-icons/FontAwesome";
 import { useNavigation } from "@react-navigation/native";
@@ -217,6 +217,7 @@ const withColorOpacity = (color, opacityPct = 100) => {
 
 export default function HeroBanner({ section }) {
   const navigation = useNavigation();
+  const { width: screenWidth, height: screenHeight } = useWindowDimensions();
   // Merge .raw sub-object so DSL data nested inside raw is accessible at top level
   const rawProps = getRawProps(section);
   const flatPropsNode = deepUnwrap(rawProps?.flatProps) || {};
@@ -1118,8 +1119,8 @@ export default function HeroBanner({ section }) {
   // ── Dynamic height resolution ────────────────────────────────────────────
   // Supports: plain number, "300px", "50%", "50vw", "50vh",
   //           presets "small" | "medium" | "large" | "fullscreen"
-  const SCREEN_WIDTH  = Dimensions.get("window").width;
-  const SCREEN_HEIGHT = Dimensions.get("window").height;
+  const SCREEN_WIDTH  = Math.max(1, screenWidth);
+  const SCREEN_HEIGHT = Math.max(1, screenHeight);
   const DEFAULT_BANNER_HEIGHT = Math.round(SCREEN_WIDTH * 0.55);
 
   const resolveHeightValue = (val) => {

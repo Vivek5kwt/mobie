@@ -790,13 +790,19 @@ export default function LayoutScreen({ route, navigation }) {
 const styles = StyleSheet.create({
   screen: {
     flex: 1,
+    width: "100%",
+    alignSelf: "stretch",
     backgroundColor: "#FFFFFF",
   },
   scrollView: {
     flex: 1,
+    width: "100%",
+    alignSelf: "stretch",
     backgroundColor: "#FFFFFF",
   },
   scrollContent: {
+    width: "100%",
+    alignSelf: "stretch",
     paddingHorizontal: 0,
     paddingBottom: 0,
     backgroundColor: "#FFFFFF",
@@ -808,6 +814,8 @@ const styles = StyleSheet.create({
     bottom: 0,
   },
   sectionWrapper: {
+    width: "100%",
+    alignSelf: "stretch",
     marginBottom: 0,
   },
   sectionWrapperTight: {

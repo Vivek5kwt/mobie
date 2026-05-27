@@ -1,7 +1,6 @@
 import React, { useEffect, useRef } from "react";
-import { Animated, Dimensions, StyleSheet, View } from "react-native";
-
-const { width: SCREEN_W } = Dimensions.get("window");
+import { Animated, StyleSheet, useWindowDimensions, View } from "react-native";
+import { getResponsiveColumns } from "../utils/responsiveLayout";
 
 // ── Single shimmer bone ────────────────────────────────────────────────────
 function Bone({ style }) {
@@ -48,10 +47,10 @@ function BannerSkeleton() {
 }
 
 // ── Product card skeleton ──────────────────────────────────────────────────
-function ProductCardSkeleton() {
+function ProductCardSkeleton({ cardWidth }) {
   return (
-    <View style={styles.card}>
-      <Bone style={styles.cardImage} />
+    <View style={[styles.card, { width: cardWidth }]}>
+      <Bone style={[styles.cardImage, { width: cardWidth, height: cardWidth }]} />
       <Bone style={styles.cardLine1} />
       <Bone style={styles.cardLine2} />
       <Bone style={styles.cardPrice} />
@@ -60,11 +59,12 @@ function ProductCardSkeleton() {
 }
 
 // ── Row of product cards ───────────────────────────────────────────────────
-function ProductRowSkeleton() {
+function ProductRowSkeleton({ cardWidth, columns, gap }) {
   return (
-    <View style={styles.cardRow}>
-      <ProductCardSkeleton />
-      <ProductCardSkeleton />
+    <View style={[styles.cardRow, { gap }]}>
+      {Array.from({ length: columns }).map((_, index) => (
+        <ProductCardSkeleton key={index} cardWidth={cardWidth} />
+      ))}
     </View>
   );
 }
@@ -81,6 +81,18 @@ function TextBlockSkeleton() {
 
 // ── Main export ────────────────────────────────────────────────────────────
 export default function SkeletonLoader() {
+  const { width } = useWindowDimensions();
+  const gap = 16;
+  const columns = getResponsiveColumns({
+    screenWidth: width,
+    requestedColumns: 2,
+    horizontalPadding: 32,
+    gap,
+    minCardWidth: 180,
+    maxColumns: 6,
+  });
+  const cardWidth = Math.max(0, (Math.max(1, width) - 32 - gap * (columns - 1)) / columns);
+
   return (
     <View style={styles.container}>
       {/* Header */}
@@ -93,21 +105,20 @@ export default function SkeletonLoader() {
       <TextBlockSkeleton />
 
       {/* Product grid row 1 */}
-      <ProductRowSkeleton />
+      <ProductRowSkeleton cardWidth={cardWidth} columns={columns} gap={gap} />
 
       {/* Product grid row 2 */}
-      <ProductRowSkeleton />
+      <ProductRowSkeleton cardWidth={cardWidth} columns={columns} gap={gap} />
 
       {/* Another banner */}
       <Bone style={styles.bannerSmall} />
 
       {/* Product grid row 3 */}
-      <ProductRowSkeleton />
+      <ProductRowSkeleton cardWidth={cardWidth} columns={columns} gap={gap} />
     </View>
   );
 }
 
-const CARD_W = (SCREEN_W - 48) / 2;
 const BONE_BG = "#E2E8F0";
 
 const styles = StyleSheet.create({
@@ -174,16 +185,12 @@ const styles = StyleSheet.create({
   // Product card row
   cardRow: {
     flexDirection: "row",
-    gap: 16,
     marginBottom: 16,
   },
   card: {
-    width: CARD_W,
     gap: 8,
   },
   cardImage: {
-    width: CARD_W,
-    height: CARD_W,
     borderRadius: 12,
   },
   cardLine1: {

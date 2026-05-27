@@ -1,12 +1,12 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
-  Dimensions,
   Image,
   ScrollView,
   StyleSheet,
   Text,
   TouchableOpacity,
+  useWindowDimensions,
   View,
 } from "react-native";
 import { StackActions, useFocusEffect, useNavigation } from "@react-navigation/native";
@@ -25,8 +25,8 @@ import FavoriteToggleButton, { buildFavoriteToggleConfig } from "../components/F
 import { formatMoney } from "../utils/money";
 import { isAuthenticatedSession } from "../utils/authGate";
 import { resolveProductImageResizeMode } from "../utils/productImageFit";
+import { getResponsiveColumns } from "../utils/responsiveLayout";
 
-const { width: SCREEN_W } = Dimensions.get("window");
 const LIVE_DSL_REFRESH_INTERVAL_MS = 3000;
 
 // ── DSL helpers ───────────────────────────────────────────────────────────────
@@ -76,6 +76,7 @@ const SKIP_COMPS = new Set([
 export default function WishlistScreen() {
   const navigation    = useNavigation();
   const dispatch      = useDispatch();
+  const { width: screenWidth } = useWindowDimensions();
   const { session, initializing } = useAuth();
   const isLoggedIn = isAuthenticatedSession(session);
   const wishlistItems = useSelector((state) => dedupeWishlistProducts(state.wishlist?.items || []));
@@ -237,17 +238,26 @@ export default function WishlistScreen() {
   const strikepriceFontWeight = toStr(p?.strikepriceFontWeight, "400");
 
   // ── Layout math ───────────────────────────────────────────────────────────
-  const columns = Math.max(1, Math.floor(toNum(p?.columns ?? p?.itemsPerRow, 2)));
+  const requestedColumns = Math.max(1, Math.floor(toNum(p?.columns ?? p?.itemsPerRow, 2)));
   const gridGap = toNum(
     p?.gap ?? p?.gridGap ?? p?.itemGap ?? p?.columnGap,
     Math.max(0, Math.round((outerPL + outerPR) / 3))
   );
+  const viewportWidth = Math.max(1, screenWidth);
+  const columns = getResponsiveColumns({
+    screenWidth: viewportWidth,
+    requestedColumns,
+    horizontalPadding: outerPL + outerPR,
+    gap: gridGap,
+    minCardWidth: 180,
+    maxColumns: 6,
+  });
   const rowGap = toNum(p?.rowGap ?? p?.verticalGap, gridGap);
   const contentGap = toNum(p?.contentGap ?? p?.textGap, Math.max(0, Math.round(gridGap / 3)));
   const countMarginBottom = toNum(p?.countMarginBottom ?? p?.labelMarginBottom, gridGap);
   const titleLineHeight = toNum(p?.titleLineHeight, Math.ceil(titleFontSize * 1.35));
   const priceLineHeight = toNum(p?.priceLineHeight, Math.ceil(priceFontSize * 1.25));
-  const cardW = (SCREEN_W - outerPL - outerPR - gridGap * (columns - 1)) / columns;
+  const cardW = (viewportWidth - outerPL - outerPR - gridGap * (columns - 1)) / columns;
   const imgH  = cardW * imageAspect;
 
   // ── Single product card ───────────────────────────────────────────────────

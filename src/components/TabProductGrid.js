@@ -1,13 +1,13 @@
 import React, { useEffect, useMemo, useRef, useState, useCallback } from "react";
 import {
   ActivityIndicator,
-  Dimensions,
   Pressable,
   ScrollView,
   StyleSheet,
   Text,
   TouchableOpacity,
   View,
+  useWindowDimensions,
   Image,
 } from "react-native";
 import { useNavigation } from "@react-navigation/native";
@@ -28,6 +28,7 @@ import { resolveFont } from "../services/typographyService";
 import FavoriteToggleButton, { buildFavoriteToggleConfig } from "./FavoriteToggleButton";
 import { formatMoney } from "../utils/money";
 import { resolveProductImageResizeMode } from "../utils/productImageFit";
+import { getResponsiveColumns } from "../utils/responsiveLayout";
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -175,13 +176,13 @@ const isProductAvailable = (product) => {
   }
   return true;
 };
-const { width: SCREEN_W } = Dimensions.get("window");
 const COL_GAP = 8;
 const DEFAULT_IMAGE_ASPECT_RATIO = 1.55;
 
 export default function TabProductGrid({ section }) {
   const dispatch = useDispatch();
   const navigation = useNavigation();
+  const { width: screenWidth } = useWindowDimensions();
   const { session, initializing } = useAuth();
   const wishlistItems = useSelector((state) => state?.wishlist?.items || []);
   const favoriteTapRef = useRef(false);
@@ -335,7 +336,7 @@ export default function TabProductGrid({ section }) {
   if (!tabs.length) return null;
 
   // ── Read styling from rawConfig ────────────────────────────────────────────
-  const columns = Math.max(1, toNum(rawConfig?.columns, 2));
+  const requestedColumns = Math.max(1, toNum(rawConfig?.columns, 2));
   const containerBg  = toStr(rawConfig?.bgColor || rawConfig?.gridBgColor, "#FFFFFF");
   const tabBarBg     = toStr(rawConfig?.tabBarBgColor ?? tabBarCss?.backgroundColor, containerBg);
   const tabBgColor   = toStr(rawConfig?.tabBgColor, "#E5E7EB");
@@ -579,7 +580,8 @@ export default function TabProductGrid({ section }) {
   const carouselPadBottom  = firstNum([carouselCss?.paddingBottom, carouselCss?.paddingVertical], 0);
 
   // Card dimensions
-  const availableW = SCREEN_W - paddingLeft - paddingRight;
+  const viewportWidth = Math.max(1, screenWidth);
+  const availableW = viewportWidth - paddingLeft - paddingRight;
   const gridColGap = firstNum(
     [rawConfig?.colGap, rawConfig?.columnGap, rawConfig?.gapX, layoutCss?.grid?.columnGap, layoutCss?.grid?.gap],
     COL_GAP
@@ -588,6 +590,14 @@ export default function TabProductGrid({ section }) {
     [rawConfig?.rowGap, rawConfig?.gapY, layoutCss?.grid?.rowGap, layoutCss?.grid?.gap],
     COL_GAP
   );
+  const columns = getResponsiveColumns({
+    screenWidth: viewportWidth,
+    requestedColumns,
+    horizontalPadding: paddingLeft + paddingRight,
+    gap: gridColGap,
+    minCardWidth: 180,
+    maxColumns: 6,
+  });
   const colGap = columns > 1 ? gridColGap * (columns - 1) : 0;
   const cardW = Math.floor((availableW - colGap) / columns);
   const resolveImageHeight = (width) => {
@@ -853,7 +863,7 @@ export default function TabProductGrid({ section }) {
           }}
         >
           {products.map((product) => {
-            const carouselCardW = Math.floor(SCREEN_W * 0.42);
+            const carouselCardW = Math.floor(viewportWidth * 0.42);
             const carouselImageHeight = resolveImageHeight(carouselCardW);
             const isFav = isWishlistProduct(wishlistItems, product);
             const inStock = isProductAvailable(product);

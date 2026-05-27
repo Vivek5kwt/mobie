@@ -1,12 +1,12 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
-  Dimensions,
   FlatList,
   Image,
   StyleSheet,
   Text,
   TouchableOpacity,
+  useWindowDimensions,
   View,
 } from "react-native";
 import { useNavigation, useRoute } from "@react-navigation/native";
@@ -27,11 +27,11 @@ import { useAuth } from "../services/AuthContext";
 import { requireLoginForAction } from "../utils/authGate";
 import { resolveProductImageResizeMode } from "../utils/productImageFit";
 import { formatMoney } from "../utils/money";
+import { getResponsiveColumns } from "../utils/responsiveLayout";
 
 const PAGE_SIZE = 20;
 const GAP = 12;
 const H_PAD = 16;
-const { width: SCREEN_W } = Dimensions.get("window");
 
 const getComponentName = (section = {}) =>
   String(
@@ -112,6 +112,7 @@ export default function CollectionProductsScreen() {
   const navigation = useNavigation();
   const route = useRoute();
   const dispatch = useDispatch();
+  const { width: screenWidth } = useWindowDimensions();
   const { session, initializing } = useAuth();
   const wishlistItems = useSelector((state) => state.wishlist?.items || []);
   const {
@@ -147,10 +148,20 @@ export default function CollectionProductsScreen() {
   const [viewMode, setViewMode]     = useState("grid"); // "grid" | "list"
   const [activeFilter, setActiveFilter] = useState(null);
 
-  const numColumns = viewMode === "list" ? 1 : 2;
+  const viewportWidth = Math.max(1, screenWidth);
+  const numColumns = viewMode === "list"
+    ? 1
+    : getResponsiveColumns({
+        screenWidth: viewportWidth,
+        requestedColumns: 2,
+        horizontalPadding: H_PAD * 2,
+        gap: GAP,
+        minCardWidth: 190,
+        maxColumns: 6,
+      });
   const CARD_W = viewMode === "list"
-    ? SCREEN_W - H_PAD * 2
-    : (SCREEN_W - H_PAD * 2 - GAP) / 2;
+    ? viewportWidth - H_PAD * 2
+    : (viewportWidth - H_PAD * 2 - GAP * (numColumns - 1)) / numColumns;
   const favoriteToggleConfig = buildFavoriteToggleConfig();
 
   useEffect(() => () => {

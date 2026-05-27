@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Animated, DeviceEventEmitter, Dimensions, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { Animated, DeviceEventEmitter, StyleSheet, Text, TouchableOpacity, useWindowDimensions, View } from "react-native";
 import ProductImage from "./ProductImage";
 import FontAwesome from "react-native-vector-icons/FontAwesome";
 import { resolveFA4IconName } from "../utils/faIconAlias";
@@ -15,6 +15,7 @@ import { resolveProductImageResizeMode } from "../utils/productImageFit";
 import { resolveFont } from "../services/typographyService";
 import FavoriteToggleButton, { buildFavoriteToggleConfig } from "./FavoriteToggleButton";
 import { formatMoney } from "../utils/money";
+import { getResponsiveColumns } from "../utils/responsiveLayout";
 
 // ── DSL helpers ───────────────────────────────────────────────────────────────
 
@@ -206,6 +207,7 @@ export default function ProductGrid({ section, limit = 8, title = "Products" }) 
   const navigation = useNavigation();
   const route = useRoute();
   const dispatch   = useDispatch();
+  const { width: screenWidth } = useWindowDimensions();
   const { session, initializing } = useAuth();
   const wishlistItems = useSelector((state) => state.wishlist?.items || []);
   const [products,     setProducts]     = useState([]);
@@ -242,7 +244,7 @@ export default function ProductGrid({ section, limit = 8, title = "Products" }) 
     [rawProps?.itemsShown, gridObj?.itemsShown, rawProps?.productsToShow, rawProps?.productCount, rawProps?.limit],
     limit
   );
-  const resolvedColumns = Math.max(1, Math.round(resolveFirstNumber(
+  const requestedColumns = Math.max(1, Math.round(resolveFirstNumber(
     [rawProps?.columns, gridObj?.columns],
     2
   )));
@@ -663,9 +665,17 @@ export default function ProductGrid({ section, limit = 8, title = "Products" }) 
   const resolvedColGap = resolveFirstNumber([rawProps?.colGap, rawProps?.columnGap, rawProps?.gapX, rawProps?.gridGap, gridObj?.gap], 8);
   const resolvedRowGap = resolveFirstNumber([rawProps?.rowGap, rawProps?.gapY, gridObj?.rowGap], 8);
   const gridGap        = resolvedColGap;
-  const screenWidth    = Dimensions.get("window").width;
+  const viewportWidth   = Math.max(1, screenWidth);
+  const resolvedColumns = getResponsiveColumns({
+    screenWidth: viewportWidth,
+    requestedColumns,
+    horizontalPadding: pl + pr,
+    gap: gridGap,
+    minCardWidth: 180,
+    maxColumns: 6,
+  });
   const totalGap       = gridGap * (resolvedColumns - 1);
-  const cardWidth      = Math.max(0, (screenWidth - pl - pr - totalGap) / resolvedColumns);
+  const cardWidth      = Math.max(0, (viewportWidth - pl - pr - totalGap) / resolvedColumns);
 
   // ── Image height: from ratio (w/h → height = cardWidth / ratio) or explicit ─
   const imageHeight = imageAspectRatio

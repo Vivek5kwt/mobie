@@ -1,10 +1,10 @@
 import React, { useMemo } from "react";
 import {
-  Dimensions,
   Image,
   StyleSheet,
   Text,
   TouchableOpacity,
+  useWindowDimensions,
   View,
 } from "react-native";
 import { useDispatch, useSelector } from "react-redux";
@@ -101,15 +101,15 @@ const resolveCurrencyLabel = (...values) => {
 const fmtPrice = (amount, currency) =>
   formatMoney(Math.abs(toNumber(amount, 0)), currency);
 
-const { width: SCREEN_W, height: SCREEN_H } = Dimensions.get("window");
-const responsiveSize = (ratio, min, max) => {
-  const value = Math.round(SCREEN_W * ratio);
+const responsiveSize = (screenWidth, ratio, min, max) => {
+  const value = Math.round(Math.max(1, screenWidth) * ratio);
   return Math.max(min, Math.min(max, value));
 };
 
 export default function CartLineItems({ section }) {
   const dispatch = useDispatch();
   const navigation = useNavigation();
+  const { width: screenWidth, height: screenHeight } = useWindowDimensions();
   const cartItems = useSelector((state) => state?.cart?.items || []);
   const appliedDiscounts = useSelector((state) => state?.cart?.discounts || []);
 
@@ -164,12 +164,12 @@ export default function CartLineItems({ section }) {
   const cardPadR = toNumber(raw?.cardPadR ?? raw?.cardPr ?? raw?.itemPadR, derivedCardPad);
   const cardPadB = toNumber(raw?.cardPadB ?? raw?.cardPb ?? raw?.itemPadB, derivedCardPad);
   const cardPadL = toNumber(raw?.cardPadL ?? raw?.cardPl ?? raw?.itemPadL, derivedCardPad);
-  const cardInnerGap = toNumber(raw?.cardInnerGap ?? raw?.itemGap, responsiveSize(0.02, 8, 12));
+  const cardInnerGap = toNumber(raw?.cardInnerGap ?? raw?.itemGap, responsiveSize(screenWidth, 0.02, 8, 12));
 
   // Image
   const imageSize = toNumber(
     raw?.imageSize ?? raw?.imageWidth ?? raw?.productImageSize,
-    responsiveSize(0.16, 58, 72)
+    responsiveSize(screenWidth, 0.16, 58, 72)
   );
   const imageRadius = toNumber(raw?.imageRadius ?? raw?.imageCorner ?? raw?.cardImageCorner, 0);
   const imageBg = toString(
@@ -264,7 +264,7 @@ export default function CartLineItems({ section }) {
   const qtyBorderColor = toString(raw?.qtyBorderColor, "#E5E7EB");
   const qtyBtnBgColor = toString(raw?.qtyBtnBgColor ?? raw?.quantityButtonBgColor, "#FFFFFF");
   const qtyWrapBgColor = toString(raw?.qtyWrapBgColor ?? raw?.quantityWrapBgColor, "transparent");
-  const qtyBtnSize = toNumber(raw?.qtyBtnSize, responsiveSize(0.06, 22, 28));
+  const qtyBtnSize = toNumber(raw?.qtyBtnSize, responsiveSize(screenWidth, 0.06, 22, 28));
   const qtyBtnRadius = toNumber(raw?.qtyBtnRadius, Math.round(qtyBtnSize / 2));
   const qtyTextColor = toString(raw?.qtyTextColor, "#111827");
   const qtyTextSize = toNumber(raw?.qtyTextSize, 12);
@@ -326,7 +326,7 @@ export default function CartLineItems({ section }) {
   const emptyButtonTextColor = toString(raw?.emptyButtonTextColor ?? raw?.buttonTextColor, "#FFFFFF");
   const emptyButtonRadius = toNumber(raw?.emptyButtonRadius ?? raw?.buttonRadius, 4);
   const emptyButtonHeight = toNumber(raw?.emptyButtonHeight ?? raw?.buttonHeight, 44);
-  const emptyButtonWidth = toNumber(raw?.emptyButtonWidth, responsiveSize(0.5, 180, 220));
+  const emptyButtonWidth = toNumber(raw?.emptyButtonWidth, responsiveSize(screenWidth, 0.5, 180, 220));
   const emptyTitleFontSize = toNumber(raw?.emptyTitleFontSize, 18);
   const emptySubtitleFontSize = toNumber(raw?.emptySubtitleFontSize, 13);
   const emptyButtonFontSize = toNumber(raw?.emptyButtonFontSize ?? raw?.buttonTextSize, 16);
@@ -344,10 +344,10 @@ export default function CartLineItems({ section }) {
           styles.emptyContainer,
           {
             backgroundColor: emptyBgColor,
-            paddingTop: Math.max(padT, responsiveSize(0.16, 56, 82)),
-            paddingBottom: Math.max(padB, responsiveSize(0.18, 68, 96)),
+            paddingTop: Math.max(padT, responsiveSize(screenWidth, 0.16, 56, 82)),
+            paddingBottom: Math.max(padB, responsiveSize(screenWidth, 0.18, 68, 96)),
             paddingHorizontal: Math.max(padL, padR),
-            minHeight: Math.max(320, Math.round(SCREEN_H * 0.58)),
+            minHeight: Math.max(320, Math.round(screenHeight * 0.58)),
           },
         ]}
       >

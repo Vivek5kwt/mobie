@@ -1,13 +1,13 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
-  Dimensions,
   FlatList,
   Image,
   Linking,
   StyleSheet,
   Text,
   TouchableOpacity,
+  useWindowDimensions,
   View,
 } from "react-native";
 import { useNavigation } from "@react-navigation/native";
@@ -15,6 +15,7 @@ import { convertStyles } from "../utils/convertStyles";
 import { resolveTextDecorationLine } from "../utils/textDecoration";
 import { fetchShopifyProductsPage } from "../services/shopify";
 import { formatMoney } from "../utils/money";
+import { getResponsiveColumns } from "../utils/responsiveLayout";
 
 const unwrapValue = (value, fallback = undefined) => {
   if (value === undefined || value === null) return fallback;
@@ -277,6 +278,7 @@ const normalizeItems = (rawItems) => {
 
 export default function MediaGrid({ section }) {
   const navigation = useNavigation();
+  const { width: screenWidth } = useWindowDimensions();
   const rawProps =
     section?.properties?.props?.properties || section?.properties?.props || section?.props || {};
 
@@ -288,7 +290,7 @@ export default function MediaGrid({ section }) {
 
   const items = useMemo(() => normalizeItems(rawProps?.items || []), [rawProps?.items]);
 
-  const columns = Math.max(1, toNumber(rawProps?.columns, 2));
+  const requestedColumns = Math.max(1, toNumber(rawProps?.columns, 2));
   const gap = toNumber(rawProps?.cardGap, 8);
   // null means "Auto" — MediaCard will call Image.getSize per item
   const cardAspectRatio = parseAspectRatio(rawProps?.cardAspectRatio);
@@ -432,8 +434,15 @@ export default function MediaGrid({ section }) {
     paddingLeft: toNumber(rawProps?.pl, 16),
   };
 
-  const screenWidth = Dimensions.get("window").width;
   const horizontalPadding = (contentPadding.paddingLeft || 0) + (contentPadding.paddingRight || 0);
+  const columns = getResponsiveColumns({
+    screenWidth,
+    requestedColumns,
+    horizontalPadding,
+    gap,
+    minCardWidth: 180,
+    maxColumns: 6,
+  });
   const totalGap = gap * (columns - 1);
   const computedCardWidth = (screenWidth - horizontalPadding - totalGap) / columns;
   // Corner radii stay square by default and only round when the DSL/DSR asks for it.

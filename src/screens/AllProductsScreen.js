@@ -1,13 +1,13 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
-  Dimensions,
   FlatList,
   Image,
   StyleSheet,
   Text,
   TextInput,
   TouchableOpacity,
+  useWindowDimensions,
   View,
 } from "react-native";
 import FontAwesome from "react-native-vector-icons/FontAwesome";
@@ -32,10 +32,10 @@ import { isWishlistProduct, toggleWishlist } from "../store/slices/wishlistSlice
 import FavoriteToggleButton, { buildFavoriteToggleConfig } from "../components/FavoriteToggleButton";
 import { useAuth } from "../services/AuthContext";
 import { requireLoginForAction } from "../utils/authGate";
+import { getResponsiveColumns } from "../utils/responsiveLayout";
 
 const GAP = 12;
 const H_PAD = 16;
-const { width: SCREEN_W } = Dimensions.get("window");
 
 const unwrapValue = (value, fallback = undefined) => {
   if (value === undefined || value === null) return fallback;
@@ -243,6 +243,7 @@ export default function AllProductsScreen() {
   const navigation = useNavigation();
   const route = useRoute();
   const dispatch = useDispatch();
+  const { width: screenWidth } = useWindowDimensions();
   const { session, initializing } = useAuth();
   const { title, detailSections } = route?.params || {};
   const searchTerm = String(route?.params?.query ?? route?.params?.searchQuery ?? "").trim();
@@ -416,14 +417,27 @@ export default function AllProductsScreen() {
     };
   }, [productListGridSection]);
 
-  const numColumns = isSearchMode
-    ? (viewMode === "list" ? 1 : searchGridConfig.columns)
-    : (viewMode === "list" ? 1 : 2);
+  const viewportWidth = Math.max(1, screenWidth);
+  const horizontalPadding = isSearchMode
+    ? searchGridConfig.padLeft + searchGridConfig.padRight
+    : H_PAD * 2;
+  const columnGap = isSearchMode ? searchGridConfig.colGap : GAP;
+  const requestedColumns = isSearchMode ? searchGridConfig.columns : 2;
+  const numColumns = viewMode === "list"
+    ? 1
+    : getResponsiveColumns({
+        screenWidth: viewportWidth,
+        requestedColumns,
+        horizontalPadding,
+        gap: columnGap,
+        minCardWidth: 180,
+        maxColumns: 6,
+      });
   const CARD_W = viewMode === "list"
-    ? SCREEN_W - (isSearchMode ? searchGridConfig.padLeft + searchGridConfig.padRight : H_PAD * 2)
+    ? viewportWidth - horizontalPadding
     : isSearchMode
-    ? (SCREEN_W - searchGridConfig.padLeft - searchGridConfig.padRight - searchGridConfig.colGap * (numColumns - 1)) / numColumns
-    : (SCREEN_W - H_PAD * 2 - GAP) / 2;
+    ? (viewportWidth - searchGridConfig.padLeft - searchGridConfig.padRight - searchGridConfig.colGap * (numColumns - 1)) / numColumns
+    : (viewportWidth - H_PAD * 2 - GAP * (numColumns - 1)) / numColumns;
   const searchImageHeight = viewMode === "list" ? 100 : Math.round(CARD_W);
 
   const loadProducts = useCallback(async ({ after = null, append = false } = {}) => {

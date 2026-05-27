@@ -1,12 +1,12 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Animated,
-  Dimensions,
   Pressable,
   ScrollView,
   StyleSheet,
   Text,
   TouchableOpacity,
+  useWindowDimensions,
   View,
 } from "react-native";
 import ProductImage from "./ProductImage";
@@ -28,6 +28,7 @@ import { resolveProductImageResizeMode } from "../utils/productImageFit";
 import { resolveFont } from "../services/typographyService";
 import { formatMoney } from "../utils/money";
 import { convertStyles } from "../utils/convertStyles";
+import { getResponsiveColumns } from "../utils/responsiveLayout";
 
 const unwrapValue = (value, fallback = undefined) => {
   if (value === undefined || value === null) return fallback;
@@ -270,6 +271,7 @@ const parseAspectRatio = (ratio) => {
 export default function ProductCarousel({ section }) {
   const navigation = useNavigation();
   const dispatch = useDispatch();
+  const { width: screenWidth } = useWindowDimensions();
   const { session, initializing } = useAuth();
   const wishlistUserKey = useMemo(() => getWishlistUserKey(session), [session]);
   const wishlistItems = useSelector((state) => state.wishlist?.items || []);
@@ -751,9 +753,9 @@ export default function ProductCarousel({ section }) {
     {};
 
   // Horizontal carousel: size cards from DSL/Builder first, then fall back responsively.
-  const screenWidth = Dimensions.get("window").width;
+  const viewportWidth = Math.max(1, screenWidth);
   const horizontalPadding = bgPadL + bgPadR;
-  const availableWidth = Math.max(0, screenWidth - horizontalPadding);
+  const availableWidth = Math.max(0, viewportWidth - horizontalPadding);
   const metricTrackWidth =
     metricNumber(metricTrack, "width") ||
     metricNumber(metricContainer, "width") ||
@@ -767,10 +769,18 @@ export default function ProductCarousel({ section }) {
       ? Math.max(0, metricNumber(secondCardMetric, "x", 0) - metricNumber(firstCardMetric, "x", 0) - metricCardWidth)
       : undefined;
   const effectiveColGap = resolveFirstNumber([raw?.colGap, raw?.horizontalGap, metricGap !== undefined ? metricGap * metricScale : undefined, colGap], colGap);
-  const visibleCards = Math.max(
+  const requestedVisibleCards = Math.max(
     1,
     resolveFirstNumber([raw?.visibleItems, raw?.itemsPerView, raw?.cardsPerView, grid?.columns, columns], columns || 2)
   );
+  const visibleCards = getResponsiveColumns({
+    screenWidth: viewportWidth,
+    requestedColumns: requestedVisibleCards,
+    horizontalPadding,
+    gap: effectiveColGap,
+    minCardWidth: 180,
+    maxColumns: 6,
+  });
   const fallbackCardWidth = Math.floor(
     (availableWidth - effectiveColGap * Math.max(0, visibleCards - 1)) / visibleCards
   );

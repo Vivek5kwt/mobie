@@ -17,6 +17,7 @@ import { fetchShopifyRecentProducts } from "../services/shopify";
 import { useAuth } from "../services/AuthContext";
 import { requireLoginForAction } from "../utils/authGate";
 import { resolveProductImageResizeMode } from "../utils/productImageFit";
+import { getResponsiveColumns } from "../utils/responsiveLayout";
 import { resolveFirstFont } from "../services/typographyService";
 import FavoriteToggleButton, { buildFavoriteToggleConfig } from "./FavoriteToggleButton";
 import { formatMoney } from "../utils/money";
@@ -191,7 +192,7 @@ export default function RecentProducts({ section }) {
   const limit         = Math.max(1, num(firstDefined(raw?.itemsShown, raw?.limit), 4));
   const shopifyDomain = str(raw?.shopifyDomain, "");
   const shopifyToken  = str(raw?.storefrontToken, "");
-  const columns       = Math.max(1, Math.min(4, Math.round(num(raw?.columns, 2))));
+  const requestedColumns = Math.max(1, Math.round(num(raw?.columns, 2)));
   const { width: windowWidth } = useWindowDimensions();
   const [measuredWidth, setMeasuredWidth] = useState(0);
 
@@ -219,9 +220,17 @@ export default function RecentProducts({ section }) {
   // ── Grid ──────────────────────────────────────────────────────────────────
   const gridCss  = unwrap(css?.grid, {});
   const gridGap  = parsePx(raw?.gap ?? gridCss?.gap, 12);
+  const layoutWidth = measuredWidth > 0 ? measuredWidth : windowWidth;
+  const columns = getResponsiveColumns({
+    screenWidth: layoutWidth,
+    requestedColumns,
+    horizontalPadding: containerPL + containerPR,
+    gap: gridGap,
+    minCardWidth: 170,
+    maxColumns: 6,
+  });
 
   // ── Card width (needed before imageHeight so we can use it as the default) ─
-  const layoutWidth = measuredWidth > 0 ? measuredWidth : windowWidth;
   const gridWidth = Math.max(0, layoutWidth - containerPL - containerPR);
   const cardWidth = Math.max(0, (gridWidth - gridGap * (columns - 1)) / columns);
 

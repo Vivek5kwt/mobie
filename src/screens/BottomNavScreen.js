@@ -1024,6 +1024,8 @@ export default function BottomNavScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+    width: "100%",
+    alignSelf: "stretch",
     backgroundColor: "#FFFFFF",
   },
   cartContainer: {
@@ -1052,10 +1054,14 @@ const styles = StyleSheet.create({
   },
   scrollView: {
     flex: 1,
+    width: "100%",
+    alignSelf: "stretch",
     backgroundColor: "#FFFFFF",
   },
   scrollContent: {
     flexGrow: 1,
+    width: "100%",
+    alignSelf: "stretch",
     paddingHorizontal: 0,
     paddingBottom: 24,
     backgroundColor: "#FFFFFF",
@@ -1097,6 +1103,8 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   sectionWrapper: {
+    width: "100%",
+    alignSelf: "stretch",
     marginBottom: 10,
   },
   sectionWrapperProduct: {

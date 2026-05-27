@@ -1,12 +1,12 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
-  Dimensions,
   FlatList,
   Image,
   StyleSheet,
   Text,
   TouchableOpacity,
+  useWindowDimensions,
   View,
 } from "react-native";
 import { useNavigation, useRoute } from "@react-navigation/native";
@@ -17,11 +17,10 @@ import { fetchShopifyCollections, getShopifyDomain } from "../services/shopify";
 import { resolveAppId } from "../utils/appId";
 import { SafeArea } from "../utils/SafeAreaHandler";
 import { resolveProductImageResizeMode } from "../utils/productImageFit";
+import { getResponsiveColumns } from "../utils/responsiveLayout";
 
 const GAP = 12;
 const H_PAD = 16;
-const { width: SCREEN_W } = Dimensions.get("window");
-const CARD_W = (SCREEN_W - H_PAD * 2 - GAP) / 2;
 
 const unwrapValue = (value, fallback = undefined) => {
   if (value === undefined || value === null) return fallback;
@@ -286,6 +285,7 @@ const findBottomNavSection = (dsl = {}) =>
 export default function SubCollectionScreen() {
   const navigation = useNavigation();
   const route = useRoute();
+  const { width: screenWidth } = useWindowDimensions();
   const {
     collectionHandle,
     handle,
@@ -386,9 +386,20 @@ export default function SubCollectionScreen() {
     });
   }, [navigation, parentHandle, parentTitle]);
 
+  const viewportWidth = Math.max(1, screenWidth);
+  const columns = getResponsiveColumns({
+    screenWidth: viewportWidth,
+    requestedColumns: 2,
+    horizontalPadding: H_PAD * 2,
+    gap: GAP,
+    minCardWidth: 220,
+    maxColumns: 4,
+  });
+  const cardWidth = (viewportWidth - H_PAD * 2 - GAP * (columns - 1)) / columns;
+
   const renderItem = useCallback(({ item }) => (
     <TouchableOpacity
-      style={styles.card}
+      style={[styles.card, { width: cardWidth }]}
       activeOpacity={0.86}
       onPress={() => openProducts(item)}
     >
@@ -406,7 +417,7 @@ export default function SubCollectionScreen() {
         <Text style={styles.cardHint}>View products</Text>
       </View>
     </TouchableOpacity>
-  ), [openProducts]);
+  ), [cardWidth, openProducts]);
 
   const headerSubtitle = useMemo(() => {
     if (!parentTitle) return "Choose a sub-collection";
@@ -431,9 +442,10 @@ export default function SubCollectionScreen() {
           <Text style={styles.error}>{error}</Text>
         ) : (
           <FlatList
+            key={`cols-${columns}`}
             data={items}
             keyExtractor={(item) => String(item.handle || item.id || item.title)}
-            numColumns={2}
+            numColumns={columns}
             columnWrapperStyle={styles.row}
             renderItem={renderItem}
             contentContainerStyle={[
@@ -497,7 +509,6 @@ const styles = StyleSheet.create({
     gap: GAP,
   },
   card: {
-    width: CARD_W,
     backgroundColor: "#FFFFFF",
     borderColor: "#E5E7EB",
     borderRadius: 10,
