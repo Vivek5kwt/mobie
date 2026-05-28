@@ -240,7 +240,7 @@ export default function ProductDetailScreen() {
   const [detailProduct, setDetailProduct] = useState(null);
   const [dslSections, setDslSections] = useState([]);
   const [dslLoading, setDslLoading] = useState(true);
-  const [productReady, setProductReady] = useState(false);
+  const [, setProductReady] = useState(false);
   const [productLoadSettled, setProductLoadSettled] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -328,20 +328,30 @@ export default function ProductDetailScreen() {
       }
 
       setDslLoading(!resolvedSections.length);
-      const liveDsl = await fetchDSL(appId, "product-detail");
-      if (!isMounted) return;
-      const nextSections = resolveSections(liveDsl?.dsl);
-      if (liveDsl?.dsl?.headerdefault !== undefined) {
-        setHeaderDefaultConfig(liveDsl.dsl.headerdefault);
-      } else {
-        setHeaderDefaultConfig(null);
+      try {
+        const liveDsl = await fetchDSL(appId, "product-detail");
+        if (!isMounted) return;
+        const nextSections = resolveSections(liveDsl?.dsl);
+        if (liveDsl?.dsl?.headerdefault !== undefined) {
+          setHeaderDefaultConfig(liveDsl.dsl.headerdefault);
+        } else {
+          setHeaderDefaultConfig(null);
+        }
+        if (nextSections.length) {
+          setDslSections(nextSections);
+          dslVersionRef.current = liveDsl?.versionNumber ?? null;
+          dslFingerprintRef.current = getDslFingerprint(liveDsl?.dsl);
+        } else if (!resolvedSections.length) {
+          setDslSections([]);
+        }
+      } catch (error) {
+        console.log("❌ Product detail DSL load failed:", error);
+        if (isMounted && !resolvedSections.length) {
+          setDslSections([]);
+        }
+      } finally {
+        if (isMounted) setDslLoading(false);
       }
-      if (nextSections.length) {
-        setDslSections(nextSections);
-        dslVersionRef.current = liveDsl?.versionNumber ?? null;
-        dslFingerprintRef.current = getDslFingerprint(liveDsl?.dsl);
-      }
-      setDslLoading(false);
     };
 
     loadDetailLayout();
@@ -411,15 +421,20 @@ export default function ProductDetailScreen() {
     [dslSections]
   );
 
-  // Only render sections once the Shopify API has returned real product data.
-  // Never show DSL placeholder/default values before real data arrives.
+  const productForRender = useMemo(
+    () => detailProduct || (hasProductIdentity(product) ? product : null),
+    [detailProduct, product]
+  );
+
+  // Render as soon as DSL plus route product data are available, then hydrate
+  // with fuller Shopify detail data when that request settles.
   const renderSections = useMemo(() => {
-    if (!productReady || !detailProduct) return [];
+    if (!productForRender) return [];
     if (sectionsToRender.length === 0) return [];
     return sectionsToRender.map((section) =>
-      mergeSectionWithProduct(section, detailProduct)
+      mergeSectionWithProduct(section, productForRender)
     );
-  }, [productReady, detailProduct, sectionsToRender]);
+  }, [productForRender, sectionsToRender]);
   const stickyAddToCartSections = useMemo(
     () => renderSections.filter((section) => isAddToCartStickySection(section)),
     [renderSections]
@@ -429,7 +444,7 @@ export default function ProductDetailScreen() {
     [renderSections]
   );
   const stickyAtcReservedSpace = stickyAddToCartSections.length > 0 ? stickyAtcHeight : 0;
-  const hasProductData = productReady && !!detailProduct;
+  const hasProductData = !!productForRender;
   const waitingForInitialProduct = loading && !hasProductData && !productLoadSettled;
   const waitingForInitialDsl = dslLoading && !renderSections.length && !error;
   const showLoadingState = waitingForInitialProduct || waitingForInitialDsl;

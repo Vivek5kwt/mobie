@@ -5,6 +5,9 @@ import { resolveAppId } from "../utils/appId";
 import { setTypography } from "../services/typographyService";
 import { setBrandKitAssetsFromDsl } from "../services/brandKitService";
 
+const DSL_QUERY_TIMEOUT_MS = 12000;
+const liveDslCache = new Map();
+
 const normalizeName = (value) =>
   value
     ? String(value)
@@ -13,6 +16,26 @@ const normalizeName = (value) =>
         .replace(/[^a-z0-9]+/g, "-")
         .replace(/^-+|-+$/g, "")
     : "";
+
+const getLiveDslCacheKey = (appId, pageName) =>
+  `${appId}:${normalizeName(pageName || "home")}`;
+
+const withTimeout = (promise, timeoutMs, label) =>
+  new Promise((resolve, reject) => {
+    const timer = setTimeout(() => {
+      reject(new Error(`${label} timed out after ${timeoutMs}ms`));
+    }, timeoutMs);
+
+    Promise.resolve(promise)
+      .then((value) => {
+        clearTimeout(timer);
+        resolve(value);
+      })
+      .catch((error) => {
+        clearTimeout(timer);
+        reject(error);
+      });
+  });
 
 // Common page name aliases — maps any incoming slug to alternatives worth trying
 const PAGE_ALIASES = {
@@ -247,19 +270,25 @@ const selectDslPage = (dslData, layoutMeta, pageOverride) => {
 };
 
 export async function fetchLiveDSL(appId, pageName) {
+  let cacheKey = "";
   try {
     console.log("🔄 Fetching LIVE data from API...");
     const resolvedAppId = resolveAppId(appId);
     
     // Ensure appId is an integer for GraphQL query
     const appIdInt = Number.isInteger(resolvedAppId) ? resolvedAppId : Math.floor(Number(resolvedAppId));
+    cacheKey = getLiveDslCacheKey(appIdInt, pageName);
     console.log(`🔍 Querying layouts with appId: ${appIdInt} (type: ${typeof appIdInt})`);
 
-    const res = await client.query({
-      query: LAYOUT_VERSION_QUERY,
-      variables: { appId: appIdInt },
-      fetchPolicy: "no-cache",
-    });
+    const res = await withTimeout(
+      client.query({
+        query: LAYOUT_VERSION_QUERY,
+        variables: { appId: appIdInt },
+        fetchPolicy: "no-cache",
+      }),
+      DSL_QUERY_TIMEOUT_MS,
+      "DSL query"
+    );
 
     // Get the layout objects
     const layouts = res?.data?.layouts;
@@ -326,9 +355,16 @@ export async function fetchLiveDSL(appId, pageName) {
       console.log(`🎨 HeaderDefault: bg=${hd.backgroundColor||hd.bgColor} text=${hd.textColor} activeText=${hd.activeTextColor} inactiveText=${hd.inactiveTextColor} multiTab=${hd.multiTab} tabs=${JSON.stringify(hd.tabs)}`);
     }
 
-    return { dsl: finalDsl, versionNumber };
+    const payload = { dsl: finalDsl, versionNumber };
+    liveDslCache.set(cacheKey, payload);
+    return payload;
   } catch (error) {
     console.log("❌ LIVE DATA ERROR:", error);
+    const cached = cacheKey ? liveDslCache.get(cacheKey) : null;
+    if (cached?.dsl) {
+      console.log(`📦 Using cached DSL after live fetch failure for "${pageName || "home"}"`);
+      return cached;
+    }
     return null;
   }
 }
