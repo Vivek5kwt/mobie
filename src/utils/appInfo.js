@@ -21,11 +21,11 @@ export const getAppInfoSync = () => {
     cachedAppInfo = appInfo;
     return appInfo;
   } catch (e) {
-    // Return default if can't read
+    // Keep missing app metadata blank so UI does not show a hardcoded brand.
     console.log('Could not read app.json, using defaults:', e.message);
     const defaultInfo = {
-      name: 'MobiDrag',
-      displayName: 'MobiDrag',
+      name: '',
+      displayName: '',
       logo: null,
     };
     cachedAppInfo = defaultInfo;
@@ -38,7 +38,7 @@ export const getAppInfoSync = () => {
  */
 export const getAppNameSync = () => {
   const appInfo = getAppInfoSync();
-  return appInfo?.displayName || appInfo?.name || 'MobiDrag';
+  return appInfo?.displayName || appInfo?.name || '';
 };
 
 /**

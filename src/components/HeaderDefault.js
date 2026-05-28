@@ -67,6 +67,24 @@ const normalizeFontWeight = (value, fallback = "400") => {
 const normalizeNavKey = (value) =>
   String(value || "").trim().toLowerCase().replace(/[\s_-]+/g, "");
 
+const isDefaultHeaderTitle = (value) => {
+  const normalized = String(resolveVal(value) || "")
+    .trim()
+    .toLowerCase()
+    .replace(/[\s_-]+/g, "");
+  return normalized === "mobidrag";
+};
+
+const resolveHeaderTitleText = (config = {}) => {
+  const candidates = [config.title, config.headerText, config.text];
+  for (const candidate of candidates) {
+    const text = String(resolveVal(candidate) || "").trim();
+    if (!text || isDefaultHeaderTitle(text)) continue;
+    return text;
+  }
+  return "";
+};
+
 const isBackNavigationTarget = (navRef, navType) => {
   const typeKey = normalizeNavKey(navType);
   const refKey = normalizeNavKey(navRef);
@@ -100,7 +118,8 @@ const countVisibleHeaderItems = (items = []) =>
     const type = String(resolveVal(item.type) || "").toLowerCase();
     const hasImage = type === "image" && !!String(resolveVal(item.imageUrl) || resolveVal(item.image) || resolveVal(item.src) || "");
     const hasIcon = !!String(resolveVal(item.icon) || "") && !hasImage && type !== "text";
-    const hasText = !!String(resolveVal(item.title) || resolveVal(item.text) || "") && !hasImage && type !== "icon";
+    const rawText = String(resolveVal(item.title) || resolveVal(item.text) || "");
+    const hasText = !!rawText && !isDefaultHeaderTitle(rawText) && !hasImage && type !== "icon";
     return hasImage || hasIcon || hasText ? count + 1 : count;
   }, 0);
 
@@ -142,7 +161,7 @@ export default function HeaderDefault({ config, bottomNavSection, hideTabs = fal
   const bgColor   = resolveVal(config.backgroundColor) || resolveVal(config.bgColor) || "#e6d7cd";
   const textColor = resolveVal(config.textColor)       || "#111111";
   const iconColor = resolveVal(config.iconColor)       || "#000000";
-  const titleText = resolveVal(config.title) || resolveVal(config.headerText) || resolveVal(config.text) || "";
+  const titleText = resolveHeaderTitleText(config);
 
   // ── Bottom divider ───────────────────────────────────────────────────────
   const _dividerRaw = resolveVal(
@@ -708,6 +727,7 @@ export default function HeaderDefault({ config, bottomNavSection, hideTabs = fal
     const itemType      = String(rv(item.type) || "").toLowerCase();
     const itemIconName  = normalizeIconName(String(rv(item.icon) || ""));
     const itemTitle     = String(rv(item.title) || rv(item.text) || "");
+    const hasDefaultTitle = isDefaultHeaderTitle(itemTitle);
     const _iconSz       = rv(item.iconSize);
     const itemIconSize  = _iconSz != null ? Number(_iconSz) : 18;
     const itemIconColor = String(rv(item.iconColor) || iconColor);
@@ -830,7 +850,7 @@ export default function HeaderDefault({ config, bottomNavSection, hideTabs = fal
     // When type is unspecified/empty, show whatever is available (icon + text can coexist).
     const showImage = itemType === "image" && !!itemImageUrl;
     const showIcon  = !!itemIconName && !showImage && itemType !== "text";
-    const showTitle = !!itemTitle    && !showImage && itemType !== "icon";
+    const showTitle = !!itemTitle && !hasDefaultTitle && !showImage && itemType !== "icon";
 
     if (!showIcon && !showTitle && !showImage) return null;
 

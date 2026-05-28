@@ -5,7 +5,7 @@ import Icon from "react-native-vector-icons/FontAwesome6";
 import { convertStyles } from "../utils/convertStyles";
 import { useAuth } from "../services/AuthContext";
 import { isAuthenticatedSession } from "../utils/authGate";
-import { getAppLogoSync, getAppNameSync } from "../utils/appInfo";
+import { getAppLogoSync } from "../utils/appInfo";
 import { resolveFont } from "../services/typographyService";
 
 const DEFAULT_DRAWER_WIDTH = 260;
@@ -268,7 +268,7 @@ export default function SideNavigation({ section }) {
 
   const headerTitle = toStringValue(
     firstDefined(raw?.headerTextValue, raw?.headerTitle, raw?.logoText),
-    getAppNameSync()
+    ""
   );
   const subtitle = toStringValue(raw?.subtitle, "");
   const logoUrl = toStringValue(raw?.logoUrl, "");
