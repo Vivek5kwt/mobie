@@ -9,6 +9,7 @@ import {
   getShopifyDomain,
 } from "../services/shopify";
 import { resolveFirstFont } from "../services/typographyService";
+import { ADD_TO_CART_SUCCESS_MESSAGE } from "../utils/cartFeedback";
 import { resolveFA4IconName } from "../utils/faIconAlias";
 
 const unwrapValue = (value, fallback = undefined) => {
@@ -495,7 +496,7 @@ export default function AddToCart({ section }) {
       {/* ── Add to Cart snackbar ── */}
       <Snackbar
         visible={snackbarVisible}
-        message={`${productTitle || "Item"} added to cart`}
+        message={ADD_TO_CART_SUCCESS_MESSAGE}
         actionLabel="View Cart"
         onAction={openCartScreen}
         onDismiss={() => setSnackbarVisible(false)}

@@ -28,6 +28,7 @@ import { requireLoginForAction } from "../utils/authGate";
 import { resolveProductImageResizeMode } from "../utils/productImageFit";
 import { formatMoney } from "../utils/money";
 import { getResponsiveColumns } from "../utils/responsiveLayout";
+import { ADD_TO_CART_SUCCESS_MESSAGE } from "../utils/cartFeedback";
 
 const PAGE_SIZE = 20;
 const GAP = 12;
@@ -252,7 +253,7 @@ export default function CollectionProductsScreen() {
     );
     if (cartSnackbarTimerRef.current) clearTimeout(cartSnackbarTimerRef.current);
     setCartSnackbarVisible(false);
-    setCartSnackbarMessage(`${product?.title || "Product"} added to cart successfully.`);
+    setCartSnackbarMessage(ADD_TO_CART_SUCCESS_MESSAGE);
     cartSnackbarTimerRef.current = setTimeout(() => setCartSnackbarVisible(true), 0);
   };
 

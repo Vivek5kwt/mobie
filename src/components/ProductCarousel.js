@@ -29,6 +29,7 @@ import { resolveFont } from "../services/typographyService";
 import { formatMoney } from "../utils/money";
 import { convertStyles } from "../utils/convertStyles";
 import { getResponsiveColumns } from "../utils/responsiveLayout";
+import { ADD_TO_CART_SUCCESS_MESSAGE } from "../utils/cartFeedback";
 
 const unwrapValue = (value, fallback = undefined) => {
   if (value === undefined || value === null) return fallback;
@@ -947,6 +948,8 @@ export default function ProductCarousel({ section }) {
         },
       })
     );
+    setSnackMessage(ADD_TO_CART_SUCCESS_MESSAGE);
+    setSnackVisible(true);
   };
 
   const handleProductPress = (product) => {

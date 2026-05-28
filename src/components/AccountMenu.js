@@ -342,9 +342,18 @@ export default function AccountMenu({ section }) {
           session,
           navigation,
           initializing,
-          postLoginTarget: { name: "Wishlist" },
+          postLoginTarget: {
+            name: "BottomNavScreen",
+            params: { pageName: "wishlist", title: label || "Wishlist", link: "wishlist" },
+          },
         });
-        if (!blocked) navigation.navigate("Wishlist");
+        if (!blocked) {
+          navigation.navigate("BottomNavScreen", {
+            pageName: "wishlist",
+            title: label || "Wishlist",
+            link: "wishlist",
+          });
+        }
         return;
       }
       if (SETTINGS_SLUGS.has(normalized)) {

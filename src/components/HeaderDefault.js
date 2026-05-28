@@ -70,6 +70,7 @@ const normalizeNavKey = (value) =>
 const isBackNavigationTarget = (navRef, navType) => {
   const typeKey = normalizeNavKey(navType);
   const refKey = normalizeNavKey(navRef);
+
   return (
     typeKey === "previousscreen" ||
     typeKey === "back" ||
@@ -78,6 +79,34 @@ const isBackNavigationTarget = (navRef, navType) => {
     refKey === "__back__" ||
     refKey === "previousscreen"
   );
+};
+
+const HEADER_HEIGHT = 56;
+const HEADER_HORIZONTAL_PADDING = 16;
+const HEADER_TOUCH_SIZE = 44;
+const HEADER_ITEM_GAP = 12;
+
+const headerIconButtonStyle = {
+  width: HEADER_TOUCH_SIZE,
+  height: HEADER_TOUCH_SIZE,
+  alignItems: "center",
+  justifyContent: "center",
+};
+
+const countVisibleHeaderItems = (items = []) =>
+  items.reduce((count, rawItem) => {
+    const item = resolveVal(rawItem) || rawItem;
+    if (!item || typeof item !== "object") return count;
+    const type = String(resolveVal(item.type) || "").toLowerCase();
+    const hasImage = type === "image" && !!String(resolveVal(item.imageUrl) || resolveVal(item.image) || resolveVal(item.src) || "");
+    const hasIcon = !!String(resolveVal(item.icon) || "") && !hasImage && type !== "text";
+    const hasText = !!String(resolveVal(item.title) || resolveVal(item.text) || "") && !hasImage && type !== "icon";
+    return hasImage || hasIcon || hasText ? count + 1 : count;
+  }, 0);
+
+const estimateHeaderSlotWidth = (items = []) => {
+  const count = Math.max(1, countVisibleHeaderItems(items));
+  return count * HEADER_TOUCH_SIZE + Math.max(0, count - 1) * HEADER_ITEM_GAP;
 };
 
 export default function HeaderDefault({ config, bottomNavSection, hideTabs = false, showBack = false }) {
@@ -181,6 +210,35 @@ export default function HeaderDefault({ config, bottomNavSection, hideTabs = fal
     typography.bodyFontFamily
   ) || "";
 
+  const titleFontSizeRaw = resolveVal(config.titleFontSize) ?? resolveVal(config.fontSize);
+  const resolvedTitleFontSize =
+    Number.isFinite(Number(titleFontSizeRaw)) && Number(titleFontSizeRaw) > 0 ? Number(titleFontSizeRaw) : 18;
+  const resolvedTitleFontFamily = resolveFirstFont(
+    resolveVal(config.titleFontFamily),
+    resolveVal(config.textFontFamily),
+    resolveVal(config.headerFontFamily),
+    resolveVal(config.fontFamily),
+    resolveVal(config.titleFamily),
+    headerFontFamily
+  ) || "";
+  const resolvedTitleFontWeight = normalizeFontWeight(
+    resolveVal(config.titleFontWeight) ??
+    resolveVal(config.textWeight) ??
+    resolveVal(config.headerFontWeight) ??
+    resolveVal(config.fontWeight) ??
+    resolveVal(config.titleWeight),
+    "700"
+  );
+  const resolvedTitleColor = resolveVal(config.titleColor) ?? resolveVal(config.titleTextColor) ?? textColor;
+  const centeredTitleTextStyle = {
+    fontSize: resolvedTitleFontSize,
+    fontWeight: resolvedTitleFontWeight,
+    color: resolvedTitleColor,
+    includeFontPadding: false,
+    textAlignVertical: "center",
+    ...(resolvedTitleFontFamily ? { fontFamily: resolvedTitleFontFamily } : {}),
+  };
+
   // ── Nav helpers ───────────────────────────────────────────────────────────
   const resolveNavItems = (rawSection) => {
     if (!rawSection) return [];
@@ -200,9 +258,24 @@ export default function HeaderDefault({ config, bottomNavSection, hideTabs = fal
       session,
       navigation,
       initializing,
-      postLoginTarget: { name: "Wishlist" },
+      postLoginTarget: {
+        name: "BottomNavScreen",
+        params: {
+          title: "Wishlist",
+          pageName: "wishlist",
+          link: "wishlist",
+          bottomNavSection: navSection,
+        },
+      },
     });
-    if (!blocked) navigation.navigate("Wishlist");
+    if (!blocked) {
+      navigation.navigate("BottomNavScreen", {
+        title: "Wishlist",
+        pageName: "wishlist",
+        link: "wishlist",
+        bottomNavSection: navSection,
+      });
+    }
   };
 
   const openNavTarget = (target) => {
@@ -331,9 +404,24 @@ export default function HeaderDefault({ config, bottomNavSection, hideTabs = fal
     const cartIconSize = Number.isFinite(cartIconSizeRaw) && cartIconSizeRaw > 0 ? cartIconSizeRaw : 20;
     const cartIconColor = resolveVal(cartConfig.color) || iconColor;
     const rightIconCount = [showWishlist, showBell, cartVisible].filter(Boolean).length;
-    const balancedSideWidth = rightIconCount > 0
-      ? (rightIconCount * 24) + ((rightIconCount - 1) * 16) + 8
-      : 40;
+    const rightSlotWidth = rightIconCount > 0
+      ? (rightIconCount * HEADER_TOUCH_SIZE) + ((rightIconCount - 1) * HEADER_ITEM_GAP)
+      : HEADER_TOUCH_SIZE;
+    const balancedSideWidth = Math.max(HEADER_TOUCH_SIZE, rightSlotWidth);
+    const flatBackConfig = resolveVal(config.backIcon) || resolveVal(config.back) || {};
+    const flatBackIconName = normalizeIconName(
+      resolveVal(flatBackConfig.iconId) ||
+      resolveVal(flatBackConfig.icon) ||
+      resolveVal(config.backIconName) ||
+      "arrow-left-long"
+    );
+    const flatBackIconSizeRaw = Number(
+      resolveVal(flatBackConfig.iconSize) ??
+      resolveVal(config.backIconSize) ??
+      resolveVal(config.iconSize)
+    );
+    const flatBackIconSize = Number.isFinite(flatBackIconSizeRaw) && flatBackIconSizeRaw > 0 ? flatBackIconSizeRaw : 18;
+    const flatBackIconColor = resolveVal(flatBackConfig.iconColor) || iconColor;
 
     // ── Title text styling (DSL-driven) ──────────────────────────────────────
     const _fsr = resolveVal(config.titleFontSize) ?? resolveVal(config.fontSize);
@@ -429,9 +517,9 @@ export default function HeaderDefault({ config, bottomNavSection, hideTabs = fal
             flexDirection: "row",
             alignItems: "center",
             backgroundColor: bgColor,
-            paddingVertical: 10,
-            paddingHorizontal: 16,
-            minHeight: 48,
+            paddingVertical: 6,
+            paddingHorizontal: HEADER_HORIZONTAL_PADDING,
+            minHeight: HEADER_HEIGHT,
             ...dividerStyle,
           }}
         >
@@ -439,18 +527,19 @@ export default function HeaderDefault({ config, bottomNavSection, hideTabs = fal
           <View style={{ width: balancedSideWidth, alignItems: "flex-start", justifyContent: "center" }}>
             {showBack && canGoBack ? (
               <TouchableOpacity
+                style={headerIconButtonStyle}
                 onPress={() => navigation.goBack()}
                 activeOpacity={0.7}
                 hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
               >
-                <Icon name="chevron-left" size={20} color={iconColor} />
+                <Icon name={flatBackIconName} size={flatBackIconSize} color={flatBackIconColor} />
               </TouchableOpacity>
             ) : null}
           </View>
 
           {/* Brand title — absolutely overlaid to guarantee true center regardless of icon count */}
           <View style={{ position: "absolute", left: 0, right: 0, top: 0, bottom: 0, alignItems: "center", justifyContent: "center" }} pointerEvents="box-none">
-            <View style={{ alignItems: "center", justifyContent: "center", paddingHorizontal: balancedSideWidth + 8 }}>
+            <View style={{ alignItems: "center", justifyContent: "center", paddingHorizontal: balancedSideWidth + HEADER_HORIZONTAL_PADDING, maxWidth: "100%" }}>
               <TouchableOpacity
                 activeOpacity={0.75}
                 onPress={() => navigation.navigate("LayoutScreen")}
@@ -473,6 +562,8 @@ export default function HeaderDefault({ config, bottomNavSection, hideTabs = fal
                       fontSize: titleFontSize,
                       fontWeight: titleFontWeight,
                       color: titleColor,
+                      includeFontPadding: false,
+                      textAlignVertical: "center",
                       ...(titleFontFamily ? { fontFamily: titleFontFamily } : {}),
                     }}
                     numberOfLines={1}
@@ -485,12 +576,12 @@ export default function HeaderDefault({ config, bottomNavSection, hideTabs = fal
           </View>
 
           {/* Right slot */}
-          <View style={{ width: balancedSideWidth, flexDirection: "row", alignItems: "center", justifyContent: "flex-end", gap: 16 }}>
+          <View style={{ width: balancedSideWidth, flexDirection: "row", alignItems: "center", justifyContent: "flex-end", gap: HEADER_ITEM_GAP }}>
             {showWishlist && (
               <TouchableOpacity
                 activeOpacity={0.7}
                 onPress={openWishlist}
-                style={{ position: "relative" }}
+                style={[headerIconButtonStyle, { position: "relative" }]}
               >
                 <Icon name="heart" size={20} color={iconColor} />
                 {wishlistCount > 0 && (
@@ -501,7 +592,7 @@ export default function HeaderDefault({ config, bottomNavSection, hideTabs = fal
               </TouchableOpacity>
             )}
             {showBell && (
-              <TouchableOpacity activeOpacity={0.7} onPress={() => openNavTarget("notification")}>
+              <TouchableOpacity style={headerIconButtonStyle} activeOpacity={0.7} onPress={() => openNavTarget("notification")}>
                 <Icon name="bell" size={20} color={iconColor} />
               </TouchableOpacity>
             )}
@@ -509,7 +600,7 @@ export default function HeaderDefault({ config, bottomNavSection, hideTabs = fal
               <TouchableOpacity
                 activeOpacity={0.7}
                 onPress={() => openNavTarget("cart")}
-                style={{ position: "relative" }}
+                style={[headerIconButtonStyle, { position: "relative" }]}
               >
                 <Icon name={cartIconName} size={cartIconSize} color={cartIconColor} />
                 {cartCount > 0 && (
@@ -744,7 +835,16 @@ export default function HeaderDefault({ config, bottomNavSection, hideTabs = fal
     if (!showIcon && !showTitle && !showImage) return null;
 
     const iconNode = showIcon ? (
-      <View key="icon" style={{ position: "relative" }}>
+      <View
+        key="icon"
+        style={{
+          position: "relative",
+          width: itemIconSize,
+          height: itemIconSize,
+          alignItems: "center",
+          justifyContent: "center",
+        }}
+      >
         <Icon name={itemIconName} size={itemIconSize} color={itemIconColor} />
         {showBadge && (
           <View
@@ -781,12 +881,15 @@ export default function HeaderDefault({ config, bottomNavSection, hideTabs = fal
     const textNode = showTitle ? (
       <Text
         key="text"
+        numberOfLines={1}
         style={{
           color: itemTextColor,
           fontSize: itemFontSize,
           fontWeight: itemFontWeight,
           fontStyle: itemFontStyle,
           textDecorationLine: itemTextDecoration,
+          includeFontPadding: false,
+          textAlignVertical: "center",
           ...(itemFontFamily ? { fontFamily: itemFontFamily } : {}),
         }}
       >
@@ -795,18 +898,37 @@ export default function HeaderDefault({ config, bottomNavSection, hideTabs = fal
     ) : null;
 
     const inner = (
-      <View style={[{ flexDirection: "row", alignItems: "center", gap: 4 }, itemBoxStyle]}>
+      <View
+        style={[
+          {
+            flexDirection: "row",
+            alignItems: "center",
+            justifyContent: "center",
+            gap: showTitle && (showIcon || showImage) ? 6 : 0,
+          },
+          itemBoxStyle,
+        ]}
+      >
         {imageNode}
         {iconNode}
         {textNode}
       </View>
     );
+    const isIconOnly = (showIcon || showImage) && !showTitle;
+    const touchTargetStyle = {
+      minHeight: HEADER_TOUCH_SIZE,
+      minWidth: isIconOnly ? HEADER_TOUCH_SIZE : undefined,
+      alignItems: "center",
+      justifyContent: "center",
+    };
 
     if (isInteractive) {
       return (
         <TouchableOpacity
           key={idx}
+          style={touchTargetStyle}
           activeOpacity={0.7}
+          hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
           onPress={() => {
             if (isBackIcon) {
               if (navigation.canGoBack()) navigation.goBack();
@@ -822,8 +944,13 @@ export default function HeaderDefault({ config, bottomNavSection, hideTabs = fal
       );
     }
 
-    return <View key={idx}>{inner}</View>;
+    return <View key={idx} style={touchTargetStyle}>{inner}</View>;
   };
+
+  const leftSlotWidth = estimateHeaderSlotWidth(leftItems);
+  const rightSlotWidth = estimateHeaderSlotWidth(rightItems);
+  const centerSidePadding = Math.max(leftSlotWidth, rightSlotWidth) + HEADER_HORIZONTAL_PADDING;
+  const shouldRenderCenterTitle = centerItems.length === 0 && !!titleText;
 
   return (
     <View>
@@ -833,20 +960,29 @@ export default function HeaderDefault({ config, bottomNavSection, hideTabs = fal
           flexDirection: "row",
           alignItems: "center",
           backgroundColor: bgColor,
-          paddingVertical: 10,
-          paddingHorizontal: 16,
-          minHeight: 48,
+          paddingVertical: 6,
+          paddingHorizontal: HEADER_HORIZONTAL_PADDING,
+          minHeight: HEADER_HEIGHT,
           ...dividerStyle,
         }}
       >
         {/* Left — flex:1 fills available space, pushing right slot to edge */}
-        <View style={{ flexDirection: "row", alignItems: "center", gap: 8, flex: 1 }}>
+        <View
+          style={{
+            flexDirection: "row",
+            alignItems: "center",
+            gap: HEADER_ITEM_GAP,
+            flex: 1,
+            minWidth: leftSlotWidth,
+            minHeight: HEADER_TOUCH_SIZE,
+          }}
+        >
           {leftItems.map((item, idx) => renderItem(item, idx, true))}
         </View>
 
         {/* Center — absolutely overlaid so it is always visually centered
             regardless of how many items are in left/right slots */}
-        {centerItems.length > 0 && (
+        {(centerItems.length > 0 || shouldRenderCenterTitle) && (
           <View
             style={{
               position: "absolute",
@@ -859,14 +995,39 @@ export default function HeaderDefault({ config, bottomNavSection, hideTabs = fal
             }}
             pointerEvents="box-none"
           >
-            <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-              {centerItems.map((item, idx) => renderItem(item, idx))}
+            <View
+              style={{
+                flexDirection: "row",
+                alignItems: "center",
+                justifyContent: "center",
+                gap: HEADER_ITEM_GAP,
+                paddingHorizontal: centerSidePadding,
+                maxWidth: "100%",
+              }}
+            >
+              {centerItems.length > 0 ? (
+                centerItems.map((item, idx) => renderItem(item, idx))
+              ) : (
+                <Text style={centeredTitleTextStyle} numberOfLines={1}>
+                  {titleText}
+                </Text>
+              )}
             </View>
           </View>
         )}
 
         {/* Right — flex:1 with flex-end keeps it at the right edge */}
-        <View style={{ flex: 1, flexDirection: "row", alignItems: "center", gap: 12, justifyContent: "flex-end" }}>
+        <View
+          style={{
+            flex: 1,
+            flexDirection: "row",
+            alignItems: "center",
+            gap: HEADER_ITEM_GAP,
+            justifyContent: "flex-end",
+            minWidth: rightSlotWidth,
+            minHeight: HEADER_TOUCH_SIZE,
+          }}
+        >
           {rightItems.map((item, idx) => renderItem(item, idx))}
         </View>
       </View>

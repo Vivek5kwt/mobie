@@ -164,6 +164,7 @@ const SIGNIN_SLUGS   = new Set(["signin", "sign-in", "login", "log-in", "auth"])
 const ORDER_SLUGS    = new Set(["orders", "order", "my-orders", "myorders", "order-history", "orderhistory", "my-order"]);
 const PROFILE_SLUGS  = new Set(["profile", "account", "my-account", "myaccount"]);
 const WISHLIST_SLUGS = new Set(["wishlist", "my-wishlist", "mywishlist", "saved", "favorites", "favourites", "favourite", "favorite"]);
+const SETTINGS_SLUGS = new Set(["settings", "setting"]);
 
 const resolveNavigationTarget = (item = {}) => {
   const link = resolveItemLink(item);
@@ -195,7 +196,18 @@ const resolveNavigationTarget = (item = {}) => {
       };
     }
     if (WISHLIST_SLUGS.has(pageName)) {
-      return { type: "stack", name: "Wishlist", params: {} };
+      return {
+        type: "stack",
+        name: "BottomNavScreen",
+        params: { title: "Wishlist", pageName: "wishlist", link: "wishlist" },
+      };
+    }
+    if (SETTINGS_SLUGS.has(pageName)) {
+      return {
+        type: "stack",
+        name: "BottomNavScreen",
+        params: { title: "Settings", pageName: "settings", link: "settings" },
+      };
     }
     // Orders should stay inside BottomNavScreen so the tab bar remains visible.
     return {
@@ -233,7 +245,18 @@ const resolveNavigationTarget = (item = {}) => {
     };
   }
   if (WISHLIST_SLUGS.has(cleanedSlug)) {
-    return { type: "stack", name: "Wishlist", params: {} };
+    return {
+      type: "stack",
+      name: "BottomNavScreen",
+      params: { title: fallbackLabel || "Wishlist", pageName: "wishlist", link: "wishlist" },
+    };
+  }
+  if (SETTINGS_SLUGS.has(cleanedSlug)) {
+    return {
+      type: "stack",
+      name: "BottomNavScreen",
+      params: { title: fallbackLabel || "Settings", pageName: "settings", link: "settings" },
+    };
   }
   // Orders should stay inside BottomNavScreen so the tab bar remains visible.
 

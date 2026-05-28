@@ -29,6 +29,7 @@ import FavoriteToggleButton, { buildFavoriteToggleConfig } from "./FavoriteToggl
 import { formatMoney } from "../utils/money";
 import { resolveProductImageResizeMode } from "../utils/productImageFit";
 import { getResponsiveColumns } from "../utils/responsiveLayout";
+import { ADD_TO_CART_SUCCESS_MESSAGE } from "../utils/cartFeedback";
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -657,7 +658,7 @@ export default function TabProductGrid({ section }) {
         },
       })
     );
-    setSnackMessage("Product added to cart successfully.");
+    setSnackMessage(ADD_TO_CART_SUCCESS_MESSAGE);
     setSnackVisible(true);
   }, [dispatch]);
 

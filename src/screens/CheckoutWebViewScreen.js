@@ -10,6 +10,7 @@ import {
 import { useNavigation, useRoute } from "@react-navigation/native";
 import { useSelector } from "react-redux";
 import FontAwesome from "react-native-vector-icons/FontAwesome";
+import HeaderIcon from "react-native-vector-icons/FontAwesome6";
 import { WebView } from "react-native-webview";
 import { SafeArea } from "../utils/SafeAreaHandler";
 import { useAuth } from "../services/AuthContext";
@@ -825,7 +826,7 @@ export default function CheckoutWebViewScreen() {
             style={styles.backButton}
             hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
           >
-            <FontAwesome name="angle-left" size={24} color="#111827" />
+            <HeaderIcon name="arrow-left-long" size={18} color="#111827" />
           </TouchableOpacity>
           <Text style={styles.title} numberOfLines={1}>
             {headerTitle}
@@ -894,9 +895,9 @@ const styles = StyleSheet.create({
     flexDirection:     "row",
     alignItems:        "center",
     justifyContent:    "space-between",
-    minHeight:         58,
-    paddingHorizontal: 18,
-    paddingVertical:   7,
+    minHeight:         56,
+    paddingHorizontal: 16,
+    paddingVertical:   6,
     borderBottomWidth: 1,
     borderBottomColor: "#E5E7EB",
     backgroundColor:   "#ffffff",
@@ -913,6 +914,8 @@ const styles = StyleSheet.create({
     fontSize:   20,
     fontWeight: "700",
     color:      "#111827",
+    includeFontPadding: false,
+    textAlignVertical: "center",
   },
   webViewContainer: {
     flex:            1,

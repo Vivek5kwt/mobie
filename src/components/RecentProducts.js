@@ -21,6 +21,7 @@ import { getResponsiveColumns } from "../utils/responsiveLayout";
 import { resolveFirstFont } from "../services/typographyService";
 import FavoriteToggleButton, { buildFavoriteToggleConfig } from "./FavoriteToggleButton";
 import { formatMoney } from "../utils/money";
+import { ADD_TO_CART_SUCCESS_MESSAGE } from "../utils/cartFeedback";
 import Snackbar from "./Snackbar";
 
 // ─── DSL helpers ─────────────────────────────────────────────────────────────
@@ -329,10 +330,7 @@ export default function RecentProducts({ section }) {
   const atcIconSize    = num(raw?.atcIconSize ?? raw?.iconSize, 12);
   const atcIconColor   = str(raw?.atcIconColor ?? raw?.iconColor ?? atcColor, atcColor);
   const atcText        = str(firstDefined(raw?.atcText, raw?.addToCartText, raw?.buttonText), "Add to Cart");
-  const addedToCartMessage = str(
-    firstDefined(raw?.addedToCartMessage, raw?.cartSuccessMessage, raw?.atcSuccessMessage),
-    "Item added to cart."
-  );
+  const addedToCartMessage = ADD_TO_CART_SUCCESS_MESSAGE;
   const snackbarActionText = str(firstDefined(raw?.snackbarActionText, raw?.cartActionText), "View Cart");
   const atcDecorationAvailable = toDecorationLine(raw?.atcStrikethroughAvailable, atcCss?.textDecoration);
 

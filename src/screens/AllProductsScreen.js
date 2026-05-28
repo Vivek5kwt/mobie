@@ -33,6 +33,7 @@ import FavoriteToggleButton, { buildFavoriteToggleConfig } from "../components/F
 import { useAuth } from "../services/AuthContext";
 import { requireLoginForAction } from "../utils/authGate";
 import { getResponsiveColumns } from "../utils/responsiveLayout";
+import { ADD_TO_CART_SUCCESS_MESSAGE } from "../utils/cartFeedback";
 
 const GAP = 12;
 const H_PAD = 16;
@@ -588,7 +589,7 @@ export default function AllProductsScreen() {
     );
     if (cartSnackbarTimerRef.current) clearTimeout(cartSnackbarTimerRef.current);
     setCartSnackbarVisible(false);
-    setCartSnackbarMessage(`${product?.title || "Product"} added to cart successfully.`);
+    setCartSnackbarMessage(ADD_TO_CART_SUCCESS_MESSAGE);
     cartSnackbarTimerRef.current = setTimeout(() => setCartSnackbarVisible(true), 0);
   };
 
@@ -878,7 +879,7 @@ export default function AllProductsScreen() {
                 hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
               >
                 {searchCartIconName ? (
-                  <View>
+                  <View style={styles.headerIconBadgeWrap}>
                     <HeaderIcon
                       name={searchCartIconName}
                       size={searchCartIconSize}
@@ -1023,29 +1024,35 @@ const styles = StyleSheet.create({
   },
   searchTop: {
     backgroundColor: "#FFFFFF",
-    paddingHorizontal: 14,
-    paddingTop: 8,
-    paddingBottom: 4,
+    paddingHorizontal: 16,
+    paddingTop: 6,
+    paddingBottom: 6,
   },
   searchHeader: {
-    minHeight: 52,
+    minHeight: 56,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
   },
   headerIconButton: {
-    width: 38,
-    height: 38,
+    width: 44,
+    height: 44,
     alignItems: "center",
     justifyContent: "center",
   },
   searchHeaderSpacer: {
     flex: 1,
   },
+  headerIconBadgeWrap: {
+    width: 24,
+    height: 24,
+    alignItems: "center",
+    justifyContent: "center",
+  },
   cartBadge: {
     position: "absolute",
-    right: -9,
-    top: -8,
+    right: -6,
+    top: -6,
     minWidth: 17,
     height: 17,
     borderRadius: 9,
@@ -1076,6 +1083,8 @@ const styles = StyleSheet.create({
     paddingVertical: 0,
     color: "#111827",
     fontSize: 15,
+    includeFontPadding: false,
+    textAlignVertical: "center",
   },
   resultSearchClear: {
     width: 24,

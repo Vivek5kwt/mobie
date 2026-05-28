@@ -16,6 +16,7 @@ import { resolveFont } from "../services/typographyService";
 import FavoriteToggleButton, { buildFavoriteToggleConfig } from "./FavoriteToggleButton";
 import { formatMoney } from "../utils/money";
 import { getResponsiveColumns } from "../utils/responsiveLayout";
+import { ADD_TO_CART_SUCCESS_MESSAGE } from "../utils/cartFeedback";
 
 // ── DSL helpers ───────────────────────────────────────────────────────────────
 
@@ -728,6 +729,8 @@ export default function ProductGrid({ section, limit = 8, title = "Products" }) 
         },
       })
     );
+    setSnackMessage(ADD_TO_CART_SUCCESS_MESSAGE);
+    setSnackVisible(true);
   }, [dispatch, navigation, session]);
 
   const detailSections = useMemo(() => {

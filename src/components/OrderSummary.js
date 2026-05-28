@@ -47,6 +47,9 @@ const toBoolean = (value, fallback = false) => {
   return fallback;
 };
 
+const isDisplayNone = (value) =>
+  toString(value, "").trim().toLowerCase() === "none";
+
 const toFontWeight = (value, fallback = "400") => {
   const resolved = unwrapValue(value, undefined);
   if (!resolved) return fallback;
@@ -159,15 +162,24 @@ export default function OrderSummary({ section }) {
 
   // Title
   const titleText = toString(raw?.title ?? raw?.heading ?? raw?.titleText, "Order Summary");
+  const titleDisplayHidden =
+    isDisplayNone(presentationCss?.title?.display) ||
+    isDisplayNone(layoutCss?.title?.display) ||
+    isDisplayNone(presentationCss?.heading?.display) ||
+    isDisplayNone(layoutCss?.heading?.display);
   const showTitle = toBoolean(
     visibility?.title ??
+      visibility?.heading ??
+      visibility?.header ??
       raw?.headlineActive ??
+      raw?.titleActive ??
+      raw?.titleVisible ??
       raw?.headerVisible ??
       raw?.showHeader ??
       raw?.showTitle ??
       raw?.titleEnabled,
-    true
-  );
+    !titleDisplayHidden
+  ) && !titleDisplayHidden;
   const titleColor = toString(raw?.titleColor, "#111827");
   const titleSize = toNumber(raw?.titleSize, 22);
   const titleWeight = toFontWeight(raw?.titleWeight, "700");

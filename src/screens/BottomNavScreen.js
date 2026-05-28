@@ -9,7 +9,7 @@ import {
   View,
 } from "react-native";
 import { Animated, InteractionManager, TouchableOpacity } from "react-native";
-import FontAwesome from "react-native-vector-icons/FontAwesome";
+import HeaderIcon from "react-native-vector-icons/FontAwesome6";
 import { StackActions, useFocusEffect, useNavigation, useRoute } from "@react-navigation/native";
 import { useSelector } from "react-redux";
 import { SafeArea } from "../utils/SafeAreaHandler";
@@ -76,15 +76,18 @@ function FallbackProfile({ session, logout, navigation }) {
         navigation.dispatch(StackActions.replace("Auth", {
           initialMode: "login",
           requireAuth: true,
-          postLoginTarget: { name: "Wishlist" },
+          postLoginTarget: {
+            name: "BottomNavScreen",
+            params: { pageName: "wishlist", title: "Wishlist", link: "wishlist" },
+          },
         }));
         return;
       }
-      navigation.navigate("Wishlist");
+      navigation.setParams({ pageName: "wishlist", title: "Wishlist", link: "wishlist" });
       return;
     }
     if (item.link === "settings") {
-      navigation.navigate("Settings");
+      navigation.setParams({ pageName: "settings", title: "Settings", link: "settings" });
       return;
     }
     if (item.link === "orders") {
@@ -301,19 +304,14 @@ export default function BottomNavScreen() {
           NAV_COMPONENTS.includes(getComponentName(s).toLowerCase())
         ) || null;
 
-      if (hasInitialBottomNav) {
-        // Screen was opened via a bottom-nav tab — home DSL is the canonical nav source.
-        // Never let the current page's own DSL override the home-page nav bar, because
-        // inner pages (e.g. orders, profile) may carry a different bottom_navigation
-        // section that would cause the tab bar to visually change between tabs.
-        const homeDslData = await fetchDSL(appId, "home");
-        if (homeDslData?.dsl) {
-          incomingBottomNav = findNav(homeDslData.dsl);
-        }
+      // Home DSL is the canonical nav source for every tab/inner page, including
+      // pages opened from drawers, headers, or account-menu links.
+      const homeDslData = await fetchDSL(appId, "home");
+      if (homeDslData?.dsl) {
+        incomingBottomNav = findNav(homeDslData.dsl);
       }
 
-      // Fall back to the current page's DSL only when there is no home-sourced nav
-      // (i.e. screen was opened standalone from a header icon, not via a tab tap).
+      // Fall back to the current page's DSL only when Home does not define a nav.
       if (!incomingBottomNav) {
         const currentPageDslData = await fetchDSL(appId, pageName);
         if (currentPageDslData?.dsl) {
@@ -845,7 +843,7 @@ export default function BottomNavScreen() {
                 activeOpacity={0.7}
                 hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
               >
-                <FontAwesome name="angle-left" size={24} color="#111827" />
+                <HeaderIcon name="arrow-left-long" size={18} color="#111827" />
               </TouchableOpacity>
               <Text style={styles.standaloneHeaderTitle} numberOfLines={1}>
                 {title}
@@ -1036,14 +1034,17 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "space-between",
     backgroundColor: "#FFFFFF",
+    minHeight: 56,
     paddingHorizontal: 16,
-    paddingVertical: 12,
+    paddingVertical: 6,
     borderBottomWidth: 1,
     borderBottomColor: "#F3F4F6",
   },
   standaloneBackBtn: {
-    width: 36,
+    width: 44,
+    height: 44,
     alignItems: "center",
+    justifyContent: "center",
   },
   standaloneHeaderTitle: {
     flex: 1,
@@ -1051,6 +1052,8 @@ const styles = StyleSheet.create({
     fontSize: 17,
     fontWeight: "700",
     color: "#111827",
+    includeFontPadding: false,
+    textAlignVertical: "center",
   },
   scrollView: {
     flex: 1,

@@ -381,11 +381,11 @@ const writeAndroidSplashXml = (startColor, endColor) => {
     [
       '<layer-list xmlns:android="http://schemas.android.com/apk/res/android">',
       '    <item android:drawable="@drawable/splash_background" />',
-      '    <item',
-      '        android:drawable="@drawable/splash_image"',
-      '        android:gravity="center"',
-      '        android:width="144dp"',
-      '        android:height="144dp" />',
+      '    <item>',
+      '        <bitmap',
+      '            android:gravity="fill"',
+      '            android:src="@drawable/splash_image" />',
+      '    </item>',
       '</layer-list>',
       '',
     ].join('\n')

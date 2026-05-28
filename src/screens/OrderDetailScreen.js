@@ -14,6 +14,7 @@ import { SafeArea } from "../utils/SafeAreaHandler";
 import { fetchDSL } from "../engine/dslHandler";
 import { resolveAppId } from "../utils/appId";
 import FontAwesome from "react-native-vector-icons/FontAwesome";
+import HeaderIcon from "react-native-vector-icons/FontAwesome6";
 import { useAuth } from "../services/AuthContext";
 import { cancelShopifyOrder, fetchCustomerOrders, fetchShopifyOrderDetails } from "../services/shopify";
 import { triggerOrderNotification, ORDER_EVENTS } from "../services/notificationService";
@@ -342,7 +343,7 @@ export default function OrderDetailScreen() {
             onPress={() => navigation.canGoBack() ? navigation.goBack() : navigation.navigate("LayoutScreen")}
             hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
           >
-            <FontAwesome name="angle-left" size={24} color="#111827" />
+            <HeaderIcon name="arrow-left-long" size={18} color="#111827" />
           </TouchableOpacity>
           <Text style={styles.headerTitle}>Order Details</Text>
           <View style={styles.backBtn} />
@@ -882,15 +883,18 @@ const styles = StyleSheet.create({
     flexDirection:     "row",
     alignItems:        "center",
     justifyContent:    "space-between",
+    minHeight:         56,
     paddingHorizontal: 16,
-    paddingVertical:   12,
+    paddingVertical:   6,
     backgroundColor:   "#FFFFFF",
     borderBottomWidth: 1,
     borderBottomColor: "#F3F4F6",
   },
   backBtn: {
-    width:      36,
-    alignItems: "center",
+    width:          44,
+    height:         44,
+    alignItems:     "center",
+    justifyContent: "center",
   },
   headerTitle: {
     flex:       1,
@@ -898,6 +902,8 @@ const styles = StyleSheet.create({
     fontSize:   17,
     fontWeight: "700",
     color:      "#111827",
+    includeFontPadding: false,
+    textAlignVertical: "center",
   },
 
   // ── Loading / empty

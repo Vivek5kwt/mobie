@@ -1,6 +1,8 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
+  Animated,
+  AppState,
   Image,
   KeyboardAvoidingView,
   Platform,
@@ -408,6 +410,9 @@ const isSignUpSection = (section: Record<string, unknown> | null | undefined): b
 const isForgotPasswordSection = (section: Record<string, unknown> | null | undefined): boolean =>
   FORGOT_PASSWORD_COMPONENTS.has(getSectionComponent(section));
 
+const isGeneratedFallbackSection = (section: Record<string, unknown> | null | undefined): boolean =>
+  Boolean((section as { generatedFallback?: boolean } | null | undefined)?.generatedFallback);
+
 const hasAuthSections = (
   sections: Record<string, unknown>[],
   matcher: (section: Record<string, unknown>) => boolean
@@ -732,8 +737,6 @@ const toTextDecoration = (
   return 'none';
 };
 
-const capFontSize = (value: number, max: number): number => Math.min(value, max);
-
 const buildSignInTokens = (rawProps: Record<string, unknown>): SignInTokens => ({
   ...defaultSignInTokens,
   bgColor: (rawProps?.bgColor as string) ?? defaultSignInTokens.bgColor,
@@ -922,10 +925,10 @@ const buildSignUpTokens = (rawProps: Record<string, unknown>): SignUpTokens => (
   firstNameLabelColor: (rawProps?.firstNameLabelColor as string) ?? defaultSignUpTokens.firstNameLabelColor,
   lastNameLabelColor: (rawProps?.lastNameLabelColor as string) ?? defaultSignUpTokens.lastNameLabelColor,
   passwordLabelColor: (rawProps?.passwordLabelColor as string) ?? defaultSignUpTokens.passwordLabelColor,
-  emailLabelFontSize: capFontSize(toNumber(rawProps?.emailLabelFontSize, defaultSignUpTokens.emailLabelFontSize), 15),
-  firstNameLabelFontSize: capFontSize(toNumber(rawProps?.firstNameLabelFontSize, defaultSignUpTokens.firstNameLabelFontSize), 15),
-  lastNameLabelFontSize: capFontSize(toNumber(rawProps?.lastNameLabelFontSize, defaultSignUpTokens.lastNameLabelFontSize), 15),
-  passwordLabelFontSize: capFontSize(toNumber(rawProps?.passwordLabelFontSize, defaultSignUpTokens.passwordLabelFontSize), 15),
+  emailLabelFontSize: toNumber(rawProps?.emailLabelFontSize, defaultSignUpTokens.emailLabelFontSize),
+  firstNameLabelFontSize: toNumber(rawProps?.firstNameLabelFontSize, defaultSignUpTokens.firstNameLabelFontSize),
+  lastNameLabelFontSize: toNumber(rawProps?.lastNameLabelFontSize, defaultSignUpTokens.lastNameLabelFontSize),
+  passwordLabelFontSize: toNumber(rawProps?.passwordLabelFontSize, defaultSignUpTokens.passwordLabelFontSize),
   emailLabelFontFamily: toFontFamily(rawProps?.emailLabelFontFamily ?? rawProps?.fontFamily, defaultSignUpTokens.emailLabelFontFamily),
   firstNameLabelFontFamily: toFontFamily(rawProps?.firstNameLabelFontFamily ?? rawProps?.fontFamily, defaultSignUpTokens.firstNameLabelFontFamily),
   lastNameLabelFontFamily: toFontFamily(rawProps?.lastNameLabelFontFamily ?? rawProps?.fontFamily, defaultSignUpTokens.lastNameLabelFontFamily),
@@ -938,10 +941,10 @@ const buildSignUpTokens = (rawProps: Record<string, unknown>): SignUpTokens => (
   firstNameInputTextColor: (rawProps?.firstNameInputTextColor as string) ?? defaultSignUpTokens.firstNameInputTextColor,
   lastNameInputTextColor: (rawProps?.lastNameInputTextColor as string) ?? defaultSignUpTokens.lastNameInputTextColor,
   passwordInputTextColor: (rawProps?.passwordInputTextColor as string) ?? defaultSignUpTokens.passwordInputTextColor,
-  emailInputTextFontSize: capFontSize(toNumber(rawProps?.emailInputTextFontSize, defaultSignUpTokens.emailInputTextFontSize), 15),
-  firstNameInputTextFontSize: capFontSize(toNumber(rawProps?.firstNameInputTextFontSize, defaultSignUpTokens.firstNameInputTextFontSize), 15),
-  lastNameInputTextFontSize: capFontSize(toNumber(rawProps?.lastNameInputTextFontSize, defaultSignUpTokens.lastNameInputTextFontSize), 15),
-  passwordInputTextFontSize: capFontSize(toNumber(rawProps?.passwordInputTextFontSize, defaultSignUpTokens.passwordInputTextFontSize), 15),
+  emailInputTextFontSize: toNumber(rawProps?.emailInputTextFontSize, defaultSignUpTokens.emailInputTextFontSize),
+  firstNameInputTextFontSize: toNumber(rawProps?.firstNameInputTextFontSize, defaultSignUpTokens.firstNameInputTextFontSize),
+  lastNameInputTextFontSize: toNumber(rawProps?.lastNameInputTextFontSize, defaultSignUpTokens.lastNameInputTextFontSize),
+  passwordInputTextFontSize: toNumber(rawProps?.passwordInputTextFontSize, defaultSignUpTokens.passwordInputTextFontSize),
   emailInputTextFontFamily: toFontFamily(rawProps?.emailInputTextFontFamily ?? rawProps?.fontFamily, defaultSignUpTokens.emailInputTextFontFamily),
   firstNameInputTextFontFamily: toFontFamily(rawProps?.firstNameInputTextFontFamily ?? rawProps?.fontFamily, defaultSignUpTokens.firstNameInputTextFontFamily),
   lastNameInputTextFontFamily: toFontFamily(rawProps?.lastNameInputTextFontFamily ?? rawProps?.fontFamily, defaultSignUpTokens.lastNameInputTextFontFamily),
@@ -976,10 +979,10 @@ const buildSignUpTokens = (rawProps: Record<string, unknown>): SignUpTokens => (
   buttonWidth: toNumber(rawProps?.buttonWidth, defaultSignUpTokens.buttonWidth),
   footerTextColor: (rawProps?.footerTextColor as string) ?? defaultSignUpTokens.footerTextColor,
   footerLinkColor: (rawProps?.footerLinkColor as string) ?? defaultSignUpTokens.footerLinkColor,
-  footerTextFontSize: capFontSize(toNumber(rawProps?.footerTextFontSize ?? rawProps?.subtextSize ?? rawProps?.fontSize, defaultSignUpTokens.footerTextFontSize), 14),
+  footerTextFontSize: toNumber(rawProps?.footerTextFontSize ?? rawProps?.subtextSize ?? rawProps?.fontSize, defaultSignUpTokens.footerTextFontSize),
   footerTextFontFamily: toFontFamily(rawProps?.footerTextFontFamily ?? rawProps?.subtextFontFamily ?? rawProps?.fontFamily, defaultSignUpTokens.footerTextFontFamily),
   footerTextFontWeight: toFontWeight(rawProps?.footerTextFontWeight ?? rawProps?.subtextWeight ?? rawProps?.fontWeight, defaultSignUpTokens.footerTextFontWeight),
-  footerLinkFontSize: capFontSize(toNumber(rawProps?.footerLinkFontSize, defaultSignUpTokens.footerLinkFontSize), 14),
+  footerLinkFontSize: toNumber(rawProps?.footerLinkFontSize, defaultSignUpTokens.footerLinkFontSize),
   footerLinkFontFamily: toFontFamily(rawProps?.footerLinkFontFamily ?? rawProps?.fontFamily, defaultSignUpTokens.footerLinkFontFamily),
   footerLinkFontWeight: toFontWeight(rawProps?.footerLinkFontWeight, defaultSignUpTokens.footerLinkFontWeight),
   footerLinkAlignment: (rawProps?.footerLinkAlignment as string) ?? defaultSignUpTokens.footerLinkAlignment,
@@ -1078,7 +1081,7 @@ const FormField: React.FC<FieldProps> = ({
   const resolvedInputFontSize = usePlaceholderTypography ? placeholderFontSize ?? inputFontSize : inputFontSize;
   const resolvedInputFontFamily = usePlaceholderTypography ? placeholderFontFamily ?? inputFontFamily : inputFontFamily;
   const resolvedInputFontWeight = usePlaceholderTypography ? placeholderFontWeight ?? inputFontWeight : inputFontWeight;
-  const resolvedInputAlign = 'left';
+  const resolvedInputAlign = inputAlign;
   return (
   <View style={[fieldStyles.group, { marginBottom: fieldGap }]}>
     {shouldShowLabel ? (
@@ -1149,6 +1152,122 @@ const fieldStyles = StyleSheet.create({
   },
 });
 
+const AuthSkeletonBone = ({ style }: { style?: any }) => {
+  const pulse = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    const animation = Animated.loop(
+      Animated.sequence([
+        Animated.timing(pulse, {
+          toValue: 1,
+          duration: 850,
+          useNativeDriver: true,
+        }),
+        Animated.timing(pulse, {
+          toValue: 0,
+          duration: 850,
+          useNativeDriver: true,
+        }),
+      ])
+    );
+    animation.start();
+    return () => animation.stop();
+  }, [pulse]);
+
+  const opacity = pulse.interpolate({
+    inputRange: [0, 1],
+    outputRange: [0.45, 0.85],
+  });
+
+  return <Animated.View style={[authSkeletonStyles.bone, style, { opacity }]} />;
+};
+
+const AuthLayoutSkeleton = () => (
+  <SafeAreaView style={authSkeletonStyles.safeArea}>
+    <View style={authSkeletonStyles.headerRow}>
+      <AuthSkeletonBone style={authSkeletonStyles.headerIcon} />
+      <AuthSkeletonBone style={authSkeletonStyles.headerTitle} />
+      <AuthSkeletonBone style={authSkeletonStyles.headerIcon} />
+    </View>
+    <View style={authSkeletonStyles.content}>
+      <AuthSkeletonBone style={authSkeletonStyles.titleLine} />
+      <View style={authSkeletonStyles.card}>
+        <AuthSkeletonBone style={authSkeletonStyles.inputLine} />
+        <AuthSkeletonBone style={authSkeletonStyles.inputLine} />
+        <AuthSkeletonBone style={authSkeletonStyles.buttonLine} />
+        <AuthSkeletonBone style={authSkeletonStyles.footerLine} />
+      </View>
+    </View>
+  </SafeAreaView>
+);
+
+const authSkeletonStyles = StyleSheet.create({
+  safeArea: {
+    flex: 1,
+    backgroundColor: '#F8FAFC',
+  },
+  headerRow: {
+    height: 56,
+    paddingHorizontal: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    borderBottomWidth: 1,
+    borderBottomColor: '#E5E7EB',
+  },
+  content: {
+    flex: 1,
+    paddingHorizontal: 16,
+    paddingTop: 24,
+  },
+  card: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    padding: 18,
+    gap: 14,
+  },
+  bone: {
+    backgroundColor: '#E2E8F0',
+    borderRadius: 8,
+  },
+  headerIcon: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+  },
+  headerTitle: {
+    width: 116,
+    height: 18,
+    borderRadius: 6,
+  },
+  titleLine: {
+    width: '54%',
+    height: 22,
+    borderRadius: 8,
+    marginBottom: 16,
+  },
+  inputLine: {
+    width: '100%',
+    height: 50,
+    borderRadius: 10,
+  },
+  buttonLine: {
+    width: '100%',
+    height: 50,
+    borderRadius: 12,
+    marginTop: 4,
+  },
+  footerLine: {
+    width: '58%',
+    height: 14,
+    alignSelf: 'center',
+    borderRadius: 6,
+    marginTop: 8,
+  },
+});
+
 // ─── Main screen ─────────────────────────────────────────────────────────────
 
 const AuthScreen = () => {
@@ -1173,9 +1292,16 @@ const AuthScreen = () => {
   const [signUpDslSections, setSignUpDslSections] = useState<Record<string, unknown>[]>([]);
   const [hasForgotPasswordSection, setHasForgotPasswordSection] = useState(false);
   const [dslLoaded, setDslLoaded] = useState(false);
+  const [authLayoutBlocking, setAuthLayoutBlocking] = useState(true);
   const isMountedRef = useRef(true);
   const loginToastPendingRef = useRef(false);
   const currentModeRef = useRef<'login' | 'signup'>('login');
+  const dslLoadedRef = useRef(false);
+  const authLayoutBlockingRef = useRef(true);
+  const authLayoutRequestSeqRef = useRef(0);
+  const hasLiveSignInLayoutRef = useRef(false);
+  const hasLiveSignUpLayoutRef = useRef(false);
+  const appStateRef = useRef(AppState.currentState);
 
   useEffect(() => {
     return () => { isMountedRef.current = false; };
@@ -1201,38 +1327,75 @@ const AuthScreen = () => {
     setMode(nextMode);
   }, [resetAuthFormFields]);
 
-  const loadAuthLayout = useCallback(async (showRefreshIndicator = false) => {
+  const loadAuthLayout = useCallback(async (
+    options: boolean | { showRefreshIndicator?: boolean; showBlockingSkeleton?: boolean } = {}
+  ) => {
+    const normalizedOptions = typeof options === 'boolean'
+      ? { showRefreshIndicator: options }
+      : options;
+    const showRefreshIndicator = Boolean(normalizedOptions.showRefreshIndicator);
+    const shouldBlockForLayout = Boolean(normalizedOptions.showBlockingSkeleton) || !dslLoadedRef.current;
+    if (!shouldBlockForLayout && authLayoutBlockingRef.current) return;
+    const requestSeq = authLayoutRequestSeqRef.current + 1;
+    authLayoutRequestSeqRef.current = requestSeq;
     if (showRefreshIndicator) setRefreshing(true);
+    if (shouldBlockForLayout) {
+      authLayoutBlockingRef.current = true;
+      setAuthLayoutBlocking(true);
+    }
     try {
       const [signInDsl, signUpDsl] = await Promise.all([
         fetchDSL(undefined, 'signin'),
         fetchDSL(undefined, 'create-account'),
       ]);
-      if (!isMountedRef.current) return;
+      if (!isMountedRef.current || authLayoutRequestSeqRef.current !== requestSeq) return;
 
       const liveSignInSections = Array.isArray(signInDsl?.dsl?.sections) ? signInDsl.dsl.sections : [];
       const liveSignUpSections = Array.isArray(signUpDsl?.dsl?.sections) ? signUpDsl.dsl.sections : [];
       const hasLiveSignInPage = hasAuthSections(liveSignInSections, (section) =>
-        isSignInSection(section) || isForgotPasswordSection(section)
+        (isSignInSection(section) || isForgotPasswordSection(section)) && !isGeneratedFallbackSection(section)
       );
-      const hasLiveSignUpPage = hasAuthSections(liveSignUpSections, isSignUpSection);
-      const signInSections = hasLiveSignInPage ? liveSignInSections : (authLayoutFallback.sections || []);
-      const signUpSections = hasLiveSignUpPage ? liveSignUpSections : [];
+      const hasLiveSignUpPage = hasAuthSections(
+        liveSignUpSections,
+        (section) => isSignUpSection(section) && !isGeneratedFallbackSection(section)
+      );
+      const signInSections = hasLiveSignInPage
+        ? liveSignInSections
+        : hasLiveSignInLayoutRef.current
+          ? null
+          : (authLayoutFallback.sections || []);
+      const signUpSections = hasLiveSignUpPage
+        ? liveSignUpSections
+        : hasLiveSignUpLayoutRef.current
+          ? null
+          : [];
 
-      const signInSection = signInSections.find(isSignInSection);
-      const forgotSection = signInSections.find(isForgotPasswordSection);
-      const signUpSection = signUpSections.find(isSignUpSection);
+      if (signInSections) {
+        const signInSection = signInSections.find(isSignInSection);
+        const forgotSection = signInSections.find(isForgotPasswordSection);
+        setSignInDslSections(signInSections as Record<string, unknown>[]);
+        setHasForgotPasswordSection(Boolean(forgotSection));
+        setSignInTokens(signInSection ? buildSignInTokens(getSectionRawProps(signInSection)) : defaultSignInTokens);
+        setForgotPasswordTokens(forgotSection ? buildForgotPasswordTokens(getSectionRawProps(forgotSection)) : defaultForgotPasswordTokens);
+        setSignInHeaderConfig(hasLiveSignInPage ? ((signInDsl?.dsl?.headerdefault as Record<string, unknown> | undefined) ?? null) : null);
+        if (hasLiveSignInPage) hasLiveSignInLayoutRef.current = true;
+      }
 
-      setSignInDslSections(signInSections as Record<string, unknown>[]);
-      setSignUpDslSections(signUpSections as Record<string, unknown>[]);
-      setHasForgotPasswordSection(Boolean(forgotSection));
-      setSignInTokens(signInSection ? buildSignInTokens(getSectionRawProps(signInSection)) : defaultSignInTokens);
-      setForgotPasswordTokens(forgotSection ? buildForgotPasswordTokens(getSectionRawProps(forgotSection)) : defaultForgotPasswordTokens);
-      setSignUpTokens(signUpSection ? buildSignUpTokens(getSectionRawProps(signUpSection)) : defaultSignUpTokens);
-      setSignInHeaderConfig(hasLiveSignInPage ? ((signInDsl?.dsl?.headerdefault as Record<string, unknown> | undefined) ?? null) : null);
-      setSignUpHeaderConfig(hasLiveSignUpPage ? ((signUpDsl?.dsl?.headerdefault as Record<string, unknown> | undefined) ?? null) : null);
+      if (signUpSections) {
+        const signUpSection = signUpSections.find(isSignUpSection);
+        setSignUpDslSections(signUpSections as Record<string, unknown>[]);
+        setSignUpTokens(signUpSection ? buildSignUpTokens(getSectionRawProps(signUpSection)) : defaultSignUpTokens);
+        setSignUpHeaderConfig(hasLiveSignUpPage ? ((signUpDsl?.dsl?.headerdefault as Record<string, unknown> | undefined) ?? null) : null);
+        if (hasLiveSignUpPage) hasLiveSignUpLayoutRef.current = true;
+      }
     } finally {
-      if (isMountedRef.current) { setRefreshing(false); setDslLoaded(true); }
+      if (isMountedRef.current && authLayoutRequestSeqRef.current === requestSeq) {
+        setRefreshing(false);
+        dslLoadedRef.current = true;
+        setDslLoaded(true);
+        authLayoutBlockingRef.current = false;
+        setAuthLayoutBlocking(false);
+      }
     }
   }, []);
 
@@ -1266,6 +1429,17 @@ const AuthScreen = () => {
   }, [loadAuthLayout]);
 
   useFocusEffect(useCallback(() => { loadAuthLayout(); }, [loadAuthLayout]));
+
+  useEffect(() => {
+    const subscription = AppState.addEventListener('change', (nextState) => {
+      const previousState = appStateRef.current;
+      appStateRef.current = nextState;
+      if ((previousState === 'background' || previousState === 'inactive') && nextState === 'active') {
+        loadAuthLayout({ showBlockingSkeleton: true });
+      }
+    });
+    return () => subscription.remove();
+  }, [loadAuthLayout]);
 
   useEffect(() => {
     const initialMode = (route?.params as { initialMode?: string } | undefined)?.initialMode;
@@ -1381,19 +1555,14 @@ const AuthScreen = () => {
 
   const hasDynamicSignUpLayout = mode === 'signup' && signUpDecorSections.length > 0;
 
-  if (!dslLoaded) {
-    return (
-      <SafeAreaView style={{ flex: 1, backgroundColor: '#F3F7F7', justifyContent: 'center', alignItems: 'center' }}>
-        <ActivityIndicator size="large" color="#0C9297" />
-      </SafeAreaView>
-    );
-  }
+  if (!dslLoaded || authLayoutBlocking) return <AuthLayoutSkeleton />;
 
   const pagePadLeft = t.pagePaddingLeft;
   const pagePadRight = t.pagePaddingRight;
   const pagePadTop = t.pagePaddingTop;
   const pagePadBottom = t.pagePaddingBottom;
   const cardPadTop = t.cardPaddingTop;
+  const hasDynamicDecor = hasDynamicSignInLayout || hasDynamicSignUpLayout;
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: t.bgColor }}>
@@ -1460,11 +1629,12 @@ const AuthScreen = () => {
               paddingRight: t.cardPaddingRight,
               paddingTop: cardPadTop,
               paddingBottom: t.cardPaddingBottom,
+              marginTop: hasDynamicDecor ? pagePadTop : 0,
               marginBottom: t.formCardMarginBottom,
             }}
           >
             {/* Profile picture (signup only) */}
-            {mode === 'signup' && signUpTokens.showProfilePicture && signUpTokens.profilePictureUrl ? (
+            {mode === 'signup' && signUpTokens.showProfilePicture ? (
               <View
                 style={{
                   width: signUpTokens.profilePictureSize,
@@ -1480,10 +1650,14 @@ const AuthScreen = () => {
                   alignItems: 'center',
                 }}
               >
-                <Image
-                  source={{ uri: signUpTokens.profilePictureUrl }}
-                  style={{ width: signUpTokens.profilePictureSize, height: signUpTokens.profilePictureSize }}
-                />
+                {signUpTokens.profilePictureUrl ? (
+                  <Image
+                    source={{ uri: signUpTokens.profilePictureUrl }}
+                    style={{ width: signUpTokens.profilePictureSize, height: signUpTokens.profilePictureSize }}
+                  />
+                ) : (
+                  <Icon name="user" size={Math.max(22, signUpTokens.profilePictureSize * 0.28)} color={signUpTokens.profilePictureBorderColor} />
+                )}
               </View>
             ) : null}
 

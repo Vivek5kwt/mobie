@@ -407,14 +407,17 @@ export default function SideNavigation({ section }) {
       }
 
       if (slug === "settings" || slug === "setting") {
-        navigation.navigate("Settings");
+        navigation.navigate("Settings", {
+          pageName: "settings",
+          title: String(item?.label || item?.title || item?.text || "Settings"),
+        });
         return;
       }
 
       navigation.push("BottomNavScreen", {
         pageName: slug,
         title: String(item?.label || item?.title || item?.text || slug),
-        hideBottomNav: true,
+        link: slug,
       });
     },
     [initializing, isLoggedIn, logout, navigation]

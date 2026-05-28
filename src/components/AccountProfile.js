@@ -214,6 +214,12 @@ export default function AccountProfile({ section }) {
   const textGap = hasMetrics
     ? Math.max(0, toNumber(nameMetrics?.x, 0) - toNumber(avatarMetrics?.x, 0) - avatarSize)
     : 12;
+  const textTopOffset = hasMetrics && nameMetrics
+    ? Math.max(0, toNumber(nameMetrics?.y, 0) - toNumber(avatarMetrics?.y, 0))
+    : undefined;
+  const metricContainerHeight = hasMetrics
+    ? toNumber(containerMetrics?.height, undefined)
+    : undefined;
 
   const placeholderIcon = parseIconName(placeholder?.iconClass);
   const placeholderIconSize = resolveValue(placeholder?.iconSize, 22);
@@ -225,7 +231,13 @@ export default function AccountProfile({ section }) {
   }
 
   return (
-    <View style={[styles.container, resolvedContainerStyle]}>
+    <View
+      style={[
+        styles.container,
+        resolvedContainerStyle,
+        metricContainerHeight ? { minHeight: metricContainerHeight } : null,
+      ]}
+    >
       {showAvatar && (
         <View
           style={[
@@ -265,7 +277,13 @@ export default function AccountProfile({ section }) {
         </View>
       )}
 
-      <View style={[styles.textBlock, { marginLeft: textGap }]}>
+      <View
+        style={[
+          styles.textBlock,
+          { marginLeft: showAvatar ? textGap : 0 },
+          textTopOffset !== undefined ? { alignSelf: "flex-start", marginTop: textTopOffset } : null,
+        ]}
+      >
         {showName && !!name && (
           <Text numberOfLines={1} style={[styles.name, resolvedNameStyle]}>
             {name}

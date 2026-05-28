@@ -8,7 +8,7 @@ import {
   View,
 } from "react-native";
 import { useNavigation, useRoute } from "@react-navigation/native";
-import FontAwesome from "react-native-vector-icons/FontAwesome";
+import HeaderIcon from "react-native-vector-icons/FontAwesome6";
 import { SafeArea } from "../utils/SafeAreaHandler";
 import { useAuth } from "../services/AuthContext";
 import { resolveAppId } from "../utils/appId";
@@ -17,6 +17,7 @@ import { shouldRenderSectionOnMobile } from "../engine/visibility";
 import DynamicRenderer from "../engine/DynamicRenderer";
 import HeaderDefault from "../components/HeaderDefault";
 import SkeletonLoader from "../components/SkeletonLoader";
+import BottomNavigation, { BOTTOM_NAV_RESERVED_HEIGHT } from "../components/BottomNavigation";
 
 const normalizeSlug = (value = "") =>
   String(value || "")
@@ -71,6 +72,8 @@ export default function SettingsScreen() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState("");
+  const [bottomNavSection, setBottomNavSection] = useState(route?.params?.bottomNavSection || null);
+  const [bottomNavHeight, setBottomNavHeight] = useState(BOTTOM_NAV_RESERVED_HEIGHT);
   const dslFingerprintRef = useRef(null);
 
   const pageCandidates = useMemo(() => {
@@ -127,6 +130,22 @@ export default function SettingsScreen() {
   }, [loadSettingsDsl]);
 
   useEffect(() => {
+    let mounted = true;
+    fetchDSL(appId, "home")
+      .then((result) => {
+        if (!mounted) return;
+        const sections = result?.dsl?.sections || [];
+        const nav = sections.find((section) => {
+          const component = getComponentName(section).toLowerCase();
+          return ["bottom_navigation", "bottom_navigation_style_1", "bottom_navigation_style_2"].includes(component);
+        });
+        if (nav) setBottomNavSection(nav);
+      })
+      .catch(() => {});
+    return () => { mounted = false; };
+  }, [appId]);
+
+  useEffect(() => {
     const id = setInterval(
       () => loadSettingsDsl({ silent: true }),
       LIVE_DSL_REFRESH_INTERVAL_MS
@@ -165,7 +184,10 @@ export default function SettingsScreen() {
         ) : (
           <ScrollView
             style={styles.scrollView}
-            contentContainerStyle={styles.scrollContent}
+            contentContainerStyle={[
+              styles.scrollContent,
+              { paddingBottom: bottomNavSection ? bottomNavHeight + 16 : 24 },
+            ]}
             showsVerticalScrollIndicator
             keyboardShouldPersistTaps="handled"
             refreshControl={
@@ -173,7 +195,7 @@ export default function SettingsScreen() {
             }
           >
             {useHeaderDefault ? (
-              <HeaderDefault config={headerDefaultConfig} hideTabs />
+              <HeaderDefault config={headerDefaultConfig} bottomNavSection={bottomNavSection} hideTabs showBack />
             ) : (
               <View style={styles.fallbackHeader}>
                 <TouchableOpacity
@@ -182,7 +204,7 @@ export default function SettingsScreen() {
                   activeOpacity={0.7}
                   hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
                 >
-                  <FontAwesome name="angle-left" size={24} color="#111827" />
+                  <HeaderIcon name="arrow-left-long" size={18} color="#111827" />
                 </TouchableOpacity>
                 <Text style={styles.fallbackTitle} numberOfLines={1}>
                   {pageTitle}
@@ -217,6 +239,14 @@ export default function SettingsScreen() {
             )}
           </ScrollView>
         )}
+        {bottomNavSection && (
+          <View
+            style={styles.bottomNav}
+            onLayout={(event) => setBottomNavHeight(event.nativeEvent.layout.height)}
+          >
+            <BottomNavigation section={bottomNavSection} />
+          </View>
+        )}
       </View>
     </SafeArea>
   );
@@ -234,6 +264,12 @@ const styles = StyleSheet.create({
   scrollContent: {
     paddingBottom: 24,
   },
+  bottomNav: {
+    position: "absolute",
+    left: 0,
+    right: 0,
+    bottom: 0,
+  },
   sectionWrapper: {
     width: "100%",
   },
@@ -241,9 +277,9 @@ const styles = StyleSheet.create({
     marginBottom: 0,
   },
   fallbackHeader: {
-    minHeight: 58,
-    paddingHorizontal: 18,
-    paddingVertical: 7,
+    minHeight: 56,
+    paddingHorizontal: 16,
+    paddingVertical: 6,
     borderBottomWidth: 1,
     borderBottomColor: "#E5E7EB",
     backgroundColor: "#ffffff",
@@ -263,6 +299,8 @@ const styles = StyleSheet.create({
     color: "#111827",
     fontSize: 18,
     fontWeight: "700",
+    includeFontPadding: false,
+    textAlignVertical: "center",
   },
   emptyState: {
     padding: 24,

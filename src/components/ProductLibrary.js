@@ -52,7 +52,11 @@ const toBoolean = (value, fallback = false) => {
   const resolved = unwrapValue(value, fallback);
   if (resolved === undefined || resolved === null) return fallback;
   if (typeof resolved === "boolean") return resolved;
-  if (typeof resolved === "string") return resolved.toLowerCase() === "true";
+  if (typeof resolved === "string") {
+    const lowered = resolved.trim().toLowerCase();
+    if (["true", "1", "yes", "y"].includes(lowered)) return true;
+    if (["false", "0", "no", "n"].includes(lowered)) return false;
+  }
   return Boolean(resolved);
 };
 
@@ -181,6 +185,33 @@ export default function ProductLibrary({ section }) {
 
   const activeImageUrl = images[currentIdx] || images[0] || "";
   const hasMultiple = images.length > 1;
+  const sliderConfig = imageStyles?.slider || css?.slider || raw?.slider || {};
+  const sliderVisible = toBoolean(
+    visibility?.slider ?? raw?.showSlider ?? sliderConfig?.visible ?? sliderConfig?.enabled,
+    true
+  );
+  const showThumbnails = toBoolean(
+    visibility?.thumbnails ??
+      visibility?.thumbnailStrip ??
+      raw?.showThumbnails ??
+      raw?.showThumbnailStrip ??
+      sliderConfig?.showThumbnails ??
+      sliderConfig?.thumbnailStrip,
+    false
+  );
+  const showIndicator = toBoolean(
+    visibility?.indicator ??
+      visibility?.indicators ??
+      raw?.showIndicator ??
+      raw?.showIndicators ??
+      sliderConfig?.showIndicator ??
+      sliderConfig?.showIndicators,
+    true
+  );
+  const indicatorStyle = toString(
+    raw?.indicatorStyle ?? raw?.sliderIndicatorStyle ?? sliderConfig?.indicatorStyle,
+    "Dots"
+  ).trim().toLowerCase();
 
   // ── Visibility toggles ────────────────────────────────────────────────────
   const showRating = toBoolean(raw?.showRating, true);
@@ -447,7 +478,7 @@ export default function ProductLibrary({ section }) {
           horizontal
           pagingEnabled
           showsHorizontalScrollIndicator={false}
-          scrollEnabled={hasMultiple}
+          scrollEnabled={hasMultiple && sliderVisible}
           onMomentumScrollEnd={handleGalleryScrollEnd}
           nestedScrollEnabled
           directionalLockEnabled
@@ -580,7 +611,7 @@ export default function ProductLibrary({ section }) {
       </View>
 
       {/* ── Thumbnail strip ─────────────────────────────────────────────────── */}
-      {hasMultiple && (
+      {hasMultiple && sliderVisible && showThumbnails && (
         <ScrollView
           horizontal
           showsHorizontalScrollIndicator={false}
@@ -607,12 +638,17 @@ export default function ProductLibrary({ section }) {
       )}
 
       {/* ── Pagination dots ─────────────────────────────────────────────────── */}
-      {hasMultiple && (
+      {hasMultiple && sliderVisible && showIndicator && !showThumbnails && (
         <View style={styles.dotsRow}>
           {images.map((_, idx) => (
             <View
               key={`dot-${idx}`}
-              style={[styles.dot, idx === currentIdx && styles.dotActive]}
+              style={[
+                styles.dot,
+                indicatorStyle === "dashed" && styles.dotDashed,
+                idx === currentIdx && styles.dotActive,
+                idx === currentIdx && indicatorStyle === "dashed" && styles.dotDashedActive,
+              ]}
             />
           ))}
         </View>
@@ -737,10 +773,20 @@ const styles = StyleSheet.create({
     borderRadius: 4,
     backgroundColor: "#D1D5DB",
   },
+  dotDashed: {
+    width: 18,
+    height: 4,
+    borderRadius: 2,
+  },
   dotActive: {
     backgroundColor: "#0D9488",
     width: 16,
     borderRadius: 4,
+  },
+  dotDashedActive: {
+    width: 28,
+    height: 4,
+    borderRadius: 2,
   },
   // ── Fullscreen modal ──────────────────────────────────────────────────────
   fullscreenBackdrop: {

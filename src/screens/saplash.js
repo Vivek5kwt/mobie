@@ -121,7 +121,7 @@ export default function SplashScreen() {
       {splashSource ? (
         <Image
           source={splashSource}
-          resizeMode="contain"
+          resizeMode="cover"
           style={styles.splashImage}
           onError={() => setSplashSource(null)}
         />
@@ -137,9 +137,8 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   splashImage: {
-    width: "72%",
-    height: "72%",
-    maxWidth: 360,
-    maxHeight: 360,
+    ...StyleSheet.absoluteFillObject,
+    width: "100%",
+    height: "100%",
   },
 });

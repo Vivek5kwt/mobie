@@ -370,7 +370,6 @@ export default function SignUp({ section }) {
     const buttonAutoUppercase = toBoolean(raw.buttonAutoUppercase, false);
     const buttonIcon = toString(raw.buttonIcon, "");
 
-    // Profile picture — cap to 30% of screen width so it doesn't overflow on small screens
     const profilePictureUrl = toString(raw.profilePictureUrl, "");
     const profilePictureSize = toNumber(raw.profilePictureSize, 90);
 
@@ -593,13 +592,19 @@ export default function SignUp({ section }) {
 
   const displayButtonText = buttonAutoUppercase ? buttonText.toUpperCase() : buttonText;
   const displayFooterLinkText = footerLinkAutoUppercase ? footerLinkText.toUpperCase() : footerLinkText;
-  const mobileProfilePictureSize = profilePictureSize;
+  const maxProfilePictureSize = Math.max(
+    0,
+    screenWidth - subgpl - subgpr - (bgPadVisible ? pl + pr : 0)
+  );
+  const mobileProfilePictureSize = maxProfilePictureSize > 0
+    ? Math.min(profilePictureSize, maxProfilePictureSize)
+    : profilePictureSize;
   const mobileButtonWidthPct = buttonWidth;
   const mobileButtonHeight = buttonHeight;
   const mobileButtonFontSize = buttonFontSize;
   const mobileTitleFontSize = headerTitleFontSize;
   const mobileFieldFontSize = (size) => size;
-  const inputTextAlign = "left";
+  const inputAlignFor = (fieldAlign) => fieldAlign || "left";
   const shouldShowFieldLabel = (labelVisible, placeholderVisible) =>
     labelVisible && !placeholderVisible;
   const mobileCardPaddingTop = bgPadVisible ? pt : 0;
@@ -607,8 +612,7 @@ export default function SignUp({ section }) {
   const mobileCardPaddingLeft = bgPadVisible ? pl : 0;
   const mobileCardPaddingRight = bgPadVisible ? pr : 0;
   const resolvedButtonIcon = resolveFA4IconName(buttonIcon);
-  const shouldShowProfilePicture =
-    logoVisible && showProfilePicture && Boolean(String(profilePictureUrl || "").trim());
+  const shouldShowProfilePicture = logoVisible && showProfilePicture;
   const shouldShowHeaderTitle = Boolean(String(headerTitle || "").trim()) && !authTitle;
   const submitButtonContent = loading ? (
     <ActivityIndicator color={buttonTextColor} />
@@ -693,11 +697,19 @@ export default function SignUp({ section }) {
               },
             ]}
           >
-            <Image
-              source={{ uri: profilePictureUrl }}
-              style={styles.profilePicture}
-              resizeMode="cover"
-            />
+            {profilePictureUrl ? (
+              <Image
+                source={{ uri: profilePictureUrl }}
+                style={styles.profilePicture}
+                resizeMode="cover"
+              />
+            ) : (
+              <Icon
+                name="user"
+                size={Math.max(22, mobileProfilePictureSize * 0.28)}
+                color={profilePictureBorderColor}
+              />
+            )}
           </View>
         )}
 
@@ -752,7 +764,7 @@ export default function SignUp({ section }) {
                   fontSize: mobileFieldFontSize(firstName ? firstNameInputTextFontSize : firstNamePlaceholderFontSize),
                   fontFamily: firstName ? firstNameInputTextFontFamily : firstNamePlaceholderFontFamily,
                   fontWeight: firstName ? firstNameInputTextFontWeight : firstNamePlaceholderFontWeight,
-                  textAlign: inputTextAlign,
+                  textAlign: inputAlignFor(firstNameInputTextAlignment),
                   textAlignVertical: "center",
                   borderRadius: inputBorderRadius,
                   minHeight: inputHeight,
@@ -788,7 +800,7 @@ export default function SignUp({ section }) {
                   fontSize: mobileFieldFontSize(lastName ? lastNameInputTextFontSize : lastNamePlaceholderFontSize),
                   fontFamily: lastName ? lastNameInputTextFontFamily : lastNamePlaceholderFontFamily,
                   fontWeight: lastName ? lastNameInputTextFontWeight : lastNamePlaceholderFontWeight,
-                  textAlign: inputTextAlign,
+                  textAlign: inputAlignFor(lastNameInputTextAlignment),
                   textAlignVertical: "center",
                   borderRadius: inputBorderRadius,
                   minHeight: inputHeight,
@@ -824,7 +836,7 @@ export default function SignUp({ section }) {
                   fontSize: mobileFieldFontSize(email ? emailInputTextFontSize : emailPlaceholderFontSize),
                   fontFamily: email ? emailInputTextFontFamily : emailPlaceholderFontFamily,
                   fontWeight: email ? emailInputTextFontWeight : emailPlaceholderFontWeight,
-                  textAlign: inputTextAlign,
+                  textAlign: inputAlignFor(emailInputTextAlignment),
                   textAlignVertical: "center",
                   borderRadius: inputBorderRadius,
                   minHeight: inputHeight,
@@ -862,7 +874,7 @@ export default function SignUp({ section }) {
                   fontSize: mobileFieldFontSize(password ? passwordInputTextFontSize : passwordPlaceholderFontSize),
                   fontFamily: password ? passwordInputTextFontFamily : passwordPlaceholderFontFamily,
                   fontWeight: password ? passwordInputTextFontWeight : passwordPlaceholderFontWeight,
-                  textAlign: inputTextAlign,
+                  textAlign: inputAlignFor(passwordInputTextAlignment),
                   textAlignVertical: "center",
                   borderRadius: inputBorderRadius,
                   minHeight: inputHeight,

@@ -46,6 +46,7 @@ const buildSignUpSection = (headerDefault = {}) => {
   const accentColor = headerDefault?.backgroundColor || "#027579";
   const textColor   = headerDefault?.textColor       || "#111827";
   return {
+    generatedFallback: true,
     type: "object",
     title: "Sign Up Component Schema",
     properties: {
