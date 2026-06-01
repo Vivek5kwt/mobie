@@ -345,7 +345,7 @@ const resizeImageContain = async (inputPath, outputPath, size) => {
   return true;
 };
 
-const writeAndroidSplashXml = (startColor, endColor) => {
+const writeAndroidSplashXml = (startColor, endColor, hasSplashImage = true) => {
   const valuesDir = path.join(ANDROID_RES_PATH, 'values');
   const drawableDir = path.join(ANDROID_RES_PATH, 'drawable');
 
@@ -376,31 +376,24 @@ const writeAndroidSplashXml = (startColor, endColor) => {
     ].join('\n')
   );
 
-  fs.writeFileSync(
-    path.join(drawableDir, 'launch_screen.xml'),
-    [
-      '<layer-list xmlns:android="http://schemas.android.com/apk/res/android">',
-      '    <item android:drawable="@drawable/splash_background" />',
+  const launchScreenLines = [
+    '<layer-list xmlns:android="http://schemas.android.com/apk/res/android">',
+    '    <item android:drawable="@drawable/splash_background" />',
+  ];
+
+  if (hasSplashImage) {
+    launchScreenLines.push(
       '    <item>',
       '        <bitmap',
       '            android:gravity="fill"',
       '            android:src="@drawable/splash_image" />',
-      '    </item>',
-      '</layer-list>',
-      '',
-    ].join('\n')
-  );
+      '    </item>'
+    );
+  }
 
-};
+  launchScreenLines.push('</layer-list>', '');
+  fs.writeFileSync(path.join(drawableDir, 'launch_screen.xml'), launchScreenLines.join('\n'));
 
-const writeTransparentPng = (dest) => {
-  fs.writeFileSync(
-    dest,
-    Buffer.from(
-      'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAFgwJ/l5kW4wAAAABJRU5ErkJggg==',
-      'base64'
-    )
-  );
 };
 
 const updateAndroidSplash = async (assets) => {
@@ -410,18 +403,18 @@ const updateAndroidSplash = async (assets) => {
   const endColor = normalizeHex(assets.splashGradEnd || startColor, startColor);
   const splashUrl = assets.splashImageUrl || '';
 
-  writeAndroidSplashXml(startColor, endColor);
-
   const splashDir = path.join(ANDROID_RES_PATH, 'drawable-nodpi');
   const splashPath = path.join(splashDir, 'splash_image.png');
   fs.mkdirSync(splashDir, { recursive: true });
 
   if (!splashUrl) {
-    writeTransparentPng(splashPath);
-    console.log('No splashImageUrl found; Android native splash image set to transparent.');
+    writeAndroidSplashXml(startColor, endColor, false);
+    if (fs.existsSync(splashPath)) fs.unlinkSync(splashPath);
+    console.log('No splashImageUrl found; Android native splash will use the background only.');
     return;
   }
 
+  writeAndroidSplashXml(startColor, endColor, true);
   const tempSplashPath = path.join(ROOT_DIR, 'temp_splash.png');
   console.log(`Downloading Android splash image from: ${splashUrl}`);
   await downloadFile(splashUrl, tempSplashPath);
