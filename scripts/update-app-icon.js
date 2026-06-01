@@ -286,7 +286,9 @@ const normalizeHex = (value, fallback = DEFAULT_SPLASH_BACKGROUND) => {
 
 const escapePowerShell = (value) => String(value).replace(/'/g, "''");
 
-const resizeImageContain = async (inputPath, outputPath, size) => {
+const resizeImageContain = async (inputPath, outputPath, size, options = {}) => {
+  const allowCopyFallback = options.allowCopyFallback !== false;
+
   try {
     execFileSync(
       'magick',
@@ -341,15 +343,71 @@ const resizeImageContain = async (inputPath, outputPath, size) => {
     }
   } catch (_) {}
 
+  if (allowCopyFallback) {
+    fs.copyFileSync(inputPath, outputPath);
+    return true;
+  }
+
+  return false;
+};
+
+const detectRasterExtension = (filePath) => {
+  const bytes = fs.readFileSync(filePath);
+  if (bytes.length >= 8 && bytes.slice(0, 8).equals(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]))) {
+    return '.png';
+  }
+  if (bytes.length >= 3 && bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff) {
+    return '.jpg';
+  }
+  if (
+    bytes.length >= 12 &&
+    bytes.slice(0, 4).toString('ascii') === 'RIFF' &&
+    bytes.slice(8, 12).toString('ascii') === 'WEBP'
+  ) {
+    return '.webp';
+  }
+  return '.png';
+};
+
+const removeSplashImageFiles = (keepPath = '') => {
+  const splashDir = path.join(ANDROID_RES_PATH, 'drawable-nodpi');
+  const normalizedKeep = keepPath ? path.normalize(keepPath) : '';
+
+  ['.png', '.jpg', '.jpeg', '.webp'].forEach((extension) => {
+    const candidate = path.join(splashDir, `splash_image${extension}`);
+    if (fs.existsSync(candidate) && path.normalize(candidate) !== normalizedKeep) {
+      fs.unlinkSync(candidate);
+    }
+  });
+};
+
+const createAndroidSplashImage = async (inputPath, splashDir) => {
+  const pngPath = path.join(splashDir, 'splash_image.png');
+  removeSplashImageFiles();
+
+  const converted = await resizeImageContain(inputPath, pngPath, 432, {
+    allowCopyFallback: false,
+  });
+
+  if (converted) {
+    removeSplashImageFiles(pngPath);
+    return pngPath;
+  }
+
+  const extension = detectRasterExtension(inputPath);
+  const outputPath = path.join(splashDir, `splash_image${extension}`);
   fs.copyFileSync(inputPath, outputPath);
-  return true;
+  removeSplashImageFiles(outputPath);
+  return outputPath;
 };
 
 const writeAndroidSplashXml = (startColor, endColor, hasSplashImage = true) => {
   const valuesDir = path.join(ANDROID_RES_PATH, 'values');
+  const valuesV31Dir = path.join(ANDROID_RES_PATH, 'values-v31');
   const drawableDir = path.join(ANDROID_RES_PATH, 'drawable');
 
   fs.mkdirSync(valuesDir, { recursive: true });
+  fs.mkdirSync(valuesV31Dir, { recursive: true });
   fs.mkdirSync(drawableDir, { recursive: true });
 
   fs.writeFileSync(
@@ -376,6 +434,22 @@ const writeAndroidSplashXml = (startColor, endColor, hasSplashImage = true) => {
     ].join('\n')
   );
 
+  const transparentIconPath = path.join(drawableDir, 'splash_screen_transparent_icon.xml');
+  if (hasSplashImage) {
+    if (fs.existsSync(transparentIconPath)) fs.unlinkSync(transparentIconPath);
+  } else {
+    fs.writeFileSync(
+      transparentIconPath,
+      [
+        '<shape xmlns:android="http://schemas.android.com/apk/res/android" android:shape="rectangle">',
+        '    <size android:width="1dp" android:height="1dp" />',
+        '    <solid android:color="@android:color/transparent" />',
+        '</shape>',
+        '',
+      ].join('\n')
+    );
+  }
+
   const launchScreenLines = [
     '<layer-list xmlns:android="http://schemas.android.com/apk/res/android">',
     '    <item android:drawable="@drawable/splash_background" />',
@@ -394,6 +468,29 @@ const writeAndroidSplashXml = (startColor, endColor, hasSplashImage = true) => {
   launchScreenLines.push('</layer-list>', '');
   fs.writeFileSync(path.join(drawableDir, 'launch_screen.xml'), launchScreenLines.join('\n'));
 
+  const android12SplashIcon = hasSplashImage
+    ? '@drawable/splash_image'
+    : '@drawable/splash_screen_transparent_icon';
+
+  fs.writeFileSync(
+    path.join(valuesV31Dir, 'styles.xml'),
+    [
+      '<resources>',
+      '',
+      '    <style name="AppTheme" parent="Theme.AppCompat.DayNight.NoActionBar">',
+      '        <item name="android:editTextBackground">@drawable/rn_edit_text_material</item>',
+      '        <item name="android:windowNoTitle">true</item>',
+      '        <item name="android:windowActionBar">false</item>',
+      '        <item name="android:windowBackground">@drawable/launch_screen</item>',
+      '        <item name="android:windowSplashScreenBackground">@color/splash_screen_background</item>',
+      `        <item name="android:windowSplashScreenAnimatedIcon">${android12SplashIcon}</item>`,
+      '        <item name="android:windowSplashScreenIconBackgroundColor">@android:color/transparent</item>',
+      '    </style>',
+      '',
+      '</resources>',
+      '',
+    ].join('\n')
+  );
 };
 
 const updateAndroidSplash = async (assets) => {
@@ -404,23 +501,22 @@ const updateAndroidSplash = async (assets) => {
   const splashUrl = assets.splashImageUrl || '';
 
   const splashDir = path.join(ANDROID_RES_PATH, 'drawable-nodpi');
-  const splashPath = path.join(splashDir, 'splash_image.png');
   fs.mkdirSync(splashDir, { recursive: true });
 
   if (!splashUrl) {
     writeAndroidSplashXml(startColor, endColor, false);
-    if (fs.existsSync(splashPath)) fs.unlinkSync(splashPath);
+    removeSplashImageFiles();
     console.log('No splashImageUrl found; Android native splash will use the background only.');
     return;
   }
 
   writeAndroidSplashXml(startColor, endColor, true);
-  const tempSplashPath = path.join(ROOT_DIR, 'temp_splash.png');
+  const tempSplashPath = path.join(ROOT_DIR, 'temp_splash_download');
   console.log(`Downloading Android splash image from: ${splashUrl}`);
   await downloadFile(splashUrl, tempSplashPath);
-  await resizeImageContain(tempSplashPath, splashPath, 432);
+  const splashPath = await createAndroidSplashImage(tempSplashPath, splashDir);
   fs.unlinkSync(tempSplashPath);
-  console.log('Android native splash image updated successfully');
+  console.log(`Android native splash image updated successfully: ${path.basename(splashPath)}`);
 };
 
 (async () => {
