@@ -11,6 +11,7 @@ import { useSideMenu } from "../services/SideMenuContext";
 import { useAuth } from "../services/AuthContext";
 import { isAuthenticatedSession, requireLoginForAction } from "../utils/authGate";
 import { resolveFont } from "../services/typographyService";
+import { isHttpUrl, normalizePageSlug, resolveDslNavigationTarget } from "../utils/navigationTarget";
 
 export const BOTTOM_NAV_RESERVED_HEIGHT = 80;
 
@@ -151,120 +152,28 @@ const clampIndex = (index, count) => {
   return Math.max(0, Math.min(index, count - 1));
 };
 
-const isHttpUrl = (url = "") => /^https?:\/\//i.test(String(url));
-
-const slugifyPageName = (value) =>
-  String(value || "")
-    .trim()
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "");
-
 const SIGNIN_SLUGS   = new Set(["signin", "sign-in", "login", "log-in", "auth"]);
 const ORDER_SLUGS    = new Set(["orders", "order", "my-orders", "myorders", "order-history", "orderhistory", "my-order"]);
 const PROFILE_SLUGS  = new Set(["profile", "account", "my-account", "myaccount"]);
 const WISHLIST_SLUGS = new Set(["wishlist", "my-wishlist", "mywishlist", "saved", "favorites", "favourites", "favourite", "favorite"]);
-const SETTINGS_SLUGS = new Set(["settings", "setting"]);
 
 const resolveNavigationTarget = (item = {}) => {
-  const link = resolveItemLink(item);
   const label = resolveItemLabel(item);
   const id = item?.id ? String(item.id) : "";
   const fallbackLabel = label || id || "Destination";
-  const pageName = slugifyPageName(id || label || "");
-
-  if (!link) {
-    if (id.toLowerCase() === "home" || label.toLowerCase() === "home") {
-      return { type: "stack", name: "LayoutScreen", params: { pageName: "home" } };
-    }
-    // Sign-in slugs → Auth screen
-    if (SIGNIN_SLUGS.has(pageName)) {
-      return { type: "stack", name: "Auth", params: { initialMode: "login" } };
-    }
-    if (PROFILE_SLUGS.has(pageName)) {
-      return {
-        type: "stack",
-        name: "BottomNavScreen",
-        params: { title: "My Account", pageName: "my-account", link: "my-account" },
-      };
-    }
-    if (ORDER_SLUGS.has(pageName)) {
-      return {
-        type: "stack",
-        name: "BottomNavScreen",
-        params: { title: "Orders", pageName: "orders", link: "orders" },
-      };
-    }
-    if (WISHLIST_SLUGS.has(pageName)) {
-      return {
-        type: "stack",
-        name: "BottomNavScreen",
-        params: { title: "Wishlist", pageName: "wishlist", link: "wishlist" },
-      };
-    }
-    if (SETTINGS_SLUGS.has(pageName)) {
-      return {
-        type: "stack",
-        name: "BottomNavScreen",
-        params: { title: "Settings", pageName: "settings", link: "settings" },
-      };
-    }
-    // Orders should stay inside BottomNavScreen so the tab bar remains visible.
-    return {
-      type: "stack",
-      name: "BottomNavScreen",
-      params: { title: fallbackLabel, pageName },
-    };
-  }
-
-  if (/^https?:\/\//i.test(link)) {
-    return { type: "external", url: link };
-  }
-
-  const cleaned = link.replace(/^\//, "");
-  const cleanedSlug = slugifyPageName(cleaned);
-  if (cleaned.toLowerCase() === "home") {
-    return { type: "stack", name: "LayoutScreen" };
-  }
-  // Sign-in links → Auth screen
-  if (SIGNIN_SLUGS.has(cleanedSlug)) {
-    return { type: "stack", name: "Auth", params: { initialMode: "login" } };
-  }
-  if (PROFILE_SLUGS.has(cleanedSlug)) {
-    return {
-      type: "stack",
-      name: "BottomNavScreen",
-      params: { title: "My Account", pageName: "my-account", link: "my-account" },
-    };
-  }
-  if (ORDER_SLUGS.has(cleanedSlug)) {
-    return {
-      type: "stack",
-      name: "BottomNavScreen",
-      params: { title: "Orders", pageName: "orders", link: "orders" },
-    };
-  }
-  if (WISHLIST_SLUGS.has(cleanedSlug)) {
-    return {
-      type: "stack",
-      name: "BottomNavScreen",
-      params: { title: fallbackLabel || "Wishlist", pageName: "wishlist", link: "wishlist" },
-    };
-  }
-  if (SETTINGS_SLUGS.has(cleanedSlug)) {
-    return {
-      type: "stack",
-      name: "BottomNavScreen",
-      params: { title: fallbackLabel || "Settings", pageName: "settings", link: "settings" },
-    };
-  }
-  // Orders should stay inside BottomNavScreen so the tab bar remains visible.
-
-  return {
-    type: "stack",
-    name: "BottomNavScreen",
-    params: { title: fallbackLabel, link: cleaned, pageName: cleaned || pageName },
-  };
+  return resolveDslNavigationTarget({
+    target: resolveItemLink(item),
+    link: item?.link,
+    href: item?.href,
+    url: item?.url,
+    linkTo: item?.linkTo,
+    navigateRef: item?.navigateRef ?? item?.pageName ?? item?.page ?? item?.screen,
+    navigateType: item?.navigateType ?? item?.linkType,
+    id,
+    label,
+    title: fallbackLabel,
+    fallbackTitle: fallbackLabel,
+  });
 };
 
 function BottomNavigation({ section, activeIndexOverride }) {
@@ -598,8 +507,8 @@ function BottomNavigation({ section, activeIndexOverride }) {
 
     setActiveIndex(index);
 
-    const itemSlug = slugifyPageName(item?.id || resolveItemLabel(item) || resolveItemLink(item) || "");
-    const targetPageSlug = slugifyPageName(target?.params?.pageName || "");
+    const itemSlug = normalizePageSlug(item?.id || resolveItemLabel(item) || resolveItemLink(item) || "");
+    const targetPageSlug = normalizePageSlug(target?.params?.pageName || "");
     const isProtectedTarget =
       PROFILE_SLUGS.has(itemSlug) ||
       ORDER_SLUGS.has(itemSlug) ||

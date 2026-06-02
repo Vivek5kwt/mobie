@@ -9,6 +9,7 @@ import { useAuth } from "../services/AuthContext";
 import { getTypography, resolveFirstFont } from "../services/typographyService";
 import { dedupeWishlistProducts } from "../store/slices/wishlistSlice";
 import { requireLoginForAction } from "../utils/authGate";
+import { navigateToDslTarget } from "../utils/navigationTarget";
 
 const normalizeIconName = (name) => {
   if (!name) return "";
@@ -329,16 +330,23 @@ export default function HeaderDefault({ config, bottomNavSection, hideTabs = fal
         } else if (key === "wishlist") {
           openWishlist();
         } else {
-          navigation.navigate(headerNavRef);
+          void navigateToDslTarget(navigation, {
+            target: headerNavRef,
+            navigateRef: headerNavRef,
+            navigateType: headerNavType,
+            fallbackTitle: headerNavRef,
+            extraParams: { bottomNavSection: navSection },
+          });
         }
       } else if (type === "url") {
         navigation.navigate("CheckoutWebView", { url: headerNavRef, title: "" });
       } else {
-        navigation.navigate("BottomNavScreen", {
-          title: headerNavRef,
-          pageName: headerNavRef,
-          link: headerNavRef,
-          bottomNavSection: navSection,
+        void navigateToDslTarget(navigation, {
+          target: headerNavRef,
+          navigateRef: headerNavRef,
+          navigateType: headerNavType,
+          fallbackTitle: headerNavRef,
+          extraParams: { bottomNavSection: navSection },
         });
       }
       return;
@@ -356,7 +364,13 @@ export default function HeaderDefault({ config, bottomNavSection, hideTabs = fal
     const title = item?.label || item?.title || item?.name || (target === "cart" ? "Cart" : "Notifications");
     const rawLink = item?.link ?? item?.href ?? item?.url ?? "";
     const link = typeof rawLink === "string" ? rawLink.replace(/^\//, "") : "";
-    navigation.navigate("BottomNavScreen", { title, link, activeIndex: idx, bottomNavSection: null });
+    void navigateToDslTarget(navigation, {
+      target: link || title,
+      link: rawLink,
+      label: title,
+      fallbackTitle: title,
+      extraParams: { activeIndex: idx, bottomNavSection: null },
+    });
   };
 
   // ── Tab bar (shared between flat and array mode) ──────────────────────────
@@ -689,7 +703,7 @@ export default function HeaderDefault({ config, bottomNavSection, hideTabs = fal
         cart:         "BottomNavScreen",
         profile:      "BottomNavScreen",
       };
-      const screen = screenMap[key] || ref;
+      const screen = screenMap[key];
       if (screen === "BottomNavScreen") {
         navigation.navigate("BottomNavScreen", {
           title: ref,
@@ -697,8 +711,16 @@ export default function HeaderDefault({ config, bottomNavSection, hideTabs = fal
           link: ref,
           bottomNavSection: navSection,
         });
-      } else {
+      } else if (screen) {
         navigation.navigate(screen);
+      } else {
+        void navigateToDslTarget(navigation, {
+          target: ref,
+          navigateRef: ref,
+          navigateType: type,
+          fallbackTitle: ref,
+          extraParams: { bottomNavSection: navSection },
+        });
       }
     } else if (type === "url") {
       navigation.navigate("CheckoutWebView", { url: ref, title: "" });
@@ -710,8 +732,13 @@ export default function HeaderDefault({ config, bottomNavSection, hideTabs = fal
     } else if (type === "product") {
       navigation.navigate("ProductDetail", { handle: ref });
     } else {
-      // Generic: try screen name directly
-      try { navigation.navigate(ref); } catch (_) {}
+      void navigateToDslTarget(navigation, {
+        target: ref,
+        navigateRef: ref,
+        navigateType: type,
+        fallbackTitle: ref,
+        extraParams: { bottomNavSection: navSection },
+      });
     }
   };
 

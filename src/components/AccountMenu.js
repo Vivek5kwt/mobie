@@ -12,6 +12,7 @@ import { convertStyles } from "../utils/convertStyles";
 import { useAuth } from "../services/AuthContext";
 import { isAuthenticatedSession, requireLoginForAction } from "../utils/authGate";
 import { resolveFont } from "../services/typographyService";
+import { navigateToDslTarget } from "../utils/navigationTarget";
 
 // ── helpers ────────────────────────────────────────────────────────────────
 
@@ -262,6 +263,16 @@ export default function AccountMenu({ section }) {
     return SIGNIN_SLUGS.has(label) || SIGNIN_SLUGS.has(link);
   };
 
+  const resolveLogoutCopy = (item = {}) => {
+    const label = resolveLabel(item, str(rawProps?.text ?? rawProps?.label, "Logout"));
+    return {
+      title: str(item?.popupTitle ?? item?.logoutPopupTitle ?? rawProps?.popupTitle ?? rawProps?.logoutPopupTitle, label),
+      message: str(item?.popupMessage ?? item?.logoutPopupMessage ?? rawProps?.popupMessage ?? rawProps?.logoutPopupMessage, ""),
+      cancelText: str(item?.cancelButtonText ?? item?.cancelText ?? rawProps?.cancelButtonText ?? rawProps?.cancelText, "Cancel"),
+      confirmText: str(item?.logoutButtonText ?? item?.confirmButtonText ?? rawProps?.logoutButtonText ?? rawProps?.confirmButtonText, label),
+    };
+  };
+
   if (!items.length || !showHeader) return null;
 
   const handlePress = async (item) => {
@@ -272,13 +283,14 @@ export default function AccountMenu({ section }) {
         return;
       }
 
+      const logoutCopy = resolveLogoutCopy(item);
       Alert.alert(
-        "Log Out",
-        "Are you sure you want to log out?",
+        logoutCopy.title,
+        logoutCopy.message,
         [
-          { text: "Cancel", style: "cancel" },
+          { text: logoutCopy.cancelText, style: "cancel" },
           {
-            text: "Log Out",
+            text: logoutCopy.confirmText,
             style: "destructive",
             onPress: async () => {
               await logout();
@@ -370,10 +382,17 @@ export default function AccountMenu({ section }) {
       }
 
       // All other internal page slugs → BottomNavScreen
-      navigation.navigate("BottomNavScreen", {
-        pageName: normalized,
-        link: normalized,
-        title: label || target,
+      await navigateToDslTarget(navigation, {
+        target,
+        link: rawItem?.link,
+        href: rawItem?.href,
+        url: rawItem?.url,
+        linkTo: rawItem?.linkTo,
+        navigateRef: rawItem?.navigateRef ?? rawItem?.pageName ?? rawItem?.page ?? rawItem?.screen,
+        navigateType: rawItem?.navigateType ?? rawItem?.linkType,
+        id: rawItem?.id,
+        label,
+        fallbackTitle: label || target,
       });
     } catch (_) {}
   };

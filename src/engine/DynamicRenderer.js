@@ -43,6 +43,10 @@ import ConfirmationHeader from "../components/ConfirmationHeader";
 import FilterSortHeader from "../components/FilterSortHeader";
 import RecentProducts from "../components/RecentProducts";
 import OrderHistory from "../components/OrderHistory";
+import CurrencySwitcher from "../components/CurrencySwitcher";
+import Logout from "../components/Logout";
+import NotificationList from "../components/NotificationList";
+import CustomButton from "../components/CustomButton";
 
 const normalizeComponentName = (value) =>
   String(value || "")
@@ -136,6 +140,16 @@ const componentMap = {
   orderhistory: OrderHistory,
   orders: OrderHistory,
   my_orders: OrderHistory,
+  currency_switcher: CurrencySwitcher,
+  currency_selector: CurrencySwitcher,
+  logout: Logout,
+  log_out: Logout,
+  logout_button: Logout,
+  notification_inbox: NotificationList,
+  notification_list: NotificationList,
+  notifications: NotificationList,
+  custom_button: CustomButton,
+  button: CustomButton,
 };
 
 const componentAliases = {
@@ -176,6 +190,19 @@ const componentAliases = {
   "order history": "order_history",
   myorders: "order_history",
   "my-orders": "order_history",
+  currencyswitcher: "currency_switcher",
+  "currency-switcher": "currency_switcher",
+  "currency switcher": "currency_switcher",
+  currencyselector: "currency_selector",
+  "currency-selector": "currency_selector",
+  logoutbutton: "logout_button",
+  "logout-button": "logout_button",
+  "log-out": "logout",
+  notificationinbox: "notification_inbox",
+  "notification-inbox": "notification_inbox",
+  "notification inbox": "notification_inbox",
+  notificationlist: "notification_list",
+  "notification-list": "notification_list",
 };
 
 export default function DynamicRenderer({ section }) {

@@ -19,6 +19,7 @@ const APP_ID = process.env.APP_ID || process.env.REACT_APP_APP_ID || '132';
 const GRAPHQL_ENDPOINT = process.env.GRAPHQL_ENDPOINT || 'https://app.mobidrag.com/graphql';
 const ROOT_DIR = path.join(__dirname, '..');
 const ANDROID_RES_PATH = path.join(ROOT_DIR, 'android', 'app', 'src', 'main', 'res');
+const GENERATED_BRAND_ASSETS_PATH = path.join(ROOT_DIR, 'src', 'generated', 'brandAssets.json');
 const DEFAULT_SPLASH_BACKGROUND = '#ffffff';
 
 const ICON_SIZES = {
@@ -68,6 +69,18 @@ const firstNonEmpty = (...values) => {
   return '';
 };
 
+const normalizeBoolean = (value, fallback = undefined) => {
+  const resolved = unwrapDeep(value);
+  if (typeof resolved === 'boolean') return resolved;
+  if (typeof resolved === 'number') return resolved !== 0;
+  if (typeof resolved === 'string') {
+    const lowered = resolved.trim().toLowerCase();
+    if (['true', '1', 'yes', 'y'].includes(lowered)) return true;
+    if (['false', '0', 'no', 'n'].includes(lowered)) return false;
+  }
+  return fallback;
+};
+
 const collectBrandCandidates = (node, candidates = [], depth = 0, seen = new Set()) => {
   if (!isObject(node) && !Array.isArray(node)) return candidates;
   if (seen.has(node) || depth > 10) return candidates;
@@ -99,8 +112,30 @@ const extractBrandAssets = (dsl) => {
     if (!assets.splashBgColor) assets.splashBgColor = firstNonEmpty(source.splashBgColor, source.backgroundColor, source.bgColor);
     if (!assets.splashGradStart) assets.splashGradStart = firstNonEmpty(source.splashGradStart, source.gradientStart);
     if (!assets.splashGradEnd) assets.splashGradEnd = firstNonEmpty(source.splashGradEnd, source.gradientEnd);
+    if (assets.splashShowBrandIcon === undefined) {
+      assets.splashShowBrandIcon = normalizeBoolean(source.splashShowBrandIcon, undefined);
+    }
     return assets;
   }, {});
+};
+
+const writeGeneratedBrandAssets = (assets) => {
+  fs.mkdirSync(path.dirname(GENERATED_BRAND_ASSETS_PATH), { recursive: true });
+  fs.writeFileSync(
+    GENERATED_BRAND_ASSETS_PATH,
+    `${JSON.stringify({
+      appId: Number.parseInt(APP_ID, 10),
+      source: 'dsl-api',
+      generatedAt: new Date().toISOString(),
+      logoUrl: assets.logoUrl || '',
+      faviconUrl: assets.faviconUrl || '',
+      splashImageUrl: assets.splashImageUrl || '',
+      splashBgColor: assets.splashBgColor || '',
+      splashGradStart: assets.splashGradStart || '',
+      splashGradEnd: assets.splashGradEnd || '',
+      splashShowBrandIcon: assets.splashShowBrandIcon,
+    }, null, 2)}\n`
+  );
 };
 
 const requestJson = (url, payload) =>
@@ -286,6 +321,62 @@ const normalizeHex = (value, fallback = DEFAULT_SPLASH_BACKGROUND) => {
 
 const escapePowerShell = (value) => String(value).replace(/'/g, "''");
 
+const resizeImageCover = async (inputPath, outputPath, width, height) => {
+  try {
+    execFileSync(
+      'magick',
+      [
+        inputPath,
+        '-resize',
+        `${width}x${height}^`,
+        '-gravity',
+        'center',
+        '-extent',
+        `${width}x${height}`,
+        outputPath,
+      ],
+      { stdio: 'ignore' }
+    );
+    return true;
+  } catch (_) {}
+
+  try {
+    const filter = `scale=${width}:${height}:force_original_aspect_ratio=increase,crop=${width}:${height}`;
+    execFileSync('ffmpeg', ['-i', inputPath, '-vf', filter, outputPath, '-y'], { stdio: 'ignore' });
+    return true;
+  } catch (_) {}
+
+  try {
+    if (process.platform === 'win32') {
+      const script = [
+        'Add-Type -AssemblyName System.Drawing;',
+        `$inputPath = ${JSON.stringify(inputPath)};`,
+        `$outputPath = ${JSON.stringify(outputPath)};`,
+        `$targetW = ${width};`,
+        `$targetH = ${height};`,
+        '$src = [System.Drawing.Image]::FromFile($inputPath);',
+        '$scale = [Math]::Max($targetW / $src.Width, $targetH / $src.Height);',
+        '$drawW = [Math]::Ceiling($src.Width * $scale);',
+        '$drawH = [Math]::Ceiling($src.Height * $scale);',
+        '$x = [Math]::Floor(($targetW - $drawW) / 2);',
+        '$y = [Math]::Floor(($targetH - $drawH) / 2);',
+        '$bmp = New-Object System.Drawing.Bitmap($targetW, $targetH);',
+        '$gfx = [System.Drawing.Graphics]::FromImage($bmp);',
+        '$gfx.InterpolationMode = [System.Drawing.Drawing2D.InterpolationMode]::HighQualityBicubic;',
+        '$gfx.SmoothingMode = [System.Drawing.Drawing2D.SmoothingMode]::HighQuality;',
+        '$gfx.PixelOffsetMode = [System.Drawing.Drawing2D.PixelOffsetMode]::HighQuality;',
+        '$gfx.DrawImage($src, $x, $y, $drawW, $drawH);',
+        '$bmp.Save($outputPath, [System.Drawing.Imaging.ImageFormat]::Png);',
+        '$gfx.Dispose(); $bmp.Dispose(); $src.Dispose();',
+      ].join(' ');
+      execFileSync('powershell', ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-Command', script], { stdio: 'ignore' });
+      return true;
+    }
+  } catch (_) {}
+
+  return false;
+};
+
 const resizeImageContain = async (inputPath, outputPath, size, options = {}) => {
   const allowCopyFallback = options.allowCopyFallback !== false;
 
@@ -385,9 +476,7 @@ const createAndroidSplashImage = async (inputPath, splashDir) => {
   const pngPath = path.join(splashDir, 'splash_image.png');
   removeSplashImageFiles();
 
-  const converted = await resizeImageContain(inputPath, pngPath, 432, {
-    allowCopyFallback: false,
-  });
+  const converted = await resizeImageCover(inputPath, pngPath, 1080, 1920);
 
   if (converted) {
     removeSplashImageFiles(pngPath);
@@ -401,7 +490,15 @@ const createAndroidSplashImage = async (inputPath, splashDir) => {
   return outputPath;
 };
 
-const writeAndroidSplashXml = (startColor, endColor, hasSplashImage = true) => {
+const writeAndroidSplashXml = (
+  startColor,
+  endColor,
+  {
+    launchImageRef = '',
+    launchImageGravity = 'fill',
+    android12IconRef = '@drawable/splash_screen_transparent_icon',
+  } = {}
+) => {
   const valuesDir = path.join(ANDROID_RES_PATH, 'values');
   const valuesV31Dir = path.join(ANDROID_RES_PATH, 'values-v31');
   const drawableDir = path.join(ANDROID_RES_PATH, 'drawable');
@@ -435,9 +532,7 @@ const writeAndroidSplashXml = (startColor, endColor, hasSplashImage = true) => {
   );
 
   const transparentIconPath = path.join(drawableDir, 'splash_screen_transparent_icon.xml');
-  if (hasSplashImage) {
-    if (fs.existsSync(transparentIconPath)) fs.unlinkSync(transparentIconPath);
-  } else {
+  if (android12IconRef === '@drawable/splash_screen_transparent_icon') {
     fs.writeFileSync(
       transparentIconPath,
       [
@@ -448,6 +543,8 @@ const writeAndroidSplashXml = (startColor, endColor, hasSplashImage = true) => {
         '',
       ].join('\n')
     );
+  } else if (fs.existsSync(transparentIconPath)) {
+    fs.unlinkSync(transparentIconPath);
   }
 
   const launchScreenLines = [
@@ -455,22 +552,18 @@ const writeAndroidSplashXml = (startColor, endColor, hasSplashImage = true) => {
     '    <item android:drawable="@drawable/splash_background" />',
   ];
 
-  if (hasSplashImage) {
+  if (launchImageRef) {
     launchScreenLines.push(
       '    <item>',
       '        <bitmap',
-      '            android:gravity="fill"',
-      '            android:src="@drawable/splash_image" />',
+      `            android:gravity="${launchImageGravity}"`,
+      `            android:src="${launchImageRef}" />`,
       '    </item>'
     );
   }
 
   launchScreenLines.push('</layer-list>', '');
   fs.writeFileSync(path.join(drawableDir, 'launch_screen.xml'), launchScreenLines.join('\n'));
-
-  const android12SplashIcon = hasSplashImage
-    ? '@drawable/splash_image'
-    : '@drawable/splash_screen_transparent_icon';
 
   fs.writeFileSync(
     path.join(valuesV31Dir, 'styles.xml'),
@@ -483,8 +576,10 @@ const writeAndroidSplashXml = (startColor, endColor, hasSplashImage = true) => {
       '        <item name="android:windowActionBar">false</item>',
       '        <item name="android:windowBackground">@drawable/launch_screen</item>',
       '        <item name="android:windowSplashScreenBackground">@color/splash_screen_background</item>',
-      `        <item name="android:windowSplashScreenAnimatedIcon">${android12SplashIcon}</item>`,
+      `        <item name="android:windowSplashScreenAnimatedIcon">${android12IconRef}</item>`,
       '        <item name="android:windowSplashScreenIconBackgroundColor">@android:color/transparent</item>',
+      '        <item name="android:statusBarColor">@color/splash_screen_background</item>',
+      '        <item name="android:navigationBarColor">@color/splash_screen_background</item>',
       '    </style>',
       '',
       '</resources>',
@@ -495,22 +590,35 @@ const writeAndroidSplashXml = (startColor, endColor, hasSplashImage = true) => {
 
 const updateAndroidSplash = async (assets) => {
   const startColor = normalizeHex(
-    assets.splashBgColor || assets.splashGradStart || DEFAULT_SPLASH_BACKGROUND
+    assets.splashGradStart || assets.splashBgColor || assets.splashGradEnd || DEFAULT_SPLASH_BACKGROUND
   );
-  const endColor = normalizeHex(assets.splashGradEnd || startColor, startColor);
+  const endColor = normalizeHex(assets.splashGradEnd || assets.splashBgColor || startColor, startColor);
   const splashUrl = assets.splashImageUrl || '';
+  const logoUrl = assets.logoUrl || assets.faviconUrl || '';
+  const showBrandIcon = assets.splashShowBrandIcon !== false && Boolean(logoUrl);
+  const android12IconRef = showBrandIcon
+    ? '@mipmap/ic_launcher'
+    : '@drawable/splash_screen_transparent_icon';
 
   const splashDir = path.join(ANDROID_RES_PATH, 'drawable-nodpi');
   fs.mkdirSync(splashDir, { recursive: true });
 
   if (!splashUrl) {
-    writeAndroidSplashXml(startColor, endColor, false);
+    writeAndroidSplashXml(startColor, endColor, {
+      launchImageRef: showBrandIcon ? '@mipmap/ic_launcher' : '',
+      launchImageGravity: 'center',
+      android12IconRef,
+    });
     removeSplashImageFiles();
-    console.log('No splashImageUrl found; Android native splash will use the background only.');
+    console.log('No splashImageUrl found; Android native splash will use the DSL background/logo.');
     return;
   }
 
-  writeAndroidSplashXml(startColor, endColor, true);
+  writeAndroidSplashXml(startColor, endColor, {
+    launchImageRef: '@drawable/splash_image',
+    launchImageGravity: 'fill',
+    android12IconRef,
+  });
   const tempSplashPath = path.join(ROOT_DIR, 'temp_splash_download');
   console.log(`Downloading Android splash image from: ${splashUrl}`);
   await downloadFile(splashUrl, tempSplashPath);
@@ -530,10 +638,15 @@ const updateAndroidSplash = async (assets) => {
     APP_LOGO_URL = APP_LOGO_URL || dslAssets.logoUrl || dslAssets.faviconUrl;
     SPLASH_IMAGE_URL = SPLASH_IMAGE_URL || dslAssets.splashImageUrl;
 
-    await updateAndroidSplash({
+    const finalBrandAssets = {
       ...dslAssets,
+      logoUrl: APP_LOGO_URL || dslAssets.logoUrl || '',
+      faviconUrl: dslAssets.faviconUrl || '',
       splashImageUrl: SPLASH_IMAGE_URL || '',
-    });
+    };
+
+    writeGeneratedBrandAssets(finalBrandAssets);
+    await updateAndroidSplash(finalBrandAssets);
 
     if (!APP_LOGO_URL) {
       console.log('No app icon URL found in env or DSL, skipping icon update');

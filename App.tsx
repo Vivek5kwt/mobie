@@ -29,6 +29,7 @@ import SplashScreen from './src/screens/saplash';
 import AuthScreen from './src/screens/AuthScreen';
 import AuthProvider from './src/services/AuthContext';
 import { persistor, store } from './src/store';
+import { getSplashBackgroundSync } from './src/services/brandKitService';
 
 const Stack = createNativeStackNavigator();
 
@@ -51,6 +52,7 @@ const ORDER_NOTIFICATION_TYPES = new Set([
 
 export default function App() {
   const navigationRef = useNavigationContainerRef();
+  const startupBackground = getSplashBackgroundSync();
 
   // ── In-app toast / alert for foreground notifications ─────────────────────
   const showInAppMessage = useCallback((title: string, body: string) => {
@@ -196,7 +198,7 @@ export default function App() {
   }, [showInAppMessage, handleNotificationNavigation]);
 
   return (
-    <GestureRootView style={{ flex: 1 }}>
+    <GestureRootView style={{ flex: 1, backgroundColor: startupBackground }}>
       <Provider store={store}>
         <PersistGate loading={null} persistor={persistor}>
           <SafeAreaProvider>

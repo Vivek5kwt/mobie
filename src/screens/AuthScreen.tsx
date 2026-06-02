@@ -277,6 +277,12 @@ const toBoolean = (value: unknown, fallback: boolean): boolean => {
   return fallback;
 };
 
+const toStringValue = (value: unknown, fallback = ''): string => {
+  const resolved = unwrapValue(value as string | null | undefined, fallback);
+  if (resolved === undefined || resolved === null) return fallback;
+  return String(resolved);
+};
+
 const firstDefined = (...values: unknown[]): unknown => {
   for (const value of values) {
     const resolved = unwrapValue(value as unknown, undefined as unknown);
@@ -989,8 +995,8 @@ const buildSignUpTokens = (rawProps: Record<string, unknown>): SignUpTokens => (
   footerVisible: (rawProps?.footerVisible as boolean) ?? defaultSignUpTokens.footerVisible,
   signInLinkVisible: (rawProps?.signInLinkVisible as boolean) ?? defaultSignUpTokens.signInLinkVisible,
   buttonVisible: (rawProps?.buttonVisible as boolean) ?? defaultSignUpTokens.buttonVisible,
-  showProfilePicture: (rawProps?.showProfilePicture as boolean) ?? defaultSignUpTokens.showProfilePicture,
-  profilePictureUrl: (rawProps?.profilePictureUrl as string) ?? defaultSignUpTokens.profilePictureUrl,
+  showProfilePicture: toBoolean(rawProps?.showProfilePicture, defaultSignUpTokens.showProfilePicture),
+  profilePictureUrl: toStringValue(rawProps?.profilePictureUrl, defaultSignUpTokens.profilePictureUrl).trim(),
   profilePictureSize: toNumber(rawProps?.profilePictureSize, defaultSignUpTokens.profilePictureSize),
   profilePictureBgColor: (rawProps?.profilePictureBgColor as string) ?? defaultSignUpTokens.profilePictureBgColor,
   profilePictureBorderColor: (rawProps?.profilePictureBorderColor as string) ?? defaultSignUpTokens.profilePictureBorderColor,
@@ -1555,6 +1561,17 @@ const AuthScreen = () => {
   const pagePadBottom = t.pagePaddingBottom;
   const cardPadTop = t.cardPaddingTop;
   const hasDynamicDecor = hasDynamicSignInLayout || hasDynamicSignUpLayout;
+  const signUpProfilePictureUrl = String(signUpTokens.profilePictureUrl || '').trim();
+  const shouldRenderSignUpProfilePicture =
+    mode === 'signup' && signUpTokens.showProfilePicture && Boolean(signUpProfilePictureUrl);
+  const baseFirstNameInputAlign = toTextAlign(signUpTokens.firstNameInputTextAlignment);
+  const firstNameLooksLikeFullName = `${signUpTokens.firstNamePlaceholder} ${signUpTokens.firstNameLabelText}`
+    .toLowerCase()
+    .includes('full name');
+  const signUpFirstNameInputAlign =
+    !signUpTokens.lastNameVisible && firstNameLooksLikeFullName && baseFirstNameInputAlign === 'center'
+      ? 'left'
+      : baseFirstNameInputAlign;
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: t.bgColor }}>
@@ -1626,7 +1643,7 @@ const AuthScreen = () => {
             }}
           >
             {/* Profile picture (signup only) */}
-            {mode === 'signup' && signUpTokens.showProfilePicture ? (
+            {shouldRenderSignUpProfilePicture ? (
               <View
                 style={{
                   width: signUpTokens.profilePictureSize,
@@ -1642,14 +1659,11 @@ const AuthScreen = () => {
                   alignItems: 'center',
                 }}
               >
-                {signUpTokens.profilePictureUrl ? (
-                  <Image
-                    source={{ uri: signUpTokens.profilePictureUrl }}
-                    style={{ width: signUpTokens.profilePictureSize, height: signUpTokens.profilePictureSize }}
-                  />
-                ) : (
-                  <Icon name="user" size={Math.max(22, signUpTokens.profilePictureSize * 0.28)} color={signUpTokens.profilePictureBorderColor} />
-                )}
+                <Image
+                  source={{ uri: signUpProfilePictureUrl }}
+                  style={{ width: signUpTokens.profilePictureSize, height: signUpTokens.profilePictureSize }}
+                  resizeMode="cover"
+                />
               </View>
             ) : null}
 
@@ -1675,7 +1689,7 @@ const AuthScreen = () => {
                 inputFontSize={signUpTokens.firstNameInputTextFontSize}
                 inputFontFamily={signUpTokens.firstNameInputTextFontFamily}
                 inputFontWeight={signUpTokens.firstNameInputTextFontWeight}
-                inputAlign={toTextAlign(signUpTokens.firstNameInputTextAlignment)}
+                inputAlign={signUpFirstNameInputAlign}
                 inputBorderColor={signUpTokens.inputBorderColor}
                 inputBorderRadius={signUpTokens.inputBorderRadius}
                 inputHeight={signUpTokens.inputHeight}

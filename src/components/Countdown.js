@@ -6,6 +6,7 @@ import { Linking } from "react-native";
 import { NavigationContext } from "@react-navigation/native";
 import { convertStyles, extractGradientInfo } from "../utils/convertStyles";
 import { resolveFont } from "../services/typographyService";
+import { navigateToDslTarget } from "../utils/navigationTarget";
 
 const unwrapValue = (value, fallback = undefined) => {
   if (value === undefined || value === null) return fallback;
@@ -374,9 +375,23 @@ class Countdown extends PureComponent {
       return;
     }
 
+    if ((navType === "screen" || navType === "route" || navType === "page") && navigation?.navigate) {
+      void navigateToDslTarget(navigation, {
+        target: navRef || linkTo,
+        navigateRef: navRef,
+        navigateType: navType,
+        linkTo,
+        fallbackTitle: "Countdown",
+      });
+      return;
+    }
+
     if (linkTo && navigation?.navigate) {
-      const cleaned = linkTo.replace(/^\//, "");
-      if (cleaned) navigation.navigate("BottomNavScreen", { pageName: cleaned, link: cleaned, title: cleaned });
+      void navigateToDslTarget(navigation, {
+        target: linkTo,
+        linkTo,
+        fallbackTitle: "Countdown",
+      });
     }
   }
 

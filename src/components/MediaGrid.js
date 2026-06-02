@@ -16,6 +16,7 @@ import { resolveTextDecorationLine } from "../utils/textDecoration";
 import { fetchShopifyProductsPage } from "../services/shopify";
 import { formatMoney } from "../utils/money";
 import { getResponsiveColumns } from "../utils/responsiveLayout";
+import { navigateToDslTarget } from "../utils/navigationTarget";
 
 const unwrapValue = (value, fallback = undefined) => {
   if (value === undefined || value === null) return fallback;
@@ -513,7 +514,11 @@ export default function MediaGrid({ section }) {
   const navigateByInternalLink = (link) => {
     const cleaned = String(link || "").trim().replace(/^\//, "");
     if (!cleaned) return false;
-    navigation.navigate("BottomNavScreen", { pageName: cleaned, link: cleaned, title: cleaned });
+    void navigateToDslTarget(navigation, {
+      target: link,
+      link,
+      fallbackTitle: cleaned,
+    });
     return true;
   };
 
@@ -532,7 +537,17 @@ export default function MediaGrid({ section }) {
       } else if (type === "url") {
         await openExternalUrl(ref || item.linkTo || item.href);
       } else if (type === "screen" || type === "route") {
-        if (ref) navigation.navigate(ref);
+        if (ref) {
+          await navigateToDslTarget(navigation, {
+            target: ref,
+            navigateRef: ref,
+            navigateType: type,
+            linkTo: item.linkTo,
+            href: item.href,
+            label: item.title,
+            fallbackTitle: item.title || ref,
+          });
+        }
         else if (item.linkTo) navigateByInternalLink(item.linkTo);
         else if (item.href) navigateByInternalLink(item.href);
       }
@@ -647,7 +662,17 @@ export default function MediaGrid({ section }) {
                 return;
               }
               if (navType === "screen" || navType === "route") {
-                if (navRef) navigation.navigate(navRef);
+                if (navRef) {
+                  await navigateToDslTarget(navigation, {
+                    target: navRef,
+                    navigateRef: navRef,
+                    navigateType: navType,
+                    href,
+                    linkTo,
+                    label: buttonLabel,
+                    fallbackTitle: buttonLabel || navRef,
+                  });
+                }
                 else if (linkTo) navigateByInternalLink(linkTo);
                 else if (href) navigateByInternalLink(href);
                 return;

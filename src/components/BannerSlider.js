@@ -14,6 +14,7 @@ import FontAwesome from "react-native-vector-icons/FontAwesome";
 import { resolveFA4IconName } from "../utils/faIconAlias";
 import { resolveTextDecorationLine } from "../utils/textDecoration";
 import { getTypography, resolveFont } from "../services/typographyService";
+import { navigateToDslTarget } from "../utils/navigationTarget";
 
 // ─── DSL helpers ────────────────────────────────────────────────────────────
 
@@ -458,18 +459,11 @@ export default function BannerSlider({ section }) {
   const navigateByLink = async (link = "") => {
     const cleaned = asString(link, "");
     if (!cleaned) return false;
-    if (/^https?:\/\//i.test(cleaned)) {
-      const externalUrl = normalizeExternalUrl(cleaned);
-      try {
-        navigation.navigate("CheckoutWebView", { url: externalUrl, title: "Banner" });
-      } catch (_e) {
-        await Linking.openURL(externalUrl);
-      }
-      return true;
-    }
-    const page = cleaned.replace(/^\//, "");
-    if (!page) return false;
-    navigation.navigate("BottomNavScreen", { pageName: page, link: page, title: page });
+    await navigateToDslTarget(navigation, {
+      target: cleaned,
+      link: cleaned,
+      fallbackTitle: "Banner",
+    });
     return true;
   };
 

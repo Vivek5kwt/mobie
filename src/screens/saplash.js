@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 import {
   Image,
+  Platform,
   StatusBar,
   StyleSheet,
   View,
@@ -11,12 +12,17 @@ import { useAuth } from "../services/AuthContext";
 import {
   fetchBrandKitAssets,
   getBrandKitAssetsSync,
-  getSplashImageSync,
 } from "../services/brandKitService";
 
 const MIN_SPLASH_MS = 1200;
 const BRAND_ASSET_WAIT_MS = 3500;
-const DEFAULT_BACKGROUND = "#FFFFFF";
+const DEFAULT_BACKGROUND = "transparent";
+
+const getNativeSplashSource = () => {
+  if (Platform.OS === "android") return { uri: "splash_image" };
+  if (Platform.OS === "ios") return { uri: "SplashImage" };
+  return null;
+};
 
 const toRemoteImageSource = (url) => {
   if (typeof url !== "string" || !url.trim()) return null;
@@ -29,17 +35,46 @@ const normalizeColor = (value, fallback = DEFAULT_BACKGROUND) => {
   return color || fallback;
 };
 
+const isDarkColor = (value) => {
+  if (typeof value !== "string") return false;
+  const raw = value.trim().replace("#", "");
+  const hex =
+    raw.length === 3
+      ? raw.split("").map((char) => char + char).join("")
+      : raw;
+  if (!/^[0-9a-fA-F]{6}$/.test(hex)) return false;
+
+  const r = Number.parseInt(hex.slice(0, 2), 16);
+  const g = Number.parseInt(hex.slice(2, 4), 16);
+  const b = Number.parseInt(hex.slice(4, 6), 16);
+  return (0.299 * r + 0.587 * g + 0.114 * b) < 150;
+};
+
+const resolveSplashUrl = (assets = {}) => {
+  const splashUrl =
+    typeof assets?.splashImageUrl === "string" ? assets.splashImageUrl.trim() : "";
+  if (splashUrl) return splashUrl;
+
+  if (assets?.splashShowBrandIcon === false) return "";
+
+  const logoUrl = typeof assets?.logoUrl === "string" ? assets.logoUrl.trim() : "";
+  if (logoUrl) return logoUrl;
+
+  return typeof assets?.faviconUrl === "string" ? assets.faviconUrl.trim() : "";
+};
+
 export default function SplashScreen() {
   const navigation = useNavigation();
   const { initializing } = useAuth();
 
+  const nativeSplashSource = useMemo(() => getNativeSplashSource(), []);
   const cachedBrandAssets = useMemo(() => getBrandKitAssetsSync() || {}, []);
-  const cachedSplashImageUrl = useMemo(() => getSplashImageSync(), []);
   const hasCachedBrandAssets = Object.keys(cachedBrandAssets).length > 0;
 
   const [brandAssets, setBrandAssets] = useState(cachedBrandAssets);
-  const [splashSource, setSplashSource] = useState(() =>
-    toRemoteImageSource(cachedSplashImageUrl)
+  const [splashSource, setSplashSource] = useState(nativeSplashSource);
+  const [splashSourceKind, setSplashSourceKind] = useState(
+    nativeSplashSource ? "native" : "none"
   );
   const [brandReady, setBrandReady] = useState(hasCachedBrandAssets);
   const [authReady, setAuthReady] = useState(false);
@@ -51,10 +86,7 @@ export default function SplashScreen() {
     const finishWithAssets = async (assets = {}) => {
       if (cancelled) return;
 
-      const splashUrl =
-        typeof assets?.splashImageUrl === "string"
-          ? assets.splashImageUrl.trim()
-          : "";
+      const splashUrl = resolveSplashUrl(assets);
 
       setBrandAssets(assets || {});
 
@@ -62,9 +94,13 @@ export default function SplashScreen() {
         try {
           await Image.prefetch(splashUrl);
         } catch (_) {}
-        if (!cancelled) setSplashSource(toRemoteImageSource(splashUrl));
+        if (!cancelled) {
+          setSplashSource(toRemoteImageSource(splashUrl) || nativeSplashSource);
+          setSplashSourceKind("remote");
+        }
       } else {
-        setSplashSource(null);
+        setSplashSource(nativeSplashSource);
+        setSplashSourceKind(nativeSplashSource ? "native" : "none");
       }
 
       if (!cancelled) setBrandReady(true);
@@ -83,7 +119,7 @@ export default function SplashScreen() {
       cancelled = true;
       clearTimeout(fallbackTimer);
     };
-  }, []);
+  }, [nativeSplashSource]);
 
   useEffect(() => {
     if (!initializing) setAuthReady(true);
@@ -101,18 +137,25 @@ export default function SplashScreen() {
     }
   }, [authReady, brandReady, minTimeReady, navigation]);
 
-  const splashBgColor = normalizeColor(
-    brandAssets?.splashBgColor || brandAssets?.splashGradStart
-  );
   const splashGradStart = normalizeColor(
     brandAssets?.splashGradStart || brandAssets?.splashBgColor,
-    splashBgColor
+    DEFAULT_BACKGROUND
   );
-  const splashGradEnd = normalizeColor(brandAssets?.splashGradEnd, splashBgColor);
+  const splashBgColor = normalizeColor(
+    brandAssets?.splashBgColor || splashGradStart,
+    splashGradStart
+  );
+  const splashGradEnd = normalizeColor(
+    brandAssets?.splashGradEnd || brandAssets?.splashBgColor,
+    splashGradStart
+  );
+  const statusBarStyle = isDarkColor(splashGradStart)
+    ? "light-content"
+    : "dark-content";
 
   return (
     <View style={[styles.container, { backgroundColor: splashBgColor }]}>
-      <StatusBar barStyle="dark-content" backgroundColor={splashBgColor} />
+      <StatusBar barStyle={statusBarStyle} backgroundColor={splashGradStart} />
       <LinearGradient
         colors={[splashGradStart, splashGradEnd]}
         style={StyleSheet.absoluteFillObject}
@@ -123,7 +166,15 @@ export default function SplashScreen() {
           source={splashSource}
           resizeMode="cover"
           style={styles.splashImage}
-          onError={() => setSplashSource(null)}
+          onError={() => {
+            if (splashSourceKind === "remote" && nativeSplashSource) {
+              setSplashSource(nativeSplashSource);
+              setSplashSourceKind("native");
+              return;
+            }
+            setSplashSource(null);
+            setSplashSourceKind("none");
+          }}
         />
       ) : null}
     </View>

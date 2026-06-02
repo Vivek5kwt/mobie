@@ -222,6 +222,8 @@ export default function SettingsScreen() {
                   "profile_header",
                   "account_profile_header",
                   "text_block",
+                  "currency_switcher",
+                  "logout",
                 ].includes(component);
                 return (
                   <View

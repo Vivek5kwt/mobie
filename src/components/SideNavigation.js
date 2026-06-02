@@ -7,6 +7,7 @@ import { useAuth } from "../services/AuthContext";
 import { isAuthenticatedSession } from "../utils/authGate";
 import { getAppLogoSync } from "../utils/appInfo";
 import { resolveFont } from "../services/typographyService";
+import { navigateToDslTarget } from "../utils/navigationTarget";
 
 const DEFAULT_DRAWER_WIDTH = 260;
 
@@ -414,10 +415,18 @@ export default function SideNavigation({ section }) {
         return;
       }
 
-      navigation.push("BottomNavScreen", {
-        pageName: slug,
-        title: String(item?.label || item?.title || item?.text || slug),
-        link: slug,
+      navigateToDslTarget(navigation, {
+        target: link || item?.navigateRef || item?.linkTo || slug,
+        link: item?.link,
+        href: item?.href,
+        url: item?.url,
+        linkTo: item?.linkTo,
+        navigateRef: item?.navigateRef ?? item?.page ?? item?.screen,
+        navigateType: item?.navigateType ?? item?.linkType,
+        id: item?.id,
+        label: item?.label || item?.title || item?.text,
+        fallbackTitle: String(item?.label || item?.title || item?.text || slug),
+        preferPush: true,
       });
     },
     [initializing, isLoggedIn, logout, navigation]

@@ -21,6 +21,7 @@ import { isAuthenticatedSession } from "../utils/authGate";
 import { resolveFA4IconName } from "../utils/faIconAlias";
 import { resolveFont } from "../services/typographyService";
 import Icon from "react-native-vector-icons/FontAwesome6";
+import { navigateToDslTarget } from "../utils/navigationTarget";
 
 const unwrapValue = (value, fallback = undefined) => {
   if (value === undefined || value === null) return fallback;
@@ -160,7 +161,8 @@ const getTextAlign = (align) => {
   const normalized = String(align || "").toLowerCase();
   if (normalized === "left") return "left";
   if (normalized === "right") return "right";
-  return "center";
+  if (normalized === "center") return "center";
+  return "left";
 };
 
 const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
@@ -370,7 +372,7 @@ export default function SignUp({ section }) {
     const buttonAutoUppercase = toBoolean(raw.buttonAutoUppercase, false);
     const buttonIcon = toString(raw.buttonIcon, "");
 
-    const profilePictureUrl = toString(raw.profilePictureUrl, "");
+    const profilePictureUrl = toString(raw.profilePictureUrl, "").trim();
     const profilePictureSize = toNumber(raw.profilePictureSize, 90);
 
     const subgpt = toNumber(raw.subgpt ?? raw.bgpt, 0);
@@ -562,12 +564,12 @@ export default function SignUp({ section }) {
 
       // Navigate to success screen or handle success
       if (navigateTo === "screen" && selectScreen) {
-        const dest = selectScreen.trim().toLowerCase().replace(/[^a-z0-9]+/g, "-");
-        if (dest === "home" || dest === "index") {
-          navigation.navigate("LayoutScreen");
-        } else {
-          navigation.navigate("BottomNavScreen", { pageName: dest });
-        }
+        await navigateToDslTarget(navigation, {
+          target: selectScreen,
+          navigateRef: selectScreen,
+          navigateType: "screen",
+          fallbackTitle: selectScreen,
+        });
       } else {
         Alert.alert("Success", "Account created successfully!", [
           { text: "OK", onPress: () => navigation.navigate("LayoutScreen") },
@@ -605,6 +607,13 @@ export default function SignUp({ section }) {
   const mobileTitleFontSize = headerTitleFontSize;
   const mobileFieldFontSize = (size) => size;
   const inputAlignFor = (fieldAlign) => fieldAlign || "left";
+  const firstNameLooksLikeFullName = `${firstNamePlaceholder} ${firstNameLabelText}`
+    .toLowerCase()
+    .includes("full name");
+  const firstNameFieldTextAlign =
+    !lastNameVisible && firstNameLooksLikeFullName && inputAlignFor(firstNameInputTextAlignment) === "center"
+      ? "left"
+      : inputAlignFor(firstNameInputTextAlignment);
   const shouldShowFieldLabel = (labelVisible, placeholderVisible) =>
     labelVisible && !placeholderVisible;
   const mobileCardPaddingTop = bgPadVisible ? pt : 0;
@@ -612,7 +621,7 @@ export default function SignUp({ section }) {
   const mobileCardPaddingLeft = bgPadVisible ? pl : 0;
   const mobileCardPaddingRight = bgPadVisible ? pr : 0;
   const resolvedButtonIcon = resolveFA4IconName(buttonIcon);
-  const shouldShowProfilePicture = logoVisible && showProfilePicture;
+  const shouldShowProfilePicture = logoVisible && showProfilePicture && Boolean(profilePictureUrl);
   const shouldShowHeaderTitle = Boolean(String(headerTitle || "").trim()) && !authTitle;
   const submitButtonContent = loading ? (
     <ActivityIndicator color={buttonTextColor} />
@@ -697,19 +706,11 @@ export default function SignUp({ section }) {
               },
             ]}
           >
-            {profilePictureUrl ? (
-              <Image
-                source={{ uri: profilePictureUrl }}
-                style={styles.profilePicture}
-                resizeMode="cover"
-              />
-            ) : (
-              <Icon
-                name="user"
-                size={Math.max(22, mobileProfilePictureSize * 0.28)}
-                color={profilePictureBorderColor}
-              />
-            )}
+            <Image
+              source={{ uri: profilePictureUrl }}
+              style={styles.profilePicture}
+              resizeMode="cover"
+            />
           </View>
         )}
 
@@ -764,7 +765,7 @@ export default function SignUp({ section }) {
                   fontSize: mobileFieldFontSize(firstName ? firstNameInputTextFontSize : firstNamePlaceholderFontSize),
                   fontFamily: firstName ? firstNameInputTextFontFamily : firstNamePlaceholderFontFamily,
                   fontWeight: firstName ? firstNameInputTextFontWeight : firstNamePlaceholderFontWeight,
-                  textAlign: inputAlignFor(firstNameInputTextAlignment),
+                  textAlign: firstNameFieldTextAlign,
                   textAlignVertical: "center",
                   borderRadius: inputBorderRadius,
                   minHeight: inputHeight,

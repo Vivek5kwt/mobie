@@ -7,6 +7,7 @@ import { applyMetricsPositioning, convertStyles } from "../utils/convertStyles";
 import { resolveTextDecorationLine } from "../utils/textDecoration";
 import { resolveFA4IconName } from "../utils/faIconAlias";
 import { resolveFont } from "../services/typographyService";
+import { navigateToDslTarget } from "../utils/navigationTarget";
 
 const unwrapValue = (value, fallback = undefined) => {
   if (value === undefined || value === null) return fallback;
@@ -863,36 +864,17 @@ export default function HeroBanner({ section }) {
   };
 
   // Handle button navigation
-  // Parse a web-style path into a navigation call
+  // Parse builder links into native/product/collection routes or dynamic DSL pages.
   const navigateByLink = (link) => {
     const l = (link || "").trim();
     if (!l) return false;
-    if (/^https?:\/\//i.test(l)) {
-      navigation.navigate("CheckoutWebView", { url: l, title: "Hero Banner" });
-      return true;
-    }
-    if (l.startsWith("/collections/")) {
-      navigation.navigate("CollectionProducts", { handle: l.replace("/collections/", "") });
-      return true;
-    }
-    if (l.startsWith("/products/")) {
-      navigation.navigate("ProductDetail", { handle: l.replace("/products/", "") });
-      return true;
-    }
-    if (l === "/products" || l === "/collections") {
-      navigation.navigate("AllProducts");
-      return true;
-    }
-    // Plain internal page/screen labels from builder (e.g. "Address Book")
-    if (!l.startsWith("/")) {
-      navigation.navigate("BottomNavScreen", {
-        title: l,
-        link: l,
-        pageName: l,
-      });
-      return true;
-    }
-    return false;
+    void navigateToDslTarget(navigation, {
+      target: l,
+      link: l,
+      label: buttonLabel,
+      fallbackTitle: buttonLabel || "Hero Banner",
+    });
+    return true;
   };
 
   const handleButtonPress = () => {
@@ -915,7 +897,17 @@ export default function HeroBanner({ section }) {
       ) {
         navigation.navigate("AllProducts");
       } else if (type === "route" || type === "screen") {
-        if (ref) navigation.navigate(ref);
+        if (ref) {
+          void navigateToDslTarget(navigation, {
+            target: ref,
+            navigateRef: ref,
+            navigateType: type,
+            link: buttonLink,
+            label: buttonLabel,
+            fallbackTitle: buttonLabel || ref,
+          });
+          return;
+        }
         else if (navigateByLink(buttonLink)) return;
       }
       return;

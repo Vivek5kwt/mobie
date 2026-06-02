@@ -8,14 +8,37 @@ import { setBrandKitAssetsFromDsl } from "../services/brandKitService";
 const DSL_QUERY_TIMEOUT_MS = 12000;
 const liveDslCache = new Map();
 
-const normalizeName = (value) =>
-  value
-    ? String(value)
+const PAGE_PATH_PREFIXES = new Set([
+  "page",
+  "pages",
+  "screen",
+  "screens",
+  "custom-page",
+  "custom-pages",
+  "custompage",
+  "custompages",
+]);
+
+const normalizeName = (value) => {
+  if (!value) return "";
+  let raw = String(value).trim().split(/[?#]/)[0].replace(/\\/g, "/");
+  const parts = raw.replace(/^\/+/, "").split("/").filter(Boolean);
+  const firstPart = parts[0]
+    ? parts[0]
         .trim()
         .toLowerCase()
         .replace(/[^a-z0-9]+/g, "-")
         .replace(/^-+|-+$/g, "")
     : "";
+  if (parts.length > 1 && PAGE_PATH_PREFIXES.has(firstPart)) {
+    raw = parts[parts.length - 1];
+  }
+  return raw
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+};
 
 const getLiveDslCacheKey = (appId, pageName) =>
   `${appId}:${normalizeName(pageName || "home")}`;
@@ -45,7 +68,9 @@ const PAGE_ALIASES = {
   "cart":           ["cart", "shopping-cart", "bag", "my-cart", "my-bag"],
   "search":         ["search", "search-results", "find", "explore"],
   "home":           ["home", "index", "main"],
-  "notification":   ["notification", "notifications", "alerts", "inbox"],
+  "notification":   ["notification", "notifications", "notification-inbox", "notification inbox", "alerts", "inbox"],
+  "notifications":  ["notifications", "notification", "notification-inbox", "notification inbox", "alerts", "inbox"],
+  "notification-inbox": ["notification-inbox", "notification", "notifications", "notification inbox", "alerts", "inbox"],
   "orders":         ["orders", "my-orders", "order-history", "order"],
   "settings":       ["settings", "setting", "my-account", "account"],
   "setting":        ["setting", "settings", "my-account", "account"],

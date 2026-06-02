@@ -30,6 +30,7 @@ import { formatMoney } from "../utils/money";
 import { convertStyles } from "../utils/convertStyles";
 import { getResponsiveColumns } from "../utils/responsiveLayout";
 import { ADD_TO_CART_SUCCESS_MESSAGE } from "../utils/cartFeedback";
+import { navigateToDslTarget } from "../utils/navigationTarget";
 
 const unwrapValue = (value, fallback = undefined) => {
   if (value === undefined || value === null) return fallback;
@@ -965,19 +966,6 @@ export default function ProductCarousel({ section }) {
     });
   };
 
-  const resolveScreenName = (href) => {
-    if (!href) return null;
-    const clean = href.replace(/^\//, "").trim().toLowerCase();
-    const MAP = {
-      "all-products": "AllProducts",
-      "allproducts":  "AllProducts",
-      "products":     "AllProducts",
-      "shop":         "AllProducts",
-      "collection":   "AllProducts",
-    };
-    return MAP[clean] || href.replace(/^\//, "");
-  };
-
   const renderHeader = () => {
     if (!headerGroupActive || !gridTitleActive) return null;
     if (!headerText) return null;
@@ -993,12 +981,17 @@ export default function ProductCarousel({ section }) {
     };
 
     if (headerLinkHref) {
-      const screen = resolveScreenName(headerLinkHref) || "AllProducts";
       return (
         <TouchableOpacity
           style={styles.headerTextWrapper}
           activeOpacity={0.7}
-          onPress={() => navigation.navigate(screen, { title: headerText })}
+          onPress={() => {
+            void navigateToDslTarget(navigation, {
+              target: headerLinkHref,
+              href: headerLinkHref,
+              fallbackTitle: headerText,
+            });
+          }}
         >
           <Text style={[styles.headerText, headerStyle]}>{headerText}</Text>
         </TouchableOpacity>
@@ -1047,12 +1040,12 @@ export default function ProductCarousel({ section }) {
     );
 
     const handleViewAllPress = () => {
-      const screen = viewAllLinkHref
-        ? resolveScreenName(viewAllLinkHref)
-        : "AllProducts";
-      if (screen) {
-        navigation.navigate(screen, { title: headerText });
-      }
+      void navigateToDslTarget(navigation, {
+        target: viewAllLinkHref || "AllProducts",
+        href: viewAllLinkHref,
+        navigateType: viewAllLinkHref ? toString(raw?.viewAllNavigateType, "") : "allproducts",
+        fallbackTitle: headerText || viewAllTextStr,
+      });
     };
 
     return (

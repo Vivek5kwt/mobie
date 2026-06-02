@@ -27,6 +27,7 @@ const APP_ICON_SET_DIR = path.join(IOS_ASSETS_DIR, 'AppIcon.appiconset');
 const SPLASH_IMAGE_SET_DIR = path.join(IOS_ASSETS_DIR, 'SplashImage.imageset');
 const SPLASH_BG_SET_DIR = path.join(IOS_ASSETS_DIR, 'SplashBackground.imageset');
 const TEMP_DIR = path.join(ROOT_DIR, 'tmp', 'brand-assets');
+const GENERATED_BRAND_ASSETS_PATH = path.join(ROOT_DIR, 'src', 'generated', 'brandAssets.json');
 
 const isObject = (value) =>
   value !== null && typeof value === 'object' && !Array.isArray(value);
@@ -68,6 +69,18 @@ const firstNonEmpty = (...values) => {
   return '';
 };
 
+const normalizeBoolean = (value, fallback = undefined) => {
+  const resolved = unwrapDeep(value);
+  if (typeof resolved === 'boolean') return resolved;
+  if (typeof resolved === 'number') return resolved !== 0;
+  if (typeof resolved === 'string') {
+    const lowered = resolved.trim().toLowerCase();
+    if (['true', '1', 'yes', 'y'].includes(lowered)) return true;
+    if (['false', '0', 'no', 'n'].includes(lowered)) return false;
+  }
+  return fallback;
+};
+
 const collectBrandCandidates = (node, candidates = [], depth = 0, seen = new Set()) => {
   if (!isObject(node) && !Array.isArray(node)) return candidates;
   if (seen.has(node) || depth > 10) return candidates;
@@ -98,8 +111,30 @@ const extractBrandAssets = (dsl) => {
     if (!assets.splashImageUrl) assets.splashImageUrl = firstNonEmpty(source.splashImageUrl, source.splashImage, source.splashUrl);
     if (!assets.splashBgColor) assets.splashBgColor = firstNonEmpty(source.splashBgColor, source.backgroundColor, source.bgColor);
     if (!assets.splashGradEnd) assets.splashGradEnd = firstNonEmpty(source.splashGradEnd, source.gradientEnd);
+    if (assets.splashShowBrandIcon === undefined) {
+      assets.splashShowBrandIcon = normalizeBoolean(source.splashShowBrandIcon, undefined);
+    }
     return assets;
   }, {});
+};
+
+const writeGeneratedBrandAssets = (assets) => {
+  fs.mkdirSync(path.dirname(GENERATED_BRAND_ASSETS_PATH), { recursive: true });
+  fs.writeFileSync(
+    GENERATED_BRAND_ASSETS_PATH,
+    `${JSON.stringify({
+      appId: Number.parseInt(APP_ID, 10),
+      source: 'dsl-api',
+      generatedAt: new Date().toISOString(),
+      logoUrl: assets.logoUrl || '',
+      faviconUrl: assets.faviconUrl || '',
+      splashImageUrl: assets.splashImageUrl || '',
+      splashBgColor: assets.splashBgColor || '',
+      splashGradStart: assets.splashGradStart || assets.splashBgColor || '',
+      splashGradEnd: assets.splashGradEnd || '',
+      splashShowBrandIcon: assets.splashShowBrandIcon,
+    }, null, 2)}\n`
+  );
 };
 
 const requestJson = (url, payload) =>
@@ -454,9 +489,25 @@ const updateSplashBackgroundSet = (startColor, endColor) => {
     const dslAssets = await fetchBrandAssetsFromDsl();
     const logoUrl = APP_LOGO_URL || dslAssets.logoUrl || dslAssets.faviconUrl || '';
     const splashUrl = SPLASH_IMAGE_URL || dslAssets.splashImageUrl || '';
-    const splashBgColor = normalizeHex(dslAssets.splashBgColor || '#ffffff');
-    const splashGradEnd = normalizeHex(dslAssets.splashGradEnd || splashBgColor, splashBgColor);
+    const finalBrandAssets = {
+      ...dslAssets,
+      logoUrl,
+      faviconUrl: dslAssets.faviconUrl || '',
+      splashImageUrl: splashUrl,
+    };
+    const effectiveSplashUrl =
+      splashUrl ||
+      (finalBrandAssets.splashShowBrandIcon !== false ? logoUrl : '');
+    const splashBgColor = normalizeHex(
+      dslAssets.splashGradStart || dslAssets.splashBgColor || dslAssets.splashGradEnd || '#ffffff'
+    );
+    const splashGradEnd = normalizeHex(dslAssets.splashGradEnd || dslAssets.splashBgColor || splashBgColor, splashBgColor);
 
+    writeGeneratedBrandAssets({
+      ...finalBrandAssets,
+      splashBgColor,
+      splashGradEnd,
+    });
     updateSplashBackgroundSet(splashBgColor, splashGradEnd);
 
     if (logoUrl) {
@@ -468,10 +519,10 @@ const updateSplashBackgroundSet = (startColor, endColor) => {
       console.log('No logoUrl found for iOS app icon; keeping existing AppIcon assets.');
     }
 
-    if (splashUrl) {
+    if (effectiveSplashUrl) {
       const splashPath = path.join(TEMP_DIR, 'ios-splash');
-      console.log(`Updating iOS splash image from: ${splashUrl}`);
-      await downloadFile(splashUrl, splashPath);
+      console.log(`Updating iOS splash image from: ${effectiveSplashUrl}`);
+      await downloadFile(effectiveSplashUrl, splashPath);
       await updateSplashImageSet(splashPath);
     } else {
       console.log('No splashImageUrl found; keeping existing SplashImage assets.');

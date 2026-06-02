@@ -1,257 +1,406 @@
-import React from 'react';
+import React, { useMemo } from "react";
 import {
   ActivityIndicator,
-  ScrollView,
+  Image,
   StyleSheet,
   Text,
   TouchableOpacity,
   View,
-} from 'react-native';
-import { useNavigation } from '@react-navigation/native';
+} from "react-native";
+import { useNavigation } from "@react-navigation/native";
+import FontAwesome from "react-native-vector-icons/FontAwesome";
+import { convertStyles } from "../utils/convertStyles";
+import { resolveFA4IconName } from "../utils/faIconAlias";
+import { resolveFont } from "../services/typographyService";
+import { navigateToDslTarget } from "../utils/navigationTarget";
 
-// ── Helpers ───────────────────────────────────────────────────────────────────
+const deepUnwrap = (value) => {
+  if (value === undefined || value === null) return value;
+  if (Array.isArray(value)) return value.map((item) => deepUnwrap(item));
+  if (typeof value !== "object") return value;
+  if (value.value !== undefined) return deepUnwrap(value.value);
+  if (value.const !== undefined) return deepUnwrap(value.const);
+  if (value.properties !== undefined) return deepUnwrap(value.properties);
+  return Object.entries(value).reduce((acc, [key, next]) => {
+    acc[key] = deepUnwrap(next);
+    return acc;
+  }, {});
+};
 
-/** Human-readable relative time: "just now", "5m ago", "3h ago", "2d ago" */
-const relativeTime = (isoString) => {
-  if (!isoString) return '';
+const str = (value, fallback = "") => {
+  const resolved = deepUnwrap(value);
+  if (resolved === undefined || resolved === null) return fallback;
+  const text = String(resolved).trim();
+  return text ? text : fallback;
+};
+
+const num = (value, fallback = 0) => {
+  const resolved = deepUnwrap(value);
+  if (resolved === undefined || resolved === null || resolved === "") return fallback;
+  if (typeof resolved === "number" && Number.isFinite(resolved)) return resolved;
+  const parsed = Number.parseFloat(String(resolved).replace("px", "").trim());
+  return Number.isFinite(parsed) ? parsed : fallback;
+};
+
+const bool = (value, fallback = true) => {
+  const resolved = deepUnwrap(value);
+  if (typeof resolved === "boolean") return resolved;
+  if (typeof resolved === "number") return resolved !== 0;
+  if (typeof resolved === "string") {
+    const normalized = resolved.trim().toLowerCase();
+    if (["true", "1", "yes", "y"].includes(normalized)) return true;
+    if (["false", "0", "no", "n"].includes(normalized)) return false;
+  }
+  return fallback;
+};
+
+const fontWeight = (value, fallback = "400") => {
+  const raw = str(value, fallback).toLowerCase();
+  if (/^\d+$/.test(raw)) return raw;
+  if (raw === "bold") return "700";
+  if (raw === "semibold" || raw === "semi bold") return "600";
+  if (raw === "medium") return "500";
+  if (raw === "regular" || raw === "normal") return "400";
+  return fallback;
+};
+
+const parseIconName = (value) => {
+  const tokens = String(value || "").split(/\s+/).filter(Boolean);
+  const skip = new Set(["fa-solid", "fa-regular", "fa-light", "fa-thin", "fa-brands"]);
+  const token =
+    tokens.find((item) => item.startsWith("fa-") && !skip.has(item)) ||
+    tokens.find((item) => item.startsWith("fa-")) ||
+    value;
+  return resolveFA4IconName(String(token || "").replace(/^fa-/, ""));
+};
+
+const getProps = (section) => {
+  const propsRoot =
+    section?.props ||
+    section?.properties?.props?.properties ||
+    section?.properties?.props ||
+    {};
+  const normalized = deepUnwrap(propsRoot) || {};
+  const raw = normalized?.raw && typeof normalized.raw === "object" ? normalized.raw : {};
+  return { normalized, raw: { ...normalized, ...raw } };
+};
+
+const resolveRows = (notifications, raw) => {
+  if (Array.isArray(notifications) && notifications.length > 0) {
+    return notifications.filter(Boolean);
+  }
+
+  const rawItems = Array.isArray(raw?.items)
+    ? raw.items
+    : Array.isArray(raw?.notifications)
+      ? raw.notifications
+      : [];
+  if (rawItems.length > 0) return rawItems.filter(Boolean);
+
+  const title = str(raw?.title, "");
+  const description = str(raw?.description ?? raw?.body ?? raw?.message, "");
+  const timeText = str(raw?.timeText ?? raw?.dateText, "");
+  const image = str(raw?.image ?? raw?.imageUrl, "");
+  const iconName = str(raw?.iconName ?? raw?.icon, "");
+  if (!title && !description && !timeText && !image && !iconName) return [];
+
+  return [{
+    id: "dsl-notification",
+    title,
+    body: description,
+    timeText,
+    image,
+    iconName,
+    navigateRef: raw?.navigateRef,
+    navigateType: raw?.navigateType,
+    link: raw?.link,
+    actionUrl: raw?.actionUrl,
+  }];
+};
+
+const resolveTitle = (item) =>
+  str(item?.title ?? item?.heading ?? item?.name ?? item?.label, "");
+
+const resolveBody = (item) =>
+  str(item?.body ?? item?.description ?? item?.message ?? item?.subtitle ?? item?.subtext, "");
+
+const resolveImage = (item, raw) =>
+  str(item?.image ?? item?.imageUrl ?? item?.iconImage ?? item?.thumbnail ?? raw?.image ?? raw?.imageUrl, "");
+
+const resolveIcon = (item, raw) =>
+  parseIconName(item?.iconName ?? item?.icon ?? item?.iconClass ?? raw?.iconName ?? raw?.icon);
+
+const resolveDateText = (item, raw) => {
+  const explicit = str(item?.timeText ?? item?.dateText ?? item?.createdText, "");
+  if (explicit) return explicit;
+
+  const source = item?.created_at ?? item?.createdAt ?? item?.date ?? item?.timestamp;
+  if (!source) return str(raw?.timeText, "");
+
+  const date = new Date(source);
+  if (Number.isNaN(date.getTime())) return str(source, "");
+
+  const diffMs = Date.now() - date.getTime();
+  const minuteMs = 60 * 1000;
+  const hourMs = 60 * minuteMs;
+  const dayMs = 24 * hourMs;
+
+  if (diffMs >= 0 && diffMs < minuteMs) return str(raw?.nowText, "Just now");
+  if (diffMs >= 0 && diffMs < hourMs) return `${Math.floor(diffMs / minuteMs)}m ago`;
+  if (diffMs >= 0 && diffMs < dayMs) return `${Math.floor(diffMs / hourMs)}h ago`;
+  if (diffMs >= 0 && diffMs < 7 * dayMs) return `${Math.floor(diffMs / dayMs)}d ago`;
+
   try {
-    const diff = Date.now() - new Date(isoString).getTime();
-    const mins  = Math.floor(diff / 60000);
-    const hours = Math.floor(diff / 3600000);
-    const days  = Math.floor(diff / 86400000);
-    if (mins  < 1)  return 'Just now';
-    if (mins  < 60) return `${mins}m ago`;
-    if (hours < 24) return `${hours}h ago`;
-    if (days  < 7)  return `${days}d ago`;
-    return new Date(isoString).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+    return date.toLocaleDateString(undefined, { month: "short", day: "numeric" });
   } catch (_) {
-    return '';
+    return str(source, "");
   }
 };
 
-/** Icon char + color for each notification type */
-const TYPE_META = {
-  order_placed:    { icon: '🛍️',  dot: '#10B981', label: 'Order Placed'     },
-  order_purchased: { icon: '✅',  dot: '#3B82F6', label: 'Purchase Confirmed' },
-  order_canceled:  { icon: '❌',  dot: '#EF4444', label: 'Order Canceled'    },
-};
-const DEFAULT_META = { icon: '🔔', dot: '#6366F1', label: 'Notification' };
+const resolveAction = (item = {}) => ({
+  orderId: item?.order_id ?? item?.orderId,
+  url: str(item?.actionUrl ?? item?.url ?? item?.href ?? item?.linkUrl, ""),
+  page: str(item?.navigateRef ?? item?.pageName ?? item?.page ?? item?.screen ?? item?.link, ""),
+  navigateType: str(item?.navigateType ?? item?.actionType, "Screen"),
+});
 
-const getMeta = (type) => TYPE_META[type] ?? DEFAULT_META;
-
-// ── Single notification card ──────────────────────────────────────────────────
-
-function NotificationCard({ item }) {
+function NotificationCard({ item, raw, stylesConfig }) {
   const navigation = useNavigation();
-  const meta = getMeta(item?.type);
+  const title = resolveTitle(item);
+  const body = resolveBody(item);
+  const image = resolveImage(item, raw);
+  const iconName = resolveIcon(item, raw);
+  const timeText = resolveDateText(item, raw);
+  const action = resolveAction(item);
+  const hasAction = Boolean(action.orderId || action.url || action.page);
 
   const handlePress = () => {
-    if (item?.order_id) {
-      // Navigate to order detail if order_id is present
-      try {
-        navigation.navigate('OrderDetail', { orderId: item.order_id });
-      } catch (_) {
-        // OrderDetail screen may not exist in all builds — silently ignore
+    if (!hasAction) return;
+    try {
+      if (action.orderId) {
+        navigation.navigate("OrderDetail", { orderId: action.orderId });
+        return;
       }
-    }
+      if (action.url || action.navigateType.toLowerCase() === "url") {
+        navigation.navigate("CheckoutWebView", { url: action.url || action.page, title });
+        return;
+      }
+      void navigateToDslTarget(navigation, {
+        target: action.page,
+        navigateRef: action.page,
+        navigateType: action.navigateType,
+        label: title,
+        fallbackTitle: title || action.page,
+      });
+    } catch (_) {}
   };
 
   return (
     <TouchableOpacity
-      style={styles.card}
-      activeOpacity={item?.order_id ? 0.75 : 1}
+      activeOpacity={hasAction ? 0.72 : 1}
+      disabled={!hasAction}
       onPress={handlePress}
-      disabled={!item?.order_id}
+      style={[styles.card, stylesConfig.card]}
     >
-      {/* Left: icon circle */}
-      <View style={[styles.iconCircle, { backgroundColor: meta.dot + '20' }]}>
-        <Text style={styles.iconText}>{meta.icon}</Text>
-      </View>
+      {(image || iconName) && (
+        <View style={[styles.iconWrap, stylesConfig.iconWrap]}>
+          {image ? (
+            <Image source={{ uri: image }} style={[styles.image, stylesConfig.image]} resizeMode="cover" />
+          ) : (
+            <FontAwesome
+              name={iconName}
+              size={stylesConfig.iconSize}
+              color={stylesConfig.iconColor}
+            />
+          )}
+        </View>
+      )}
 
-      {/* Middle: title + body */}
       <View style={styles.textArea}>
-        <Text style={styles.title} numberOfLines={1}>
-          {item?.title || meta.label}
-        </Text>
-        <Text style={styles.body} numberOfLines={2}>
-          {item?.body || ''}
-        </Text>
+        {!!title && (
+          <Text numberOfLines={2} style={[styles.title, stylesConfig.title]}>
+            {title}
+          </Text>
+        )}
+        {!!body && (
+          <Text numberOfLines={3} style={[styles.body, stylesConfig.body]}>
+            {body}
+          </Text>
+        )}
       </View>
 
-      {/* Right: time + dot */}
-      <View style={styles.rightCol}>
-        <Text style={styles.time}>{relativeTime(item?.created_at)}</Text>
-        <View style={[styles.typeDot, { backgroundColor: meta.dot }]} />
-      </View>
+      {!!timeText && (
+        <Text numberOfLines={1} style={[styles.time, stylesConfig.time]}>
+          {timeText}
+        </Text>
+      )}
     </TouchableOpacity>
   );
 }
 
-// ── Main component ────────────────────────────────────────────────────────────
-
 export default function NotificationList({
+  section,
   notifications = [],
   loading = false,
-  onRefresh,
   bottomPad = 0,
 }) {
-  if (loading) {
+  const { normalized, raw } = useMemo(() => getProps(section), [section]);
+  const css = normalized?.presentation?.css || normalized?.layout?.css || {};
+  const rows = useMemo(() => resolveRows(notifications, raw), [notifications, raw]);
+
+  const containerCss = convertStyles(css?.container || {});
+  const cardCss = convertStyles(css?.card || css?.row || {});
+  const titleCss = convertStyles(css?.title || {});
+  const bodyCss = convertStyles(css?.description || css?.body || {});
+  const timeCss = convertStyles(css?.time || {});
+  const imageCss = convertStyles(css?.image || {});
+
+  const titleFontFamily = resolveFont(str(raw?.titleFontFamily ?? raw?.fontFamily, "")) || titleCss.fontFamily;
+  const bodyFontFamily = resolveFont(str(raw?.descriptionFontFamily ?? raw?.fontFamily, "")) || bodyCss.fontFamily;
+  const timeFontFamily = resolveFont(str(raw?.timeFontFamily ?? raw?.fontFamily, "")) || timeCss.fontFamily;
+
+  const stylesConfig = {
+    container: {
+      ...containerCss,
+      paddingTop: num(raw?.pt, containerCss.paddingTop ?? 0),
+      paddingRight: num(raw?.pr, containerCss.paddingRight ?? 0),
+      paddingBottom: num(raw?.pb, containerCss.paddingBottom ?? 0) + bottomPad,
+      paddingLeft: num(raw?.pl, containerCss.paddingLeft ?? 0),
+      backgroundColor: str(raw?.containerBgColor ?? raw?.backgroundColor, containerCss.backgroundColor || "transparent"),
+    },
+    card: {
+      ...cardCss,
+      backgroundColor: str(raw?.bgColor ?? raw?.cardBgColor, cardCss.backgroundColor || "#FFFFFF"),
+      borderRadius: num(raw?.borderRadius ?? raw?.cardBorderRadius, cardCss.borderRadius || 0),
+    },
+    title: {
+      ...titleCss,
+      color: str(raw?.titleColor, titleCss.color || "#111111"),
+      fontSize: num(raw?.titleFontSize, titleCss.fontSize || 18),
+      fontWeight: fontWeight(raw?.titleFontWeight, titleCss.fontWeight || "600"),
+      ...(titleFontFamily ? { fontFamily: titleFontFamily } : {}),
+    },
+    body: {
+      ...bodyCss,
+      color: str(raw?.descriptionColor ?? raw?.bodyColor, bodyCss.color || "#222222"),
+      fontSize: num(raw?.descriptionFontSize ?? raw?.bodyFontSize, bodyCss.fontSize || 14),
+      fontWeight: fontWeight(raw?.descriptionFontWeight ?? raw?.bodyFontWeight, bodyCss.fontWeight || "400"),
+      ...(bodyFontFamily ? { fontFamily: bodyFontFamily } : {}),
+    },
+    time: {
+      ...timeCss,
+      color: str(raw?.timeColor, timeCss.color || "#2D2D2D"),
+      fontSize: num(raw?.timeFontSize, timeCss.fontSize || 13),
+      fontWeight: fontWeight(raw?.timeFontWeight, timeCss.fontWeight || "400"),
+      ...(timeFontFamily ? { fontFamily: timeFontFamily } : {}),
+    },
+    iconWrap: {
+      width: num(raw?.iconWidth ?? raw?.imageWidth, imageCss.width || 40),
+      height: num(raw?.iconHeight ?? raw?.imageHeight, imageCss.height || 40),
+      borderRadius: num(raw?.iconBorderRadius ?? raw?.imageBorderRadius, 20),
+      backgroundColor: str(raw?.iconBgColor, "transparent"),
+    },
+    image: {
+      width: num(raw?.iconWidth ?? raw?.imageWidth, imageCss.width || 40),
+      height: num(raw?.iconHeight ?? raw?.imageHeight, imageCss.height || 40),
+      borderRadius: num(raw?.iconBorderRadius ?? raw?.imageBorderRadius, 20),
+    },
+    iconSize: num(raw?.iconSize, 20),
+    iconColor: str(raw?.iconColor, "#111111"),
+  };
+
+  if (loading && rows.length === 0) {
     return (
-      <View style={styles.centered}>
-        <ActivityIndicator size="large" color="#6366F1" />
-        <Text style={styles.loadingText}>Loading notifications…</Text>
+      <View style={[styles.container, stylesConfig.container, styles.centered]}>
+        <ActivityIndicator size="large" color={stylesConfig.time.color} />
+        {!!str(raw?.loadingText, "") && (
+          <Text style={[styles.body, stylesConfig.body, styles.loadingText]}>
+            {str(raw?.loadingText, "")}
+          </Text>
+        )}
       </View>
     );
   }
 
-  if (!notifications.length) {
+  if (!rows.length) {
+    const emptyTitle = str(raw?.emptyTitle, "");
+    const emptyMessage = str(raw?.emptyMessage ?? raw?.emptySubtitle, "");
+    if (!emptyTitle && !emptyMessage) return <View style={[styles.container, stylesConfig.container]} />;
     return (
-      <View style={styles.centered}>
-        <Text style={styles.emptyIcon}>🔔</Text>
-        <Text style={styles.emptyTitle}>You're all caught up!</Text>
-        <Text style={styles.emptyBody}>
-          No new notifications right now.{'\n'}We'll let you know when something arrives.
-        </Text>
+      <View style={[styles.container, stylesConfig.container, styles.centered]}>
+        {!!emptyTitle && <Text style={[styles.title, stylesConfig.title]}>{emptyTitle}</Text>}
+        {!!emptyMessage && <Text style={[styles.body, stylesConfig.body]}>{emptyMessage}</Text>}
       </View>
     );
   }
+
+  const showHeader = bool(raw?.headerVisible ?? raw?.showHeader, false);
+  const headerText = str(raw?.headerText ?? raw?.listTitle, "");
 
   return (
-    <ScrollView
-      style={styles.list}
-      contentContainerStyle={[styles.listContent, { paddingBottom: bottomPad + 16 }]}
-      showsVerticalScrollIndicator={false}
-    >
-      {/* Header row */}
-      <View style={styles.listHeader}>
-        <Text style={styles.listHeaderText}>Notifications</Text>
-        <Text style={styles.listHeaderCount}>{notifications.length}</Text>
-      </View>
-
-      {notifications.map((item) => (
-        <NotificationCard key={String(item?.id ?? Math.random())} item={item} />
+    <View style={[styles.container, stylesConfig.container]}>
+      {showHeader && !!headerText && (
+        <Text style={[styles.header, stylesConfig.title]}>{headerText}</Text>
+      )}
+      {rows.map((item, index) => (
+        <NotificationCard
+          key={String(item?.id ?? `${resolveTitle(item)}-${index}`)}
+          item={item}
+          raw={raw}
+          stylesConfig={stylesConfig}
+        />
       ))}
-    </ScrollView>
+    </View>
   );
 }
 
-// ── Styles ────────────────────────────────────────────────────────────────────
-
 const styles = StyleSheet.create({
-  // Loading / empty states
+  container: {
+    width: "100%",
+  },
   centered: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: 32,
-    paddingBottom: 80,
-    gap: 12,
+    alignItems: "center",
+    justifyContent: "center",
+    minHeight: 180,
   },
   loadingText: {
-    fontSize: 14,
-    color: '#6B7280',
     marginTop: 8,
   },
-  emptyIcon: {
-    fontSize: 48,
-  },
-  emptyTitle: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: '#111827',
-    textAlign: 'center',
-  },
-  emptyBody: {
-    fontSize: 14,
-    color: '#6B7280',
-    textAlign: 'center',
-    lineHeight: 20,
-  },
-
-  // List
-  list: {
-    flex: 1,
-  },
-  listContent: {
-    paddingHorizontal: 16,
-    paddingTop: 12,
-  },
-  listHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
+  header: {
     marginBottom: 12,
-    paddingHorizontal: 4,
   },
-  listHeaderText: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: '#111827',
-  },
-  listHeaderCount: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: '#6366F1',
-    backgroundColor: '#EEF2FF',
-    paddingHorizontal: 10,
-    paddingVertical: 3,
-    borderRadius: 999,
-  },
-
-  // Card
   card: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    backgroundColor: '#FFFFFF',
-    borderRadius: 14,
-    padding: 14,
+    width: "100%",
+    flexDirection: "row",
+    alignItems: "flex-start",
     marginBottom: 10,
-    gap: 12,
-    shadowColor: '#000',
-    shadowOpacity: 0.06,
-    shadowOffset: { width: 0, height: 2 },
-    shadowRadius: 6,
-    elevation: 2,
   },
-  iconCircle: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    alignItems: 'center',
-    justifyContent: 'center',
+  iconWrap: {
+    alignItems: "center",
+    justifyContent: "center",
+    overflow: "hidden",
     flexShrink: 0,
+    marginRight: 12,
   },
-  iconText: {
-    fontSize: 20,
+  image: {
+    overflow: "hidden",
   },
   textArea: {
     flex: 1,
-    gap: 4,
+    minWidth: 0,
   },
   title: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: '#111827',
-    lineHeight: 20,
+    color: "#111111",
+    fontSize: 18,
+    fontWeight: "600",
   },
   body: {
-    fontSize: 13,
-    color: '#6B7280',
-    lineHeight: 18,
-  },
-  rightCol: {
-    alignItems: 'flex-end',
-    gap: 6,
-    flexShrink: 0,
+    color: "#222222",
+    fontSize: 14,
+    marginTop: 4,
   },
   time: {
-    fontSize: 11,
-    color: '#9CA3AF',
-    fontWeight: '500',
-  },
-  typeDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
+    flexShrink: 0,
+    marginLeft: 10,
   },
 });

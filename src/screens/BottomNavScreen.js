@@ -204,6 +204,7 @@ export default function BottomNavScreen() {
   const isHomePage = normalizedPageName === "home";
   const isCartEmpty = cartItems.length === 0;
   const [dsl, setDsl] = useState(null);
+  const [pageTitleFromDsl, setPageTitleFromDsl] = useState(title);
   const [loading, setLoading] = useState(true);
   const [heavySectionsReady, setHeavySectionsReady] = useState(() => !isHomePage);
   const [err, setErr] = useState(null);
@@ -413,6 +414,10 @@ export default function BottomNavScreen() {
     "account_profile",
     "profile_header",
     "account_profile_header",
+    "currency_switcher",
+    "logout",
+    "notification_inbox",
+    "notification_list",
     "sign_up",
     "signup",
   ]);
@@ -540,6 +545,15 @@ export default function BottomNavScreen() {
     [sortedSections, isHeaderDefaultEnabled]
   );
 
+  const notificationInboxSection = useMemo(
+    () =>
+      visibleSections.find((section) => {
+        const component = getComponentName(section).toLowerCase();
+        return component === "notification_inbox" || component === "notification_list" || component === "notifications";
+      }) || null,
+    [visibleSections]
+  );
+
   const reportPageEmptyState = useCallback((key, isEmpty) => {
     setPageEmptyState((prev) => {
       const normalizedKey = String(key || "").trim();
@@ -657,6 +671,7 @@ export default function BottomNavScreen() {
           ? dslData.dsl
           : ensureHeaderSections(dslData.dsl, headers);
         const hdrDefault = dslData.dsl?.headerdefault ?? null;
+        setPageTitleFromDsl(dslData.dsl?.page?.name || dslData.dsl?.page?.handle || title);
         setHeaderDefault(hdrDefault);
         setHeaderDefaultConfig(hdrDefault);
         setDsl(nextDsl);
@@ -699,6 +714,7 @@ export default function BottomNavScreen() {
           ? dslData.dsl
           : ensureHeaderSections(dslData.dsl, headers);
         const hdrDefault = dslData.dsl?.headerdefault ?? null;
+        setPageTitleFromDsl(dslData.dsl?.page?.name || dslData.dsl?.page?.handle || title);
         setHeaderDefault(hdrDefault);
         setHeaderDefaultConfig(hdrDefault);
         setDsl(nextDsl);
@@ -798,6 +814,7 @@ export default function BottomNavScreen() {
             ? latest.dsl
             : ensureHeaderSections(latest.dsl, headers);
           const hdrDefault = latest.dsl?.headerdefault ?? null;
+          setPageTitleFromDsl(latest.dsl?.page?.name || latest.dsl?.page?.handle || title);
           setHeaderDefault(hdrDefault);
           setHeaderDefaultConfig(hdrDefault);
           setDsl(nextDsl);
@@ -846,7 +863,7 @@ export default function BottomNavScreen() {
                 <HeaderIcon name="arrow-left-long" size={18} color="#111827" />
               </TouchableOpacity>
               <Text style={styles.standaloneHeaderTitle} numberOfLines={1}>
-                {title}
+                {pageTitleFromDsl || title}
               </Text>
               <View style={styles.standaloneBackBtn} />
             </View>
@@ -880,6 +897,7 @@ export default function BottomNavScreen() {
               }
             >
               <NotificationList
+                section={notificationInboxSection}
                 notifications={notifications}
                 loading={notificationsLoading}
                 bottomPad={resolvedBottomNavSection && !hideBottomNav ? bottomNavHeight : 0}
@@ -928,6 +946,8 @@ export default function BottomNavScreen() {
                   "profile_header",
                   "account_profile_header",
                   "text_block",
+                  "currency_switcher",
+                  "logout",
                 ].includes(compName);
                 const isHeavyHomeSection = [
                   "product_grid", "product_carousel",

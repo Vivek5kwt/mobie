@@ -4,6 +4,7 @@ import { resolveAppId } from "../utils/appId";
 
 let _brandAssets = null;
 let _brandAssetsAppId = null;
+let _brandAssetsFromGenerated = false;
 let _inflight = null;
 
 const isObject = (value) =>
@@ -77,6 +78,29 @@ const normalizeBrandAssets = (candidate) => {
     : null;
 };
 
+const loadGeneratedBrandAssets = () => {
+  try {
+    const generated = require("../generated/brandAssets.json");
+    const assets = normalizeBrandAssets(generated);
+    if (!assets) return null;
+
+    const appId = Number(cleanString(generated?.appId));
+    return {
+      assets,
+      appId: Number.isFinite(appId) ? appId : null,
+    };
+  } catch (_) {
+    return null;
+  }
+};
+
+const generatedBrandAssets = loadGeneratedBrandAssets();
+if (generatedBrandAssets?.assets) {
+  _brandAssets = generatedBrandAssets.assets;
+  _brandAssetsAppId = generatedBrandAssets.appId;
+  _brandAssetsFromGenerated = true;
+}
+
 const mergeAssets = (base, next) => {
   if (!next) return base;
   const merged = { ...(base || {}) };
@@ -134,6 +158,7 @@ export const setBrandKitAssetsFromDsl = (dsl, appId) => {
     _brandAssetsAppId === appId;
   _brandAssets = sameApp ? mergeAssets(assets, _brandAssets) : assets;
   _brandAssetsAppId = appId ?? _brandAssetsAppId;
+  _brandAssetsFromGenerated = false;
   return _brandAssets;
 };
 
@@ -145,13 +170,19 @@ export const getBrandLogoSync = () =>
 export const getSplashImageSync = () =>
   _brandAssets?.splashImageUrl || null;
 
+export const getSplashBackgroundSync = () =>
+  _brandAssets?.splashGradStart ||
+  _brandAssets?.splashBgColor ||
+  _brandAssets?.splashGradEnd ||
+  "transparent";
+
 export async function fetchBrandKitAssets(appId) {
   const resolvedAppId = resolveAppId(appId);
   const appIdInt = Number.isInteger(resolvedAppId)
     ? resolvedAppId
     : Math.floor(Number(resolvedAppId));
 
-  if (_brandAssets && _brandAssetsAppId === appIdInt) return _brandAssets;
+  if (_brandAssets && _brandAssetsAppId === appIdInt && !_brandAssetsFromGenerated) return _brandAssets;
   if (_inflight) return _inflight;
 
   _inflight = (async () => {
@@ -171,6 +202,7 @@ export async function fetchBrandKitAssets(appId) {
         if (assets) {
           _brandAssets = assets;
           _brandAssetsAppId = appIdInt;
+          _brandAssetsFromGenerated = false;
           return _brandAssets;
         }
       }
