@@ -10,6 +10,7 @@ import { useAuth } from "../services/AuthContext";
 import { isAuthenticatedSession } from "../utils/authGate";
 import { resolveFont } from "../services/typographyService";
 import { activeDiscountCodes, cartDiscountFingerprint } from "../utils/cartDiscounts";
+import { trackBeginCheckout } from "../services/analyticsService";
 
 // ── DSL helpers ────────────────────────────────────────────────────────────────
 
@@ -498,6 +499,11 @@ export default function CheckoutButton({ section }) {
         isLoggedIn,
         hasCustomerAccessToken: !!usableCustomerAccessToken,
       });
+      trackBeginCheckout(checkoutLines, {
+        coupon: checkoutDiscountCodes.join(","),
+        item_count: checkoutLines.length,
+        is_logged_in: isLoggedIn,
+      }, { session }).catch(() => {});
       const checkoutUrl = await createShopifyCartCheckout(checkoutRequest);
       if (checkoutUrl && navigation?.navigate) {
         console.log(`${CHECKOUT_BUTTON_LOG} opening checkout`, { checkoutUrl });

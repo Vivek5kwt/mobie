@@ -9,6 +9,7 @@ import {
   persistStore,
 } from "redux-persist";
 import rootReducer from "./rootReducer";
+import analyticsMiddleware from "./analyticsMiddleware";
 
 export const store = configureStore({
   reducer: rootReducer,
@@ -17,7 +18,7 @@ export const store = configureStore({
       serializableCheck: {
         ignoredActions: [FLUSH, REHYDRATE, PAUSE, PERSIST, PURGE, REGISTER],
       },
-    }),
+    }).concat(analyticsMiddleware),
 });
 
 export const persistor = persistStore(store);

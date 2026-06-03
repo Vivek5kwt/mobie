@@ -27,6 +27,7 @@ import { resolveAppId } from "../utils/appId";
 import { useAuth } from "../services/AuthContext";
 import { setHeaderDefault } from "../services/headerDefaultService";
 import { getHomeSectionMarginBottom } from "../utils/sectionSpacing";
+import { trackScreenView } from "../services/analyticsService";
 
 // ── Module-level cache ────────────────────────────────────────────────────────
 // Survives re-mounts within the same JS session.
@@ -88,6 +89,19 @@ export default function LayoutScreen({ route, navigation }) {
   // Initialize bottom nav from cache immediately — never shows blank on remount
   const [stableBottomNavSection, setStableBottomNavSection] = useState(() => cached?.bottomNavSection ?? null);
   const [heavySectionsReady, setHeavySectionsReady] = useState(() => !isHomePage);
+  const trackedPageRef = useRef("");
+
+  useEffect(() => {
+    const analyticsPageName = String(dsl?.page?.name || dsl?.page?.handle || pageName || "").trim();
+    const analyticsPageKey = `${appId}:${normalizedPageName}:${analyticsPageName}`;
+    if (!analyticsPageName || trackedPageRef.current === analyticsPageKey) return;
+    trackedPageRef.current = analyticsPageKey;
+    trackScreenView(analyticsPageName, {
+      route_name: "LayoutScreen",
+      page_name: pageName,
+      page_handle: normalizedPageName,
+    }, { session }).catch(() => {});
+  }, [appId, dsl?.page?.handle, dsl?.page?.name, normalizedPageName, pageName, session]);
 
   useEffect(() => {
     dslRef.current = dsl;

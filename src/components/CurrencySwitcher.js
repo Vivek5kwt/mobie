@@ -204,7 +204,7 @@ export default function CurrencySwitcher({ section }) {
   const currency = str(selected?.currency ?? selected?.label ?? selected?.code ?? selected?.symbol, "");
 
   const openCurrencyPicker = useCallback(() => {
-    if (loadingCurrencies || saving || currencies.length <= 1) return;
+    if (loadingCurrencies || saving || currencies.length < 1) return;
     setExpanded((value) => !value);
   }, [currencies.length, loadingCurrencies, saving]);
 
@@ -229,6 +229,10 @@ export default function CurrencySwitcher({ section }) {
   const loadingLabel = str(raw?.loadingText, "Loading currencies...");
   const emptyLabel = str(raw?.emptyText, "No currencies available.");
   const errorLabel = str(raw?.errorText, "Unable to load currencies.");
+  const singleCurrencyLabel = str(
+    raw?.singleCurrencyText ?? raw?.singleOptionText ?? raw?.onlyCurrencyText,
+    "Only one currency option is available."
+  );
   const stateText = loadingCurrencies && !selected
     ? loadingLabel
     : errorMessage && !selected
@@ -331,7 +335,7 @@ export default function CurrencySwitcher({ section }) {
         </Text>
       )}
 
-      {expanded && currencies.length > 1 && (
+      {expanded && currencies.length > 0 && (
         <View style={[styles.options, { backgroundColor: bgColor }]}>
           {currencies.map((item, index) => (
             <TouchableOpacity
@@ -365,6 +369,22 @@ export default function CurrencySwitcher({ section }) {
               )}
             </TouchableOpacity>
           ))}
+          {currencies.length === 1 && (
+            <Text
+              numberOfLines={2}
+              style={[
+                styles.singleOptionHint,
+                {
+                  color: str(raw?.messageColor ?? raw?.helperTextColor, "#6B7280"),
+                  fontSize: num(raw?.messageFontSize ?? raw?.helperTextFontSize, 12),
+                  paddingRight,
+                  paddingLeft,
+                },
+              ]}
+            >
+              {singleCurrencyLabel}
+            </Text>
+          )}
         </View>
       )}
     </View>
@@ -420,6 +440,10 @@ const styles = StyleSheet.create({
   optionText: {
     flex: 1,
     minWidth: 0,
+  },
+  singleOptionHint: {
+    paddingTop: 4,
+    paddingBottom: 10,
   },
   message: {
     paddingHorizontal: 16,

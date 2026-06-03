@@ -29,6 +29,7 @@ import NotificationList from "../components/NotificationList";
 import { fetchNotifications } from "../services/notificationFetchService";
 import { getHomeSectionMarginBottom } from "../utils/sectionSpacing";
 import { PageEmptyStateProvider } from "../services/PageEmptyStateContext";
+import { trackScreenView } from "../services/analyticsService";
 
 // Slugs that should redirect to the Auth screen instead of rendering empty DSL content
 const SIGNIN_SLUGS = new Set(["signin", "sign-in", "login", "log-in", "auth"]);
@@ -227,10 +228,23 @@ export default function BottomNavScreen() {
   // so the last section is never hidden behind the nav bar.
   const [bottomNavHeight, setBottomNavHeight] = useState(BOTTOM_NAV_RESERVED_HEIGHT);
   const [pageEmptyState, setPageEmptyState] = useState({});
+  const trackedPageRef = useRef("");
   // Side menu state (same pattern as LayoutScreen)
   const DEFAULT_SIDE_MENU_WIDTH = 280;
   const [isSideMenuOpen, setIsSideMenuOpen] = useState(false);
   const sideMenuTranslateX = useRef(new Animated.Value(-DEFAULT_SIDE_MENU_WIDTH)).current;
+
+  useEffect(() => {
+    const analyticsPageName = String(pageTitleFromDsl || title || pageName || "").trim();
+    const analyticsPageKey = `${appId}:${normalizedPageName}:${analyticsPageName}`;
+    if (!analyticsPageName || trackedPageRef.current === analyticsPageKey) return;
+    trackedPageRef.current = analyticsPageKey;
+    trackScreenView(analyticsPageName, {
+      route_name: "BottomNavScreen",
+      page_name: pageName,
+      page_handle: normalizedPageName,
+    }, { session }).catch(() => {});
+  }, [appId, normalizedPageName, pageName, pageTitleFromDsl, session, title]);
 
   useEffect(() => {
     if (!isHomePage) {

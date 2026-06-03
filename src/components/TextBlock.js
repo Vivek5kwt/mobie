@@ -74,6 +74,59 @@ const firstDefined = (...values) => {
   return undefined;
 };
 
+const BORDER_STYLE_KEYS = [
+  "border",
+  "borderWidth",
+  "borderColor",
+  "borderStyle",
+  "borderTopWidth",
+  "borderTopColor",
+  "borderRightWidth",
+  "borderRightColor",
+  "borderBottomWidth",
+  "borderBottomColor",
+  "borderLeftWidth",
+  "borderLeftColor",
+];
+
+const stripContainerBorderStyle = (style = {}) => {
+  const next = { ...(style || {}) };
+  BORDER_STYLE_KEYS.forEach((key) => {
+    delete next[key];
+  });
+  return next;
+};
+
+const parseBorderShorthand = (value) => {
+  const raw = asStr(value, "");
+  if (!raw || raw.toLowerCase() === "none") return null;
+  const widthMatch = raw.match(/(\d+(?:\.\d+)?)px/i);
+  const colorMatch = raw.match(/#[0-9a-fA-F]{3,8}|rgba?\([^)]+\)|hsla?\([^)]+\)/);
+  return {
+    width: widthMatch ? parseFloat(widthMatch[1]) : undefined,
+    color: colorMatch ? colorMatch[0] : undefined,
+  };
+};
+
+const normalizeBorderSide = (value) => {
+  const side = asStr(value, "").trim().toLowerCase();
+  if (!side) return "";
+  if (side === "none" || side === "no" || side === "false" || side === "0") return "none";
+  if (["all", "full", "solid", "true", "yes", "1"].includes(side)) return "all";
+  if (["top", "right", "bottom", "left"].includes(side)) return side;
+  return "";
+};
+
+const buildBorderStyle = ({ side, width, color }) => {
+  if (!side || side === "none" || !width || width <= 0) return { borderWidth: 0 };
+  const borderColor = color || "transparent";
+  if (side === "top") return { borderTopWidth: width, borderTopColor: borderColor };
+  if (side === "right") return { borderRightWidth: width, borderRightColor: borderColor };
+  if (side === "bottom") return { borderBottomWidth: width, borderBottomColor: borderColor };
+  if (side === "left") return { borderLeftWidth: width, borderLeftColor: borderColor };
+  return { borderWidth: width, borderColor };
+};
+
 const resolveWeight = (weightStr) => {
   if (!weightStr) return undefined;
   const w = String(weightStr).toLowerCase().trim();
@@ -252,8 +305,9 @@ export default function TextBlock({ section }) {
     display: _disp,
     boxSizing: _boxSizing,
     maxWidth: _maxWidth,
-    ...safeContainerStyle
+    ...containerStyleFromCss
   } = rawContainerStyle;
+  const safeContainerStyle = stripContainerBorderStyle(containerStyleFromCss);
 
   // Derive alignItems for the container from global alignment
   const containerAlignItems = textAlignToJustify(globalAlign);
@@ -283,12 +337,51 @@ export default function TextBlock({ section }) {
     layoutCss?.container?.borderRadius,
     styleCfg?.borderRadius
   ));
-  const overrideBorderColor = firstDefined(rawProps?.borderColor, styleCfg?.borderColor, layoutCss?.container?.borderColor);
+  const borderShorthand = parseBorderShorthand(firstDefined(
+    rawProps?.containerBorder,
+    rawProps?.border
+  ));
+  const borderSideRaw = firstDefined(
+    rawProps?.containerBorderSide,
+    rawProps?.borderSide,
+    rawProps?.containerBorderLine,
+    rawProps?.borderLine
+  );
+  const borderSide = normalizeBorderSide(borderSideRaw);
+  const borderEnabled = asBoolean(firstDefined(
+    rawProps?.containerBorderEnabled,
+    rawProps?.borderEnabled,
+    rawProps?.showBorder
+  ), undefined);
+  const borderWidthRaw = firstDefined(
+    rawProps?.containerBorderWidth,
+    rawProps?.borderWidth,
+    rawProps?.borderSize,
+    rawProps?.strokeWidth,
+    borderShorthand?.width
+  );
+  const borderWidth = asNumber(borderWidthRaw, undefined);
+  const borderColor = asStr(firstDefined(
+    rawProps?.containerBorderColor,
+    rawProps?.borderColor,
+    styleCfg?.borderColor,
+    borderShorthand?.color
+  ), "");
+  const hasExplicitBorder =
+    borderEnabled === true ||
+    (borderWidth != null && borderWidth > 0) ||
+    (!!borderSide && borderSide !== "none");
+  const shouldShowBorder = borderEnabled !== false && borderSide !== "none" && hasExplicitBorder;
+  const borderStyle = buildBorderStyle({
+    side: borderSide || "all",
+    width: shouldShowBorder ? (borderWidth != null ? borderWidth : 1) : 0,
+    color: borderColor,
+  });
 
   const overrideStyle = {
     ...(overrideBgColor ? { backgroundColor: overrideBgColor } : {}),
     ...(overrideBorderRadius != null ? { borderRadius: overrideBorderRadius } : {}),
-    ...(overrideBorderColor ? { borderColor: overrideBorderColor } : {}),
+    ...borderStyle,
   };
 
   // ── Text styles ────────────────────────────────────────────────────────────

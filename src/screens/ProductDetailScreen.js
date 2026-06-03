@@ -10,6 +10,7 @@ import { resolveAppId } from "../utils/appId";
 import { useAuth } from "../services/AuthContext";
 import HeaderDefault from "../components/HeaderDefault";
 import BottomNavigation, { BOTTOM_NAV_RESERVED_HEIGHT } from "../components/BottomNavigation";
+import { trackViewItem } from "../services/analyticsService";
 
 const LIVE_DSL_REFRESH_INTERVAL_MS = 3000;
 
@@ -252,6 +253,7 @@ export default function ProductDetailScreen() {
   const dslVersionRef = useRef(null);
   const dslFingerprintRef = useRef(null);
   const productRef = useRef(product);
+  const viewedProductKeyRef = useRef("");
 
   const loadProductDetails = useCallback(async (overrideProduct) => {
     const baseProduct = overrideProduct || productRef.current || {};
@@ -304,6 +306,20 @@ export default function ProductDetailScreen() {
     setError("");
     loadProductDetails(product);
   }, [loadProductDetails, product]);
+
+  useEffect(() => {
+    const viewedProduct = detailProduct || product;
+    const viewKey = String(
+      viewedProduct?.id ||
+        viewedProduct?.variantId ||
+        viewedProduct?.handle ||
+        viewedProduct?.title ||
+        ""
+    );
+    if (!viewKey || viewedProductKeyRef.current === viewKey) return;
+    viewedProductKeyRef.current = viewKey;
+    trackViewItem(viewedProduct, { session }).catch(() => {});
+  }, [detailProduct, product, session]);
 
   useFocusEffect(
     useCallback(() => {

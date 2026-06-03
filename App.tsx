@@ -1,4 +1,4 @@
-import React, { PropsWithChildren, useCallback, useEffect } from 'react';
+import React, { PropsWithChildren, useCallback, useEffect, useRef } from 'react';
 import { Alert, PermissionsAndroid, Platform } from 'react-native';
 import { ApolloProvider } from '@apollo/client/react';
 import { NavigationContainer, useNavigationContainerRef } from '@react-navigation/native';
@@ -30,8 +30,10 @@ import AuthScreen from './src/screens/AuthScreen';
 import AuthProvider from './src/services/AuthContext';
 import { persistor, store } from './src/store';
 import { getSplashBackgroundSync } from './src/services/brandKitService';
+import { trackAppOpen, trackScreenView } from './src/services/analyticsService';
 
 const Stack = createNativeStackNavigator();
+const DYNAMIC_DSL_ROUTE_NAMES = new Set(['LayoutScreen', 'BottomNavScreen']);
 
 type ToastGlobal = {
   showToast?: (message: string, duration?: string) => void;
@@ -52,6 +54,7 @@ const ORDER_NOTIFICATION_TYPES = new Set([
 
 export default function App() {
   const navigationRef = useNavigationContainerRef();
+  const routeNameRef = useRef<string | undefined>(undefined);
   const startupBackground = getSplashBackgroundSync();
 
   // ── In-app toast / alert for foreground notifications ─────────────────────
@@ -208,6 +211,12 @@ export default function App() {
                 <NavigationContainer
                   ref={navigationRef}
                   onReady={() => {
+                    const currentRouteName = navigationRef.getCurrentRoute()?.name;
+                    routeNameRef.current = currentRouteName;
+                    trackAppOpen().catch(() => {});
+                    if (currentRouteName && !DYNAMIC_DSL_ROUTE_NAMES.has(currentRouteName)) {
+                      trackScreenView(currentRouteName).catch(() => {});
+                    }
                     // 6. Killed-state: app was closed, user tapped notification to open it
                     const messaging = getFirebaseMessaging();
                     if (!messaging) return;
@@ -220,6 +229,21 @@ export default function App() {
                         }
                       })
                       .catch(() => {});
+                  }}
+                  onStateChange={() => {
+                    const previousRouteName = routeNameRef.current;
+                    const currentRouteName = navigationRef.getCurrentRoute()?.name;
+
+                    if (
+                      currentRouteName &&
+                      previousRouteName !== currentRouteName &&
+                      !DYNAMIC_DSL_ROUTE_NAMES.has(currentRouteName)
+                    ) {
+                      routeNameRef.current = currentRouteName;
+                      trackScreenView(currentRouteName).catch(() => {});
+                    } else if (currentRouteName) {
+                      routeNameRef.current = currentRouteName;
+                    }
                   }}
                 >
                   <Stack.Navigator

@@ -11,6 +11,7 @@ import { useDispatch } from 'react-redux';
 import { AuthSession, clearSession, login, restoreSession, signup } from './authService';
 import { setWishlistUser } from '../store/slices/wishlistSlice';
 import tokenLogger from '../utils/tokenLogger';
+import { setAnalyticsUser, trackAnalyticsEvent } from './analyticsService';
 
 export type AuthContextValue = {
   session: AuthSession | null;
@@ -34,6 +35,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         if (storedSession) {
           setSession(storedSession);
           dispatch(setWishlistUser({ session: storedSession }));
+          setAnalyticsUser(storedSession).catch(() => {});
           if (storedSession?.user?.id) {
             tokenLogger
               .updateTokenForUser(storedSession.user.id, storedSession.user.appId)
@@ -54,17 +56,27 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     const newSession = await login(email, password);
     setSession(newSession);
     dispatch(setWishlistUser({ session: newSession }));
+    setAnalyticsUser(newSession).catch(() => {});
+    trackAnalyticsEvent('login', {
+      method: 'email',
+      user_type: newSession?.user?.userType || '',
+    }, { session: newSession }).catch(() => {});
     // Associate FCM token with the logged-in user
     if (newSession?.user?.id) {
       tokenLogger.updateTokenForUser(newSession.user.id, newSession.user.appId).catch(() => {});
     }
-  }, [dispatch]);
+  }, [dispatch, session]);
 
   const handleSignup = useCallback(
     async (email: string, password: string, fullName?: string) => {
       const newSession = await signup(email, password, fullName);
       setSession(newSession);
       dispatch(setWishlistUser({ session: newSession }));
+      setAnalyticsUser(newSession).catch(() => {});
+      trackAnalyticsEvent('sign_up', {
+        method: 'email',
+        user_type: newSession?.user?.userType || '',
+      }, { session: newSession }).catch(() => {});
       // Associate FCM token with the newly registered user
       if (newSession?.user?.id) {
         tokenLogger.updateTokenForUser(newSession.user.id, newSession.user.appId).catch(() => {});
@@ -75,6 +87,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   const handleLogout = useCallback(async () => {
     await clearSession();
+    trackAnalyticsEvent('logout', {}, { session }).catch(() => {});
+    setAnalyticsUser(null).catch(() => {});
     setSession(null);
     dispatch(setWishlistUser({ session: null }));
     // Clear stored FCM record ID so next login gets a fresh token association

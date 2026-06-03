@@ -19,6 +19,7 @@ import { triggerOrderNotification, ORDER_EVENTS } from "../services/notification
 import { saveCompletedOrder } from "../services/orderHistoryService";
 import { getStoreConfigSync } from "../services/storeService";
 import { fetchShopifyOrderDetails } from "../services/shopify";
+import { trackPurchase } from "../services/analyticsService";
 import {
   currencySymbolForCode as sharedCurrencySymbolForCode,
   formatMoney as formatSharedMoney,
@@ -917,6 +918,7 @@ export default function CheckoutWebViewScreen() {
         email: session?.user?.email || "",
         order,
       }).catch(() => {});
+      trackPurchase(order, capturedItems, { session }).catch(() => {});
 
       // Small delay so the WebView finishes its last render before we leave
       setTimeout(() => {
