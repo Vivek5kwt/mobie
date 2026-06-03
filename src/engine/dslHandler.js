@@ -192,6 +192,9 @@ const sanitizeSections = (dslPage) => {
   return { ...dslPage, sections: filteredSections };
 };
 
+const sectionCount = (dslPage) =>
+  Array.isArray(dslPage?.sections) ? dslPage.sections.filter(Boolean).length : 0;
+
 // Check if candidateName is an acceptable match for targetName (exact or alias)
 const isPageNameMatch = (candidateName, targetName) => {
   if (!candidateName || !targetName) return false;
@@ -323,7 +326,7 @@ const selectDslPage = (dslData, layoutMeta, pageOverride) => {
     }
 
     console.log(`📄 No DSL match for "${pageOverride}". Returning empty page data.`);
-    return { page: { name: pageOverride }, sections: [] };
+    return { page: { name: pageOverride }, sections: [], __dslMissing: true };
   }
 
   const entries = Object.entries(pages);
@@ -355,7 +358,7 @@ const selectDslPage = (dslData, layoutMeta, pageOverride) => {
       return sanitizeSections(entries[0][1]);
     }
     console.log(`📄 No DSL match for "${pageOverride}". Returning empty page data.`);
-    return { page: { name: pageOverride }, sections: [] };
+    return { page: { name: pageOverride }, sections: [], __dslMissing: true };
   }
 
   const homeFallback =
@@ -370,6 +373,103 @@ const selectDslPage = (dslData, layoutMeta, pageOverride) => {
   }
 
   return sanitizeSections(selected) || sanitizeSections(dslData);
+};
+
+const sortedLayoutVersions = (layout) =>
+  [...(Array.isArray(layout?.layout_versions) ? layout.layout_versions : [])].sort(
+    (a, b) => (b.version_number || 0) - (a.version_number || 0)
+  );
+
+const selectedPageCandidates = (dslPage = {}) => [
+  normalizeName(dslPage?.page?.name),
+  normalizeName(dslPage?.page?.handle),
+  normalizeName(dslPage?.page?.id),
+  normalizeName(dslPage?.name),
+  normalizeName(dslPage?.handle),
+  normalizeName(dslPage?.id),
+  normalizeName(dslPage?.layout_id),
+].filter(Boolean);
+
+const scoreDslSelection = ({ dsl, layout }, targetName) => {
+  if (!dsl || dsl.__dslMissing) return -1;
+  const sections = sectionCount(dsl);
+  if (!targetName || targetName === "home") return sections > 0 ? 20 : 5;
+
+  const pageMatches = selectedPageCandidates(dsl).some((candidate) =>
+    isPageNameMatch(candidate, targetName)
+  );
+  const layoutMatches = layoutPageCandidates(layout).some((candidate) =>
+    isPageNameMatch(candidate, targetName)
+  );
+
+  if (!pageMatches && !layoutMatches) return -1;
+
+  let score = 0;
+  if (pageMatches) score += 100;
+  if (layoutMatches) score += 50;
+  if (sections > 0) score += 20;
+  return score;
+};
+
+const buildDslSelection = (layout, version, pageName) => {
+  const fullDsl = version?.dsl;
+  if (!fullDsl) return null;
+
+  const dslData = sanitizeSections(selectDslPage(fullDsl, layout, pageName));
+  if (!dslData) return null;
+
+  const headerDefault = dslData?.headerdefault ?? fullDsl?.headerdefault ?? null;
+  const brandKit = dslData?.brandKit ?? fullDsl?.brandKit ?? null;
+  const dslWithDefaults = {
+    ...dslData,
+    ...(headerDefault != null ? { headerdefault: headerDefault } : {}),
+    ...(brandKit != null ? { brandKit } : {}),
+  };
+
+  return {
+    layout,
+    version,
+    fullDsl,
+    dsl: dslWithDefaults,
+    versionNumber: version?.version_number ?? null,
+  };
+};
+
+const selectBestDslFromLayouts = (layouts, pageName) => {
+  const requestedPageName = pageName || "home";
+  const targetName = normalizeName(requestedPageName);
+  const firstMatch = findMatchingLayout(layouts, targetName);
+  const orderedLayouts = [
+    ...(firstMatch ? [firstMatch] : []),
+    ...layouts.filter((layout) => layout !== firstMatch),
+  ];
+
+  let best = null;
+  for (const layout of orderedLayouts) {
+    for (const version of sortedLayoutVersions(layout)) {
+      const selection = buildDslSelection(layout, version, requestedPageName);
+      if (!selection) continue;
+      const score = scoreDslSelection(selection, targetName);
+      const sections = sectionCount(selection.dsl);
+      const versionNumber = selection.versionNumber || 0;
+      const bestVersion = best?.selection?.versionNumber || 0;
+
+      if (
+        !best ||
+        score > best.score ||
+        (score === best.score && sections > best.sections) ||
+        (score === best.score && sections === best.sections && versionNumber > bestVersion)
+      ) {
+        best = { selection, score, sections };
+      }
+
+      if (score >= 100 && sections > 0) {
+        return selection;
+      }
+    }
+  }
+
+  return best?.selection || null;
 };
 
 export async function fetchLiveDSL(appId, pageName) {
@@ -400,47 +500,27 @@ export async function fetchLiveDSL(appId, pageName) {
       return null;
     }
 
-    const targetName = normalizeName(pageName);
-    const layout = findMatchingLayout(layouts, targetName);
-    // findMatchingLayout always returns at least layouts[0] — null only if layouts[] is empty
-    if (!layout) {
-      console.log(`❌ No layouts available at all for appId ${appIdInt}`);
-      return null;
-    }
-    console.log(`🗂️ Layout selected: "${layout?.page_name}" for page "${pageName}"`);
     console.log("📋 All available pages:", layouts.map((e) => e?.page_name).join(", "));
 
-    // Get all versions and sort by version_number (descending)
-    const layoutVersions = layout?.layout_versions || [];
-    if (layoutVersions.length === 0) {
-      console.log("❌ No layout versions found");
+    const selection = selectBestDslFromLayouts(layouts, pageName);
+    if (!selection?.dsl) {
+      console.log(`❌ No matching DSL page found for "${pageName || "home"}"`);
       return null;
     }
 
-    const sortedVersions = [...layoutVersions].sort(
-      (a, b) => (b.version_number || 0) - (a.version_number || 0)
-    );
-
-    const latestVersion = sortedVersions[0];
-    const fullDsl = latestVersion?.dsl;
-    setBrandKitAssetsFromDsl(fullDsl, appIdInt);
-    const dslData = sanitizeSections(selectDslPage(fullDsl, layout, pageName));
-    // Preserve headerdefault from the full DSL even if selectDslPage picked a nested page
-    const headerDefault = dslData?.headerdefault ?? fullDsl?.headerdefault ?? null;
-    const dslWithDefaults = headerDefault != null
-      ? { ...dslData, headerdefault: headerDefault }
-      : dslData;
+    console.log(`🗂️ Layout selected: "${selection.layout?.page_name}" for page "${pageName || "home"}"`);
+    setBrandKitAssetsFromDsl(selection.fullDsl, appIdInt);
 
     // Auto-inject sign_up section when builder left sections empty for create-account pages
-    const finalDsl = injectDefaultSectionsIfNeeded(dslWithDefaults, pageName);
+    const finalDsl = injectDefaultSectionsIfNeeded(selection.dsl, pageName);
 
-    const versionNumber = latestVersion?.version_number ?? null;
+    const versionNumber = selection.versionNumber;
 
     // Cache global font families so every TextBlock can pick them up without
     // needing a React context (same pattern as headerDefaultService).
     setTypography(finalDsl);
 
-    console.log(`✅ LIVE DATA FETCHED - Version ${latestVersion.version_number}`);
+    console.log(`✅ LIVE DATA FETCHED - Version ${versionNumber}`);
     console.log(`📊 Sections count: ${finalDsl?.sections?.length || 0}`);
 
     if (finalDsl?.sections) {

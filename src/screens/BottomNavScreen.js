@@ -37,6 +37,9 @@ const ORDERS_EMPTY_VISIBLE_COMPONENTS = new Set(["order_history", "orderhistory"
 const WISHLIST_EMPTY_VISIBLE_COMPONENTS = new Set(["wishlist", "wishlist_item", "wishlist-item"]);
 const LIVE_DSL_REFRESH_INTERVAL_MS = 3000;
 
+const getSectionCount = (incomingDsl) =>
+  Array.isArray(incomingDsl?.sections) ? incomingDsl.sections.filter(Boolean).length : 0;
+
 // ── Default profile menu items shown when DSL has no account_menu sections ───
 const DEFAULT_PROFILE_MENU = [
   { id: "orders",   label: "My Orders",   icon: "📦", link: "orders" },
@@ -554,6 +557,15 @@ export default function BottomNavScreen() {
     [visibleSections]
   );
 
+  const requestedPageLabel = pageTitleFromDsl || title || pageName || "this page";
+  const dslMissing = Boolean(dsl?.__dslMissing);
+  const emptyStateTitle = dslMissing
+    ? "Page content could not be loaded."
+    : "No content configured for this page.";
+  const emptyStateMessage = dslMissing
+    ? `No DSL sections were found for ${requestedPageLabel}.`
+    : "Please add components in the builder and refresh.";
+
   const reportPageEmptyState = useCallback((key, isEmpty) => {
     setPageEmptyState((prev) => {
       const normalizedKey = String(key || "").trim();
@@ -647,14 +659,22 @@ export default function BottomNavScreen() {
         if (!isMounted) return;
 
         if (!dslData?.dsl) {
-          // Page not found — keep only reusable chrome with an empty body.
+          // Page not found — keep only reusable chrome and show an error state.
           setHeaderDefaultConfig(null);
-          setDsl({ sections: headers });
+          setDsl({ page: { name: pageName }, sections: headers, __dslMissing: true });
+          setErr(`No DSL data found for ${pageName || title || "this page"}.`);
           return;
         }
 
         // If DSL was fetched but sections are empty and page is a signin slug, redirect
         const dslSections = dslData.dsl?.sections || [];
+        if (dslData.dsl?.__dslMissing && dslSections.length === 0) {
+          setHeaderDefaultConfig(null);
+          setDsl({ ...dslData.dsl, sections: headers, __dslMissing: true });
+          setErr(`No DSL page found for ${pageName || title || "this page"}.`);
+          return;
+        }
+
         if (SIGNIN_SLUGS.has(normalizedPageName) && dslSections.length === 0) {
           console.log(`🔑 Empty signin page — redirecting to Auth screen`);
           if (isLoggedIn) {
@@ -710,6 +730,12 @@ export default function BottomNavScreen() {
 
       const dslData = await fetchDSL(appId, pageName);
       if (dslData?.dsl) {
+        if (dslData.dsl?.__dslMissing && getSectionCount(dslData.dsl) === 0) {
+          setDsl({ ...dslData.dsl, sections: headers, __dslMissing: true });
+          setErr(`No DSL page found for ${pageName || title || "this page"}.`);
+          return;
+        }
+
         const nextDsl = isHomePage
           ? dslData.dsl
           : ensureHeaderSections(dslData.dsl, headers);
@@ -718,6 +744,7 @@ export default function BottomNavScreen() {
         setHeaderDefault(hdrDefault);
         setHeaderDefaultConfig(hdrDefault);
         setDsl(nextDsl);
+        setErr(null);
         versionRef.current = dslData.versionNumber ?? null;
         sectionsFpRef.current = getDslFingerprint(dslData.dsl);
       }
@@ -801,6 +828,11 @@ export default function BottomNavScreen() {
       try {
         const latest = await fetchDSL(appId, pageName);
         if (!latest?.dsl) return;
+        if (latest.dsl?.__dslMissing && getSectionCount(latest.dsl) === 0) {
+          setDsl({ ...latest.dsl, sections: homeHeaderSectionsRef.current, __dslMissing: true });
+          setErr(`No DSL page found for ${pageName || title || "this page"}.`);
+          return;
+        }
 
         const incomingVersion = latest.versionNumber ?? null;
         const incomingFp = getDslFingerprint(latest.dsl);
@@ -818,6 +850,7 @@ export default function BottomNavScreen() {
           setHeaderDefault(hdrDefault);
           setHeaderDefaultConfig(hdrDefault);
           setDsl(nextDsl);
+          setErr(null);
           versionRef.current = incomingVersion;
           sectionsFpRef.current = incomingFp;
           console.log("DSL auto-refreshed on", pageName);
@@ -873,7 +906,7 @@ export default function BottomNavScreen() {
         ) : err ? (
           <View style={styles.content}>
             <Text style={styles.error}>Error loading: {err}</Text>
-            <Text style={styles.linkText}>Please try again.</Text>
+            <Text style={styles.linkText}>Pull to refresh or reopen the page.</Text>
           </View>
         ) : isNotificationPage ? (
           /* ── Notification tab: shows real notification records from backend ── */
@@ -996,8 +1029,8 @@ export default function BottomNavScreen() {
               ) : null
             ) : (
               <View style={styles.content}>
-                <Text style={styles.subtitleText}>No content available yet.</Text>
-                <Text style={styles.linkText}>Please check back soon.</Text>
+                <Text style={styles.subtitleText}>{emptyStateTitle}</Text>
+                <Text style={styles.linkText}>{emptyStateMessage}</Text>
               </View>
             )}
           </ScrollView>

@@ -225,7 +225,6 @@ export default function AccountMenu({ section }) {
   const showDivider  = bool(rawProps?.showDivider,  true);
   const dividerColor = str(rawProps?.dividerColor, "#F3F4F6");
   const showIcons = bool(visibility?.icons, true);
-  const showHeader = bool(visibility?.header, true);
   const showIconBgPadding = bool(visibility?.iconBgPadding, true);
 
   // ── items array ──────────────────────────────────────────────────────────
@@ -273,7 +272,7 @@ export default function AccountMenu({ section }) {
     };
   };
 
-  if (!items.length || !showHeader) return null;
+  if (!items.length) return null;
 
   const handlePress = async (item) => {
     if (isLogoutEntry(item)) {
