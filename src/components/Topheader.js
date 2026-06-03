@@ -409,6 +409,7 @@ export default function Header({ section, showBack, showNotification, onTitlePre
     const params = {
       title,
       link,
+      pageName: link || target,
       activeIndex,
       bottomNavSection: null,
     };

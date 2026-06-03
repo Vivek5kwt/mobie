@@ -384,13 +384,13 @@ export default function AccountMenu({ section }) {
       // All other internal page slugs → BottomNavScreen
       await navigateToDslTarget(navigation, {
         target,
-        link: rawItem?.link,
-        href: rawItem?.href,
-        url: rawItem?.url,
-        linkTo: rawItem?.linkTo,
-        navigateRef: rawItem?.navigateRef ?? rawItem?.pageName ?? rawItem?.page ?? rawItem?.screen,
-        navigateType: rawItem?.navigateType ?? rawItem?.linkType,
-        id: rawItem?.id,
+        link: item?.link,
+        href: item?.href,
+        url: item?.url,
+        linkTo: item?.linkTo,
+        navigateRef: item?.navigateRef ?? item?.pageName ?? item?.page ?? item?.screen,
+        navigateType: item?.navigateType ?? item?.linkType,
+        id: item?.id,
         label,
         fallbackTitle: label || target,
       });

@@ -156,23 +156,26 @@ const findMatchingLayout = (layouts, targetName) => {
   if (!targetName || targetName === "home") return layouts[0];
 
   // 1. Exact match
-  const exact = layouts.find(
-    (e) => normalizeName(e?.page_name) === targetName
+  const exact = layouts.find((entry) =>
+    layoutPageCandidates(entry).some((candidate) => candidate === targetName)
   );
   if (exact) return exact;
 
   // 2. Alias match
   const aliases = PAGE_ALIASES[targetName] || [];
   for (const alias of aliases) {
-    const found = layouts.find((e) => normalizeName(e?.page_name) === alias);
+    const found = layouts.find((entry) =>
+      layoutPageCandidates(entry).some((candidate) => candidate === alias)
+    );
     if (found) return found;
   }
 
   // 3. Partial / contains match (e.g. "user-profile" matches "profile")
-  const partial = layouts.find((e) => {
-    const n = normalizeName(e?.page_name);
-    return n && (n.includes(targetName) || targetName.includes(n));
-  });
+  const partial = layouts.find((entry) =>
+    layoutPageCandidates(entry).some((candidate) =>
+      candidate && (candidate.includes(targetName) || targetName.includes(candidate))
+    )
+  );
   if (partial) return partial;
 
   // 4. Fall back to layouts[0] so selectDslPage can search within a
@@ -202,21 +205,106 @@ const isPageNameMatch = (candidateName, targetName) => {
   return false;
 };
 
-const hasPageIdentity = ([key, page]) => {
-  const pageInfo = page?.page || {};
+const RESERVED_DSL_KEYS = new Set([
+  "$schema",
+  "type",
+  "title",
+  "description",
+  "brandkit",
+  "brand-kit",
+  "brand_assets",
+  "brand-assets",
+  "metadata",
+  "page",
+  "sections",
+  "headerdefault",
+]);
+
+const looksLikeDslPage = (value) => {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return false;
   return Boolean(
-    normalizeName(key) ||
-      normalizeName(pageInfo?.name) ||
-      normalizeName(pageInfo?.handle)
+    Array.isArray(value.sections) ||
+      value.page ||
+      value.headerdefault ||
+      value.properties?.sections ||
+      value.properties?.page
   );
 };
 
+const extractPagesObject = (dslData) => {
+  if (!dslData || typeof dslData !== "object") return null;
+  if (dslData.pages && typeof dslData.pages === "object") return dslData.pages;
+  if (Array.isArray(dslData.sections)) return null;
+
+  const pageEntries = Object.entries(dslData).filter(([key, value]) => {
+    const normalizedKey = normalizeName(key);
+    return !RESERVED_DSL_KEYS.has(normalizedKey) && looksLikeDslPage(value);
+  });
+
+  return pageEntries.length ? Object.fromEntries(pageEntries) : null;
+};
+
+const pageIdentityCandidates = ([key, page]) => {
+  const pageInfo = page?.page || {};
+  return [
+    normalizeName(key),
+    normalizeName(pageInfo?.name),
+    normalizeName(pageInfo?.handle),
+    normalizeName(pageInfo?.id),
+    normalizeName(page?.name),
+    normalizeName(page?.handle),
+    normalizeName(page?.id),
+    normalizeName(page?.layout_id),
+  ].filter(Boolean);
+};
+
+const hasPageIdentity = ([key, page]) => {
+  return pageIdentityCandidates([key, page]).length > 0;
+};
+
+const latestLayoutDsl = (layout) => {
+  const versions = Array.isArray(layout?.layout_versions) ? layout.layout_versions : [];
+  if (!versions.length) return null;
+  const sorted = [...versions].sort(
+    (a, b) => (b.version_number || 0) - (a.version_number || 0)
+  );
+  return sorted[0]?.dsl || null;
+};
+
+const layoutPageCandidates = (layout) => {
+  const candidates = [
+    normalizeName(layout?.page_name),
+    normalizeName(layout?.handle),
+    normalizeName(layout?.id),
+    normalizeName(layout?.template_id),
+  ].filter(Boolean);
+
+  const dsl = latestLayoutDsl(layout);
+  if (!dsl) return candidates;
+
+  candidates.push(
+    normalizeName(dsl?.page?.name),
+    normalizeName(dsl?.page?.handle),
+    normalizeName(dsl?.page?.id)
+  );
+
+  const pages = extractPagesObject(dsl);
+  if (pages) {
+    Object.entries(pages).forEach((entry) => {
+      candidates.push(...pageIdentityCandidates(entry));
+    });
+  }
+
+  return [...new Set(candidates.filter(Boolean))];
+};
+
 const selectDslPage = (dslData, layoutMeta, pageOverride) => {
-  if (!dslData?.pages || typeof dslData.pages !== "object") {
+  const pages = extractPagesObject(dslData);
+  if (!pages) {
     if (!pageOverride) return dslData;
 
     const currentPageName = normalizeName(
-      dslData?.page?.name || dslData?.page?.handle || layoutMeta?.page_name
+      dslData?.page?.name || dslData?.page?.handle || dslData?.page?.id || layoutMeta?.page_name || layoutMeta?.handle
     );
     const targetName = normalizeName(pageOverride);
 
@@ -227,8 +315,10 @@ const selectDslPage = (dslData, layoutMeta, pageOverride) => {
 
     // If layoutMeta confirms this is the right layout, trust it and return as-is
     // (findMatchingLayout already resolved the correct layout via alias)
-    const layoutPageName = normalizeName(layoutMeta?.page_name);
-    if (layoutPageName && isPageNameMatch(layoutPageName, targetName)) {
+    const layoutMatches = layoutPageCandidates(layoutMeta).some((candidate) =>
+      isPageNameMatch(candidate, targetName)
+    );
+    if (layoutMatches) {
       return dslData;
     }
 
@@ -236,27 +326,18 @@ const selectDslPage = (dslData, layoutMeta, pageOverride) => {
     return { page: { name: pageOverride }, sections: [] };
   }
 
-  const entries = Object.entries(dslData.pages);
+  const entries = Object.entries(pages);
   if (!entries.length) return dslData;
 
   const targetName = normalizeName(pageOverride || layoutMeta?.page_name);
 
-  const pageCandidates = ([key, page]) => {
-    const pageInfo = page?.page || {};
-    return [
-      normalizeName(key),
-      normalizeName(pageInfo?.name),
-      normalizeName(pageInfo?.handle),
-    ];
-  };
-
   const exactMatch =
     targetName &&
-    entries.find((entry) => pageCandidates(entry).some((candidate) => candidate === targetName));
+    entries.find((entry) => pageIdentityCandidates(entry).some((candidate) => candidate === targetName));
 
   const aliasMatch =
     targetName &&
-    entries.find((entry) => pageCandidates(entry).some((candidate) => isPageNameMatch(candidate, targetName)));
+    entries.find((entry) => pageIdentityCandidates(entry).some((candidate) => isPageNameMatch(candidate, targetName)));
 
   const match = exactMatch || aliasMatch;
 
@@ -264,11 +345,13 @@ const selectDslPage = (dslData, layoutMeta, pageOverride) => {
     // Last chance: if layoutMeta confirms the right layout and the DSL has
     // one unambiguous page payload, use it. With multiple named pages, picking
     // entries[0] can render a different screen inside the requested one.
-    const layoutPageName = normalizeName(layoutMeta?.page_name);
+    const layoutMatches = layoutPageCandidates(layoutMeta).some((candidate) =>
+      isPageNameMatch(candidate, targetName)
+    );
     const canUseOnlyEntry =
       entries.length === 1 ||
       (entries.length > 0 && entries.every((entry) => !hasPageIdentity(entry)));
-    if (layoutPageName && isPageNameMatch(layoutPageName, targetName) && canUseOnlyEntry) {
+    if (layoutMatches && canUseOnlyEntry) {
       return sanitizeSections(entries[0][1]);
     }
     console.log(`📄 No DSL match for "${pageOverride}". Returning empty page data.`);
@@ -277,12 +360,7 @@ const selectDslPage = (dslData, layoutMeta, pageOverride) => {
 
   const homeFallback =
     entries.find(([key, page]) => {
-      const pageInfo = page?.page || {};
-      return [
-        normalizeName(key),
-        normalizeName(pageInfo?.name),
-        normalizeName(pageInfo?.handle),
-      ].includes("home");
+      return pageIdentityCandidates([key, page]).includes("home");
     }) || entries[0];
 
   const selected = (match && match[1]) || (homeFallback && homeFallback[1]);

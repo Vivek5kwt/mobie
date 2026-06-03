@@ -84,19 +84,41 @@ export default function CustomButton({ section }) {
   const iconName = normalizeIconName(str(raw.icon ?? raw.iconName ?? raw.buttonIcon, ""));
   const showIcon = bool(visibility.icon ?? raw.showIcon, Boolean(iconName));
   const gap = num(raw.gap, 6);
+  const pageObjectRef = str(
+    raw.customPage?.handle ??
+      raw.customPage?.slug ??
+      raw.customPage?.pageName ??
+      raw.customPage?.id ??
+      raw.selectedPage?.handle ??
+      raw.selectedPage?.slug ??
+      raw.selectedPage?.pageName ??
+      raw.selectedPage?.id ??
+      raw.action?.page?.handle ??
+      raw.action?.page?.slug ??
+      raw.action?.page?.id ??
+      raw.action?.target?.handle ??
+      raw.action?.target?.slug ??
+      raw.action?.target?.id,
+    ""
+  );
 
   const navigateType = str(raw.destinationType ?? raw.navigateType ?? raw.buttonNavigateType ?? raw.linkType, "");
   const navigateRef = str(
-    raw.destination ??
-      raw.destinationRef ??
-      raw.navigateRef ??
-      raw.buttonNavigateRef ??
-      raw.selectScreen ??
-      raw.screen ??
-      raw.pageName ??
-      raw.linkTo ??
-      raw.href ??
-      raw.url ??
+    raw.destination ||
+      raw.destinationRef ||
+      raw.pageId ||
+      raw.page_id ||
+      raw.customPageId ||
+      raw.custom_page_id ||
+      pageObjectRef ||
+      raw.navigateRef ||
+      raw.buttonNavigateRef ||
+      raw.selectScreen ||
+      raw.screen ||
+      raw.pageName ||
+      raw.linkTo ||
+      raw.href ||
+      raw.url ||
       raw.link,
     ""
   );

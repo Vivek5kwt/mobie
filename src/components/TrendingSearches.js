@@ -14,6 +14,7 @@ import {
 } from "../services/searchHistoryService";
 import { resolveTextDecorationLine } from "../utils/textDecoration";
 import { resolveFont } from "../services/typographyService";
+import { navigateToDslTarget } from "../utils/navigationTarget";
 
 const unwrapValue = (value, fallback) => {
   if (value === undefined || value === null) return fallback;
@@ -346,7 +347,7 @@ export default function TrendingSearches({ section }) {
         DeviceEventEmitter.emit("mobidrag:search:setQuery", { query });
       }
 
-      const link = item?.link || "";
+      const link = String(item?.link || item?.href || item?.url || item?.page || item?.navigateRef || "").trim();
       if (link.startsWith("/")) {
         const cleaned = link.replace(/^\//, "");
         if (cleaned.startsWith("collections/")) {
@@ -362,9 +363,25 @@ export default function TrendingSearches({ section }) {
           return;
         }
         if (cleaned) {
-          navigation.navigate("LayoutScreen", { pageName: cleaned });
+          void navigateToDslTarget(navigation, {
+            target: cleaned,
+            link: cleaned,
+            label: query || cleaned,
+            fallbackTitle: query || cleaned,
+          });
           return;
         }
+      }
+
+      if (link) {
+        void navigateToDslTarget(navigation, {
+          target: link,
+          link,
+          navigateType: item?.navigateType || item?.linkType,
+          label: query || link,
+          fallbackTitle: query || link,
+        });
+        return;
       }
 
       if (query) {

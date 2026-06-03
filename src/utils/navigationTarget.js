@@ -3,8 +3,31 @@ import { Linking } from "react-native";
 const firstNonEmpty = (...values) => {
   for (const value of values) {
     if (value === undefined || value === null) continue;
-    const text = String(value).trim();
+    const resolved = resolveTargetScalar(value);
+    const text = String(resolved ?? "").trim();
     if (text) return text;
+  }
+  return "";
+};
+
+const resolveTargetScalar = (value) => {
+  if (value === undefined || value === null) return "";
+  if (typeof value !== "object") return value;
+  const candidates = [
+    value.handle,
+    value.slug,
+    value.pageHandle,
+    value.pageSlug,
+    value.pageName,
+    value.name,
+    value.title,
+    value.id,
+    value.value,
+    value.const,
+  ];
+  for (const candidate of candidates) {
+    const resolved = resolveTargetScalar(candidate);
+    if (String(resolved ?? "").trim()) return resolved;
   }
   return "";
 };
