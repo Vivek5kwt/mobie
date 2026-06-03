@@ -37,6 +37,38 @@ const normalizeCheckoutUrl = (url) => {
   return raw;
 };
 
+const normalizeHost = (value = "") =>
+  String(value || "").trim().toLowerCase().replace(/^www\./, "");
+
+const isStorefrontRootUrl = (requestedUrl = "", checkoutUrl = "", currentUrl = "") => {
+  const targetRaw = normalizeCheckoutUrl(requestedUrl);
+  if (!targetRaw || /^(about:blank|data:|javascript:|mailto:|tel:)/i.test(targetRaw)) return false;
+  try {
+    const target = new URL(targetRaw);
+    const checkout = checkoutUrl ? new URL(normalizeCheckoutUrl(checkoutUrl)) : null;
+    const current = currentUrl ? new URL(normalizeCheckoutUrl(currentUrl)) : null;
+    const targetPath = target.pathname.replace(/\/+$/, "") || "/";
+    if (targetPath !== "/") return false;
+    const targetHost = normalizeHost(target.hostname);
+    const checkoutHost = normalizeHost(checkout?.hostname || "");
+    const currentHost = normalizeHost(current?.hostname || "");
+    return Boolean(targetHost && (targetHost === checkoutHost || targetHost === currentHost));
+  } catch (_) {
+    return false;
+  }
+};
+
+const pickSessionCustomerEmail = (session) => {
+  const candidates = [
+    session?.user?.email,
+    session?.user?.customer?.email,
+    session?.user?.shopifyCustomer?.email,
+    session?.customer?.email,
+    session?.email,
+  ];
+  return candidates.map((value) => String(value || "").trim()).find(Boolean) || "";
+};
+
 const summarizeWebViewEvent = (event) => {
   const nativeEvent = event?.nativeEvent || event || {};
   return {
@@ -494,6 +526,199 @@ const HIDE_CHECKOUT_CART_JS = `
 })();
 `;
 
+const buildCheckoutBrandAndEmailJs = ({ hideCheckoutLogo, prefillCheckoutEmail, customerEmail }) => {
+  const safeEmail = String(customerEmail || "").trim();
+  const shouldPrefillEmail = Boolean(prefillCheckoutEmail && safeEmail);
+  const shouldHideLogo = hideCheckoutLogo !== false;
+
+  return `
+(function() {
+  var hideCheckoutLogo = ${JSON.stringify(shouldHideLogo)};
+  var shouldPrefillEmail = ${JSON.stringify(shouldPrefillEmail)};
+  var customerEmail = ${JSON.stringify(safeEmail)};
+
+  if (window.__MOBIDRAG_CHECKOUT_BRAND_EMAIL__) {
+    try { window.__MOBIDRAG_CHECKOUT_BRAND_EMAIL__.apply(); } catch(e) {}
+    return true;
+  }
+
+  function normalise(value) {
+    return String(value || '').replace(/\\s+/g, ' ').trim();
+  }
+
+  function post(type, payload) {
+    try {
+      window.ReactNativeWebView && window.ReactNativeWebView.postMessage(
+        JSON.stringify(Object.assign({ type: type }, payload || {}))
+      );
+    } catch(e) {}
+  }
+
+  function isRootHref(href) {
+    var raw = normalise(href);
+    if (!raw || /^(#|javascript:|mailto:|tel:)/i.test(raw)) return false;
+    try {
+      var url = new URL(raw, window.location.href);
+      return /^\\/?$/i.test(url.pathname || '/') && url.hostname === window.location.hostname;
+    } catch(e) {
+      return raw === '/' || raw === window.location.origin || raw === window.location.origin + '/';
+    }
+  }
+
+  function isHeaderArea(node) {
+    if (!node) return false;
+    if (node.closest && node.closest('header, [role="banner"], [class*="header"], [class*="Header"], [data-testid*="header"], [data-testid*="Header"], .banner, [class*="banner"], [class*="Banner"]')) {
+      return true;
+    }
+    try {
+      var rect = node.getBoundingClientRect && node.getBoundingClientRect();
+      var headerLimit = Math.max(110, Math.min(240, (window.innerHeight || 0) * 0.25 || 160));
+      return !!rect && rect.top >= -8 && rect.top <= headerLimit;
+    } catch(e) {
+      return false;
+    }
+  }
+
+  function looksLikeLogo(node) {
+    if (!node || !isHeaderArea(node)) return false;
+    var hrefNode = node.closest && node.closest('a[href]');
+    if (hrefNode && isRootHref(hrefNode.getAttribute('href'))) return true;
+    var text = [
+      normalise(node.getAttribute && node.getAttribute('alt')),
+      normalise(node.getAttribute && node.getAttribute('aria-label')),
+      normalise(node.getAttribute && node.getAttribute('title')),
+      normalise(node.getAttribute && node.getAttribute('data-testid')),
+      normalise(node.className && node.className.baseVal ? node.className.baseVal : node.className),
+      normalise(node.id)
+    ].join(' ').toLowerCase();
+    return /\\b(logo|brand|store-logo|site-logo)\\b/.test(text);
+  }
+
+  function hideNode(node) {
+    if (!node || node.getAttribute('data-mobidrag-checkout-logo-hidden') === 'true') return;
+    try {
+      node.setAttribute('data-mobidrag-checkout-logo-hidden', 'true');
+      node.setAttribute('aria-hidden', 'true');
+      node.style.setProperty('display', 'none', 'important');
+      node.style.setProperty('visibility', 'hidden', 'important');
+      node.style.setProperty('pointer-events', 'none', 'important');
+    } catch(e) {}
+  }
+
+  function applyLogoGuard() {
+    if (!hideCheckoutLogo) return;
+    try {
+      if (!document.getElementById('mobidrag-checkout-logo-hide-style')) {
+        var style = document.createElement('style');
+        style.id = 'mobidrag-checkout-logo-hide-style';
+        style.textContent = [
+          'header a[href="/"], header a[href="' + window.location.origin + '/"] { display: none !important; visibility: hidden !important; pointer-events: none !important; }',
+          '[role="banner"] a[href="/"], [role="banner"] a[href="' + window.location.origin + '/"] { display: none !important; visibility: hidden !important; pointer-events: none !important; }'
+        ].join('\\n');
+        (document.head || document.documentElement).appendChild(style);
+      }
+
+      var nodes = document.querySelectorAll('header a[href], [role="banner"] a[href], a[href] img, a[href] svg, img, svg, [class*="logo"], [class*="Logo"], [data-testid*="logo"], [data-testid*="Logo"]');
+      for (var i = 0; i < nodes.length; i += 1) {
+        var candidate = nodes[i];
+        var anchor = candidate.closest && candidate.closest('a[href]');
+        if (anchor && isRootHref(anchor.getAttribute('href')) && isHeaderArea(anchor)) {
+          hideNode(anchor);
+          continue;
+        }
+        if (looksLikeLogo(candidate)) {
+          hideNode(anchor || candidate);
+        }
+      }
+    } catch(e) {}
+  }
+
+  function setNativeValue(input, value) {
+    try {
+      var descriptor = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value');
+      var setter = descriptor && descriptor.set;
+      if (setter) setter.call(input, value);
+      else input.value = value;
+    } catch(e) {
+      input.value = value;
+    }
+    try {
+      input.dispatchEvent(new Event('input', { bubbles: true }));
+      input.dispatchEvent(new Event('change', { bubbles: true }));
+    } catch(e) {}
+  }
+
+  function looksLikeEmailInput(input) {
+    if (!input || String(input.tagName || '').toLowerCase() !== 'input') return false;
+    var attrs = [
+      normalise(input.type),
+      normalise(input.name),
+      normalise(input.id),
+      normalise(input.autocomplete),
+      normalise(input.placeholder),
+      normalise(input.getAttribute && input.getAttribute('aria-label'))
+    ].join(' ').toLowerCase();
+    return /email|e-mail|checkout\\[email\\]|customer_email/.test(attrs);
+  }
+
+  function applyEmailPrefill() {
+    if (!shouldPrefillEmail || !customerEmail) return;
+    try {
+      var inputs = document.querySelectorAll('input[type="email"], input[name="email"], input[name="checkout[email]"], input[id*="email"], input[id*="Email"], input[autocomplete="email"], input[placeholder*="mail"], input[placeholder*="Mail"], input[aria-label*="mail"], input[aria-label*="Mail"]');
+      for (var i = 0; i < inputs.length; i += 1) {
+        var input = inputs[i];
+        if (!looksLikeEmailInput(input)) continue;
+        var current = normalise(input.value);
+        if (current && current.toLowerCase() !== customerEmail.toLowerCase()) continue;
+        if (current === customerEmail) continue;
+        setNativeValue(input, customerEmail);
+        input.setAttribute('data-mobidrag-email-prefilled', 'true');
+        post('MOBIDRAG_CHECKOUT_EMAIL_PREFILLED', {});
+      }
+    } catch(e) {}
+  }
+
+  function interceptLogoClick(event) {
+    if (!hideCheckoutLogo) return;
+    try {
+      var target = event.target && event.target.closest && event.target.closest('a[href]');
+      if (!target || !isRootHref(target.getAttribute('href')) || !isHeaderArea(target)) return;
+      event.preventDefault();
+      event.stopPropagation();
+      event.stopImmediatePropagation && event.stopImmediatePropagation();
+      hideNode(target);
+      post('MOBIDRAG_CHECKOUT_LOGO_SUPPRESSED', { href: target.getAttribute('href') || '' });
+    } catch(e) {}
+  }
+
+  function apply() {
+    applyLogoGuard();
+    applyEmailPrefill();
+  }
+
+  window.__MOBIDRAG_CHECKOUT_BRAND_EMAIL__ = { apply: apply };
+  document.addEventListener('click', interceptLogoClick, true);
+  apply();
+  setTimeout(apply, 250);
+  setTimeout(apply, 1000);
+  setTimeout(apply, 2500);
+  setTimeout(apply, 5000);
+
+  try {
+    var observer = new MutationObserver(apply);
+    observer.observe(document.documentElement, {
+      childList: true,
+      subtree: true,
+      attributes: true,
+      attributeFilter: ['href', 'class', 'id', 'alt', 'aria-label', 'placeholder', 'type', 'name', 'autocomplete', 'data-testid']
+    });
+  } catch(e) {}
+
+  true;
+})();
+`;
+};
+
 const buildCheckoutSessionJs = ({ isLoggedIn, customerName, customerEmail }) => {
   if (!isLoggedIn) return "";
   const displayValue = customerName || customerEmail || "";
@@ -573,9 +798,14 @@ export default function CheckoutWebViewScreen() {
     [rawCheckoutUrl]
   );
   const headerTitle = route?.params?.title || "Checkout";
-  const checkoutCustomerEmail = route?.params?.customerEmail || session?.user?.email || "";
+  const prefillCheckoutEmail = route?.params?.prefillCheckoutEmail !== false;
+  const hideCheckoutLogo = route?.params?.hideCheckoutLogo !== false;
+  const sessionCustomerEmail = pickSessionCustomerEmail(session);
+  const checkoutCustomerEmail = prefillCheckoutEmail
+    ? (route?.params?.customerEmail || sessionCustomerEmail || "")
+    : "";
   const checkoutCustomerName = route?.params?.customerName || session?.user?.name || checkoutCustomerEmail;
-  const checkoutIsLoggedIn = Boolean(route?.params?.isLoggedIn || session?.user?.email);
+  const checkoutIsLoggedIn = Boolean(route?.params?.isLoggedIn || sessionCustomerEmail);
 
   const [isLoading,  setIsLoading]  = useState(true);
   const [loadError,  setLoadError]  = useState(false);
@@ -600,9 +830,17 @@ export default function CheckoutWebViewScreen() {
     }),
     [checkoutCustomerEmail, checkoutCustomerName, checkoutIsLoggedIn]
   );
+  const checkoutBrandAndEmailJs = useMemo(
+    () => buildCheckoutBrandAndEmailJs({
+      hideCheckoutLogo,
+      prefillCheckoutEmail,
+      customerEmail: checkoutCustomerEmail,
+    }),
+    [checkoutCustomerEmail, hideCheckoutLogo, prefillCheckoutEmail]
+  );
   const checkoutBeforeContentJs = useMemo(
-    () => `${checkoutSessionJs}\n${HIDE_CHECKOUT_CART_JS}\ntrue;`,
-    [checkoutSessionJs]
+    () => `${checkoutSessionJs}\n${checkoutBrandAndEmailJs}\n${HIDE_CHECKOUT_CART_JS}\ntrue;`,
+    [checkoutBrandAndEmailJs, checkoutSessionJs]
   );
   const injectedCheckoutJs = useMemo(
     () => `${checkoutBeforeContentJs}\n${DETECT_ORDER_JS}\ntrue;`,
@@ -618,6 +856,8 @@ export default function CheckoutWebViewScreen() {
       appId: resolvedAppId || "",
       isLoggedIn: checkoutIsLoggedIn,
       hasCustomerEmail: !!checkoutCustomerEmail,
+      hideCheckoutLogo,
+      prefillCheckoutEmail,
     });
     if (rawCheckoutUrl && rawCheckoutUrl !== checkoutUrl) {
       console.log(`${CHECKOUT_WEBVIEW_LOG} normalized checkout URL`, {
@@ -636,6 +876,8 @@ export default function CheckoutWebViewScreen() {
     checkoutIsLoggedIn,
     checkoutUrl,
     headerTitle,
+    hideCheckoutLogo,
+    prefillCheckoutEmail,
     rawCheckoutUrl,
     resolvedAppId,
     route?.params,
@@ -748,6 +990,16 @@ export default function CheckoutWebViewScreen() {
           });
           return;
         }
+        if (data?.type === "MOBIDRAG_CHECKOUT_LOGO_SUPPRESSED") {
+          console.log(`${CHECKOUT_WEBVIEW_LOG} blocked checkout logo`, {
+            href: data.href || "",
+          });
+          return;
+        }
+        if (data?.type === "MOBIDRAG_CHECKOUT_EMAIL_PREFILLED") {
+          console.log(`${CHECKOUT_WEBVIEW_LOG} checkout email prefilled`);
+          return;
+        }
         if (data?.type === "SHOPIFY_ORDER_COMPLETE") {
           handleOrderComplete(data.url || checkoutUrl || "", data.orderNumber || "");
         }
@@ -811,9 +1063,15 @@ export default function CheckoutWebViewScreen() {
         });
         return false;
       }
+      if (hideCheckoutLogo && isStorefrontRootUrl(requestedUrl, checkoutUrl, lastWebViewUrlRef.current)) {
+        console.log(`${CHECKOUT_WEBVIEW_LOG} blocked checkout logo navigation`, {
+          url: requestedUrl || "",
+        });
+        return false;
+      }
       return true;
     },
-    [checkoutIsLoggedIn, checkoutUrl]
+    [checkoutIsLoggedIn, checkoutUrl, hideCheckoutLogo]
   );
 
   // ── Render ────────────────────────────────────────────────────────────────

@@ -122,6 +122,18 @@ const pickSessionCustomerDisplayName = (session) =>
     ""
   );
 
+const pickSessionCustomerEmail = (session) =>
+  pickStr(
+    [
+      session?.user?.email,
+      session?.user?.customer?.email,
+      session?.user?.shopifyCustomer?.email,
+      session?.customer?.email,
+      session?.email,
+    ],
+    ""
+  );
+
 const toFontWeight = (value, fallback = "600") => {
   const v = deepUnwrap(value);
   if (!v) return fallback;
@@ -398,18 +410,32 @@ export default function CheckoutButton({ section }) {
         : "",
     [customerAccessToken, customerAccessTokenExpiresAt]
   );
-  const customerEmail = toStr(session?.user?.email, "");
+  const customerEmail = pickSessionCustomerEmail(session);
   const customerName = useMemo(
     () => pickSessionCustomerDisplayName(session),
     [session]
   );
+  const checkoutLogoVisible = toBool(
+    raw?.checkoutLogoVisible ??
+      raw?.showCheckoutLogo ??
+      raw?.checkoutShowLogo ??
+      raw?.showLogoOnCheckout,
+    false
+  );
+  const prefillCheckoutEmail = toBool(
+    raw?.prefillCheckoutEmail ??
+      raw?.checkoutPrefillEmail ??
+      raw?.autoFillCheckoutEmail ??
+      raw?.autoPrefillEmail,
+    true
+  );
   const checkoutOptions = useMemo(
     () => ({
       customerAccessToken: usableCustomerAccessToken,
-      email: customerEmail,
+      email: prefillCheckoutEmail ? customerEmail : "",
       countryCode: session?.user?.country || undefined,
     }),
-    [customerEmail, session?.user?.country, usableCustomerAccessToken]
+    [customerEmail, prefillCheckoutEmail, session?.user?.country, usableCustomerAccessToken]
   );
   const checkoutRequest = useMemo(
     () => ({
@@ -480,7 +506,9 @@ export default function CheckoutButton({ section }) {
           title: "Checkout",
           isLoggedIn,
           customerName,
-          customerEmail,
+          customerEmail: prefillCheckoutEmail ? customerEmail : "",
+          hideCheckoutLogo: !checkoutLogoVisible,
+          prefillCheckoutEmail,
           hasCustomerAccessToken: !!usableCustomerAccessToken,
         });
       } else {

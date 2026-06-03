@@ -802,6 +802,18 @@ const buildBuyerIdentity = (options = {}) => {
   return buyerIdentity;
 };
 
+const buildCheckoutQueryString = ({ discountCodes = [], email = "" } = {}) => {
+  const params = [];
+  const normalizedEmail = String(email || "").trim();
+  if (discountCodes.length) {
+    params.push(`discount=${encodeURIComponent(discountCodes.join(","))}`);
+  }
+  if (normalizedEmail) {
+    params.push(`checkout%5Bemail%5D=${encodeURIComponent(normalizedEmail)}`);
+  }
+  return params.length ? `?${params.join("&")}` : "";
+};
+
 const moneyAmount = (money = {}) => {
   const amount = parseFloat(money?.amount ?? 0);
   return {
@@ -2411,6 +2423,7 @@ export async function createShopifyCartCheckout({ items = [], discountCodes = []
         variables: {
           input: {
             lineItems,
+            ...(options.email ? { email: String(options.email).trim() } : {}),
             ...(requestedDiscountCodes.length ? { discountCodes: requestedDiscountCodes } : {}),
           },
         },
@@ -2441,10 +2454,11 @@ export async function createShopifyCartCheckout({ items = [], discountCodes = []
 
   // ── Attempt 3: direct Shopify cart URL (no API call needed) ─────────────
   if (directCartFallbackAllowed && directCartLines.length) {
-    const discountQuery = requestedDiscountCodes.length
-      ? `?discount=${encodeURIComponent(requestedDiscountCodes.join(","))}`
-      : "";
-    const url = `https://${shop}/cart/${directCartLines.join(",")}${discountQuery}`;
+    const queryString = buildCheckoutQueryString({
+      discountCodes: requestedDiscountCodes,
+      email: options.email,
+    });
+    const url = `https://${shop}/cart/${directCartLines.join(",")}${queryString}`;
     console.log(`${CHECKOUT_LOG} checkout via direct cart URL`, {
       url,
       lines: directCartLines,
