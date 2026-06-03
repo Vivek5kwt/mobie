@@ -1,5 +1,6 @@
-import React, { useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
+  ActivityIndicator,
   StyleSheet,
   Text,
   TouchableOpacity,
@@ -8,6 +9,15 @@ import {
 import FontAwesome from "react-native-vector-icons/FontAwesome";
 import { convertStyles } from "../utils/convertStyles";
 import { resolveFont } from "../services/typographyService";
+import { useAuth } from "../services/AuthContext";
+import { useStore } from "../services/StoreContext";
+import {
+  fetchShopifyCurrencies,
+  loadSelectedCurrency,
+  normalizeCurrencyCode,
+  normalizeCurrencyList,
+  saveSelectedCurrency,
+} from "../services/currencyService";
 
 const deepUnwrap = (value) => {
   if (value === undefined || value === null) return value;
@@ -67,28 +77,104 @@ const getProps = (section) => {
 };
 
 const currencyLabel = (item = {}) => {
+  const resolved = deepUnwrap(item);
+  if (typeof resolved === "string") return resolved;
   const country = str(item?.country ?? item?.countryName ?? item?.name, "");
   const currency = str(item?.currency ?? item?.label ?? item?.code ?? item?.symbol, "");
   if (country && currency) return `${country} - ${currency}`;
   return country || currency || "Currency";
 };
 
+const currencyValue = (item = {}) => normalizeCurrencyCode(
+  typeof deepUnwrap(item) === "string"
+    ? deepUnwrap(item)
+    : item?.currency ?? item?.code ?? item?.currencyCode ?? item?.symbol ?? item?.label
+);
+
 export default function CurrencySwitcher({ section }) {
+  const { session } = useAuth();
+  const { store, loading: storeLoading } = useStore();
   const { normalized, raw } = useMemo(() => getProps(section), [section]);
   const css = normalized?.presentation?.css || {};
-  const currencies = Array.isArray(raw?.currencies) ? raw.currencies : [];
+  const dslCurrencies = useMemo(() => normalizeCurrencyList(raw?.currencies), [raw?.currencies]);
   const initialSelected = str(raw?.selectedCurrency ?? raw?.currency ?? raw?.value, "");
+  const [apiCurrencies, setApiCurrencies] = useState([]);
+  const [persistedSelected, setPersistedSelected] = useState("");
   const [localSelected, setLocalSelected] = useState("");
+  const [loadingCurrencies, setLoadingCurrencies] = useState(true);
+  const [errorMessage, setErrorMessage] = useState("");
+  const [saving, setSaving] = useState(false);
   const [expanded, setExpanded] = useState(false);
-  const selectedValue = localSelected || initialSelected;
+  const selectedValue =
+    localSelected ||
+    persistedSelected ||
+    initialSelected ||
+    str(session?.user?.currency, "") ||
+    str(store?.currency, "");
+  const currencies = apiCurrencies.length ? apiCurrencies : dslCurrencies;
+  const selectedCode = normalizeCurrencyCode(selectedValue);
 
   const selected =
-    currencies.find((item) => str(item?.currency) === selectedValue) ||
-    currencies.find((item) => currencyLabel(item).includes(selectedValue)) ||
+    currencies.find((item) => currencyValue(item) === selectedCode) ||
+    currencies.find((item) => currencyLabel(item).toLowerCase().includes(String(selectedValue).toLowerCase())) ||
     currencies[0] ||
-    (selectedValue ? { currency: selectedValue } : null);
+    (selectedValue ? { currency: selectedCode || selectedValue, code: selectedCode || selectedValue } : null);
 
-  if (!selected) return null;
+  const canLoadFromSession =
+    !!(session?.user?.shopifyDomain && session?.user?.storeAccessToken) ||
+    !!(session?.user?.shopify_domain && session?.user?.access_token);
+
+  useEffect(() => {
+    let active = true;
+
+    if (storeLoading && !canLoadFromSession) {
+      setLoadingCurrencies(true);
+      return () => { active = false; };
+    }
+
+    const loadCurrencies = async () => {
+      setLoadingCurrencies(true);
+      setErrorMessage("");
+
+      try {
+        const [savedCurrency, fetchedCurrencies] = await Promise.all([
+          loadSelectedCurrency({ session, store }),
+          fetchShopifyCurrencies({ session, store }),
+        ]);
+
+        if (!active) return;
+        setPersistedSelected(savedCurrency);
+        setApiCurrencies(fetchedCurrencies);
+      } catch (error) {
+        if (!active) return;
+        setApiCurrencies([]);
+        setErrorMessage(error?.message || "Unable to load currencies.");
+        try {
+          const savedCurrency = await loadSelectedCurrency({ session, store });
+          if (active) setPersistedSelected(savedCurrency);
+        } catch (_) {}
+      } finally {
+        if (active) setLoadingCurrencies(false);
+      }
+    };
+
+    loadCurrencies();
+    return () => { active = false; };
+  }, [
+    canLoadFromSession,
+    session?.user?.id,
+    session?.user?.email,
+    session?.user?.appId,
+    session?.user?.storeId,
+    session?.user?.shopifyDomain,
+    session?.user?.shopify_domain,
+    session?.user?.storeAccessToken,
+    session?.user?.access_token,
+    store?.id,
+    store?.shopify_domain,
+    store?.access_token,
+    storeLoading,
+  ]);
 
   const containerCss = omitStyleKeys(convertStyles(css?.container || {}), [
     "cursor",
@@ -117,15 +203,39 @@ export default function CurrencySwitcher({ section }) {
   const country = str(selected?.country ?? selected?.countryName ?? selected?.name, "");
   const currency = str(selected?.currency ?? selected?.label ?? selected?.code ?? selected?.symbol, "");
 
-  const openCurrencyPicker = () => {
-    if (currencies.length <= 1) return;
+  const openCurrencyPicker = useCallback(() => {
+    if (loadingCurrencies || saving || currencies.length <= 1) return;
     setExpanded((value) => !value);
+  }, [currencies.length, loadingCurrencies, saving]);
+
+  const selectCurrency = async (item) => {
+    const nextCurrency = currencyValue(item) || currencyLabel(item);
+    if (!nextCurrency) return;
+    setLocalSelected(nextCurrency);
+    setExpanded(false);
+    setSaving(true);
+    setErrorMessage("");
+
+    try {
+      const saved = await saveSelectedCurrency({ session, store, currency: nextCurrency });
+      setPersistedSelected(saved);
+    } catch (error) {
+      setErrorMessage(error?.message || "Unable to save selected currency.");
+    } finally {
+      setSaving(false);
+    }
   };
 
-  const selectCurrency = (item) => {
-    setLocalSelected(str(item?.currency, currencyLabel(item)));
-    setExpanded(false);
-  };
+  const loadingLabel = str(raw?.loadingText, "Loading currencies...");
+  const emptyLabel = str(raw?.emptyText, "No currencies available.");
+  const errorLabel = str(raw?.errorText, "Unable to load currencies.");
+  const stateText = loadingCurrencies && !selected
+    ? loadingLabel
+    : errorMessage && !selected
+      ? errorLabel
+      : !selected
+        ? emptyLabel
+        : "";
 
   return (
     <View style={styles.wrapper}>
@@ -145,47 +255,81 @@ export default function CurrencySwitcher({ section }) {
           },
         ]}
       >
-        <View style={[styles.leftWrap, leftWrapCss, { gap: rowGap }]}>
-          {!!flag && <Text style={[styles.flag, flagCss]}>{flag}</Text>}
-          <View style={styles.textWrap}>
-            {!!country && (
-              <Text
-                numberOfLines={1}
-                style={[
-                  styles.countryName,
-                  countryCss,
-                  { color: textColor, fontSize, fontWeight, ...(fontFamily ? { fontFamily } : {}) },
-                ]}
-              >
-                {country}
-              </Text>
-            )}
-            {!!currency && (
-              <Text
-                numberOfLines={1}
-                style={[
-                  styles.currency,
-                  currencyCss,
-                  {
-                    color: str(raw?.currencyColor, currencyCss.color || textColor),
-                    fontSize: num(raw?.currencyFontSize, currencyCss.fontSize || fontSize),
-                    fontWeight: weight(raw?.currencyFontWeight, currencyCss.fontWeight || fontWeight),
-                    ...(fontFamily ? { fontFamily } : {}),
-                  },
-                ]}
-              >
-                {currency}
-              </Text>
-            )}
+        {stateText ? (
+          <View style={[styles.leftWrap, leftWrapCss, { gap: rowGap }]}>
+            {loadingCurrencies && <ActivityIndicator size="small" color={iconColor} />}
+            <Text
+              numberOfLines={1}
+              style={[
+                styles.countryName,
+                countryCss,
+                { color: textColor, fontSize, fontWeight, ...(fontFamily ? { fontFamily } : {}) },
+              ]}
+            >
+              {stateText}
+            </Text>
           </View>
-        </View>
-        <FontAwesome
-          name={expanded ? "angle-up" : "angle-down"}
-          size={num(raw?.iconSize, iconCss.fontSize || 18)}
-          color={iconColor}
-          style={iconCss}
-        />
+        ) : (
+          <>
+            <View style={[styles.leftWrap, leftWrapCss, { gap: rowGap }]}>
+              {!!flag && <Text style={[styles.flag, flagCss]}>{flag}</Text>}
+              <View style={styles.textWrap}>
+                {!!country && (
+                  <Text
+                    numberOfLines={1}
+                    style={[
+                      styles.countryName,
+                      countryCss,
+                      { color: textColor, fontSize, fontWeight, ...(fontFamily ? { fontFamily } : {}) },
+                    ]}
+                  >
+                    {country}
+                  </Text>
+                )}
+                {!!currency && (
+                  <Text
+                    numberOfLines={1}
+                    style={[
+                      styles.currency,
+                      currencyCss,
+                      {
+                        color: str(raw?.currencyColor, currencyCss.color || textColor),
+                        fontSize: num(raw?.currencyFontSize, currencyCss.fontSize || fontSize),
+                        fontWeight: weight(raw?.currencyFontWeight, currencyCss.fontWeight || fontWeight),
+                        ...(fontFamily ? { fontFamily } : {}),
+                      },
+                    ]}
+                  >
+                    {currency}
+                  </Text>
+                )}
+              </View>
+            </View>
+            {saving ? (
+              <ActivityIndicator size="small" color={iconColor} />
+            ) : (
+              <FontAwesome
+                name={expanded ? "angle-up" : "angle-down"}
+                size={num(raw?.iconSize, iconCss.fontSize || 18)}
+                color={iconColor}
+                style={iconCss}
+              />
+            )}
+          </>
+        )}
       </TouchableOpacity>
+
+      {!!errorMessage && !!selected && (
+        <Text
+          numberOfLines={2}
+          style={[
+            styles.message,
+            { color: str(raw?.errorColor, "#B91C1C"), fontSize: num(raw?.messageFontSize, 12) },
+          ]}
+        >
+          {errorMessage}
+        </Text>
+      )}
 
       {expanded && currencies.length > 1 && (
         <View style={[styles.options, { backgroundColor: bgColor }]}>
@@ -216,6 +360,9 @@ export default function CurrencySwitcher({ section }) {
               >
                 {currencyLabel(item)}
               </Text>
+              {currencyValue(item) === currencyValue(selected) && (
+                <FontAwesome name="check" size={num(raw?.selectedIconSize, 14)} color={iconColor} />
+              )}
             </TouchableOpacity>
           ))}
         </View>
@@ -273,5 +420,9 @@ const styles = StyleSheet.create({
   optionText: {
     flex: 1,
     minWidth: 0,
+  },
+  message: {
+    paddingHorizontal: 16,
+    paddingTop: 6,
   },
 });

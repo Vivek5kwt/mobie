@@ -16,6 +16,18 @@ const unwrapValue = (value, fallback = undefined) => {
   return value;
 };
 
+const asObject = (value, fallback = {}) => {
+  const resolved = unwrapValue(value, value);
+  return resolved && typeof resolved === "object" && !Array.isArray(resolved)
+    ? resolved
+    : fallback;
+};
+
+const mergeRawProps = (propsRoot = {}) => {
+  const raw = asObject(propsRoot?.raw, null);
+  return raw ? { ...propsRoot, ...raw } : propsRoot;
+};
+
 const toBoolean = (value, fallback = true) => {
   const resolved = unwrapValue(value, undefined);
   if (resolved === undefined) return fallback;
@@ -186,10 +198,12 @@ const normalizeExternalUrl = (url = "") => {
 
 export default function SocialMediaIcons({ section }) {
   const navigation = useNavigation();
-  const rawProps =
+  const propsRoot =
     section?.properties?.props?.properties || section?.properties?.props || section?.props || {};
+  const rawProps = mergeRawProps(propsRoot);
 
-  const layoutCss = rawProps?.layout?.properties?.css || rawProps?.layout?.css || {};
+  const layoutNode = asObject(rawProps?.layout?.properties || rawProps?.layout, {});
+  const layoutCss = asObject(layoutNode?.css, {});
 
   const platforms = useMemo(
     () => normalizePlatforms(rawProps?.platforms || []),
@@ -199,9 +213,9 @@ export default function SocialMediaIcons({ section }) {
   if (!platforms.length) return null;
 
   const bgColor = unwrapValue(rawProps?.bgColor, "#FFFFFF");
-  const pt = toNumber(rawProps?.pt, 8);
+  const pt = toNumber(rawProps?.pt, 0);
   const pr = toNumber(rawProps?.pr, 0);
-  const pb = toNumber(rawProps?.pb, 8);
+  const pb = toNumber(rawProps?.pb, 0);
   const pl = toNumber(rawProps?.pl, 0);
   const align = (unwrapValue(rawProps?.align, "left") || "left").toLowerCase();
 
@@ -229,7 +243,7 @@ export default function SocialMediaIcons({ section }) {
   const showTitle = titleSettingsEnabled && !!titleText;
 
   const iconSize = toNumber(rawProps?.iconSize, undefined);
-  const iconSpacing = toNumber(rawProps?.iconSpacing, 4);
+  const iconSpacing = toNumber(rawProps?.iconSpacing, undefined);
   const iconBorderRadius = toNumber(rawProps?.iconBorderRadius, undefined);
   const useBrand = toBoolean(rawProps?.useBrandColors, false);
 
@@ -266,7 +280,7 @@ export default function SocialMediaIcons({ section }) {
     iconBoxBorder?.borderColor,
   );
   // Gap from iconsRow CSS (RN may not support gap on older versions — use marginRight fallback)
-  const iconsRowGap = toNumber(layoutCss?.iconsRow?.gap, iconSpacing);
+  const iconsRowGap = toNumber(layoutCss?.iconsRow?.gap, iconSpacing ?? 0);
   const iconsRowPadding = toNumber(layoutCss?.iconsRow?.padding, 0);
 
   const alignment = align === "center" ? "center" : align === "right" ? "flex-end" : "flex-start";
@@ -340,24 +354,30 @@ export default function SocialMediaIcons({ section }) {
 
           const isBrandIcon = brandIconNames.has(resolvedIconName);
           const accessibilityLabel = `Open ${normalizedId || "social"} link`;
-          const iconFgColor = pickValue(
+          const platformIconColor = pickValue(
             platform?.iconColor,
             platform?.color,
-            platform?.textColor,
+            platform?.textColor
+          );
+          const iconFgColor = pickValue(
+            platformIconColor,
+            useBrand ? brandColor : undefined,
             resolvedIconColor,
+            iconStyle.color,
+            iconBoxCss?.color,
           );
           const iconBgColor = pickValue(
             platform?.iconBgColor,
             platform?.bgColor,
             platform?.backgroundColor,
-            useBrand ? brandColor : undefined,
             resolvedIconBgColor,
+            iconBoxCss?.backgroundColor,
           );
           const iconBorderColor = pickValue(
             platform?.iconBorderColor,
             platform?.borderColor,
-            useBrand ? brandColor : undefined,
             resolvedIconBorderColor,
+            iconBoxBorder?.borderColor,
           );
           const platformUrl = normalizeExternalUrl(platform.url);
           const boxWidth = toNumber(platform?.iconBoxWidth ?? platform?.boxWidth, iconBoxWidth || iconBoxBaseSize);
@@ -380,7 +400,7 @@ export default function SocialMediaIcons({ section }) {
                   iconBoxStyle,
                   {
                     ...(iconBoxBorder || {}),
-                    backgroundColor: iconBgColor,
+                    ...(iconBgColor ? { backgroundColor: iconBgColor } : {}),
                     ...(iconBorderColor ? { borderColor: iconBorderColor } : {}),
                     ...(boxRadius !== undefined ? { borderRadius: boxRadius } : {}),
                     ...(boxWidth ? { width: boxWidth, height: boxHeight || boxWidth } : {}),
@@ -408,7 +428,6 @@ const styles = StyleSheet.create({
     width: "100%",
   },
   title: {
-    marginBottom: 8,
     fontWeight: "700",
   },
   iconsRow: {

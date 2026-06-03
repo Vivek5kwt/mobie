@@ -822,7 +822,7 @@ const styles = StyleSheet.create({
     marginBottom: 0,
   },
   sectionWrapperProduct: {
-    marginBottom: 16,
+    marginBottom: 0,
   },
   sectionWrapperBanner: {
     marginTop: 0,

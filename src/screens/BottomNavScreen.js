@@ -1161,10 +1161,10 @@ const styles = StyleSheet.create({
   sectionWrapper: {
     width: "100%",
     alignSelf: "stretch",
-    marginBottom: 10,
+    marginBottom: 0,
   },
   sectionWrapperProduct: {
-    marginBottom: 20,
+    marginBottom: 0,
   },
   sectionWrapperTight: {
     marginBottom: 0,

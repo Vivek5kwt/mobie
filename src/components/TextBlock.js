@@ -18,6 +18,18 @@ const unwrapValue = (value, fallback) => {
   return value;
 };
 
+const asObject = (value, fallback = {}) => {
+  const resolved = unwrapValue(value, value);
+  return resolved && typeof resolved === "object" && !Array.isArray(resolved)
+    ? resolved
+    : fallback;
+};
+
+const mergeRawProps = (propsRoot = {}) => {
+  const raw = asObject(propsRoot?.raw, null);
+  return raw ? { ...propsRoot, ...raw } : propsRoot;
+};
+
 const asBoolean = (value, fallback = true) => {
   const resolved = unwrapValue(value, fallback);
   if (typeof resolved === "boolean") return resolved;
@@ -50,6 +62,14 @@ const parsePx = (v) => {
   if (typeof v === "string") {
     const n = parseFloat(String(v).replace(/px/g, "").trim());
     return Number.isFinite(n) ? n : undefined;
+  }
+  return undefined;
+};
+
+const firstDefined = (...values) => {
+  for (const value of values) {
+    const resolved = unwrapValue(value, undefined);
+    if (resolved !== undefined && resolved !== null && resolved !== "") return resolved;
   }
   return undefined;
 };
@@ -166,18 +186,20 @@ const applyTextAttributes = (baseStyle, attributes, decorationOverrides = {}) =>
 // ── Component ──────────────────────────────────────────────────────────────────
 
 export default function TextBlock({ section }) {
-  const rawProps =
+  const propsRoot =
     section?.props ||
     section?.properties?.props?.properties ||
     section?.properties?.props ||
     {};
+  const rawProps = mergeRawProps(propsRoot);
 
-  const layoutCss     = rawProps?.layout?.properties?.css  || rawProps?.layout?.css  || {};
-  const iconCfg       = rawProps?.icon?.properties         || rawProps?.icon         || {};
+  const layoutNode    = asObject(rawProps?.layout?.properties || rawProps?.layout, {});
+  const layoutCss     = asObject(layoutNode?.css, {});
+  const iconCfg       = asObject(rawProps?.icon?.properties || rawProps?.icon, {});
   const iconStyle     = convertStyles(layoutCss.icon || {});
-  const styleCfg      = rawProps?.style?.properties        || rawProps?.style        || {};
-  const alignmentCfg  = rawProps?.alignmentAndPadding?.properties || rawProps?.alignmentAndPadding || {};
-  const paddingRaw    = alignmentCfg?.paddingRaw?.properties || alignmentCfg?.paddingRaw || {};
+  const styleCfg      = asObject(rawProps?.style?.properties || rawProps?.style, {});
+  const alignmentCfg  = asObject(rawProps?.alignmentAndPadding?.properties || rawProps?.alignmentAndPadding, {});
+  const paddingRaw    = asObject(alignmentCfg?.paddingRaw?.properties || alignmentCfg?.paddingRaw, {});
 
   // Global text alignment — read from alignmentAndPadding first, then rawProps, then CSS
   const globalAlign = resolveAlign(asStr(
@@ -213,7 +235,7 @@ export default function TextBlock({ section }) {
   );
   const iconSize     = asNumber(iconCfg?.size ?? iconCfg?.width ?? iconStyle?.width, 20);
   const iconFaSize   = asNumber(iconCfg?.iconSize ?? iconCfg?.faSize ?? iconStyle?.fontSize, 11);
-  const iconRadius   = asNumber(iconCfg?.borderRadius ?? iconCfg?.corner, 999);
+  const iconRadius   = asNumber(iconCfg?.borderRadius ?? iconCfg?.corner ?? iconStyle?.borderRadius, 0);
   const iconAlign    = resolveAlign(asStr(iconCfg?.align, globalAlign));
 
   const hasRenderableIcon = !!faIconName;
@@ -227,9 +249,10 @@ export default function TextBlock({ section }) {
   // ── Container style ────────────────────────────────────────────────────────
   const rawContainerStyle = convertStyles(layoutCss.container || {});
   const {
-    justifyContent: _jc, overflow: _ov, display: _disp,
-    borderWidth: _bw, borderColor: _bc, borderStyle: _bs,
-    border: _b, backgroundColor: _bg, ...safeContainerStyle
+    display: _disp,
+    boxSizing: _boxSizing,
+    maxWidth: _maxWidth,
+    ...safeContainerStyle
   } = rawContainerStyle;
 
   // Derive alignItems for the container from global alignment
@@ -245,14 +268,27 @@ export default function TextBlock({ section }) {
     ...(globalAlign ? { alignItems: containerAlignItems } : {}),
   };
 
-  const overrideBgColor = asStr(styleCfg?.bgColor, "");
+  const overrideBgColor = firstDefined(
+    rawProps?.containerBgColor,
+    rawProps?.bgColor,
+    rawProps?.backgroundColor,
+    layoutCss?.container?.backgroundColor,
+    layoutCss?.container?.background,
+    styleCfg?.bgColor
+  );
 
-  const overrideBorderRadius =
-    parsePx(unwrapValue(styleCfg?.borderRadius)) ?? parsePx(safeContainerStyle?.borderRadius);
+  const overrideBorderRadius = parsePx(firstDefined(
+    rawProps?.containerBorderRadius,
+    rawProps?.borderRadius,
+    layoutCss?.container?.borderRadius,
+    styleCfg?.borderRadius
+  ));
+  const overrideBorderColor = firstDefined(rawProps?.borderColor, styleCfg?.borderColor, layoutCss?.container?.borderColor);
 
   const overrideStyle = {
-    ...(overrideBgColor            ? { backgroundColor: overrideBgColor }     : {}),
+    ...(overrideBgColor ? { backgroundColor: overrideBgColor } : {}),
     ...(overrideBorderRadius != null ? { borderRadius: overrideBorderRadius } : {}),
+    ...(overrideBorderColor ? { borderColor: overrideBorderColor } : {}),
   };
 
   // ── Text styles ────────────────────────────────────────────────────────────
@@ -317,6 +353,7 @@ export default function TextBlock({ section }) {
         justifyContent: textAlignToJustify(iconAlign),
       }
     : {};
+  const iconTextGap = asNumber(layoutCss?.container?.gap, 0);
 
   return (
     <View style={[styles.container, containerStyle, overrideStyle, layoutStyle]}>
@@ -334,7 +371,7 @@ export default function TextBlock({ section }) {
               minHeight:       iconSize,
               borderRadius:    iconRadius,
               backgroundColor: iconBgColor,
-              marginRight:     12,
+              marginRight:     iconTextGap,
             },
           ]}
         >
@@ -395,7 +432,6 @@ const styles = StyleSheet.create({
   },
   textContainer: {
     flexDirection: "column",
-    gap:           4,
   },
   headline: {
     color:      "#111111",

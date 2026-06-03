@@ -90,16 +90,6 @@ const resolveSectionBottomSpacing = (section) => {
   );
 };
 
-const BANNER_SECTIONS = new Set(["banner_slider", "hero_banner"]);
-const PRODUCT_SECTIONS = new Set([
-  "product_grid",
-  "product_carousel",
-  "tab_product_grid",
-  "tab_product_carousel",
-  "recent_products",
-]);
-const TEXT_SECTIONS = new Set(["text_block"]);
-
 export const getHomeSectionMarginBottom = ({
   section,
   componentName,
@@ -115,10 +105,5 @@ export const getHomeSectionMarginBottom = ({
   const next = normalizeName(nextComponentName);
 
   if (current === "header_2" || (current === "header" && next === "header_2")) return 0;
-  if (BANNER_SECTIONS.has(current) && PRODUCT_SECTIONS.has(next)) return 12;
-  if (PRODUCT_SECTIONS.has(current) && TEXT_SECTIONS.has(next)) return 8;
-  if (TEXT_SECTIONS.has(current) && TEXT_SECTIONS.has(next)) return 8;
-  if (BANNER_SECTIONS.has(current)) return 12;
-  if (PRODUCT_SECTIONS.has(current)) return 10;
-  return 10;
+  return 0;
 };
