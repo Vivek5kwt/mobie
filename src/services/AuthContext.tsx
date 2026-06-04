@@ -8,7 +8,7 @@ import React, {
   useState,
 } from 'react';
 import { useDispatch } from 'react-redux';
-import { AuthSession, clearSession, login, restoreSession, signup } from './authService';
+import { AuthSession, clearSession, login, recoverPassword, restoreSession, signup } from './authService';
 import { setWishlistUser } from '../store/slices/wishlistSlice';
 import tokenLogger from '../utils/tokenLogger';
 import { setAnalyticsUser, trackAnalyticsEvent } from './analyticsService';
@@ -18,6 +18,7 @@ export type AuthContextValue = {
   initializing: boolean;
   login: (email: string, password: string) => Promise<void>;
   signup: (email: string, password: string, fullName?: string) => Promise<void>;
+  recoverPassword: (email: string) => Promise<void>;
   logout: () => Promise<void>;
 };
 
@@ -85,6 +86,10 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     [dispatch]
   );
 
+  const handleRecoverPassword = useCallback(async (email: string) => {
+    await recoverPassword(email);
+  }, []);
+
   const handleLogout = useCallback(async () => {
     await clearSession();
     trackAnalyticsEvent('logout', {}, { session }).catch(() => {});
@@ -96,8 +101,15 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   }, [dispatch]);
 
   const value = useMemo(
-    () => ({ session, initializing, login: handleLogin, signup: handleSignup, logout: handleLogout }),
-    [session, initializing, handleLogin, handleSignup, handleLogout]
+    () => ({
+      session,
+      initializing,
+      login: handleLogin,
+      signup: handleSignup,
+      recoverPassword: handleRecoverPassword,
+      logout: handleLogout,
+    }),
+    [session, initializing, handleLogin, handleSignup, handleRecoverPassword, handleLogout]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

@@ -22,7 +22,6 @@ import Icon from 'react-native-vector-icons/FontAwesome6';
 import { useAuth } from '../services/AuthContext';
 import { fetchDSL } from '../engine/dslHandler';
 import authLayoutFallback from '../data/authLayoutFallback';
-import { getShopifyDomain } from '../services/shopify';
 import HeaderDefaultComponent from '../components/HeaderDefault';
 import DynamicRenderer from '../engine/DynamicRenderer';
 import { getHeaderDefault } from '../services/headerDefaultService';
@@ -262,7 +261,11 @@ type ForgotPasswordTokens = {
   resetPasswordTitleFontWeight: string;
   resetPasswordTitleMarginTop: number;
   resetPasswordButtonText: string;
+  backToLoginText: string;
+  successMessageText: string;
 };
+
+type AuthMode = 'login' | 'signup' | 'forgot';
 
 const unwrapValue = <T,>(value: T, fallback: T): T => {
   if (value === undefined || value === null) return fallback;
@@ -635,6 +638,8 @@ const defaultForgotPasswordTokens: ForgotPasswordTokens = {
   resetPasswordTitleFontWeight: '400',
   resetPasswordTitleMarginTop: 4,
   resetPasswordButtonText: 'Forgot Password?',
+  backToLoginText: 'Sign in',
+  successMessageText: 'If an account exists for this email, a password reset link has been sent.',
 };
 
 const defaultSignUpTokens: SignUpTokens = {
@@ -939,6 +944,16 @@ const buildForgotPasswordTokens = (rawProps: Record<string, unknown>): ForgotPas
   resetPasswordTitleFontWeight: toFontWeight(rawProps?.resetPasswordTitleFontWeight ?? rawProps?.subtextWeight, defaultForgotPasswordTokens.resetPasswordTitleFontWeight),
   resetPasswordTitleMarginTop: toNumber(rawProps?.resetPasswordTitleMarginTop ?? rawProps?.resetPasswordTitleMt, defaultForgotPasswordTokens.resetPasswordTitleMarginTop),
   resetPasswordButtonText: (rawProps?.resetPasswordButtonText as string) ?? defaultForgotPasswordTokens.resetPasswordButtonText,
+  backToLoginText:
+    (rawProps?.backToLoginText as string) ??
+    (rawProps?.loginText as string) ??
+    (rawProps?.signInText as string) ??
+    defaultForgotPasswordTokens.backToLoginText,
+  successMessageText:
+    (rawProps?.successMessageText as string) ??
+    (rawProps?.resetPasswordSuccessMessage as string) ??
+    (rawProps?.successText as string) ??
+    defaultForgotPasswordTokens.successMessageText,
 });
 
 const buildSignUpTokens = (rawProps: Record<string, unknown>): SignUpTokens => ({
@@ -1357,14 +1372,15 @@ const authSkeletonStyles = StyleSheet.create({
 const AuthScreen = () => {
   const navigation = useNavigation();
   const route = useRoute();
-  const { login, signup, session, initializing } = useAuth();
+  const { login, signup, recoverPassword, session, initializing } = useAuth();
   const { height: viewportHeight } = useWindowDimensions();
-  const [mode, setMode] = useState<'login' | 'signup'>('login');
+  const [mode, setMode] = useState<AuthMode>('login');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
   const [error, setError] = useState('');
+  const [successMessage, setSuccessMessage] = useState('');
   const [loading, setLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [passwordVisible, setPasswordVisible] = useState(false);
@@ -1380,7 +1396,7 @@ const AuthScreen = () => {
   const [authLayoutBlocking, setAuthLayoutBlocking] = useState(true);
   const isMountedRef = useRef(true);
   const loginToastPendingRef = useRef(false);
-  const currentModeRef = useRef<'login' | 'signup'>('login');
+  const currentModeRef = useRef<AuthMode>('login');
   const dslLoadedRef = useRef(false);
   const authLayoutBlockingRef = useRef(true);
   const authLayoutRequestSeqRef = useRef(0);
@@ -1402,15 +1418,28 @@ const AuthScreen = () => {
     setFirstName('');
     setLastName('');
     setError('');
+    setSuccessMessage('');
     setPasswordVisible(false);
   }, []);
 
-  const switchAuthMode = useCallback((nextMode: 'login' | 'signup') => {
+  const switchAuthMode = useCallback((nextMode: Exclude<AuthMode, 'forgot'>) => {
     if (currentModeRef.current === nextMode) return;
     currentModeRef.current = nextMode;
     resetAuthFormFields();
     setMode(nextMode);
   }, [resetAuthFormFields]);
+
+  const openForgotPasswordMode = useCallback(() => {
+    if (currentModeRef.current === 'forgot') return;
+    currentModeRef.current = 'forgot';
+    setPassword('');
+    setFirstName('');
+    setLastName('');
+    setError('');
+    setSuccessMessage('');
+    setPasswordVisible(false);
+    setMode('forgot');
+  }, []);
 
   const loadAuthLayout = useCallback(async (
     options: boolean | { showRefreshIndicator?: boolean; showBlockingSkeleton?: boolean } = {}
@@ -1534,11 +1563,12 @@ const AuthScreen = () => {
   useEffect(() => {
     const initialMode = (route?.params as { initialMode?: string } | undefined)?.initialMode;
     if (initialMode === 'signup' || initialMode === 'login') switchAuthMode(initialMode);
-  }, [route?.params, switchAuthMode]);
+    if (initialMode === 'forgot' || initialMode === 'forgot-password') openForgotPasswordMode();
+  }, [route?.params, switchAuthMode, openForgotPasswordMode]);
 
   const t = mode === 'signup' ? signUpTokens : signInTokens;
   const activeHeaderConfig = useMemo(() => {
-    const dslConfig = mode === 'login' ? signInHeaderConfig : signUpHeaderConfig;
+    const dslConfig = mode === 'signup' ? signUpHeaderConfig : signInHeaderConfig;
     return dslConfig ?? getHeaderDefault();
   }, [mode, signInHeaderConfig, signUpHeaderConfig]);
 
@@ -1546,10 +1576,17 @@ const AuthScreen = () => {
     switchAuthMode(currentModeRef.current === 'login' ? 'signup' : 'login');
   };
 
+  const handleEmailChange = (value: string) => {
+    setEmail(value);
+    if (successMessage) setSuccessMessage('');
+  };
+
+  const isValidEmailAddress = (value: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
+
   const validateForm = () => {
     const e = email.trim(), p = password.trim(), fn = firstName.trim(), ln = lastName.trim();
     if (!e || !p) return 'Email and password are required.';
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e)) return 'Enter a valid email address.';
+    if (!isValidEmailAddress(e)) return 'Enter a valid email address.';
     if (p.length < 6) return 'Use a password with at least 6 characters.';
     if (mode === 'signup') {
       if (signUpTokens.firstNameVisible && !fn) return 'Please enter your first name.';
@@ -1562,6 +1599,7 @@ const AuthScreen = () => {
 
   const handleSubmit = async () => {
     setError('');
+    setSuccessMessage('');
     if (loading) return;
     const validationError = validateForm();
     if (validationError) { setError(validationError); return; }
@@ -1582,35 +1620,60 @@ const AuthScreen = () => {
     }
   };
 
-  const handleForgotPassword = () => {
-    const rawDomain = session?.user?.shopifyDomain || getShopifyDomain();
-    const normalizedDomain = rawDomain.replace(/^https?:\/\//, '').replace(/\/.*$/, '');
-    if (navigation?.navigate) {
-      (navigation as any).navigate('CheckoutWebView', { url: `https://${normalizedDomain}/account/login#recover`, title: 'Forgot Password' });
+  const handleForgotPasswordSubmit = async () => {
+    setError('');
+    setSuccessMessage('');
+    if (loading) return;
+    const trimmedEmail = email.trim();
+    if (!trimmedEmail) {
+      setError('Email is required.');
+      return;
+    }
+    if (!isValidEmailAddress(trimmedEmail)) {
+      setError('Enter a valid email address.');
+      return;
+    }
+    try {
+      setLoading(true);
+      await recoverPassword(trimmedEmail);
+      setSuccessMessage(forgotPasswordTokens.successMessageText);
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Unable to send reset password link.');
+    } finally {
+      setLoading(false);
     }
   };
 
+  const isForgotMode = mode === 'forgot';
+
   const buttonLabel = useMemo(() => {
+    if (mode === 'forgot') return forgotPasswordTokens.resetPasswordButtonText;
     const label = t.buttonText;
     return t.buttonAutoUppercase ? label.toUpperCase() : label;
-  }, [t]);
+  }, [mode, forgotPasswordTokens.resetPasswordButtonText, t]);
 
   const buttonWidthStyle = useMemo(() => {
+    if (mode === 'forgot') return { alignSelf: 'stretch' as const };
     const w = t.buttonWidth;
     if (w > 0 && w < 100) return { width: `${w}%` as const, alignSelf: 'center' as const };
     return { alignSelf: 'stretch' as const };
-  }, [t.buttonWidth]);
+  }, [mode, t.buttonWidth]);
+
+  const submitButtonTextColor = isForgotMode ? forgotPasswordTokens.buttonTextColor : t.buttonTextColor;
+  const submitButtonFontSize = isForgotMode ? forgotPasswordTokens.buttonFontSize : t.buttonFontSize;
+  const submitButtonFontFamily = isForgotMode ? forgotPasswordTokens.buttonFontFamily : t.buttonFontFamily;
+  const submitButtonFontWeight = isForgotMode ? forgotPasswordTokens.buttonFontWeight : t.buttonFontWeight;
 
   const submitButtonContent = loading ? (
-    <ActivityIndicator color={t.buttonTextColor} />
+    <ActivityIndicator color={submitButtonTextColor} />
   ) : (
     <Text
       allowFontScaling={false}
       style={{
-        color: t.buttonTextColor,
-        fontSize: t.buttonFontSize,
-        fontWeight: t.buttonFontWeight as any,
-        fontFamily: t.buttonFontFamily !== 'System' ? t.buttonFontFamily : undefined,
+        color: submitButtonTextColor,
+        fontSize: submitButtonFontSize,
+        fontWeight: submitButtonFontWeight as any,
+        fontFamily: submitButtonFontFamily !== 'System' ? submitButtonFontFamily : undefined,
       }}
     >
       {buttonLabel}
@@ -1639,7 +1702,7 @@ const AuthScreen = () => {
   const hasDynamicSignUpLayout = mode === 'signup' && signUpDecorSections.length > 0;
   const activeDecorSections = useMemo(
     () =>
-      (mode === 'login' ? signInDecorSections : signUpDecorSections).map((section) =>
+      (mode === 'signup' ? signUpDecorSections : signInDecorSections).map((section) =>
         withAuthViewport(section, viewportHeight)
       ),
     [mode, signInDecorSections, signUpDecorSections, viewportHeight]
@@ -1725,6 +1788,22 @@ const AuthScreen = () => {
                 {signUpTokens.headerTitle}
               </Text>
             ) : null}
+
+            {mode === 'forgot' ? (
+              <Text
+                style={{
+                  color: forgotPasswordTokens.titleColor,
+                  fontSize: forgotPasswordTokens.headlineFontSize,
+                  fontWeight: forgotPasswordTokens.headlineFontWeight as any,
+                  fontFamily: forgotPasswordTokens.headlineFontFamily !== 'System' ? forgotPasswordTokens.headlineFontFamily : undefined,
+                  fontStyle: forgotPasswordTokens.headlineFontStyle,
+                  textDecorationLine: forgotPasswordTokens.headlineTextDecoration,
+                  textTransform: forgotPasswordTokens.headlineTextTransform,
+                }}
+              >
+                {forgotPasswordTokens.headlineText}
+              </Text>
+            ) : null}
           </View>
           )}
 
@@ -1768,6 +1847,22 @@ const AuthScreen = () => {
                   resizeMode="cover"
                 />
               </View>
+            ) : null}
+
+            {mode === 'forgot' && forgotPasswordTokens.resetPasswordTitle ? (
+              <Text
+                style={{
+                  color: forgotPasswordTokens.resetPasswordTitleColor,
+                  marginTop: forgotTitleMarginTop,
+                  marginBottom: fieldGap,
+                  fontSize: forgotPasswordTokens.resetPasswordTitleFontSize,
+                  fontWeight: forgotPasswordTokens.resetPasswordTitleFontWeight as any,
+                  fontFamily: forgotPasswordTokens.resetPasswordTitleFontFamily !== 'System' ? forgotPasswordTokens.resetPasswordTitleFontFamily : undefined,
+                  opacity: 0.8,
+                }}
+              >
+                {forgotPasswordTokens.resetPasswordTitle}
+              </Text>
             ) : null}
 
             {/* First Name */}
@@ -1839,27 +1934,27 @@ const AuthScreen = () => {
             ) : null}
 
             {/* Email */}
-            {(mode === 'login' || signUpTokens.emailInputVisible) ? (
+            {(mode !== 'signup' || signUpTokens.emailInputVisible) ? (
               <FormField
-                label={mode === 'login' ? signInTokens.emailLabelText : signUpTokens.emailLabelText}
-                labelVisible={mode === 'login' ? signInTokens.emailLabelVisible : signUpTokens.emailLabelVisible}
-                labelColor={mode === 'login' ? signInTokens.emailLabelColor : signUpTokens.emailLabelColor}
-                labelFontSize={mode === 'login' ? signInTokens.emailLabelFontSize : signUpTokens.emailLabelFontSize}
-                labelFontFamily={mode === 'login' ? signInTokens.emailLabelFontFamily : signUpTokens.emailLabelFontFamily}
-                labelFontWeight={mode === 'login' ? signInTokens.emailLabelFontWeight : signUpTokens.emailLabelFontWeight}
+                label={mode !== 'signup' ? signInTokens.emailLabelText : signUpTokens.emailLabelText}
+                labelVisible={mode !== 'signup' ? signInTokens.emailLabelVisible : signUpTokens.emailLabelVisible}
+                labelColor={mode !== 'signup' ? signInTokens.emailLabelColor : signUpTokens.emailLabelColor}
+                labelFontSize={mode !== 'signup' ? signInTokens.emailLabelFontSize : signUpTokens.emailLabelFontSize}
+                labelFontFamily={mode !== 'signup' ? signInTokens.emailLabelFontFamily : signUpTokens.emailLabelFontFamily}
+                labelFontWeight={mode !== 'signup' ? signInTokens.emailLabelFontWeight : signUpTokens.emailLabelFontWeight}
                 labelAlign="left"
-                placeholder={mode === 'login' ? signInTokens.emailPlaceholder : signUpTokens.emailPlaceholder}
-                placeholderVisible={mode === 'login' ? signInTokens.emailPlaceholderVisible : signUpTokens.emailPlaceholderVisible}
-                placeholderColor={mode === 'login' ? signInTokens.emailPlaceholderColor : signUpTokens.emailPlaceholderColor}
-                placeholderFontSize={mode === 'login' ? signInTokens.emailPlaceholderFontSize : signUpTokens.emailPlaceholderFontSize}
-                placeholderFontFamily={mode === 'login' ? signInTokens.emailPlaceholderFontFamily : signUpTokens.emailPlaceholderFontFamily}
-                placeholderFontWeight={mode === 'login' ? signInTokens.emailPlaceholderFontWeight : signUpTokens.emailPlaceholderFontWeight}
+                placeholder={mode !== 'signup' ? signInTokens.emailPlaceholder : signUpTokens.emailPlaceholder}
+                placeholderVisible={mode !== 'signup' ? signInTokens.emailPlaceholderVisible : signUpTokens.emailPlaceholderVisible}
+                placeholderColor={mode !== 'signup' ? signInTokens.emailPlaceholderColor : signUpTokens.emailPlaceholderColor}
+                placeholderFontSize={mode !== 'signup' ? signInTokens.emailPlaceholderFontSize : signUpTokens.emailPlaceholderFontSize}
+                placeholderFontFamily={mode !== 'signup' ? signInTokens.emailPlaceholderFontFamily : signUpTokens.emailPlaceholderFontFamily}
+                placeholderFontWeight={mode !== 'signup' ? signInTokens.emailPlaceholderFontWeight : signUpTokens.emailPlaceholderFontWeight}
                 value={email}
-                onChangeText={setEmail}
-                inputColor={mode === 'login' ? signInTokens.emailInputTextColor : signUpTokens.emailInputTextColor}
-                inputFontSize={mode === 'login' ? signInTokens.emailInputTextFontSize : signUpTokens.emailInputTextFontSize}
-                inputFontFamily={mode === 'login' ? signInTokens.emailInputTextFontFamily : signUpTokens.emailInputTextFontFamily}
-                inputFontWeight={mode === 'login' ? signInTokens.emailInputTextFontWeight : signUpTokens.emailInputTextFontWeight}
+                onChangeText={handleEmailChange}
+                inputColor={mode !== 'signup' ? signInTokens.emailInputTextColor : signUpTokens.emailInputTextColor}
+                inputFontSize={mode !== 'signup' ? signInTokens.emailInputTextFontSize : signUpTokens.emailInputTextFontSize}
+                inputFontFamily={mode !== 'signup' ? signInTokens.emailInputTextFontFamily : signUpTokens.emailInputTextFontFamily}
+                inputFontWeight={mode !== 'signup' ? signInTokens.emailInputTextFontWeight : signUpTokens.emailInputTextFontWeight}
                 inputAlign={mode === 'signup' ? toTextAlign(signUpTokens.emailInputTextAlignment) : 'left'}
                 inputBorderColor={t.inputBorderColor}
                 inputBorderRadius={t.inputBorderRadius}
@@ -1875,7 +1970,7 @@ const AuthScreen = () => {
             ) : null}
 
             {/* Password */}
-            {(mode === 'login' || signUpTokens.passwordInputVisible) ? (
+            {(mode === 'login' || (mode === 'signup' && signUpTokens.passwordInputVisible)) ? (
               <FormField
                 label={mode === 'login' ? signInTokens.passwordLabelText : signUpTokens.passwordLabelText}
                 labelVisible={mode === 'login' ? signInTokens.passwordLabelVisible : signUpTokens.passwordLabelVisible}
@@ -1928,18 +2023,28 @@ const AuthScreen = () => {
               </View>
             ) : null}
 
+            {successMessage ? (
+              <View style={{ backgroundColor: '#ECFDF5', borderRadius: 8, padding: 10, marginBottom: 12 }}>
+                <Text style={{ color: '#047857', fontSize: 13, fontWeight: '500' }}>{successMessage}</Text>
+              </View>
+            ) : null}
+
             {/* Submit button */}
-            {(mode === 'login' || signUpTokens.buttonVisible) ? (
+            {(mode !== 'signup' || signUpTokens.buttonVisible) ? (
               <TouchableOpacity
-                onPress={handleSubmit}
+                onPress={isForgotMode ? handleForgotPasswordSubmit : handleSubmit}
                 disabled={loading || initializing}
                 style={[
                   {
-                    backgroundColor: t.buttonGradient ? 'transparent' : t.buttonFillColor,
-                    borderRadius: t.buttonRadius,
-                    borderWidth: t.buttonBorderWidth,
-                    borderColor: t.buttonBorderColor,
-                    height: t.buttonHeight,
+                    backgroundColor: !isForgotMode && t.buttonGradient ? 'transparent' : isForgotMode ? forgotPasswordTokens.buttonFillColor : t.buttonFillColor,
+                    borderRadius: isForgotMode ? forgotPasswordTokens.buttonRadius : t.buttonRadius,
+                    borderWidth: isForgotMode ? forgotPasswordTokens.buttonBorderWidth : t.buttonBorderWidth,
+                    borderColor: isForgotMode ? forgotPasswordTokens.buttonBorderColor : t.buttonBorderColor,
+                    height: isForgotMode ? undefined : t.buttonHeight,
+                    paddingTop: isForgotMode ? forgotPasswordTokens.buttonPaddingTop : undefined,
+                    paddingBottom: isForgotMode ? forgotPasswordTokens.buttonPaddingBottom : undefined,
+                    paddingLeft: isForgotMode ? forgotPasswordTokens.buttonPaddingLeft : undefined,
+                    paddingRight: isForgotMode ? forgotPasswordTokens.buttonPaddingRight : undefined,
                     justifyContent: 'center',
                     alignItems: 'center',
                     marginTop: buttonMarginTop,
@@ -1948,7 +2053,7 @@ const AuthScreen = () => {
                   buttonWidthStyle,
                 ]}
               >
-                {t.buttonGradient ? (
+                {!isForgotMode && t.buttonGradient ? (
                   <LinearGradient
                     colors={t.buttonGradient.colors}
                     angle={t.buttonGradient.angle}
@@ -1970,7 +2075,28 @@ const AuthScreen = () => {
             ) : null}
 
             {/* Footer switcher */}
-            {t.footerVisible ? (
+            {mode === 'forgot' ? (
+              <TouchableOpacity
+                onPress={() => switchAuthMode('login')}
+                accessibilityRole="button"
+                style={{
+                  marginTop: footerMarginTop,
+                  alignSelf: toFlexAlign(signInTokens.footerLinkAlignment, 'center'),
+                }}
+              >
+                <Text
+                  style={{
+                    color: signInTokens.footerLinkColor,
+                    fontSize: signInTokens.footerLinkFontSize,
+                    fontWeight: signInTokens.footerLinkFontWeight as any,
+                    fontFamily: signInTokens.footerLinkFontFamily !== 'System' ? signInTokens.footerLinkFontFamily : undefined,
+                    textAlign: toTextAlign(signInTokens.footerLinkAlignment, 'center'),
+                  }}
+                >
+                  {forgotPasswordTokens.backToLoginText}
+                </Text>
+              </TouchableOpacity>
+            ) : t.footerVisible ? (
               <View
                 style={{
                   marginTop: footerMarginTop,
@@ -2066,7 +2192,7 @@ const AuthScreen = () => {
                 {forgotPasswordTokens.resetPasswordTitle}
               </Text>
               <TouchableOpacity
-                onPress={handleForgotPassword}
+                onPress={openForgotPasswordMode}
                 accessibilityRole="button"
                 style={{
                   marginTop: forgotButtonMarginTop,

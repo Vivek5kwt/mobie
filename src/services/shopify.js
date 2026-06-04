@@ -2160,6 +2160,50 @@ export async function createShopifyCustomerAccessToken({ email, password, option
   }
 }
 
+export async function recoverShopifyCustomerPassword({ email, options = {} } = {}) {
+  const normalizedEmail = String(email || "").trim();
+  if (!normalizedEmail) {
+    throw new Error("Email is required.");
+  }
+
+  const creds = await getShopifyCredentials();
+  const shop = options.shop || creds.shop;
+  const token = options.token || creds.token;
+  const storeId = options.storeId || creds.storeId;
+
+  const mutation = `
+    mutation CustomerRecover($email: String!) {
+      customerRecover(email: $email) {
+        customerUserErrors {
+          field
+          message
+          code
+        }
+      }
+    }
+  `;
+
+  const json = await directStorefrontGraphQL({
+    shop,
+    token,
+    storeId,
+    query: mutation,
+    variables: { email: normalizedEmail },
+  });
+
+  if (json?.errors?.length) {
+    const message = json.errors[0]?.message || "Unable to send reset password link.";
+    throw new Error(message);
+  }
+
+  const userErrors = json?.data?.customerRecover?.customerUserErrors || [];
+  if (userErrors.length) {
+    throw new Error(userErrors[0]?.message || "Unable to send reset password link.");
+  }
+
+  return { success: true };
+}
+
 export async function createShopifyCheckout({ variantId, quantity = 1, options = {} }) {
   if (!variantId) {
     throw new Error("Missing variant ID for checkout.");

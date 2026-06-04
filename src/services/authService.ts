@@ -6,7 +6,7 @@ import { resolveAppId } from '../utils/appId';
 import { fetchStoreConfig } from './storeService';
 import { loginCustomer } from './customerService';
 import { registerCustomer } from './customerService';
-import { createShopifyCustomerAccessToken } from './shopify';
+import { createShopifyCustomerAccessToken, recoverShopifyCustomerPassword } from './shopify';
 
 type UserProfile = {
   id?: number;
@@ -121,6 +121,15 @@ export const clearSession = async () => {
   await AsyncStorage.removeItem(TOKEN_KEY);
   await AsyncStorage.removeItem(USER_KEY);
 };  
+
+export const recoverPassword = async (email: string): Promise<void> => {
+  const normalizedEmail = email.trim();
+  if (!normalizedEmail) {
+    throw new Error('Email is required.');
+  }
+
+  await recoverShopifyCustomerPassword({ email: normalizedEmail });
+};
 
 const parseMaybeJson = (value: unknown): any => {
   if (!value) return null;
