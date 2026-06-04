@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
+  ActivityIndicator,
   FlatList,
   Image,
   StyleSheet,
@@ -250,6 +251,8 @@ export default function CollectionImage({ section }) {
   }, [rawProps, rawSnapshot]);
 
   const [shopifyCollections, setShopifyCollections] = useState([]);
+  const [collectionsLoading, setCollectionsLoading] = useState(false);
+  const [collectionsError, setCollectionsError] = useState("");
   const collectionsLimit = asNumber(rawProps?.collectionsLimit ?? rawSnapshot?.collectionsLimit, 50);
   const items = useMemo(
     () => mergeCollectionItems(dslCollections, shopifyCollections),
@@ -411,13 +414,9 @@ export default function CollectionImage({ section }) {
     rawProps?.openSubCollections,
     false
   );
-  const isCollectionPageContext =
-    routePageSlug.includes("collection") ||
-    routePageSlug.includes("categor") ||
-    routePageSlug.includes("catalog");
   const useSubCollectionFlow =
     !isHomeContext &&
-    (explicitSubCollectionFlow || flowValue.includes("sub") || isCollectionPageContext);
+    (explicitSubCollectionFlow || flowValue.includes("sub"));
 
   // Grid columns: explicit DSL column count, or derived from layoutMode
   const columns = isGrid
@@ -467,6 +466,8 @@ export default function CollectionImage({ section }) {
   // ── Shopify fallback ──────────────────────────────────────────────────────────
   useEffect(() => {
     let alive = true;
+    setCollectionsLoading(true);
+    setCollectionsError("");
     fetchShopifyCollections(collectionsLimit).then((resp) => {
       if (!alive) return;
       setShopifyCollections(
@@ -479,7 +480,11 @@ export default function CollectionImage({ section }) {
           }))
           .filter((x) => x.title || x.image)
       );
-    }).catch(() => {});
+    }).catch(() => {
+      if (alive) setCollectionsError("Unable to load collections right now.");
+    }).finally(() => {
+      if (alive) setCollectionsLoading(false);
+    });
     return () => { alive = false; };
   }, [collectionsLimit]);
 
@@ -655,23 +660,43 @@ export default function CollectionImage({ section }) {
     cardTextAlign, cardTitleLineHeight, cardTitleMarginTop, cardFontFamily,
   ]);
 
-  if (!items.length) return null;
+  const containerStyle = [
+    styles.container,
+    {
+      backgroundColor: bgColor,
+      paddingTop: containerPt,
+      paddingBottom: containerPb,
+      paddingLeft: containerPl,
+      paddingRight: containerPr,
+      borderRadius: containerRadius,
+      ...containerBorderStyle,
+    },
+  ];
+
+  if (!items.length) {
+    if (collectionsLoading) {
+      return (
+        <View style={[containerStyle, styles.stateWrap]}>
+          <ActivityIndicator size="small" color={headerColor || placeholderTextColor} />
+        </View>
+      );
+    }
+
+    if (collectionsError) {
+      return (
+        <View style={[containerStyle, styles.stateWrap]}>
+          <Text style={[styles.stateText, { color: headerColor || placeholderTextColor }]}>
+            {collectionsError}
+          </Text>
+        </View>
+      );
+    }
+
+    return null;
+  }
 
   return (
-    <View
-      style={[
-        styles.container,
-        {
-          backgroundColor: bgColor,
-          paddingTop: containerPt,
-          paddingBottom: containerPb,
-          paddingLeft: containerPl,
-          paddingRight: containerPr,
-          borderRadius: containerRadius,
-          ...containerBorderStyle,
-        },
-      ]}
-    >
+    <View style={containerStyle}>
       {/* Header */}
       {showHeader && !!headerText && (
         <Text
@@ -755,5 +780,14 @@ const styles = StyleSheet.create({
     textShadowColor: "rgba(255,255,255,0.65)",
     textShadowRadius: 2,
     textShadowOffset: { width: 0, height: 1 },
+  },
+  stateText: {
+    fontSize: 13,
+    textAlign: "center",
+  },
+  stateWrap: {
+    minHeight: 72,
+    alignItems: "center",
+    justifyContent: "center",
   },
 });

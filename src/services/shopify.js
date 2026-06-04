@@ -2643,7 +2643,13 @@ export async function searchShopifyProducts(searchTerm, limit = 10, options = {}
 // FETCH COLLECTIONS
 // ----------------------
 export async function fetchShopifyCollections(limit = 10, options = {}) {
-  return fetchShopifyCollectionsList(limit, options);
+  const safeLimit = Math.max(1, Number(limit) || 10);
+  const cacheKey = buildCacheKey("collectionsList", {
+    first: safeLimit,
+    shop: options.shop || "",
+    storeId: options.storeId || "",
+  });
+  return withRequestCache(cacheKey, () => fetchShopifyCollectionsList(safeLimit, options));
 }
 
 // ----------------------

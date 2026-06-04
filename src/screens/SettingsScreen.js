@@ -100,7 +100,7 @@ export default function SettingsScreen() {
       try {
         let selected = null;
         for (const pageName of pageCandidates) {
-          const result = await fetchDSL(appId, pageName);
+          const result = await fetchDSL(appId, pageName, { forceRefresh: Boolean(asRefresh) });
           if (hasRenderableSections(result?.dsl)) {
             selected = result.dsl;
             break;

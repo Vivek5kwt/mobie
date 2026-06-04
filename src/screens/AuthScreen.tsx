@@ -14,6 +14,7 @@ import {
   TextInput,
   TouchableOpacity,
   View,
+  useWindowDimensions,
 } from 'react-native';
 import { useFocusEffect, useNavigation, useRoute } from '@react-navigation/native';
 import LinearGradient from 'react-native-linear-gradient';
@@ -393,6 +394,17 @@ const resolveBorderWidth = (line: unknown, color: unknown, fallback: number): nu
   if (!rawColor || rawColor === 'transparent') return 0;
   return fallback;
 };
+
+const resolveAuthVerticalSpace = (value: number, viewportHeight: number, maxViewportShare: number): number => {
+  const normalized = Number.isFinite(value) ? Math.max(0, value) : 0;
+  if (!Number.isFinite(viewportHeight) || viewportHeight <= 0) return normalized;
+  return Math.round(Math.min(normalized, viewportHeight * maxViewportShare));
+};
+
+const withAuthViewport = (section: Record<string, unknown>, viewportHeight: number): Record<string, unknown> => ({
+  ...section,
+  __authVerticalViewport: viewportHeight,
+});
 
 const normalizeSectionName = (value: unknown): string =>
   String(value || '').trim().toLowerCase().replace(/[\s-]+/g, '_');
@@ -1279,6 +1291,7 @@ const AuthScreen = () => {
   const navigation = useNavigation();
   const route = useRoute();
   const { login, signup, session, initializing } = useAuth();
+  const { height: viewportHeight } = useWindowDimensions();
   const [mode, setMode] = useState<'login' | 'signup'>('login');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -1552,14 +1565,28 @@ const AuthScreen = () => {
   );
 
   const hasDynamicSignUpLayout = mode === 'signup' && signUpDecorSections.length > 0;
+  const activeDecorSections = useMemo(
+    () =>
+      (mode === 'login' ? signInDecorSections : signUpDecorSections).map((section) =>
+        withAuthViewport(section, viewportHeight)
+      ),
+    [mode, signInDecorSections, signUpDecorSections, viewportHeight]
+  );
 
   if (!dslLoaded || authLayoutBlocking) return <AuthLayoutSkeleton />;
 
   const pagePadLeft = t.pagePaddingLeft;
   const pagePadRight = t.pagePaddingRight;
-  const pagePadTop = t.pagePaddingTop;
-  const pagePadBottom = t.pagePaddingBottom;
-  const cardPadTop = t.cardPaddingTop;
+  const pagePadTop = resolveAuthVerticalSpace(t.pagePaddingTop, viewportHeight, 0.06);
+  const pagePadBottom = resolveAuthVerticalSpace(t.pagePaddingBottom, viewportHeight, 0.06);
+  const cardPadTop = resolveAuthVerticalSpace(t.cardPaddingTop, viewportHeight, 0.055);
+  const cardPadBottom = resolveAuthVerticalSpace(t.cardPaddingBottom, viewportHeight, 0.055);
+  const titleFormGap = resolveAuthVerticalSpace(t.formGap, viewportHeight, 0.03);
+  const fieldGap = resolveAuthVerticalSpace(t.fieldGap, viewportHeight, 0.03);
+  const buttonMarginTop = resolveAuthVerticalSpace(t.buttonMarginTop, viewportHeight, 0.025);
+  const footerMarginTop = resolveAuthVerticalSpace(t.footerMarginTop, viewportHeight, 0.04);
+  const footerLinkMarginTop = resolveAuthVerticalSpace(t.footerLinkMarginTop, viewportHeight, 0.02);
+  const formCardMarginBottom = resolveAuthVerticalSpace(t.formCardMarginBottom, viewportHeight, 0.04);
   const hasDynamicDecor = hasDynamicSignInLayout || hasDynamicSignUpLayout;
   const signUpProfilePictureUrl = String(signUpTokens.profilePictureUrl || '').trim();
   const shouldRenderSignUpProfilePicture =
@@ -1592,11 +1619,11 @@ const AuthScreen = () => {
         >
           {/* ── Page title ─────────────────────────────────────────────── */}
           {hasDynamicSignInLayout || hasDynamicSignUpLayout ? (
-            (mode === 'login' ? signInDecorSections : signUpDecorSections).map((section, index) => (
+            activeDecorSections.map((section, index) => (
               <DynamicRenderer key={`${mode}-dsl-${index}`} section={section as any} />
             ))
           ) : (
-          <View style={{ paddingLeft: pagePadLeft, paddingRight: pagePadRight, paddingTop: pagePadTop, paddingBottom: t.formGap }}>
+          <View style={{ paddingLeft: pagePadLeft, paddingRight: pagePadRight, paddingTop: pagePadTop, paddingBottom: titleFormGap }}>
             {mode === 'login' && t.authVisible ? (
               <Text
                 style={{
@@ -1637,9 +1664,9 @@ const AuthScreen = () => {
               paddingLeft: t.cardPaddingLeft,
               paddingRight: t.cardPaddingRight,
               paddingTop: cardPadTop,
-              paddingBottom: t.cardPaddingBottom,
-              marginTop: hasDynamicDecor ? pagePadTop : 0,
-              marginBottom: t.formCardMarginBottom,
+              paddingBottom: cardPadBottom,
+              marginTop: hasDynamicDecor ? titleFormGap : 0,
+              marginBottom: formCardMarginBottom,
             }}
           >
             {/* Profile picture (signup only) */}
@@ -1693,7 +1720,7 @@ const AuthScreen = () => {
                 inputBorderColor={signUpTokens.inputBorderColor}
                 inputBorderRadius={signUpTokens.inputBorderRadius}
                 inputHeight={signUpTokens.inputHeight}
-                fieldGap={signUpTokens.fieldGap}
+                fieldGap={fieldGap}
                 inputPaddingHorizontal={signUpTokens.inputPaddingHorizontal}
                 inputPaddingVertical={signUpTokens.inputPaddingVertical}
                 cardBgColor={signUpTokens.cardBgColor}
@@ -1727,7 +1754,7 @@ const AuthScreen = () => {
                 inputBorderColor={signUpTokens.inputBorderColor}
                 inputBorderRadius={signUpTokens.inputBorderRadius}
                 inputHeight={signUpTokens.inputHeight}
-                fieldGap={signUpTokens.fieldGap}
+                fieldGap={fieldGap}
                 inputPaddingHorizontal={signUpTokens.inputPaddingHorizontal}
                 inputPaddingVertical={signUpTokens.inputPaddingVertical}
                 cardBgColor={signUpTokens.cardBgColor}
@@ -1761,7 +1788,7 @@ const AuthScreen = () => {
                 inputBorderColor={t.inputBorderColor}
                 inputBorderRadius={t.inputBorderRadius}
                 inputHeight={t.inputHeight}
-                fieldGap={t.fieldGap}
+                fieldGap={fieldGap}
                 inputPaddingHorizontal={t.inputPaddingHorizontal}
                 inputPaddingVertical={t.inputPaddingVertical}
                 cardBgColor={t.cardBgColor}
@@ -1798,7 +1825,7 @@ const AuthScreen = () => {
                 inputBorderColor={t.inputBorderColor}
                 inputBorderRadius={t.inputBorderRadius}
                 inputHeight={t.inputHeight}
-                fieldGap={t.fieldGap}
+                fieldGap={fieldGap}
                 inputPaddingHorizontal={t.inputPaddingHorizontal}
                 inputPaddingVertical={t.inputPaddingVertical}
                 cardBgColor={t.cardBgColor}
@@ -1839,7 +1866,7 @@ const AuthScreen = () => {
                     height: t.buttonHeight,
                     justifyContent: 'center',
                     alignItems: 'center',
-                    marginTop: t.buttonMarginTop,
+                    marginTop: buttonMarginTop,
                     overflow: 'hidden',
                   },
                   buttonWidthStyle,
@@ -1870,7 +1897,7 @@ const AuthScreen = () => {
             {t.footerVisible ? (
               <View
                 style={{
-                  marginTop: t.footerMarginTop,
+                  marginTop: footerMarginTop,
                   alignItems: toFlexAlign(t.footerLinkAlignment, 'center'),
                   flexDirection: t.footerInline ? 'row' : 'column',
                   justifyContent: toFlexAlign(t.footerLinkAlignment, 'center') === 'flex-start'
@@ -1896,7 +1923,7 @@ const AuthScreen = () => {
                     onPress={toggleMode}
                     accessibilityRole="button"
                     style={{
-                      marginTop: t.footerInline ? 0 : t.footerLinkMarginTop,
+                      marginTop: t.footerInline ? 0 : footerLinkMarginTop,
                       marginLeft: t.footerInline ? 4 : 0,
                     }}
                   >

@@ -390,7 +390,7 @@ export default function LayoutScreen({ route, navigation }) {
     lastDslFetchAtRef.current = Date.now();
 
     try {
-      const dslData = await fetchDSL(appId, pageName);
+      const dslData = await fetchDSL(appId, pageName, { forceRefresh: Boolean(withFeedback) });
       if (dslData?.dsl) {
         const incomingBottomNav = extractBottomNavigationSection(dslData.dsl);
         if (!deepEqual(incomingBottomNav, bottomNavSectionRef.current)) {

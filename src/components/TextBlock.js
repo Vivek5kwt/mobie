@@ -74,6 +74,12 @@ const firstDefined = (...values) => {
   return undefined;
 };
 
+const resolveAuthVerticalSpace = (value, viewportHeight, maxViewportShare) => {
+  const normalized = Number.isFinite(value) ? Math.max(0, value) : 0;
+  if (!Number.isFinite(viewportHeight) || viewportHeight <= 0) return normalized;
+  return Math.round(Math.min(normalized, viewportHeight * maxViewportShare));
+};
+
 const BORDER_STYLE_KEYS = [
   "border",
   "borderWidth",
@@ -281,12 +287,15 @@ export default function TextBlock({ section }) {
 
   // Derive alignItems for the container from global alignment
   const containerAlignItems = textAlignToJustify(globalAlign);
+  const authViewportHeight = asNumber(section?.__authVerticalViewport, 0);
+  const resolvedPaddingTop = asNumber(paddingRaw?.pt, safeContainerStyle.paddingTop ?? 0);
+  const resolvedPaddingBottom = asNumber(paddingRaw?.pb, safeContainerStyle.paddingBottom ?? 0);
 
   const containerStyle = {
     ...safeContainerStyle,
-    paddingTop:    asNumber(paddingRaw?.pt,    safeContainerStyle.paddingTop    ?? 0),
+    paddingTop:    resolveAuthVerticalSpace(resolvedPaddingTop, authViewportHeight, 0.08),
     paddingRight:  asNumber(paddingRaw?.pr,    safeContainerStyle.paddingRight  ?? 0),
-    paddingBottom: asNumber(paddingRaw?.pb,    safeContainerStyle.paddingBottom ?? 0),
+    paddingBottom: resolveAuthVerticalSpace(resolvedPaddingBottom, authViewportHeight, 0.05),
     paddingLeft:   asNumber(paddingRaw?.pl,    safeContainerStyle.paddingLeft   ?? 0),
     // Override alignItems from global alignment so content centers/aligns correctly
     ...(globalAlign ? { alignItems: containerAlignItems } : {}),

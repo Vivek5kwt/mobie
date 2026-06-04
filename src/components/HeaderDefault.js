@@ -725,9 +725,14 @@ export default function HeaderDefault({ config, bottomNavSection, hideTabs = fal
     } else if (type === "url") {
       navigation.navigate("CheckoutWebView", { url: ref, title: "" });
     } else if (type === "collection") {
-      navigation.navigate("AllProducts", {
+      const collectionHandle = ref.includes("/collections/")
+        ? ref.split("/collections/")[1]?.split(/[?#/]/)[0]
+        : ref.toLowerCase().replace(/\s+/g, "-");
+      navigation.navigate("CollectionProducts", {
+        handle: collectionHandle,
+        collectionHandle,
+        collectionTitle: ref,
         title: ref,
-        collectionHandle: ref.toLowerCase().replace(/\s+/g, "-"),
       });
     } else if (type === "product") {
       navigation.navigate("ProductDetail", { handle: ref });

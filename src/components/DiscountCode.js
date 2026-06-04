@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
   StyleSheet,
@@ -210,6 +210,22 @@ export default function DiscountCode({ section }) {
     () => activeDiscountRecords(discountRecords, cartFingerprint),
     [discountRecords, cartFingerprint]
   );
+  const appliedCodesKey = useMemo(
+    () => appliedCodes.map((entry) => entry.code).sort().join("|"),
+    [appliedCodes]
+  );
+  const previousAppliedCodesKeyRef = useRef(appliedCodesKey);
+
+  useEffect(() => {
+    if (
+      feedback?.type === "success" &&
+      previousAppliedCodesKeyRef.current &&
+      appliedCodesKey !== previousAppliedCodesKeyRef.current
+    ) {
+      setFeedback(null);
+    }
+    previousAppliedCodesKeyRef.current = appliedCodesKey;
+  }, [appliedCodesKey, feedback?.type]);
 
   if (!enabled) return null;
 
@@ -264,6 +280,7 @@ export default function DiscountCode({ section }) {
 
   const handleRemove = (code) => {
     dispatch(removeDiscount({ code }));
+    setFeedback(null);
   };
 
   return (

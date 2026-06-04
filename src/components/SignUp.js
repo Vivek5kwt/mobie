@@ -167,11 +167,17 @@ const getTextAlign = (align) => {
 
 const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
 
+const resolveResponsiveVerticalSpace = (value, viewportHeight, maxViewportShare) => {
+  const normalized = Number.isFinite(value) ? Math.max(0, value) : 0;
+  if (!Number.isFinite(viewportHeight) || viewportHeight <= 0) return normalized;
+  return Math.round(Math.min(normalized, viewportHeight * maxViewportShare));
+};
+
 export default function SignUp({ section }) {
   const navigation = useNavigation();
   const { signup: signupUser, session, initializing } = useAuth();
   const isLoggedIn = isAuthenticatedSession(session);
-  const { width: screenWidth } = useWindowDimensions();
+  const { width: screenWidth, height: viewportHeight } = useWindowDimensions();
 
   // Use useMemo to extract props so component updates when section changes
   const rawProps = useMemo(() => {
@@ -192,10 +198,11 @@ export default function SignUp({ section }) {
 
   // Extract all properties from raw using useMemo to update when raw changes
   const extractedProps = useMemo(() => {
-    const pt = toNumber(raw.pt, 60);
-    const pb = toNumber(raw.pb, 60);
-    const pl = toNumber(raw.pl, 20);
-    const pr = toNumber(raw.pr, 20);
+    const containerCss = layoutCss?.container || {};
+    const pt = toNumber(firstDefined(raw.pt, raw.paddingTop, containerCss.paddingTop), 0);
+    const pb = toNumber(firstDefined(raw.pb, raw.paddingBottom, containerCss.paddingBottom), 0);
+    const pl = toNumber(firstDefined(raw.pl, raw.paddingLeft, containerCss.paddingLeft), 20);
+    const pr = toNumber(firstDefined(raw.pr, raw.paddingRight, containerCss.paddingRight), 20);
     const bgColor = toString(raw.bgColor, "#FFFFFF");
     const cardBgColor = toString(raw.cardBgColor, "#FFFFFF");
     const cardBorderColor = toString(raw.cardBorderColor ?? raw.borderColor, "#0c9297");
@@ -452,7 +459,7 @@ export default function SignUp({ section }) {
       firstNameInputTextAutoUppercase, lastNameInputTextAutoUppercase,
       emailInputTextAutoUppercase, passwordInputTextAutoUppercase, footerLinkAutoUppercase,
     };
-  }, [raw, screenWidth]);
+  }, [layoutCss, raw]);
 
   // Destructure all props from extractedProps
   const {
@@ -616,10 +623,17 @@ export default function SignUp({ section }) {
       : inputAlignFor(firstNameInputTextAlignment);
   const shouldShowFieldLabel = (labelVisible, placeholderVisible) =>
     labelVisible && !placeholderVisible;
-  const mobileCardPaddingTop = bgPadVisible ? pt : 0;
-  const mobileCardPaddingBottom = bgPadVisible ? pb : 0;
+  const mobileCardPaddingTop = bgPadVisible ? resolveResponsiveVerticalSpace(pt, viewportHeight, 0.055) : 0;
+  const mobileCardPaddingBottom = bgPadVisible ? resolveResponsiveVerticalSpace(pb, viewportHeight, 0.055) : 0;
   const mobileCardPaddingLeft = bgPadVisible ? pl : 0;
   const mobileCardPaddingRight = bgPadVisible ? pr : 0;
+  const mobileSubgpt = resolveResponsiveVerticalSpace(subgpt, viewportHeight, 0.05);
+  const mobileSubgpb = resolveResponsiveVerticalSpace(subgpb, viewportHeight, 0.05);
+  const mobileFieldGap = resolveResponsiveVerticalSpace(fieldGap, viewportHeight, 0.03);
+  const mobileFooterPt = resolveResponsiveVerticalSpace(footerPt, viewportHeight, 0.04);
+  const mobileFooterPb = resolveResponsiveVerticalSpace(footerPb, viewportHeight, 0.04);
+  const mobileSignInLinkPt = resolveResponsiveVerticalSpace(signInLinkPt, viewportHeight, 0.02);
+  const mobileSignInLinkPb = resolveResponsiveVerticalSpace(signInLinkPb, viewportHeight, 0.02);
   const resolvedButtonIcon = resolveFA4IconName(buttonIcon);
   const shouldShowProfilePicture = logoVisible && showProfilePicture && Boolean(profilePictureUrl);
   const shouldShowHeaderTitle = Boolean(String(headerTitle || "").trim()) && !authTitle;
@@ -670,8 +684,8 @@ export default function SignUp({ section }) {
             borderRadius,
             marginLeft: subgpl,
             marginRight: subgpr,
-            marginTop: subgpt,
-            marginBottom: subgpb,
+            marginTop: mobileSubgpt,
+            marginBottom: mobileSubgpb,
             paddingTop: mobileCardPaddingTop,
             paddingBottom: mobileCardPaddingBottom,
             paddingLeft: mobileCardPaddingLeft,
@@ -703,6 +717,7 @@ export default function SignUp({ section }) {
                 backgroundColor: profilePictureBgColor,
                 borderColor: profilePictureBorderColor,
                 borderWidth: 2,
+                marginBottom: mobileFieldGap,
               },
             ]}
           >
@@ -724,6 +739,7 @@ export default function SignUp({ section }) {
                 fontSize: headerTitleFontSize,
                 fontFamily: headerTitleFontFamily,
                 fontWeight: headerTitleFontWeight,
+                marginBottom: mobileFieldGap,
               },
             ]}
           >
@@ -741,6 +757,7 @@ export default function SignUp({ section }) {
                 fontSize: mobileTitleFontSize,
                 fontWeight: toFontWeight(raw.headlineWeight) || "700",
                 fontFamily: resolveFont(toString(raw.headlineFontFamily, headerTitleFontFamily || "Inter")),
+                marginBottom: mobileFieldGap,
               },
             ]}
           >
@@ -750,7 +767,7 @@ export default function SignUp({ section }) {
 
         {/* First Name Field */}
         {firstNameVisible && (
-          <View style={[styles.fieldContainer, { marginBottom: fieldGap }]}>
+          <View style={[styles.fieldContainer, { marginBottom: mobileFieldGap }]}>
             {shouldShowFieldLabel(firstNameLabelVisible, firstNamePlaceholderVisible) && (
               <Text style={[styles.label, { color: firstNameLabelColor, fontSize: firstNameLabelFontSize, fontFamily: firstNameLabelFontFamily, fontWeight: firstNameLabelFontWeight }]}>
                 {firstNameLabelText}
@@ -786,7 +803,7 @@ export default function SignUp({ section }) {
 
         {/* Last Name Field */}
         {lastNameVisible && (
-          <View style={[styles.fieldContainer, { marginBottom: fieldGap }]}>
+          <View style={[styles.fieldContainer, { marginBottom: mobileFieldGap }]}>
             {shouldShowFieldLabel(lastNameLabelVisible, lastNamePlaceholderVisible) && (
               <Text style={[styles.label, { color: lastNameLabelColor, fontSize: lastNameLabelFontSize, fontFamily: lastNameLabelFontFamily, fontWeight: lastNameLabelFontWeight }]}>
                 {lastNameLabelText}
@@ -822,7 +839,7 @@ export default function SignUp({ section }) {
 
         {/* Email Field */}
         {emailInputVisible && (
-          <View style={[styles.fieldContainer, { marginBottom: fieldGap }]}>
+          <View style={[styles.fieldContainer, { marginBottom: mobileFieldGap }]}>
             {shouldShowFieldLabel(emailLabelVisible, emailPlaceholderVisible) && (
               <Text style={[styles.label, { color: emailLabelColor, fontSize: emailLabelFontSize, fontFamily: emailLabelFontFamily, fontWeight: emailLabelFontWeight }]}>
                 {emailLabelText}
@@ -860,7 +877,7 @@ export default function SignUp({ section }) {
 
         {/* Password Field */}
         {passwordInputVisible && (
-          <View style={[styles.fieldContainer, { marginBottom: fieldGap }]}>
+          <View style={[styles.fieldContainer, { marginBottom: mobileFieldGap }]}>
             {shouldShowFieldLabel(passwordLabelVisible, passwordPlaceholderVisible) && (
               <Text style={[styles.label, { color: passwordLabelColor, fontSize: passwordLabelFontSize, fontFamily: passwordLabelFontFamily, fontWeight: passwordLabelFontWeight }]}>
                 {passwordLabelText}
@@ -938,8 +955,8 @@ export default function SignUp({ section }) {
               styles.footer,
               {
                 backgroundColor: footerBgColor,
-                paddingTop: footerPt,
-                paddingBottom: footerPb,
+                paddingTop: mobileFooterPt,
+                paddingBottom: mobileFooterPb,
                 paddingLeft: footerPl,
                 paddingRight: footerPr,
                 borderRadius: footerBorderRadius,
@@ -965,8 +982,8 @@ export default function SignUp({ section }) {
                   styles.signInLink,
                   {
                     backgroundColor: signInLinkBgColor,
-                    paddingTop: signInLinkPt,
-                    paddingBottom: signInLinkPb,
+                    paddingTop: mobileSignInLinkPt,
+                    paddingBottom: mobileSignInLinkPb,
                     paddingLeft: signInLinkPl,
                     paddingRight: signInLinkPr,
                     borderRadius: signInLinkBorderRadius,

@@ -724,7 +724,7 @@ export default function BottomNavScreen() {
     return () => { isMounted = false; };
   }, [appId, ensureHeaderSections, extractHeaderSections, getDslFingerprint, initializing, isHomePage, isLoggedIn, navigation, pageName]);
 
-  const refreshDSL = useCallback(async () => {
+  const refreshDSL = useCallback(async ({ forceRefresh = false } = {}) => {
     if (dslRequestInFlightRef.current) return;
     dslRequestInFlightRef.current = true;
 
@@ -733,7 +733,7 @@ export default function BottomNavScreen() {
       let headers = homeHeaderSectionsRef.current;
       if (!isHomePage && headers.length === 0) {
         try {
-          const homeDslData = await fetchDSL(appId, "home");
+          const homeDslData = await fetchDSL(appId, "home", { forceRefresh });
           headers = extractHeaderSections(homeDslData?.dsl || {});
           homeHeaderSectionsRef.current = headers;
         } catch (_) {
@@ -742,7 +742,7 @@ export default function BottomNavScreen() {
         }
       }
 
-      const dslData = await fetchDSL(appId, pageName);
+      const dslData = await fetchDSL(appId, pageName, { forceRefresh });
       if (dslData?.dsl) {
         if (dslData.dsl?.__dslMissing && getSectionCount(dslData.dsl) === 0) {
           setDsl({ ...dslData.dsl, sections: headers, __dslMissing: true });
@@ -775,7 +775,7 @@ export default function BottomNavScreen() {
     if (isNotificationPage) {
       await loadNotifications();
     }
-    await refreshDSL();
+    await refreshDSL({ forceRefresh: true });
     setRefreshing(false);
   };
 
