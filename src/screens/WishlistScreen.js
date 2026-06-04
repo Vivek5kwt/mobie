@@ -27,7 +27,7 @@ import { isAuthenticatedSession } from "../utils/authGate";
 import { resolveProductImageResizeMode } from "../utils/productImageFit";
 import { getResponsiveColumns } from "../utils/responsiveLayout";
 
-const LIVE_DSL_REFRESH_INTERVAL_MS = 3000;
+const LIVE_DSL_REFRESH_INTERVAL_MS = 30000;
 
 // ── DSL helpers ───────────────────────────────────────────────────────────────
 const unwrap = (v, fallback) => {

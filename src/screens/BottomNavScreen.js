@@ -36,7 +36,7 @@ const SIGNIN_SLUGS = new Set(["signin", "sign-in", "login", "log-in", "auth"]);
 const CART_EMPTY_VISIBLE_COMPONENTS = new Set(["cart_line_items"]);
 const ORDERS_EMPTY_VISIBLE_COMPONENTS = new Set(["order_history", "orderhistory", "orders", "my_orders"]);
 const WISHLIST_EMPTY_VISIBLE_COMPONENTS = new Set(["wishlist", "wishlist_item", "wishlist-item"]);
-const LIVE_DSL_REFRESH_INTERVAL_MS = 3000;
+const LIVE_DSL_REFRESH_INTERVAL_MS = 30000;
 
 const getSectionCount = (incomingDsl) =>
   Array.isArray(incomingDsl?.sections) ? incomingDsl.sections.filter(Boolean).length : 0;

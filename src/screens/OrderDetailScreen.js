@@ -27,7 +27,7 @@ import {
 } from "../utils/money";
 import { resolveProductImageResizeMode } from "../utils/productImageFit";
 
-const LIVE_DSL_REFRESH_INTERVAL_MS = 3000;
+const LIVE_DSL_REFRESH_INTERVAL_MS = 30000;
 
 const getDslFingerprint = (incomingDsl) => {
   try {

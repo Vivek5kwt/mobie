@@ -35,7 +35,7 @@ import { trackScreenView } from "../services/analyticsService";
 // This prevents a blank screen + missing bottom nav when LayoutScreen remounts
 // (e.g. tapping Home tab causes navigate() to push a new instance on some paths).
 const _pageCache = {};
-const LIVE_DSL_REFRESH_INTERVAL_MS = 3000;
+const LIVE_DSL_REFRESH_INTERVAL_MS = 30000;
 
 function _cacheKey(appId, pageName) {
   return `${appId}:${String(pageName || "home").trim().toLowerCase()}`;

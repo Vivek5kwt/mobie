@@ -27,7 +27,7 @@ import DynamicRenderer from '../engine/DynamicRenderer';
 import { getHeaderDefault } from '../services/headerDefaultService';
 import { resolveFont } from '../services/typographyService';
 
-const LIVE_DSL_REFRESH_INTERVAL_MS = 3000;
+const LIVE_DSL_REFRESH_INTERVAL_MS = 30000;
 
 type ButtonGradient = {
   colors: string[];

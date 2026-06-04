@@ -814,6 +814,8 @@ export default function CheckoutWebViewScreen() {
 
   const webViewRef           = useRef(null);
   const hasCompletedOrderRef = useRef(false);
+  const completionTimerRef   = useRef(null);
+  const pendingCompletionRef = useRef(null);
   const capturedItemsRef     = useRef(cartItems);
   const lastWebViewUrlRef    = useRef("");
   const lastWebViewErrorRef  = useRef(null);
@@ -884,8 +886,7 @@ export default function CheckoutWebViewScreen() {
     route?.params,
   ]);
 
-  // ── Shared order-complete handler (used by URL detection AND JS injection) ──
-  const handleOrderComplete = useCallback(
+  const completeOrderNow = useCallback(
     async (completedUrl, detectedOrderNumber = "") => {
       if (hasCompletedOrderRef.current) return;
       hasCompletedOrderRef.current = true;
@@ -939,6 +940,48 @@ export default function CheckoutWebViewScreen() {
     },
     [navigation, resolvedAppId, session, userId]
   );
+
+  // ── Shared order-complete handler (used by URL detection AND JS injection) ──
+  const handleOrderComplete = useCallback(
+    (completedUrl, detectedOrderNumber = "") => {
+      if (hasCompletedOrderRef.current) return;
+
+      const normalizedDetectedOrderNumber = normalizeOrderNumber(detectedOrderNumber);
+      if (completionTimerRef.current && !normalizedDetectedOrderNumber) {
+        return;
+      }
+
+      if (completionTimerRef.current) {
+        clearTimeout(completionTimerRef.current);
+        completionTimerRef.current = null;
+      }
+
+      if (!normalizedDetectedOrderNumber) {
+        pendingCompletionRef.current = {
+          url: completedUrl || "",
+          orderNumber: "",
+        };
+        completionTimerRef.current = setTimeout(() => {
+          const pending = pendingCompletionRef.current || {};
+          completionTimerRef.current = null;
+          pendingCompletionRef.current = null;
+          completeOrderNow(pending.url || completedUrl || "", pending.orderNumber || "");
+        }, 1600);
+        return;
+      }
+
+      pendingCompletionRef.current = null;
+      completeOrderNow(completedUrl || "", normalizedDetectedOrderNumber);
+    },
+    [completeOrderNow]
+  );
+
+  useEffect(() => () => {
+    if (completionTimerRef.current) {
+      clearTimeout(completionTimerRef.current);
+      completionTimerRef.current = null;
+    }
+  }, []);
 
   // ── Back handling ─────────────────────────────────────────────────────────
   const handleBack = useCallback(() => {

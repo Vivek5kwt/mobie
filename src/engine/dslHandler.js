@@ -5,8 +5,13 @@ import { resolveAppId } from "../utils/appId";
 import { setTypography } from "../services/typographyService";
 import { setBrandKitAssetsFromDsl } from "../services/brandKitService";
 
-const DSL_QUERY_TIMEOUT_MS = 12000;
+const DSL_QUERY_TIMEOUT_MS = 8000;
+const DSL_CACHE_TTL_MS = 30000;
+const DSL_STALE_TTL_MS = 5 * 60 * 1000;
 const liveDslCache = new Map();
+const liveDslCacheTimes = new Map();
+const liveLayoutsCache = new Map();
+const liveLayoutRequests = new Map();
 
 const PAGE_PATH_PREFIXES = new Set([
   "page",
@@ -42,6 +47,28 @@ const normalizeName = (value) => {
 
 const getLiveDslCacheKey = (appId, pageName) =>
   `${appId}:${normalizeName(pageName || "home")}`;
+
+const getLiveLayoutsCacheKey = (appId) => String(appId || "default");
+
+const getCachedEntry = (cache, key, maxAgeMs) => {
+  const entry = cache.get(key);
+  if (!entry) return null;
+  const age = Date.now() - (entry.fetchedAt || 0);
+  if (age > maxAgeMs) return null;
+  return { ...entry, age };
+};
+
+const getFreshPageCache = (cacheKey) =>
+  getCachedEntry(liveDslCache, cacheKey, DSL_CACHE_TTL_MS);
+
+const getStalePageCache = (cacheKey) =>
+  getCachedEntry(liveDslCache, cacheKey, DSL_STALE_TTL_MS);
+
+const getFreshLayoutsCache = (appId) =>
+  getCachedEntry(liveLayoutsCache, getLiveLayoutsCacheKey(appId), DSL_CACHE_TTL_MS);
+
+const getStaleLayoutsCache = (appId) =>
+  getCachedEntry(liveLayoutsCache, getLiveLayoutsCacheKey(appId), DSL_STALE_TTL_MS);
 
 const withTimeout = (promise, timeoutMs, label) =>
   new Promise((resolve, reject) => {
@@ -472,7 +499,34 @@ const selectBestDslFromLayouts = (layouts, pageName) => {
   return best?.selection || null;
 };
 
-export async function fetchLiveDSL(appId, pageName) {
+const buildLiveDslPayloadFromLayouts = (layouts, appIdInt, pageName, fetchedAt = Date.now()) => {
+  if (!Array.isArray(layouts) || layouts.length === 0) {
+    console.log("No layout data found");
+    return null;
+  }
+
+  const selection = selectBestDslFromLayouts(layouts, pageName);
+  if (!selection?.dsl) {
+    console.log(`No matching DSL page found for "${pageName || "home"}"`);
+    return null;
+  }
+
+  setBrandKitAssetsFromDsl(selection.fullDsl, appIdInt);
+  const finalDsl = injectDefaultSectionsIfNeeded(selection.dsl, pageName);
+  const versionNumber = selection.versionNumber;
+  setTypography(finalDsl);
+
+  const payload = { dsl: finalDsl, versionNumber };
+  const cacheKey = getLiveDslCacheKey(appIdInt, pageName);
+  liveDslCache.set(cacheKey, payload);
+  liveDslCacheTimes.set(cacheKey, fetchedAt);
+  return payload;
+};
+
+const isFresh = (fetchedAt, maxAgeMs) =>
+  Boolean(fetchedAt && Date.now() - fetchedAt < maxAgeMs);
+
+export async function fetchLiveDSL(appId, pageName, options = {}) {
   let cacheKey = "";
   try {
     console.log("🔄 Fetching LIVE data from API...");
@@ -481,20 +535,65 @@ export async function fetchLiveDSL(appId, pageName) {
     // Ensure appId is an integer for GraphQL query
     const appIdInt = Number.isInteger(resolvedAppId) ? resolvedAppId : Math.floor(Number(resolvedAppId));
     cacheKey = getLiveDslCacheKey(appIdInt, pageName);
+    const layoutsCacheKey = getLiveLayoutsCacheKey(appIdInt);
+    const forceRefresh = Boolean(options?.forceRefresh);
+
+    if (!forceRefresh) {
+      const cachedPage = liveDslCache.get(cacheKey);
+      if (cachedPage?.dsl && isFresh(liveDslCacheTimes.get(cacheKey), DSL_CACHE_TTL_MS)) {
+        return cachedPage;
+      }
+
+      const cachedLayouts = liveLayoutsCache.get(layoutsCacheKey);
+      if (cachedLayouts?.layouts && isFresh(cachedLayouts.fetchedAt, DSL_CACHE_TTL_MS)) {
+        return buildLiveDslPayloadFromLayouts(
+          cachedLayouts.layouts,
+          appIdInt,
+          pageName,
+          cachedLayouts.fetchedAt
+        );
+      }
+
+      if (cachedPage?.dsl && isFresh(liveDslCacheTimes.get(cacheKey), DSL_STALE_TTL_MS)) {
+        if (!liveLayoutRequests.has(layoutsCacheKey)) {
+          fetchLiveDSL(appId, pageName, { forceRefresh: true }).catch(() => {});
+        }
+        return cachedPage;
+      }
+
+      if (liveLayoutRequests.has(layoutsCacheKey)) {
+        const pendingResult = await liveLayoutRequests.get(layoutsCacheKey);
+        const pendingLayouts = pendingResult?.data?.layouts || pendingResult;
+        const pendingFetchedAt = Date.now();
+        if (Array.isArray(pendingLayouts)) {
+          liveLayoutsCache.set(layoutsCacheKey, {
+            layouts: pendingLayouts,
+            fetchedAt: pendingFetchedAt,
+          });
+        }
+        return buildLiveDslPayloadFromLayouts(pendingLayouts, appIdInt, pageName, pendingFetchedAt);
+      }
+    }
     console.log(`🔍 Querying layouts with appId: ${appIdInt} (type: ${typeof appIdInt})`);
 
-    const res = await withTimeout(
+    const layoutRequest = withTimeout(
       client.query({
         query: LAYOUT_VERSION_QUERY,
         variables: { appId: appIdInt },
-        fetchPolicy: "no-cache",
+        fetchPolicy: "network-only",
       }),
       DSL_QUERY_TIMEOUT_MS,
       "DSL query"
-    );
+    ).finally(() => {
+      liveLayoutRequests.delete(layoutsCacheKey);
+    });
+    liveLayoutRequests.set(layoutsCacheKey, layoutRequest);
+
+    const res = await layoutRequest;
 
     // Get the layout objects
     const layouts = res?.data?.layouts;
+    const fetchedAt = Date.now();
     if (!Array.isArray(layouts) || layouts.length === 0) {
       console.log("❌ No layout data found");
       return null;
@@ -507,6 +606,7 @@ export async function fetchLiveDSL(appId, pageName) {
       console.log(`❌ No matching DSL page found for "${pageName || "home"}"`);
       return null;
     }
+    liveLayoutsCache.set(layoutsCacheKey, { layouts, fetchedAt });
 
     console.log(`🗂️ Layout selected: "${selection.layout?.page_name}" for page "${pageName || "home"}"`);
     setBrandKitAssetsFromDsl(selection.fullDsl, appIdInt);
@@ -540,6 +640,7 @@ export async function fetchLiveDSL(appId, pageName) {
 
     const payload = { dsl: finalDsl, versionNumber };
     liveDslCache.set(cacheKey, payload);
+    liveDslCacheTimes.set(cacheKey, fetchedAt);
     return payload;
   } catch (error) {
     console.log("❌ LIVE DATA ERROR:", error);
@@ -557,14 +658,14 @@ export async function fetchLiveDSL(appId, pageName) {
  * - Uses a local auth layout fallback for the signin page.
  * - Otherwise attempts to fetch live DSL and returns it (or null on failure).
  */
-export async function fetchDSL(appId, pageName) {
+export async function fetchDSL(appId, pageName, options = {}) {
   console.log("📊 fetchDSL called");
   const normalizedPageName = normalizeName(pageName);
   if (normalizedPageName === "signin-create-account") {
     console.log("📄 Using local auth layout fallback");
     return { dsl: authLayoutFallback, versionNumber: null };
   }
-  const live = await fetchLiveDSL(appId, pageName);
+  const live = await fetchLiveDSL(appId, pageName, options);
   if (!live) {
     console.log("❌ Live data fetch failed. No dummy fallback available.");
   }

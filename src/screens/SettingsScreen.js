@@ -33,7 +33,7 @@ const getComponentName = (section) =>
   section?.properties?.component ||
   "";
 
-const LIVE_DSL_REFRESH_INTERVAL_MS = 3000;
+const LIVE_DSL_REFRESH_INTERVAL_MS = 30000;
 
 const getDslFingerprint = (incomingDsl) => {
   try {
