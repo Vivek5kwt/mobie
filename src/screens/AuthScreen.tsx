@@ -229,6 +229,7 @@ type ForgotPasswordTokens = {
   titleColor: string;
   cardBgColor: string;
   cardBorderColor: string;
+  cardBorderWidth: number;
   cardBorderRadius: number;
   cardPaddingTop: number;
   cardPaddingBottom: number;
@@ -236,7 +237,17 @@ type ForgotPasswordTokens = {
   cardPaddingRight: number;
   buttonTextColor: string;
   buttonBorderColor: string;
+  buttonBorderWidth: number;
   buttonFillColor: string;
+  buttonRadius: number;
+  buttonPaddingTop: number;
+  buttonPaddingBottom: number;
+  buttonPaddingLeft: number;
+  buttonPaddingRight: number;
+  buttonMarginTop: number;
+  buttonFontSize: number;
+  buttonFontFamily: string;
+  buttonFontWeight: string;
   headlineText: string;
   headlineFontSize: number;
   headlineFontFamily: string;
@@ -245,6 +256,11 @@ type ForgotPasswordTokens = {
   headlineTextDecoration: 'none' | 'underline' | 'line-through' | 'underline line-through';
   headlineTextTransform: 'none' | 'uppercase';
   resetPasswordTitle: string;
+  resetPasswordTitleColor: string;
+  resetPasswordTitleFontSize: number;
+  resetPasswordTitleFontFamily: string;
+  resetPasswordTitleFontWeight: string;
+  resetPasswordTitleMarginTop: number;
   resetPasswordButtonText: string;
 };
 
@@ -405,6 +421,25 @@ const withAuthViewport = (section: Record<string, unknown>, viewportHeight: numb
   ...section,
   __authVerticalViewport: viewportHeight,
 });
+
+const isForgotPasswordEnabled = (rawProps: Record<string, unknown>): boolean => {
+  const visibility = rawProps?.visibility as Record<string, unknown> | undefined;
+  return toBoolean(
+    firstDefined(
+      rawProps?.visible,
+      rawProps?.isVisible,
+      rawProps?.enabled,
+      rawProps?.show,
+      rawProps?.showComponent,
+      rawProps?.forgotPasswordVisible,
+      rawProps?.resetPasswordVisible,
+      visibility?.component,
+      visibility?.forgotPassword,
+      visibility?.resetPassword
+    ),
+    true
+  );
+};
 
 const normalizeSectionName = (value: unknown): string =>
   String(value || '').trim().toLowerCase().replace(/[\s-]+/g, '_');
@@ -567,6 +602,7 @@ const defaultForgotPasswordTokens: ForgotPasswordTokens = {
   titleColor: '#0C9297',
   cardBgColor: '#FFFFFF',
   cardBorderColor: '#D1E7E7',
+  cardBorderWidth: 1,
   cardBorderRadius: 16,
   cardPaddingTop: 20,
   cardPaddingBottom: 20,
@@ -574,7 +610,17 @@ const defaultForgotPasswordTokens: ForgotPasswordTokens = {
   cardPaddingRight: 20,
   buttonTextColor: '#0C9297',
   buttonBorderColor: '#0c9297',
+  buttonBorderWidth: 1,
   buttonFillColor: '#E6F6F6',
+  buttonRadius: 10,
+  buttonPaddingTop: 12,
+  buttonPaddingBottom: 12,
+  buttonPaddingLeft: 14,
+  buttonPaddingRight: 14,
+  buttonMarginTop: 14,
+  buttonFontSize: 14,
+  buttonFontFamily: 'System',
+  buttonFontWeight: '700',
   headlineText: 'Forgot Password?',
   headlineFontSize: 18,
   headlineFontFamily: 'System',
@@ -583,6 +629,11 @@ const defaultForgotPasswordTokens: ForgotPasswordTokens = {
   headlineTextDecoration: 'none',
   headlineTextTransform: 'none',
   resetPasswordTitle: 'Reset Password Link',
+  resetPasswordTitleColor: '#0C9297',
+  resetPasswordTitleFontSize: 13,
+  resetPasswordTitleFontFamily: 'System',
+  resetPasswordTitleFontWeight: '400',
+  resetPasswordTitleMarginTop: 4,
   resetPasswordButtonText: 'Forgot Password?',
 };
 
@@ -855,6 +906,7 @@ const buildForgotPasswordTokens = (rawProps: Record<string, unknown>): ForgotPas
     defaultForgotPasswordTokens.titleColor,
   cardBgColor: (rawProps?.cardBgColor as string) ?? defaultForgotPasswordTokens.cardBgColor,
   cardBorderColor: (rawProps?.cardBorderColor as string) ?? defaultForgotPasswordTokens.cardBorderColor,
+  cardBorderWidth: resolveBorderWidth(rawProps?.borderLine, rawProps?.cardBorderColor ?? rawProps?.borderColor, defaultForgotPasswordTokens.cardBorderWidth),
   cardBorderRadius: toNumber(rawProps?.borderRadius, defaultForgotPasswordTokens.cardBorderRadius),
   cardPaddingTop: toNumber(rawProps?.pt ?? rawProps?.paddingTop, defaultForgotPasswordTokens.cardPaddingTop),
   cardPaddingBottom: toNumber(rawProps?.pb ?? rawProps?.paddingBottom, defaultForgotPasswordTokens.cardPaddingBottom),
@@ -862,7 +914,17 @@ const buildForgotPasswordTokens = (rawProps: Record<string, unknown>): ForgotPas
   cardPaddingRight: toNumber(rawProps?.pr ?? rawProps?.paddingRight, defaultForgotPasswordTokens.cardPaddingRight),
   buttonTextColor: (rawProps?.buttonTextColor as string) ?? defaultForgotPasswordTokens.buttonTextColor,
   buttonBorderColor: (rawProps?.buttonBorderColor as string) ?? defaultForgotPasswordTokens.buttonBorderColor,
+  buttonBorderWidth: resolveBorderWidth(rawProps?.buttonBorderLine, rawProps?.buttonBorderColor, defaultForgotPasswordTokens.buttonBorderWidth),
   buttonFillColor: resolveButtonColor(rawProps?.buttonBgColor, defaultForgotPasswordTokens.buttonFillColor),
+  buttonRadius: toNumber(rawProps?.buttonRadius ?? rawProps?.buttonBorderRadius, defaultForgotPasswordTokens.buttonRadius),
+  buttonPaddingTop: toNumber(rawProps?.buttonPaddingTop ?? rawProps?.buttonPt, defaultForgotPasswordTokens.buttonPaddingTop),
+  buttonPaddingBottom: toNumber(rawProps?.buttonPaddingBottom ?? rawProps?.buttonPb, defaultForgotPasswordTokens.buttonPaddingBottom),
+  buttonPaddingLeft: toNumber(rawProps?.buttonPaddingLeft ?? rawProps?.buttonPl, defaultForgotPasswordTokens.buttonPaddingLeft),
+  buttonPaddingRight: toNumber(rawProps?.buttonPaddingRight ?? rawProps?.buttonPr, defaultForgotPasswordTokens.buttonPaddingRight),
+  buttonMarginTop: toNumber(rawProps?.buttonMarginTop ?? rawProps?.buttonMt, defaultForgotPasswordTokens.buttonMarginTop),
+  buttonFontSize: toNumber(rawProps?.buttonFontSize ?? rawProps?.buttonfontSize ?? rawProps?.fontSize, defaultForgotPasswordTokens.buttonFontSize),
+  buttonFontFamily: toFontFamily(rawProps?.buttonFontFamily ?? rawProps?.buttonfontFamily ?? rawProps?.fontFamily, defaultForgotPasswordTokens.buttonFontFamily),
+  buttonFontWeight: toFontWeight(rawProps?.buttonFontWeight ?? rawProps?.buttonfontWeight, defaultForgotPasswordTokens.buttonFontWeight),
   headlineText: (rawProps?.headlineText as string) ?? defaultForgotPasswordTokens.headlineText,
   headlineFontSize: toNumber(rawProps?.headlineFontSize, defaultForgotPasswordTokens.headlineFontSize),
   headlineFontFamily: toFontFamily(rawProps?.headlineFontFamily ?? rawProps?.fontFamily, defaultForgotPasswordTokens.headlineFontFamily),
@@ -871,6 +933,11 @@ const buildForgotPasswordTokens = (rawProps: Record<string, unknown>): ForgotPas
   headlineTextDecoration: toTextDecoration(rawProps?.headlineUnderline as boolean | undefined, rawProps?.headlineStrikethrough as boolean | undefined),
   headlineTextTransform: (rawProps?.headlineAutoUppercase as boolean | undefined) ? 'uppercase' : 'none',
   resetPasswordTitle: (rawProps?.resetPasswordTitle as string) ?? defaultForgotPasswordTokens.resetPasswordTitle,
+  resetPasswordTitleColor: (rawProps?.resetPasswordTitleColor as string) ?? (rawProps?.titleColor as string) ?? defaultForgotPasswordTokens.resetPasswordTitleColor,
+  resetPasswordTitleFontSize: toNumber(rawProps?.resetPasswordTitleFontSize ?? rawProps?.subtextSize ?? rawProps?.fontSize, defaultForgotPasswordTokens.resetPasswordTitleFontSize),
+  resetPasswordTitleFontFamily: toFontFamily(rawProps?.resetPasswordTitleFontFamily ?? rawProps?.subtextFontFamily ?? rawProps?.fontFamily, defaultForgotPasswordTokens.resetPasswordTitleFontFamily),
+  resetPasswordTitleFontWeight: toFontWeight(rawProps?.resetPasswordTitleFontWeight ?? rawProps?.subtextWeight, defaultForgotPasswordTokens.resetPasswordTitleFontWeight),
+  resetPasswordTitleMarginTop: toNumber(rawProps?.resetPasswordTitleMarginTop ?? rawProps?.resetPasswordTitleMt, defaultForgotPasswordTokens.resetPasswordTitleMarginTop),
   resetPasswordButtonText: (rawProps?.resetPasswordButtonText as string) ?? defaultForgotPasswordTokens.resetPasswordButtonText,
 });
 
@@ -1391,10 +1458,15 @@ const AuthScreen = () => {
       if (signInSections) {
         const signInSection = signInSections.find(isSignInSection);
         const forgotSection = signInSections.find(isForgotPasswordSection);
+        const signInRawProps = signInSection ? getSectionRawProps(signInSection) : {};
+        const forgotRawProps = forgotSection ? getSectionRawProps(forgotSection) : {};
+        const nextSignInTokens = signInSection ? buildSignInTokens(signInRawProps) : defaultSignInTokens;
+        const hasEnabledForgotPasswordSection =
+          Boolean(forgotSection) && hasLiveSignInPage && isForgotPasswordEnabled(forgotRawProps);
         setSignInDslSections(signInSections as Record<string, unknown>[]);
-        setHasForgotPasswordSection(Boolean(forgotSection));
-        setSignInTokens(signInSection ? buildSignInTokens(getSectionRawProps(signInSection)) : defaultSignInTokens);
-        setForgotPasswordTokens(forgotSection ? buildForgotPasswordTokens(getSectionRawProps(forgotSection)) : defaultForgotPasswordTokens);
+        setHasForgotPasswordSection(hasEnabledForgotPasswordSection || nextSignInTokens.forgotPasswordVisible);
+        setSignInTokens(nextSignInTokens);
+        setForgotPasswordTokens(forgotSection ? buildForgotPasswordTokens(forgotRawProps) : defaultForgotPasswordTokens);
         setSignInHeaderConfig(hasLiveSignInPage ? ((signInDsl?.dsl?.headerdefault as Record<string, unknown> | undefined) ?? null) : null);
         if (hasLiveSignInPage) hasLiveSignInLayoutRef.current = true;
       }
@@ -1587,6 +1659,10 @@ const AuthScreen = () => {
   const footerMarginTop = resolveAuthVerticalSpace(t.footerMarginTop, viewportHeight, 0.04);
   const footerLinkMarginTop = resolveAuthVerticalSpace(t.footerLinkMarginTop, viewportHeight, 0.02);
   const formCardMarginBottom = resolveAuthVerticalSpace(t.formCardMarginBottom, viewportHeight, 0.04);
+  const forgotCardPadTop = resolveAuthVerticalSpace(forgotPasswordTokens.cardPaddingTop, viewportHeight, 0.055);
+  const forgotCardPadBottom = resolveAuthVerticalSpace(forgotPasswordTokens.cardPaddingBottom, viewportHeight, 0.055);
+  const forgotButtonMarginTop = resolveAuthVerticalSpace(forgotPasswordTokens.buttonMarginTop, viewportHeight, 0.03);
+  const forgotTitleMarginTop = resolveAuthVerticalSpace(forgotPasswordTokens.resetPasswordTitleMarginTop, viewportHeight, 0.02);
   const hasDynamicDecor = hasDynamicSignInLayout || hasDynamicSignUpLayout;
   const signUpProfilePictureUrl = String(signUpTokens.profilePictureUrl || '').trim();
   const shouldRenderSignUpProfilePicture =
@@ -1949,17 +2025,19 @@ const AuthScreen = () => {
           </View>
 
           {/* ── Forgot password card (login only) ─────────────────────── */}
-          {mode === 'login' && hasForgotPasswordSection && signInTokens.forgotPasswordVisible ? (
+          {mode === 'login' && hasForgotPasswordSection ? (
             <View
               style={{
                 marginLeft: pagePadLeft,
                 marginRight: pagePadRight,
                 backgroundColor: forgotPasswordTokens.cardBgColor,
                 borderRadius: forgotPasswordTokens.cardBorderRadius,
-                borderWidth: 1,
+                borderWidth: forgotPasswordTokens.cardBorderWidth,
                 borderColor: forgotPasswordTokens.cardBorderColor,
-                paddingHorizontal: 16,
-                paddingVertical: 16,
+                paddingTop: forgotCardPadTop,
+                paddingBottom: forgotCardPadBottom,
+                paddingLeft: forgotPasswordTokens.cardPaddingLeft,
+                paddingRight: forgotPasswordTokens.cardPaddingRight,
               }}
             >
               <Text
@@ -1975,23 +2053,42 @@ const AuthScreen = () => {
               >
                 {forgotPasswordTokens.headlineText}
               </Text>
-              <Text style={{ color: forgotPasswordTokens.titleColor, marginTop: 4, fontSize: 13, opacity: 0.8 }}>
+              <Text
+                style={{
+                  color: forgotPasswordTokens.resetPasswordTitleColor,
+                  marginTop: forgotTitleMarginTop,
+                  fontSize: forgotPasswordTokens.resetPasswordTitleFontSize,
+                  fontWeight: forgotPasswordTokens.resetPasswordTitleFontWeight as any,
+                  fontFamily: forgotPasswordTokens.resetPasswordTitleFontFamily !== 'System' ? forgotPasswordTokens.resetPasswordTitleFontFamily : undefined,
+                  opacity: 0.8,
+                }}
+              >
                 {forgotPasswordTokens.resetPasswordTitle}
               </Text>
               <TouchableOpacity
                 onPress={handleForgotPassword}
                 accessibilityRole="button"
                 style={{
-                  marginTop: 14,
-                  paddingVertical: 12,
-                  borderRadius: 10,
+                  marginTop: forgotButtonMarginTop,
+                  paddingTop: forgotPasswordTokens.buttonPaddingTop,
+                  paddingBottom: forgotPasswordTokens.buttonPaddingBottom,
+                  paddingLeft: forgotPasswordTokens.buttonPaddingLeft,
+                  paddingRight: forgotPasswordTokens.buttonPaddingRight,
+                  borderRadius: forgotPasswordTokens.buttonRadius,
                   alignItems: 'center',
                   backgroundColor: forgotPasswordTokens.buttonFillColor,
-                  borderWidth: 1,
+                  borderWidth: forgotPasswordTokens.buttonBorderWidth,
                   borderColor: forgotPasswordTokens.buttonBorderColor,
                 }}
               >
-                <Text style={{ color: forgotPasswordTokens.buttonTextColor, fontWeight: '700', fontSize: 14 }}>
+                <Text
+                  style={{
+                    color: forgotPasswordTokens.buttonTextColor,
+                    fontWeight: forgotPasswordTokens.buttonFontWeight as any,
+                    fontSize: forgotPasswordTokens.buttonFontSize,
+                    fontFamily: forgotPasswordTokens.buttonFontFamily !== 'System' ? forgotPasswordTokens.buttonFontFamily : undefined,
+                  }}
+                >
                   {forgotPasswordTokens.resetPasswordButtonText}
                 </Text>
               </TouchableOpacity>
