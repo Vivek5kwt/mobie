@@ -904,7 +904,7 @@ export default function BottomNavScreen() {
             ]}
           >
           {/* Single standalone header for pages opened without the bottom nav. */}
-          {hideBottomNav && !loading && !isHeaderDefaultEnabled && (
+          {hideBottomNav && !loading && !isHeaderDefaultEnabled && !isNotificationPage && (
             <View style={styles.standaloneHeader}>
               <TouchableOpacity
                 onPress={handleStandaloneBack}
@@ -927,38 +927,8 @@ export default function BottomNavScreen() {
             <Text style={styles.error}>Error loading: {err}</Text>
             <Text style={styles.linkText}>Pull to refresh or reopen the page.</Text>
           </View>
-        ) : isNotificationPage ? (
-          /* ── Notification tab: shows real notification records from backend ── */
-          <View style={{ flex: 1 }}>
-            {/* Dynamic page header from DSL headerdefault. */}
-            {isHeaderDefaultEnabled && (
-              <HeaderDefault
-                config={headerDefaultConfig}
-                bottomNavSection={resolvedBottomNavSection}
-                fallbackTitle={headerTitleFallback}
-                disableDefaultTitlePress
-                showBack={hideBottomNav}
-              />
-            )}
-
-            <ScrollView
-              style={styles.scrollView}
-              contentContainerStyle={styles.notificationScrollContent}
-              showsVerticalScrollIndicator={false}
-              refreshControl={
-                <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
-              }
-            >
-              <NotificationList
-                section={notificationInboxSection}
-                notifications={notifications}
-                loading={notificationsLoading}
-                bottomPad={resolvedBottomNavSection && !hideBottomNav ? bottomNavHeight : 0}
-              />
-            </ScrollView>
-          </View>
         ) : (
-          /* ── All other tabs: DSL-driven content ────────────────────────────── */
+          /* DSL-driven page content */
           <View style={{ flex: 1 }}>
 
           <ScrollView
@@ -979,7 +949,9 @@ export default function BottomNavScreen() {
               <HeaderDefault
                 config={headerDefaultConfig}
                 bottomNavSection={resolvedBottomNavSection}
-                hideTabs={isProfilePage || isNotificationPage || isSearchPage || isCartPage}
+                hideTabs={isProfilePage || isSearchPage || isCartPage}
+                fallbackTitle={isNotificationPage ? headerTitleFallback : ""}
+                disableDefaultTitlePress={isNotificationPage}
                 showBack={hideBottomNav}
               />
             )}
@@ -992,6 +964,11 @@ export default function BottomNavScreen() {
                 const isProductSection = [
                   "product_grid", "product_carousel",
                   "tab_product_grid", "tab_product_carousel",
+                ].includes(compName);
+                const isNotificationSection = [
+                  "notification_inbox",
+                  "notification_list",
+                  "notifications",
                 ].includes(compName);
                 const isAccountDslPage = isProfilePage && [
                   "account_profile",
@@ -1039,10 +1016,24 @@ export default function BottomNavScreen() {
                       isHomePage && { marginBottom: homeSectionMarginBottom },
                     ]}
                   >
-                    <DynamicRenderer section={section} />
+                    {isNotificationSection ? (
+                      <NotificationList
+                        section={section}
+                        notifications={notifications}
+                        loading={notificationsLoading}
+                      />
+                    ) : (
+                      <DynamicRenderer section={section} />
+                    )}
                   </View>
                 );
               })
+            ) : isNotificationPage ? (
+              <NotificationList
+                section={notificationInboxSection}
+                notifications={notifications}
+                loading={notificationsLoading}
+              />
             ) : isProfilePage && !loading ? (
               session ? (
                 <FallbackProfile session={session} logout={logout} navigation={navigation} />
@@ -1140,10 +1131,6 @@ const styles = StyleSheet.create({
     alignSelf: "stretch",
     paddingHorizontal: 0,
     paddingBottom: 24,
-    backgroundColor: "#FFFFFF",
-  },
-  notificationScrollContent: {
-    flexGrow: 1,
     backgroundColor: "#FFFFFF",
   },
   cartScrollContent: {
