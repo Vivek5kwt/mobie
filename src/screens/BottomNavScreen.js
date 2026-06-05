@@ -521,6 +521,11 @@ export default function BottomNavScreen() {
     return v === true || v === "true" || v === 1;
   }, [headerDefaultConfig]);
 
+  const headerTitleFallback = useMemo(
+    () => pageTitleFromDsl || title || pageName || "",
+    [pageName, pageTitleFromDsl, title]
+  );
+
   const bottomNavItems = useMemo(() => {
     const section = resolvedBottomNavSection;
     const rawProps = section?.props || section?.properties?.props?.properties || section?.properties?.props || {};
@@ -930,7 +935,8 @@ export default function BottomNavScreen() {
               <HeaderDefault
                 config={headerDefaultConfig}
                 bottomNavSection={resolvedBottomNavSection}
-                hideTabs
+                fallbackTitle={headerTitleFallback}
+                disableDefaultTitlePress
                 showBack={hideBottomNav}
               />
             )}

@@ -76,14 +76,15 @@ const isDefaultHeaderTitle = (value) => {
   return normalized === "mobidrag";
 };
 
-const resolveHeaderTitleText = (config = {}) => {
+const resolveHeaderTitleText = (config = {}, fallbackTitle = "") => {
   const candidates = [config.title, config.headerText, config.text];
   for (const candidate of candidates) {
     const text = String(resolveVal(candidate) || "").trim();
     if (!text || isDefaultHeaderTitle(text)) continue;
     return text;
   }
-  return "";
+  const fallback = String(resolveVal(fallbackTitle) || "").trim();
+  return fallback && !isDefaultHeaderTitle(fallback) ? fallback : "";
 };
 
 const isBackNavigationTarget = (navRef, navType) => {
@@ -129,7 +130,14 @@ const estimateHeaderSlotWidth = (items = []) => {
   return count * HEADER_TOUCH_SIZE + Math.max(0, count - 1) * HEADER_ITEM_GAP;
 };
 
-export default function HeaderDefault({ config, bottomNavSection, hideTabs = false, showBack = false }) {
+export default function HeaderDefault({
+  config,
+  bottomNavSection,
+  hideTabs = false,
+  showBack = false,
+  fallbackTitle = "",
+  disableDefaultTitlePress = false,
+}) {
   const navigation = useNavigation();
   const { openSideMenu, toggleSideMenu } = useSideMenu();
   const { session, initializing } = useAuth();
@@ -162,7 +170,7 @@ export default function HeaderDefault({ config, bottomNavSection, hideTabs = fal
   const bgColor   = resolveVal(config.backgroundColor) || resolveVal(config.bgColor) || "#e6d7cd";
   const textColor = resolveVal(config.textColor)       || "#111111";
   const iconColor = resolveVal(config.iconColor)       || "#000000";
-  const titleText = resolveHeaderTitleText(config);
+  const titleText = resolveHeaderTitleText(config, fallbackTitle);
 
   // ── Bottom divider ───────────────────────────────────────────────────────
   const _dividerRaw = resolveVal(
@@ -574,7 +582,8 @@ export default function HeaderDefault({ config, bottomNavSection, hideTabs = fal
           <View style={{ position: "absolute", left: 0, right: 0, top: 0, bottom: 0, alignItems: "center", justifyContent: "center" }} pointerEvents="box-none">
             <View style={{ alignItems: "center", justifyContent: "center", paddingHorizontal: balancedSideWidth + HEADER_HORIZONTAL_PADDING, maxWidth: "100%" }}>
               <TouchableOpacity
-                activeOpacity={0.75}
+                activeOpacity={disableDefaultTitlePress ? 1 : 0.75}
+                disabled={disableDefaultTitlePress}
                 onPress={() => navigation.navigate("LayoutScreen")}
               >
                 <View
