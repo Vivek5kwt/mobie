@@ -24,6 +24,7 @@ const REQUEST_CACHE_TTL_MS = 30000;
 const PASSWORD_RECOVERY_UNAVAILABLE_MESSAGE = "Password reset is temporarily unavailable. Please try again later.";
 const _requestCache = new Map();
 const _inflightRequests = new Map();
+const _runtimeStorefrontTokenCache = new Map();
 
 const buildCacheKey = (scope, payload = {}) => `${scope}:${JSON.stringify(payload)}`;
 
@@ -196,8 +197,9 @@ export const QUERY_TRENDING_SEARCH_TERMS = `
 // Routes through the backend proxy so the server supplies valid Shopify
 // credentials. Falls back to a direct Storefront API call if the proxy
 // is unreachable (offline / dev environment).
-export async function directStorefrontGraphQL({ shop, token, storeId, query, variables }) {
+export async function directStorefrontGraphQL({ shop, token, storeId, query, variables, adminToken, accessToken }) {
   const resolvedStoreId = storeId || FALLBACK_STORE_ID;
+  const resolvedAdminToken = adminToken || accessToken || "";
 
   // ── 1. Try backend proxy (preferred) ──────────────────────────────────────
   try {
@@ -205,7 +207,16 @@ export async function directStorefrontGraphQL({ shop, token, storeId, query, var
     const proxyRes = await fetch(PROXY_ENDPOINT, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ storeId: resolvedStoreId, shop, query, variables }),
+      body: JSON.stringify({
+        storeId: resolvedStoreId,
+        shop,
+        query,
+        variables,
+        token,
+        storefrontAccessToken: token,
+        accessToken: resolvedAdminToken,
+        adminAccessToken: resolvedAdminToken,
+      }),
     });
 
     if (proxyRes.ok) {
@@ -1725,6 +1736,91 @@ async function shopifyAdminGraphQL({ query, variables = {} }) {
   return json;
 }
 
+const getStorefrontTokenFromPayload = (payload = {}) => {
+  const direct =
+    payload?.access_token ||
+    payload?.accessToken ||
+    payload?.token ||
+    payload?.storefront_access_token ||
+    payload?.storefrontAccessToken;
+  if (direct) return compact(direct);
+
+  const nested =
+    payload?.storefront_access_token?.access_token ||
+    payload?.storefront_access_token?.accessToken ||
+    payload?.storefrontAccessToken?.accessToken ||
+    payload?.storefrontAccessToken?.access_token;
+  if (nested) return compact(nested);
+
+  const list = payload?.storefront_access_tokens || payload?.storefrontAccessTokens || [];
+  if (Array.isArray(list)) {
+    const item = list.find((entry) =>
+      compact(entry?.access_token || entry?.accessToken || entry?.token)
+    );
+    return item ? compact(item.access_token || item.accessToken || item.token) : "";
+  }
+
+  return "";
+};
+
+const resolveRuntimeStorefrontToken = async ({ options = {}, storeConfig = null, shop, storeId } = {}) => {
+  const explicitToken = compact(
+    options.token ||
+    options.storefrontAccessToken ||
+    storeConfig?.storefront_access_token ||
+    storeConfig?.storefrontAccessToken
+  );
+  if (explicitToken) {
+    return { token: explicitToken, source: "configured" };
+  }
+
+  const cacheKey = `${storeId || ""}:${shop || ""}`;
+  const cachedToken = _runtimeStorefrontTokenCache.get(cacheKey);
+  if (cachedToken) {
+    return { token: cachedToken, source: "runtime-cache" };
+  }
+
+  try {
+    const existing = await shopifyAdminRequest({ path: "/storefront_access_tokens.json" });
+    const existingToken = getStorefrontTokenFromPayload(existing);
+    if (existingToken) {
+      _runtimeStorefrontTokenCache.set(cacheKey, existingToken);
+      return { token: existingToken, source: "admin-list" };
+    }
+  } catch (error) {
+    console.warn("Unable to list Shopify Storefront access tokens", {
+      shop,
+      storeId,
+      error: error?.message || String(error),
+    });
+  }
+
+  try {
+    const created = await shopifyAdminRequest({
+      path: "/storefront_access_tokens.json",
+      method: "POST",
+      body: {
+        storefront_access_token: {
+          title: "MobiDrag Mobile App",
+        },
+      },
+    });
+    const createdToken = getStorefrontTokenFromPayload(created);
+    if (createdToken) {
+      _runtimeStorefrontTokenCache.set(cacheKey, createdToken);
+      return { token: createdToken, source: "admin-create" };
+    }
+  } catch (error) {
+    console.warn("Unable to create Shopify Storefront access token", {
+      shop,
+      storeId,
+      error: error?.message || String(error),
+    });
+  }
+
+  return { token: "", source: "missing" };
+};
+
 const normalizeCancelReason = (reason) => {
   const value = compact(reason).toLowerCase();
   return ["customer", "inventory", "fraud", "declined", "other"].includes(value)
@@ -2183,9 +2279,14 @@ export async function recoverShopifyCustomerPassword({ email, options = {} } = {
   const storeConfig = await fetchStoreConfig();
   const creds = await getShopifyCredentials();
   const shop = options.shop || creds.shop;
-  const hasConfiguredStorefrontToken = Boolean(options.token || storeConfig?.storefront_access_token);
-  const token = options.token || (hasConfiguredStorefrontToken ? creds.token : "");
   const storeId = options.storeId || creds.storeId;
+  const storefrontToken = await resolveRuntimeStorefrontToken({
+    options,
+    storeConfig,
+    shop,
+    storeId,
+  });
+  const token = storefrontToken.token;
 
   const mutation = `
     mutation CustomerRecover($email: String!) {
@@ -2207,13 +2308,15 @@ export async function recoverShopifyCustomerPassword({ email, options = {} } = {
       storeId,
       query: mutation,
       variables: { email: normalizedEmail },
+      adminToken: storeConfig?.access_token || storeConfig?.admin_access_token || "",
     });
   } catch (error) {
     if (isStorefrontAuthFailure(error)) {
       console.warn("Password recovery Storefront auth/config failure", {
         shop,
         storeId,
-        hasConfiguredStorefrontToken,
+        tokenSource: storefrontToken.source,
+        hasRuntimeStorefrontToken: Boolean(token),
         error: error?.message || String(error),
       });
       throw new Error(PASSWORD_RECOVERY_UNAVAILABLE_MESSAGE);
