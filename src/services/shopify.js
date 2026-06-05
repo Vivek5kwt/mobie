@@ -21,6 +21,7 @@ const FALLBACK_TOKEN   = "f19ea13e90fdadc0723f8a060f1d754b";
 const FALLBACK_STORE_ID = 40;
 const DEFAULT_CHECKOUT_COUNTRY_CODE = "US";
 const REQUEST_CACHE_TTL_MS = 30000;
+const PASSWORD_RECOVERY_UNAVAILABLE_MESSAGE = "Password reset is temporarily unavailable. Please try again later.";
 const _requestCache = new Map();
 const _inflightRequests = new Map();
 
@@ -38,6 +39,19 @@ const getCached = (key) => {
 
 const setCached = (key, value) => {
   _requestCache.set(key, { at: Date.now(), value });
+};
+
+const isStorefrontAuthFailure = (error) => {
+  const message = String(error?.message || error || "").toLowerCase();
+  return (
+    message.includes("storefront http error 401") ||
+    message.includes("storefront http error 403") ||
+    message.includes("unauthorized") ||
+    message.includes("forbidden") ||
+    message.includes("access denied") ||
+    message.includes("invalid token") ||
+    message.includes("no storefront token")
+  );
 };
 
 const withRequestCache = async (key, producer, { cacheEmpty = false } = {}) => {
@@ -2166,9 +2180,11 @@ export async function recoverShopifyCustomerPassword({ email, options = {} } = {
     throw new Error("Email is required.");
   }
 
+  const storeConfig = await fetchStoreConfig();
   const creds = await getShopifyCredentials();
   const shop = options.shop || creds.shop;
-  const token = options.token || creds.token;
+  const hasConfiguredStorefrontToken = Boolean(options.token || storeConfig?.storefront_access_token);
+  const token = options.token || (hasConfiguredStorefrontToken ? creds.token : "");
   const storeId = options.storeId || creds.storeId;
 
   const mutation = `
@@ -2183,16 +2199,33 @@ export async function recoverShopifyCustomerPassword({ email, options = {} } = {
     }
   `;
 
-  const json = await directStorefrontGraphQL({
-    shop,
-    token,
-    storeId,
-    query: mutation,
-    variables: { email: normalizedEmail },
-  });
+  let json;
+  try {
+    json = await directStorefrontGraphQL({
+      shop,
+      token,
+      storeId,
+      query: mutation,
+      variables: { email: normalizedEmail },
+    });
+  } catch (error) {
+    if (isStorefrontAuthFailure(error)) {
+      console.warn("Password recovery Storefront auth/config failure", {
+        shop,
+        storeId,
+        hasConfiguredStorefrontToken,
+        error: error?.message || String(error),
+      });
+      throw new Error(PASSWORD_RECOVERY_UNAVAILABLE_MESSAGE);
+    }
+    throw error;
+  }
 
   if (json?.errors?.length) {
     const message = json.errors[0]?.message || "Unable to send reset password link.";
+    if (isStorefrontAuthFailure(message)) {
+      throw new Error(PASSWORD_RECOVERY_UNAVAILABLE_MESSAGE);
+    }
     throw new Error(message);
   }
 

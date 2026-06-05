@@ -263,6 +263,7 @@ type ForgotPasswordTokens = {
   resetPasswordButtonText: string;
   backToLoginText: string;
   successMessageText: string;
+  errorMessageText: string;
 };
 
 type AuthMode = 'login' | 'signup' | 'forgot';
@@ -640,6 +641,7 @@ const defaultForgotPasswordTokens: ForgotPasswordTokens = {
   resetPasswordButtonText: 'Forgot Password?',
   backToLoginText: 'Sign in',
   successMessageText: 'If an account exists for this email, a password reset link has been sent.',
+  errorMessageText: 'Password reset is temporarily unavailable. Please try again later.',
 };
 
 const defaultSignUpTokens: SignUpTokens = {
@@ -954,6 +956,11 @@ const buildForgotPasswordTokens = (rawProps: Record<string, unknown>): ForgotPas
     (rawProps?.resetPasswordSuccessMessage as string) ??
     (rawProps?.successText as string) ??
     defaultForgotPasswordTokens.successMessageText,
+  errorMessageText:
+    (rawProps?.errorMessageText as string) ??
+    (rawProps?.resetPasswordErrorMessage as string) ??
+    (rawProps?.unavailableMessageText as string) ??
+    defaultForgotPasswordTokens.errorMessageText,
 });
 
 const buildSignUpTokens = (rawProps: Record<string, unknown>): SignUpTokens => ({
@@ -1583,6 +1590,14 @@ const AuthScreen = () => {
 
   const isValidEmailAddress = (value: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
 
+  const resolveForgotPasswordErrorMessage = (err: unknown) => {
+    const message = err instanceof Error ? err.message : String(err || '');
+    if (/storefront|http\s*40[13]|unauthorized|forbidden|token/i.test(message)) {
+      return forgotPasswordTokens.errorMessageText;
+    }
+    return message || forgotPasswordTokens.errorMessageText;
+  };
+
   const validateForm = () => {
     const e = email.trim(), p = password.trim(), fn = firstName.trim(), ln = lastName.trim();
     if (!e || !p) return 'Email and password are required.';
@@ -1638,7 +1653,7 @@ const AuthScreen = () => {
       await recoverPassword(trimmedEmail);
       setSuccessMessage(forgotPasswordTokens.successMessageText);
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : 'Unable to send reset password link.');
+      setError(resolveForgotPasswordErrorMessage(err));
     } finally {
       setLoading(false);
     }
