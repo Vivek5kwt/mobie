@@ -20,6 +20,7 @@ const APP_ID = process.env.APP_ID || process.env.REACT_APP_APP_ID || '132';
 const GRAPHQL_ENDPOINT = process.env.GRAPHQL_ENDPOINT || 'https://app.mobidrag.com/graphql';
 const APP_LOGO_URL = process.env.APP_LOGO || process.env.APP_ICON || '';
 const SPLASH_IMAGE_URL = process.env.SPLASH_IMAGE || process.env.SPLASH_IMAGE_URL || '';
+const APP_DISPLAY_NAME = process.env.APP_DISPLAY_NAME || process.env.APP_NAME || '';
 
 const ROOT_DIR = path.join(__dirname, '..');
 const IOS_ASSETS_DIR = path.join(ROOT_DIR, 'ios', 'MobiDrag', 'Images.xcassets');
@@ -27,6 +28,8 @@ const APP_ICON_SET_DIR = path.join(IOS_ASSETS_DIR, 'AppIcon.appiconset');
 const SPLASH_IMAGE_SET_DIR = path.join(IOS_ASSETS_DIR, 'SplashImage.imageset');
 const SPLASH_BG_SET_DIR = path.join(IOS_ASSETS_DIR, 'SplashBackground.imageset');
 const TEMP_DIR = path.join(ROOT_DIR, 'tmp', 'brand-assets');
+const INFO_PLIST_PATH = path.join(ROOT_DIR, 'ios', 'MobiDrag', 'Info.plist');
+const APP_JSON_PATH = path.join(ROOT_DIR, 'app.json');
 const GENERATED_BRAND_ASSETS_PATH = path.join(ROOT_DIR, 'src', 'generated', 'brandAssets.json');
 
 const isObject = (value) =>
@@ -65,6 +68,41 @@ const firstNonEmpty = (...values) => {
   for (const value of values) {
     const resolved = cleanString(value);
     if (resolved) return resolved;
+  }
+  return '';
+};
+
+const escapeXml = (value) =>
+  String(value || '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&apos;');
+
+const GENERIC_APP_NAMES = new Set([
+  'mobidrag',
+  'app',
+  'application',
+  'app page layout dsl',
+  'multi-page app layout dsl',
+  'page layout dsl',
+]);
+
+const isMeaningfulAppName = (value) => {
+  const name = cleanString(value);
+  if (!name) return false;
+  const lowered = name.toLowerCase();
+  if (GENERIC_APP_NAMES.has(lowered)) return false;
+  if (/^page[-\s]*\d+$/i.test(name)) return false;
+  if (/layout\s+dsl/i.test(name)) return false;
+  return name.length > 1;
+};
+
+const firstMeaningfulName = (...values) => {
+  for (const value of values) {
+    const name = cleanString(value);
+    if (isMeaningfulAppName(name)) return name;
   }
   return '';
 };
@@ -110,12 +148,108 @@ const extractBrandAssets = (dsl) => {
     if (!assets.faviconUrl) assets.faviconUrl = firstNonEmpty(source.faviconUrl, source.favicon, source.iconUrl);
     if (!assets.splashImageUrl) assets.splashImageUrl = firstNonEmpty(source.splashImageUrl, source.splashImage, source.splashUrl);
     if (!assets.splashBgColor) assets.splashBgColor = firstNonEmpty(source.splashBgColor, source.backgroundColor, source.bgColor);
+    if (!assets.splashGradStart) assets.splashGradStart = firstNonEmpty(source.splashGradStart, source.gradientStart);
     if (!assets.splashGradEnd) assets.splashGradEnd = firstNonEmpty(source.splashGradEnd, source.gradientEnd);
     if (assets.splashShowBrandIcon === undefined) {
       assets.splashShowBrandIcon = normalizeBoolean(source.splashShowBrandIcon, undefined);
     }
     return assets;
   }, {});
+};
+
+const collectSections = (node, sections = [], depth = 0, seen = new Set()) => {
+  if (!isObject(node) && !Array.isArray(node)) return sections;
+  if (seen.has(node) || depth > 12) return sections;
+  seen.add(node);
+
+  if (isObject(node) && Array.isArray(node.sections)) {
+    sections.push(...node.sections);
+  }
+
+  const values = Array.isArray(node) ? node : Object.values(node);
+  values.forEach((value) => collectSections(value, sections, depth + 1, seen));
+  return sections;
+};
+
+const getComponentName = (section) =>
+  cleanString(
+    section?.component?.const ||
+    section?.component ||
+    section?.properties?.component?.const ||
+    section?.properties?.component
+  ).toLowerCase();
+
+const getSectionProps = (section) =>
+  unwrapDeep(
+    section?.props ||
+    section?.properties?.props ||
+    section?.properties?.props?.properties ||
+    {}
+  ) || {};
+
+const extractAppNameFromDsl = (dsl) => {
+  const root = unwrapDeep(parseMaybeJson(dsl));
+  if (!isObject(root)) return '';
+
+  const directName = firstMeaningfulName(
+    root.appName,
+    root.app_name,
+    root.displayName,
+    root.applicationName,
+    root.brandName,
+    root.brand_name,
+    root.storeName,
+    root.shopName,
+    root.brandKit?.appName,
+    root.brandKit?.app_name,
+    root.brandKit?.displayName,
+    root.brandKit?.brandName,
+    root.brandKit?.brand_name,
+    root.brandKit?.storeName,
+    root.brandKit?.shopName,
+    root.brandKit?.brand_assets?.appName,
+    root.brandKit?.brand_assets?.app_name,
+    root.brandKit?.brand_assets?.brandName,
+    root.brandKit?.brandAssets?.appName,
+    root.brandKit?.brandAssets?.app_name,
+    root.brandKit?.brandAssets?.brandName
+  );
+  if (directName) return directName;
+
+  for (const section of collectSections(root)) {
+    if (getComponentName(section) !== 'side_navigation') continue;
+    const props = getSectionProps(section);
+    const raw = unwrapDeep(props.raw) || props;
+    const sideNavName = firstMeaningfulName(
+      raw.headerTitle,
+      raw.headerTextValue,
+      raw.logoText,
+      raw.title,
+      props.headerTitle,
+      props.headerTextValue,
+      props.logoText,
+      props.title
+    );
+    if (sideNavName) return sideNavName;
+  }
+
+  return '';
+};
+
+const extractAppNameFromMetadata = (metadata) => {
+  const source = unwrapDeep(parseMaybeJson(metadata));
+  if (!isObject(source)) return '';
+  return firstMeaningfulName(
+    source.appName,
+    source.app_name,
+    source.displayName,
+    source.applicationName,
+    source.brandName,
+    source.brand_name,
+    source.storeName,
+    source.shopName,
+    source.name
+  );
 };
 
 const writeGeneratedBrandAssets = (assets) => {
@@ -129,12 +263,64 @@ const writeGeneratedBrandAssets = (assets) => {
       logoUrl: assets.logoUrl || '',
       faviconUrl: assets.faviconUrl || '',
       splashImageUrl: assets.splashImageUrl || '',
+      appName: assets.appName || '',
       splashBgColor: assets.splashBgColor || '',
       splashGradStart: assets.splashGradStart || assets.splashBgColor || '',
       splashGradEnd: assets.splashGradEnd || '',
       splashShowBrandIcon: assets.splashShowBrandIcon,
     }, null, 2)}\n`
   );
+};
+
+const replacePlistStringForKey = (content, key, value) => {
+  const escaped = escapeXml(value);
+  const regex = new RegExp(`(<key>${key}<\\/key>\\s*<string>)[^<]*(<\\/string>)`);
+  if (regex.test(content)) {
+    return content.replace(regex, `$1${escaped}$2`);
+  }
+  return content.replace('</dict>', `\t<key>${key}</key>\n\t<string>${escaped}</string>\n</dict>`);
+};
+
+const updateInfoPlistUsageMessage = (content, key, fallbackMessage) => {
+  return replacePlistStringForKey(content, key, fallbackMessage);
+};
+
+const updateIosAppName = (appName) => {
+  const resolvedName = cleanString(appName);
+  if (!resolvedName || !fs.existsSync(INFO_PLIST_PATH)) return;
+
+  let content = fs.readFileSync(INFO_PLIST_PATH, 'utf8');
+  content = replacePlistStringForKey(content, 'CFBundleDisplayName', resolvedName);
+  content = replacePlistStringForKey(content, 'CFBundleName', resolvedName);
+  content = updateInfoPlistUsageMessage(
+    content,
+    'NSLocationWhenInUseUsageDescription',
+    `${resolvedName} may use your location only when a feature needs nearby or delivery-related information.`
+  );
+  content = updateInfoPlistUsageMessage(
+    content,
+    'NSMicrophoneUsageDescription',
+    `${resolvedName} uses the microphone when you start voice search.`
+  );
+  content = updateInfoPlistUsageMessage(
+    content,
+    'NSSpeechRecognitionUsageDescription',
+    `${resolvedName} uses speech recognition to turn your voice search into text.`
+  );
+  fs.writeFileSync(INFO_PLIST_PATH, content);
+  console.log(`iOS app display name updated from DSL/API: ${resolvedName}`);
+
+  try {
+    if (fs.existsSync(APP_JSON_PATH)) {
+      const appJson = JSON.parse(fs.readFileSync(APP_JSON_PATH, 'utf8'));
+      if (appJson.displayName !== resolvedName) {
+        appJson.displayName = resolvedName;
+        fs.writeFileSync(APP_JSON_PATH, `${JSON.stringify(appJson, null, 2)}\n`);
+      }
+    }
+  } catch (error) {
+    console.log(`Could not update app.json displayName: ${error.message}`);
+  }
 };
 
 const requestJson = (url, payload) =>
@@ -172,14 +358,15 @@ const requestJson = (url, payload) =>
     req.end();
   });
 
-const fetchBrandAssetsFromDsl = async () => {
+const fetchBrandConfigFromDsl = async () => {
   const appIdInt = Number.parseInt(APP_ID, 10);
-  if (!Number.isFinite(appIdInt)) return {};
+  if (!Number.isFinite(appIdInt)) return { assets: {}, appName: '' };
 
   const query = `
     query Layouts($appId: Int) {
       layouts(app_id: $appId) {
         layout_versions {
+          metadata
           dsl
           version_number
         }
@@ -200,14 +387,17 @@ const fetchBrandAssetsFromDsl = async () => {
     .flatMap((layout) => layout?.layout_versions || [])
     .sort((a, b) => (b?.version_number || 0) - (a?.version_number || 0));
 
+  let appName = '';
   for (const version of versions) {
+    appName = appName || extractAppNameFromMetadata(version?.metadata);
     const assets = extractBrandAssets(version?.dsl);
+    appName = appName || extractAppNameFromDsl(version?.dsl);
     if (assets.logoUrl || assets.faviconUrl || assets.splashImageUrl) {
-      return assets;
+      return { assets, appName };
     }
   }
 
-  return {};
+  return { assets: {}, appName };
 };
 
 const downloadFile = (url, dest, redirects = 0) =>
@@ -486,7 +676,9 @@ const updateSplashBackgroundSet = (startColor, endColor) => {
   try {
     fs.mkdirSync(TEMP_DIR, { recursive: true });
 
-    const dslAssets = await fetchBrandAssetsFromDsl();
+    const dslBrandConfig = await fetchBrandConfigFromDsl();
+    const dslAssets = dslBrandConfig.assets || {};
+    const appName = firstMeaningfulName(APP_DISPLAY_NAME, dslBrandConfig.appName);
     const logoUrl = APP_LOGO_URL || dslAssets.logoUrl || dslAssets.faviconUrl || '';
     const splashUrl = SPLASH_IMAGE_URL || dslAssets.splashImageUrl || '';
     const finalBrandAssets = {
@@ -494,21 +686,27 @@ const updateSplashBackgroundSet = (startColor, endColor) => {
       logoUrl,
       faviconUrl: dslAssets.faviconUrl || '',
       splashImageUrl: splashUrl,
+      appName,
     };
     const effectiveSplashUrl =
       splashUrl ||
       (finalBrandAssets.splashShowBrandIcon !== false ? logoUrl : '');
     const splashBgColor = normalizeHex(
+      dslAssets.splashBgColor || dslAssets.splashGradStart || dslAssets.splashGradEnd || '#ffffff'
+    );
+    const splashGradStart = normalizeHex(
       dslAssets.splashGradStart || dslAssets.splashBgColor || dslAssets.splashGradEnd || '#ffffff'
     );
-    const splashGradEnd = normalizeHex(dslAssets.splashGradEnd || dslAssets.splashBgColor || splashBgColor, splashBgColor);
+    const splashGradEnd = normalizeHex(dslAssets.splashGradEnd || dslAssets.splashBgColor || splashGradStart, splashGradStart);
 
     writeGeneratedBrandAssets({
       ...finalBrandAssets,
       splashBgColor,
+      splashGradStart,
       splashGradEnd,
     });
-    updateSplashBackgroundSet(splashBgColor, splashGradEnd);
+    updateIosAppName(appName);
+    updateSplashBackgroundSet(splashGradStart, splashGradEnd);
 
     if (logoUrl) {
       const logoPath = path.join(TEMP_DIR, 'ios-logo');
