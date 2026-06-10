@@ -606,6 +606,71 @@ const resizeImage = async (inputPath, outputPath, width, height, options = {}) =
   return true;
 };
 
+const resizeImageCover = async (inputPath, outputPath, width, height, options = {}) => {
+  const bgColor = normalizeHex(options.backgroundColor || '#ffffff');
+  const opaque = Boolean(options.opaque);
+
+  try {
+    execFileSync(
+      'magick',
+      [
+        inputPath,
+        '-resize',
+        `${width}x${height}^`,
+        '-gravity',
+        'center',
+        '-extent',
+        `${width}x${height}`,
+        ...(opaque ? ['-background', bgColor, '-alpha', 'remove', '-alpha', 'off'] : []),
+        outputPath,
+      ],
+      { stdio: 'ignore' }
+    );
+    return true;
+  } catch (_) {}
+
+  try {
+    const filter = `scale=${width}:${height}:force_original_aspect_ratio=increase,crop=${width}:${height}`;
+    execFileSync('ffmpeg', ['-i', inputPath, '-vf', filter, outputPath, '-y'], { stdio: 'ignore' });
+    return true;
+  } catch (_) {}
+
+  try {
+    if (process.platform === 'win32') {
+      const clearColor = opaque ? bgColor : '#00000000';
+      const script = [
+        'Add-Type -AssemblyName System.Drawing;',
+        `$inputPath = '${escapePowerShell(inputPath)}';`,
+        `$outputPath = '${escapePowerShell(outputPath)}';`,
+        `$width = ${width};`,
+        `$height = ${height};`,
+        `$clearColor = '${clearColor}';`,
+        '$src = [System.Drawing.Image]::FromFile($inputPath);',
+        '$scale = [Math]::Max($width / $src.Width, $height / $src.Height);',
+        '$drawW = [int][Math]::Ceiling($src.Width * $scale);',
+        '$drawH = [int][Math]::Ceiling($src.Height * $scale);',
+        '$x = [int][Math]::Floor(($width - $drawW) / 2);',
+        '$y = [int][Math]::Floor(($height - $drawH) / 2);',
+        '$bmp = New-Object System.Drawing.Bitmap($width, $height);',
+        '$gfx = [System.Drawing.Graphics]::FromImage($bmp);',
+        '$gfx.InterpolationMode = [System.Drawing.Drawing2D.InterpolationMode]::HighQualityBicubic;',
+        '$gfx.SmoothingMode = [System.Drawing.Drawing2D.SmoothingMode]::HighQuality;',
+        '$gfx.PixelOffsetMode = [System.Drawing.Drawing2D.PixelOffsetMode]::HighQuality;',
+        '$gfx.Clear([System.Drawing.ColorTranslator]::FromHtml($clearColor));',
+        '$gfx.DrawImage($src, $x, $y, $drawW, $drawH);',
+        '$bmp.Save($outputPath, [System.Drawing.Imaging.ImageFormat]::Png);',
+        '$gfx.Dispose(); $bmp.Dispose(); $src.Dispose();',
+      ].join(' ');
+      execFileSync('powershell', ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-Command', script], {
+        stdio: 'ignore',
+      });
+      return true;
+    }
+  } catch (_) {}
+
+  return resizeImage(inputPath, outputPath, width, height, options);
+};
+
 const iconPixelSize = (entry) => {
   const size = Number.parseFloat(String(entry.size || '').split('x')[0]);
   const scale = Number.parseFloat(String(entry.scale || '1x').replace('x', ''));
@@ -647,7 +712,7 @@ const updateAppIconSet = async (logoPath, bgColor) => {
   }
 };
 
-const updateSplashImageSet = async (splashPath) => {
+const updateSplashImageSet = async (splashPath, options = {}) => {
   const images = [
     { idiom: 'universal', filename: 'SplashImage.png', scale: '1x' },
     { idiom: 'universal', filename: 'SplashImage@2x.png', scale: '2x' },
@@ -655,10 +720,17 @@ const updateSplashImageSet = async (splashPath) => {
   ];
   writeImagesetContents(SPLASH_IMAGE_SET_DIR, images);
 
-  const sizes = [144, 288, 432];
+  const sizes = [
+    [390, 844],
+    [780, 1688],
+    [1170, 2532],
+  ];
   for (let index = 0; index < images.length; index += 1) {
-    await resizeImage(splashPath, path.join(SPLASH_IMAGE_SET_DIR, images[index].filename), sizes[index], sizes[index], {
-      opaque: false,
+    const [width, height] = sizes[index];
+    const outputPath = path.join(SPLASH_IMAGE_SET_DIR, images[index].filename);
+    const resize = options.fullScreen === false ? resizeImage : resizeImageCover;
+    await resize(splashPath, outputPath, width, height, {
+      opaque: options.fullScreen !== false,
     });
   }
 };
@@ -731,7 +803,7 @@ const updateSplashBackgroundSet = (startColor, endColor) => {
       const splashPath = path.join(TEMP_DIR, 'ios-splash');
       console.log(`Updating iOS splash image from: ${effectiveSplashUrl}`);
       await downloadFile(effectiveSplashUrl, splashPath);
-      await updateSplashImageSet(splashPath);
+      await updateSplashImageSet(splashPath, { fullScreen: Boolean(splashUrl) });
     } else {
       console.log('No splashImageUrl found; keeping existing SplashImage assets.');
     }
