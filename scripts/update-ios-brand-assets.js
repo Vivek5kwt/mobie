@@ -313,9 +313,19 @@ const updateIosAppName = (appName) => {
   try {
     if (fs.existsSync(APP_JSON_PATH)) {
       const appJson = JSON.parse(fs.readFileSync(APP_JSON_PATH, 'utf8'));
+      const appIdInt = Number.parseInt(APP_ID, 10);
+      let changed = false;
+      if (Number.isFinite(appIdInt) && appJson.appId !== appIdInt) {
+        appJson.appId = appIdInt;
+        changed = true;
+      }
       if (appJson.displayName !== resolvedName) {
         appJson.displayName = resolvedName;
+        changed = true;
+      }
+      if (changed) {
         fs.writeFileSync(APP_JSON_PATH, `${JSON.stringify(appJson, null, 2)}\n`);
+        console.log(`app.json updated from DSL/API: appId=${appJson.appId || ''}, displayName=${appJson.displayName || ''}`);
       }
     }
   } catch (error) {

@@ -18,6 +18,12 @@ const toNumberValue = (value, fallback = 0) => {
   return Number.isFinite(parsed) ? parsed : fallback;
 };
 
+const toAnalyticsId = (value, fallback = "") => {
+  const resolved = value === undefined || value === null || value === "" ? fallback : value;
+  const text = String(resolved ?? "").trim();
+  return text;
+};
+
 const normalizeEventName = (name = "") => {
   const normalized = toStringValue(name)
     .replace(/[^a-zA-Z0-9_]/g, "_")
@@ -69,8 +75,8 @@ const getBaseParams = (session) => {
   const storeId = user?.storeId ?? user?.store_id ?? store?.id ?? store?.store_id ?? "";
 
   return {
-    app_id: appId || "",
-    store_id: storeId || "",
+    app_id: toAnalyticsId(appId),
+    store_id: toAnalyticsId(storeId),
     user_type: user?.userType || user?.user_type || "",
     shopify_domain: user?.shopifyDomain || user?.shopify_domain || store?.shopify_domain || "",
     store_currency: user?.currency || store?.currency || "",
@@ -138,8 +144,8 @@ export async function setAnalyticsUser(session) {
     if (analytics().setUserProperties) {
       await analytics().setUserProperties(
         sanitizeParams({
-          app_id: appId || "",
-          store_id: user?.storeId ?? user?.store_id ?? store?.id ?? "",
+          app_id: toAnalyticsId(appId),
+          store_id: toAnalyticsId(user?.storeId ?? user?.store_id ?? store?.id ?? store?.store_id),
           user_type: user?.userType || user?.user_type || "",
           shopify_domain: user?.shopifyDomain || user?.shopify_domain || store?.shopify_domain || "",
         })
