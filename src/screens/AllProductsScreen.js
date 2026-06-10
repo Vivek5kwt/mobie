@@ -838,18 +838,7 @@ export default function AllProductsScreen() {
     </View>
   );
 
-  const productListFilterSortProps = getRawProps(productListFilterSortSection);
-  const resultFilterSortSection = isSearchMode
-    ? {
-        props: {
-          ...productListFilterSortProps,
-          variant: "searchResults",
-          compactSearchControls: true,
-          pt: productListFilterSortProps?.pt ?? 6,
-          pb: productListFilterSortProps?.pb ?? 8,
-        },
-      }
-    : (productListFilterSortSection || {});
+  const resultFilterSortSection = productListFilterSortSection || {};
 
   return (
     <SafeArea edges={["top", "left", "right"]}>
