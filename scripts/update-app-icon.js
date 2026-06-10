@@ -472,33 +472,74 @@ const resizeImage = async (inputPath, outputPath, size) => {
   try {
     if (!fs.existsSync(inputPath)) {
       console.error(`Input file not found: ${inputPath}`);
-      return false;
+      return warnAndKeepExistingIcon(outputPath, size);
     }
 
     try {
-      execFileSync('magick', [inputPath, '-resize', `${size}x${size}`, outputPath], { stdio: 'ignore' });
-      console.log(`Created icon: ${outputPath} (${size}x${size}) using ImageMagick`);
-      return true;
+      const tempOutput = makeTempPngPath(outputPath);
+      execFileSync(
+        'magick',
+        [
+          inputPath,
+          '-resize',
+          `${size}x${size}`,
+          '-background',
+          'none',
+          '-gravity',
+          'center',
+          '-extent',
+          `${size}x${size}`,
+          `PNG32:${tempOutput}`,
+        ],
+        { stdio: 'ignore' }
+      );
+      if (finalizePngOutput(tempOutput, outputPath, size, 'ImageMagick')) {
+        console.log(`Created icon: ${outputPath} (${size}x${size}) using ImageMagick`);
+        return true;
+      }
     } catch (magickError) {
       try {
         if (process.platform !== 'win32') {
-          execFileSync('convert', [inputPath, '-resize', `${size}x${size}`, outputPath], { stdio: 'ignore' });
-          console.log(`Created icon: ${outputPath} (${size}x${size}) using ImageMagick convert`);
-          return true;
+          const tempOutput = makeTempPngPath(outputPath);
+          execFileSync(
+            'convert',
+            [
+              inputPath,
+              '-resize',
+              `${size}x${size}`,
+              '-background',
+              'none',
+              '-gravity',
+              'center',
+              '-extent',
+              `${size}x${size}`,
+              `PNG32:${tempOutput}`,
+            ],
+            { stdio: 'ignore' }
+          );
+          if (finalizePngOutput(tempOutput, outputPath, size, 'ImageMagick convert')) {
+            console.log(`Created icon: ${outputPath} (${size}x${size}) using ImageMagick convert`);
+            return true;
+          }
         }
       } catch (convertError) {}
 
       try {
-        execFileSync('ffmpeg', ['-i', inputPath, '-vf', `scale=${size}:${size}`, outputPath, '-y'], { stdio: 'ignore' });
-        console.log(`Created icon: ${outputPath} (${size}x${size}) using ffmpeg`);
-        return true;
+        const tempOutput = makeTempPngPath(outputPath);
+        const filter = `scale=${size}:${size}:force_original_aspect_ratio=decrease,pad=${size}:${size}:(ow-iw)/2:(oh-ih)/2:color=0x00000000`;
+        execFileSync('ffmpeg', ['-i', inputPath, '-vf', filter, '-frames:v', '1', tempOutput, '-y'], { stdio: 'ignore' });
+        if (finalizePngOutput(tempOutput, outputPath, size, 'ffmpeg')) {
+          console.log(`Created icon: ${outputPath} (${size}x${size}) using ffmpeg`);
+          return true;
+        }
       } catch (ffmpegError) {
         try {
           if (process.platform === 'win32') {
+            const tempOutput = makeTempPngPath(outputPath);
             const script = [
               'Add-Type -AssemblyName System.Drawing;',
               `$inputPath = ${JSON.stringify(inputPath)};`,
-              `$outputPath = ${JSON.stringify(outputPath)};`,
+              `$outputPath = ${JSON.stringify(tempOutput)};`,
               `$size = ${size};`,
               '$src = [System.Drawing.Image]::FromFile($inputPath);',
               '$bmp = New-Object System.Drawing.Bitmap($size, $size);',
@@ -512,19 +553,20 @@ const resizeImage = async (inputPath, outputPath, size) => {
               '$gfx.Dispose(); $bmp.Dispose(); $src.Dispose();',
             ].join(' ');
             execFileSync('powershell', ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-Command', script], { stdio: 'ignore' });
-            console.log(`Created icon: ${outputPath} (${size}x${size}) using PowerShell`);
-            return true;
+            if (finalizePngOutput(tempOutput, outputPath, size, 'PowerShell')) {
+              console.log(`Created icon: ${outputPath} (${size}x${size}) using PowerShell`);
+              return true;
+            }
           }
         } catch (powershellError) {}
       }
     }
 
-    fs.copyFileSync(inputPath, outputPath);
-    console.log(`Created icon: ${outputPath} (copied, not resized - install ImageMagick for proper resizing)`);
-    return true;
+    console.warn(`Unable to convert ${inputPath} into a launcher PNG; the existing icon will be preserved.`);
+    return warnAndKeepExistingIcon(outputPath, size);
   } catch (error) {
     console.error(`Error resizing image: ${error.message}`);
-    return false;
+    return warnAndKeepExistingIcon(outputPath, size);
   }
 };
 
@@ -539,6 +581,56 @@ const normalizeHex = (value, fallback = DEFAULT_SPLASH_BACKGROUND) => {
 };
 
 const escapePowerShell = (value) => String(value).replace(/'/g, "''");
+
+const PNG_SIGNATURE = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
+
+const removeFileIfExists = (filePath) => {
+  if (filePath && fs.existsSync(filePath)) {
+    fs.unlinkSync(filePath);
+  }
+};
+
+const readPngDimensions = (filePath) => {
+  if (!filePath || !fs.existsSync(filePath)) return null;
+  const bytes = fs.readFileSync(filePath);
+  if (bytes.length < 24 || !bytes.slice(0, 8).equals(PNG_SIGNATURE)) return null;
+  if (bytes.slice(12, 16).toString('ascii') !== 'IHDR') return null;
+  return {
+    width: bytes.readUInt32BE(16),
+    height: bytes.readUInt32BE(20),
+  };
+};
+
+const isValidPng = (filePath, expectedWidth, expectedHeight = expectedWidth) => {
+  const dimensions = readPngDimensions(filePath);
+  if (!dimensions) return false;
+  if (expectedWidth && dimensions.width !== expectedWidth) return false;
+  if (expectedHeight && dimensions.height !== expectedHeight) return false;
+  return true;
+};
+
+const makeTempPngPath = (outputPath) =>
+  `${outputPath}.tmp-${process.pid}-${Date.now()}-${Math.random().toString(36).slice(2)}.png`;
+
+const finalizePngOutput = (tempPath, outputPath, size, toolName) => {
+  if (!isValidPng(tempPath, size)) {
+    removeFileIfExists(tempPath);
+    console.warn(`${toolName} did not create a valid ${size}x${size} PNG for ${outputPath}`);
+    return false;
+  }
+  removeFileIfExists(outputPath);
+  fs.renameSync(tempPath, outputPath);
+  return true;
+};
+
+const warnAndKeepExistingIcon = (outputPath, size) => {
+  if (isValidPng(outputPath, size)) {
+    console.warn(`Keeping existing valid launcher icon: ${outputPath}`);
+    return true;
+  }
+  console.warn(`No valid existing launcher icon found for ${outputPath}`);
+  return false;
+};
 
 const resizeImageCover = async (inputPath, outputPath, width, height) => {
   try {
@@ -886,6 +978,7 @@ const updateAndroidSplash = async (assets) => {
     await downloadFile(APP_LOGO_URL, tempIconPath);
     console.log('Icon downloaded successfully');
 
+    let failedIconUpdates = 0;
     for (const [folder, size] of Object.entries(ICON_SIZES)) {
       const folderPath = path.join(ANDROID_RES_PATH, folder);
       const iconPath = path.join(folderPath, 'ic_launcher.png');
@@ -895,15 +988,19 @@ const updateAndroidSplash = async (assets) => {
         fs.mkdirSync(folderPath, { recursive: true });
       }
 
-      await resizeImage(tempIconPath, iconPath, size);
-      await resizeImage(tempIconPath, roundIconPath, size);
+      if (!(await resizeImage(tempIconPath, iconPath, size))) failedIconUpdates += 1;
+      if (!(await resizeImage(tempIconPath, roundIconPath, size))) failedIconUpdates += 1;
     }
 
     if (fs.existsSync(tempIconPath)) {
       fs.unlinkSync(tempIconPath);
     }
 
-    console.log('App icon updated successfully');
+    if (failedIconUpdates > 0) {
+      console.warn(`App icon update finished with ${failedIconUpdates} preserved fallback resource(s).`);
+    } else {
+      console.log('App icon updated successfully');
+    }
   } catch (error) {
     console.error('Error updating app icon:', error.message);
     console.log('Continuing build without icon update');
