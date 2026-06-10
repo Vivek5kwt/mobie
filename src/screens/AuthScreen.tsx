@@ -254,6 +254,8 @@ type ForgotPasswordTokens = {
   headlineFontStyle: 'normal' | 'italic';
   headlineTextDecoration: 'none' | 'underline' | 'line-through' | 'underline line-through';
   headlineTextTransform: 'none' | 'uppercase';
+  headlineTextAlign: string;
+  loginLinkMarginTop: number;
   resetPasswordTitle: string;
   resetPasswordTitleColor: string;
   resetPasswordTitleFontSize: number;
@@ -632,6 +634,8 @@ const defaultForgotPasswordTokens: ForgotPasswordTokens = {
   headlineFontStyle: 'normal',
   headlineTextDecoration: 'none',
   headlineTextTransform: 'none',
+  headlineTextAlign: 'Center',
+  loginLinkMarginTop: 34,
   resetPasswordTitle: 'Reset Password Link',
   resetPasswordTitleColor: '#0C9297',
   resetPasswordTitleFontSize: 13,
@@ -939,6 +943,21 @@ const buildForgotPasswordTokens = (rawProps: Record<string, unknown>): ForgotPas
   headlineFontStyle: (rawProps?.headlineItalic as boolean | undefined) ? 'italic' : 'normal',
   headlineTextDecoration: toTextDecoration(rawProps?.headlineUnderline as boolean | undefined, rawProps?.headlineStrikethrough as boolean | undefined),
   headlineTextTransform: (rawProps?.headlineAutoUppercase as boolean | undefined) ? 'uppercase' : 'none',
+  headlineTextAlign:
+    (rawProps?.headlineAlign as string) ??
+    (rawProps?.headtextAlign as string) ??
+    (rawProps?.titleAlign as string) ??
+    (rawProps?.textAlign as string) ??
+    defaultForgotPasswordTokens.headlineTextAlign,
+  loginLinkMarginTop: toNumber(
+    rawProps?.loginLinkMarginTop ??
+      rawProps?.forgotPasswordMarginTop ??
+      rawProps?.cardMarginTop ??
+      rawProps?.mt ??
+      rawProps?.pt ??
+      rawProps?.paddingTop,
+    defaultForgotPasswordTokens.loginLinkMarginTop
+  ),
   resetPasswordTitle: (rawProps?.resetPasswordTitle as string) ?? defaultForgotPasswordTokens.resetPasswordTitle,
   resetPasswordTitleColor: (rawProps?.resetPasswordTitleColor as string) ?? (rawProps?.titleColor as string) ?? defaultForgotPasswordTokens.resetPasswordTitleColor,
   resetPasswordTitleFontSize: toNumber(rawProps?.resetPasswordTitleFontSize ?? rawProps?.subtextSize ?? rawProps?.fontSize, defaultForgotPasswordTokens.resetPasswordTitleFontSize),
@@ -1737,10 +1756,8 @@ const AuthScreen = () => {
   const footerMarginTop = resolveAuthVerticalSpace(t.footerMarginTop, viewportHeight, 0.04);
   const footerLinkMarginTop = resolveAuthVerticalSpace(t.footerLinkMarginTop, viewportHeight, 0.02);
   const formCardMarginBottom = resolveAuthVerticalSpace(t.formCardMarginBottom, viewportHeight, 0.04);
-  const forgotCardPadTop = resolveAuthVerticalSpace(forgotPasswordTokens.cardPaddingTop, viewportHeight, 0.055);
-  const forgotCardPadBottom = resolveAuthVerticalSpace(forgotPasswordTokens.cardPaddingBottom, viewportHeight, 0.055);
-  const forgotButtonMarginTop = resolveAuthVerticalSpace(forgotPasswordTokens.buttonMarginTop, viewportHeight, 0.03);
   const forgotTitleMarginTop = resolveAuthVerticalSpace(forgotPasswordTokens.resetPasswordTitleMarginTop, viewportHeight, 0.02);
+  const forgotLoginLinkMarginTop = resolveAuthVerticalSpace(forgotPasswordTokens.loginLinkMarginTop, viewportHeight, 0.08);
   const hasDynamicDecor = hasDynamicSignInLayout || hasDynamicSignUpLayout;
   const signUpProfilePictureUrl = String(signUpTokens.profilePictureUrl || '').trim();
   const shouldRenderSignUpProfilePicture =
@@ -2165,20 +2182,16 @@ const AuthScreen = () => {
             ) : null}
           </View>
 
-          {/* ── Forgot password card (login only) ─────────────────────── */}
+          {/* Forgot password link (login only) */}
           {mode === 'login' && hasForgotPasswordSection ? (
-            <View
+            <TouchableOpacity
+              onPress={openForgotPasswordMode}
+              accessibilityRole="button"
               style={{
                 marginLeft: pagePadLeft,
                 marginRight: pagePadRight,
-                backgroundColor: forgotPasswordTokens.cardBgColor,
-                borderRadius: forgotPasswordTokens.cardBorderRadius,
-                borderWidth: forgotPasswordTokens.cardBorderWidth,
-                borderColor: forgotPasswordTokens.cardBorderColor,
-                paddingTop: forgotCardPadTop,
-                paddingBottom: forgotCardPadBottom,
-                paddingLeft: forgotPasswordTokens.cardPaddingLeft,
-                paddingRight: forgotPasswordTokens.cardPaddingRight,
+                marginTop: forgotLoginLinkMarginTop,
+                alignSelf: 'stretch',
               }}
             >
               <Text
@@ -2190,50 +2203,12 @@ const AuthScreen = () => {
                   fontStyle: forgotPasswordTokens.headlineFontStyle,
                   textDecorationLine: forgotPasswordTokens.headlineTextDecoration,
                   textTransform: forgotPasswordTokens.headlineTextTransform,
+                  textAlign: toTextAlign(forgotPasswordTokens.headlineTextAlign, 'center'),
                 }}
               >
                 {forgotPasswordTokens.headlineText}
               </Text>
-              <Text
-                style={{
-                  color: forgotPasswordTokens.resetPasswordTitleColor,
-                  marginTop: forgotTitleMarginTop,
-                  fontSize: forgotPasswordTokens.resetPasswordTitleFontSize,
-                  fontWeight: forgotPasswordTokens.resetPasswordTitleFontWeight as any,
-                  fontFamily: forgotPasswordTokens.resetPasswordTitleFontFamily !== 'System' ? forgotPasswordTokens.resetPasswordTitleFontFamily : undefined,
-                  opacity: 0.8,
-                }}
-              >
-                {forgotPasswordTokens.resetPasswordTitle}
-              </Text>
-              <TouchableOpacity
-                onPress={openForgotPasswordMode}
-                accessibilityRole="button"
-                style={{
-                  marginTop: forgotButtonMarginTop,
-                  paddingTop: forgotPasswordTokens.buttonPaddingTop,
-                  paddingBottom: forgotPasswordTokens.buttonPaddingBottom,
-                  paddingLeft: forgotPasswordTokens.buttonPaddingLeft,
-                  paddingRight: forgotPasswordTokens.buttonPaddingRight,
-                  borderRadius: forgotPasswordTokens.buttonRadius,
-                  alignItems: 'center',
-                  backgroundColor: forgotPasswordTokens.buttonFillColor,
-                  borderWidth: forgotPasswordTokens.buttonBorderWidth,
-                  borderColor: forgotPasswordTokens.buttonBorderColor,
-                }}
-              >
-                <Text
-                  style={{
-                    color: forgotPasswordTokens.buttonTextColor,
-                    fontWeight: forgotPasswordTokens.buttonFontWeight as any,
-                    fontSize: forgotPasswordTokens.buttonFontSize,
-                    fontFamily: forgotPasswordTokens.buttonFontFamily !== 'System' ? forgotPasswordTokens.buttonFontFamily : undefined,
-                  }}
-                >
-                  {forgotPasswordTokens.resetPasswordButtonText}
-                </Text>
-              </TouchableOpacity>
-            </View>
+            </TouchableOpacity>
           ) : null}
         </ScrollView>
       </KeyboardAvoidingView>
