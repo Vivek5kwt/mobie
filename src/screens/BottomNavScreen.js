@@ -219,6 +219,7 @@ export default function BottomNavScreen() {
   const [headerDefaultConfig, setHeaderDefaultConfig] = useState(null);
   // Mirror state in a ref so callbacks always read the latest value (no stale closures)
   const homeHeaderSectionsRef = useRef([]);
+  const homeHeaderDefaultRef = useRef(null);
   const versionRef = useRef(null);
   const dslRequestInFlightRef = useRef(false);
   // Store bottom navigation section separately to update dynamically
@@ -578,11 +579,27 @@ export default function BottomNavScreen() {
 
   const requestedPageLabel = pageTitleFromDsl || title || pageName || "this page";
   const dslMissing = Boolean(dsl?.__dslMissing);
-  const emptyStateTitle = dslMissing
-    ? "Page content could not be loaded."
+  const emptyStateTitle = isSearchPage
+    ? "No Search Page Found"
+    : isCartPage && isCartEmpty
+    ? "Your Cart is Empty"
+    : isOrdersPage
+    ? "No Orders Yet"
+    : isNotificationPage
+    ? "No Notifications"
+    : dslMissing
+    ? "No content available."
     : "No content configured for this page.";
-  const emptyStateMessage = dslMissing
-    ? `No DSL sections were found for ${requestedPageLabel}.`
+  const emptyStateMessage = isSearchPage
+    ? "Search functionality has not been set up yet."
+    : isCartPage && isCartEmpty
+    ? "Add items to your cart to see them here."
+    : isOrdersPage
+    ? "Your orders will appear here once you place one."
+    : isNotificationPage
+    ? "You have no notifications right now."
+    : dslMissing
+    ? "This page has no content yet."
     : "Please add components in the builder and refresh.";
 
   const reportPageEmptyState = useCallback((key, isEmpty) => {
@@ -664,6 +681,9 @@ export default function BottomNavScreen() {
             const homeDslData = await fetchDSL(appId, "home");
             headers = extractHeaderSections(homeDslData?.dsl || {});
             homeHeaderSectionsRef.current = headers;
+            // Cache home's headerdefault so child pages can show the header even
+            // when the child page has no DSL or its own headerdefault is missing.
+            homeHeaderDefaultRef.current = homeDslData?.dsl?.headerdefault ?? null;
           } catch (err) {
             console.log("❌ Failed to fetch home drawer section:", err);
             headers = [];
@@ -678,19 +698,21 @@ export default function BottomNavScreen() {
         if (!isMounted) return;
 
         if (!dslData?.dsl) {
-          // Page not found — keep only reusable chrome and show an error state.
-          setHeaderDefaultConfig(null);
+          // Page not found — show the header chrome from home DSL, no error message.
+          const hdrFallback = homeHeaderDefaultRef.current;
+          setHeaderDefault(hdrFallback);
+          setHeaderDefaultConfig(hdrFallback);
           setDsl({ page: { name: pageName }, sections: headers, __dslMissing: true });
-          setErr(`No DSL data found for ${pageName || title || "this page"}.`);
           return;
         }
 
         // If DSL was fetched but sections are empty and page is a signin slug, redirect
         const dslSections = dslData.dsl?.sections || [];
         if (dslData.dsl?.__dslMissing && dslSections.length === 0) {
-          setHeaderDefaultConfig(null);
+          const hdrFallback = homeHeaderDefaultRef.current;
+          setHeaderDefault(hdrFallback);
+          setHeaderDefaultConfig(hdrFallback);
           setDsl({ ...dslData.dsl, sections: headers, __dslMissing: true });
-          setErr(`No DSL page found for ${pageName || title || "this page"}.`);
           return;
         }
 
@@ -709,7 +731,8 @@ export default function BottomNavScreen() {
         const nextDsl = isHomePage
           ? dslData.dsl
           : ensureHeaderSections(dslData.dsl, headers);
-        const hdrDefault = dslData.dsl?.headerdefault ?? null;
+        // Fall back to home's headerdefault when the page has no headerdefault of its own.
+        const hdrDefault = dslData.dsl?.headerdefault ?? homeHeaderDefaultRef.current ?? null;
         setPageTitleFromDsl(dslData.dsl?.page?.name || dslData.dsl?.page?.handle || title);
         setHeaderDefault(hdrDefault);
         setHeaderDefaultConfig(hdrDefault);
@@ -741,6 +764,7 @@ export default function BottomNavScreen() {
           const homeDslData = await fetchDSL(appId, "home", { forceRefresh });
           headers = extractHeaderSections(homeDslData?.dsl || {});
           homeHeaderSectionsRef.current = headers;
+          homeHeaderDefaultRef.current = homeDslData?.dsl?.headerdefault ?? null;
         } catch (_) {
           headers = [];
           homeHeaderSectionsRef.current = headers;
@@ -750,15 +774,18 @@ export default function BottomNavScreen() {
       const dslData = await fetchDSL(appId, pageName, { forceRefresh });
       if (dslData?.dsl) {
         if (dslData.dsl?.__dslMissing && getSectionCount(dslData.dsl) === 0) {
+          const hdrFallback = homeHeaderDefaultRef.current;
+          setHeaderDefault(hdrFallback);
+          setHeaderDefaultConfig(hdrFallback);
           setDsl({ ...dslData.dsl, sections: headers, __dslMissing: true });
-          setErr(`No DSL page found for ${pageName || title || "this page"}.`);
+          setErr(null);
           return;
         }
 
         const nextDsl = isHomePage
           ? dslData.dsl
           : ensureHeaderSections(dslData.dsl, headers);
-        const hdrDefault = dslData.dsl?.headerdefault ?? null;
+        const hdrDefault = dslData.dsl?.headerdefault ?? homeHeaderDefaultRef.current ?? null;
         setPageTitleFromDsl(dslData.dsl?.page?.name || dslData.dsl?.page?.handle || title);
         setHeaderDefault(hdrDefault);
         setHeaderDefaultConfig(hdrDefault);
@@ -766,6 +793,12 @@ export default function BottomNavScreen() {
         setErr(null);
         versionRef.current = dslData.versionNumber ?? null;
         sectionsFpRef.current = getDslFingerprint(dslData.dsl);
+      } else {
+        // Page DSL not available — restore home header and clear any lingering error.
+        const hdrFallback = homeHeaderDefaultRef.current;
+        setHeaderDefault(hdrFallback);
+        setHeaderDefaultConfig(hdrFallback);
+        setErr(null);
       }
       await checkAndUpdateBottomNav();
     } catch (error) {
@@ -848,8 +881,11 @@ export default function BottomNavScreen() {
         const latest = await fetchDSL(appId, pageName);
         if (!latest?.dsl) return;
         if (latest.dsl?.__dslMissing && getSectionCount(latest.dsl) === 0) {
+          const hdrFallback = homeHeaderDefaultRef.current;
+          setHeaderDefault(hdrFallback);
+          setHeaderDefaultConfig(hdrFallback);
           setDsl({ ...latest.dsl, sections: homeHeaderSectionsRef.current, __dslMissing: true });
-          setErr(`No DSL page found for ${pageName || title || "this page"}.`);
+          setErr(null);
           return;
         }
 
@@ -864,7 +900,7 @@ export default function BottomNavScreen() {
           const nextDsl = isHomePage
             ? latest.dsl
             : ensureHeaderSections(latest.dsl, headers);
-          const hdrDefault = latest.dsl?.headerdefault ?? null;
+          const hdrDefault = latest.dsl?.headerdefault ?? homeHeaderDefaultRef.current ?? null;
           setPageTitleFromDsl(latest.dsl?.page?.name || latest.dsl?.page?.handle || title);
           setHeaderDefault(hdrDefault);
           setHeaderDefaultConfig(hdrDefault);
@@ -922,13 +958,8 @@ export default function BottomNavScreen() {
           )}
         {loading ? (
           <SkeletonLoader />
-        ) : err ? (
-          <View style={styles.content}>
-            <Text style={styles.error}>Error loading: {err}</Text>
-            <Text style={styles.linkText}>Pull to refresh or reopen the page.</Text>
-          </View>
         ) : (
-          /* DSL-driven page content */
+          /* DSL-driven page content — ScrollView always renders so pull-to-refresh works */
           <View style={{ flex: 1 }}>
 
           <ScrollView
@@ -955,7 +986,12 @@ export default function BottomNavScreen() {
                 showBack={hideBottomNav}
               />
             )}
-            {visibleSections.length ? (
+            {err ? (
+              <View style={styles.content}>
+                <Text style={styles.error}>{err}</Text>
+                <Text style={styles.linkText}>Pull down to refresh or reopen the page.</Text>
+              </View>
+            ) : visibleSections.length ? (
               visibleSections.map((section, index) => {
                 const compName = getComponentName(section).toLowerCase();
                 const nextSection = visibleSections[index + 1] || null;
