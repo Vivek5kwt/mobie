@@ -253,6 +253,8 @@ export default function HeroBanner({ section }) {
     width: _cW, minWidth: _cMinW, maxWidth: _cMaxW,
     height: _cH, minHeight: _cMinH, maxHeight: _cMaxH,
     borderRadius: _cBrFromCss,
+    alignSelf: _cAlignSelf,
+    flexBasis: _cFlexBasis,
     ...containerStyle
   } = containerStyleRaw;
 

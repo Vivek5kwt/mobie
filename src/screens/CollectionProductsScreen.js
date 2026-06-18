@@ -388,12 +388,29 @@ export default function CollectionProductsScreen() {
     return () => { mounted = false; };
   }, [resolvedCollectionHandle, resolvedCollectionTitle, sourcePageName]);
 
+  const resultHeaderConfig = productListHeaderConfig || homeHeaderConfig;
+  const resolvedTitleColor = String(
+    resultHeaderConfig?.pageTitleColor ?? resultHeaderConfig?.textColor ?? "#111827"
+  );
+  const resolvedTitleSize = (() => {
+    const candidates = [
+      resultHeaderConfig?.pageTitleFontSize,
+      resultHeaderConfig?.pageTitleSize,
+    ];
+    for (const v of candidates) {
+      if (v === undefined || v === null || v === "") continue;
+      const n = parseFloat(v);
+      if (Number.isFinite(n) && n > 0) return n;
+    }
+    return 18;
+  })();
+
   return (
     <SafeArea edges={["top", "left", "right"]}>
       <View style={styles.container}>
-        {(productListHeaderConfig || homeHeaderConfig) ? (
+        {resultHeaderConfig ? (
           <HeaderDefault
-            config={productListHeaderConfig || homeHeaderConfig}
+            config={resultHeaderConfig}
             bottomNavSection={bottomNavSection}
             hideTabs
             showBack
@@ -403,7 +420,7 @@ export default function CollectionProductsScreen() {
         {/* Section title row */}
         <View style={styles.sectionRow}>
           <View style={styles.titleColumn}>
-            <Text style={styles.sectionTitle}>
+            <Text style={[styles.sectionTitle, { color: resolvedTitleColor, fontSize: resolvedTitleSize }]}>
               {resolvedCollectionTitle}
             </Text>
             {isFallback && (
@@ -508,9 +525,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   sectionTitle: {
-    fontSize: 16,
     fontWeight: "700",
-    color: "#016D77",
   },
   fallbackNote: {
     fontSize: 11,

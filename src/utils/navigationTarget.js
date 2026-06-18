@@ -209,6 +209,10 @@ export const resolveDslNavigationTarget = ({
     return { type: "stack", name: "Settings", params: { title: displayTitle || "Settings", pageName: "settings" } };
   }
 
+  if (wishlistSlugs.has(pageSlug)) {
+    return { type: "stack", name: "Wishlist", params: { title: displayTitle || "Wishlist" } };
+  }
+
   const resolvedPageName =
     profileSlugs.has(pageSlug) ? "my-account" :
     orderSlugs.has(pageSlug) ? "orders" :

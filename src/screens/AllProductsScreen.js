@@ -594,6 +594,18 @@ export default function AllProductsScreen() {
   };
 
   const resultHeaderConfig = productListHeaderConfig || homeHeaderConfig;
+  const resolvedHeadingColor = resolveString(
+    resultHeaderConfig?.pageTitleColor ?? resultHeaderConfig?.textColor,
+    "#111827"
+  );
+  const resolvedHeadingSize = resolveNumber(
+    [
+      getRawProps(productListGridSection || null)?.pageTitleFontSize,
+      getRawProps(productListGridSection || null)?.titleFontSize,
+      getRawProps(productListGridSection || null)?.titleSize,
+    ],
+    18
+  );
   const searchHeaderConfig = resultHeaderConfig || {};
   const searchCommonHeaderConfig = productListHeaderConfig || commonBackHeaderConfig || homeHeaderConfig || {};
   const searchBackConfig =
@@ -916,7 +928,7 @@ export default function AllProductsScreen() {
         ) : null}
         {!isSearchMode && (
           <View style={styles.headerSection}>
-            <Text style={styles.heading}>
+            <Text style={[styles.heading, { color: resolvedHeadingColor, fontSize: resolvedHeadingSize }]}>
               {title || "Products"}
             </Text>
           </View>
@@ -1130,9 +1142,7 @@ const styles = StyleSheet.create({
     backgroundColor: "#EEEEEE",
   },
   heading: {
-    fontSize: 22,
     fontWeight: "700",
-    color: "#111827",
   },
   row: {
     justifyContent: "space-between",

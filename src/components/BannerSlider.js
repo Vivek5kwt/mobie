@@ -224,17 +224,18 @@ export default function BannerSlider({ section }) {
   const textActive  = asBoolean(rp?.textActive, true);
   const imageResizeMode = (() => {
     const raw = String(
-      rp?.imageScale ??
-      rp?.scale ??
-      rawProps?.scale ??
-      rp?.imageResizeMode ??
-      rp?.resizeMode ??
+      rp?.imageScale ||
+      rp?.scale ||
+      rawProps?.scale ||
+      rp?.imageResizeMode ||
+      rp?.resizeMode ||
       "cover"
     ).toLowerCase();
-    if (raw === "cover") return "cover";
+    if (raw === "cover" || raw === "crop") return "cover";
     if (raw === "stretch") return "stretch";
     if (raw === "fill") return "cover";
-    return "contain";
+    if (raw === "contain" || raw === "fit") return "contain";
+    return "cover";
   })();
 
   // ── Slider behavior ──

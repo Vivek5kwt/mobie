@@ -20,6 +20,7 @@ import { resolveAppId } from "../utils/appId";
 import { useAuth } from "../services/AuthContext";
 import HeaderDefault from "../components/HeaderDefault";
 import DynamicRenderer from "../engine/DynamicRenderer";
+import BottomNavigation from "../components/BottomNavigation";
 import { resolveFont } from "../services/typographyService";
 import FavoriteToggleButton, { buildFavoriteToggleConfig } from "../components/FavoriteToggleButton";
 import { formatMoney } from "../utils/money";
@@ -100,49 +101,63 @@ export default function WishlistScreen() {
   );
 
   // ── DSL state ─────────────────────────────────────────────────────────────
-  const [dslLoading,    setDslLoading]    = useState(true);
-  const [wishlistProps, setWishlistProps] = useState(null);
-  const [headerConfig,  setHeaderConfig]  = useState(null);
-  const [otherSections, setOtherSections] = useState([]);
-  const [snackVisible,  setSnackVisible]  = useState(false);
+  const [dslLoading,      setDslLoading]      = useState(true);
+  const [wishlistProps,   setWishlistProps]   = useState(null);
+  const [headerConfig,    setHeaderConfig]    = useState(null);
+  const [otherSections,   setOtherSections]   = useState([]);
+  const [snackVisible,    setSnackVisible]    = useState(false);
+  const [bottomNavSection, setBottomNavSection] = useState(null);
+  const [bottomNavHeight,  setBottomNavHeight]  = useState(56);
   const dslFingerprintRef = useRef(null);
+
+  const NAV_COMPS = ["bottom_navigation", "bottom_navigation_style_1", "bottom_navigation_style_2"];
 
   const loadDSL = useCallback(async ({ silent = false } = {}) => {
     try {
       if (!silent) setDslLoading(true);
-      const result = await fetchDSL(appId, "wishlist");
-      const dsl    = result?.dsl || result;
+
+      const [wishlistResult, homeResult] = await Promise.all([
+        fetchDSL(appId, "wishlist").catch(() => null),
+        fetchDSL(appId, "home").catch(() => null),
+      ]);
+
+      const dsl = wishlistResult?.dsl || wishlistResult;
       const fp = getDslFingerprint(dsl);
-      if (fp === dslFingerprintRef.current) return;
+      if (fp !== dslFingerprintRef.current) {
+        dslFingerprintRef.current = fp;
+        setHeaderConfig(dsl?.headerdefault || null);
 
-      dslFingerprintRef.current = fp;
-      setHeaderConfig(dsl?.headerdefault || null);
+        const sections = dsl?.sections || [];
 
-      const sections = dsl?.sections || [];
-
-      // wishlist_item section → extract card styling props only
-      const wishlistSection = sections.find((s) => {
-        const c = normalizeComp(s);
-        return c === "wishlist_item" || c === "wishlist";
-      });
-
-      const propsNode = wishlistSection
-        ? (
-            wishlistSection?.properties?.props?.properties ||
-            wishlistSection?.properties?.props ||
-            wishlistSection?.props ||
-            {}
-          )
-        : null;
-      setWishlistProps(propsNode);
-
-      // All other renderable sections (text blocks, banners, spacers, etc.)
-      setOtherSections(
-        sections.filter((s) => {
+        const wishlistSection = sections.find((s) => {
           const c = normalizeComp(s);
-          return c !== "" && !SKIP_COMPS.has(c);
-        })
-      );
+          return c === "wishlist_item" || c === "wishlist";
+        });
+
+        const propsNode = wishlistSection
+          ? (
+              wishlistSection?.properties?.props?.properties ||
+              wishlistSection?.properties?.props ||
+              wishlistSection?.props ||
+              {}
+            )
+          : null;
+        setWishlistProps(propsNode);
+
+        setOtherSections(
+          sections.filter((s) => {
+            const c = normalizeComp(s);
+            return c !== "" && !SKIP_COMPS.has(c);
+          })
+        );
+      }
+
+      // Extract bottom navigation from home DSL (canonical source)
+      const homeDsl = homeResult?.dsl || homeResult;
+      const homeSections = homeDsl?.sections || [];
+      const navSection =
+        homeSections.find((s) => NAV_COMPS.includes(normalizeComp(s))) || null;
+      setBottomNavSection(navSection);
     } catch (_) {
       // DSL fetch failed — renders with defaults
     } finally {
@@ -407,7 +422,7 @@ export default function WishlistScreen() {
       ) : (
         <ScrollView
           showsVerticalScrollIndicator={false}
-          contentContainerStyle={{ flexGrow: 1 }}
+          contentContainerStyle={{ flexGrow: 1, paddingBottom: bottomNavSection ? bottomNavHeight : 0 }}
         >
           {wishlistItems.length > 0 && otherSections.map((section, i) => (
             <DynamicRenderer key={i} section={section} />
@@ -456,6 +471,15 @@ export default function WishlistScreen() {
         duration={2500}
         type="info"
       />
+
+      {bottomNavSection && (
+        <View
+          style={styles.bottomNav}
+          onLayout={(e) => setBottomNavHeight(e.nativeEvent.layout.height)}
+        >
+          <BottomNavigation section={bottomNavSection} />
+        </View>
+      )}
     </SafeArea>
   );
 }
@@ -525,5 +549,11 @@ const styles = StyleSheet.create({
     color:      "#FFFFFF",
     fontWeight: "600",
     fontSize:   14,
+  },
+  bottomNav: {
+    position: "absolute",
+    bottom:   0,
+    left:     0,
+    right:    0,
   },
 });
