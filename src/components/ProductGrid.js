@@ -871,11 +871,11 @@ export default function ProductGrid({ section, limit = 8, title = "Products" }) 
       ]}
     >
       {/* Section header row */}
-      {(resolvedShowGridTitle || (resolvedViewAllActive && hasMore)) && (
+      {(resolvedShowGridTitle || (resolvedViewAllActive && products.length > 0)) && (
         <View style={[styles.headerRow, { marginBottom: headerMarginBottom }]}>
           {resolvedTitleAlign === "right" ? (
             <>
-              {resolvedViewAllActive && hasMore && (
+              {resolvedViewAllActive && products.length > 0 && (
                 <TouchableOpacity
                   style={styles.viewAllInline}
                   activeOpacity={0.8}
@@ -954,7 +954,7 @@ export default function ProductGrid({ section, limit = 8, title = "Products" }) 
             </View>
           )}
 
-          {resolvedViewAllActive && hasMore && (
+          {resolvedViewAllActive && products.length > 0 && (
             <TouchableOpacity
               style={styles.viewAllInline}
               activeOpacity={0.8}

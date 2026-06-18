@@ -241,6 +241,8 @@ export default function HeroBanner({ section }) {
   // Strip padding, margin, sizing, and borderRadius from containerStyle.
   // borderRadius is stripped here so it cannot override the computed containerBorderRadius below.
   // Height is managed by containerHeightStyle + aspectRatio/minHeight below.
+  // Width is stripped so the CSS snapshot's fixed pixel width (e.g. "360px") cannot override
+  // the full-width "100%" set in styles.container — which is the cause of left/right white space.
   const {
     padding: _cP, paddingTop: _cPt, paddingBottom: _cPb,
     paddingLeft: _cPl, paddingRight: _cPr,
@@ -248,6 +250,7 @@ export default function HeroBanner({ section }) {
     margin: _cM, marginTop: _cMt, marginBottom: _cMb,
     marginLeft: _cMl, marginRight: _cMr,
     marginHorizontal: _cMh, marginVertical: _cMv,
+    width: _cW, minWidth: _cMinW, maxWidth: _cMaxW,
     height: _cH, minHeight: _cMinH, maxHeight: _cMaxH,
     borderRadius: _cBrFromCss,
     ...containerStyle

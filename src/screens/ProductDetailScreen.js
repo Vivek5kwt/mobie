@@ -14,6 +14,37 @@ import { trackViewItem } from "../services/analyticsService";
 
 const LIVE_DSL_REFRESH_INTERVAL_MS = 30000;
 
+const DEFAULT_PRODUCT_DETAIL_HEADER = {
+  left: [
+    {
+      icon: "fa-chevron-left",
+      type: "icon",
+      active: "icon",
+      linkTo: "__BACK__",
+      iconSize: 20,
+      iconColor: "#111111",
+      navigateType: "PreviousScreen",
+    },
+  ],
+  right: [
+    {
+      icon: "fa-cart-shopping",
+      type: "icon",
+      active: "icon",
+      linkTo: "Cart",
+      iconSize: 20,
+      iconColor: "#111111",
+      navigateRef: "Cart",
+      navigateType: "Screen",
+    },
+  ],
+  enabled: true,
+  showCart: true,
+  iconColor: "#111111",
+  textColor: "#111111",
+  backgroundColor: "#FFFFFF",
+};
+
 const unwrapValue = (value, fallback = undefined) => {
   if (value === undefined || value === null) return fallback;
   if (typeof value === "object") {
@@ -474,9 +505,11 @@ export default function ProductDetailScreen() {
     <SafeAreaView style={styles.safeArea} edges={["left", "right"]}>
       <View style={styles.container}>
         <View style={[styles.headerWrapper, { paddingTop: insets.top }]}>
-          {headerDefaultConfig ? (
-            <HeaderDefault config={headerDefaultConfig} hideTabs={true} showBack={true} />
-          ) : null}
+          <HeaderDefault
+            config={headerDefaultConfig || DEFAULT_PRODUCT_DETAIL_HEADER}
+            hideTabs={true}
+            showBack={true}
+          />
         </View>
         {showLoadingState ? (
           <SkeletonLoader />

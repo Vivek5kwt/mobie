@@ -85,16 +85,21 @@ const parseAspectRatio = (value) => {
 // ─── Slide builder ───────────────────────────────────────────────────────────
 
 const buildSlides = (rawProps = {}, defaultButtonLabel = "Shop Now") => {
-  // Try props.slides (schema array) first, then rawProps.items
-  const slidesSchema = rawProps?.slides;
+  // DSL stores slides at rawProps.raw.slides (after deepUnwrap of the section props).
+  // Also check rawProps.slides for DSL structures that hoist them to the top level.
+  const slidesSchema = rawProps?.slides ?? rawProps?.raw?.slides;
   let candidateArray = [];
 
   if (Array.isArray(slidesSchema)) {
     candidateArray = slidesSchema;
   } else if (Array.isArray(slidesSchema?.items)) {
     candidateArray = slidesSchema.items;
+  } else if (Array.isArray(rawProps?.raw?.items)) {
+    candidateArray = rawProps.raw.items;
   } else if (Array.isArray(rawProps?.rawProps?.items)) {
     candidateArray = rawProps.rawProps.items;
+  } else if (Array.isArray(rawProps?.items)) {
+    candidateArray = rawProps.items;
   }
 
   return candidateArray
@@ -171,7 +176,7 @@ export default function BannerSlider({ section }) {
   }, [section]);
 
   // The flat rawProps.value object from DSL — primary source of truth for all styling
-  const rp = rawProps?.rawProps ?? {};
+  const rp = rawProps?.raw ?? {};
 
   const slides = useMemo(
     () => buildSlides(rawProps, rp?.buttonText ?? rp?.buttonLabel ?? "Shop Now"),

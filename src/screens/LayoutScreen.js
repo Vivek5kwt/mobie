@@ -676,6 +676,8 @@ export default function LayoutScreen({ route, navigation }) {
           {visibleSections.length ? (
             visibleSections.map((s, i) => {
               const componentName = getComponentName(s).toLowerCase();
+              // side_navigation is rendered as an animated overlay — skip inline rendering
+              if (componentName === "side_navigation") return null;
               const nextComponentName = visibleSections[i + 1]
                 ? getComponentName(visibleSections[i + 1]).toLowerCase()
                 : null;

@@ -278,7 +278,19 @@ export default function CollectionImage({ section }) {
   );
   const bgColor = asString(
     unwrapValue(
-      firstDefined(containerCfg?.bgColor, containerCfg?.backgroundColor, rawSnapshot?.bgColor, rawSnapshot?.backgroundColor, layoutCss?.container?.backgroundColor),
+      firstDefined(
+        containerCfg?.bgColor,
+        containerCfg?.backgroundColor,
+        rawSnapshot?.bgColor,
+        rawSnapshot?.backgroundColor,
+        rawSnapshot?.containerBgColor,
+        rawSnapshot?.sectionBgColor,
+        generalNode?.bgColor,
+        generalNode?.backgroundColor,
+        rawProps?.bgColor,
+        rawProps?.backgroundColor,
+        layoutCss?.container?.backgroundColor,
+      ),
       "#FFFFFF"
     )
   );

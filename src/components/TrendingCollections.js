@@ -253,7 +253,7 @@ export default function TrendingCollections({ section }) {
   const circleIconSize = toNumber(rp("collectionCircleIconSize") ?? rp("iconSize"), 26);
 
   // ── Container ─────────────────────────────────────────────────────────────
-  const bgColor = unwrapValue(rp("bgColor"), "#FFFFFF");
+  const bgColor = unwrapValue(rp("bgColor") ?? rp("backgroundColor") ?? rp("containerBgColor") ?? rp("sectionBgColor"), "#FFFFFF");
   const borderRadius = toNumber(rp("borderRadius"), 0);
   const borderColor = unwrapValue(rp("borderColor"), "#E5E7EB");
   const borderSide = unwrapValue(rp("borderSide"), "");

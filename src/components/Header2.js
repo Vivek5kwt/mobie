@@ -238,7 +238,17 @@ export default function Header2({ section }) {
     rawPropsNode.layout?.css ||
     rawPropsNode.layout?.properties ||
     {};
+  // Greeting-mode props are exclusive to the full header (gradient + search + profile).
+  // If any are present, treat this as full mode regardless of other fields.
+  const hasGreetingModeProps =
+    rawPropsNode.greeting != null ||
+    rawPropsNode.searchAndIcons != null ||
+    rawPropsNode.greetingSettingsEnabled != null ||
+    rawPropsNode.searchSettingsEnabled != null ||
+    rawPropsNode.profileSettingsEnabled != null;
+
   const isSimpleHeader =
+    !hasGreetingModeProps &&
     rawPropsNode.cart != null &&
     (rawPropsNode.logoImage != null ||
       rawPropsNode.enableLogo != null ||

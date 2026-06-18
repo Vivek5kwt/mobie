@@ -557,6 +557,7 @@ export default function HeaderDefault({
           style={{
             flexDirection: "row",
             alignItems: "center",
+            justifyContent: "space-between",
             backgroundColor: bgColor,
             paddingVertical: 6,
             paddingHorizontal: HEADER_HORIZONTAL_PADDING,
