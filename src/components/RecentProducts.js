@@ -217,6 +217,8 @@ export default function RecentProducts({ section }) {
     strikethrough: firstDefined(raw?.headerStrikethrough, raw?.sectionTitleStrikethrough, raw?.headlineStrikethrough),
   });
   const headerMB      = parsePx(headerCss?.marginBottom, 8);
+  const headerPL      = parsePx(firstDefined(raw?.headerPaddingLeft, headerCss?.paddingLeft), undefined);
+  const headerPR      = parsePx(firstDefined(raw?.headerPaddingRight, headerCss?.paddingRight), undefined);
 
   // ── Grid ──────────────────────────────────────────────────────────────────
   const gridCss  = unwrap(css?.grid, {});
@@ -446,6 +448,8 @@ export default function RecentProducts({ section }) {
             fontWeight: headerWeight,
             textDecorationLine: headerDecoration,
             marginBottom: headerMB,
+            ...(headerPL != null ? { paddingLeft: headerPL } : {}),
+            ...(headerPR != null ? { paddingRight: headerPR } : {}),
             ...(headerFamily ? { fontFamily: headerFamily } : {}),
           }}
         >

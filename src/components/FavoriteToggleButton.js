@@ -130,18 +130,25 @@ export default function FavoriteToggleButton({
   );
   const bubbleSize = Math.max(30, iconSize + bubblePadding * 2);
 
+  // When an external style prop is provided (e.g. from ProductLibrary which computes
+  // the exact absolute position accounting for image offsets), use it directly.
+  // Internal resolvePositionStyle is only a fallback for callers that don't supply one.
+  const positionStyle =
+    style != null
+      ? style
+      : resolvePositionStyle(resolvedConfig.position, resolvedConfig.inset);
+
   return (
     <TouchableOpacity
       style={[
         styles.button,
-        resolvePositionStyle(resolvedConfig.position, resolvedConfig.inset),
+        positionStyle,
         {
           width: bubbleSize,
           height: bubbleSize,
           borderRadius: bubbleSize / 2,
           backgroundColor: resolvedConfig.bubbleColor,
         },
-        style,
       ]}
       activeOpacity={0.7}
       onPress={onPress}

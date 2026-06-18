@@ -473,6 +473,13 @@ export default function ProductDetailScreen() {
     [detailProduct, product]
   );
 
+  const headerConfig = useMemo(() => {
+    const base = headerDefaultConfig || DEFAULT_PRODUCT_DETAIL_HEADER;
+    const productTitle = productForRender?.title || productForRender?.titleText || "";
+    if (!productTitle) return base;
+    return { ...base, title: productTitle };
+  }, [headerDefaultConfig, productForRender]);
+
   // Render as soon as DSL plus route product data are available, then hydrate
   // with fuller Shopify detail data when that request settles.
   const renderSections = useMemo(() => {
@@ -506,7 +513,7 @@ export default function ProductDetailScreen() {
       <View style={styles.container}>
         <View style={[styles.headerWrapper, { paddingTop: insets.top }]}>
           <HeaderDefault
-            config={headerDefaultConfig || DEFAULT_PRODUCT_DETAIL_HEADER}
+            config={headerConfig}
             hideTabs={true}
             showBack={true}
           />
