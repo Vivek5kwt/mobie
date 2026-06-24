@@ -1191,6 +1191,80 @@ export default function HeroBanner({ section }) {
     containerStyle,
   ];
 
+  // Text content node — rendered outside the image container when an image is present
+  // so overflow:hidden on the image container cannot clip the text.
+  const textContentNode = hasTextContent ? (
+    <View
+      style={[
+        imageSrc ? styles.textLayer : styles.contentInline,
+        {
+          alignItems: alignSettingsEnabled ? alignItems : "center",
+          justifyContent: alignSettingsEnabled ? justifyContent : "center",
+          paddingTop: alignSettingsEnabled
+            ? paddingTop > 0 ? paddingTop : (imageSrc ? 0 : 24)
+            : imageSrc ? 40 : 24,
+          paddingRight:  alignSettingsEnabled ? paddingRight  : 30,
+          paddingBottom: alignSettingsEnabled ? paddingBottom : (imageSrc ? 50 : 24),
+          paddingLeft:   alignSettingsEnabled ? paddingLeft   : 30,
+        },
+      ]}
+    >
+      {showHeadline && headline ? (
+        <Text
+          allowFontScaling={false}
+          style={[styles.headline, headlineStyle, { textAlign: headlineTextAlign || "center" }]}
+        >
+          {headline}
+        </Text>
+      ) : null}
+
+      {showSubtext && subtext ? (
+        <Text
+          allowFontScaling={false}
+          style={[styles.subtext, subtextStyle, { textAlign: subtextTextAlign || "center" }]}
+        >
+          {subtext}
+        </Text>
+      ) : null}
+
+      {showButton && buttonLabel ? (
+        <View
+          style={[
+            styles.buttonWrapper,
+            {
+              alignItems: buttonHorizontalAlign,
+              justifyContent: buttonHorizontalAlign,
+            },
+          ]}
+        >
+          <TouchableOpacity onPress={handleButtonPress} activeOpacity={0.8}>
+            <View style={[styles.buttonInner, btnViewDynStyle]}>
+              {!!buttonIconName && buttonIconPosition !== "right" && (
+                <FontAwesome
+                  name={buttonIconName}
+                  size={buttonIconSize}
+                  color={buttonIconColor}
+                />
+              )}
+              <Text allowFontScaling={false} style={[styles.buttonText, btnTextDynStyle]}>
+                {buttonLabel}
+              </Text>
+              {!!buttonIconName && buttonIconPosition === "right" && (
+                <FontAwesome
+                  name={buttonIconName}
+                  size={buttonIconSize}
+                  color={buttonIconColor}
+                />
+              )}
+            </View>
+          </TouchableOpacity>
+        </View>
+      ) : null}
+    </View>
+  ) : null;
+
+  // Image + overlay inside the clipped container (overflow:hidden clips image to border radius).
+  // Text is intentionally NOT inside this container — see textContentNode below.
   const innerChildren = (
     <>
       {imageSrc ? (
@@ -1199,14 +1273,13 @@ export default function HeroBanner({ section }) {
           style={[
             imageCssStyle,
             { borderRadius: imageCornerRadius },
-            styles.image, // base style last so position/top/left/right/bottom always win
+            styles.image,
           ]}
           resizeMode={resizeMode}
           blurRadius={imageBlurRadius}
         />
       ) : null}
 
-      {/* Color-tinted overlay — only rendered when an explicit overlayColor is set in DSL */}
       {imageSrc && contentSettingsEnabled && !!overlayColor && overlayColor !== "transparent" ? (
         <View
           style={[
@@ -1219,77 +1292,8 @@ export default function HeroBanner({ section }) {
         />
       ) : null}
 
-      {/* When image is present: content overlays it (position:absolute).
-          When no image: content is in normal flow so the container grows to fit the text. */}
-      <View
-        style={[
-          imageSrc ? styles.content : styles.contentInline,
-          {
-            alignItems: alignSettingsEnabled ? alignItems : "center",
-            justifyContent: alignSettingsEnabled ? justifyContent : "center",
-            paddingTop: hasTextContent
-              ? (alignSettingsEnabled
-                  ? paddingTop > 0 ? paddingTop : (imageSrc ? 0 : 24)
-                  : imageSrc ? 40 : 24)
-              : 0,
-            paddingRight:  hasTextContent ? (alignSettingsEnabled ? paddingRight  : 30) : 0,
-            paddingBottom: hasTextContent ? (alignSettingsEnabled ? paddingBottom : (imageSrc ? 50 : 24)) : 0,
-            paddingLeft:   hasTextContent ? (alignSettingsEnabled ? paddingLeft   : 30) : 0,
-          },
-        ]}
-      >
-        {showHeadline && headline ? (
-          <Text
-            allowFontScaling={false}
-            style={[styles.headline, headlineStyle, { textAlign: headlineTextAlign || "center" }]}
-          >
-            {headline}
-          </Text>
-        ) : null}
-
-        {showSubtext && subtext ? (
-          <Text
-            allowFontScaling={false}
-            style={[styles.subtext, subtextStyle, { textAlign: subtextTextAlign || "center" }]}
-          >
-            {subtext}
-          </Text>
-        ) : null}
-
-        {showButton && buttonLabel ? (
-          <View
-            style={[
-              styles.buttonWrapper,
-              {
-                alignItems: buttonHorizontalAlign,
-                justifyContent: buttonHorizontalAlign,
-              },
-            ]}
-          >
-            <TouchableOpacity onPress={handleButtonPress} activeOpacity={0.8}>
-              <View style={[styles.buttonInner, btnViewDynStyle]}>
-                {!!buttonIconName && buttonIconPosition !== "right" && (
-                  <FontAwesome
-                    name={buttonIconName}
-                    size={buttonIconSize}
-                    color={buttonIconColor}
-                  />
-                )}
-                <Text allowFontScaling={false} style={[styles.buttonText, btnTextDynStyle]}>
-                  {buttonLabel}
-                </Text>
-                {!!buttonIconName && buttonIconPosition === "right" && (
-                  <FontAwesome
-                    name={buttonIconName}
-                    size={buttonIconSize}
-                    color={buttonIconColor}
-                  />
-                )}
-              </View>
-            </TouchableOpacity>
-          </View>
-        ) : null}
-      </View>
+      {/* Text inside the container only when there is no image (container grows with content). */}
+      {!imageSrc && textContentNode}
     </>
   );
 
@@ -1317,8 +1321,6 @@ export default function HeroBanner({ section }) {
           style={[
             ...innerContainerStyle,
             {
-              // When an image is present it covers the container entirely; keep bg transparent
-              // so no colour bleeds out if the container is ever taller than the image.
               backgroundColor: imageSrc
                 ? "transparent"
                 : bgSettingsEnabled
@@ -1330,6 +1332,12 @@ export default function HeroBanner({ section }) {
           {innerChildren}
         </View>
       )}
+
+      {/* Text layer rendered as a sibling of the image container so it is not clipped
+          by overflow:hidden. minHeight:"100%" makes it at least as tall as the banner,
+          allowing justifyContent to centre text when it fits. When text is taller than
+          the banner it naturally grows beyond the image without being cut off. */}
+      {imageSrc && textContentNode}
     </View>
   );
 }
@@ -1337,7 +1345,17 @@ export default function HeroBanner({ section }) {
 const styles = StyleSheet.create({
   outerCard: {
     width: "100%",
-    overflow: "hidden",
+    position: "relative",
+    // overflow:hidden removed — the inner container (image layer) handles clipping.
+    // Keeping it here would cut off text that is taller than the fixed banner height.
+  },
+  textLayer: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    minHeight: "100%",
+    zIndex: 2,
   },
   container: {
     position: "relative",
@@ -1365,21 +1383,6 @@ const styles = StyleSheet.create({
     width: "100%",
     height: "100%",
     zIndex: 1, // Above image, below content
-  },
-  content: {
-    position: "absolute",
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    justifyContent: "center",
-    alignItems: "center",
-    zIndex: 2,
-  },
-  absoluteContentLayer: {
-    position: "absolute",
-    left: 0,
-    top: 0,
   },
   headline: {
     color: "#0f0f0f",
