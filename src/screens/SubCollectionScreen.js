@@ -191,26 +191,6 @@ const findCollectionSectionItems = (dsl = {}) => {
   return items;
 };
 
-const findProductListItems = (dsl = {}) => {
-  const sections = dsl?.sections || [];
-  const filterSection = sections.find((section) => {
-    const component = getComponentName(section);
-    return component === "filter_sort_header" || component === "filter_sort";
-  });
-  if (!filterSection) return [];
-
-  const props = getSectionProps(filterSection);
-  const raw = unwrapValue(props.raw, {});
-  const candidates = [
-    ...asArray(raw?.items),
-    ...asArray(props?.items),
-    ...asArray(raw?.filters),
-    ...asArray(props?.filters),
-  ];
-
-  return candidates.map(normalizeItem).filter(Boolean);
-};
-
 const normalizeStoreCollection = (collection = {}) => ({
   id: String(collection.id || collection.handle || collection.title || ""),
   title: collection.title || collection.handle || "Collection",
@@ -252,9 +232,9 @@ const findStoreMatch = (item, storeItems) => {
 };
 
 const mergeWithStoreCollections = (dslItems, storeItems) => {
-  const sourceItems = dslItems.length
-    ? dslItems
-    : storeItems.filter((item) => normalizeKey(item.handle) !== "all");
+  if (!dslItems.length) return [];
+
+  const sourceItems = dslItems;
 
   const merged = sourceItems.map((item) => {
     const match = findStoreMatch(item, storeItems);
@@ -343,11 +323,7 @@ export default function SubCollectionScreen() {
         const collectionDslItems = (pageResults || [])
           .flatMap((pageData) => findCollectionSectionItems(pageData?.dsl || pageData || {}))
           .filter((item) => normalizeKey(item.handle || item.title) !== normalizeKey(parentHandle || parentTitle));
-        const dslItems = routedItems.length
-          ? routedItems
-          : collectionDslItems.length
-          ? collectionDslItems
-          : findProductListItems(productListDsl);
+        const dslItems = routedItems.length ? routedItems : collectionDslItems;
         const storeItems = (storeCollections || [])
           .map(normalizeStoreCollection)
           .filter((item) => item.title || item.handle);
@@ -423,18 +399,21 @@ export default function SubCollectionScreen() {
     if (!parentTitle) return "Choose a sub-collection";
     return `Choose a sub-collection in ${parentTitle}`;
   }, [parentTitle]);
+  const showHeading = items.length > 0;
 
   return (
     <SafeArea edges={["top", "left", "right"]}>
       <View style={styles.container}>
-        {(pageHeaderConfig || homeHeaderConfig) ? (
-          <HeaderDefault config={pageHeaderConfig || homeHeaderConfig} bottomNavSection={bottomNavSection} hideTabs showBack />
+        {pageHeaderConfig ? (
+          <HeaderDefault config={pageHeaderConfig} bottomNavSection={bottomNavSection} hideTabs showBack />
         ) : null}
 
-        <View style={styles.heading}>
-          <Text style={styles.title}>{parentTitle}</Text>
-          <Text style={styles.subtitle}>{headerSubtitle}</Text>
-        </View>
+        {showHeading ? (
+          <View style={styles.heading}>
+            <Text style={styles.title}>{parentTitle}</Text>
+            <Text style={styles.subtitle}>{headerSubtitle}</Text>
+          </View>
+        ) : null}
 
         {loading ? (
           <ActivityIndicator style={styles.loader} size="small" color="#016D77" />

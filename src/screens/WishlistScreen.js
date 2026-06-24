@@ -48,6 +48,8 @@ const toAlign = (value, fallback = "left") => {
   if (normalized === "right" || normalized === "flex-end") return "right";
   return "left";
 };
+const alignToFlex = (align = "left") =>
+  align === "center" ? "center" : align === "right" ? "flex-end" : "flex-start";
 
 const normalizeComp = (s) =>
   String(
@@ -227,16 +229,27 @@ export default function WishlistScreen() {
   const titleFontSize   = toNum(p?.titleFontSize,   14);
   const titleFontWeight = toStr(p?.titleFontWeight, "600");
   const titleFontFamily = resolveFont(toStr(p?.titleFontFamily ?? p?.fontFamily, ""));
+  const contentAlign    = toAlign(
+    firstDefined(p?.contentAlign, p?.cardContentAlign, p?.cardAlign, p?.alignText, p?.textAlign),
+    "center"
+  );
+  const titleAlign      = toAlign(
+    firstDefined(p?.titleAlign, p?.productTitleAlign, p?.cardTitleAlign, p?.itemTitleAlign, p?.textAlign),
+    contentAlign
+  );
 
   const priceColor      = toStr(p?.priceColor,      "#16A34A");
   const priceFontSize   = toNum(p?.priceFontSize,   14);
   const priceFontWeight = toStr(p?.priceFontWeight, "500");
-  const priceAlign      = toAlign(p?.priceAlign,      "left");
+  const priceAlign      = toAlign(firstDefined(p?.priceAlign, p?.productPriceAlign, p?.cardPriceAlign), contentAlign);
   const priceFontFamily = resolveFont(toStr(p?.priceFontFamily ?? p?.fontFamily, ""));
+  const contentJustify  = alignToFlex(contentAlign);
+  const priceJustify    = alignToFlex(priceAlign);
   const countColor = toStr(p?.countColor ?? p?.labelColor ?? p?.titleColor, titleColor);
   const countFontSize = toNum(p?.countFontSize ?? p?.labelFontSize, titleFontSize);
   const countFontWeight = toStr(p?.countFontWeight ?? p?.labelFontWeight, titleFontWeight);
   const countFontFamily = resolveFont(toStr(p?.countFontFamily ?? p?.labelFontFamily ?? p?.titleFontFamily ?? p?.fontFamily, ""));
+  const countAlign = toAlign(firstDefined(p?.countAlign, p?.labelAlign, p?.headerAlign), contentAlign);
   const emptyBgColor = toStr(firstDefined(p?.emptyBgColor, p?.emptyBackgroundColor, p?.bgColor), "#FFFFFF");
   const emptyTitle = toStr(firstDefined(p?.emptyTitle, p?.emptyWishlistTitle), "Personal Collection");
   const emptySubtitle = toStr(
@@ -339,6 +352,7 @@ export default function WishlistScreen() {
             paddingLeft: pl,
             paddingRight: pr,
             gap: contentGap,
+            alignItems: contentJustify,
           },
         ]}
       >
@@ -349,6 +363,8 @@ export default function WishlistScreen() {
             fontWeight: titleFontWeight,
             color:      titleColor,
             lineHeight:  titleLineHeight,
+            textAlign:   titleAlign,
+            width:       "100%",
             ...(titleFontFamily ? { fontFamily: titleFontFamily } : null),
           }}
         >
@@ -359,12 +375,7 @@ export default function WishlistScreen() {
           style={[
             styles.priceRow,
             {
-              justifyContent:
-                priceAlign === "center"
-                  ? "center"
-                  : priceAlign === "right"
-                    ? "flex-end"
-                    : "flex-start",
+              justifyContent: priceJustify,
               gap: contentGap,
             },
           ]}
@@ -400,8 +411,8 @@ export default function WishlistScreen() {
   ), [
     cardW, radius, bgColor, borderColor, borderWidth, imgH, imageRadius, imageResizeMode,
     favoriteToggleConfig, titleFontSize, titleFontWeight, titleColor, titleFontFamily,
-    titleLineHeight, priceColor, priceFontSize, priceFontWeight, priceAlign, priceFontFamily,
-    priceLineHeight, pt, pb, pl, pr, contentGap,
+    titleLineHeight, titleAlign, contentJustify, priceColor, priceFontSize, priceFontWeight,
+    priceAlign, priceJustify, priceFontFamily, priceLineHeight, pt, pb, pl, pr, contentGap,
     strikeColor, strikeFontSize, strikepriceFontWeight,
     dispatch, navigation,
   ]);
@@ -446,6 +457,7 @@ export default function WishlistScreen() {
                     fontSize: countFontSize,
                     fontWeight: countFontWeight,
                     marginBottom: countMarginBottom,
+                    textAlign: countAlign,
                     ...(countFontFamily ? { fontFamily: countFontFamily } : null),
                   },
                 ]}
@@ -508,6 +520,7 @@ const styles = StyleSheet.create({
   cardBody: {
   },
   priceRow: {
+    width: "100%",
     flexDirection: "row",
     alignItems:    "center",
     flexWrap:      "wrap",

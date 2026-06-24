@@ -41,6 +41,19 @@ const toString = (value, fallback = "") => {
   return String(resolved);
 };
 
+const firstDefined = (...values) =>
+  values.find((value) => value !== undefined && value !== null && value !== "");
+
+const toAlign = (value, fallback = "left") => {
+  const normalized = toString(value, fallback).trim().toLowerCase();
+  if (normalized === "center") return "center";
+  if (normalized === "right" || normalized === "flex-end") return "right";
+  return "left";
+};
+
+const alignToFlex = (align = "left") =>
+  align === "center" ? "center" : align === "right" ? "flex-end" : "flex-start";
+
 const buildRawProps = (rawProps = {}) => {
   const rawBlock = unwrapValue(rawProps.raw, {});
   if (rawBlock && typeof rawBlock === "object" && rawBlock.value !== undefined) {
@@ -105,6 +118,17 @@ export default function WishlistItem({ section }) {
   const priceFontWeight = toString(raw?.priceFontWeight, "500");
   const strikeFontWeight = toString(raw?.strikepriceFontWeight ?? raw?.strikePriceFontWeight, "400");
   const titleFontFamily = resolveFont(toString(raw?.titleFontFamily ?? raw?.fontFamily, ""));
+  const contentAlign = toAlign(
+    firstDefined(raw?.contentAlign, raw?.cardContentAlign, raw?.cardAlign, raw?.alignText, raw?.textAlign),
+    "center"
+  );
+  const titleAlign = toAlign(
+    firstDefined(raw?.titleAlign, raw?.productTitleAlign, raw?.cardTitleAlign, raw?.itemTitleAlign, raw?.textAlign),
+    contentAlign
+  );
+  const priceAlign = toAlign(firstDefined(raw?.priceAlign, raw?.productPriceAlign, raw?.cardPriceAlign), contentAlign);
+  const contentJustify = alignToFlex(contentAlign);
+  const priceJustify = alignToFlex(priceAlign);
 
   // Resolve image aspect ratio: "1:1" → 1, "4:3" → 0.75 (height/width), etc.
   const resolveAspectRatio = (ratio) => {
@@ -200,7 +224,7 @@ export default function WishlistItem({ section }) {
               </View>
 
               {/* Product info */}
-              <View style={styles.info}>
+              <View style={[styles.info, { alignItems: contentJustify }]}>
                 <Text
                   numberOfLines={2}
                   style={[
@@ -209,13 +233,14 @@ export default function WishlistItem({ section }) {
                       color: titleColor,
                       fontSize: titleFontSize,
                       fontWeight: titleFontWeight,
+                      textAlign: titleAlign,
                       ...(titleFontFamily ? { fontFamily: titleFontFamily } : null),
                     },
                   ]}
                 >
                   {product.title}
                 </Text>
-                <View style={styles.priceRow}>
+                <View style={[styles.priceRow, { justifyContent: priceJustify }]}>
                   <Text
                     style={[
                       styles.price,
@@ -223,6 +248,7 @@ export default function WishlistItem({ section }) {
                         color: priceColor,
                         fontSize: priceFontSize,
                         fontWeight: priceFontWeight,
+                        textAlign: priceAlign,
                       },
                     ]}
                   >
@@ -307,8 +333,10 @@ const styles = StyleSheet.create({
   },
   title: {
     lineHeight: 20,
+    width: "100%",
   },
   priceRow: {
+    width: "100%",
     flexDirection: "row",
     alignItems: "center",
     gap: 6,

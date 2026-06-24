@@ -278,7 +278,13 @@ export default function SideNavigation({ section }) {
 
   const headerFontSize = toNumber(firstDefined(raw?.headerFontSize, raw?.fontSize), 18);
   const headerTextStyle = {
-    color: firstDefined(raw?.headerTextColor, raw?.headerColor, "#111827"),
+    color: firstDefined(
+      raw?.headerTitleColor,
+      raw?.titleColor,
+      raw?.headerColor,
+      raw?.headerTextColor,
+      "#111827"
+    ),
     fontSize: headerFontSize,
     fontWeight: asBoolean(raw?.headerBold, false)
       ? "700"

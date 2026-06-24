@@ -9,6 +9,16 @@ const initialState = {
 const normalizeId = (item = {}) =>
   String(item.id || item.variantId || item.handle || item.title || "").trim();
 
+const toPositiveNumber = (value, fallback = 0) => {
+  const parsed = typeof value === "number" ? value : parseFloat(String(value ?? ""));
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
+};
+
+const toFiniteNumber = (value, fallback = 0) => {
+  const parsed = typeof value === "number" ? value : parseFloat(String(value ?? ""));
+  return Number.isFinite(parsed) ? parsed : fallback;
+};
+
 const cartSlice = createSlice({
   name: "cart",
   initialState,
@@ -18,7 +28,9 @@ const cartSlice = createSlice({
       const id = normalizeId(item);
       if (!id) return;
 
-      const quantity = Number.isFinite(item.quantity) ? item.quantity : 1;
+      const quantity = toPositiveNumber(item.quantity, 1);
+      const nextPrice = toPositiveNumber(item.price, 0);
+      const nextCompareAtPrice = toPositiveNumber(item.compareAtPrice ?? item.originalPrice, 0);
       const existing = state.items.find((entry) => normalizeId(entry) === id);
 
       if (existing) {
@@ -29,8 +41,10 @@ const cartSlice = createSlice({
         existing.vendor = existing.vendor || item.vendor || "";
         existing.variant = existing.variant || item.variant || "";
         existing.currency = existing.currency || item.currency || "";
-        existing.price = existing.price ?? item.price ?? 0;
-        existing.compareAtPrice = existing.compareAtPrice || item.compareAtPrice || item.originalPrice || 0;
+        if (nextPrice > 0) existing.price = nextPrice;
+        else existing.price = existing.price ?? item.price ?? 0;
+        if (nextCompareAtPrice > 0) existing.compareAtPrice = nextCompareAtPrice;
+        else existing.compareAtPrice = existing.compareAtPrice || item.compareAtPrice || item.originalPrice || 0;
       } else {
         state.items.push({
           id,
@@ -38,8 +52,8 @@ const cartSlice = createSlice({
           handle: item.handle || "",
           title: item.title || "Product",
           image: item.image || "",
-          price: item.price ?? 0,
-          compareAtPrice: item.compareAtPrice ?? item.originalPrice ?? 0,
+          price: nextPrice || item.price || 0,
+          compareAtPrice: nextCompareAtPrice || item.compareAtPrice || item.originalPrice || 0,
           vendor: item.vendor || "",
           variant: item.variant || "",
           currency: item.currency || "",
@@ -53,7 +67,7 @@ const cartSlice = createSlice({
       const target = state.items.find((entry) => normalizeId(entry) === normalizedId);
       if (!target) return;
 
-      const nextQuantity = Number.isFinite(quantity) ? quantity : target.quantity;
+      const nextQuantity = toFiniteNumber(quantity, target.quantity);
       if (nextQuantity <= 0) {
         state.items = state.items.filter((entry) => normalizeId(entry) !== normalizedId);
       } else {

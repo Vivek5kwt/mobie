@@ -111,6 +111,7 @@ const headerIconButtonStyle = {
   height: HEADER_TOUCH_SIZE,
   alignItems: "center",
   justifyContent: "center",
+  overflow: "visible",
 };
 
 const countVisibleHeaderItems = (items = []) =>
@@ -445,8 +446,9 @@ export default function HeaderDefault({
     const cartIconSize = Number.isFinite(cartIconSizeRaw) && cartIconSizeRaw > 0 ? cartIconSizeRaw : 20;
     const cartIconColor = resolveVal(cartConfig.color) || iconColor;
     const rightIconCount = [showWishlist, showBell, cartVisible].filter(Boolean).length;
+    const rightTouchSize = Math.max(HEADER_TOUCH_SIZE, cartIconSize + 16);
     const rightSlotWidth = rightIconCount > 0
-      ? (rightIconCount * HEADER_TOUCH_SIZE) + ((rightIconCount - 1) * HEADER_ITEM_GAP)
+      ? (rightIconCount * rightTouchSize) + ((rightIconCount - 1) * HEADER_ITEM_GAP)
       : HEADER_TOUCH_SIZE;
     const balancedSideWidth = Math.max(HEADER_TOUCH_SIZE, rightSlotWidth);
     const flatBackConfig = resolveVal(config.backIcon) || resolveVal(config.back) || {};
@@ -582,44 +584,46 @@ export default function HeaderDefault({
           {/* Brand title — absolutely overlaid to guarantee true center regardless of icon count */}
           <View style={{ position: "absolute", left: 0, right: 0, top: 0, bottom: 0, alignItems: "center", justifyContent: "center" }} pointerEvents="box-none">
             <View style={{ alignItems: "center", justifyContent: "center", paddingHorizontal: balancedSideWidth + HEADER_HORIZONTAL_PADDING, maxWidth: "100%" }}>
-              <TouchableOpacity
-                activeOpacity={disableDefaultTitlePress ? 1 : 0.75}
-                disabled={disableDefaultTitlePress}
-                onPress={() => navigation.navigate("LayoutScreen")}
-              >
-                <View
-                  style={{
-                    alignSelf: "center",
-                    ...(hasBox ? {
-                      borderWidth: titleBorderWidth,
-                      borderColor: titleBorderColor,
-                      borderRadius: titleBorderRadius,
-                      backgroundColor: titleBoxBg || "transparent",
-                      paddingHorizontal: titleBoxPaddingH,
-                      paddingVertical: titleBoxPaddingV,
-                    } : {}),
-                  }}
+              {!!titleText ? (
+                <TouchableOpacity
+                  activeOpacity={disableDefaultTitlePress ? 1 : 0.75}
+                  disabled={disableDefaultTitlePress}
+                  onPress={() => navigation.navigate("LayoutScreen")}
                 >
-                  <Text
+                  <View
                     style={{
-                      fontSize: titleFontSize,
-                      fontWeight: titleFontWeight,
-                      color: titleColor,
-                      includeFontPadding: false,
-                      textAlignVertical: "center",
-                      ...(titleFontFamily ? { fontFamily: titleFontFamily } : {}),
+                      alignSelf: "center",
+                      ...(hasBox ? {
+                        borderWidth: titleBorderWidth,
+                        borderColor: titleBorderColor,
+                        borderRadius: titleBorderRadius,
+                        backgroundColor: titleBoxBg || "transparent",
+                        paddingHorizontal: titleBoxPaddingH,
+                        paddingVertical: titleBoxPaddingV,
+                      } : {}),
                     }}
-                    numberOfLines={1}
                   >
-                    {titleText}
-                  </Text>
-                </View>
-              </TouchableOpacity>
+                    <Text
+                      style={{
+                        fontSize: titleFontSize,
+                        fontWeight: titleFontWeight,
+                        color: titleColor,
+                        includeFontPadding: false,
+                        textAlignVertical: "center",
+                        ...(titleFontFamily ? { fontFamily: titleFontFamily } : {}),
+                      }}
+                      numberOfLines={1}
+                    >
+                      {titleText}
+                    </Text>
+                  </View>
+                </TouchableOpacity>
+              ) : null}
             </View>
           </View>
 
           {/* Right slot */}
-          <View style={{ width: balancedSideWidth, flexDirection: "row", alignItems: "center", justifyContent: "flex-end", gap: HEADER_ITEM_GAP }}>
+          <View style={{ width: balancedSideWidth, flexDirection: "row", alignItems: "center", justifyContent: "flex-end", gap: HEADER_ITEM_GAP, overflow: "visible" }}>
             {showWishlist && (
               <TouchableOpacity
                 activeOpacity={0.7}

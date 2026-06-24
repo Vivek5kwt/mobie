@@ -203,21 +203,9 @@ export default function LayoutScreen({ route, navigation }) {
       return isHomePage || !hasPrimaryHeader;
     });
 
-    return sectionsCopy.sort((a, b) => {
-      const A = getComponentName(a);
-      const B = getComponentName(b);
+    return sectionsCopy;
 
-      // 1️⃣ Top Header
-      if (A === "header") return -1;
-      if (B === "header") return 1;
-
-      // 2️⃣ Header 2
-      if (A === "header_2") return -1;
-      if (B === "header_2") return 1;
-
-      return 0;
-    });
-  }, [hasHeader2, hasPrimaryHeader, isHomePage, mobileSections]);
+  }, [hasPrimaryHeader, isHomePage, mobileSections]);
 
   const sideNavSection = useMemo(
     () =>

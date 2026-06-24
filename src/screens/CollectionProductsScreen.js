@@ -49,6 +49,194 @@ const findFilterSortSection = (dsl = {}) =>
     return component === "filter_sort_header" || component === "filter_sort";
   }) || null;
 
+const unwrapDslValue = (value) => {
+  if (value && typeof value === "object") {
+    if (value.value !== undefined) return value.value;
+    if (value.const !== undefined) return value.const;
+    if (value.default !== undefined) return value.default;
+    if (value.properties !== undefined) return value.properties;
+  }
+  return value;
+};
+
+const getSectionProps = (section = {}) =>
+  section?.properties?.props?.properties ||
+  section?.properties?.props ||
+  section?.props?.properties ||
+  section?.props ||
+  {};
+
+const toExplicitBoolean = (value) => {
+  const resolved = unwrapDslValue(value);
+  if (resolved === undefined || resolved === null || resolved === "") return undefined;
+  if (typeof resolved === "boolean") return resolved;
+  if (typeof resolved === "number") return resolved !== 0;
+  if (typeof resolved === "string") {
+    const normalized = resolved.trim().toLowerCase();
+    if (["true", "1", "yes", "y"].includes(normalized)) return true;
+    if (["false", "0", "no", "n"].includes(normalized)) return false;
+  }
+  return undefined;
+};
+
+const toNumberOr = (value, fallback) => {
+  const resolved = unwrapDslValue(value);
+  if (resolved === undefined || resolved === null || resolved === "") return fallback;
+  const parsed = typeof resolved === "number" ? resolved : parseFloat(String(resolved));
+  return Number.isFinite(parsed) ? parsed : fallback;
+};
+
+const toStringOr = (value, fallback = "") => {
+  const resolved = unwrapDslValue(value);
+  if (resolved === undefined || resolved === null || resolved === "") return fallback;
+  return String(resolved);
+};
+
+const firstDefinedDsl = (...values) => {
+  for (const value of values) {
+    const resolved = unwrapDslValue(value);
+    if (resolved !== undefined && resolved !== null && resolved !== "") return resolved;
+  }
+  return undefined;
+};
+
+const getLayoutCss = (raw = {}, props = {}) => {
+  const layout = unwrapDslValue(raw?.layout) || unwrapDslValue(props?.layout) || {};
+  const css = unwrapDslValue(layout?.css) || {};
+  const presentation = unwrapDslValue(raw?.presentation) || unwrapDslValue(props?.presentation) || {};
+  const presentationCss = unwrapDslValue(presentation?.css) || unwrapDslValue(presentation?.cssSnapshot) || {};
+  return {
+    card: unwrapDslValue(css?.card) || unwrapDslValue(presentationCss?.card) || {},
+    image: unwrapDslValue(css?.image) || unwrapDslValue(css?.imageWrap) || unwrapDslValue(presentationCss?.image) || {},
+    title: unwrapDslValue(css?.cardTitle) || unwrapDslValue(css?.title) || unwrapDslValue(presentationCss?.title) || {},
+    price: unwrapDslValue(css?.cardPrice) || unwrapDslValue(css?.price) || unwrapDslValue(presentationCss?.price) || {},
+    button: unwrapDslValue(css?.addToCart) || unwrapDslValue(css?.button) || unwrapDslValue(presentationCss?.button) || {},
+  };
+};
+
+const DEFAULT_PRODUCT_CARD_CONFIG = {
+  cardBgColor: "#FFFFFF",
+  cardBorderColor: "#E5E7EB",
+  cardBorderWidth: 1,
+  cardBorderRadius: 8,
+  imageBgColor: "#FFFFFF",
+  imageHeight: undefined,
+  titleColor: "#111827",
+  titleSize: 12,
+  titleWeight: "600",
+  priceColor: "#111827",
+  priceSize: 13,
+  priceWeight: "700",
+  buttonBgColor: "#111111",
+  buttonTextColor: "#FFFFFF",
+  buttonRadius: 6,
+  buttonTextSize: 11,
+  buttonTextWeight: "700",
+  unavailableBgColor: "#7A7A7A",
+  unavailableTextColor: "#FFFFFF",
+};
+
+const resolveProductCardConfig = (...dsls) => {
+  const productComponents = new Set([
+    "product_grid",
+    "product_carousel",
+    "tab_product_grid",
+    "tab_product_carousel",
+    "collection_products",
+  ]);
+
+  for (const dsl of dsls) {
+    const section = (dsl?.sections || []).find((candidate) =>
+      productComponents.has(getComponentName(candidate))
+    );
+    if (!section) continue;
+
+    const props = getSectionProps(section);
+    const raw = {
+      ...props,
+      ...((unwrapDslValue(props?.raw) && typeof unwrapDslValue(props?.raw) === "object")
+        ? unwrapDslValue(props?.raw)
+        : {}),
+    };
+    const css = getLayoutCss(raw, props);
+    return {
+      cardBgColor: toStringOr(firstDefinedDsl(raw?.cardBackgroundColor, raw?.cardBgColor, css.card?.backgroundColor), DEFAULT_PRODUCT_CARD_CONFIG.cardBgColor),
+      cardBorderColor: toStringOr(firstDefinedDsl(raw?.cardBorderColor, css.card?.borderColor), DEFAULT_PRODUCT_CARD_CONFIG.cardBorderColor),
+      cardBorderWidth: toNumberOr(firstDefinedDsl(raw?.cardBorderWidth, css.card?.borderWidth), DEFAULT_PRODUCT_CARD_CONFIG.cardBorderWidth),
+      cardBorderRadius: toNumberOr(firstDefinedDsl(raw?.cardCorner, raw?.cardRadius, raw?.cardBorderRadius, css.card?.borderRadius), DEFAULT_PRODUCT_CARD_CONFIG.cardBorderRadius),
+      imageBgColor: toStringOr(firstDefinedDsl(raw?.imageBackgroundColor, raw?.productImageBackgroundColor, raw?.imageBgColor, raw?.productImageBgColor, css.image?.backgroundColor), DEFAULT_PRODUCT_CARD_CONFIG.imageBgColor),
+      imageHeight: toNumberOr(firstDefinedDsl(raw?.imageHeight, raw?.productImageHeight, css.image?.height), DEFAULT_PRODUCT_CARD_CONFIG.imageHeight),
+      titleColor: toStringOr(firstDefinedDsl(raw?.productTitleColor, raw?.itemTitleColor, raw?.cardTitleColor, raw?.titleColor, css.title?.color), DEFAULT_PRODUCT_CARD_CONFIG.titleColor),
+      titleSize: toNumberOr(firstDefinedDsl(raw?.productTitleSize, raw?.itemTitleSize, raw?.cardTitleSize, raw?.titleSize, css.title?.fontSize), DEFAULT_PRODUCT_CARD_CONFIG.titleSize),
+      titleWeight: toStringOr(firstDefinedDsl(raw?.productTitleWeight, raw?.itemTitleWeight, raw?.cardTitleWeight, raw?.titleWeight, css.title?.fontWeight), DEFAULT_PRODUCT_CARD_CONFIG.titleWeight),
+      priceColor: toStringOr(firstDefinedDsl(raw?.priceColor, raw?.productPriceColor, css.price?.color), DEFAULT_PRODUCT_CARD_CONFIG.priceColor),
+      priceSize: toNumberOr(firstDefinedDsl(raw?.priceSize, raw?.productPriceSize, raw?.cardPriceSize, css.price?.fontSize), DEFAULT_PRODUCT_CARD_CONFIG.priceSize),
+      priceWeight: toStringOr(firstDefinedDsl(raw?.priceWeight, raw?.productPriceWeight, css.price?.fontWeight), DEFAULT_PRODUCT_CARD_CONFIG.priceWeight),
+      buttonBgColor: toStringOr(firstDefinedDsl(raw?.addToCartBgColor, raw?.cartBtnBgColor, raw?.buttonBgColor, css.button?.backgroundColor), DEFAULT_PRODUCT_CARD_CONFIG.buttonBgColor),
+      buttonTextColor: toStringOr(firstDefinedDsl(raw?.addToCartTextColor, raw?.cartBtnTextColor, raw?.buttonTextColor, css.button?.color), DEFAULT_PRODUCT_CARD_CONFIG.buttonTextColor),
+      buttonRadius: toNumberOr(firstDefinedDsl(raw?.addToCartBorderRadius, raw?.cartBtnRadius, raw?.buttonRadius, css.button?.borderRadius), DEFAULT_PRODUCT_CARD_CONFIG.buttonRadius),
+      buttonTextSize: toNumberOr(firstDefinedDsl(raw?.addToCartFontSize, raw?.cartBtnFontSize, raw?.buttonFontSize, css.button?.fontSize), DEFAULT_PRODUCT_CARD_CONFIG.buttonTextSize),
+      buttonTextWeight: toStringOr(firstDefinedDsl(raw?.addToCartFontWeight, raw?.cartBtnFontWeight, raw?.buttonFontWeight, css.button?.fontWeight), DEFAULT_PRODUCT_CARD_CONFIG.buttonTextWeight),
+      unavailableBgColor: toStringOr(firstDefinedDsl(raw?.unavailableBgColor, raw?.soldOutBgColor), DEFAULT_PRODUCT_CARD_CONFIG.unavailableBgColor),
+      unavailableTextColor: toStringOr(firstDefinedDsl(raw?.unavailableTextColor, raw?.soldOutTextColor), DEFAULT_PRODUCT_CARD_CONFIG.unavailableTextColor),
+    };
+  }
+
+  return DEFAULT_PRODUCT_CARD_CONFIG;
+};
+
+const resolveCollectionTitleVisible = (...dsls) => {
+  const titleComponents = new Set([
+    "collection",
+    "collections",
+    "collection_image",
+    "collection_slider",
+    "collection_products",
+    "product_grid",
+    "product_carousel",
+  ]);
+
+  for (const dsl of dsls) {
+    const sections = dsl?.sections || [];
+    for (const section of sections) {
+      const component = getComponentName(section);
+      if (!titleComponents.has(component)) continue;
+
+      const props = getSectionProps(section);
+      const raw = unwrapDslValue(props?.raw) || {};
+      const visibility = {
+        ...(unwrapDslValue(raw?.visibility) || {}),
+        ...(unwrapDslValue(props?.visibility) || {}),
+      };
+      const candidates = [
+        raw?.collectionTitleActive,
+        raw?.collectionTitleVisible,
+        raw?.showCollectionTitle,
+        raw?.sectionTitleActive,
+        raw?.sectionTitleVisible,
+        raw?.headerTitleActive,
+        raw?.headerTitleVisible,
+        raw?.gridTitleActive,
+        raw?.titleActive,
+        raw?.titleVisible,
+        raw?.showTitle,
+        visibility?.collectionTitle,
+        visibility?.sectionTitle,
+        visibility?.headerTitle,
+        visibility?.gridTitle,
+        visibility?.title,
+      ];
+
+      for (const candidate of candidates) {
+        const explicit = toExplicitBoolean(candidate);
+        if (explicit !== undefined) return explicit;
+      }
+    }
+  }
+
+  return false;
+};
+
 const productCurrency = (product = {}) =>
   product.priceCurrency ||
   product.currency ||
@@ -138,6 +326,8 @@ export default function CollectionProductsScreen() {
   const [homeHeaderConfig, setHomeHeaderConfig] = useState(null);
   const [productListHeaderConfig, setProductListHeaderConfig] = useState(null);
   const [productListFilterSortSection, setProductListFilterSortSection] = useState(null);
+  const [collectionTitleVisible, setCollectionTitleVisible] = useState(false);
+  const [productCardConfig, setProductCardConfig] = useState(DEFAULT_PRODUCT_CARD_CONFIG);
   const [filterOptions, setFilterOptions] = useState([]);
   const [cartSnackbarVisible, setCartSnackbarVisible] = useState(false);
   const [cartSnackbarMessage, setCartSnackbarMessage] = useState("");
@@ -279,7 +469,17 @@ export default function CollectionProductsScreen() {
 
     return (
       <TouchableOpacity
-        style={[styles.card, { width: CARD_W }, isListMode && styles.cardList]}
+        style={[
+          styles.card,
+          {
+            width: CARD_W,
+            backgroundColor: productCardConfig.cardBgColor,
+            borderColor: productCardConfig.cardBorderColor,
+            borderWidth: productCardConfig.cardBorderWidth,
+            borderRadius: productCardConfig.cardBorderRadius,
+          },
+          isListMode && styles.cardList,
+        ]}
         activeOpacity={0.88}
         onPress={() => {
           if (favoriteTapRef.current) {
@@ -294,11 +494,16 @@ export default function CollectionProductsScreen() {
           {item.imageUrl ? (
             <Image
               source={{ uri: item.imageUrl }}
-              style={[styles.image, isListMode && styles.imageList]}
+              style={[
+                styles.image,
+                productCardConfig.imageHeight ? { height: productCardConfig.imageHeight, aspectRatio: undefined } : null,
+                { backgroundColor: productCardConfig.imageBgColor },
+                isListMode && styles.imageList,
+              ]}
               resizeMode={resolveProductImageResizeMode()}
             />
           ) : (
-            <View style={[styles.image, isListMode && styles.imageList, styles.placeholder]}>
+            <View style={[styles.image, { backgroundColor: productCardConfig.imageBgColor }, isListMode && styles.imageList, styles.placeholder]}>
               <Text style={styles.placeholderText}>
                 {(item.title || "?").charAt(0).toUpperCase()}
               </Text>
@@ -324,17 +529,43 @@ export default function CollectionProductsScreen() {
 
         {/* Card body */}
         <View style={styles.cardBody}>
-          <Text numberOfLines={isListMode ? 1 : 2} style={styles.productName}>
+          <Text
+            numberOfLines={isListMode ? 1 : 2}
+            style={[
+              styles.productName,
+              {
+                color: productCardConfig.titleColor,
+                fontSize: productCardConfig.titleSize,
+                fontWeight: String(productCardConfig.titleWeight),
+                lineHeight: Math.ceil(productCardConfig.titleSize * 1.35),
+              },
+            ]}
+          >
             {item.title}
           </Text>
-          <Text style={styles.price}>
+          <Text
+            style={[
+              styles.price,
+              {
+                color: productCardConfig.priceColor,
+                fontSize: productCardConfig.priceSize,
+                fontWeight: String(productCardConfig.priceWeight),
+              },
+            ]}
+          >
             {formatMoney(
               moneyAmount(item.priceAmount ?? item.price),
               productCurrency(item)
             )}
           </Text>
           <TouchableOpacity
-            style={inStock ? styles.cartBtnActive : styles.cartBtnSoldOut}
+            style={[
+              inStock ? styles.cartBtnActive : styles.cartBtnSoldOut,
+              {
+                backgroundColor: inStock ? productCardConfig.buttonBgColor : productCardConfig.unavailableBgColor,
+                borderRadius: productCardConfig.buttonRadius,
+              },
+            ]}
             activeOpacity={inStock ? 0.8 : 1}
             disabled={!inStock}
             onPress={(e) => {
@@ -343,7 +574,16 @@ export default function CollectionProductsScreen() {
               if (inStock) handleAddToCart(item);
             }}
           >
-            <Text style={inStock ? styles.cartBtnTextActive : styles.cartBtnTextSoldOut}>
+            <Text
+              style={[
+                inStock ? styles.cartBtnTextActive : styles.cartBtnTextSoldOut,
+                {
+                  color: inStock ? productCardConfig.buttonTextColor : productCardConfig.unavailableTextColor,
+                  fontSize: productCardConfig.buttonTextSize,
+                  fontWeight: String(productCardConfig.buttonTextWeight),
+                },
+              ]}
+            >
               {inStock ? "Add To Cart" : "Item Not Available"}
             </Text>
           </TouchableOpacity>
@@ -355,6 +595,8 @@ export default function CollectionProductsScreen() {
   useEffect(() => {
     const appId = resolveAppId();
     let mounted = true;
+    setCollectionTitleVisible(false);
+    setProductCardConfig(DEFAULT_PRODUCT_CARD_CONFIG);
     const pageCandidates = Array.from(new Set([
       sourcePageName,
       resolvedCollectionHandle,
@@ -373,9 +615,12 @@ export default function CollectionProductsScreen() {
       const matchedPageHeaderConfig = (pageResults || [])
         .map((pageData) => (pageData?.dsl || pageData || {})?.headerdefault)
         .find(Boolean);
+      const matchedPageDsls = (pageResults || []).map((pageData) => pageData?.dsl || pageData || {});
       setHomeHeaderConfig(data?.dsl?.headerdefault || null);
       setProductListHeaderConfig(matchedPageHeaderConfig || productListDsl?.headerdefault || null);
       setProductListFilterSortSection(findFilterSortSection(productListDsl));
+      setCollectionTitleVisible(resolveCollectionTitleVisible(...matchedPageDsls, productListDsl));
+      setProductCardConfig(resolveProductCardConfig(...matchedPageDsls, productListDsl));
       const nav = (data?.dsl?.sections || []).find((s) => {
         const c = (
           s?.component?.const || s?.component ||
@@ -388,7 +633,7 @@ export default function CollectionProductsScreen() {
     return () => { mounted = false; };
   }, [resolvedCollectionHandle, resolvedCollectionTitle, sourcePageName]);
 
-  const resultHeaderConfig = productListHeaderConfig || homeHeaderConfig;
+  const resultHeaderConfig = productListHeaderConfig;
   const resolvedTitleColor = String(
     resultHeaderConfig?.pageTitleColor ?? resultHeaderConfig?.textColor ?? "#111827"
   );
@@ -417,19 +662,20 @@ export default function CollectionProductsScreen() {
           />
         ) : null}
 
-        {/* Section title row */}
-        <View style={styles.sectionRow}>
-          <View style={styles.titleColumn}>
-            <Text style={[styles.sectionTitle, { color: resolvedTitleColor, fontSize: resolvedTitleSize }]}>
-              {resolvedCollectionTitle}
-            </Text>
-            {isFallback && (
-              <Text style={styles.fallbackNote}>
-                Showing all products
+        {collectionTitleVisible && !!resolvedCollectionTitle ? (
+          <View style={styles.sectionRow}>
+            <View style={styles.titleColumn}>
+              <Text style={[styles.sectionTitle, { color: resolvedTitleColor, fontSize: resolvedTitleSize }]}>
+                {resolvedCollectionTitle}
               </Text>
-            )}
+              {isFallback && (
+                <Text style={styles.fallbackNote}>
+                  Showing all products
+                </Text>
+              )}
+            </View>
           </View>
-        </View>
+        ) : null}
 
         {/* Filter + Sort header bar */}
         <FilterSortHeader

@@ -36,6 +36,50 @@ export function resolveBoolean(input, defaultValue = true) {
   return normalized;
 }
 
+function unwrapValue(input) {
+  if (input && typeof input === "object") {
+    if (input.value !== undefined) return input.value;
+    if (input.const !== undefined) return input.const;
+    if (input.default !== undefined) return input.default;
+  }
+  return input;
+}
+
+function getSectionProps(section = {}) {
+  return (
+    section?.properties?.props?.properties ||
+    section?.properties?.props ||
+    section?.props?.properties ||
+    section?.props ||
+    {}
+  );
+}
+
+function readVisibilityBlock(section = {}) {
+  const props = getSectionProps(section);
+  const raw = unwrapValue(props?.raw) || {};
+  const asBlock = (value) => {
+    const resolved = unwrapValue(value) || {};
+    return resolved.properties || resolved;
+  };
+  return {
+    ...asBlock(section?.properties?.visibility),
+    ...asBlock(section?.visibility),
+    ...asBlock(props?.visibility),
+    ...asBlock(raw?.visibility),
+  };
+}
+
+function isExplicitFalse(value) {
+  if (value === undefined || value === null) return false;
+  return resolveBoolean(value, true) === false;
+}
+
+function isExplicitTrue(value) {
+  if (value === undefined || value === null) return false;
+  return resolveBoolean(value, false) === true;
+}
+
 /**
  * Determines if a DSL section should be rendered on a mobile device.
  * Looks for common visibility flags coming from the backend DSL schema.
@@ -43,10 +87,33 @@ export function resolveBoolean(input, defaultValue = true) {
 export function shouldRenderSectionOnMobile(section) {
   if (!section) return false;
 
-  const visibilityBlock = section?.properties?.visibility || section?.visibility;
-  if (!visibilityBlock) return true;
+  const props = getSectionProps(section);
+  const raw = unwrapValue(props?.raw) || {};
+  const v = readVisibilityBlock(section);
 
-  const v = visibilityBlock.properties || visibilityBlock;
+  if (
+    isExplicitTrue(section?.disabled) ||
+    isExplicitTrue(section?.isDisabled) ||
+    isExplicitTrue(section?.hidden) ||
+    isExplicitTrue(section?.isHidden) ||
+    isExplicitFalse(section?.enabled) ||
+    isExplicitFalse(section?.active) ||
+    isExplicitFalse(section?.visible) ||
+    isExplicitFalse(props?.enabled) ||
+    isExplicitFalse(props?.active) ||
+    isExplicitFalse(props?.visible) ||
+    isExplicitFalse(raw?.enabled) ||
+    isExplicitFalse(raw?.active) ||
+    isExplicitFalse(raw?.visible) ||
+    isExplicitFalse(v.enabled) ||
+    isExplicitFalse(v.component) ||
+    isExplicitFalse(v.section) ||
+    isExplicitFalse(v.block) ||
+    isExplicitFalse(v.root) ||
+    isExplicitFalse(v.visible)
+  ) {
+    return false;
+  }
 
   // Explicit hide-on-mobile flags take precedence
   const hideOnMobile = resolveBoolean(

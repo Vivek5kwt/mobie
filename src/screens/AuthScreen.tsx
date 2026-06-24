@@ -24,7 +24,6 @@ import { fetchDSL } from '../engine/dslHandler';
 import authLayoutFallback from '../data/authLayoutFallback';
 import HeaderDefaultComponent from '../components/HeaderDefault';
 import DynamicRenderer from '../engine/DynamicRenderer';
-import { getHeaderDefault } from '../services/headerDefaultService';
 import { resolveFont } from '../services/typographyService';
 
 const LIVE_DSL_REFRESH_INTERVAL_MS = 30000;
@@ -590,7 +589,7 @@ const defaultSignInTokens: SignInTokens = {
   footerLinkFontSize: 14,
   footerLinkFontFamily: 'System',
   footerLinkFontWeight: '700',
-  footerLinkAlignment: 'Center',
+  footerLinkAlignment: 'Left',
   footerVisible: true,
   forgotPasswordVisible: false,
   authVisible: true,
@@ -754,7 +753,7 @@ const defaultSignUpTokens: SignUpTokens = {
   footerLinkFontSize: 14,
   footerLinkFontFamily: 'System',
   footerLinkFontWeight: '600',
-  footerLinkAlignment: 'Center',
+  footerLinkAlignment: 'Left',
   footerLinkAutoUppercase: false,
   footerVisible: true,
   signInLinkVisible: true,
@@ -1309,11 +1308,6 @@ const AuthSkeletonBone = ({ style }: { style?: any }) => {
 
 const AuthLayoutSkeleton = () => (
   <SafeAreaView style={authSkeletonStyles.safeArea}>
-    <View style={authSkeletonStyles.headerRow}>
-      <AuthSkeletonBone style={authSkeletonStyles.headerIcon} />
-      <AuthSkeletonBone style={authSkeletonStyles.headerTitle} />
-      <AuthSkeletonBone style={authSkeletonStyles.headerIcon} />
-    </View>
     <View style={authSkeletonStyles.content}>
       <AuthSkeletonBone style={authSkeletonStyles.titleLine} />
       <View style={authSkeletonStyles.card}>
@@ -1595,7 +1589,7 @@ const AuthScreen = () => {
   const t = mode === 'signup' ? signUpTokens : signInTokens;
   const activeHeaderConfig = useMemo(() => {
     const dslConfig = mode === 'signup' ? signUpHeaderConfig : signInHeaderConfig;
-    return dslConfig ?? getHeaderDefault();
+    return dslConfig ?? null;
   }, [mode, signInHeaderConfig, signUpHeaderConfig]);
 
   const toggleMode = () => {

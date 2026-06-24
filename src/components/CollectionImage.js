@@ -1,6 +1,5 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef } from "react";
 import {
-  ActivityIndicator,
   FlatList,
   Image,
   StyleSheet,
@@ -11,7 +10,6 @@ import {
 } from "react-native";
 import { useNavigation, useRoute } from "@react-navigation/native";
 import { WebView } from "react-native-webview";
-import { fetchShopifyCollections, getShopifyDomain } from "../services/shopify";
 import { convertStyles } from "../utils/convertStyles";
 import { resolveFont } from "../services/typographyService";
 
@@ -59,6 +57,11 @@ const firstDefined = (...values) =>
     const resolved = unwrapValue(value, undefined);
     return resolved !== undefined && resolved !== null && resolved !== "";
   });
+
+const unwrapObject = (value) => {
+  const resolved = unwrapValue(value, {});
+  return resolved?.properties || resolved || {};
+};
 
 const parseAspectRatio = (value, fallback = 1) => {
   const resolved = asString(value, "").trim();
@@ -155,35 +158,6 @@ const normalizeKey = (value) =>
     .replace(/-+/g, "-")
     .replace(/^-|-$/g, "");
 
-const mergeCollectionItems = (dslItems, storeItems) => {
-  if (!dslItems.length) return storeItems;
-  if (!storeItems.length) return dslItems;
-
-  const byHandle = new Map();
-  const byTitle = new Map();
-  storeItems.forEach((item) => {
-    const handle = normalizeKey(item?.handle || deriveHandle(item));
-    const title = normalizeKey(item?.title);
-    if (handle) byHandle.set(handle, item);
-    if (title) byTitle.set(title, item);
-  });
-
-  return dslItems.map((item) => {
-    const handle = normalizeKey(item?.handle || deriveHandle(item));
-    const title = normalizeKey(item?.title);
-    const match = byHandle.get(handle) || byTitle.get(title);
-    if (!match) return item;
-    return {
-      ...match,
-      ...item,
-      handle: item.handle || match.handle,
-      link: item.link || match.link,
-      image: isRenderableImageUrl(item.image) ? item.image : match.image,
-      originalImage: item.image || "",
-    };
-  });
-};
-
 const cleanFontFamily = (family) => resolveFont(family) || "";
 
 const toArray = (value) => {
@@ -233,6 +207,11 @@ export default function CollectionImage({ section }) {
   const headerCfg    = rawProps?.header?.properties      || rawProps?.header      || {};
   const cardCfg      = rawProps?.card?.properties        || rawProps?.card        || {};
   const containerCfg = rawProps?.container?.properties   || rawProps?.container   || {};
+  const visibilityCfg = {
+    ...unwrapObject(layoutCss?.visibility),
+    ...unwrapObject(rawSnapshot?.visibility),
+    ...unwrapObject(rawProps?.visibility),
+  };
 
   // ── Collections ──────────────────────────────────────────────────────────────
   // Priority: explicit items array → rawSnapshot items → collections object (DSL schema format)
@@ -250,14 +229,7 @@ export default function CollectionImage({ section }) {
     return [];
   }, [rawProps, rawSnapshot]);
 
-  const [shopifyCollections, setShopifyCollections] = useState([]);
-  const [collectionsLoading, setCollectionsLoading] = useState(false);
-  const [collectionsError, setCollectionsError] = useState("");
-  const collectionsLimit = asNumber(rawProps?.collectionsLimit ?? rawSnapshot?.collectionsLimit, 50);
-  const items = useMemo(
-    () => mergeCollectionItems(dslCollections, shopifyCollections),
-    [dslCollections, shopifyCollections]
-  );
+  const items = dslCollections;
 
   // ── Container ────────────────────────────────────────────────────────────────
   const containerPt = asNumber(
@@ -304,7 +276,16 @@ export default function CollectionImage({ section }) {
   );
 
   // ── Header ───────────────────────────────────────────────────────────────────
-  const showHeader   = asBoolean(rawProps?.showHeader ?? rawSnapshot?.showHeader, false);
+  const showHeader   = asBoolean(
+    firstDefined(
+      visibilityCfg?.header,
+      visibilityCfg?.heading,
+      visibilityCfg?.sectionTitle,
+      rawProps?.showHeader,
+      rawSnapshot?.showHeader
+    ),
+    false
+  );
   const headerText   = asString(
     unwrapValue(
       headerCfg?.headerText ?? headerCfg?.title ?? headerCfg?.text ??
@@ -333,7 +314,18 @@ export default function CollectionImage({ section }) {
 
   // ── Card ─────────────────────────────────────────────────────────────────────
   const showCardImage       = asBoolean(rawProps?.showCardImage, true);
-  const showCardText        = asBoolean(cardCfg?.showText, true);
+  const showCardText        = asBoolean(
+    firstDefined(
+      visibilityCfg?.collectionTitle,
+      visibilityCfg?.cardTitle,
+      visibilityCfg?.title,
+      rawSnapshot?.titleActive,
+      rawSnapshot?.titleVisible,
+      rawSnapshot?.showTitle,
+      cardCfg?.showText
+    ),
+    true
+  );
   const cardTextSize        = asNumber(titleNode?.fontSize ?? rawSnapshot?.titleFontSize ?? cardCfg?.textSize, 12);
   const cardTextColor       = asString(unwrapValue(titleNode?.color ?? rawSnapshot?.titleSubCColor ?? rawSnapshot?.titleColor ?? cardCfg?.textColor, "#000000"));
   const cardTextWeight      = deriveFontWeight(titleNode?.fontWeight ?? rawSnapshot?.titleFontWeight ?? cardCfg?.textWeight, "500");
@@ -474,31 +466,6 @@ export default function CollectionImage({ section }) {
     }, scrollSpeedSec * 1000);
     return () => clearInterval(timer);
   }, [isGrid, isScrollable, autoScrollEnabled, items.length, scrollSpeedSec, updateIndex]);
-
-  // ── Shopify fallback ──────────────────────────────────────────────────────────
-  useEffect(() => {
-    let alive = true;
-    setCollectionsLoading(true);
-    setCollectionsError("");
-    fetchShopifyCollections(collectionsLimit).then((resp) => {
-      if (!alive) return;
-      setShopifyCollections(
-        resp
-          .map((c) => ({
-            title: c?.title || "",
-            image: c?.imageUrl || "",
-            handle: c?.handle || "",
-            link: c?.handle ? `https://${getShopifyDomain()}/collections/${c.handle}` : "",
-          }))
-          .filter((x) => x.title || x.image)
-      );
-    }).catch(() => {
-      if (alive) setCollectionsError("Unable to load collections right now.");
-    }).finally(() => {
-      if (alive) setCollectionsLoading(false);
-    });
-    return () => { alive = false; };
-  }, [collectionsLimit]);
 
   // ── Callbacks ─────────────────────────────────────────────────────────────────
   const getItemLayout = useCallback(
@@ -686,24 +653,6 @@ export default function CollectionImage({ section }) {
   ];
 
   if (!items.length) {
-    if (collectionsLoading) {
-      return (
-        <View style={[containerStyle, styles.stateWrap]}>
-          <ActivityIndicator size="small" color={headerColor || placeholderTextColor} />
-        </View>
-      );
-    }
-
-    if (collectionsError) {
-      return (
-        <View style={[containerStyle, styles.stateWrap]}>
-          <Text style={[styles.stateText, { color: headerColor || placeholderTextColor }]}>
-            {collectionsError}
-          </Text>
-        </View>
-      );
-    }
-
     return null;
   }
 
@@ -792,14 +741,5 @@ const styles = StyleSheet.create({
     textShadowColor: "rgba(255,255,255,0.65)",
     textShadowRadius: 2,
     textShadowOffset: { width: 0, height: 1 },
-  },
-  stateText: {
-    fontSize: 13,
-    textAlign: "center",
-  },
-  stateWrap: {
-    minHeight: 72,
-    alignItems: "center",
-    justifyContent: "center",
   },
 });

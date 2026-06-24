@@ -1171,6 +1171,42 @@ export default function HeroBanner({ section }) {
     if (resolved !== undefined) { numericMinHeight = resolved; break; }
   }
 
+  const countTextLines = (value) => {
+    const text = String(value || "");
+    if (!text) return 0;
+    return Math.max(1, text.split(/\r?\n/).length);
+  };
+  const readableLineHeight = (style, fallbackSize) => {
+    const fontSize = toNumber(style?.fontSize, fallbackSize);
+    const rawLineHeight = toNumber(style?.lineHeight, undefined);
+    if (rawLineHeight && rawLineHeight >= fontSize * 0.85) return rawLineHeight;
+    return Math.ceil(fontSize * 1.25);
+  };
+  const buttonTextSize = toNumber(btnTextDynStyle?.fontSize, 14);
+  const buttonVerticalPadding =
+    toNumber(btnViewDynStyle?.paddingTop, 0) +
+    toNumber(btnViewDynStyle?.paddingBottom, 0);
+  const estimatedContentHeight = hasTextContent
+    ? Math.ceil(
+        (alignSettingsEnabled ? paddingTop : imageSrc ? 40 : 24) +
+        (showHeadline && headline ? readableLineHeight(headlineStyle, 24) * countTextLines(headline) : 0) +
+        (showSubtext && subtext
+          ? toNumber(subtextStyle?.marginTop, 8) + readableLineHeight(subtextStyle, 16) * countTextLines(subtext)
+          : 0) +
+        (showButton && buttonLabel
+          ? 12 + Math.max(buttonIconSize, Math.ceil(buttonTextSize * 1.25)) + buttonVerticalPadding
+          : 0) +
+        (alignSettingsEnabled ? paddingBottom : imageSrc ? 50 : 24)
+      )
+    : 0;
+
+  if (imageSrc && estimatedContentHeight > 0) {
+    numericMinHeight = Math.max(numericMinHeight || 0, estimatedContentHeight);
+    if (numericContainerHeight && numericContainerHeight < estimatedContentHeight) {
+      numericContainerHeight = estimatedContentHeight;
+    }
+  }
+
   const minHeightProp = numericMinHeight ? { minHeight: numericMinHeight } : {};
 
   const containerHeightStyle = numericContainerHeight

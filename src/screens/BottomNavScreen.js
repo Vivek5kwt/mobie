@@ -463,17 +463,7 @@ export default function BottomNavScreen() {
       return true;
     });
 
-    // Step 3: sort — any header variant always floats to the top
-    const isHeaderComponent = (name) =>
-      name === "header" || name === "header_mobile" || name === "header_2";
-
-    return deduped.sort((a, b) => {
-      const A = getComponentName(a).toLowerCase();
-      const B = getComponentName(b).toLowerCase();
-      if (isHeaderComponent(A)) return -1;
-      if (isHeaderComponent(B)) return 1;
-      return 0;
-    });
+    return deduped;
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isHomePage, mobileSections]);
 
@@ -699,7 +689,7 @@ export default function BottomNavScreen() {
 
         if (!dslData?.dsl) {
           // Page not found — show the header chrome from home DSL, no error message.
-          const hdrFallback = homeHeaderDefaultRef.current;
+          const hdrFallback = null;
           setHeaderDefault(hdrFallback);
           setHeaderDefaultConfig(hdrFallback);
           setDsl({ page: { name: pageName }, sections: headers, __dslMissing: true });
@@ -709,7 +699,7 @@ export default function BottomNavScreen() {
         // If DSL was fetched but sections are empty and page is a signin slug, redirect
         const dslSections = dslData.dsl?.sections || [];
         if (dslData.dsl?.__dslMissing && dslSections.length === 0) {
-          const hdrFallback = homeHeaderDefaultRef.current;
+          const hdrFallback = null;
           setHeaderDefault(hdrFallback);
           setHeaderDefaultConfig(hdrFallback);
           setDsl({ ...dslData.dsl, sections: headers, __dslMissing: true });
@@ -732,7 +722,7 @@ export default function BottomNavScreen() {
           ? dslData.dsl
           : ensureHeaderSections(dslData.dsl, headers);
         // Fall back to home's headerdefault when the page has no headerdefault of its own.
-        const hdrDefault = dslData.dsl?.headerdefault ?? homeHeaderDefaultRef.current ?? null;
+        const hdrDefault = dslData.dsl?.headerdefault ?? null;
         setPageTitleFromDsl(dslData.dsl?.page?.name || dslData.dsl?.page?.handle || title);
         setHeaderDefault(hdrDefault);
         setHeaderDefaultConfig(hdrDefault);
@@ -774,7 +764,7 @@ export default function BottomNavScreen() {
       const dslData = await fetchDSL(appId, pageName, { forceRefresh });
       if (dslData?.dsl) {
         if (dslData.dsl?.__dslMissing && getSectionCount(dslData.dsl) === 0) {
-          const hdrFallback = homeHeaderDefaultRef.current;
+          const hdrFallback = null;
           setHeaderDefault(hdrFallback);
           setHeaderDefaultConfig(hdrFallback);
           setDsl({ ...dslData.dsl, sections: headers, __dslMissing: true });
@@ -785,7 +775,7 @@ export default function BottomNavScreen() {
         const nextDsl = isHomePage
           ? dslData.dsl
           : ensureHeaderSections(dslData.dsl, headers);
-        const hdrDefault = dslData.dsl?.headerdefault ?? homeHeaderDefaultRef.current ?? null;
+        const hdrDefault = dslData.dsl?.headerdefault ?? null;
         setPageTitleFromDsl(dslData.dsl?.page?.name || dslData.dsl?.page?.handle || title);
         setHeaderDefault(hdrDefault);
         setHeaderDefaultConfig(hdrDefault);
@@ -795,7 +785,7 @@ export default function BottomNavScreen() {
         sectionsFpRef.current = getDslFingerprint(dslData.dsl);
       } else {
         // Page DSL not available — restore home header and clear any lingering error.
-        const hdrFallback = homeHeaderDefaultRef.current;
+        const hdrFallback = null;
         setHeaderDefault(hdrFallback);
         setHeaderDefaultConfig(hdrFallback);
         setErr(null);
@@ -881,7 +871,7 @@ export default function BottomNavScreen() {
         const latest = await fetchDSL(appId, pageName);
         if (!latest?.dsl) return;
         if (latest.dsl?.__dslMissing && getSectionCount(latest.dsl) === 0) {
-          const hdrFallback = homeHeaderDefaultRef.current;
+          const hdrFallback = null;
           setHeaderDefault(hdrFallback);
           setHeaderDefaultConfig(hdrFallback);
           setDsl({ ...latest.dsl, sections: homeHeaderSectionsRef.current, __dslMissing: true });
@@ -900,7 +890,7 @@ export default function BottomNavScreen() {
           const nextDsl = isHomePage
             ? latest.dsl
             : ensureHeaderSections(latest.dsl, headers);
-          const hdrDefault = latest.dsl?.headerdefault ?? homeHeaderDefaultRef.current ?? null;
+          const hdrDefault = latest.dsl?.headerdefault ?? null;
           setPageTitleFromDsl(latest.dsl?.page?.name || latest.dsl?.page?.handle || title);
           setHeaderDefault(hdrDefault);
           setHeaderDefaultConfig(hdrDefault);
@@ -981,7 +971,7 @@ export default function BottomNavScreen() {
                 config={headerDefaultConfig}
                 bottomNavSection={resolvedBottomNavSection}
                 hideTabs={isProfilePage || isNotificationPage || isSearchPage || isCartPage}
-                fallbackTitle={isNotificationPage ? headerTitleFallback : ""}
+                fallbackTitle=""
                 disableDefaultTitlePress={isNotificationPage}
                 showBack={hideBottomNav}
               />

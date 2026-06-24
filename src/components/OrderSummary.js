@@ -79,6 +79,27 @@ const resolveCurrencyLabel = (...values) => {
 const fmt = (amount, currency) =>
   formatMoney(Math.abs(amount), currency);
 
+const resolveLinePrice = (item = {}) => {
+  const candidates = [
+    item?.price,
+    item?.priceAmount,
+    item?.salePrice,
+    item?.standardPrice,
+    item?.amount,
+  ];
+
+  for (const candidate of candidates) {
+    const amount =
+      candidate && typeof candidate === "object"
+        ? candidate.amount ?? candidate.value ?? candidate.price
+        : candidate;
+    const parsed = toNumber(amount, NaN);
+    if (Number.isFinite(parsed)) return Math.max(0, parsed);
+  }
+
+  return 0;
+};
+
 export default function OrderSummary({ section }) {
   const propsNode =
     section?.properties?.props?.properties ||
@@ -137,13 +158,13 @@ export default function OrderSummary({ section }) {
     () =>
       sourceItems.reduce(
         (sum, item) =>
-          sum + toNumber(item?.price, 0) * toNumber(item?.qty ?? item?.quantity, 1),
+          sum + resolveLinePrice(item) * toNumber(item?.qty ?? item?.quantity, 1),
         0
       ),
     [sourceItems]
   );
   const dslCartTotal = raw?.cartTotal != null ? toNumber(raw?.cartTotal, 0) : null;
-  const cartTotal = dslCartTotal != null ? dslCartTotal : computedCartTotal;
+  const cartTotal = usesDslItems && dslCartTotal != null ? dslCartTotal : computedCartTotal;
   const cartFingerprint = useMemo(
     () => cartDiscountFingerprint(cartItems),
     [cartItems]
@@ -219,11 +240,13 @@ export default function OrderSummary({ section }) {
 
   // Savings row
   const dslSavings = raw?.savings != null ? toNumber(raw?.savings, 0) : null;
-  const showSavings = toBoolean(raw?.showSavings, dslSavings != null);
+  const showSavings = toBoolean(raw?.showSavings ?? raw?.savingsActive, usesDslItems && dslSavings != null);
   const savingsLabel = toString(raw?.savingsLabel, "Your Savings");
   const savingsColor = toString(raw?.savingsColor, "#EF4444");
   // Fixed amount OR percentage of cart total
-  const savingsAmount = dslSavings != null
+  const savingsAmount = !showSavings
+    ? 0
+    : usesDslItems && dslSavings != null
     ? dslSavings
     : raw?.savingsAmount != null
     ? toNumber(raw.savingsAmount, 0)
@@ -245,12 +268,32 @@ export default function OrderSummary({ section }) {
   const chipPrefix = toString(raw?.chipPrefix, "Discount - ");
 
   // Tax row
-  const showTax = toBoolean(raw?.showTax, raw?.taxAmount != null || raw?.taxPercent != null);
+  const showTax = toBoolean(raw?.showTax ?? raw?.taxActive, raw?.taxAmount != null || raw?.taxPercent != null);
   const taxLabel = toString(raw?.taxLabel, "Sales Tax");
   const taxColor = toString(raw?.taxColor, "#EF4444");
-  const taxAmount = raw?.taxAmount != null
+  const taxAmount = !showTax
+    ? 0
+    : raw?.taxAmount != null
     ? toNumber(raw.taxAmount, 0)
     : (toNumber(raw?.taxPercent, 0) / 100) * cartTotal;
+
+  // Additional charge row (shipping/handling/custom charges) when configured by DSL.
+  const chargeAmountRaw =
+    raw?.chargeAmount ??
+    raw?.shippingAmount ??
+    raw?.shippingCharge ??
+    raw?.handlingFee ??
+    raw?.additionalCharge;
+  const showCharge = toBoolean(
+    raw?.showCharge ?? raw?.showShipping ?? raw?.shippingActive ?? raw?.chargeActive,
+    chargeAmountRaw != null
+  );
+  const chargeLabel = toString(
+    raw?.chargeLabel ?? raw?.shippingLabel ?? raw?.handlingLabel,
+    "Shipping"
+  );
+  const chargeColor = toString(raw?.chargeColor ?? raw?.shippingColor, rowLabelColor);
+  const chargeAmount = showCharge ? Math.max(0, toNumber(chargeAmountRaw, 0)) : 0;
 
   // Divider
   const showDivider = toBoolean(raw?.showDivider, true);
@@ -270,8 +313,8 @@ export default function OrderSummary({ section }) {
   const strikeColor = toString(raw?.strikeColor, "#9CA3AF");
 
   // Calculate sub total
-  const computedSubTotal = cartTotal - savingsAmount - totalDiscountAmount + taxAmount;
-  const subTotal = raw?.subTotal != null ? toNumber(raw?.subTotal, 0) : computedSubTotal;
+  const computedSubTotal = Math.max(0, cartTotal - savingsAmount - totalDiscountAmount + taxAmount + chargeAmount);
+  const subTotal = usesDslItems && raw?.subTotal != null ? toNumber(raw?.subTotal, 0) : computedSubTotal;
 
   const hasReductions = savingsAmount > 0 || totalDiscountAmount > 0;
 
@@ -437,6 +480,19 @@ export default function OrderSummary({ section }) {
           value={fmt(taxAmount, currencyLabel)}
           labelColor={rowLabelColor}
           valueColor={taxColor}
+          labelSize={rowLabelSize}
+          valueSize={rowValueSize}
+          fontFamily={rowFontFamily}
+        />
+      )}
+
+      {/* Additional Charges */}
+      {showCharge && chargeAmount > 0 && (
+        <SummaryRow
+          label={chargeLabel}
+          value={fmt(chargeAmount, currencyLabel)}
+          labelColor={rowLabelColor}
+          valueColor={chargeColor}
           labelSize={rowLabelSize}
           valueSize={rowValueSize}
           fontFamily={rowFontFamily}
