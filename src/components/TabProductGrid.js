@@ -26,7 +26,7 @@ import { requireLoginForAction } from "../utils/authGate";
 import Snackbar from "./Snackbar";
 import { resolveFont } from "../services/typographyService";
 import FavoriteToggleButton, { buildFavoriteToggleConfig } from "./FavoriteToggleButton";
-import { formatMoney } from "../utils/money";
+import { formatMoney, parseMoneyAmount } from "../utils/money";
 import { resolveProductImageResizeMode } from "../utils/productImageFit";
 import { getResponsiveColumns } from "../utils/responsiveLayout";
 import { ADD_TO_CART_SUCCESS_MESSAGE } from "../utils/cartFeedback";
@@ -54,7 +54,7 @@ const toNum = (value, fallback) => {
   const r = unwrapValue(value, undefined);
   if (r === undefined || r === "") return fallback;
   if (typeof r === "number") return r;
-  const n = parseFloat(r);
+  const n = parseMoneyAmount(r);
   return Number.isNaN(n) ? fallback : n;
 };
 
@@ -651,7 +651,7 @@ export default function TabProductGrid({ section }) {
           handle: product.handle || "",
           title: product.name || product.title || "",
           image: product.image || "",
-          price: toNum(product.price, 0),
+          price: parseMoneyAmount(product.priceAmount ?? product.price) || 0,
           variant: "",
           currency: product.currency || "",
           quantity: 1,

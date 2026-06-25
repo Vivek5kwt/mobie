@@ -14,7 +14,7 @@ import { requireLoginForAction } from "../utils/authGate";
 import { resolveProductImageResizeMode } from "../utils/productImageFit";
 import { resolveFont } from "../services/typographyService";
 import FavoriteToggleButton, { buildFavoriteToggleConfig } from "./FavoriteToggleButton";
-import { formatMoney } from "../utils/money";
+import { formatMoney, parseMoneyAmount } from "../utils/money";
 import { getResponsiveColumns } from "../utils/responsiveLayout";
 import { ADD_TO_CART_SUCCESS_MESSAGE } from "../utils/cartFeedback";
 
@@ -71,9 +71,8 @@ const getRawProps = (section) => {
 const toNumber = (value, fallback) => {
   const resolved = unwrapValue(value, undefined);
   if (resolved === undefined || resolved === "") return fallback;
-  if (typeof resolved === "number") return resolved;
-  const parsed = parseFloat(resolved);
-  return Number.isNaN(parsed) ? fallback : parsed;
+  const parsed = parseMoneyAmount(resolved);
+  return parsed === null ? fallback : parsed;
 };
 
 const resolveFirstNumber = (values, fallback) => {
@@ -742,8 +741,8 @@ export default function ProductGrid({ section, limit = 8, title = "Products" }) 
           handle:         product?.handle || "",
           title:          product?.title || "",
           image:          product?.imageUrl || "",
-          price:          parseFloat(product?.priceAmount) || 0,
-          compareAtPrice: parseFloat(product?.compareAtPrice) || 0,
+          price:          parseMoneyAmount(product?.priceAmount ?? product?.price) || 0,
+          compareAtPrice: parseMoneyAmount(product?.compareAtPrice ?? product?.originalPrice) || 0,
           vendor:         product?.vendor || "",
           variant:        product?.variantTitle || "",
           currency:       product?.priceCurrency || "",

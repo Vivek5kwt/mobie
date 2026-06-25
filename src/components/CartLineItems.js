@@ -13,7 +13,7 @@ import FontAwesome from "react-native-vector-icons/FontAwesome";
 import { updateQuantity, removeItem } from "../store/slices/cartSlice";
 import { resolveFA4IconName } from "../utils/faIconAlias";
 import { resolveFont } from "../services/typographyService";
-import { formatMoney } from "../utils/money";
+import { formatMoney, parseMoneyAmount } from "../utils/money";
 import { resolveProductImageResizeMode } from "../utils/productImageFit";
 import { activeDiscountRecords, cartDiscountFingerprint } from "../utils/cartDiscounts";
 
@@ -30,9 +30,8 @@ const unwrapValue = (value, fallback = undefined) => {
 const toNumber = (value, fallback = 0) => {
   const resolved = unwrapValue(value, undefined);
   if (resolved === undefined || resolved === null || resolved === "") return fallback;
-  if (typeof resolved === "number") return resolved;
-  const parsed = parseFloat(resolved);
-  return Number.isNaN(parsed) ? fallback : parsed;
+  const parsed = parseMoneyAmount(resolved);
+  return parsed === null ? fallback : parsed;
 };
 
 const toString = (value, fallback = "") => {

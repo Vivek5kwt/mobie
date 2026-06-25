@@ -24,7 +24,7 @@ import Snackbar from "../components/Snackbar";
 import { fetchDSL } from "../engine/dslHandler";
 import { resolveAppId } from "../utils/appId";
 import { buildProductFilterOptions, productMatchesFilter } from "../utils/productFilters";
-import { formatMoney } from "../utils/money";
+import { formatMoney, parseMoneyAmount } from "../utils/money";
 import { resolveProductImageResizeMode } from "../utils/productImageFit";
 import { resolveFont } from "../services/typographyService";
 import { addItem } from "../store/slices/cartSlice";
@@ -191,9 +191,9 @@ function sortProducts(products, sortKey) {
   const copy = [...products];
   switch (sortKey) {
     case "Price: Low":
-      return copy.sort((a, b) => parseFloat(a.priceAmount || 0) - parseFloat(b.priceAmount || 0));
+      return copy.sort((a, b) => parseMoneyAmount(a.priceAmount ?? a.price) - parseMoneyAmount(b.priceAmount ?? b.price));
     case "Price: High":
-      return copy.sort((a, b) => parseFloat(b.priceAmount || 0) - parseFloat(a.priceAmount || 0));
+      return copy.sort((a, b) => parseMoneyAmount(b.priceAmount ?? b.price) - parseMoneyAmount(a.priceAmount ?? a.price));
     case "Newest":
       return copy.reverse();
     default:
@@ -580,7 +580,7 @@ export default function AllProductsScreen() {
           handle: product.handle || "",
           title: product.title || "",
           image: product.imageUrl || "",
-          price: parseFloat(product.priceAmount ?? product.price) || 0,
+          price: parseMoneyAmount(product.priceAmount ?? product.price) || 0,
           variant: "",
           currency: productCurrency(product),
           quantity: 1,

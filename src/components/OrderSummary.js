@@ -2,7 +2,7 @@ import React, { useMemo } from "react";
 import { Image, StyleSheet, Text, View } from "react-native";
 import { useSelector } from "react-redux";
 import { resolveFont } from "../services/typographyService";
-import { formatMoney } from "../utils/money";
+import { formatMoney, parseMoneyAmount } from "../utils/money";
 import {
   activeDiscountRecords,
   cartDiscountFingerprint,
@@ -23,9 +23,8 @@ const unwrapValue = (value, fallback = undefined) => {
 const toNumber = (value, fallback = 0) => {
   const resolved = unwrapValue(value, undefined);
   if (resolved === undefined || resolved === null || resolved === "") return fallback;
-  if (typeof resolved === "number") return resolved;
-  const parsed = parseFloat(resolved);
-  return Number.isNaN(parsed) ? fallback : parsed;
+  const parsed = parseMoneyAmount(resolved);
+  return parsed === null ? fallback : parsed;
 };
 
 const toString = (value, fallback = "") => {
@@ -135,9 +134,9 @@ export default function OrderSummary({ section }) {
     raw?.useDslItemsFallback ?? raw?.allowDslItemsFallback ?? raw?.showSampleItems,
     false
   );
-  const usesDslItems = allowDslItemsFallback && dslItems.length > 0;
+  const usesDslItems = cartItems.length === 0 && allowDslItemsFallback && dslItems.length > 0;
 
-  // Source items — DSL items take priority (post-purchase), else Redux cart
+  // Source items — DSL fallback is only for empty cart/sample states.
   const sourceItems = usesDslItems ? dslItems : cartItems;
 
   // DSL styling for item cards

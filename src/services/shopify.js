@@ -2,6 +2,7 @@ import { fetchStoreConfig, getStoreConfigSync } from './storeService';
 import {
   currencySymbolForCode as sharedCurrencySymbolForCode,
   formatMoney as formatSharedMoney,
+  parseMoneyAmount,
 } from '../utils/money';
 import {
   cartDiscountFingerprint,
@@ -1133,7 +1134,7 @@ const buildDiscountPreviewResult = ({ cart, requestedCodes, cartFingerprint }) =
 
 const cartSubtotalAmount = (items = []) =>
   (items || []).reduce((sum, item) => {
-    const price = parseFloat(item?.price ?? item?.priceAmount ?? 0);
+    const price = parseMoneyAmount(item?.price ?? item?.priceAmount);
     const quantity = Math.max(1, Number(item?.quantity ?? item?.qty) || 1);
     return sum + (Number.isFinite(price) ? price : 0) * quantity;
   }, 0);

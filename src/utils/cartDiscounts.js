@@ -1,3 +1,5 @@
+import { parseMoneyAmount } from "./money";
+
 export const normalizeDiscountCode = (code = "") =>
   String(code || "").trim().toUpperCase();
 
@@ -18,7 +20,7 @@ export const normalizeDiscountCodes = (codes = []) => {
 };
 
 const toNumber = (value, fallback = 0) => {
-  const parsed = typeof value === "number" ? value : parseFloat(String(value ?? ""));
+  const parsed = parseMoneyAmount(value);
   return Number.isFinite(parsed) ? parsed : fallback;
 };
 

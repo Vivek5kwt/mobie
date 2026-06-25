@@ -58,7 +58,10 @@ export const normalizeCurrencyLabel = (value, fallback = "") => {
   return label;
 };
 
-const parseMoneyAmount = (amount) => {
+export const parseMoneyAmount = (amount) => {
+  if (amount && typeof amount === "object") {
+    return parseMoneyAmount(amount.amount ?? amount.value ?? amount.price ?? amount.priceAmount);
+  }
   if (typeof amount === "number") return Number.isFinite(amount) ? amount : null;
   const text = toCleanString(amount);
   if (!text) return null;

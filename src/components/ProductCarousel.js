@@ -26,7 +26,7 @@ import { useAuth } from "../services/AuthContext";
 import { requireLoginForAction } from "../utils/authGate";
 import { resolveProductImageResizeMode } from "../utils/productImageFit";
 import { resolveFont } from "../services/typographyService";
-import { formatMoney } from "../utils/money";
+import { formatMoney, parseMoneyAmount } from "../utils/money";
 import { convertStyles } from "../utils/convertStyles";
 import { getResponsiveColumns } from "../utils/responsiveLayout";
 import { ADD_TO_CART_SUCCESS_MESSAGE } from "../utils/cartFeedback";
@@ -45,9 +45,8 @@ const unwrapValue = (value, fallback = undefined) => {
 const toNumber = (value, fallback) => {
   const resolved = unwrapValue(value, undefined);
   if (resolved === undefined || resolved === "") return fallback;
-  if (typeof resolved === "number") return resolved;
-  const parsed = parseFloat(resolved);
-  return Number.isNaN(parsed) ? fallback : parsed;
+  const parsed = parseMoneyAmount(resolved);
+  return parsed === null ? fallback : parsed;
 };
 
 const resolveFirstNumber = (values, fallback) => {
@@ -942,7 +941,7 @@ export default function ProductCarousel({ section }) {
           handle: product.handle || "",
           title: product.title || "Product Name",
           image: product.imageUrl || "",
-          price: parseFloat(product.priceAmount || 0),
+          price: parseMoneyAmount(product.priceAmount ?? product.price) || 0,
           variant: "",
           currency: product.priceCurrency || "USD",
           quantity: 1,

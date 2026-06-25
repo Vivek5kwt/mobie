@@ -11,6 +11,7 @@ import {
 import { resolveFirstFont } from "../services/typographyService";
 import { ADD_TO_CART_SUCCESS_MESSAGE } from "../utils/cartFeedback";
 import { resolveFA4IconName } from "../utils/faIconAlias";
+import { parseMoneyAmount } from "../utils/money";
 
 const unwrapValue = (value, fallback = undefined) => {
   if (value === undefined || value === null) return fallback;
@@ -42,9 +43,8 @@ const mergeConfig = (...configs) =>
 const toNumber = (value, fallback = 0) => {
   const resolved = unwrapValue(value, undefined);
   if (resolved === undefined || resolved === null || resolved === "") return fallback;
-  if (typeof resolved === "number") return resolved;
-  const parsed = parseFloat(resolved);
-  return Number.isNaN(parsed) ? fallback : parsed;
+  const parsed = parseMoneyAmount(resolved);
+  return parsed === null ? fallback : parsed;
 };
 
 const toString = (value, fallback = "") => {

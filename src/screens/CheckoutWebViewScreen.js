@@ -23,6 +23,7 @@ import { trackPurchase } from "../services/analyticsService";
 import {
   currencySymbolForCode as sharedCurrencySymbolForCode,
   formatMoney as formatSharedMoney,
+  parseMoneyAmount,
 } from "../utils/money";
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -160,7 +161,7 @@ const buildOrderFromCart = (capturedItems, url, storeCurrencyCode = "", explicit
       variant:  item.variant || "",
       imageUrl: item.image || item.imageUrl || "",
       image:    item.image || item.imageUrl || "",
-      priceAmount: parseFloat(item.price || 0),
+      priceAmount: parseMoneyAmount(item.price ?? item.priceAmount),
       priceCurrency: currencyCode,
       price:    item.price
         ? formatSharedMoney(item.price, currencyCode || symbol)
@@ -170,7 +171,7 @@ const buildOrderFromCart = (capturedItems, url, storeCurrencyCode = "", explicit
   });
 
   const subtotal = (capturedItems || []).reduce(
-    (sum, item) => sum + parseFloat(item.price || 0) * (item.quantity || 1),
+    (sum, item) => sum + parseMoneyAmount(item.price ?? item.priceAmount) * (item.quantity || 1),
     0
   );
   const total = parseFloat(subtotal.toFixed(2));

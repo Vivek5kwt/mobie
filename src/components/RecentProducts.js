@@ -20,7 +20,7 @@ import { resolveProductImageResizeMode } from "../utils/productImageFit";
 import { getResponsiveColumns } from "../utils/responsiveLayout";
 import { resolveFirstFont } from "../services/typographyService";
 import FavoriteToggleButton, { buildFavoriteToggleConfig } from "./FavoriteToggleButton";
-import { formatMoney } from "../utils/money";
+import { formatMoney, parseMoneyAmount } from "../utils/money";
 import { ADD_TO_CART_SUCCESS_MESSAGE } from "../utils/cartFeedback";
 import Snackbar from "./Snackbar";
 
@@ -43,9 +43,8 @@ const str = (v, fb = "") => {
 const num = (v, fb) => {
   const r = unwrap(v, undefined);
   if (r === undefined || r === null || r === "") return fb;
-  if (typeof r === "number") return r;
-  const p = parseFloat(String(r));
-  return Number.isNaN(p) ? fb : p;
+  const p = parseMoneyAmount(r);
+  return p === null ? fb : p;
 };
 
 const parsePx = (v, fb) => {
@@ -396,8 +395,8 @@ export default function RecentProducts({ section }) {
         handle:         product.handle || "",
         title:          product.title || "",
         image:          product.imageUrl || product.image || "",
-        price:          parseFloat(product.priceAmount || product.price || 0),
-        compareAtPrice: parseFloat(product.compareAtPrice || 0),
+        price:          parseMoneyAmount(product.priceAmount ?? product.price) || 0,
+        compareAtPrice: parseMoneyAmount(product.compareAtPrice ?? product.originalPrice) || 0,
         vendor:         product.vendor || "",
         variant:        "",
         currency:       product.priceCurrency || product.currency || "",
@@ -465,7 +464,7 @@ export default function RecentProducts({ section }) {
             const price       = product.priceAmount ?? product.price;
             const compareAt   = product.compareAtPrice;
             const currency    = product.priceCurrency ?? product.currency ?? "";
-            const showStrike  = compareAt && parseFloat(compareAt) > parseFloat(price || 0);
+            const showStrike  = compareAt && parseMoneyAmount(compareAt) > parseMoneyAmount(price);
             const isFavorite = isWishlistProduct(wishlistItems, product);
 
             return (

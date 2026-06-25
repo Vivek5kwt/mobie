@@ -26,7 +26,7 @@ import FavoriteToggleButton, { buildFavoriteToggleConfig } from "../components/F
 import { useAuth } from "../services/AuthContext";
 import { requireLoginForAction } from "../utils/authGate";
 import { resolveProductImageResizeMode } from "../utils/productImageFit";
-import { formatMoney } from "../utils/money";
+import { formatMoney, parseMoneyAmount } from "../utils/money";
 import { getResponsiveColumns } from "../utils/responsiveLayout";
 import { ADD_TO_CART_SUCCESS_MESSAGE } from "../utils/cartFeedback";
 
@@ -256,9 +256,9 @@ function sortProducts(products, sortKey) {
   const copy = [...products];
   switch (sortKey) {
     case "Price: Low":
-      return copy.sort((a, b) => parseFloat(a.priceAmount || 0) - parseFloat(b.priceAmount || 0));
+      return copy.sort((a, b) => parseMoneyAmount(a.priceAmount ?? a.price) - parseMoneyAmount(b.priceAmount ?? b.price));
     case "Price: High":
-      return copy.sort((a, b) => parseFloat(b.priceAmount || 0) - parseFloat(a.priceAmount || 0));
+      return copy.sort((a, b) => parseMoneyAmount(b.priceAmount ?? b.price) - parseMoneyAmount(a.priceAmount ?? a.price));
     case "Newest":
       return copy.reverse();
     default:
@@ -434,7 +434,7 @@ export default function CollectionProductsScreen() {
           handle: product.handle || "",
           title: product.title || "",
           image: product.imageUrl || "",
-          price: parseFloat(product.priceAmount) || 0,
+          price: parseMoneyAmount(product.priceAmount ?? product.price) || 0,
           variant: "",
           currency: product.priceCurrency || "",
           quantity: 1,

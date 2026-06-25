@@ -1,5 +1,6 @@
 import { createSlice } from "@reduxjs/toolkit";
 import { normalizeDiscountCode, normalizeDiscountRecord } from "../../utils/cartDiscounts";
+import { parseMoneyAmount } from "../../utils/money";
 
 const initialState = {
   items: [],
@@ -10,12 +11,12 @@ const normalizeId = (item = {}) =>
   String(item.id || item.variantId || item.handle || item.title || "").trim();
 
 const toPositiveNumber = (value, fallback = 0) => {
-  const parsed = typeof value === "number" ? value : parseFloat(String(value ?? ""));
+  const parsed = parseMoneyAmount(value);
   return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
 };
 
 const toFiniteNumber = (value, fallback = 0) => {
-  const parsed = typeof value === "number" ? value : parseFloat(String(value ?? ""));
+  const parsed = parseMoneyAmount(value);
   return Number.isFinite(parsed) ? parsed : fallback;
 };
 

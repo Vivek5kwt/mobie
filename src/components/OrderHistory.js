@@ -16,7 +16,7 @@ import { getStoredOrders, mergeOrdersByIdentity } from "../services/orderHistory
 import { getStoreConfigSync } from "../services/storeService";
 import { addItem } from "../store/slices/cartSlice";
 import { resolveFont } from "../services/typographyService";
-import { formatMoney as formatSharedMoney } from "../utils/money";
+import { formatMoney as formatSharedMoney, parseMoneyAmount } from "../utils/money";
 import { resolveProductImageResizeMode } from "../utils/productImageFit";
 import { usePageEmptyStateReporter } from "../services/PageEmptyStateContext";
 
@@ -39,7 +39,7 @@ const toNum = (value, fallback = 0) => {
   const unwrapped = deepUnwrap(value);
   if (unwrapped === undefined || unwrapped === null || unwrapped === "") return fallback;
   if (typeof unwrapped === "number") return Number.isFinite(unwrapped) ? unwrapped : fallback;
-  const parsed = parseFloat(String(unwrapped));
+  const parsed = parseMoneyAmount(unwrapped);
   return Number.isFinite(parsed) ? parsed : fallback;
 };
 
@@ -287,7 +287,7 @@ export default function OrderHistory({ section }) {
             handle: item.handle || "",
             title: item.title || "Product",
             image: item.image || item.imageUrl || "",
-            price: Number(item.priceAmount) || Number(item.price) || 0,
+            price: parseMoneyAmount(item.priceAmount ?? item.price) || 0,
             vendor: item.vendor || "",
             variant: item.variant || "",
             currency: item.priceCurrency || order.currencyCode || order.currencySymbol || "",
