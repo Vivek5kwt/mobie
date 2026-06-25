@@ -132,6 +132,17 @@ const resolveLineHeight = (value, fontSize, fallback = undefined) => {
   return parsed;
 };
 
+const buildReadableTextLineStyle = (style, fallbackFontSize, minRatio = 1.2) => {
+  const fontSize = toNumber(style?.fontSize, fallbackFontSize);
+  const lineHeight = toNumber(style?.lineHeight, undefined);
+  if (!fontSize || !lineHeight) return null;
+
+  const safeLineHeight = Math.ceil(fontSize * minRatio);
+  if (lineHeight >= safeLineHeight) return null;
+
+  return { lineHeight: safeLineHeight };
+};
+
 const resolveFlexAlignment = (value, fallback = "center") => {
   const raw = toString(value, fallback).trim().toLowerCase();
   if (raw === "left" || raw === "start" || raw === "flex-start") return "flex-start";
@@ -434,6 +445,29 @@ export default function HeroBanner({ section }) {
         }
       : {}),
   };
+
+  const headlineReadableLineStyle = buildReadableTextLineStyle(
+    headlineStyle,
+    24,
+    toNumber(
+      rawProps?.headlineSafeLineHeightRatio ??
+        rawProps?.headlineMinLineHeightRatio ??
+        flatPropsNode?.headlineSafeLineHeightRatio ??
+        flatPropsNode?.headlineMinLineHeightRatio,
+      1.2
+    )
+  );
+  const subtextReadableLineStyle = buildReadableTextLineStyle(
+    subtextStyle,
+    16,
+    toNumber(
+      rawProps?.subtextSafeLineHeightRatio ??
+        rawProps?.subtextMinLineHeightRatio ??
+        flatPropsNode?.subtextSafeLineHeightRatio ??
+        flatPropsNode?.subtextMinLineHeightRatio,
+      1.2
+    )
+  );
 
   // Image attributes and settings
   const imageAttributes =
@@ -1248,7 +1282,7 @@ export default function HeroBanner({ section }) {
       {showHeadline && headline ? (
         <Text
           allowFontScaling={false}
-          style={[styles.headline, headlineStyle, { textAlign: headlineTextAlign || "center" }]}
+          style={[styles.headline, headlineStyle, headlineReadableLineStyle, { textAlign: headlineTextAlign || "center" }]}
         >
           {headline}
         </Text>
@@ -1257,7 +1291,7 @@ export default function HeroBanner({ section }) {
       {showSubtext && subtext ? (
         <Text
           allowFontScaling={false}
-          style={[styles.subtext, subtextStyle, { textAlign: subtextTextAlign || "center" }]}
+          style={[styles.subtext, subtextStyle, subtextReadableLineStyle, { textAlign: subtextTextAlign || "center" }]}
         >
           {subtext}
         </Text>
