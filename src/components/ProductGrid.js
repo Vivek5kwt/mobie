@@ -38,6 +38,24 @@ const deepUnwrap = (v) => {
   return v;
 };
 
+const unwrapSchemaObject = (value) => {
+  const unwrapped = deepUnwrap(value);
+  if (!unwrapped || typeof unwrapped !== "object" || Array.isArray(unwrapped)) return {};
+  const properties = unwrapped.properties;
+  const isSchemaEnvelope =
+    properties &&
+    typeof properties === "object" &&
+    !Array.isArray(properties) &&
+    (unwrapped.type !== undefined ||
+      unwrapped.required !== undefined ||
+      unwrapped.title !== undefined ||
+      unwrapped.$schema !== undefined);
+  if (!isSchemaEnvelope) return unwrapped;
+  return Object.fromEntries(
+    Object.entries(properties).map(([key, entry]) => [key, deepUnwrap(entry)])
+  );
+};
+
 const getRawProps = (section) => {
   const root =
     section?.properties?.props?.properties ||
@@ -228,7 +246,7 @@ export default function ProductGrid({ section, limit = 8, title = "Products" }) 
 
   // ── Merge raw sub-object ──────────────────────────────────────────────────
   const rawProps = getRawProps(section);
-  const gridObj  = deepUnwrap(rawProps?.grid);
+  const gridObj  = unwrapSchemaObject(rawProps?.grid);
 
   // ── Presentation CSS nodes ────────────────────────────────────────────────
   const presentation    = unwrapValue(rawProps?.presentation, {});
@@ -241,10 +259,10 @@ export default function ProductGrid({ section, limit = 8, title = "Products" }) 
   const viewAllCss      = presentationCss?.viewAll ?? {};
 
   // ── Items / columns ───────────────────────────────────────────────────────
-  const resolvedLimit = resolveFirstNumber(
+  const resolvedLimit = Math.max(1, Math.round(resolveFirstNumber(
     [rawProps?.itemsShown, gridObj?.itemsShown, rawProps?.productsToShow, rawProps?.productCount, rawProps?.limit],
     limit
-  );
+  )));
   const requestedColumns = Math.max(1, Math.round(resolveFirstNumber(
     [rawProps?.columns, gridObj?.columns],
     2
@@ -683,6 +701,10 @@ export default function ProductGrid({ section, limit = 8, title = "Products" }) 
     ? Math.round(cardWidth / imageAspectRatio)
     : resolvedImageHeight;
   const imageCorner = resolvedImageCorner ?? 0;
+  const visibleProducts = useMemo(
+    () => products.slice(0, resolvedLimit),
+    [products, resolvedLimit]
+  );
 
   // ── Header row bottom margin ──────────────────────────────────────────────
   const headerMarginBottom = resolveFirstNumber([rawProps?.headerMarginBottom, rawProps?.titleMarginBottom, rawProps?.headerMb], 12);
@@ -1061,7 +1083,7 @@ export default function ProductGrid({ section, limit = 8, title = "Products" }) 
       {/* Product grid */}
       {!loading && !error && (
         <View style={styles.grid}>
-          {products.map((product, index) => {
+          {visibleProducts.map((product, index) => {
             const prodId = String(product?.id || product?.variantId || product?.handle || product?.title || "").trim();
             const isInWishlist = isWishlistProduct(wishlistItems, product);
             const isAvailable = isProductAvailable(product);
@@ -1069,7 +1091,7 @@ export default function ProductGrid({ section, limit = 8, title = "Products" }) 
 
             // Suppress marginBottom on last-row cards so no phantom gap appears
             // below the grid (CSS gap never applies after the last row; RN marginBottom does).
-            const totalRows  = Math.ceil(products.length / resolvedColumns);
+            const totalRows  = Math.ceil(visibleProducts.length / resolvedColumns);
             const currentRow = Math.floor(index / resolvedColumns) + 1;
             const isLastRow  = currentRow === totalRows;
 
