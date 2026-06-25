@@ -1727,6 +1727,7 @@ const AuthScreen = () => {
   const hasLiveSignInLayoutRef = useRef(false);
   const hasLiveSignUpLayoutRef = useRef(false);
   const appStateRef = useRef(AppState.currentState);
+  const emailRef = useRef('');
 
   useEffect(() => {
     return () => { isMountedRef.current = false; };
@@ -1735,6 +1736,10 @@ const AuthScreen = () => {
   useEffect(() => {
     currentModeRef.current = mode;
   }, [mode]);
+
+  useEffect(() => {
+    emailRef.current = email;
+  }, [email]);
 
   const resetAuthFormFields = useCallback(() => {
     setEmail('');
@@ -1760,12 +1765,12 @@ const AuthScreen = () => {
     setPassword('');
     setFirstName('');
     setLastName('');
-    setForgotFieldValues((prev) => ({ ...prev, email }));
+    setForgotFieldValues((prev) => ({ ...prev, email: emailRef.current }));
     setError('');
     setSuccessMessage('');
     setPasswordVisible(false);
     setMode('forgot');
-  }, [email]);
+  }, []);
 
   const loadAuthLayout = useCallback(async (
     options: boolean | { showRefreshIndicator?: boolean; showBlockingSkeleton?: boolean } = {}
@@ -1886,11 +1891,13 @@ const AuthScreen = () => {
     return () => subscription.remove();
   }, [loadAuthLayout]);
 
+  const initialAuthMode = (route?.params as { initialMode?: string } | undefined)?.initialMode;
+
   useEffect(() => {
-    const initialMode = (route?.params as { initialMode?: string } | undefined)?.initialMode;
+    const initialMode = initialAuthMode;
     if (initialMode === 'signup' || initialMode === 'login') switchAuthMode(initialMode);
     if (initialMode === 'forgot' || initialMode === 'forgot-password') openForgotPasswordMode();
-  }, [route?.params, switchAuthMode, openForgotPasswordMode]);
+  }, [initialAuthMode, switchAuthMode, openForgotPasswordMode]);
 
   const t = mode === 'signup' ? signUpTokens : signInTokens;
   const activeHeaderConfig = useMemo(() => {
