@@ -26,7 +26,7 @@ function fixPackageName(packageName) {
 }
 
 const APP_ID = process.env.APP_ID;
-const APP_NAME = process.env.APP_NAME || 'MobiDrag';
+const APP_NAME = process.env.APP_NAME || 'HD Species';
 let PACKAGE_NAME = process.env.PACKAGE_NAME || `com.mobidrag`;
 
 if (!APP_ID) {
