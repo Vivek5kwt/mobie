@@ -83,7 +83,7 @@ Required input:
   projectId: "firebase-or-bigquery-project-id", // optional if backend uses default project
   datasetId: "analytics_XXXXXXXXX",             // required
   location: "US",                               // optional
-  appId: "132",                                 // required, never omit
+  appId: "173",                                 // required, never omit
   storeId: "73",                                // optional but recommended
   dateFrom: "2026-06-01",                       // optional, defaults to last 30 days
   dateTo: "2026-06-10"                          // optional, defaults to today

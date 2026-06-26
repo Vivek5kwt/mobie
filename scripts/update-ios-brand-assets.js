@@ -16,7 +16,7 @@ const path = require('path');
 const zlib = require('zlib');
 const { execFileSync } = require('child_process');
 
-const APP_ID = process.env.APP_ID || process.env.REACT_APP_APP_ID || '132';
+const APP_ID = process.env.APP_ID || process.env.REACT_APP_APP_ID || '173';
 const GRAPHQL_ENDPOINT = process.env.GRAPHQL_ENDPOINT || 'https://app.mobidrag.com/graphql';
 const APP_LOGO_URL = process.env.APP_LOGO || process.env.APP_ICON || '';
 const SPLASH_IMAGE_URL = process.env.SPLASH_IMAGE || process.env.SPLASH_IMAGE_URL || '';

@@ -1,4 +1,4 @@
-const DEFAULT_APP_ID = 132;
+const DEFAULT_APP_ID = 173;
 
 const isValidId = (n) => Number.isFinite(n) && n > 1;
 

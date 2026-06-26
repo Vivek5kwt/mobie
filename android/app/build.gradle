@@ -32,7 +32,7 @@ tasks.whenTaskAdded { task ->
 
 def appIdForBrandAssets = providers.environmentVariable("APP_ID")
     .orElse(providers.environmentVariable("REACT_APP_APP_ID"))
-    .orElse("132")
+    .orElse("173")
 
 tasks.register("updateDynamicAppIcon", Exec) {
     workingDir rootProject.projectDir.parentFile
