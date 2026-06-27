@@ -162,41 +162,11 @@ const extractBrandAssets = (dsl) => {
   }, {});
 };
 
-const collectSections = (node, sections = [], depth = 0, seen = new Set()) => {
-  if (!isObject(node) && !Array.isArray(node)) return sections;
-  if (seen.has(node) || depth > 12) return sections;
-  seen.add(node);
-
-  if (isObject(node) && Array.isArray(node.sections)) {
-    sections.push(...node.sections);
-  }
-
-  const values = Array.isArray(node) ? node : Object.values(node);
-  values.forEach((value) => collectSections(value, sections, depth + 1, seen));
-  return sections;
-};
-
-const getComponentName = (section) =>
-  cleanString(
-    section?.component?.const ||
-    section?.component ||
-    section?.properties?.component?.const ||
-    section?.properties?.component
-  ).toLowerCase();
-
-const getSectionProps = (section) =>
-  unwrapDeep(
-    section?.props ||
-    section?.properties?.props ||
-    section?.properties?.props?.properties ||
-    {}
-  ) || {};
-
 const extractAppNameFromDsl = (dsl) => {
   const root = unwrapDeep(parseMaybeJson(dsl));
   if (!isObject(root)) return '';
 
-  const directName = firstMeaningfulName(
+  return firstMeaningfulName(
     root.appName,
     root.app_name,
     root.displayName,
@@ -219,26 +189,6 @@ const extractAppNameFromDsl = (dsl) => {
     root.brandKit?.brandAssets?.app_name,
     root.brandKit?.brandAssets?.brandName
   );
-  if (directName) return directName;
-
-  for (const section of collectSections(root)) {
-    if (getComponentName(section) !== 'side_navigation') continue;
-    const props = getSectionProps(section);
-    const raw = unwrapDeep(props.raw) || props;
-    const sideNavName = firstMeaningfulName(
-      raw.headerTitle,
-      raw.headerTextValue,
-      raw.logoText,
-      raw.title,
-      props.headerTitle,
-      props.headerTextValue,
-      props.logoText,
-      props.title
-    );
-    if (sideNavName) return sideNavName;
-  }
-
-  return '';
 };
 
 const extractAppNameFromMetadata = (metadata) => {
@@ -285,12 +235,6 @@ const readJsonFile = (filePath) => {
     return {};
   }
 };
-
-const readCachedAppName = () =>
-  firstMeaningfulName(
-    readJsonFile(GENERATED_BRAND_ASSETS_PATH).appName,
-    readJsonFile(APP_JSON_PATH).displayName
-  );
 
 const readCachedBrandAssets = () => {
   const generated = readJsonFile(GENERATED_BRAND_ASSETS_PATH);
@@ -842,8 +786,7 @@ const updateSplashBackgroundSet = (startColor, endColor) => {
     const cachedAssets = readCachedBrandAssets();
     const appName = firstMeaningfulName(
       dslBrandConfig.appName,
-      APP_DISPLAY_NAME,
-      readCachedAppName()
+      APP_DISPLAY_NAME
     ) || `App-${APP_ID}`;
     const logoUrl = dslAssets.logoUrl || dslAssets.faviconUrl || APP_LOGO_URL || cachedAssets.logoUrl || cachedAssets.faviconUrl || '';
     const splashUrl = dslAssets.splashImageUrl || SPLASH_IMAGE_URL || cachedAssets.splashImageUrl || '';
