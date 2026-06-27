@@ -772,14 +772,26 @@ export default function ProductCarousel({ section }) {
   const effectiveColGap = resolveFirstNumber([raw?.colGap, raw?.horizontalGap, metricGap !== undefined ? metricGap * metricScale : undefined, colGap], colGap);
   const requestedVisibleCards = Math.max(
     1,
-    resolveFirstNumber([raw?.visibleItems, raw?.itemsPerView, raw?.cardsPerView, grid?.columns, columns], columns || 2)
+    resolveFirstNumber(
+      [
+        raw?.visibleItems,
+        raw?.itemsShown,
+        raw?.itemsPerView,
+        raw?.cardsPerView,
+        grid?.itemsShown,
+        itemsShown,
+        grid?.columns,
+        columns,
+      ],
+      itemsShown || columns || 2
+    )
   );
   const visibleCards = getResponsiveColumns({
     screenWidth: viewportWidth,
     requestedColumns: requestedVisibleCards,
     horizontalPadding,
     gap: effectiveColGap,
-    minCardWidth: 180,
+    minCardWidth: requestedVisibleCards >= 3 ? 80 : 140,
     maxColumns: 6,
   });
   const fallbackCardWidth = Math.floor(

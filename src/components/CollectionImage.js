@@ -63,6 +63,15 @@ const unwrapObject = (value) => {
   return resolved?.properties || resolved || {};
 };
 
+const unwrapDeep = (value) => {
+  if (value === undefined || value === null) return value;
+  if (typeof value !== "object") return value;
+  if (value.value !== undefined) return unwrapDeep(value.value);
+  if (value.const !== undefined) return unwrapDeep(value.const);
+  if (value.properties !== undefined) return unwrapDeep(value.properties);
+  return value;
+};
+
 const parseAspectRatio = (value, fallback = 1) => {
   const resolved = asString(value, "").trim();
   if (!resolved) return fallback;
@@ -198,8 +207,14 @@ export default function CollectionImage({ section }) {
     [section]
   );
 
-  const layoutCss    = rawProps?.layout?.properties?.css || rawProps?.layout?.css || {};
-  const rawSnapshot  = unwrapValue(rawProps?.raw, {});
+  const rawPropsSnapshot = unwrapDeep(rawProps?.rawProps);
+  const rawSnapshotBase  = unwrapDeep(rawProps?.raw);
+  const rawSnapshot = {
+    ...((rawSnapshotBase && typeof rawSnapshotBase === "object") ? rawSnapshotBase : {}),
+    ...((rawPropsSnapshot && typeof rawPropsSnapshot === "object") ? rawPropsSnapshot : {}),
+  };
+  const layoutSource = rawSnapshot?.layout || rawProps?.layout || {};
+  const layoutCss    = unwrapDeep(layoutSource?.css) || {};
   const generalNode  = unwrapValue(rawProps?.general, {});
   const titleNode    = unwrapValue(rawProps?.title, {});
   const imageNode    = unwrapValue(rawProps?.image, {});
@@ -222,12 +237,15 @@ export default function CollectionImage({ section }) {
     const fromRawItems = buildCollections(toArray(rawSnapshot?.items));
     if (fromRawItems.length) return fromRawItems;
 
+    const fromRawPropsItems = buildCollections(toArray(rawPropsSnapshot?.items));
+    if (fromRawPropsItems.length) return fromRawPropsItems;
+
     // DSL sends collections as an object with collection-N keys
     const fromCollections = buildCollections(rawProps?.collections ?? {});
     if (fromCollections.length) return fromCollections;
 
     return [];
-  }, [rawProps, rawSnapshot]);
+  }, [rawProps, rawSnapshot, rawPropsSnapshot]);
 
   const items = dslCollections;
 
@@ -261,6 +279,7 @@ export default function CollectionImage({ section }) {
         generalNode?.backgroundColor,
         rawProps?.bgColor,
         rawProps?.backgroundColor,
+        layoutCss?.container?.background,
         layoutCss?.container?.backgroundColor,
       ),
       "#FFFFFF"
@@ -282,27 +301,29 @@ export default function CollectionImage({ section }) {
       visibilityCfg?.heading,
       visibilityCfg?.sectionTitle,
       rawProps?.showHeader,
-      rawSnapshot?.showHeader
+      rawSnapshot?.showHeader,
+      layoutCss?.header?.text ? true : undefined
     ),
-    false
+    Boolean(layoutCss?.header?.text)
   );
   const headerText   = asString(
     unwrapValue(
+      layoutCss?.header?.text ??
       headerCfg?.headerText ?? headerCfg?.title ?? headerCfg?.text ??
       section?.properties?.title ?? section?.title,
       "Featured Collections"
     )
   );
-  const headerSize        = asNumber(headerCfg?.headerSize, 16);
-  const headerColor       = asString(unwrapValue(headerCfg?.headerColor, "#000000"));
+  const headerSize        = asNumber(headerCfg?.headerSize ?? layoutCss?.header?.fontSize, 16);
+  const headerColor       = asString(unwrapValue(headerCfg?.headerColor ?? layoutCss?.header?.color, "#000000"));
   const headerMarginBottom = asNumber(firstDefined(headerCfg?.marginBottom, headerCfg?.mb, rawSnapshot?.headerMarginBottom, layoutCss?.header?.marginBottom), 8);
   const headerBold        = asBoolean(headerCfg?.headerBold, false);
-  const headerWeight      = headerBold ? "700" : deriveFontWeight(headerCfg?.headerWeight, "700");
+  const headerWeight      = headerBold ? "700" : deriveFontWeight(headerCfg?.headerWeight ?? layoutCss?.header?.fontWeight, "700");
   const headerItalic      = asBoolean(headerCfg?.headerItalic, false);
   const headerUnderline   = asBoolean(headerCfg?.headerUnderline, false);
   const headerStrikethrough = asBoolean(headerCfg?.headerStrikethrough, false);
   const headerFontFamily  = cleanFontFamily(
-    asString(unwrapValue(headerCfg?.headerFontFamily ?? headerCfg?.fontFamily ?? rawProps?.headerFontFamily, ""))
+    asString(unwrapValue(headerCfg?.headerFontFamily ?? headerCfg?.fontFamily ?? rawProps?.headerFontFamily ?? layoutCss?.header?.fontFamily, ""))
   ) || cleanFontFamily(convertStyles(layoutCss?.header || {})?.fontFamily);
 
   const headerDecorationLine = (() => {
@@ -326,13 +347,15 @@ export default function CollectionImage({ section }) {
     ),
     true
   );
-  const cardTextSize        = asNumber(titleNode?.fontSize ?? rawSnapshot?.titleFontSize ?? cardCfg?.textSize, 12);
-  const cardTextColor       = asString(unwrapValue(titleNode?.color ?? rawSnapshot?.titleSubCColor ?? rawSnapshot?.titleColor ?? cardCfg?.textColor, "#000000"));
-  const cardTextWeight      = deriveFontWeight(titleNode?.fontWeight ?? rawSnapshot?.titleFontWeight ?? cardCfg?.textWeight, "500");
+  const layoutCardText      = layoutCss?.card?.text || {};
+  const layoutCardImage     = layoutCss?.card?.image || {};
+  const cardTextSize        = asNumber(titleNode?.fontSize ?? rawSnapshot?.titleFontSize ?? cardCfg?.textSize ?? layoutCardText?.size, 12);
+  const cardTextColor       = asString(unwrapValue(titleNode?.color ?? rawSnapshot?.titleSubCColor ?? rawSnapshot?.titleColor ?? cardCfg?.textColor ?? layoutCardText?.color, "#000000"));
+  const cardTextWeight      = deriveFontWeight(titleNode?.fontWeight ?? rawSnapshot?.titleFontWeight ?? cardCfg?.textWeight ?? layoutCardText?.weight, "500");
   const cardFontFamily      = cleanFontFamily(
-    asString(unwrapValue(titleNode?.fontFamily ?? rawSnapshot?.titleFontFamily ?? cardCfg?.textFontFamily ?? cardCfg?.fontFamily ?? rawProps?.cardFontFamily, ""))
+    asString(unwrapValue(titleNode?.fontFamily ?? rawSnapshot?.titleFontFamily ?? cardCfg?.textFontFamily ?? cardCfg?.fontFamily ?? rawProps?.cardFontFamily ?? layoutCardText?.fontFamily, ""))
   ) || cleanFontFamily(convertStyles(layoutCss?.card?.text || {})?.fontFamily);
-  const cardTextAlign       = asString(unwrapValue(titleNode?.align ?? rawSnapshot?.titleAlign ?? cardCfg?.textAlign, "center")).toLowerCase();
+  const cardTextAlign       = asString(unwrapValue(titleNode?.align ?? rawSnapshot?.titleAlign ?? cardCfg?.textAlign ?? layoutCardText?.align, "center")).toLowerCase();
   const titlePosition       = asString(unwrapValue(titleNode?.position ?? rawSnapshot?.titlePosition ?? cardCfg?.titlePosition, "below")).toLowerCase();
   const cardTitleMarginTop  = asNumber(firstDefined(titleNode?.marginTop, titleNode?.mt, rawSnapshot?.titleMarginTop, cardCfg?.titleMarginTop, layoutCss?.cardTitle?.marginTop), 6);
   const cardTitleLineHeight = asNumber(firstDefined(titleNode?.lineHeight, rawSnapshot?.titleLineHeight, cardCfg?.titleLineHeight, layoutCss?.cardTitle?.lineHeight), Math.round(cardTextSize * 1.35));
@@ -360,16 +383,17 @@ export default function CollectionImage({ section }) {
     : null;
 
   // Image dimensions from card config
-  const configuredImageSize = asNumber(cardCfg?.imageSize ?? rawSnapshot?.imageSize, Math.max(72, gridCardW));
+  const configuredImageSize = asNumber(cardCfg?.imageSize ?? rawSnapshot?.imageSize ?? layoutCardImage?.size, Math.max(72, gridCardW));
   const cardImageSize       = shouldFitHorizontalRow
     ? Math.max(28, Math.min(configuredImageSize, fitRowCardW))
     : configuredImageSize;
-  const cardImageBorder     = asNumber(cardCfg?.imageBorder, 0);
-  const cardImageBorderColor = asString(unwrapValue(cardCfg?.imageBorderColor, "#A8A7AE"));
+  const borderMatch = asString(layoutCardImage?.border, "").match(/(\d+(?:\.\d+)?)px\s+\w+\s+([^,\s]+)/i);
+  const cardImageBorder     = asNumber(cardCfg?.imageBorder ?? rawSnapshot?.imageBorder, borderMatch ? Number(borderMatch[1]) : 0);
+  const cardImageBorderColor = asString(unwrapValue(cardCfg?.imageBorderColor ?? rawSnapshot?.imageBorderColor, borderMatch?.[2] || "#A8A7AE"));
   const cardImageBgColor    = asString(unwrapValue(firstDefined(imageNode?.bgColor, imageNode?.backgroundColor, rawSnapshot?.imageBgColor, cardCfg?.imageBgColor), "#FFFFFF"));
   const placeholderBgColor  = asString(unwrapValue(firstDefined(rawSnapshot?.placeholderBgColor, cardCfg?.placeholderBgColor, imageNode?.placeholderBgColor), "#E0F2F1"));
   const placeholderTextColor = asString(unwrapValue(firstDefined(rawSnapshot?.placeholderTextColor, cardCfg?.placeholderTextColor, imageNode?.placeholderTextColor), "#096D70"));
-  const imageShape          = asString(unwrapValue(cardCfg?.imageShape, rawSnapshot?.imageRadius != null ? "rounded" : "circle")).toLowerCase();
+  const imageShape          = asString(unwrapValue(cardCfg?.imageShape ?? layoutCardImage?.shape, rawSnapshot?.imageRadius != null ? "rounded" : "circle")).toLowerCase();
   const imageScale          = asString(unwrapValue(imageNode?.scale ?? rawSnapshot?.imageScale, "cover")).toLowerCase();
   const imageAspectRatio    = parseAspectRatio(firstDefined(imageNode?.ratio, rawSnapshot?.imageRatio, cardCfg?.imageRatio), 1);
   const cardImageWidth      = asNumber(firstDefined(imageNode?.width, rawSnapshot?.imageWidth, cardCfg?.imageWidth), cardImageSize);

@@ -861,11 +861,10 @@ export default function HeaderDefault({
     const itemBoxStyle = hasItemBox ? {
       backgroundColor: itemBgColor || "transparent",
       borderRadius: itemBorderRadius,
-      // Individual sides take priority over shorthand; shorthand over default 8/4
-      paddingTop:    _pt != null ? Number(_pt) : (_pV != null ? Number(_pV) : 4),
-      paddingBottom: _pb != null ? Number(_pb) : (_pV != null ? Number(_pV) : 4),
-      paddingLeft:   _pl != null ? Number(_pl) : (_pH != null ? Number(_pH) : 8),
-      paddingRight:  _pr != null ? Number(_pr) : (_pH != null ? Number(_pH) : 8),
+      paddingTop:    _pt != null ? Number(_pt) : (_pV != null ? Number(_pV) : 0),
+      paddingBottom: _pb != null ? Number(_pb) : (_pV != null ? Number(_pV) : 0),
+      paddingLeft:   _pl != null ? Number(_pl) : (_pH != null ? Number(_pH) : 0),
+      paddingRight:  _pr != null ? Number(_pr) : (_pH != null ? Number(_pH) : 0),
       ...itemBorderStyle,
     } : {};
 

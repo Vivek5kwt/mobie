@@ -176,7 +176,11 @@ export default function BannerSlider({ section }) {
   }, [section]);
 
   // The flat rawProps.value object from DSL — primary source of truth for all styling
-  const rp = rawProps?.raw ?? {};
+  const rawSnapshot =
+    rawProps?.raw && typeof rawProps.raw === "object" ? rawProps.raw : {};
+  const rawPropsSnapshot =
+    rawProps?.rawProps && typeof rawProps.rawProps === "object" ? rawProps.rawProps : {};
+  const rp = { ...rawSnapshot, ...rawPropsSnapshot };
 
   const slides = useMemo(
     () => buildSlides(rawProps, rp?.buttonText ?? rp?.buttonLabel ?? "Shop Now"),
@@ -184,7 +188,12 @@ export default function BannerSlider({ section }) {
   );
 
   // CSS snapshot (from layout.css) — secondary source for style tokens
-  const layoutCss = rawProps?.layout?.css ?? {};
+  const layoutCss = rawProps?.layout?.css ?? rp?.styles ?? rp?.layout?.css ?? {};
+  const layoutMetrics =
+    rawProps?.layout?.metrics ??
+    rp?.styles?.metrics ??
+    rp?.layout?.metrics ??
+    {};
 
   // ── Container ──
   const styleProp = rawProps?.style || {};
@@ -239,9 +248,16 @@ export default function BannerSlider({ section }) {
   })();
 
   // ── Slider behavior ──
-  const autoScroll = asBoolean(rp?.autoScroll ?? rp?.autoPlay, true);
-  const autoScrollSpeed = asNumber(rp?.autoScrollSpeed ?? rp?.scrollSpeedSec, 4);
-  const showDots = asBoolean(rp?.showIndicators ?? rp?.showDots, true);
+  const behavior = rawProps?.behavior || {};
+  const autoScroll = asBoolean(
+    rp?.autoScroll ?? rp?.autoPlay ?? behavior?.autoScroll ?? behavior?.autoPlay,
+    true
+  );
+  const autoScrollSpeed = asNumber(
+    rp?.autoScrollSpeed ?? rp?.scrollSpeedSec ?? behavior?.scrollSpeedSec,
+    4
+  );
+  const showDots = asBoolean(rp?.showIndicators ?? rp?.showDots ?? behavior?.showDots, true);
 
   // ── Global typography (app-wide font families from DSL) ──
   const typography = getTypography();
@@ -355,6 +371,22 @@ export default function BannerSlider({ section }) {
   // Actual pixel dimensions of each banner image, keyed by URL
   const [imageSizes, setImageSizes] = useState({});
 
+  const metricsWidth = asNumber(
+    layoutMetrics?.container?.width ??
+      layoutMetrics?.elements?.container?.width ??
+      layoutMetrics?.elements?.slider?.width ??
+      rp?.layoutMeta?.width,
+    undefined
+  );
+  const availableFrameWidth = Math.max(
+    (containerWidth || windowWidth || 1) - outerPl - outerPr,
+    1
+  );
+  const slideFrameWidth = Math.max(
+    1,
+    Math.min(metricsWidth || availableFrameWidth, availableFrameWidth)
+  );
+
   // Pre-load the natural pixel size of every slide image so we can size the
   // banner to exactly fit the image (no cropping, no guesswork).
   useEffect(() => {
@@ -373,7 +405,7 @@ export default function BannerSlider({ section }) {
   }, [slides]);
 
   const bannerHeight = useMemo(() => {
-    const availableWidth = Math.max(containerWidth || windowWidth || 1, 1);
+    const availableWidth = Math.max(slideFrameWidth || containerWidth || windowWidth || 1, 1);
 
     // 1. Explicit height from DSL — highest priority
     if (requestedBannerHeight) {
@@ -403,16 +435,22 @@ export default function BannerSlider({ section }) {
     containerWidth,
     imageSizes,
     requestedBannerHeight,
+    slideFrameWidth,
     slides,
     windowWidth,
   ]);
 
   // ── Indicators ──
+  const indicatorStyle = asString(
+    rp?.indicatorStyle ?? layoutCss?.slider?.indicatorStyle,
+    "dots"
+  ).toLowerCase();
+  const filledDots = indicatorStyle === "dots" || indicatorStyle === "dot";
   const indicatorSize = asNumber(rp?.indicatorSize, 9);
   const indicatorColor = rp?.indicatorColor || "#016D77";
   const indicatorSelectedColor = rp?.indicatorSelectedColor || "#016D77";
   const indicatorBgColor = rp?.indicatorBgColor || rp?.dotsBgColor || "transparent";
-  const indicatorBorderWidth = asNumber(rp?.indicatorBorderWidth, 1.5);
+  const indicatorBorderWidth = asNumber(rp?.indicatorBorderWidth, filledDots ? 0 : 1.5);
   // "inside" = dots overlaid at the bottom of the banner image; "bottom" = below the banner
   const indicatorPosition = (
     rp?.indicatorPosition ||
@@ -434,20 +472,20 @@ export default function BannerSlider({ section }) {
   }, [slides.length]);
 
   useEffect(() => {
-    if (!autoScroll || slides.length <= 1 || !containerWidth) return undefined;
+    if (!autoScroll || slides.length <= 1 || !slideFrameWidth) return undefined;
     const intervalMs = Math.max(autoScrollSpeed, 1) * 1000;
     const interval = setInterval(() => {
       const nextIndex = (indexRef.current + 1) % slides.length;
-      scrollRef.current?.scrollTo({ x: nextIndex * containerWidth, animated: true });
+      scrollRef.current?.scrollTo({ x: nextIndex * slideFrameWidth, animated: true });
       indexRef.current = nextIndex;
       setCurrentIndex(nextIndex);
     }, intervalMs);
     return () => clearInterval(interval);
-  }, [autoScroll, slides.length, containerWidth, autoScrollSpeed]);
+  }, [autoScroll, slides.length, slideFrameWidth, autoScrollSpeed]);
 
   const handleScroll = (event) => {
     const xOffset = event?.nativeEvent?.contentOffset?.x || 0;
-    const index = Math.round(xOffset / Math.max(containerWidth, 1));
+    const index = Math.round(xOffset / Math.max(slideFrameWidth, 1));
     if (index !== currentIndex) {
       indexRef.current = index;
       setCurrentIndex(index);
@@ -512,6 +550,8 @@ export default function BannerSlider({ section }) {
           marginBottom: outerMb,
           backgroundColor: bgColor || "transparent",
           minHeight: bannerHeight,
+          paddingLeft: outerPl,
+          paddingRight: outerPr,
         },
       ]}
       onLayout={(e) => {
@@ -529,7 +569,7 @@ export default function BannerSlider({ section }) {
           [{ nativeEvent: { contentOffset: { x: scrollX } } }],
           { useNativeDriver: false, listener: handleScroll }
         )}
-        style={[styles.scrollView, { height: bannerHeight }]}
+        style={[styles.scrollView, { height: bannerHeight, width: slideFrameWidth, alignSelf: "center" }]}
       >
         {slides.map((slide, idx) => {
           const trimmedSubtext = slide.subtext ? slide.subtext.trim() : "";
@@ -537,7 +577,7 @@ export default function BannerSlider({ section }) {
           <View
             key={slide.id || idx}
             style={{
-              width: containerWidth,
+              width: slideFrameWidth,
               height: bannerHeight,
               borderRadius: bannerRadius,
               overflow: "hidden",
@@ -692,7 +732,7 @@ export default function BannerSlider({ section }) {
                           width: indicatorSize,
                           height: indicatorSize,
                           borderRadius: indicatorSize / 2,
-                          backgroundColor: isActive ? indicatorSelectedColor : "transparent",
+                          backgroundColor: isActive ? indicatorSelectedColor : (filledDots ? indicatorColor : "transparent"),
                           borderWidth: indicatorBorderWidth,
                           borderColor: isActive ? indicatorSelectedColor : indicatorColor,
                           marginHorizontal: 3,
@@ -710,7 +750,16 @@ export default function BannerSlider({ section }) {
 
       {/* Dots below the banner (indicatorPosition: "bottom" or default) */}
       {!indicatorsInside && showDots && slides.length > 1 ? (
-        <View style={styles.dotsRow}>
+        <View
+          style={[
+            styles.dotsRow,
+            {
+              backgroundColor: bgColor || "transparent",
+              paddingTop: asNumber(layoutCss?.dots?.marginTop, 8),
+              paddingBottom: 0,
+            },
+          ]}
+        >
           <View style={[styles.dotsPill, { backgroundColor: indicatorBgColor }]}>
             {slides.map((_, idx) => {
               const isActive = idx === currentIndex;
@@ -721,7 +770,7 @@ export default function BannerSlider({ section }) {
                     width: indicatorSize,
                     height: indicatorSize,
                     borderRadius: indicatorSize / 2,
-                    backgroundColor: isActive ? indicatorSelectedColor : "transparent",
+                    backgroundColor: isActive ? indicatorSelectedColor : (filledDots ? indicatorColor : "transparent"),
                     borderWidth: indicatorBorderWidth,
                     borderColor: isActive ? indicatorSelectedColor : indicatorColor,
                     marginHorizontal: 3,

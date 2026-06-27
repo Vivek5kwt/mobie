@@ -13,6 +13,7 @@ import { useAuth } from "../services/AuthContext";
 import { isAuthenticatedSession, requireLoginForAction } from "../utils/authGate";
 import { resolveFont } from "../services/typographyService";
 import { navigateToDslTarget } from "../utils/navigationTarget";
+import { resolveFA4IconName } from "../utils/faIconAlias";
 
 // ── helpers ────────────────────────────────────────────────────────────────
 
@@ -38,8 +39,7 @@ const parseIconName = (iconClass) => {
   const tokens = iconClass.split(" ").filter(Boolean);
   const skip = new Set(["fa-solid","fa-regular","fa-light","fa-thin","fa-brands"]);
   const tok = tokens.find((t) => t.startsWith("fa-") && !skip.has(t)) || tokens.find((t) => t.startsWith("fa-"));
-  if (!tok) return iconClass.replace(/^fa-/, "");
-  return tok.replace(/^fa-/, "");
+  return resolveFA4IconName(tok || iconClass);
 };
 
 // Parse "1px solid #E5E7EB" → { borderWidth: 1, borderColor: "#E5E7EB" }

@@ -75,6 +75,13 @@ const normalizeIconName = (value = "") =>
     .replace(/^fa[srldb]?[-_]?/i, "")
     .replace(/^fa-/, "");
 
+const alignToFlex = (value, fallback = "center") => {
+  const normalized = String(value || fallback).trim().toLowerCase();
+  if (["left", "start", "flex-start"].includes(normalized)) return "flex-start";
+  if (["right", "end", "flex-end"].includes(normalized)) return "flex-end";
+  return "center";
+};
+
 export default function CustomButton({ section }) {
   const navigation = useNavigation();
   const raw = useMemo(() => getProps(section), [section]);
@@ -124,10 +131,10 @@ export default function CustomButton({ section }) {
   );
 
   const containerPadding = {
-    paddingTop: num(raw.paddingTop ?? raw.pt, 0),
-    paddingRight: num(raw.paddingRight ?? raw.pr, 16),
-    paddingBottom: num(raw.paddingBottom ?? raw.pb, 0),
-    paddingLeft: num(raw.paddingLeft ?? raw.pl, 16),
+    paddingTop: num(raw.paddingTop2 ?? raw.containerPaddingTop ?? raw.paddingTop ?? raw.pt, 0),
+    paddingRight: num(raw.paddingRight2 ?? raw.containerPaddingRight ?? raw.paddingRight ?? raw.pr, 16),
+    paddingBottom: num(raw.paddingBottom2 ?? raw.containerPaddingBottom ?? raw.paddingBottom ?? raw.pb, 0),
+    paddingLeft: num(raw.paddingLeft2 ?? raw.containerPaddingLeft ?? raw.paddingLeft ?? raw.pl, 16),
   };
 
   const buttonPadding = {
@@ -137,15 +144,26 @@ export default function CustomButton({ section }) {
 
   const borderLine = str(raw.borderLine ?? raw.borderLine2, "").toLowerCase();
   const borderWidth = borderLine && borderLine !== "none" ? num(raw.borderWidth, 1) : 0;
+  const buttonWidth = num(raw.buttonWidth ?? raw.width, undefined);
+  const buttonAlign = alignToFlex(raw.align ?? raw.buttonAlign ?? raw.textAlign);
+  const containerBg = str(
+    raw.backgroundColor2 ??
+      raw.containerBgColor ??
+      raw.containerBackgroundColor ??
+      raw.contBackgroundColor ??
+      raw.bgColor,
+    "transparent"
+  );
   const buttonStyle = {
     backgroundColor: str(
-      raw.buttonBgColor ?? raw.buttonBackgroundColor ?? raw.bgColor ?? raw.backgroundColor,
+      raw.buttonBgColor ?? raw.buttonBackgroundColor ?? raw.backgroundColor ?? raw.bgColor,
       "#111111"
     ),
     borderRadius: num(raw.borderRadius ?? raw.buttonRadius, 0),
     borderWidth,
     borderColor: str(raw.borderColor, "transparent"),
     ...buttonPadding,
+    ...(buttonWidth ? { width: buttonWidth } : { alignSelf: buttonAlign }),
   };
 
   const fontFamily = resolveFont(str(raw.headerFontFamily ?? raw.fontFamily, ""));
@@ -171,7 +189,7 @@ export default function CustomButton({ section }) {
   if (!label) return null;
 
   return (
-    <View style={[styles.container, containerPadding]}>
+    <View style={[styles.container, containerPadding, { alignItems: buttonAlign, backgroundColor: containerBg }]}>
       <TouchableOpacity activeOpacity={0.82} style={[styles.button, buttonStyle]} onPress={handlePress}>
         <View style={[styles.content, { gap }]}>
           {showIcon && iconName ? (
