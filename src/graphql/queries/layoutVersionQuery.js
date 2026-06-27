@@ -7,13 +7,13 @@ const LAYOUT_VERSION_QUERY = gql`
       layout_versions {
         dsl
         app_id
-        layout_id 
+        layout_id
         created_at
         id
         is_published
         metadata
         page_name
-        published_by  
+        published_by
         store_id
         updated_at
         version_number

@@ -544,6 +544,28 @@ const normalizeSectionName = (value: unknown): string =>
 const SIGN_IN_COMPONENTS = new Set(['signin', 'sign_in']);
 const SIGN_UP_COMPONENTS = new Set(['signup', 'sign_up']);
 const FORGOT_PASSWORD_COMPONENTS = new Set(['forgot_password', 'forgotpassword']);
+const AUTH_FORM_COMPONENTS = new Set([
+  ...SIGN_IN_COMPONENTS,
+  ...SIGN_UP_COMPONENTS,
+  ...FORGOT_PASSWORD_COMPONENTS,
+]);
+const AUTH_DECOR_BLOCKED_COMPONENTS = new Set([
+  'bottom_navigation',
+  'bottom_navigation_style_1',
+  'bottom_navigation_style_2',
+  'cart_line_items',
+  'checkout_button',
+  'discount_code',
+  'discount_coupons',
+  'free_shipping',
+  'free_shipping_banner',
+  'header',
+  'header_2',
+  'header_mobile',
+  'order_summary',
+  'price_line',
+  'side_navigation',
+]);
 
 const getSectionComponent = (section: Record<string, unknown> | null | undefined): string => {
   const raw = unwrapValue((section?.component ?? (section?.properties as Record<string, unknown>)?.component) as string, '');
@@ -558,6 +580,11 @@ const isSignUpSection = (section: Record<string, unknown> | null | undefined): b
 
 const isForgotPasswordSection = (section: Record<string, unknown> | null | undefined): boolean =>
   FORGOT_PASSWORD_COMPONENTS.has(getSectionComponent(section));
+
+const isAllowedAuthDecorSection = (section: Record<string, unknown> | null | undefined): boolean => {
+  const component = getSectionComponent(section);
+  return !AUTH_FORM_COMPONENTS.has(component) && !AUTH_DECOR_BLOCKED_COMPONENTS.has(component);
+};
 
 const isGeneratedFallbackSection = (section: Record<string, unknown> | null | undefined): boolean =>
   Boolean((section as { generatedFallback?: boolean } | null | undefined)?.generatedFallback);
@@ -2088,8 +2115,7 @@ const AuthScreen = () => {
   const signInDecorSections = useMemo(
     () =>
       signInDslSections.filter((section) => {
-        const component = getSectionComponent(section);
-        return !SIGN_IN_COMPONENTS.has(component) && !FORGOT_PASSWORD_COMPONENTS.has(component);
+        return isAllowedAuthDecorSection(section);
       }),
     [signInDslSections]
   );
@@ -2098,8 +2124,7 @@ const AuthScreen = () => {
   const signUpDecorSections = useMemo(
     () =>
       signUpDslSections.filter((section) => {
-        const component = getSectionComponent(section);
-        return !SIGN_UP_COMPONENTS.has(component);
+        return isAllowedAuthDecorSection(section);
       }),
     [signUpDslSections]
   );
