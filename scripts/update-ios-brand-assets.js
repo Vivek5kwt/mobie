@@ -7,6 +7,11 @@
  * app bundle, so they must be generated at build time. The React Native splash
  * still loads dynamically at runtime; this script keeps the native first frame
  * aligned with the same DSL/API source of truth.
+ *
+ * Priority:
+ *   1. _brandKitAssets / brandKit.brand_assets from the live DSL
+ *   2. APP_LOGO / APP_ICON and SPLASH_IMAGE / SPLASH_IMAGE_URL environment fallbacks
+ *   3. previously generated brand assets as an offline fallback
  */
 
 const fs = require('fs');
@@ -20,7 +25,7 @@ const APP_ID = process.env.APP_ID || process.env.REACT_APP_APP_ID || '173';
 const GRAPHQL_ENDPOINT = process.env.GRAPHQL_ENDPOINT || 'https://app.mobidrag.com/graphql';
 const APP_LOGO_URL = process.env.APP_LOGO || process.env.APP_ICON || '';
 const SPLASH_IMAGE_URL = process.env.SPLASH_IMAGE || process.env.SPLASH_IMAGE_URL || '';
-const APP_DISPLAY_NAME = process.env.APP_DISPLAY_NAME || process.env.APP_NAME || 'HD Species';
+const APP_DISPLAY_NAME = process.env.APP_DISPLAY_NAME || process.env.APP_NAME || '';
 
 const ROOT_DIR = path.join(__dirname, '..');
 const IOS_ASSETS_DIR = path.join(ROOT_DIR, 'ios', 'MobiDrag', 'Images.xcassets');
@@ -270,6 +275,35 @@ const writeGeneratedBrandAssets = (assets) => {
       splashShowBrandIcon: assets.splashShowBrandIcon,
     }, null, 2)}\n`
   );
+};
+
+const readJsonFile = (filePath) => {
+  try {
+    if (!fs.existsSync(filePath)) return {};
+    return JSON.parse(fs.readFileSync(filePath, 'utf8'));
+  } catch (_) {
+    return {};
+  }
+};
+
+const readCachedAppName = () =>
+  firstMeaningfulName(
+    readJsonFile(GENERATED_BRAND_ASSETS_PATH).appName,
+    readJsonFile(APP_JSON_PATH).displayName
+  );
+
+const readCachedBrandAssets = () => {
+  const generated = readJsonFile(GENERATED_BRAND_ASSETS_PATH);
+  const appJson = readJsonFile(APP_JSON_PATH);
+  return {
+    logoUrl: firstNonEmpty(generated.logoUrl, appJson.logo),
+    faviconUrl: firstNonEmpty(generated.faviconUrl),
+    splashImageUrl: firstNonEmpty(generated.splashImageUrl),
+    splashBgColor: firstNonEmpty(generated.splashBgColor),
+    splashGradStart: firstNonEmpty(generated.splashGradStart),
+    splashGradEnd: firstNonEmpty(generated.splashGradEnd),
+    splashShowBrandIcon: generated.splashShowBrandIcon,
+  };
 };
 
 const replacePlistStringForKey = (content, key, value) => {
@@ -533,6 +567,32 @@ const writeGradientPng = (dest, width, height, startHex, endHex) => {
   );
 };
 
+const writeTransparentPng = (dest, width, height) => {
+  const raw = Buffer.alloc((width * 4 + 1) * height);
+  for (let y = 0; y < height; y += 1) {
+    raw[y * (width * 4 + 1)] = 0;
+  }
+
+  const ihdr = Buffer.alloc(13);
+  ihdr.writeUInt32BE(width, 0);
+  ihdr.writeUInt32BE(height, 4);
+  ihdr[8] = 8;
+  ihdr[9] = 6;
+  ihdr[10] = 0;
+  ihdr[11] = 0;
+  ihdr[12] = 0;
+
+  fs.writeFileSync(
+    dest,
+    Buffer.concat([
+      Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
+      pngChunk('IHDR', ihdr),
+      pngChunk('IDAT', zlib.deflateSync(raw, { level: 9 })),
+      pngChunk('IEND'),
+    ])
+  );
+};
+
 const escapePowerShell = (value) => String(value).replace(/'/g, "''");
 
 const resizeImage = async (inputPath, outputPath, width, height, options = {}) => {
@@ -735,6 +795,25 @@ const updateSplashImageSet = async (splashPath, options = {}) => {
   }
 };
 
+const clearSplashImageSet = () => {
+  const images = [
+    { idiom: 'universal', filename: 'SplashImage.png', scale: '1x' },
+    { idiom: 'universal', filename: 'SplashImage@2x.png', scale: '2x' },
+    { idiom: 'universal', filename: 'SplashImage@3x.png', scale: '3x' },
+  ];
+  writeImagesetContents(SPLASH_IMAGE_SET_DIR, images);
+
+  const sizes = [
+    [390, 844],
+    [780, 1688],
+    [1170, 2532],
+  ];
+  for (let index = 0; index < images.length; index += 1) {
+    const [width, height] = sizes[index];
+    writeTransparentPng(path.join(SPLASH_IMAGE_SET_DIR, images[index].filename), width, height);
+  }
+};
+
 const updateSplashBackgroundSet = (startColor, endColor) => {
   const images = [
     { idiom: 'universal', filename: 'SplashBackground.png', scale: '1x' },
@@ -760,26 +839,56 @@ const updateSplashBackgroundSet = (startColor, endColor) => {
 
     const dslBrandConfig = await fetchBrandConfigFromDsl();
     const dslAssets = dslBrandConfig.assets || {};
-    const appName = firstMeaningfulName(APP_DISPLAY_NAME, dslBrandConfig.appName);
-    const logoUrl = APP_LOGO_URL || dslAssets.logoUrl || dslAssets.faviconUrl || '';
-    const splashUrl = SPLASH_IMAGE_URL || dslAssets.splashImageUrl || '';
+    const cachedAssets = readCachedBrandAssets();
+    const appName = firstMeaningfulName(
+      dslBrandConfig.appName,
+      APP_DISPLAY_NAME,
+      readCachedAppName()
+    ) || `App-${APP_ID}`;
+    const logoUrl = dslAssets.logoUrl || dslAssets.faviconUrl || APP_LOGO_URL || cachedAssets.logoUrl || cachedAssets.faviconUrl || '';
+    const splashUrl = dslAssets.splashImageUrl || SPLASH_IMAGE_URL || cachedAssets.splashImageUrl || '';
+    const splashShowBrandIcon =
+      dslAssets.splashShowBrandIcon !== undefined
+        ? dslAssets.splashShowBrandIcon
+        : cachedAssets.splashShowBrandIcon;
     const finalBrandAssets = {
+      ...cachedAssets,
       ...dslAssets,
       logoUrl,
-      faviconUrl: dslAssets.faviconUrl || '',
+      faviconUrl: dslAssets.faviconUrl || cachedAssets.faviconUrl || '',
       splashImageUrl: splashUrl,
       appName,
+      splashShowBrandIcon,
     };
     const effectiveSplashUrl =
       splashUrl ||
-      (finalBrandAssets.splashShowBrandIcon !== false ? logoUrl : '');
+      (splashShowBrandIcon !== false ? logoUrl : '');
     const splashBgColor = normalizeHex(
-      dslAssets.splashBgColor || dslAssets.splashGradStart || dslAssets.splashGradEnd || '#ffffff'
+      dslAssets.splashBgColor ||
+        dslAssets.splashGradStart ||
+        dslAssets.splashGradEnd ||
+        cachedAssets.splashBgColor ||
+        cachedAssets.splashGradStart ||
+        cachedAssets.splashGradEnd ||
+        '#ffffff'
     );
     const splashGradStart = normalizeHex(
-      dslAssets.splashGradStart || dslAssets.splashBgColor || dslAssets.splashGradEnd || '#ffffff'
+      dslAssets.splashGradStart ||
+        dslAssets.splashBgColor ||
+        dslAssets.splashGradEnd ||
+        cachedAssets.splashGradStart ||
+        cachedAssets.splashBgColor ||
+        cachedAssets.splashGradEnd ||
+        splashBgColor
     );
-    const splashGradEnd = normalizeHex(dslAssets.splashGradEnd || dslAssets.splashBgColor || splashGradStart, splashGradStart);
+    const splashGradEnd = normalizeHex(
+      dslAssets.splashGradEnd ||
+        dslAssets.splashBgColor ||
+        cachedAssets.splashGradEnd ||
+        cachedAssets.splashBgColor ||
+        splashGradStart,
+      splashGradStart
+    );
 
     writeGeneratedBrandAssets({
       ...finalBrandAssets,
@@ -805,7 +914,8 @@ const updateSplashBackgroundSet = (startColor, endColor) => {
       await downloadFile(effectiveSplashUrl, splashPath);
       await updateSplashImageSet(splashPath, { fullScreen: Boolean(splashUrl) });
     } else {
-      console.log('No splashImageUrl found; keeping existing SplashImage assets.');
+      clearSplashImageSet();
+      console.log('No DSL splash image or logo found; cleared generated SplashImage assets to avoid stale splash art.');
     }
 
     fs.rmSync(TEMP_DIR, { recursive: true, force: true });

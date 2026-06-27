@@ -3,8 +3,9 @@
 /**
  * Downloads brand assets and updates Android launcher/splash resources.
  * Priority:
- *   1. APP_LOGO / APP_ICON and SPLASH_IMAGE / SPLASH_IMAGE_URL environment variables
- *   2. _brandKitAssets from the live DSL
+ *   1. _brandKitAssets / brandKit.brand_assets from the live DSL
+ *   2. APP_LOGO / APP_ICON and SPLASH_IMAGE / SPLASH_IMAGE_URL environment fallbacks
+ *   3. previously generated brand assets as an offline fallback
  */
 
 const https = require('https');
@@ -15,7 +16,7 @@ const { execFileSync } = require('child_process');
 
 let APP_LOGO_URL = process.env.APP_LOGO || process.env.APP_ICON;
 let SPLASH_IMAGE_URL = process.env.SPLASH_IMAGE || process.env.SPLASH_IMAGE_URL;
-let APP_DISPLAY_NAME = process.env.APP_DISPLAY_NAME || process.env.APP_NAME || 'HD Species';
+let APP_DISPLAY_NAME = process.env.APP_DISPLAY_NAME || process.env.APP_NAME || '';
 const APP_ID = process.env.APP_ID || process.env.REACT_APP_APP_ID || '173';
 const GRAPHQL_ENDPOINT = process.env.GRAPHQL_ENDPOINT || 'https://app.mobidrag.com/graphql';
 const ROOT_DIR = path.join(__dirname, '..');
@@ -271,6 +272,35 @@ const writeGeneratedBrandAssets = (assets) => {
       splashShowBrandIcon: assets.splashShowBrandIcon,
     }, null, 2)}\n`
   );
+};
+
+const readJsonFile = (filePath) => {
+  try {
+    if (!fs.existsSync(filePath)) return {};
+    return JSON.parse(fs.readFileSync(filePath, 'utf8'));
+  } catch (_) {
+    return {};
+  }
+};
+
+const readCachedAppName = () =>
+  firstMeaningfulName(
+    readJsonFile(GENERATED_BRAND_ASSETS_PATH).appName,
+    readJsonFile(APP_JSON_PATH).displayName
+  );
+
+const readCachedBrandAssets = () => {
+  const generated = readJsonFile(GENERATED_BRAND_ASSETS_PATH);
+  const appJson = readJsonFile(APP_JSON_PATH);
+  return {
+    logoUrl: firstNonEmpty(generated.logoUrl, appJson.logo),
+    faviconUrl: firstNonEmpty(generated.faviconUrl),
+    splashImageUrl: firstNonEmpty(generated.splashImageUrl),
+    splashBgColor: firstNonEmpty(generated.splashBgColor),
+    splashGradStart: firstNonEmpty(generated.splashGradStart),
+    splashGradEnd: firstNonEmpty(generated.splashGradEnd),
+    splashShowBrandIcon: generated.splashShowBrandIcon,
+  };
 };
 
 const updateAndroidAppName = (appName) => {
@@ -940,25 +970,31 @@ const updateAndroidSplash = async (assets) => {
 
 (async () => {
   try {
-    let dslAssets = {};
-    let dslAppName = '';
-    if (!APP_LOGO_URL || !SPLASH_IMAGE_URL || !APP_DISPLAY_NAME) {
-      console.log(`Fetching Android brand assets from DSL for APP_ID ${APP_ID}...`);
-      const dslBrandConfig = await fetchBrandConfigFromDsl();
-      dslAssets = dslBrandConfig.assets || {};
-      dslAppName = dslBrandConfig.appName || '';
-    }
+    console.log(`Fetching Android brand assets from DSL for APP_ID ${APP_ID}...`);
+    const dslBrandConfig = await fetchBrandConfigFromDsl();
+    const dslAssets = dslBrandConfig.assets || {};
+    const dslAppName = dslBrandConfig.appName || '';
+    const cachedAssets = readCachedBrandAssets();
 
-    APP_LOGO_URL = APP_LOGO_URL || dslAssets.logoUrl || dslAssets.faviconUrl;
-    SPLASH_IMAGE_URL = SPLASH_IMAGE_URL || dslAssets.splashImageUrl;
-    APP_DISPLAY_NAME = firstMeaningfulName(APP_DISPLAY_NAME, dslAppName) || `App-${APP_ID}`;
+    APP_LOGO_URL = dslAssets.logoUrl || dslAssets.faviconUrl || APP_LOGO_URL || cachedAssets.logoUrl || cachedAssets.faviconUrl;
+    SPLASH_IMAGE_URL = dslAssets.splashImageUrl || SPLASH_IMAGE_URL || cachedAssets.splashImageUrl;
+    APP_DISPLAY_NAME = firstMeaningfulName(
+      dslAppName,
+      APP_DISPLAY_NAME,
+      readCachedAppName()
+    ) || `App-${APP_ID}`;
 
     const finalBrandAssets = {
+      ...cachedAssets,
       ...dslAssets,
       logoUrl: APP_LOGO_URL || dslAssets.logoUrl || '',
-      faviconUrl: dslAssets.faviconUrl || '',
+      faviconUrl: dslAssets.faviconUrl || cachedAssets.faviconUrl || '',
       splashImageUrl: SPLASH_IMAGE_URL || '',
       appName: APP_DISPLAY_NAME,
+      splashShowBrandIcon:
+        dslAssets.splashShowBrandIcon !== undefined
+          ? dslAssets.splashShowBrandIcon
+          : cachedAssets.splashShowBrandIcon,
     };
 
     writeGeneratedBrandAssets(finalBrandAssets);

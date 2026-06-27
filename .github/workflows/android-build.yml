@@ -172,8 +172,8 @@ jobs:
           node -e "
             const fs = require('fs');
             const appJson = JSON.parse(fs.readFileSync('app.json', 'utf8'));
+            appJson.name = appJson.name || 'MobiDrag';
             if (process.env.APP_NAME) {
-              appJson.name = process.env.APP_NAME;
               appJson.displayName = process.env.APP_NAME;
             }
             if (process.env.APP_LOGO) {
@@ -378,25 +378,27 @@ jobs:
             echo "⚠️ Created default app.json"
           fi
           
-          # Verify app.json has the correct app name
-          CURRENT_NAME=$(node -p "require('./app.json').name || 'MobiDrag'")
+          # Verify app.json has the correct visible app label.
+          # app.json.name is the React Native module key and must stay stable.
+          CURRENT_NAME=$(node -p "require('./app.json').displayName || ''")
           EXPECTED_NAME="${{ env.APP_NAME }}"
           if [ -n "${EXPECTED_NAME}" ] && [ "${CURRENT_NAME}" != "${EXPECTED_NAME}" ]; then
-            echo "⚠️ app.json name (${CURRENT_NAME}) doesn't match expected (${EXPECTED_NAME}), updating..."
+            echo "⚠️ app.json displayName (${CURRENT_NAME}) doesn't match expected (${EXPECTED_NAME}), updating..."
             node -e "
               const fs = require('fs');
               const appJson = JSON.parse(fs.readFileSync('app.json', 'utf8'));
-              appJson.name = '${EXPECTED_NAME}';
+              appJson.name = appJson.name || 'MobiDrag';
               appJson.displayName = '${EXPECTED_NAME}';
               fs.writeFileSync('app.json', JSON.stringify(appJson, null, 2));
             "
-            echo "✅ Updated app.json with app name: ${EXPECTED_NAME}"
+            echo "✅ Updated app.json with display name: ${EXPECTED_NAME}"
           fi
           
           mkdir -p android/app/src/main/assets
           cp app.json android/app/src/main/assets/app.json
           echo "✅ Copied app.json to Android assets"
-          echo "📄 App name in app.json: $(node -p "require('./app.json').name")"
+          echo "📄 RN module name in app.json: $(node -p "require('./app.json').name")"
+          echo "📄 Display name in app.json: $(node -p "require('./app.json').displayName || ''")"
           
           # Verify the file was copied correctly
           if [ -f android/app/src/main/assets/app.json ]; then
@@ -427,9 +429,9 @@ jobs:
             echo "❌ app.json not found!"
             exit 1
           fi
-          APP_NAME_FROM_JSON=$(node -p "require('./app.json').name || 'MobiDrag'")
-          echo "✅ App name in app.json: ${APP_NAME_FROM_JSON}"
-          echo "📱 This will be used for BuildConfig.APP_NAME in Android build"
+          APP_NAME_FROM_JSON=$(node -p "require('./app.json').displayName || ''")
+          echo "✅ Display name in app.json: ${APP_NAME_FROM_JSON}"
+          echo "📱 Android app label is synced from DSL/API by update-app-icon.js"
 
       - name: Build Android APK
         env:

@@ -15,7 +15,7 @@ const path = require('path');
 
 // Get configuration from environment variables
 const APP_ID = process.env.APP_ID;
-const APP_NAME = process.env.APP_NAME || 'HD Species';
+const APP_NAME = process.env.APP_NAME || process.env.APP_DISPLAY_NAME || '';
 const CUSTOM_PACKAGE_NAME = process.env.PACKAGE_NAME;
 
 /**
@@ -100,7 +100,7 @@ if (!validation.valid) {
 
 console.log('📦 Updating package configuration:');
 console.log(`   APP_ID: ${APP_ID}`);
-console.log(`   APP_NAME: ${APP_NAME}`);
+console.log(`   APP_NAME: ${APP_NAME || '(unchanged; resolved by DSL brand sync)'}`);
 console.log(`   PACKAGE_NAME: ${PACKAGE_NAME}`);
 
 // Android paths
@@ -159,6 +159,11 @@ function updateAndroidManifest() {
  * Update strings.xml (app_name)
  */
 function updateAndroidStrings() {
+  if (!APP_NAME) {
+    console.log('ℹ️ Skipped strings.xml app_name; brand sync will resolve it from DSL/API.');
+    return true;
+  }
+
   if (!fs.existsSync(androidStrings)) {
     console.error(`❌ File not found: ${androidStrings}`);
     return false;
@@ -217,6 +222,11 @@ function updateAndroidPackageStructure() {
  * Update iOS Info.plist
  */
 function updateIOSInfoPlist() {
+  if (!APP_NAME) {
+    console.log('ℹ️ Skipped iOS display name; brand sync will resolve it from DSL/API.');
+    return true;
+  }
+
   if (!fs.existsSync(iosInfoPlist)) {
     console.error(`❌ File not found: ${iosInfoPlist}`);
     return false;
@@ -250,7 +260,9 @@ function updateIOSProjectPbxproj() {
   content = content.replace(/com\.mobidrag/g, PACKAGE_NAME);
   
   // Also update PRODUCT_NAME if it contains the old app name
-  content = content.replace(/PRODUCT_NAME = MobiDrag/g, `PRODUCT_NAME = ${APP_NAME.replace(/\s+/g, '')}`);
+  if (APP_NAME) {
+    content = content.replace(/PRODUCT_NAME = MobiDrag/g, `PRODUCT_NAME = ${APP_NAME.replace(/\s+/g, '')}`);
+  }
   
   fs.writeFileSync(iosProjectPbxproj, content, 'utf8');
   console.log('✅ Updated iOS project.pbxproj');

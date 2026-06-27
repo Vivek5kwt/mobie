@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useEffect, useState } from "react";
 import { Image, StyleSheet, Text, TouchableOpacity, useWindowDimensions, View } from "react-native";
 import LinearGradient from "react-native-linear-gradient";
 import FontAwesome from "react-native-vector-icons/FontAwesome";
@@ -984,6 +984,35 @@ export default function HeroBanner({ section }) {
   
   // Only use imageSrc if it's a non-empty string
   const imageSrc = rawImageSrc && typeof rawImageSrc === "string" && rawImageSrc.trim() !== "" ? rawImageSrc.trim() : null;
+  const [naturalImageSize, setNaturalImageSize] = useState(null);
+  useEffect(() => {
+    if (!imageSrc) {
+      setNaturalImageSize(null);
+      return undefined;
+    }
+
+    let cancelled = false;
+    Image.getSize(
+      imageSrc,
+      (width, height) => {
+        if (!cancelled && width > 0 && height > 0) {
+          setNaturalImageSize({ width, height });
+        }
+      },
+      () => {
+        if (!cancelled) setNaturalImageSize(null);
+      }
+    );
+
+    return () => {
+      cancelled = true;
+    };
+  }, [imageSrc]);
+
+  const naturalImageAspectRatio =
+    naturalImageSize?.width > 0 && naturalImageSize?.height > 0
+      ? naturalImageSize.width / naturalImageSize.height
+      : undefined;
   const imageAlt = toString(contentProps?.alt, "");
   const overlayOpacity =
     toNumber(contentProps?.overlayOpacity, undefined) ??
@@ -1242,10 +1271,11 @@ export default function HeroBanner({ section }) {
   }
 
   const minHeightProp = numericMinHeight ? { minHeight: numericMinHeight } : {};
+  const resolvedImageAspectRatio = imageAspectRatio || naturalImageAspectRatio;
 
   const containerHeightStyle = numericContainerHeight
     ? { height: numericContainerHeight, ...minHeightProp }
-    : imageAspectRatio
+    : resolvedImageAspectRatio
     ? { ...minHeightProp }                              // aspectRatio drives height
     : imageSrc
     ? { height: DEFAULT_BANNER_HEIGHT, ...minHeightProp } // image present — needs explicit height
@@ -1255,7 +1285,7 @@ export default function HeroBanner({ section }) {
     styles.container,
     {
       borderRadius: containerBorderRadius,
-      ...(imageAspectRatio ? { aspectRatio: imageAspectRatio } : {}),
+      ...(resolvedImageAspectRatio ? { aspectRatio: resolvedImageAspectRatio } : {}),
       ...containerHeightStyle,
     },
     containerStyle,

@@ -91,6 +91,33 @@ const firstNonEmpty = (...values) => {
   return '';
 };
 
+const GENERIC_APP_NAMES = new Set([
+  'mobidrag',
+  'app',
+  'application',
+  'app page layout dsl',
+  'multi-page app layout dsl',
+  'page layout dsl',
+]);
+
+const isMeaningfulAppName = (value) => {
+  const name = cleanString(value);
+  if (!name) return false;
+  const lowered = name.toLowerCase();
+  if (GENERIC_APP_NAMES.has(lowered)) return false;
+  if (/^page[-\s]*\d+$/i.test(name)) return false;
+  if (/layout\s+dsl/i.test(name)) return false;
+  return name.length > 1;
+};
+
+const firstMeaningfulName = (...values) => {
+  for (const value of values) {
+    const name = cleanString(value);
+    if (isMeaningfulAppName(name)) return name;
+  }
+  return '';
+};
+
 const collectBrandCandidates = (node, candidates = [], depth = 0, seen = new Set()) => {
   if (!isObject(node) && !Array.isArray(node)) return candidates;
   if (seen.has(node) || depth > 10) return candidates;
@@ -121,6 +148,52 @@ const extractBrandAssets = (dsl) => {
     if (!assets.splashImageUrl) assets.splashImageUrl = firstNonEmpty(source.splashImageUrl, source.splashImage, source.splashUrl);
     return assets;
   }, {});
+};
+
+const extractAppNameFromDsl = (dsl) => {
+  const root = unwrapDeep(parseMaybeJson(dsl));
+  if (!isObject(root)) return '';
+
+  return firstMeaningfulName(
+    root.appName,
+    root.app_name,
+    root.displayName,
+    root.applicationName,
+    root.brandName,
+    root.brand_name,
+    root.storeName,
+    root.shopName,
+    root.name,
+    root.brandKit?.appName,
+    root.brandKit?.app_name,
+    root.brandKit?.displayName,
+    root.brandKit?.brandName,
+    root.brandKit?.brand_name,
+    root.brandKit?.storeName,
+    root.brandKit?.shopName,
+    root.brandKit?.brand_assets?.appName,
+    root.brandKit?.brand_assets?.app_name,
+    root.brandKit?.brand_assets?.brandName,
+    root.brandKit?.brandAssets?.appName,
+    root.brandKit?.brandAssets?.app_name,
+    root.brandKit?.brandAssets?.brandName
+  );
+};
+
+const extractAppNameFromMetadata = (metadata) => {
+  const source = unwrapDeep(parseMaybeJson(metadata));
+  if (!isObject(source)) return '';
+  return firstMeaningfulName(
+    source.appName,
+    source.app_name,
+    source.displayName,
+    source.applicationName,
+    source.brandName,
+    source.brand_name,
+    source.storeName,
+    source.shopName,
+    source.name
+  );
 };
 
 // Add authorization header if provided
@@ -165,9 +238,7 @@ const req = https.request(GRAPHQL_ENDPOINT, options, (res) => {
               ? JSON.parse(layout.metadata) 
               : layout.metadata;
             
-            if (metadata.appName || metadata.name) {
-              appName = metadata.appName || metadata.name;
-            }
+            appName = appName || extractAppNameFromMetadata(metadata);
             if (metadata.appIcon || metadata.icon) {
               appIcon = metadata.appIcon || metadata.icon;
             }
@@ -188,9 +259,7 @@ const req = https.request(GRAPHQL_ENDPOINT, options, (res) => {
                   ? JSON.parse(version.metadata)
                   : version.metadata;
                 
-                if (!appName && (metadata.appName || metadata.name)) {
-                  appName = metadata.appName || metadata.name;
-                }
+                appName = appName || extractAppNameFromMetadata(metadata);
                 if (!appIcon && (metadata.appIcon || metadata.icon)) {
                   appIcon = metadata.appIcon || metadata.icon;
                 }
@@ -204,9 +273,7 @@ const req = https.request(GRAPHQL_ENDPOINT, options, (res) => {
               try {
                 const dsl = parseMaybeJson(version.dsl);
                 const brandAssets = extractBrandAssets(dsl);
-                if (!appName && (dsl.appName || dsl.name)) {
-                  appName = dsl.appName || dsl.name;
-                }
+                appName = appName || extractAppNameFromDsl(dsl);
                 if (!appIcon) {
                   appIcon = brandAssets.logoUrl ||
                     brandAssets.faviconUrl ||

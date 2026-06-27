@@ -82,6 +82,7 @@ const resolveAuthVerticalSpace = (value, viewportHeight, maxViewportShare) => {
 
 const BORDER_STYLE_KEYS = [
   "border",
+  "borderRadius",
   "borderWidth",
   "borderColor",
   "borderStyle",
@@ -310,12 +311,14 @@ export default function TextBlock({ section }) {
     styleCfg?.bgColor
   );
 
-  const overrideBorderRadius = parsePx(firstDefined(
+  const explicitBorderRadiusSource = firstDefined(
     rawProps?.containerBorderRadius,
-    rawProps?.borderRadius,
-    layoutCss?.container?.borderRadius,
-    styleCfg?.borderRadius
-  ));
+    rawProps?.containerRadius,
+    rawProps?.cornerRadius,
+    rawProps?.radius,
+    rawProps?.borderRadius
+  );
+  const overrideBorderRadius = parsePx(explicitBorderRadiusSource);
   const borderStyle = {
     borderWidth: 0,
     borderTopWidth: 0,
@@ -326,7 +329,7 @@ export default function TextBlock({ section }) {
 
   const overrideStyle = {
     ...(overrideBgColor ? { backgroundColor: overrideBgColor } : {}),
-    ...(overrideBorderRadius != null ? { borderRadius: overrideBorderRadius } : {}),
+    borderRadius: overrideBorderRadius != null ? overrideBorderRadius : 0,
     ...borderStyle,
   };
 

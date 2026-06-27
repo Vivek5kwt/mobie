@@ -26,7 +26,7 @@ function fixPackageName(packageName) {
 }
 
 const APP_ID = process.env.APP_ID;
-const APP_NAME = process.env.APP_NAME || 'HD Species';
+const APP_NAME = process.env.APP_NAME || process.env.APP_DISPLAY_NAME || '';
 let PACKAGE_NAME = process.env.PACKAGE_NAME || `com.mobidrag`;
 
 if (!APP_ID) {
@@ -45,7 +45,7 @@ if (originalPackageName !== PACKAGE_NAME) {
 }
 
 console.log(`📦 Updating Android package: ${PACKAGE_NAME}`);
-console.log(`📱 App Name: ${APP_NAME}`);
+console.log(`📱 App Name: ${APP_NAME || '(unchanged; resolved by DSL brand sync)'}`);
 
 // Update build.gradle
 const buildGradlePath = path.join(__dirname, '..', 'android', 'app', 'build.gradle');
@@ -68,12 +68,14 @@ if (fs.existsSync(manifestPath)) {
 
 // Update strings.xml
 const stringsPath = path.join(__dirname, '..', 'android', 'app', 'src', 'main', 'res', 'values', 'strings.xml');
-if (fs.existsSync(stringsPath)) {
+if (APP_NAME && fs.existsSync(stringsPath)) {
   let content = fs.readFileSync(stringsPath, 'utf8');
   content = content.replace(/<string name="app_name">[^<]+<\/string>/, 
     `<string name="app_name">${APP_NAME.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')}</string>`);
   fs.writeFileSync(stringsPath, content, 'utf8');
   console.log('✅ Updated strings.xml');
+} else if (!APP_NAME) {
+  console.log('ℹ️ Skipped strings.xml app_name; update-app-icon.js will sync it from DSL/API.');
 }
 
 // Update google-services.json (critical for Firebase/Google Services)

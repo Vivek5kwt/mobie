@@ -836,8 +836,6 @@ export default function HeaderDefault({
     const itemBorderWidth = _bw != null ? Number(_bw) : 1;
     const _br = rv(item.borderRadius) ?? rv(item.radius) ?? rv(item.corner) ?? rv(item.borderCorner);
     const itemBorderRadius = _br != null ? Number(_br) : 0;
-    const hasItemBox = !!itemBgColor || (itemBorderLine !== "none" && itemBorderLine !== "");
-
     const itemBorderStyle = (() => {
       if (!itemBorderLine || itemBorderLine === "none") return {};
       if (itemBorderLine === "all" || itemBorderLine === "full") {
@@ -857,6 +855,11 @@ export default function HeaderDefault({
     const _pb = rv(item.paddingBottom) ?? rv(item.pb);
     const _pl = rv(item.paddingLeft)   ?? rv(item.pl);
     const _pr = rv(item.paddingRight)  ?? rv(item.pr);
+    const hasItemPadding =
+      _pH != null || _pV != null || _pt != null || _pb != null || _pl != null || _pr != null;
+    const hasItemBorder = itemBorderLine !== "none" && itemBorderLine !== "";
+    const hasPositiveItemRadius = _br != null && Number(_br) > 0;
+    const hasItemBox = hasItemBorder || hasItemPadding || hasPositiveItemRadius;
 
     const itemBoxStyle = hasItemBox ? {
       backgroundColor: itemBgColor || "transparent",

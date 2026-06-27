@@ -26,7 +26,7 @@ function fixPackageName(packageName) {
 }
 
 const APP_ID = process.env.APP_ID;
-const APP_NAME = process.env.APP_NAME || 'HD Species';
+const APP_NAME = process.env.APP_NAME || process.env.APP_DISPLAY_NAME || '';
 let PACKAGE_NAME = process.env.PACKAGE_NAME || `com.mobidrag`;
 
 if (!APP_ID) {
@@ -45,11 +45,11 @@ if (originalPackageName !== PACKAGE_NAME) {
 }
 
 console.log(`📦 Updating iOS bundle identifier: ${PACKAGE_NAME}`);
-console.log(`📱 App Name: ${APP_NAME}`);
+console.log(`📱 App Name: ${APP_NAME || '(unchanged; resolved by DSL brand sync)'}`);
 
 // Update Info.plist
 const infoPlistPath = path.join(__dirname, '..', 'ios', 'MobiDrag', 'Info.plist');
-if (fs.existsSync(infoPlistPath)) {
+if (APP_NAME && fs.existsSync(infoPlistPath)) {
   let content = fs.readFileSync(infoPlistPath, 'utf8');
   
   // Update CFBundleDisplayName
@@ -66,6 +66,8 @@ if (fs.existsSync(infoPlistPath)) {
   
   fs.writeFileSync(infoPlistPath, content, 'utf8');
   console.log('✅ Updated Info.plist');
+} else if (!APP_NAME) {
+  console.log('ℹ️ Skipped Info.plist display name; update-ios-brand-assets.js will sync it from DSL/API.');
 }
 
 // Update project.pbxproj
@@ -77,8 +79,10 @@ if (fs.existsSync(projectPath)) {
   content = content.replace(/com\.mobidrag/g, PACKAGE_NAME);
   
   // Update PRODUCT_NAME (remove spaces from app name)
-  const productName = APP_NAME.replace(/\s+/g, '');
-  content = content.replace(/PRODUCT_NAME = MobiDrag/g, `PRODUCT_NAME = ${productName}`);
+  if (APP_NAME) {
+    const productName = APP_NAME.replace(/\s+/g, '');
+    content = content.replace(/PRODUCT_NAME = MobiDrag/g, `PRODUCT_NAME = ${productName}`);
+  }
   
   fs.writeFileSync(projectPath, content, 'utf8');
   console.log('✅ Updated project.pbxproj');
