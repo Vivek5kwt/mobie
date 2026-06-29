@@ -3,10 +3,11 @@ const DEFAULT_APP_ID = 148;
 const isValidId = (n) => Number.isFinite(n) && n > 1;
 
 export const resolveAppId = (appId) => {
-  if (appId !== undefined && appId !== null && appId !== "") {
-    const n = Number(appId);
+  const envAppId = process.env.REACT_APP_APP_ID || process.env.APP_ID;
+  if (envAppId) {
+    const n = Number(envAppId);
     if (isValidId(n)) {
-      console.log(`Using provided appId: ${n}`);
+      console.log(`Using appId from env: ${n}`);
       return n;
     }
   }
@@ -29,11 +30,10 @@ export const resolveAppId = (appId) => {
     }
   } catch (_) {}
 
-  const envAppId = process.env.REACT_APP_APP_ID || process.env.APP_ID;
-  if (envAppId) {
-    const n = Number(envAppId);
+  if (appId !== undefined && appId !== null && appId !== "") {
+    const n = Number(appId);
     if (isValidId(n)) {
-      console.log(`Using appId from env: ${n}`);
+      console.log(`Using provided appId: ${n}`);
       return n;
     }
   }
