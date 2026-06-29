@@ -223,6 +223,19 @@ const stripNonStyleObjects = (style = {}) =>
 // Strip web CSS fallback fonts ("Poppins, sans-serif" → "Poppins")
 const cleanFontFamily = (family) => resolveFont(family) || "";
 
+const normalizeBorderLine = (line) => String(line || "").trim().toLowerCase();
+
+const isBorderVisible = (line) => {
+  const normalized = normalizeBorderLine(line);
+  return !!normalized && normalized !== "none" && normalized !== "0";
+};
+
+const toNativeBorderStyle = (line) => {
+  const normalized = normalizeBorderLine(line);
+  if (normalized === "dashed" || normalized === "dotted") return normalized;
+  return "solid";
+};
+
 
 function ShimmerBone({ style }) {
   const anim = useRef(new Animated.Value(0)).current;
@@ -687,12 +700,10 @@ export default function ProductCarousel({ section }) {
   const atcFamily = cleanFontFamily(toString(raw?.atcFamily, ""));
   const atcWeight = toFontWeight(raw?.atcWeight, "Semi Bold");
   const atcCorner = toNumber(raw?.atcCorner, 6);
-  const atcPadT = toNumber(raw?.atcPadT, 6);
-  const atcPadR = toNumber(raw?.atcPadR, 10);
-  const atcPadB = toNumber(raw?.atcPadB, 6);
-  const atcPadL = toNumber(raw?.atcPadL, 10);
-  const atcPadX = toNumber(raw?.atcPadX, 10);
-  const atcPadY = toNumber(raw?.atcPadY, 6);
+  const atcPadT = resolveFirstNumber([raw?.atcPadT, raw?.atcPaddingTop, raw?.buttonPaddingTop, raw?.atcPadY], 6);
+  const atcPadR = resolveFirstNumber([raw?.atcPadR, raw?.atcPaddingRight, raw?.buttonPaddingRight, raw?.atcPadX], 10);
+  const atcPadB = resolveFirstNumber([raw?.atcPadB, raw?.atcPaddingBottom, raw?.buttonPaddingBottom, raw?.atcPadY], 6);
+  const atcPadL = resolveFirstNumber([raw?.atcPadL, raw?.atcPaddingLeft, raw?.buttonPaddingLeft, raw?.atcPadX], 10);
   const atcAvailableBold = toBoolean(raw?.atcAvailableBold, false);
   const atcAvailableItalic = toBoolean(raw?.atcAvailableItalic, false);
   const atcAvailableUnderline = toBoolean(raw?.atcAvailableUnderline, false);
@@ -729,6 +740,8 @@ export default function ProductCarousel({ section }) {
   const borderSize = resolveFirstNumber([raw?.borderSize, raw?.cardBorderWidth, cardStyleFromCss?.borderWidth], 0);
   const borderColor = toString(raw?.borderColor ?? raw?.cardBorderColor ?? cardStyleFromCss?.borderColor, "transparent");
   const borderLine = toString(raw?.borderLine, "");
+  const resolvedCardBorderWidth = isBorderVisible(borderLine) ? borderSize : 0;
+  const resolvedCardBorderStyle = toNativeBorderStyle(borderLine);
   const outerCorners = resolveFirstNumber([raw?.outerCorners, raw?.cardCorner, raw?.cardRadius, cardStyleFromCss?.borderRadius], 0);
   const layoutAlign = toTextAlign(raw?.layoutAlign, "Left");
 
@@ -1166,15 +1179,16 @@ export default function ProductCarousel({ section }) {
     const buttonStyle = {
       backgroundColor: buttonBgColor,
       borderRadius: atcCorner,
-      paddingTop: atcPadY || atcPadT,
-      paddingRight: atcPadX || atcPadR,
-      paddingBottom: atcPadY || atcPadB,
-      paddingLeft: atcPadX || atcPadL,
-      ...(atcBorderLine && atcBorderLine !== "none"
+      paddingTop: atcPadT,
+      paddingRight: atcPadR,
+      paddingBottom: atcPadB,
+      paddingLeft: atcPadL,
+      maxWidth: "100%",
+      ...(isBorderVisible(atcBorderLine)
         ? {
             borderWidth: 1,
             borderColor: atcBorderColor,
-            borderStyle: atcBorderLine,
+            borderStyle: toNativeBorderStyle(atcBorderLine),
           }
         : {}),
     };
@@ -1316,8 +1330,9 @@ export default function ProductCarousel({ section }) {
                   {
                     width: cardWidth,
                     borderRadius: outerCorners,
-                    borderWidth: borderSize,
+                    borderWidth: resolvedCardBorderWidth,
                     borderColor: borderColor,
+                    borderStyle: resolvedCardBorderStyle,
                   },
                 ]}
                 onPress={() => {
@@ -1510,8 +1525,7 @@ const styles = StyleSheet.create({
     overflow: "hidden",
   },
   image: {
-    width: "100%",
-    height: "100%",
+    ...StyleSheet.absoluteFillObject,
   },
   favoriteButton: {
     position: "absolute",

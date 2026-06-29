@@ -630,8 +630,8 @@ const defaultSignInTokens: SignInTokens = {
   titleColor: '#065F63',
   cardBgColor: '#FFFFFF',
   cardBorderColor: '#D1E7E7',
-  cardBorderWidth: 1,
-  cardBorderRadius: 16,
+  cardBorderWidth: 0,
+  cardBorderRadius: 0,
   cardPaddingTop: 20,
   cardPaddingBottom: 20,
   cardPaddingLeft: 20,
@@ -640,7 +640,7 @@ const defaultSignInTokens: SignInTokens = {
   fieldGap: 14,
   inputPaddingHorizontal: 14,
   inputPaddingVertical: 0,
-  formCardMarginBottom: 16,
+  formCardMarginBottom: 0,
   buttonMarginTop: 4,
   footerMarginTop: 20,
   footerLinkMarginTop: 6,
@@ -727,8 +727,8 @@ const defaultForgotPasswordTokens: ForgotPasswordTokens = {
   titleColor: '#0C9297',
   cardBgColor: '#FFFFFF',
   cardBorderColor: '#D1E7E7',
-  cardBorderWidth: 1,
-  cardBorderRadius: 16,
+  cardBorderWidth: 0,
+  cardBorderRadius: 0,
   cardPaddingTop: 20,
   cardPaddingBottom: 20,
   cardPaddingLeft: 20,
@@ -754,7 +754,7 @@ const defaultForgotPasswordTokens: ForgotPasswordTokens = {
   headlineTextDecoration: 'none',
   headlineTextTransform: 'none',
   headlineTextAlign: 'Center',
-  loginLinkMarginTop: 34,
+  loginLinkMarginTop: 12,
   resetPasswordTitle: 'Reset Password Link',
   resetPasswordTitleColor: '#0C9297',
   resetPasswordTitleFontSize: 13,
@@ -784,7 +784,8 @@ const defaultSignUpTokens: SignUpTokens = {
   titleColor: '#027579',
   cardBgColor: '#FFFFFF',
   cardBorderColor: '#D1E7E7',
-  cardBorderRadius: 16,
+  cardBorderWidth: 0,
+  cardBorderRadius: 0,
   cardPaddingTop: 20,
   cardPaddingBottom: 20,
   cardPaddingLeft: 20,
@@ -793,7 +794,7 @@ const defaultSignUpTokens: SignUpTokens = {
   fieldGap: 14,
   inputPaddingHorizontal: 14,
   inputPaddingVertical: 0,
-  formCardMarginBottom: 16,
+  formCardMarginBottom: 0,
   buttonMarginTop: 4,
   footerMarginTop: 20,
   footerLinkMarginTop: 6,
@@ -1831,13 +1832,23 @@ const AuthScreen = () => {
         liveSignUpSections,
         (section) => isSignUpSection(section) && !isGeneratedFallbackSection(section)
       );
+      const hasLiveSignUpInSignInPage = hasAuthSections(
+        liveSignInSections,
+        (section) => isSignUpSection(section) && !isGeneratedFallbackSection(section)
+      );
+      const resolvedLiveSignUpSections = hasLiveSignUpPage
+        ? liveSignUpSections
+        : hasLiveSignUpInSignInPage
+          ? liveSignInSections
+          : [];
       const signInSections = hasLiveSignInPage
         ? liveSignInSections
         : hasLiveSignInLayoutRef.current
           ? null
           : (authLayoutFallback.sections || []);
-      const signUpSections = hasLiveSignUpPage
-        ? liveSignUpSections
+      const hasResolvedLiveSignUpPage = hasLiveSignUpPage || hasLiveSignUpInSignInPage;
+      const signUpSections = hasResolvedLiveSignUpPage
+        ? resolvedLiveSignUpSections
         : hasLiveSignUpLayoutRef.current
           ? null
           : [];
@@ -1862,8 +1873,8 @@ const AuthScreen = () => {
         const signUpSection = signUpSections.find(isSignUpSection);
         setSignUpDslSections(signUpSections as Record<string, unknown>[]);
         setSignUpTokens(signUpSection ? buildSignUpTokens(getSectionRawProps(signUpSection)) : defaultSignUpTokens);
-        setSignUpHeaderConfig(hasLiveSignUpPage ? ((signUpDsl?.dsl?.headerdefault as Record<string, unknown> | undefined) ?? null) : null);
-        if (hasLiveSignUpPage) hasLiveSignUpLayoutRef.current = true;
+        setSignUpHeaderConfig(hasResolvedLiveSignUpPage ? (((hasLiveSignUpPage ? signUpDsl : signInDsl)?.dsl?.headerdefault as Record<string, unknown> | undefined) ?? null) : null);
+        if (hasResolvedLiveSignUpPage) hasLiveSignUpLayoutRef.current = true;
       }
     } finally {
       if (isMountedRef.current && authLayoutRequestSeqRef.current === requestSeq) {
@@ -2668,36 +2679,34 @@ const AuthScreen = () => {
                 ) : null}
               </View>
             ) : null}
-          </View>
 
-          {/* Forgot password link (login only) */}
-          {mode === 'login' && hasForgotPasswordSection ? (
-            <TouchableOpacity
-              onPress={openForgotPasswordMode}
-              accessibilityRole="button"
-              style={{
-                marginLeft: pagePadLeft,
-                marginRight: pagePadRight,
-                marginTop: forgotLoginLinkMarginTop,
-                alignSelf: 'stretch',
-              }}
-            >
-              <Text
+            {/* Forgot password link (login only) */}
+            {mode === 'login' && hasForgotPasswordSection ? (
+              <TouchableOpacity
+                onPress={openForgotPasswordMode}
+                accessibilityRole="button"
                 style={{
-                  color: forgotPasswordTokens.titleColor,
-                  fontSize: forgotPasswordTokens.headlineFontSize,
-                  fontWeight: forgotPasswordTokens.headlineFontWeight as any,
-                  fontFamily: forgotPasswordTokens.headlineFontFamily !== 'System' ? forgotPasswordTokens.headlineFontFamily : undefined,
-                  fontStyle: forgotPasswordTokens.headlineFontStyle,
-                  textDecorationLine: forgotPasswordTokens.headlineTextDecoration,
-                  textTransform: forgotPasswordTokens.headlineTextTransform,
-                  textAlign: toTextAlign(forgotPasswordTokens.headlineTextAlign, 'center'),
+                  marginTop: forgotLoginLinkMarginTop,
+                  alignSelf: toFlexAlign(forgotPasswordTokens.headlineTextAlign, 'center'),
                 }}
               >
-                {forgotPasswordTokens.headlineText}
-              </Text>
-            </TouchableOpacity>
-          ) : null}
+                <Text
+                  style={{
+                    color: forgotPasswordTokens.titleColor,
+                    fontSize: forgotPasswordTokens.headlineFontSize,
+                    fontWeight: forgotPasswordTokens.headlineFontWeight as any,
+                    fontFamily: forgotPasswordTokens.headlineFontFamily !== 'System' ? forgotPasswordTokens.headlineFontFamily : undefined,
+                    fontStyle: forgotPasswordTokens.headlineFontStyle,
+                    textDecorationLine: forgotPasswordTokens.headlineTextDecoration,
+                    textTransform: forgotPasswordTokens.headlineTextTransform,
+                    textAlign: toTextAlign(forgotPasswordTokens.headlineTextAlign, 'center'),
+                  }}
+                >
+                  {forgotPasswordTokens.headlineText}
+                </Text>
+              </TouchableOpacity>
+            ) : null}
+          </View>
         </ScrollView>
       </KeyboardAvoidingView>
     </SafeAreaView>

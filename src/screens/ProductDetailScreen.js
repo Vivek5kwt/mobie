@@ -56,9 +56,46 @@ const unwrapValue = (value, fallback = undefined) => {
 };
 
 const resolveSections = (detailSections) => {
-  if (Array.isArray(detailSections)) return detailSections;
-  if (Array.isArray(detailSections?.sections)) return detailSections.sections;
-  return [];
+  const sections = Array.isArray(detailSections)
+    ? detailSections
+    : Array.isArray(detailSections?.sections)
+      ? detailSections.sections
+      : [];
+  return sections.filter((section) => section && typeof section === "object");
+};
+
+const extractSectionRaw = (section) => {
+  const propsNode = getSectionPropsNode(section);
+  return unwrapValue(propsNode?.raw, {}) || {};
+};
+
+const resolvePageBackground = (sections = [], headerConfig = {}) => {
+  const headerBg =
+    headerConfig?.backgroundColor ||
+    headerConfig?.bgColor ||
+    headerConfig?.headerBackgroundColor ||
+    "";
+  const firstSectionRaw = sections
+    .map(extractSectionRaw)
+    .find((raw) =>
+      raw?.bgColor ||
+      raw?.backgroundColor ||
+      raw?.containerBgColor ||
+      raw?.contBgColor ||
+      raw?.layoutBgColor ||
+      raw?.topBarColor
+    ) || {};
+
+  return (
+    firstSectionRaw?.backgroundColor ||
+    firstSectionRaw?.bgColor ||
+    firstSectionRaw?.containerBgColor ||
+    firstSectionRaw?.contBgColor ||
+    firstSectionRaw?.layoutBgColor ||
+    firstSectionRaw?.topBarColor ||
+    headerBg ||
+    "#FFFFFF"
+  );
 };
 
 const getDslFingerprint = (incomingDsl) => {
@@ -497,6 +534,10 @@ export default function ProductDetailScreen() {
     () => renderSections.filter((section) => !isAddToCartStickySection(section)),
     [renderSections]
   );
+  const pageBackground = useMemo(
+    () => resolvePageBackground(renderSections, headerConfig),
+    [renderSections, headerConfig]
+  );
   const stickyAtcReservedSpace = stickyAddToCartSections.length > 0 ? stickyAtcHeight : 0;
   const hasProductData = !!productForRender;
   const waitingForInitialProduct = loading && !hasProductData && !productLoadSettled;
@@ -509,8 +550,8 @@ export default function ProductDetailScreen() {
   );
 
   return (
-    <SafeAreaView style={styles.safeArea} edges={["left", "right"]}>
-      <View style={styles.container}>
+    <SafeAreaView style={[styles.safeArea, { backgroundColor: pageBackground }]} edges={["left", "right"]}>
+      <View style={[styles.container, { backgroundColor: pageBackground }]}>
         <View style={[styles.headerWrapper, { paddingTop: insets.top }]}>
           <HeaderDefault
             config={headerConfig}
@@ -522,10 +563,11 @@ export default function ProductDetailScreen() {
           <SkeletonLoader />
         ) : (
           <ScrollView
-            style={styles.scrollView}
+            style={[styles.scrollView, { backgroundColor: pageBackground }]}
             contentContainerStyle={[
               styles.scrollContent,
               {
+                backgroundColor: pageBackground,
                 paddingBottom: (bottomNavSection ? bottomNavHeight + 16 : 24) + stickyAtcReservedSpace,
               },
             ]}
@@ -611,8 +653,7 @@ const styles = StyleSheet.create({
     width: "100%",
   },
   section: {
-    marginBottom: 10,
-    backgroundColor: "#ffffff",
+    backgroundColor: "transparent",
   },
   status: {
     paddingTop: 12,

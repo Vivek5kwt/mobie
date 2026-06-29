@@ -14,7 +14,7 @@ import { SafeArea } from "../utils/SafeAreaHandler";
 import { fetchDSL } from "../engine/dslHandler";
 import { resolveAppId } from "../utils/appId";
 import FontAwesome from "react-native-vector-icons/FontAwesome";
-import HeaderIcon from "react-native-vector-icons/FontAwesome6";
+import HeaderDefault from "../components/HeaderDefault";
 import { useAuth } from "../services/AuthContext";
 import { cancelShopifyOrder, fetchCustomerOrders, fetchShopifyOrderDetails } from "../services/shopify";
 import { triggerOrderNotification, ORDER_EVENTS } from "../services/notificationService";
@@ -93,10 +93,38 @@ const toFontWeight = (v, fb = "400") => {
 const hasOrderValue = (value) =>
   value !== undefined && value !== null && value !== "";
 
+const firstValue = (...values) => {
+  for (const value of values) {
+    const resolved = unwrap(value, undefined);
+    if (hasOrderValue(resolved)) return resolved;
+  }
+  return undefined;
+};
+
+const humanizeKey = (key = "") =>
+  String(key)
+    .replace(/([a-z0-9])([A-Z])/g, "$1 $2")
+    .replace(/[_-]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+    .replace(/^./, (c) => c.toUpperCase());
+
 const dslBorder = (propsNode, defaultWidth = 1) => {
+  const borderLine = toStr(
+    propsNode?.borderLine ?? propsNode?.borderAlign ?? propsNode?.borderStyle,
+    ""
+  ).toLowerCase();
+  if (["none", "no", "off", "0", "false"].includes(borderLine)) return {};
+
   const color = toStr(propsNode?.borderColor ?? propsNode?.strokeColor, "");
   if (!color) return {};
-  const width = toNum(propsNode?.borderWidth ?? propsNode?.strokeWidth, defaultWidth);
+  const explicitWidth = firstValue(
+    propsNode?.borderWidth,
+    propsNode?.strokeWidth,
+    propsNode?.borderSize
+  );
+  const width = toNum(explicitWidth, defaultWidth);
+  if (width <= 0) return {};
   return { borderWidth: width, borderColor: color };
 };
 
@@ -114,6 +142,15 @@ const getProps = (section) =>
   section?.properties?.props ||
   section?.props ||
   {};
+
+const getRawProps = (section) => {
+  const props = getProps(section);
+  const raw = unwrap(props?.raw, {});
+  if (raw && typeof raw === "object" && !Array.isArray(raw)) {
+    return { ...props, ...raw };
+  }
+  return props || {};
+};
 
 const fmt = (n, currency = "") =>
   formatSharedMoney(Math.abs(toNum(n, 0)), currency);
@@ -184,6 +221,7 @@ export default function OrderDetailScreen() {
   const [detailsRefreshing, setDetailsRefreshing] = useState(false);
   const [detailsError, setDetailsError] = useState("");
   const [noOrders,        setNoOrders]        = useState(false);
+  const [headerConfig,    setHeaderConfig]    = useState(null);
   const [bottomNavSection, setBottomNavSection] = useState(null);
   const [bottomNavHeight,  setBottomNavHeight]  = useState(BOTTOM_NAV_RESERVED_HEIGHT);
   const versionRef = useRef(null);
@@ -204,8 +242,9 @@ export default function OrderDetailScreen() {
   const loadDsl = useCallback(async () => {
     try {
       const dslData = await fetchDSL(appId, "order-details");
-      if (dslData?.dsl?.sections?.length) {
-        setSections(dslData.dsl.sections);
+      if (dslData?.dsl) {
+        setSections(Array.isArray(dslData.dsl.sections) ? dslData.dsl.sections : []);
+        setHeaderConfig(dslData.dsl.headerdefault ?? null);
         versionRef.current = dslData.versionNumber ?? null;
         dslFingerprintRef.current = getDslFingerprint(dslData.dsl);
       }
@@ -220,11 +259,12 @@ export default function OrderDetailScreen() {
     const id = setInterval(async () => {
       try {
         const latest = await fetchDSL(appId, "order-details");
-        if (!latest?.dsl?.sections?.length) return;
+        if (!latest?.dsl) return;
         const v = latest.versionNumber ?? null;
         const fp = getDslFingerprint(latest.dsl);
         if (v !== versionRef.current || fp !== dslFingerprintRef.current) {
-          setSections(latest.dsl.sections);
+          setSections(Array.isArray(latest.dsl.sections) ? latest.dsl.sections : []);
+          setHeaderConfig(latest.dsl.headerdefault ?? null);
           versionRef.current = v;
           dslFingerprintRef.current = fp;
         }
@@ -318,11 +358,23 @@ export default function OrderDetailScreen() {
   const findSection = (name) => sections.find((s) => getComponent(s) === name);
 
   const orderInfoSection   = findSection("order_info");
-  const priceInfoSection   = findSection("price_info");
-  const cancelOrderSection = findSection("cancel_order");
   const itemsSection       = findSection("order_detail_page");
   const emptyStateSection  = orderInfoSection || sections[0] || null;
-  const emptyProps         = emptyStateSection ? getProps(emptyStateSection) : {};
+  const pageProps          = getRawProps(itemsSection || sections[0]);
+  const pageBackground     = toStr(
+    pageProps?.backgroundColor ??
+      pageProps?.bgColor ??
+      pageProps?.containerBgColor ??
+      pageProps?.contBackgroundColor ??
+      pageProps?.layoutBgColor,
+    "#FFFFFF"
+  );
+  const pagePt             = toNum(pageProps?.pt ?? pageProps?.paddingTop, 16);
+  const pagePl             = toNum(pageProps?.pl ?? pageProps?.paddingLeft, 16);
+  const pagePr             = toNum(pageProps?.pr ?? pageProps?.paddingRight, 16);
+  const pagePb             = toNum(pageProps?.pb ?? pageProps?.paddingBottom, 16);
+  const pageGap            = toNum(pageProps?.sectionGap ?? pageProps?.componentGap ?? pageProps?.gap, 0);
+  const emptyProps         = emptyStateSection ? getRawProps(emptyStateSection) : {};
   const emptyTitleText     = toStr(emptyProps?.emptyTitle ?? emptyProps?.noOrderTitle, "No orders yet");
   const emptySubtitleText  = toStr(
     emptyProps?.emptySubtitle ?? emptyProps?.noOrderSubtitle,
@@ -332,25 +384,58 @@ export default function OrderDetailScreen() {
   const emptyTagColor      = toStr(emptyProps?.emptyTagColor, "#F59E0B");
 
   const isLoading = dslLoading || fetchingOrders;
+  const renderOrderSection = (section, index) => {
+    const component = getComponent(section);
+    const key = `${component || "section"}-${section?.id || index}`;
+
+    if (component === "order_detail_page") {
+      if (!order?.lineItems?.length) return null;
+      return <OrderItemsSection key={key} section={section} items={order.lineItems} />;
+    }
+
+    if (component === "order_info") {
+      return <OrderInfoSection key={key} section={section} order={order} />;
+    }
+
+    if (component === "price_info") {
+      return <PriceInfoSection key={key} section={section} order={order} />;
+    }
+
+    if (component === "cancel_order") {
+      return (
+        <CancelOrderSection
+          key={key}
+          section={section}
+          order={order}
+          appId={appId}
+          userId={session?.user?.id ?? null}
+          email={session?.user?.email || ""}
+          customerAccessToken={customerAccessToken}
+          onCanceled={(updatedOrder) => {
+            setOrder((current) => ({ ...(current || {}), ...(updatedOrder || {}) }));
+            setDetailsError("");
+          }}
+        />
+      );
+    }
+
+    return null;
+  };
 
   return (
     <SafeArea edges={["top", "left", "right"]}>
-      <View style={styles.container}>
-        {/* Header */}
-        <View style={styles.header}>
-          <TouchableOpacity
-            style={styles.backBtn}
-            onPress={() => navigation.canGoBack() ? navigation.goBack() : navigation.navigate("LayoutScreen")}
-            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-          >
-            <HeaderIcon name="arrow-left-long" size={18} color="#111827" />
-          </TouchableOpacity>
-          <Text style={styles.headerTitle}>Order Details</Text>
-          <View style={styles.backBtn} />
-        </View>
+      <View style={[styles.container, { backgroundColor: pageBackground }]}>
+        {headerConfig ? (
+          <HeaderDefault
+            config={headerConfig}
+            bottomNavSection={bottomNavSection}
+            hideTabs={true}
+            showBack={true}
+          />
+        ) : null}
 
         {isLoading ? (
-          <View style={styles.center}>
+          <View style={[styles.center, { backgroundColor: pageBackground }]}>
             <ActivityIndicator size="large" color="#0EA5E9" />
           </View>
         ) : noOrders || !order ? (
@@ -358,7 +443,10 @@ export default function OrderDetailScreen() {
           <View
             style={[
               styles.emptyState,
-              { paddingBottom: bottomNavSection ? bottomNavHeight + 16 : 32 },
+              {
+                backgroundColor: pageBackground,
+                paddingBottom: bottomNavSection ? bottomNavHeight + 16 : 32,
+              },
             ]}
           >
             {/* Shopping bag icon matching the screenshot */}
@@ -372,10 +460,17 @@ export default function OrderDetailScreen() {
         ) : (
           /* ── Order detail content ─────────────────────────────────────── */
           <ScrollView
-            style={styles.scroll}
+            style={[styles.scroll, { backgroundColor: pageBackground }]}
             contentContainerStyle={[
               styles.scrollContent,
-              { paddingBottom: bottomNavSection ? bottomNavHeight + 16 : 32 },
+              {
+                backgroundColor: pageBackground,
+                paddingTop: pagePt,
+                paddingLeft: pagePl,
+                paddingRight: pagePr,
+                paddingBottom: (bottomNavSection ? bottomNavHeight + 16 : 32) + pagePb,
+                gap: pageGap,
+              },
             ]}
             showsVerticalScrollIndicator={false}
           >
@@ -396,32 +491,7 @@ export default function OrderDetailScreen() {
               </View>
             )}
 
-            {/* Order info card */}
-            <OrderInfoSection section={orderInfoSection} order={order} />
-
-            {/* Price breakdown */}
-            <PriceInfoSection section={priceInfoSection} order={order} />
-
-            {/* Cancel button */}
-            {cancelOrderSection && (
-              <CancelOrderSection
-                section={cancelOrderSection}
-                order={order}
-                appId={appId}
-                userId={session?.user?.id ?? null}
-                email={session?.user?.email || ""}
-                customerAccessToken={customerAccessToken}
-                onCanceled={(updatedOrder) => {
-                  setOrder((current) => ({ ...(current || {}), ...(updatedOrder || {}) }));
-                  setDetailsError("");
-                }}
-              />
-            )}
-
-            {/* Order items */}
-            {order?.lineItems?.length > 0 && (
-              <OrderItemsSection section={itemsSection} items={order.lineItems} />
-            )}
+            {sections.map(renderOrderSection)}
           </ScrollView>
         )}
 
@@ -442,44 +512,72 @@ export default function OrderDetailScreen() {
 // ─── Order Info Section ───────────────────────────────────────────────────────
 
 function OrderInfoSection({ section, order }) {
-  const propsNode = section ? getProps(section) : {};
+  const propsNode = section ? getRawProps(section) : {};
+  const orderInfo = propsNode?.orderInfo || {};
+  const labelStyle = propsNode?.labelStyle || {};
+  const valuesStyle = propsNode?.valuesStyle || propsNode?.valueStyle || {};
+  const valuesVisibility = valuesStyle?.visibility || propsNode?.visibility || {};
 
-  const cardBg          = toStr(propsNode?.bgColor ?? propsNode?.backgroundColor ?? propsNode?.cardBg, "#FFFFFF");
-  const cardRadius      = toNum(propsNode?.borderRadius ?? propsNode?.radius ?? propsNode?.cornerRadius, 12);
+  const cardBg          = toStr(propsNode?.bgColor ?? propsNode?.backgroundColor ?? propsNode?.cardBgColor ?? propsNode?.cardBg, "#FFFFFF");
+  const cardRadius      = toNum(propsNode?.borderRadius ?? propsNode?.radius ?? propsNode?.cornerRadius, 0);
   const rowDividerColor = toStr(propsNode?.dividerColor ?? propsNode?.rowBorderColor, "#F3F4F6");
-  const labelColor      = toStr(propsNode?.labelColor ?? propsNode?.subtitleColor, "#6B7280");
-  const valueColor      = toStr(propsNode?.valueColor ?? propsNode?.textColor, "#111827");
-  const labelSize       = toNum(propsNode?.labelFontSize ?? propsNode?.fontSize, 13);
-  const valueSize       = toNum(propsNode?.valueFontSize ?? propsNode?.fontSize, 13);
-  const labelWeight     = toFontWeight(propsNode?.labelFontWeight, "400");
-  const valueWeight     = toFontWeight(propsNode?.valueFontWeight, "500");
-  const textFontFamily  = cleanFontFamily(toStr(propsNode?.fontFamily, ""));
+  const labelColor      = toStr(labelStyle?.color ?? propsNode?.labelColor ?? propsNode?.labelLabelColor ?? propsNode?.subtitleColor, "#6B7280");
+  const valueColor      = toStr(valuesStyle?.color ?? propsNode?.valueColor ?? propsNode?.textColor, "#111827");
+  const labelSize       = toNum(labelStyle?.fontSize ?? propsNode?.labelFontSize ?? propsNode?.fontSize, 13);
+  const valueSize       = toNum(valuesStyle?.fontSize ?? propsNode?.valueFontSize ?? propsNode?.fontSize, 13);
+  const labelWeight     = toFontWeight(labelStyle?.fontWeight ?? propsNode?.labelFontWeight, "400");
+  const valueWeight     = toFontWeight(valuesStyle?.fontWeight ?? propsNode?.valueFontWeight, "500");
+  const labelFontFamily = cleanFontFamily(toStr(labelStyle?.fontFamily ?? propsNode?.labelFontFamily ?? propsNode?.fontFamily, ""));
+  const valueFontFamily = cleanFontFamily(toStr(valuesStyle?.fontFamily ?? propsNode?.valueFontFamily ?? propsNode?.fontFamily, ""));
+  const labelUppercase  = toBool(labelStyle?.uppercase ?? propsNode?.labelUppercase, false);
+  const valueUppercase  = toBool(valuesStyle?.uppercase ?? propsNode?.valueUppercase, false);
   const rowPt           = toNum(propsNode?.rowPaddingTop ?? propsNode?.paddingTop, 12);
   const rowPb           = toNum(propsNode?.rowPaddingBottom ?? propsNode?.paddingBottom, 12);
   const rowPl           = toNum(propsNode?.rowPaddingLeft ?? propsNode?.paddingLeft, 16);
   const rowPr           = toNum(propsNode?.rowPaddingRight ?? propsNode?.paddingRight, 16);
 
   const info = {
-    orderDate:      order?.orderDate || order?.placedOn || order?.processedAt || "",
-    orderNumber:    order?.orderNumber || order?.name || "",
-    status:         order?.status || "",
-    deliveryMethod: order?.deliveryMethod || order?.shippingMethod || "",
-    address:        order?.address || formatAddressForDisplay(order?.shippingAddress),
-    arrival:        order?.arrival || order?.estimatedDelivery || "",
-    billing:        order?.billing || formatAddressForDisplay(order?.billingAddress),
-    payment:        order?.payment || order?.paymentMethod || (Array.isArray(order?.paymentGatewayNames) ? order.paymentGatewayNames.join(", ") : ""),
+    orderDate:       firstValue(order?.orderDate, order?.placedOn, order?.processedAt, orderInfo?.orderDate, propsNode?.orderDate),
+    orderNumber:     firstValue(order?.orderNumber, order?.name, orderInfo?.orderNumber, propsNode?.orderNumber),
+    status:          firstValue(order?.status, order?.fulfillmentStatus, order?.financialStatus, orderInfo?.status, propsNode?.status),
+    deliveryMethod:  firstValue(order?.deliveryMethod, order?.shippingMethod, orderInfo?.deliveryMethod, propsNode?.deliveryMethod),
+    deliveryAddress: firstValue(order?.address, formatAddressForDisplay(order?.shippingAddress), orderInfo?.address, propsNode?.address),
+    estimatedArrival:firstValue(order?.arrival, order?.estimatedDelivery, orderInfo?.arrival, propsNode?.arrival),
+    billingDetails:  firstValue(order?.billing, formatAddressForDisplay(order?.billingAddress), orderInfo?.billing, propsNode?.billing),
+    paymentMethod:   firstValue(
+      order?.payment,
+      order?.paymentMethod,
+      Array.isArray(order?.paymentGatewayNames) ? order.paymentGatewayNames.join(", ") : "",
+      orderInfo?.payment,
+      propsNode?.payment
+    ),
   };
 
-  const rows = [
-    { label: "Order date",        value: info.orderDate },
-    { label: "Order number",      value: info.orderNumber },
-    { label: "Status",            value: info.status },
-    { label: "Delivery method",   value: info.deliveryMethod },
-    { label: "Delivery address",  value: info.address },
-    { label: "Estimated arrival", value: info.arrival },
-    { label: "Billing details",   value: info.billing },
-    { label: "Payment method",    value: info.payment },
-  ].filter((r) => r.value);
+  const labelFor = (key) =>
+    toStr(
+      firstValue(
+        propsNode?.[`${key}Label`],
+        propsNode?.labels?.[key],
+        orderInfo?.[`${key}Label`]
+      ),
+      humanizeKey(key)
+    );
+
+  const rowDefs = [
+    { key: "orderDate", visibleKey: "orderDate" },
+    { key: "orderNumber", visibleKey: "orderNumber" },
+    { key: "status", visibleKey: "status" },
+    { key: "deliveryMethod", visibleKey: "deliveryMethod" },
+    { key: "deliveryAddress", visibleKey: "deliveryAddress" },
+    { key: "estimatedArrival", visibleKey: "estimatedArrival" },
+    { key: "billingDetails", visibleKey: "billingDetail" },
+    { key: "paymentMethod", visibleKey: "paymentMethod" },
+  ];
+
+  const rows = rowDefs
+    .filter((row) => toBool(valuesVisibility?.[row.visibleKey] ?? valuesVisibility?.[row.key], true))
+    .map((row) => ({ label: labelFor(row.key), value: info[row.key] }))
+    .filter((row) => hasOrderValue(row.value));
 
   if (!rows.length) return null;
 
@@ -501,10 +599,28 @@ function OrderInfoSection({ section, order }) {
             i < rows.length - 1 && { borderBottomWidth: 1, borderBottomColor: rowDividerColor },
           ]}
         >
-          <Text style={[styles.infoLabel, { color: labelColor, fontSize: labelSize, fontWeight: labelWeight, ...(textFontFamily ? { fontFamily: textFontFamily } : {}) }]}>
+          <Text style={[
+            styles.infoLabel,
+            {
+              color: labelColor,
+              fontSize: labelSize,
+              fontWeight: labelWeight,
+              textTransform: labelUppercase ? "uppercase" : "none",
+              ...(labelFontFamily ? { fontFamily: labelFontFamily } : {}),
+            },
+          ]}>
             {row.label}
           </Text>
-          <Text style={[styles.infoValue, { color: valueColor, fontSize: valueSize, fontWeight: valueWeight, ...(textFontFamily ? { fontFamily: textFontFamily } : {}) }]}>
+          <Text style={[
+            styles.infoValue,
+            {
+              color: valueColor,
+              fontSize: valueSize,
+              fontWeight: valueWeight,
+              textTransform: valueUppercase ? "uppercase" : "none",
+              ...(valueFontFamily ? { fontFamily: valueFontFamily } : {}),
+            },
+          ]}>
             {row.value}
           </Text>
         </View>
@@ -516,15 +632,19 @@ function OrderInfoSection({ section, order }) {
 // ─── Price Info Section ───────────────────────────────────────────────────────
 
 function PriceInfoSection({ section, order }) {
-  const propsNode = section ? getProps(section) : {};
+  const propsNode = section ? getRawProps(section) : {};
+  const labelStyle = propsNode?.labelStyle || {};
+  const numberStyle = propsNode?.numberStyle || propsNode?.valueStyle || {};
+  const numberVisibility = numberStyle?.visibility || propsNode?.visibility || {};
 
-  const cardBg       = toStr(propsNode?.bgColor ?? propsNode?.backgroundColor ?? propsNode?.cardBg, "#FFFFFF");
-  const cardRadius   = toNum(propsNode?.borderRadius ?? propsNode?.radius, 12);
+  const cardBg       = toStr(propsNode?.bgColor ?? propsNode?.backgroundColor ?? propsNode?.cardBgColor ?? propsNode?.cardBg, "#FFFFFF");
+  const cardRadius   = toNum(propsNode?.borderRadius ?? propsNode?.radius, 0);
   const dividerColor = toStr(propsNode?.dividerColor ?? propsNode?.rowBorderColor, "#F3F4F6");
-  const labelColor   = toStr(propsNode?.labelColor, "#374151");
-  const valueColor   = toStr(propsNode?.valueColor ?? propsNode?.textColor, "#111827");
+  const labelColor   = toStr(labelStyle?.color ?? propsNode?.labelColor, "#374151");
+  const valueColor   = toStr(numberStyle?.color ?? propsNode?.valueColor ?? propsNode?.textColor, "#111827");
   const totalColor   = toStr(propsNode?.totalColor ?? propsNode?.boldColor, "#111827");
-  const rowFontSize  = toNum(propsNode?.fontSize, 14);
+  const rowFontSize  = toNum(labelStyle?.fontSize ?? propsNode?.fontSize, 14);
+  const valueFontSize = toNum(numberStyle?.fontSize ?? propsNode?.valueFontSize ?? propsNode?.fontSize, rowFontSize);
   const totalSize    = toNum(propsNode?.totalFontSize ?? propsNode?.boldFontSize, 15);
   const orderCurrencyCode = toStr(order?.currencyCode ?? order?.priceCurrency, "");
   const orderCurrencySymbol = toStr(order?.currencySymbol, "");
@@ -535,25 +655,33 @@ function PriceInfoSection({ section, order }) {
     normalizedOrderSymbol ||
     sharedCurrencySymbolForCode(orderCurrencyCode);
   const currLabel = orderCurrencyCode || currSymbol;
-  const rowFontFamily = cleanFontFamily(toStr(propsNode?.fontFamily, ""));
-  const labelWeight = toFontWeight(propsNode?.labelFontWeight, "400");
-  const valueWeight = toFontWeight(propsNode?.valueFontWeight, "400");
+  const labelFontFamily = cleanFontFamily(toStr(labelStyle?.fontFamily ?? propsNode?.labelFontFamily ?? propsNode?.fontFamily, ""));
+  const valueFontFamily = cleanFontFamily(toStr(numberStyle?.fontFamily ?? propsNode?.valueFontFamily ?? propsNode?.fontFamily, ""));
+  const labelWeight = toFontWeight(labelStyle?.fontWeight ?? propsNode?.labelFontWeight, "400");
+  const valueWeight = toFontWeight(numberStyle?.fontWeight ?? propsNode?.valueFontWeight, "400");
   const totalWeight = toFontWeight(propsNode?.totalFontWeight ?? propsNode?.boldFontWeight, "700");
   const showSubtotal = toBool(propsNode?.showSubtotal ?? propsNode?.showSubTotal, true);
-  const showDelivery = toBool(propsNode?.showDelivery, true);
-  const showTax = toBool(propsNode?.showTax, true);
-  const showTotal = toBool(propsNode?.showTotal, true);
+  const showDelivery = toBool(numberVisibility?.delivery ?? propsNode?.showDelivery, true);
+  const showTax = toBool(numberVisibility?.tax ?? propsNode?.showTax, true);
+  const showTotal = toBool(numberVisibility?.total ?? propsNode?.showTotal, true);
+  const labelUppercase = toBool(labelStyle?.uppercase ?? propsNode?.labelUppercase, false);
+  const valueUppercase = toBool(numberStyle?.uppercase ?? propsNode?.valueUppercase, false);
 
-  const delivery = hasOrderValue(order?.delivery) ? order.delivery : undefined;
-  const tax      = hasOrderValue(order?.tax) ? order.tax : undefined;
-  const total    = hasOrderValue(order?.total) ? order.total : undefined;
-  const subtotal = hasOrderValue(order?.subtotal) ? order.subtotal : undefined;
+  const delivery = firstValue(order?.delivery, order?.shippingPrice, order?.shippingAmount, propsNode?.delivery);
+  const tax      = firstValue(order?.tax, order?.totalTax, propsNode?.tax);
+  const total    = firstValue(order?.total, order?.totalPrice, order?.currentTotalPrice, propsNode?.total);
+  const subtotal = firstValue(order?.subtotal, order?.subtotalPrice, order?.currentSubtotalPrice, propsNode?.subtotal);
+  const labelFor = (key) =>
+    toStr(
+      firstValue(propsNode?.[`${key}Label`], propsNode?.labels?.[key]),
+      humanizeKey(key)
+    );
 
   const rows = [
-    showSubtotal && hasOrderValue(subtotal) ? { label: toStr(propsNode?.subtotalLabel ?? propsNode?.subTotalLabel, "Subtotal"), value: fmt(subtotal, currLabel), bold: false } : null,
-    showDelivery && hasOrderValue(delivery) ? { label: toStr(propsNode?.deliveryLabel, "Delivery"), value: fmt(delivery, currLabel), bold: false } : null,
-    showTax && hasOrderValue(tax) ? { label: toStr(propsNode?.taxLabel, "Tax"), value: fmt(tax, currLabel), bold: false } : null,
-    showTotal && hasOrderValue(total) ? { label: toStr(propsNode?.totalLabel, "Total"), value: fmt(total, currLabel), bold: true } : null,
+    showSubtotal && hasOrderValue(subtotal) ? { label: toStr(firstValue(propsNode?.subtotalLabel, propsNode?.subTotalLabel), labelFor("subtotal")), value: fmt(subtotal, currLabel), bold: false } : null,
+    showDelivery && hasOrderValue(delivery) ? { label: labelFor("delivery"), value: fmt(delivery, currLabel), bold: false } : null,
+    showTax && hasOrderValue(tax) ? { label: labelFor("tax"), value: fmt(tax, currLabel), bold: false } : null,
+    showTotal && hasOrderValue(total) ? { label: labelFor("total"), value: fmt(total, currLabel), bold: true } : null,
   ].filter(Boolean);
 
   const border = dslBorder(propsNode);
@@ -572,15 +700,17 @@ function PriceInfoSection({ section, order }) {
             styles.priceLabel,
             { color: row.bold ? totalColor : labelColor, fontSize: row.bold ? totalSize : rowFontSize },
             { fontWeight: row.bold ? totalWeight : labelWeight },
-            rowFontFamily ? { fontFamily: rowFontFamily } : null,
+            labelUppercase ? { textTransform: "uppercase" } : null,
+            labelFontFamily ? { fontFamily: labelFontFamily } : null,
           ]}>
             {row.label}
           </Text>
           <Text style={[
             styles.priceValue,
-            { color: row.bold ? totalColor : valueColor, fontSize: row.bold ? totalSize : rowFontSize },
+            { color: row.bold ? totalColor : valueColor, fontSize: row.bold ? totalSize : valueFontSize },
             { fontWeight: row.bold ? totalWeight : valueWeight },
-            rowFontFamily ? { fontFamily: rowFontFamily } : null,
+            valueUppercase ? { textTransform: "uppercase" } : null,
+            valueFontFamily ? { fontFamily: valueFontFamily } : null,
           ]}>
             {row.value}
           </Text>
@@ -607,10 +737,12 @@ function CancelOrderSection({ section, order, appId, userId, email, customerAcce
   const textColor    = toStr(textStyle.color,       "#FFFFFF");
   const fontSize     = toNum(textStyle.fontSize ?? raw?.fontSize, 14);
   const fontWeight   = toFontWeight(textStyle.fontWeight ?? raw?.fontWeight, "600");
-  const fontFamily   = cleanFontFamily(toStr(raw?.fontFamily, ""));
+  const fontFamily   = cleanFontFamily(toStr(textStyle?.fontFamily ?? raw?.fontFamily, ""));
   const bgColor      = toStr(bg.backgroundColor,   "#0D9488");
   const borderColor  = toStr(bg.borderColor,        "");
   const borderRadius = Math.max(toNum(raw?.buttonRadius ?? bg.borderRadius, 8), 0);
+  const disabledBgColor = toStr(raw?.disabledBgColor ?? raw?.disabledBackgroundColor, bgColor);
+  const disabledTextColor = toStr(raw?.disabledTextColor ?? raw?.disabledColor, textColor);
   const outerBgColor = toStr(boxBg.backgroundColor, "transparent");
   const outerRadius = Math.max(toNum(boxBg.borderRadius, 0), 0);
   const outerPt = toNum(boxBg.paddingTop, 0);
@@ -744,9 +876,10 @@ function CancelOrderSection({ section, order, appId, userId, email, customerAcce
         style={[
           styles.cancelButton,
           {
-            backgroundColor: disabled ? "#E5E7EB" : bgColor,
+            backgroundColor: disabled ? disabledBgColor : bgColor,
             borderRadius,
             ...(borderColor ? { borderColor, borderWidth: 1 } : { borderWidth: 0 }),
+            opacity: disabled ? toNum(raw?.disabledOpacity, 0.55) : 1,
           },
         ]}
         onPress={handleCancel}
@@ -756,7 +889,7 @@ function CancelOrderSection({ section, order, appId, userId, email, customerAcce
         {submitting ? (
           <ActivityIndicator size="small" color={textColor} />
         ) : (
-          <Text style={{ color: disabled ? "#6B7280" : textColor, fontSize, fontWeight, ...(fontFamily ? { fontFamily } : {}) }}>
+          <Text style={{ color: disabled ? disabledTextColor : textColor, fontSize, fontWeight, ...(fontFamily ? { fontFamily } : {}) }}>
             {alreadyCanceled ? alreadyCanceledLabel : label}
           </Text>
         )}
@@ -772,10 +905,9 @@ function CancelOrderSection({ section, order, appId, userId, email, customerAcce
 // ─── Order Items Section ──────────────────────────────────────────────────────
 
 function OrderItemsSection({ section, items }) {
-  const propsNode = section ? getProps(section) : {};
+  const propsNode = section ? getRawProps(section) : {};
 
-  const bgColor        = toStr(propsNode?.bgColor ?? propsNode?.backgroundColor ?? propsNode?.cardBg, "#FFFFFF");
-  const borderColor    = toStr(propsNode?.borderColor ?? propsNode?.strokeColor, "#EAEAEA");
+  const bgColor        = toStr(propsNode?.bgColor ?? propsNode?.backgroundColor ?? propsNode?.cardBgColor ?? propsNode?.cardBg, "#FFFFFF");
   const radius         = toNum(propsNode?.radius ?? propsNode?.borderRadius ?? propsNode?.cornerRadius, 14);
   const titleColor     = toStr(propsNode?.titleColor, "#000000");
   const priceColor     = toStr(propsNode?.priceColor, "#000000");
@@ -801,6 +933,16 @@ function OrderItemsSection({ section, items }) {
   const padLeft   = toNum(propsNode?.paddingLeft,   12);
   const padRight  = toNum(propsNode?.paddingRight,  12);
   const padBottom = toNum(propsNode?.paddingBottom, 12);
+  const imageWidth = toNum(propsNode?.imageWidth, 90);
+  const imageRatio = toStr(propsNode?.imageRatio ?? propsNode?.ratio, "");
+  const ratioParts = imageRatio.match(/^(\d+(?:\.\d+)?)\s*:\s*(\d+(?:\.\d+)?)$/);
+  const imageHeight = ratioParts
+    ? Math.max(1, Math.round(imageWidth * (Number(ratioParts[2]) / Number(ratioParts[1]))))
+    : imageWidth;
+  const imageRadius = toNum(propsNode?.imageRadius ?? propsNode?.imageCorner, 0);
+  const border = dslBorder(propsNode);
+  const labelFor = (key) =>
+    toStr(firstValue(propsNode?.[`${key}Label`], propsNode?.labels?.[key]), humanizeKey(key));
   const itemPriceText = (item = {}) => {
     const amount = item.priceAmount ?? item.price;
     if (amount === undefined || amount === null || amount === "") return "";
@@ -822,15 +964,22 @@ function OrderItemsSection({ section, items }) {
               paddingLeft:   padLeft,
               paddingRight:  padRight,
               paddingBottom: padBottom,
-              borderWidth: 1,
-              borderColor,
             },
+            border,
           ]}
         >
           {item.imageUrl ? (
             <Image
               source={{ uri: item.imageUrl }}
-              style={[styles.itemImage, { backgroundColor: imageBgColor }]}
+              style={[
+                styles.itemImage,
+                {
+                  width: imageWidth,
+                  height: imageHeight,
+                  borderRadius: imageRadius,
+                  backgroundColor: imageBgColor,
+                },
+              ]}
               resizeMode={resolveProductImageResizeMode(
                 propsNode?.imageScale,
                 propsNode?.scale,
@@ -838,7 +987,18 @@ function OrderItemsSection({ section, items }) {
               )}
             />
           ) : (
-            <View style={[styles.itemImage, styles.itemImagePlaceholder, { backgroundColor: imageBgColor }]}>
+            <View
+              style={[
+                styles.itemImage,
+                styles.itemImagePlaceholder,
+                {
+                  width: imageWidth,
+                  height: imageHeight,
+                  borderRadius: imageRadius,
+                  backgroundColor: imageBgColor,
+                },
+              ]}
+            >
               <FontAwesome name="image" size={28} color="#D1D5DB" />
             </View>
           )}
@@ -850,17 +1010,23 @@ function OrderItemsSection({ section, items }) {
               {item.title}
             </Text>
             {item.variant ? (
-              <Text style={[styles.itemMeta, { color: metaColor, fontSize: metaFontSize }]}>Variant: {item.variant}</Text>
+              <Text style={[styles.itemMeta, { color: metaColor, fontSize: metaFontSize }]}>
+                {labelFor("variant")}: {item.variant}
+              </Text>
             ) : null}
             {item.quantity ? (
-              <Text style={[styles.itemMeta, { color: metaColor, fontSize: metaFontSize }]}>Qty: {item.quantity}</Text>
+              <Text style={[styles.itemMeta, { color: metaColor, fontSize: metaFontSize }]}>
+                {labelFor("quantity")}: {item.quantity}
+              </Text>
             ) : null}
             {item.deliveryDate ? (
-              <Text style={[styles.itemMeta, { color: metaColor, fontSize: metaFontSize }]}>Delivery Date: {item.deliveryDate}</Text>
+              <Text style={[styles.itemMeta, { color: metaColor, fontSize: metaFontSize }]}>
+                {labelFor("deliveryDate")}: {item.deliveryDate}
+              </Text>
             ) : null}
             {itemPriceText(item) ? (
               <Text style={[styles.itemPrice, { color: priceColor, fontSize: priceFontSize, fontWeight: priceFontWeight, textAlign: priceAlign, ...(priceFontFamily ? { fontFamily: priceFontFamily } : {}) }]}>
-                Price: {itemPriceText(item)}
+                {labelFor("price")}: {itemPriceText(item)}
               </Text>
             ) : null}
           </View>
