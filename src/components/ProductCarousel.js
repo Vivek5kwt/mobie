@@ -286,6 +286,7 @@ export default function ProductCarousel({ section }) {
   const navigation = useNavigation();
   const dispatch = useDispatch();
   const { width: screenWidth } = useWindowDimensions();
+  const [measuredWidth, setMeasuredWidth] = useState(0);
   const { session, initializing } = useAuth();
   const wishlistUserKey = useMemo(() => getWishlistUserKey(session), [session]);
   const wishlistItems = useSelector((state) => state.wishlist?.items || []);
@@ -767,7 +768,7 @@ export default function ProductCarousel({ section }) {
     {};
 
   // Horizontal carousel: size cards from DSL/Builder first, then fall back responsively.
-  const viewportWidth = Math.max(1, screenWidth);
+  const viewportWidth = Math.max(1, measuredWidth || screenWidth);
   const horizontalPadding = bgPadL + bgPadR;
   const availableWidth = Math.max(0, viewportWidth - horizontalPadding);
   const metricTrackWidth =
@@ -788,15 +789,19 @@ export default function ProductCarousel({ section }) {
     resolveFirstNumber(
       [
         raw?.visibleItems,
-        raw?.itemsShown,
+        raw?.visibleCards,
         raw?.itemsPerView,
         raw?.cardsPerView,
-        grid?.itemsShown,
-        itemsShown,
+        raw?.slidesPerView,
+        raw?.perView,
+        grid?.visibleItems,
+        grid?.visibleCards,
+        grid?.itemsPerView,
+        grid?.cardsPerView,
         grid?.columns,
         columns,
       ],
-      itemsShown || columns || 2
+      columns || 2
     )
   );
   const visibleCards = getResponsiveColumns({
@@ -1239,6 +1244,12 @@ export default function ProductCarousel({ section }) {
 
   return (
     <View
+      onLayout={(event) => {
+        const nextWidth = event.nativeEvent.layout.width;
+        if (nextWidth > 0 && Math.abs(nextWidth - measuredWidth) > 0.5) {
+          setMeasuredWidth(nextWidth);
+        }
+      }}
       style={[
         styles.container,
         containerStyleFromCss,

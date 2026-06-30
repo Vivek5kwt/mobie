@@ -160,7 +160,7 @@ export default function DiscountCode({ section }) {
     applyBorderColor ? 1 : 0
   );
   const applyBorderRadius = toNumber(
-    firstDefined(raw?.applyBorderRadius, raw?.buttonRadius, raw?.buttonBorderRadius, raw?.btnRadius),
+    firstDefined(raw?.applyBorderRadius, raw?.buttonBorderRadius, raw?.buttonRadius, raw?.btnRadius),
     8
   );
   const applyFontSize = toNumber(
@@ -173,12 +173,20 @@ export default function DiscountCode({ section }) {
   );
   const applyHeight = toNumber(raw?.buttonHeight ?? raw?.applyHeight, 44);
   const applyPadL = toNumber(
-    firstDefined(raw?.applyPadL, raw?.applyPaddingLeft, raw?.buttonPaddingLeft, raw?.buttonPadL, raw?.buttonPaddingX, raw?.buttonPadX),
+    firstDefined(raw?.applyPadL, raw?.applyPaddingLeft, raw?.buttonPl, raw?.buttonPaddingLeft, raw?.buttonPadL, raw?.buttonPaddingX, raw?.buttonPadX),
     Math.round(applyHeight * 0.4)
   );
   const applyPadR = toNumber(
-    firstDefined(raw?.applyPadR, raw?.applyPaddingRight, raw?.buttonPaddingRight, raw?.buttonPadR, raw?.buttonPaddingX, raw?.buttonPadX),
+    firstDefined(raw?.applyPadR, raw?.applyPaddingRight, raw?.buttonPr, raw?.buttonPaddingRight, raw?.buttonPadR, raw?.buttonPaddingX, raw?.buttonPadX),
     Math.round(applyHeight * 0.4)
+  );
+  const applyPadT = toNumber(
+    firstDefined(raw?.applyPadT, raw?.applyPaddingTop, raw?.buttonPt, raw?.buttonPaddingTop, raw?.buttonPadT, raw?.buttonPaddingY, raw?.buttonPadY),
+    0
+  );
+  const applyPadB = toNumber(
+    firstDefined(raw?.applyPadB, raw?.applyPaddingBottom, raw?.buttonPb, raw?.buttonPaddingBottom, raw?.buttonPadB, raw?.buttonPaddingY, raw?.buttonPadY),
+    0
   );
 
   // Applied code chips
@@ -347,6 +355,8 @@ export default function DiscountCode({ section }) {
               borderWidth: applyBorderWidth,
               borderRadius: applyBorderRadius,
               height: applyHeight,
+              paddingTop: applyPadT,
+              paddingBottom: applyPadB,
               paddingLeft: applyPadL,
               paddingRight: applyPadR,
               opacity: validating ? 0.75 : 1,

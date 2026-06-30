@@ -245,7 +245,7 @@ export default function SideNavigation({ section }) {
   const backgroundImage = toStringValue(firstDefined(raw?.backgroundImageUrl, raw?.bgImage), "");
   const backgroundFit = toStringValue(firstDefined(raw?.bgImageFit, raw?.bgImageScale), "cover");
   const drawerWidth = getSideNavigationWidth(section);
-  const drawerBgColor = firstDefined(raw?.backgroundColor, raw?.bgColor, presentation.drawer?.backgroundColor, "#FFFFFF");
+  const drawerBgColor = firstDefined(raw?.bgColor, presentation.drawer?.backgroundColor, raw?.backgroundColor, "#FFFFFF");
 
   const contentPadding = {
     paddingTop: toNumber(firstDefined(raw?.paddingTop, presentation.drawerPadding?.paddingTop, raw?.pt), 0),
@@ -305,8 +305,8 @@ export default function SideNavigation({ section }) {
   const iconBoxWidth = toNumber(firstDefined(presentation.itemIcon?.width, raw?.iconSize, raw?.iconWidth), 24);
   const iconBoxHeight = toNumber(firstDefined(presentation.itemIcon?.height, raw?.iconSize, raw?.iconHeight), iconBoxWidth);
   const itemIconSize = toNumber(firstDefined(raw?.iconWidth, raw?.iconHeight, raw?.iconSize, presentation.itemIcon?.width), Math.min(iconBoxWidth, iconBoxHeight));
-  const itemIconColor = firstDefined(raw?.iconColor, presentation.itemIcon?.color, "#111827");
-  const itemTextColor = firstDefined(raw?.itemColor, presentation.itemText?.color, "#111827");
+  const itemIconColor = firstDefined(raw?.itemsIconColor, raw?.itemIconColor, raw?.iconColor, presentation.itemIcon?.color, "#111827");
+  const itemTextColor = firstDefined(raw?.itemsTextColor, raw?.itemTextColor, raw?.itemColor, presentation.itemText?.color, "#111827");
   const itemFontFamily = resolveFontFamily(raw?.itemFontFamily, raw?.itemsFontFamily, raw?.fontFamily, presentation.itemText?.fontFamily);
   const itemFontSize = toNumber(
     firstDefined(raw?.itemFontSize, raw?.itemsFontSize, presentation.itemText?.fontSize, raw?.fontSize),

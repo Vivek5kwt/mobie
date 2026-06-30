@@ -75,6 +75,14 @@ const resolveCurrencyLabel = (...values) => {
   return "";
 };
 
+const firstDefined = (...values) => {
+  for (const value of values) {
+    const resolved = unwrapValue(value, undefined);
+    if (resolved !== undefined && resolved !== null && resolved !== "") return value;
+  }
+  return undefined;
+};
+
 const fmt = (amount, currency) =>
   formatMoney(Math.abs(amount), currency);
 
@@ -94,6 +102,40 @@ const resolveLinePrice = (item = {}) => {
         : candidate;
     const parsed = toNumber(amount, NaN);
     if (Number.isFinite(parsed)) return Math.max(0, parsed);
+  }
+
+  return 0;
+};
+
+const resolveLineTax = (item = {}) => {
+  const lineCandidates = [
+    item?.taxAmount,
+    item?.salesTax,
+    item?.lineTax,
+    item?.totalTax,
+    item?.estimatedTax,
+  ];
+
+  for (const candidate of lineCandidates) {
+    const parsed = toNumber(
+      candidate && typeof candidate === "object"
+        ? candidate.amount ?? candidate.value
+        : candidate,
+      NaN
+    );
+    if (Number.isFinite(parsed)) return Math.max(0, parsed);
+  }
+
+  if (Array.isArray(item?.taxLines)) {
+    return item.taxLines.reduce((sum, line) => {
+      const amount = line?.price?.amount ?? line?.amount ?? line?.value;
+      return sum + Math.max(0, toNumber(amount, 0));
+    }, 0);
+  }
+
+  const unitTax = firstDefined(item?.unitTax, item?.taxPerItem, item?.perItemTax);
+  if (unitTax !== undefined) {
+    return Math.max(0, toNumber(unitTax, 0) * toNumber(item?.qty ?? item?.quantity, 1));
   }
 
   return 0;
@@ -226,7 +268,7 @@ export default function OrderSummary({ section }) {
   );
 
   // Row label style
-  const rowLabelColor = toString(raw?.rowLabelColor ?? raw?.labelColor, "#111827");
+  const rowLabelColor = toString(raw?.rowLabelColor ?? raw?.labelColor ?? raw?.textColor, "#111827");
   const rowLabelSize = toNumber(raw?.rowLabelSize ?? raw?.labelSize, 14);
   const rowValueSize = toNumber(raw?.rowValueSize ?? raw?.valueSize, 14);
 
@@ -234,8 +276,11 @@ export default function OrderSummary({ section }) {
   const showCartTotal = toBoolean(raw?.showCartTotal, true);
   const cartTotalLabel = toString(raw?.cartTotalLabel, usesDslItems ? "Subtotal" : "Cart Total");
   const showCartTotalRow = showCartTotal && cartTotalLabel.trim().toLowerCase() !== "total";
-  const cartTotalColor = toString(raw?.cartTotalColor, "#111827");
+  const cartTotalLabelSize = toNumber(raw?.cartTotalFontSize ?? raw?.cartTotalSize, rowLabelSize);
+  const cartTotalValueSize = toNumber(raw?.cartTotalPriceFontSize ?? raw?.cartTotalValueSize, rowValueSize);
+  const cartTotalColor = toString(raw?.cartTotalPriceColor ?? raw?.cartTotalColor, "#111827");
   const cartTotalWeight = toFontWeight(raw?.cartTotalWeight, "700");
+  const cartTotalValueWeight = toFontWeight(raw?.cartTotalPriceFontWeight, cartTotalWeight);
 
   // Savings row
   const dslSavings = raw?.savings != null ? toNumber(raw?.savings, 0) : null;
@@ -254,26 +299,56 @@ export default function OrderSummary({ section }) {
   // Discount row (applied codes)
   const showDiscount = toBoolean(raw?.showDiscount, !usesDslItems);
   const discountLabel = toString(raw?.discountLabel, "Discount");
-  const discountColor = toString(raw?.discountColor, "#EF4444");
+  const discountLabelSize = toNumber(raw?.discountsFontSize ?? raw?.discountFontSize, rowLabelSize);
+  const discountValueSize = toNumber(raw?.discountPriceSize ?? raw?.discountValueSize, rowValueSize);
+  const discountLabelWeight = toFontWeight(raw?.discountsFontWeight, "400");
+  const discountValueWeight = toFontWeight(raw?.discountPriceFontWeight, "400");
+  const discountColor = toString(raw?.discountPriceColor ?? raw?.discountColor, "#EF4444");
   const validatedDiscountAmount = sumActiveDiscountAmount(discountRecords, cartFingerprint);
   const totalDiscountAmount = Math.min(cartTotal, validatedDiscountAmount);
 
   // Chip styling for applied discount codes
   const chipBg = toString(raw?.chipBg ?? raw?.codeBg, "#F9FAFB");
-  const chipBorderColor = toString(raw?.chipBorderColor, "#E5E7EB");
+  const chipBorderColor = toString(raw?.discountChipBorderColor ?? raw?.chipBorderColor, "#E5E7EB");
   const chipTextColor = toString(raw?.chipTextColor, "#374151");
-  const chipBorderRadius = toNumber(raw?.chipBorderRadius, 6);
-  const chipFontSize = toNumber(raw?.chipFontSize, 12);
+  const chipBorderRadius = toNumber(raw?.discountChipBorderRadius ?? raw?.chipBorderRadius, 6);
+  const chipFontSize = toNumber(raw?.discountChipFontSize ?? raw?.chipFontSize, 12);
+  const chipFontWeight = toFontWeight(raw?.discountChipFontWeight ?? raw?.chipFontWeight, "400");
+  const chipPadT = toNumber(raw?.discountChipPt ?? raw?.chipPadT, 5);
+  const chipPadR = toNumber(raw?.discountChipPr ?? raw?.chipPadR, 10);
+  const chipPadB = toNumber(raw?.discountChipPb ?? raw?.chipPadB, 5);
+  const chipPadL = toNumber(raw?.discountChipPl ?? raw?.chipPadL, 10);
+  const chipBorderLine = toString(raw?.discountChipborderSide ?? raw?.discountChipBorderSide ?? raw?.chipBorderLine, "all");
+  const chipBorderWidth = chipBorderLine.trim().toLowerCase() === "none" ? 0 : 1;
   const chipPrefix = toString(raw?.chipPrefix, "Discount - ");
 
   // Tax row
-  const showTax = toBoolean(raw?.showTax ?? raw?.taxActive, raw?.taxAmount != null || raw?.taxPercent != null);
+  const configuredTaxAmount = firstDefined(
+    raw?.taxAmount,
+    raw?.salesTax,
+    raw?.saleTax,
+    raw?.saleAmount,
+    raw?.salePrice,
+    raw?.sale,
+    usesDslItems && !toBoolean(raw?.savingsActive, false) ? raw?.savings : undefined
+  );
+  const computedLineTax = sourceItems.reduce((sum, item) => sum + resolveLineTax(item), 0);
+  const showTax = toBoolean(
+    raw?.showTax ?? raw?.taxActive ?? raw?.saleActive ?? raw?.salePriceActive,
+    configuredTaxAmount != null || raw?.taxPercent != null || computedLineTax > 0
+  );
   const taxLabel = toString(raw?.taxLabel, "Sales Tax");
-  const taxColor = toString(raw?.taxColor, "#EF4444");
+  const taxLabelSize = toNumber(raw?.saleSize ?? raw?.taxFontSize, rowLabelSize);
+  const taxValueSize = toNumber(raw?.salePriceSize ?? raw?.taxPriceSize, rowValueSize);
+  const taxLabelWeight = toFontWeight(raw?.saleFontWeight ?? raw?.taxFontWeight, "400");
+  const taxValueWeight = toFontWeight(raw?.salePriceFontWeight ?? raw?.taxPriceFontWeight, "400");
+  const taxColor = toString(raw?.salePriceColor ?? raw?.saleColor ?? raw?.taxColor, "#EF4444");
   const taxAmount = !showTax
     ? 0
-    : raw?.taxAmount != null
-    ? toNumber(raw.taxAmount, 0)
+    : computedLineTax > 0
+    ? computedLineTax
+    : configuredTaxAmount != null
+    ? toNumber(configuredTaxAmount, 0)
     : (toNumber(raw?.taxPercent, 0) / 100) * cartTotal;
 
   // Additional charge row (shipping/handling/custom charges) when configured by DSL.
@@ -306,10 +381,15 @@ export default function OrderSummary({ section }) {
   // Sub total row
   const showSubTotal = toBoolean(raw?.showSubTotal ?? raw?.showSubtotal, raw?.subTotal != null || true);
   const subTotalLabel = toString(raw?.subTotalLabel ?? raw?.subtotalLabel, usesDslItems ? "Total" : "Sub Total");
-  const subTotalColor = toString(raw?.subTotalColor, "#EF4444");
+  const subTotalLabelSize = toNumber(raw?.subtotalSize ?? raw?.subTotalFontSize, rowLabelSize);
+  const subTotalValueSize = toNumber(raw?.subtotalPriceSize ?? raw?.subTotalPriceSize, rowValueSize);
+  const subTotalColor = toString(raw?.subtotalPriceColor ?? raw?.subTotalColor, "#EF4444");
   const subTotalWeight = toFontWeight(raw?.subTotalWeight, "700");
+  const subTotalValueWeight = toFontWeight(raw?.subtotalPriceFontWeight, subTotalWeight);
   const showOriginalStrike = toBoolean(raw?.showOriginalPrice ?? raw?.showStrike, true);
-  const strikeColor = toString(raw?.strikeColor, "#9CA3AF");
+  const strikeColor = toString(raw?.strikeThroughColor ?? raw?.strikeColor, "#9CA3AF");
+  const strikeSize = toNumber(raw?.strikeThroughSize ?? raw?.strikeSize, Math.max(10, subTotalValueSize - 1));
+  const strikeWeight = toFontWeight(raw?.strikeThroughFontWeight, "400");
 
   // Calculate sub total
   const computedSubTotal = Math.max(0, cartTotal - savingsAmount - totalDiscountAmount + taxAmount + chargeAmount);
@@ -416,10 +496,10 @@ export default function OrderSummary({ section }) {
           value={fmt(cartTotal, currencyLabel)}
           labelColor={rowLabelColor}
           valueColor={cartTotalColor}
-          labelSize={rowLabelSize}
-          valueSize={rowValueSize}
+          labelSize={cartTotalLabelSize}
+          valueSize={cartTotalValueSize}
           labelWeight={cartTotalWeight}
-          valueWeight={cartTotalWeight}
+          valueWeight={cartTotalValueWeight}
           fontFamily={rowFontFamily}
         />
       )}
@@ -445,8 +525,10 @@ export default function OrderSummary({ section }) {
             value={fmt(totalDiscountAmount, currencyLabel)}
             labelColor={rowLabelColor}
             valueColor={discountColor}
-            labelSize={rowLabelSize}
-            valueSize={rowValueSize}
+            labelSize={discountLabelSize}
+            valueSize={discountValueSize}
+            labelWeight={discountLabelWeight}
+            valueWeight={discountValueWeight}
             fontFamily={rowFontFamily}
           />
           {/* Applied code chips */}
@@ -460,10 +542,15 @@ export default function OrderSummary({ section }) {
                     backgroundColor: chipBg,
                     borderColor: chipBorderColor,
                     borderRadius: chipBorderRadius,
+                    borderWidth: chipBorderWidth,
+                    paddingTop: chipPadT,
+                    paddingRight: chipPadR,
+                    paddingBottom: chipPadB,
+                    paddingLeft: chipPadL,
                   },
                 ]}
               >
-                <Text style={[styles.chipText, { color: chipTextColor, fontSize: chipFontSize, ...(chipFontFamily ? { fontFamily: chipFontFamily } : {}) }]}>
+                <Text style={[styles.chipText, { color: chipTextColor, fontSize: chipFontSize, fontWeight: chipFontWeight, ...(chipFontFamily ? { fontFamily: chipFontFamily } : {}) }]}>
                   {chipPrefix}{discount.code}
                 </Text>
               </View>
@@ -479,8 +566,10 @@ export default function OrderSummary({ section }) {
           value={fmt(taxAmount, currencyLabel)}
           labelColor={rowLabelColor}
           valueColor={taxColor}
-          labelSize={rowLabelSize}
-          valueSize={rowValueSize}
+          labelSize={taxLabelSize}
+          valueSize={taxValueSize}
+          labelWeight={taxLabelWeight}
+          valueWeight={taxValueWeight}
           fontFamily={rowFontFamily}
         />
       )}
@@ -509,7 +598,7 @@ export default function OrderSummary({ section }) {
           <Text
             style={[
               styles.rowLabel,
-              { color: rowLabelColor, fontSize: rowLabelSize, fontWeight: subTotalWeight, ...(rowFontFamily ? { fontFamily: rowFontFamily } : {}) },
+              { color: rowLabelColor, fontSize: subTotalLabelSize, fontWeight: subTotalWeight, ...(rowFontFamily ? { fontFamily: rowFontFamily } : {}) },
             ]}
           >
             {subTotalLabel}
@@ -518,7 +607,7 @@ export default function OrderSummary({ section }) {
             <Text
               style={[
                 styles.rowValue,
-                { color: subTotalColor, fontSize: rowValueSize, fontWeight: subTotalWeight, ...(rowFontFamily ? { fontFamily: rowFontFamily } : {}) },
+                { color: subTotalColor, fontSize: subTotalValueSize, fontWeight: subTotalValueWeight, ...(rowFontFamily ? { fontFamily: rowFontFamily } : {}) },
               ]}
             >
               {fmt(subTotal, currencyLabel)}
@@ -527,7 +616,7 @@ export default function OrderSummary({ section }) {
               <Text
                 style={[
                   styles.strikeValue,
-                  { color: strikeColor, fontSize: rowValueSize - 1 },
+                  { color: strikeColor, fontSize: strikeSize, fontWeight: strikeWeight },
                 ]}
               >
                 {fmt(cartTotal, currencyLabel)}

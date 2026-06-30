@@ -15,7 +15,6 @@ import { convertStyles } from "../utils/convertStyles";
 import { resolveTextDecorationLine } from "../utils/textDecoration";
 import { fetchShopifyProductsPage } from "../services/shopify";
 import { formatMoney } from "../utils/money";
-import { getResponsiveColumns } from "../utils/responsiveLayout";
 import { navigateToDslTarget } from "../utils/navigationTarget";
 
 const unwrapValue = (value, fallback = undefined) => {
@@ -118,6 +117,65 @@ const parseAspectRatio = (value) => {
   return Number.isNaN(n) || n <= 0 ? null : n;
 };
 
+const parseRepeatColumns = (value) => {
+  const raw = toString(value, "");
+  const match = raw.match(/repeat\(\s*(\d+)/i);
+  return match ? Number(match[1]) : undefined;
+};
+
+const resolveMediaResizeMode = (...values) => {
+  const requested = values
+    .map((value) => toString(value, "").trim().toLowerCase())
+    .find(Boolean);
+  if (["fit", "contain", "scale-down"].includes(requested)) return "contain";
+  if (["stretch", "fill-stretch"].includes(requested)) return "stretch";
+  if (requested === "center") return "center";
+  return "cover";
+};
+
+const extractMetricAspectRatio = (metrics) => {
+  const elements = unwrapValue(metrics?.elements, metrics?.elements) || {};
+  const cardMetric =
+    elements.firstCard ||
+    elements.card ||
+    elements.media ||
+    elements.image ||
+    null;
+  const width = toNumber(cardMetric?.width, 0);
+  const height = toNumber(cardMetric?.height, 0);
+  return width > 0 && height > 0 ? width / height : null;
+};
+
+const getSectionProps = (section) => {
+  const props =
+    section?.properties?.props?.properties ||
+    section?.properties?.props ||
+    section?.props ||
+    {};
+  const raw = unwrapValue(props?.raw, {});
+  if (raw && typeof raw === "object" && !Array.isArray(raw)) {
+    return { ...props, ...raw };
+  }
+  return props;
+};
+
+const sanitizeGridStyle = (style = {}) => {
+  const {
+    display: _display,
+    gridTemplateColumns: _gridTemplateColumns,
+    gap: _gap,
+    rowGap: _rowGap,
+    columnGap: _columnGap,
+    ...rest
+  } = style || {};
+  return rest;
+};
+
+const stripDisplayStyle = (style = {}) => {
+  const { display: _display, ...rest } = style || {};
+  return rest;
+};
+
 // Sub-component that resolves image natural size when no fixed aspect ratio is given
 function MediaCard({
   item,
@@ -132,7 +190,9 @@ function MediaCard({
   cardTitleAlign,
   cardStyle,
   mediaStyle,
-  gap,
+  resizeMode,
+  showMediaImage,
+  cardTitleStyle,
   onPress,
 }) {
   const [naturalRatio, setNaturalRatio] = useState(16 / 9); // landscape fallback while loading
@@ -168,11 +228,11 @@ function MediaCard({
           { width: cardWidth, height: imageHeight, borderRadius: imageRadius },
         ]}
       >
-        {item.src ? (
+        {showMediaImage && item.src ? (
           <Image
             source={{ uri: item.src }}
             style={[styles.media, mediaStyle, { borderRadius: imageRadius }]}
-            resizeMode="cover"
+            resizeMode={resizeMode}
           />
         ) : (
           <View style={[styles.placeholder, mediaStyle, { borderRadius: imageRadius }]}>
@@ -194,6 +254,7 @@ function MediaCard({
           numberOfLines={2}
           style={[
             styles.cardTitle,
+            cardTitleStyle,
             {
               color: cardTitleColor,
               fontSize: cardTitleSize,
@@ -204,7 +265,6 @@ function MediaCard({
                 strikethrough: toBoolean(item.titleStrikethrough, false),
               }),
               textAlign: cardTitleAlign,
-              padding: 8,
             },
           ]}
         >
@@ -280,10 +340,12 @@ const normalizeItems = (rawItems) => {
 export default function MediaGrid({ section }) {
   const navigation = useNavigation();
   const { width: screenWidth } = useWindowDimensions();
-  const rawProps =
-    section?.properties?.props?.properties || section?.properties?.props || section?.props || {};
+  const [measuredWidth, setMeasuredWidth] = useState(0);
+  const rawProps = useMemo(() => getSectionProps(section), [section]);
 
-  const layoutCss = rawProps?.layout?.properties?.css || rawProps?.layout?.css || {};
+  const layoutNode = unwrapValue(rawProps?.layout, {}) || {};
+  const layoutCss = unwrapValue(layoutNode?.css, {}) || {};
+  const layoutMetrics = unwrapValue(layoutNode?.metrics, {}) || {};
 
   const [shopifyItems, setShopifyItems] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -291,10 +353,16 @@ export default function MediaGrid({ section }) {
 
   const items = useMemo(() => normalizeItems(rawProps?.items || []), [rawProps?.items]);
 
-  const requestedColumns = Math.max(1, toNumber(rawProps?.columns, 2));
-  const gap = toNumber(rawProps?.cardGap, 8);
-  // null means "Auto" — MediaCard will call Image.getSize per item
-  const cardAspectRatio = parseAspectRatio(rawProps?.cardAspectRatio);
+  const cssColumns = parseRepeatColumns(layoutCss?.grid?.gridTemplateColumns);
+  const requestedColumns = Math.max(
+    1,
+    toNumber(rawProps?.columns ?? rawProps?.gridColumns ?? cssColumns, 2)
+  );
+  const gap = Math.max(0, toNumber(rawProps?.cardGap ?? rawProps?.gap ?? layoutCss?.grid?.gap, 8));
+  // null means "Auto" - MediaCard will call Image.getSize per item.
+  const cardAspectRatio =
+    parseAspectRatio(rawProps?.cardAspectRatio ?? rawProps?.imageRatio ?? rawProps?.ratio) ??
+    extractMetricAspectRatio(layoutMetrics);
 
   const showHeader = toBoolean(rawProps?.showHeader, true);
   const headerText = unwrapValue(
@@ -341,6 +409,7 @@ export default function MediaGrid({ section }) {
   const showCardTitle = toBoolean(rawProps?.showCardTitle, true);
   const showGrid = toBoolean(rawProps?.showGrid, true);
   const showMediaCard = toBoolean(rawProps?.showMediaCard, true);
+  const showMediaImage = toBoolean(rawProps?.showMediaImage, true);
   const cardTitleColor = unwrapValue(rawProps?.cardTitleColor, "#000000");
   const cardTitleSize = toNumber(rawProps?.cardTitleSize, 12);
   const cardTitleWeight = deriveWeight(rawProps?.cardTitleWeight, "500");
@@ -416,13 +485,13 @@ export default function MediaGrid({ section }) {
   }, [shouldUseShopify, shopifyLimit, shopifyDomain, shopifyToken]);
 
   const containerStyle = convertStyles(layoutCss?.container || {});
-  const headerStyle = convertStyles(layoutCss?.header || {});
-  const gridStyle = convertStyles(layoutCss?.grid || {});
+  const headerStyle = stripDisplayStyle(convertStyles(layoutCss?.header || {}));
+  const gridStyle = sanitizeGridStyle(convertStyles(layoutCss?.grid || {}));
   const cardStyle = convertStyles(layoutCss?.card || {});
   const mediaStyle = convertStyles(layoutCss?.media || {});
   const buttonStyle = convertStyles(layoutCss?.button || {});
-  const cardTitleStyle = convertStyles(layoutCss?.cardTitle || {});
-  const buttonRowStyle = convertStyles(layoutCss?.buttonRow || {});
+  const cardTitleStyle = stripDisplayStyle(convertStyles(layoutCss?.cardTitle || {}));
+  const buttonRowStyle = stripDisplayStyle(convertStyles(layoutCss?.buttonRow || {}));
   const headerFontWeight = normalizeWeight(
     rawProps?.headerFontWeight ?? headerStyle?.fontWeight ?? layoutCss?.header?.fontWeight,
     headerBold ? "700" : "600"
@@ -436,16 +505,17 @@ export default function MediaGrid({ section }) {
   };
 
   const horizontalPadding = (contentPadding.paddingLeft || 0) + (contentPadding.paddingRight || 0);
-  const columns = getResponsiveColumns({
-    screenWidth,
-    requestedColumns,
-    horizontalPadding,
-    gap,
-    minCardWidth: 180,
-    maxColumns: 6,
-  });
+  const layoutWidth = measuredWidth > 0 ? measuredWidth : screenWidth;
+  const columns = Math.max(1, requestedColumns);
   const totalGap = gap * (columns - 1);
-  const computedCardWidth = (screenWidth - horizontalPadding - totalGap) / columns;
+  const availableWidth = Math.max(0, layoutWidth - horizontalPadding - totalGap);
+  const computedCardWidth = Math.max(1, availableWidth / columns);
+  const resizeMode = resolveMediaResizeMode(
+    rawProps?.imageScale,
+    rawProps?.imageAttributes?.scale,
+    layoutCss?.media?.objectFit,
+    layoutCss?.image?.objectFit
+  );
   // Corner radii stay square by default and only round when the DSL/DSR asks for it.
   const containerBorderRadius = resolveRadius(
     [
@@ -588,7 +658,9 @@ export default function MediaGrid({ section }) {
       cardTitleAlign={cardTitleAlign}
       cardStyle={cardStyle}
       mediaStyle={mediaStyle}
-      gap={gap}
+      resizeMode={resizeMode}
+      showMediaImage={showMediaImage}
+      cardTitleStyle={cardTitleStyle}
       onPress={() => handleItemPress(item)}
     />
   );
@@ -598,6 +670,12 @@ export default function MediaGrid({ section }) {
 
   return (
     <View
+      onLayout={(event) => {
+        const nextWidth = event.nativeEvent.layout.width;
+        if (nextWidth > 0 && Math.abs(nextWidth - measuredWidth) > 0.5) {
+          setMeasuredWidth(nextWidth);
+        }
+      }}
       style={[
         styles.container,
         containerStyleWithoutRadius,

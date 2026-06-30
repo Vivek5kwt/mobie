@@ -132,21 +132,34 @@ const buildCollections = (block = {}) => {
     .filter(Boolean)
     .map((item) => {
       const p = item?.properties || item;
+      const id     = asString(unwrapValue(p?.id, ""));
       const title  = asString(unwrapValue(p?.title,  ""));
       const image  = asString(unwrapValue(p?.image,  ""));
       const link   = asString(unwrapValue(p?.link,   ""));
-      const handle = asString(unwrapValue(p?.handle ?? p?.navigateRef ?? p?.linkTo, ""));
-      const children = toArray(p?.children ?? p?.items ?? p?.subCollections ?? p?.sub_collections);
+      const handle = asString(unwrapValue(p?.handle ?? p?.collectionHandle ?? p?.navigateRef ?? p?.linkTo, ""));
+      const children = toArray(
+        p?.children ??
+        p?.items ??
+        p?.subCategories ??
+        p?.sub_categories ??
+        p?.subCollections ??
+        p?.sub_collections
+      );
       if (!title && !image) return null;
-      return { title, image, link, handle, children };
+      return { id, title, image, link, handle, children };
     })
     .filter(Boolean);
+};
+
+const isEmptyLinkValue = (value = "") => {
+  const normalized = String(value || "").trim().toLowerCase();
+  return !normalized || ["none", "null", "undefined", "#"].includes(normalized);
 };
 
 const deriveHandle = (item) => {
   if (item?.handle) return item.handle;
   const link = item?.link || "";
-  if (link) {
+  if (!isEmptyLinkValue(link)) {
     const m = "/collections/";
     if (link.includes(m)) return link.split(m)[1]?.split(/[?#/]/)[0] || "";
     return link;
@@ -207,9 +220,11 @@ export default function CollectionImage({ section }) {
     [section]
   );
 
+  const directSnapshot = rawProps && typeof rawProps === "object" ? rawProps : {};
   const rawPropsSnapshot = unwrapDeep(rawProps?.rawProps);
   const rawSnapshotBase  = unwrapDeep(rawProps?.raw);
   const rawSnapshot = {
+    ...directSnapshot,
     ...((rawSnapshotBase && typeof rawSnapshotBase === "object") ? rawSnapshotBase : {}),
     ...((rawPropsSnapshot && typeof rawPropsSnapshot === "object") ? rawPropsSnapshot : {}),
   };
@@ -396,7 +411,10 @@ export default function CollectionImage({ section }) {
   const imageShape          = asString(unwrapValue(cardCfg?.imageShape ?? layoutCardImage?.shape, rawSnapshot?.imageRadius != null ? "rounded" : "circle")).toLowerCase();
   const imageScale          = asString(unwrapValue(imageNode?.scale ?? rawSnapshot?.imageScale, "cover")).toLowerCase();
   const imageAspectRatio    = parseAspectRatio(firstDefined(imageNode?.ratio, rawSnapshot?.imageRatio, cardCfg?.imageRatio), 1);
-  const cardImageWidth      = asNumber(firstDefined(imageNode?.width, rawSnapshot?.imageWidth, cardCfg?.imageWidth), cardImageSize);
+  const defaultImageWidth   = isGrid
+    ? Math.max(0, gridCardW - cardPaddingLeft - cardPaddingRight)
+    : cardImageSize;
+  const cardImageWidth      = asNumber(firstDefined(imageNode?.width, rawSnapshot?.imageWidth, cardCfg?.imageWidth), defaultImageWidth);
   const cardImageHeight     = asNumber(firstDefined(imageNode?.height, rawSnapshot?.imageHeight, cardCfg?.imageHeight), cardImageWidth / imageAspectRatio);
   const imageCircleRadius   = Math.min(cardImageWidth, cardImageHeight) / 2;
   const imageRadius         = rawSnapshot?.imageRadius != null || imageNode?.radius != null
@@ -590,7 +608,7 @@ export default function CollectionImage({ section }) {
                   height: imageInnerHeight,
                   borderRadius: imageRadius,
                 }}
-                resizeMode={imageScale === "contain" ? "contain" : "cover"}
+                resizeMode={["contain", "fit"].includes(imageScale) ? "contain" : "cover"}
               />
             )
           ) : (
@@ -722,7 +740,7 @@ export default function CollectionImage({ section }) {
         columnWrapperStyle={isGrid ? { columnGap: hGap, marginBottom: vGap } : undefined}
         contentContainerStyle={
           isGrid
-            ? { rowGap: vGap }
+            ? undefined
             : shouldFitHorizontalRow
             ? { width: availableW }
             : undefined
