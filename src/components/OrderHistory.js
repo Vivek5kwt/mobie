@@ -13,6 +13,7 @@ import FontAwesome from "react-native-vector-icons/FontAwesome";
 import { useAuth } from "../services/AuthContext";
 import { fetchCustomerOrders } from "../services/shopify";
 import { getStoredOrders, mergeOrdersByIdentity } from "../services/orderHistoryService";
+import { isAuthenticatedSession } from "../utils/authGate";
 import { getStoreConfigSync } from "../services/storeService";
 import { addItem } from "../store/slices/cartSlice";
 import { resolveFont } from "../services/typographyService";
@@ -128,6 +129,7 @@ export default function OrderHistory({ section }) {
   const navigation = useNavigation();
   const dispatch = useDispatch();
   const { session } = useAuth();
+  const isLoggedIn = isAuthenticatedSession(session);
   const raw = useMemo(() => getRawProps(section), [section]);
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -147,9 +149,14 @@ export default function OrderHistory({ section }) {
 
       const loadOrders = async () => {
         setLoading(true);
+        if (!isLoggedIn) {
+          if (active) {
+            setOrders([]);
+            setLoading(false);
+          }
+          return;
+        }
         const storedOrders = await getStoredOrders({ appId, userId, email });
-        const guestStoredOrders =
-          userId || email ? await getStoredOrders({ appId, userId: "", email: "" }) : [];
         let liveOrders = [];
 
         if (customerAccessToken) {
@@ -166,7 +173,6 @@ export default function OrderHistory({ section }) {
         const merged = mergeOrdersByIdentity(
           liveOrders,
           storedOrders,
-          guestStoredOrders,
           Array.isArray(previewOrders) ? previewOrders : []
         );
 
@@ -186,7 +192,7 @@ export default function OrderHistory({ section }) {
       return () => {
         active = false;
       };
-    }, [allowPreviewOrders, appId, customerAccessToken, email, raw, userId])
+    }, [allowPreviewOrders, appId, customerAccessToken, email, isLoggedIn, raw, userId])
   );
 
   const stylesFromDsl = useMemo(() => {

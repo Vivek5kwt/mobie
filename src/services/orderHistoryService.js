@@ -30,6 +30,8 @@ export const getStoredOrders = async ({ appId, userId, email } = {}) => {
 
 export const saveCompletedOrder = async ({ appId, userId, email, order } = {}) => {
   if (!order) return [];
+  const hasUserScope = String(userId || email || "").trim().length > 0;
+  if (!hasUserScope) return [];
   try {
     const key = getOrderHistoryKey({ appId, userId, email });
     const existingRaw = await AsyncStorage.getItem(key);

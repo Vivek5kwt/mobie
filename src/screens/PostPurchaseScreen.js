@@ -296,6 +296,7 @@ export default function PostPurchaseScreen() {
   );
 
   const routeOrder = route?.params?.order || null;
+  const authenticatedCheckout = route?.params?.authenticatedCheckout === true;
   const [syncedOrder, setSyncedOrder] = useState(routeOrder);
   const orderNumber = normalizeOrderNumber(
     syncedOrder?.orderNumber ||
@@ -405,12 +406,14 @@ export default function PostPurchaseScreen() {
           needsStoreRefresh: !latestOrderNumber && !latest.adminOrderId && !latest.adminGraphqlApiId,
         };
         setSyncedOrder(nextOrder);
-        saveCompletedOrder({
-          appId,
-          userId: session?.user?.id ?? null,
-          email: session?.user?.email || "",
-          order: nextOrder,
-        }).catch(() => {});
+        if (authenticatedCheckout) {
+          saveCompletedOrder({
+            appId,
+            userId: session?.user?.id ?? null,
+            email: session?.user?.email || "",
+            order: nextOrder,
+          }).catch(() => {});
+        }
       } catch (lookupError) {
         if (mounted) {
           setOrderSyncError(lookupError?.message || "Unable to sync order details.");
@@ -423,7 +426,7 @@ export default function PostPurchaseScreen() {
     return () => {
       mounted = false;
     };
-  }, [appId, capturedItems, customerAccessToken, orderNumber, orderTotal, session?.user?.email, session?.user?.id, syncedOrder]);
+  }, [appId, authenticatedCheckout, capturedItems, customerAccessToken, orderNumber, orderTotal, session?.user?.email, session?.user?.id, syncedOrder]);
 
   const loadPage = async (silent = false) => {
     try {

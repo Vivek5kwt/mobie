@@ -386,11 +386,20 @@ export default function CheckoutButton({ section }) {
     [discountRecords, cartFingerprint]
   );
 
-  // DSL-configurable: store owner can set guestCheckout=false to require login at checkout
-  const guestCheckoutAllowed = toBool(
-    raw?.guestCheckout ?? raw?.allowGuestCheckout ?? raw?.guestCheckoutEnabled,
-    true  // default: guest checkout is allowed
+  // Secure default: require login unless DSL/API explicitly enables guest checkout.
+  const guestCheckoutSetting =
+    raw?.guestCheckout ??
+    raw?.allowGuestCheckout ??
+    raw?.guestCheckoutEnabled;
+  const requireLoginForCheckout = toBool(
+    raw?.requireLoginForCheckout ??
+      raw?.checkoutRequireLogin ??
+      raw?.loginRequiredForCheckout ??
+      raw?.loginRequired ??
+      raw?.requireAuth,
+    guestCheckoutSetting === undefined ? true : !toBool(guestCheckoutSetting, false)
   );
+  const guestCheckoutAllowed = !requireLoginForCheckout;
 
   const [emptySnackbar, setEmptySnackbar] = useState(false);
   const [errorSnackbar, setErrorSnackbar] = useState(false);

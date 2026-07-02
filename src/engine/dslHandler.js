@@ -1,5 +1,6 @@
 import client from "../apollo/client";
 import LAYOUT_VERSION_QUERY from "../graphql/queries/layoutVersionQuery";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import authLayoutFallback from "../data/authLayoutFallback";
 import { resolveAppId } from "../utils/appId";
 import { setTypography } from "../services/typographyService";
@@ -8,6 +9,7 @@ import { setBrandKitAssetsFromDsl } from "../services/brandKitService";
 const DSL_QUERY_TIMEOUT_MS = 8000;
 const DSL_CACHE_TTL_MS = 30000;
 const DSL_STALE_TTL_MS = 5 * 60 * 1000;
+const DSL_PERSISTED_CACHE_PREFIX = "@mobidrag:lastGoodDsl:v1";
 const liveDslCache = new Map();
 const liveDslCacheTimes = new Map();
 const liveLayoutsCache = new Map();
@@ -49,6 +51,56 @@ const getLiveDslCacheKey = (appId, pageName) =>
   `${appId}:${normalizeName(pageName || "home")}`;
 
 const getLiveLayoutsCacheKey = (appId) => String(appId || "default");
+
+const getPersistedDslCacheKey = (appId, pageName) =>
+  `${DSL_PERSISTED_CACHE_PREFIX}:${getLiveDslCacheKey(appId, pageName)}`;
+
+const isCacheableDsl = (dsl) =>
+  Boolean(dsl && !dsl.__dslMissing && Array.isArray(dsl.sections));
+
+const persistLastGoodDsl = async (appId, pageName, payload) => {
+  if (!payload?.dsl || !isCacheableDsl(payload.dsl)) return;
+
+  try {
+    await AsyncStorage.setItem(
+      getPersistedDslCacheKey(appId, pageName),
+      JSON.stringify({
+        dsl: payload.dsl,
+        versionNumber: payload.versionNumber ?? null,
+        cachedAt: Date.now(),
+      })
+    );
+  } catch (error) {
+    console.log("Could not persist DSL cache:", error?.message || error);
+  }
+};
+
+const readLastGoodDsl = async (appId, pageName) => {
+  try {
+    const raw = await AsyncStorage.getItem(getPersistedDslCacheKey(appId, pageName));
+    if (!raw) return null;
+
+    const cached = JSON.parse(raw);
+    if (!isCacheableDsl(cached?.dsl)) return null;
+
+    const payload = {
+      dsl: cached.dsl,
+      versionNumber: cached.versionNumber ?? null,
+      cachedAt: cached.cachedAt ?? null,
+      fromPersistedCache: true,
+    };
+    const cacheKey = getLiveDslCacheKey(appId, pageName);
+    liveDslCache.set(cacheKey, payload);
+    liveDslCacheTimes.set(cacheKey, cached.cachedAt || Date.now());
+    setTypography(cached.dsl);
+    setBrandKitAssetsFromDsl(cached.dsl, appId);
+    console.log(`Using persisted DSL cache for "${pageName || "home"}"`);
+    return payload;
+  } catch (error) {
+    console.log("Could not read DSL cache:", error?.message || error);
+    return null;
+  }
+};
 
 const getCachedEntry = (cache, key, maxAgeMs) => {
   const entry = cache.get(key);
@@ -516,10 +568,16 @@ const buildLiveDslPayloadFromLayouts = (layouts, appIdInt, pageName, fetchedAt =
   const versionNumber = selection.versionNumber;
   setTypography(finalDsl);
 
+  if (!isCacheableDsl(finalDsl)) {
+    console.log(`No usable DSL page found for "${pageName || "home"}"`);
+    return null;
+  }
+
   const payload = { dsl: finalDsl, versionNumber };
   const cacheKey = getLiveDslCacheKey(appIdInt, pageName);
   liveDslCache.set(cacheKey, payload);
   liveDslCacheTimes.set(cacheKey, fetchedAt);
+  persistLastGoodDsl(appIdInt, pageName, payload).catch(() => {});
   return payload;
 };
 
@@ -528,12 +586,13 @@ const isFresh = (fetchedAt, maxAgeMs) =>
 
 export async function fetchLiveDSL(appId, pageName, options = {}) {
   let cacheKey = "";
+  let appIdInt = null;
   try {
     console.log("🔄 Fetching LIVE data from API...");
     const resolvedAppId = resolveAppId(appId);
     
     // Ensure appId is an integer for GraphQL query
-    const appIdInt = Number.isInteger(resolvedAppId) ? resolvedAppId : Math.floor(Number(resolvedAppId));
+    appIdInt = Number.isInteger(resolvedAppId) ? resolvedAppId : Math.floor(Number(resolvedAppId));
     cacheKey = getLiveDslCacheKey(appIdInt, pageName);
     const layoutsCacheKey = getLiveLayoutsCacheKey(appIdInt);
     const forceRefresh = Boolean(options?.forceRefresh);
@@ -546,12 +605,15 @@ export async function fetchLiveDSL(appId, pageName, options = {}) {
 
       const cachedLayouts = liveLayoutsCache.get(layoutsCacheKey);
       if (cachedLayouts?.layouts && isFresh(cachedLayouts.fetchedAt, DSL_CACHE_TTL_MS)) {
-        return buildLiveDslPayloadFromLayouts(
+        const cachedPayload = buildLiveDslPayloadFromLayouts(
           cachedLayouts.layouts,
           appIdInt,
           pageName,
           cachedLayouts.fetchedAt
         );
+        if (cachedPayload) return cachedPayload;
+        const persistedPayload = await readLastGoodDsl(appIdInt, pageName);
+        if (persistedPayload) return persistedPayload;
       }
 
       if (cachedPage?.dsl && isFresh(liveDslCacheTimes.get(cacheKey), DSL_STALE_TTL_MS)) {
@@ -571,7 +633,11 @@ export async function fetchLiveDSL(appId, pageName, options = {}) {
             fetchedAt: pendingFetchedAt,
           });
         }
-        return buildLiveDslPayloadFromLayouts(pendingLayouts, appIdInt, pageName, pendingFetchedAt);
+        const pendingPayload = buildLiveDslPayloadFromLayouts(pendingLayouts, appIdInt, pageName, pendingFetchedAt);
+        if (pendingPayload) return pendingPayload;
+        const persistedPayload = await readLastGoodDsl(appIdInt, pageName);
+        if (persistedPayload) return persistedPayload;
+        return null;
       }
     }
     console.log(`🔍 Querying layouts with appId: ${appIdInt} (type: ${typeof appIdInt})`);
@@ -604,6 +670,8 @@ export async function fetchLiveDSL(appId, pageName, options = {}) {
     const selection = selectBestDslFromLayouts(layouts, pageName);
     if (!selection?.dsl) {
       console.log(`❌ No matching DSL page found for "${pageName || "home"}"`);
+      const persistedPayload = await readLastGoodDsl(appIdInt, pageName);
+      if (persistedPayload) return persistedPayload;
       return null;
     }
     liveLayoutsCache.set(layoutsCacheKey, { layouts, fetchedAt });
@@ -619,6 +687,13 @@ export async function fetchLiveDSL(appId, pageName, options = {}) {
     // Cache global font families so every TextBlock can pick them up without
     // needing a React context (same pattern as headerDefaultService).
     setTypography(finalDsl);
+
+    if (!isCacheableDsl(finalDsl)) {
+      console.log(`No usable DSL page found for "${pageName || "home"}"`);
+      const persistedPayload = await readLastGoodDsl(appIdInt, pageName);
+      if (persistedPayload) return persistedPayload;
+      return null;
+    }
 
     console.log(`✅ LIVE DATA FETCHED - Version ${versionNumber}`);
     console.log(`📊 Sections count: ${finalDsl?.sections?.length || 0}`);
@@ -641,6 +716,7 @@ export async function fetchLiveDSL(appId, pageName, options = {}) {
     const payload = { dsl: finalDsl, versionNumber };
     liveDslCache.set(cacheKey, payload);
     liveDslCacheTimes.set(cacheKey, fetchedAt);
+    persistLastGoodDsl(appIdInt, pageName, payload).catch(() => {});
     return payload;
   } catch (error) {
     console.log("❌ LIVE DATA ERROR:", error);
@@ -666,8 +742,14 @@ export async function fetchDSL(appId, pageName, options = {}) {
     return { dsl: authLayoutFallback, versionNumber: null };
   }
   const live = await fetchLiveDSL(appId, pageName, options);
-  if (!live) {
+  if (live?.dsl?.__dslMissing || !live) {
     console.log("❌ Live data fetch failed. No dummy fallback available.");
+    const resolvedAppId = resolveAppId(appId);
+    const appIdInt = Number.isInteger(resolvedAppId)
+      ? resolvedAppId
+      : Math.floor(Number(resolvedAppId));
+    const persistedPayload = await readLastGoodDsl(appIdInt, pageName);
+    if (persistedPayload) return persistedPayload;
   }
   return live;
 }

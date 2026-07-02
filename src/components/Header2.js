@@ -264,22 +264,56 @@ export default function Header2({ section }) {
     rawPropsNode.presentation ||
     {};
   const presentationCss = presentationNode.css || {};
+  const presentationMetricsRaw =
+    presentationNode.metrics?.properties ||
+    presentationNode.metrics?.value ||
+    presentationNode.metrics ||
+    {};
+  const metricElements = presentationMetricsRaw?.elements || {};
+  const metricNumber = (value) => {
+    const resolved = resolveValue(value, undefined);
+    if (resolved === undefined || resolved === null || resolved === "") return NaN;
+    if (typeof resolved === "number") return resolved;
+    const parsed = Number.parseFloat(String(resolved).replace("px", "").trim());
+    return Number.isFinite(parsed) ? parsed : NaN;
+  };
   // Derive search row marginTop from presentation metrics when available
-  const presentationMetrics = presentationNode.metrics || {};
-  const metricsAvailable = presentationMetrics?.available === true;
+  const metricsAvailable =
+    presentationMetricsRaw?.available === true ||
+    resolveValue(presentationMetricsRaw?.available, false) === true;
   const searchMarginTop = (() => {
     if (!metricsAvailable) return 8;
-    const greetingEl = presentationMetrics?.elements?.greeting;
-    const searchEl = presentationMetrics?.elements?.search;
-    if (greetingEl && searchEl) {
-      const gap = searchEl.y - (greetingEl.y + greetingEl.height);
-      return Math.min(Math.max(4, gap), 8);
+    const searchEl = metricElements.search;
+    if (!searchEl) return 8;
+    const searchY = metricNumber(searchEl.y);
+    if (!Number.isFinite(searchY)) return 8;
+
+    const precedingBottoms = ["greeting", "profile", "title", "headline", "name"]
+      .map((key) => {
+        const el = metricElements[key];
+        if (!el) return NaN;
+        const y = metricNumber(el.y);
+        const height = metricNumber(el.height);
+        return Number.isFinite(y) && Number.isFinite(height) ? y + height : NaN;
+      })
+      .filter(Number.isFinite);
+
+    if (precedingBottoms.length > 0) {
+      const gap = searchY - Math.max(...precedingBottoms);
+      return Math.min(Math.max(-32, gap), 16);
     }
     return 8;
   })();
 
   // Base style block from "style" plus presentation.css overrides
   const styleNode = rawPropsNode.style?.properties || rawPropsNode.style || {};
+  const sideMenuStyle =
+    styleNode.sideMenu ||
+    styleNode.menu ||
+    presentationCss.sideMenu ||
+    presentationCss.menu ||
+    presentationCss.sideMenuIcon ||
+    presentationCss.hamburger;
 
   const styleBlock = {
     container: {
@@ -383,9 +417,25 @@ export default function Header2({ section }) {
   const containerPadding = {
     paddingTop: resolveValue(paddingRawNode.pt, 22),
     paddingRight: resolveValue(paddingRawNode.pr, 16),
-    paddingBottom: Math.max(resolveValue(paddingRawNode.pb, 26) ?? 26, 26),
+    paddingBottom: resolveValue(paddingRawNode.pb, 26),
     paddingLeft: resolveValue(paddingRawNode.pl, 16),
   };
+  const searchConsumesFullContentWidth = (() => {
+    if (!metricsAvailable) return false;
+    const searchEl = metricElements.search;
+    const containerEl = metricElements.container || presentationMetricsRaw?.container;
+    if (!searchEl || !containerEl) return false;
+
+    const searchX = metricNumber(searchEl.x);
+    const searchWidth = metricNumber(searchEl.width);
+    const containerWidth = metricNumber(containerEl.width);
+    if (![searchX, searchWidth, containerWidth].every(Number.isFinite)) return false;
+
+    const leftPadding = metricNumber(containerPadding.paddingLeft) || 0;
+    const rightPadding = metricNumber(containerPadding.paddingRight) || 0;
+    const contentWidth = Math.max(0, containerWidth - leftPadding - rightPadding);
+    return searchX <= leftPadding + 1 && searchWidth >= contentWidth - 2;
+  })();
 
   // App bar (optional, keep existing behavior)
   const appBar =
@@ -437,6 +487,20 @@ export default function Header2({ section }) {
 
   const searchBarStyle = styleBlock.searchBar || styleBlock.searchInput || styleBlock.search || {};
   const searchBarInputStyle = styleBlock.searchBarInput || {};
+  const normalizedSearchBarStyle = convertStyles(searchBarStyle);
+  const normalizedSearchBarInputStyle = convertStyles(searchBarInputStyle);
+  const searchBoxHeight = parseSize(searchAndIcons.searchBoxHeight) || 40;
+  const searchTextFontSize =
+    parseSize(resolveValue(searchAndIconsNode.searchFontSize, undefined)) ||
+    parseSize(resolveValue(searchAndIconsNode.searchTextFontSize, undefined)) ||
+    parseSize(normalizedSearchBarInputStyle.fontSize) ||
+    parseSize(normalizedSearchBarStyle.fontSize) ||
+    Math.round(Math.min(14, Math.max(11, searchBoxHeight * 0.36)));
+  const searchIconSize =
+    parseSize(resolveValue(searchAndIconsNode.searchIconSize, undefined)) ||
+    parseSize(resolveValue(searchAndIconsNode.searchIconWidth, undefined)) ||
+    parseSize(resolveValue(searchAndIconsNode.searchIconHeight, undefined)) ||
+    Math.round(Math.min(16, Math.max(10, searchBoxHeight * 0.38)));
   const notificationContainerStyle = styleBlock.notificationContainer || {};
   const badgeStyle = styleBlock?.badge || {};
   const normalizedBadgeStyle = convertStyles(badgeStyle);
@@ -551,7 +615,18 @@ export default function Header2({ section }) {
   const shouldShowSearchRow =
     (searchEnabled && searchAndIcons?.showSearch) ||
     (notificationEnabled && searchAndIcons?.showNotification);
-  const shouldShowSideMenu = resolveBooleanSetting(searchAndIconsNode?.showSideMenu, false);
+  const sideMenuMetric =
+    metricElements.sideMenu ||
+    metricElements.menu ||
+    metricElements.hamburger ||
+    metricElements.sideMenuIcon;
+  const hasBuilderSideMenuSlot =
+    !metricsAvailable || Boolean(sideMenuMetric || sideMenuStyle);
+  const shouldShowSideMenu =
+    resolveBooleanSetting(searchAndIconsNode?.showSideMenu, false) &&
+    hasSideNav &&
+    hasBuilderSideMenuSlot &&
+    !searchConsumesFullContentWidth;
   const shouldShowSearchRowOrMenu = shouldShowSearchRow || shouldShowSideMenu;
   const shouldShowTopRow = hasGreeting || (profileEnabled && profile?.show);
   const searchLimit = resolveValue(searchAndIcons?.searchLimit, 10);
@@ -1151,14 +1226,20 @@ export default function Header2({ section }) {
           {searchEnabled && searchAndIcons?.showSearch && (
             <View style={[
               styles.searchBarWrapper,
-              convertStyles(searchBarStyle),
+              normalizedSearchBarStyle,
               {
-                height: searchAndIcons.searchBoxHeight,
-                minHeight: searchAndIcons.searchBoxHeight,
+                height: searchBoxHeight,
+                minHeight: searchBoxHeight,
               },
             ]}>
               <TouchableOpacity
-                style={styles.searchIconContainer}
+                style={[
+                  styles.searchIconContainer,
+                  {
+                    paddingLeft: Math.max(8, Math.round(searchBoxHeight * 0.35)),
+                    paddingRight: Math.max(6, Math.round(searchBoxHeight * 0.24)),
+                  },
+                ]}
                 onPress={() => {
                   if (searchValue.trim()) submitHeaderSearch();
                   else openBottomNavTarget("search");
@@ -1169,7 +1250,7 @@ export default function Header2({ section }) {
               >
                 <FontAwesome
                   name="search"
-                  size={18}
+                  size={searchIconSize}
                   color={searchAndIcons?.searchIconColor || "#39444D"}
                 />
               </TouchableOpacity>
@@ -1178,7 +1259,17 @@ export default function Header2({ section }) {
                 onChangeText={handleHeaderSearchChange}
                 placeholder={searchPlaceholder}
                 placeholderTextColor={placeholderColor}
-                style={[convertStyles(searchBarInputStyle), styles.searchInput, { flex: 1, minWidth: 0 }]}
+                style={[
+                  normalizedSearchBarInputStyle,
+                  styles.searchInput,
+                  {
+                    flex: 1,
+                    minWidth: 0,
+                    fontSize: searchTextFontSize,
+                    lineHeight: Math.round(searchTextFontSize * 1.25),
+                    paddingVertical: 0,
+                  },
+                ]}
                 underlineColorAndroid="transparent"
                 selectionColor="#131A1D"
                 returnKeyType="search"

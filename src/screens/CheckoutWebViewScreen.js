@@ -14,6 +14,7 @@ import HeaderIcon from "react-native-vector-icons/FontAwesome6";
 import { WebView } from "react-native-webview";
 import { SafeArea } from "../utils/SafeAreaHandler";
 import { useAuth } from "../services/AuthContext";
+import { isAuthenticatedSession } from "../utils/authGate";
 import { resolveAppId } from "../utils/appId";
 import { triggerOrderNotification, ORDER_EVENTS } from "../services/notificationService";
 import { saveCompletedOrder } from "../services/orderHistoryService";
@@ -791,7 +792,7 @@ const buildCheckoutSessionJs = ({ isLoggedIn, customerName, customerEmail }) => 
 export default function CheckoutWebViewScreen() {
   const navigation        = useNavigation();
   const route             = useRoute();
-  const { session }       = useAuth();
+  const { session, initializing } = useAuth();
   const cartItems         = useSelector((state) => state.cart?.items || []);
 
   const rawCheckoutUrl = route?.params?.url;
@@ -803,11 +804,12 @@ export default function CheckoutWebViewScreen() {
   const prefillCheckoutEmail = route?.params?.prefillCheckoutEmail !== false;
   const hideCheckoutLogo = route?.params?.hideCheckoutLogo !== false;
   const sessionCustomerEmail = pickSessionCustomerEmail(session);
+  const hasAuthenticatedSession = isAuthenticatedSession(session);
   const checkoutCustomerEmail = prefillCheckoutEmail
     ? (route?.params?.customerEmail || sessionCustomerEmail || "")
     : "";
   const checkoutCustomerName = route?.params?.customerName || session?.user?.name || checkoutCustomerEmail;
-  const checkoutIsLoggedIn = Boolean(route?.params?.isLoggedIn || sessionCustomerEmail);
+  const checkoutIsLoggedIn = hasAuthenticatedSession;
 
   const [isLoading,  setIsLoading]  = useState(true);
   const [loadError,  setLoadError]  = useState(false);
@@ -825,7 +827,7 @@ export default function CheckoutWebViewScreen() {
     () => resolveAppId(route?.params?.appId ?? session?.user?.appId ?? session?.user?.app_id),
     [route?.params?.appId, session?.user?.appId, session?.user?.app_id]
   );
-  const userId = session?.user?.id ?? null;
+  const userId = session?.user?.id ?? session?.user?.userId ?? null;
   const checkoutSessionJs = useMemo(
     () => buildCheckoutSessionJs({
       isLoggedIn: checkoutIsLoggedIn,
@@ -887,9 +889,32 @@ export default function CheckoutWebViewScreen() {
     route?.params,
   ]);
 
+  useEffect(() => {
+    if (initializing || hasAuthenticatedSession) return;
+    console.warn(`${CHECKOUT_WEBVIEW_LOG} blocked unauthenticated checkout webview`);
+    navigation.reset({
+      index: 0,
+      routes: [{
+        name: "Auth",
+        params: {
+          initialMode: "login",
+          requireAuth: true,
+          postLoginTarget: {
+            name: "BottomNavScreen",
+            params: { pageName: "cart", title: "Cart" },
+          },
+        },
+      }],
+    });
+  }, [hasAuthenticatedSession, initializing, navigation]);
+
   const completeOrderNow = useCallback(
     async (completedUrl, detectedOrderNumber = "") => {
       if (hasCompletedOrderRef.current) return;
+      if (!hasAuthenticatedSession) {
+        console.warn(`${CHECKOUT_WEBVIEW_LOG} ignored unauthenticated order completion`);
+        return;
+      }
       hasCompletedOrderRef.current = true;
 
       const capturedItems = capturedItemsRef.current || [];
@@ -934,12 +959,13 @@ export default function CheckoutWebViewScreen() {
               order,
               orderNumber,
               orderTotal:    order.total,
+              authenticatedCheckout: true,
             },
           }],
         });
       }, 600);
     },
-    [navigation, resolvedAppId, session, userId]
+    [hasAuthenticatedSession, navigation, resolvedAppId, session, userId]
   );
 
   // ── Shared order-complete handler (used by URL detection AND JS injection) ──
@@ -1121,6 +1147,17 @@ export default function CheckoutWebViewScreen() {
   );
 
   // ── Render ────────────────────────────────────────────────────────────────
+  if (initializing || !hasAuthenticatedSession) {
+    return (
+      <SafeArea>
+        <View style={styles.centreWrap}>
+          <ActivityIndicator color="#0EA5E9" size="large" />
+          <Text style={styles.loadingText}>Checking account...</Text>
+        </View>
+      </SafeArea>
+    );
+  }
+
   return (
     <SafeArea>
       <View style={styles.container}>

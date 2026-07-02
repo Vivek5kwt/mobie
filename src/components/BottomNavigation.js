@@ -37,11 +37,81 @@ const asBoolean = (value, fallback = true) => {
   return fallback;
 };
 
-const normalizeIconName = (name) => {
-  if (!name) return "circle";
-  const cleaned = String(name).replace(/^fa[srldb]?[-_]?/, "");
-  return cleaned || "circle";
+const FA_STYLE_TOKENS = {
+  fas: "solid",
+  solid: "solid",
+  "fa-solid": "solid",
+  far: "regular",
+  regular: "regular",
+  "fa-regular": "regular",
+  fab: "brand",
+  brands: "brand",
+  brand: "brand",
+  "fa-brands": "brand",
+  fal: "light",
+  light: "light",
+  "fa-light": "light",
+  fat: "thin",
+  thin: "thin",
+  "fa-thin": "thin",
+  fad: "duotone",
+  duotone: "duotone",
+  "fa-duotone": "duotone",
+  sharp: "sharp",
+  "fa-sharp": "sharp",
+  "sharp-regular": "sharp",
+  "fa-sharp-regular": "sharp",
+  "sharp-light": "sharpLight",
+  "fa-sharp-light": "sharpLight",
+  "sharp-solid": "sharpSolid",
+  "fa-sharp-solid": "sharpSolid",
 };
+
+const cleanIconToken = (value = "") =>
+  String(value || "")
+    .trim()
+    .toLowerCase()
+    .replace(/_/g, "-")
+    .replace(/^fa[0-9]+[-_]/i, "")
+    .replace(/^fa[srldb]?[-_]/i, "")
+    .replace(/^fa[-_]/i, "");
+
+const resolveIconDescriptor = (name) => {
+  const raw = unwrapValue(name, "");
+  if (!raw) return { name: "circle", styleProps: {} };
+
+  const tokens = String(raw)
+    .trim()
+    .split(/\s+/)
+    .map((token) => token.trim())
+    .filter(Boolean);
+
+  let iconName = "";
+  let iconStyle = "";
+
+  tokens.forEach((token) => {
+    const normalizedToken = token.toLowerCase().replace(/_/g, "-");
+    const strippedToken = cleanIconToken(token);
+    const matchedStyle =
+      FA_STYLE_TOKENS[normalizedToken] ||
+      FA_STYLE_TOKENS[strippedToken];
+
+    if (matchedStyle) {
+      iconStyle = matchedStyle;
+      return;
+    }
+
+    iconName = strippedToken || normalizedToken;
+  });
+
+  const cleaned = cleanIconToken(iconName || raw) || "circle";
+  return {
+    name: cleaned,
+    styleProps: iconStyle ? { [iconStyle]: true } : {},
+  };
+};
+
+const normalizeIconName = (name) => resolveIconDescriptor(name).name;
 
 const resolveItemIcon = (item = {}) => {
   if (!item) return "";
@@ -229,8 +299,8 @@ function BottomNavigation({ section, activeIndexOverride }) {
   }, [route?.name, route?.params?.pageName, route?.params?.activeIndex, items]);
 
   // Memoize icon names to prevent unnecessary re-renders when clicking home
-  const iconNames = useMemo(() => {
-    return items.map((item) => normalizeIconName(resolveItemIcon(item)));
+  const iconDescriptors = useMemo(() => {
+    return items.map((item) => resolveIconDescriptor(resolveItemIcon(item)));
   }, [items]);
 
   const visibilityNode = rawProps.visibility ?? raw?.visibility ?? {};
@@ -418,7 +488,9 @@ function BottomNavigation({ section, activeIndexOverride }) {
   // Never force bubble mode — respect exactly what the DSL specifies.
   // isStyle2 is a layout variant, not an indicator shape override.
   const indicatorIsBubble = normalizedIndicatorMode === "bubble";
-  const indicatorIsLine = normalizedIndicatorMode === "line";
+  const indicatorIsLine =
+    normalizedIndicatorMode === "line" ||
+    normalizedIndicatorMode === "underline";
   const safeItemHeight = Number.isNaN(Number(itemHeight)) ? 0 : Number(itemHeight);
   const bubbleSize = Math.max(
     iconSize + 8,
@@ -665,6 +737,7 @@ function BottomNavigation({ section, activeIndexOverride }) {
       <View style={[styles.row, presentation.row]}>
         {items.map((item, index) => {
           const isActive = index === displayActiveIndex;
+          const iconDescriptor = iconDescriptors[index] || { name: "circle", styleProps: {} };
           const itemShowLabel = shouldShowItemLabel(item);
           // Active tab: always use active colors so the selected tab is visibly highlighted (dynamic from schema)
           const finalIconColor = isActive
@@ -702,11 +775,21 @@ function BottomNavigation({ section, activeIndexOverride }) {
                   ]}
                 >
                   <Icon
-                    key={`icon-${index}-${iconNames[index]}`}
-                    name={iconNames[index] || "circle"}
+                    key={`icon-${index}-${iconDescriptor.name}`}
+                    {...iconDescriptor.styleProps}
+                    name={iconDescriptor.name || "circle"}
                     size={iconSize}
                     color={finalIconColor}
-                    style={[styles.icon, presentation.icon]}
+                    style={[
+                      styles.icon,
+                      presentation.icon,
+                      {
+                        width: iconWidth,
+                        height: iconHeight,
+                        lineHeight: iconHeight,
+                        fontSize: iconSize,
+                      },
+                    ]}
                   />
                   {isCartItem(item) && cartCount > 0 && (
                     <View style={styles.cartBadge}>
@@ -778,7 +861,9 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   icon: {
-    lineHeight: 1,
+    textAlign: "center",
+    textAlignVertical: "center",
+    includeFontPadding: false,
   },
   iconWrapper: {
     alignItems: "center",
