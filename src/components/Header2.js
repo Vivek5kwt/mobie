@@ -288,7 +288,7 @@ export default function Header2({ section }) {
     const searchY = metricNumber(searchEl.y);
     if (!Number.isFinite(searchY)) return 8;
 
-    const precedingBottoms = ["greeting", "profile", "title", "headline", "name"]
+    const precedingBottoms = ["greeting", "title", "headline", "name"]
       .map((key) => {
         const el = metricElements[key];
         if (!el) return NaN;
@@ -300,7 +300,7 @@ export default function Header2({ section }) {
 
     if (precedingBottoms.length > 0) {
       const gap = searchY - Math.max(...precedingBottoms);
-      return Math.min(Math.max(-32, gap), 16);
+      return Math.min(Math.max(0, gap), 24);
     }
     return 8;
   })();
@@ -489,7 +489,11 @@ export default function Header2({ section }) {
   const searchBarInputStyle = styleBlock.searchBarInput || {};
   const normalizedSearchBarStyle = convertStyles(searchBarStyle);
   const normalizedSearchBarInputStyle = convertStyles(searchBarInputStyle);
-  const searchBoxHeight = parseSize(searchAndIcons.searchBoxHeight) || 40;
+  const searchMetricHeight = metricNumber(metricElements.search?.height);
+  const searchBoxHeight =
+    (Number.isFinite(searchMetricHeight) && searchMetricHeight > 0 ? searchMetricHeight : NaN) ||
+    parseSize(searchAndIcons.searchBoxHeight) ||
+    40;
   const searchTextFontSize =
     parseSize(resolveValue(searchAndIconsNode.searchFontSize, undefined)) ||
     parseSize(resolveValue(searchAndIconsNode.searchTextFontSize, undefined)) ||
@@ -576,7 +580,25 @@ export default function Header2({ section }) {
   
   const greetingTextStyle = {};
   if (greeting.color) greetingTextStyle.color = greeting.color;
-  if (greeting.fontSize) greetingTextStyle.fontSize = greeting.fontSize;
+  const rawGreetingFontSize = parseSize(greeting.fontSize) || 16;
+  const greetingLineCount = [greeting?.title, greeting?.name].filter(Boolean).length || 1;
+  const compactGreetingFontSize = (() => {
+    if (!metricsAvailable || greetingLineCount <= 1) return rawGreetingFontSize;
+    const greetingEl = metricElements.greeting;
+    const searchEl = metricElements.search;
+    const greetingY = metricNumber(greetingEl?.y);
+    const searchY = metricNumber(searchEl?.y);
+    if (!Number.isFinite(greetingY) || !Number.isFinite(searchY) || searchY <= greetingY) {
+      return rawGreetingFontSize;
+    }
+    const availableHeight = Math.max(0, searchY - greetingY - 4);
+    const currentBlockHeight = rawGreetingFontSize * 1.18 * greetingLineCount;
+    if (availableHeight <= 0 || availableHeight >= currentBlockHeight) return rawGreetingFontSize;
+    return Math.max(12, Math.floor(availableHeight / (greetingLineCount * 1.18)));
+  })();
+  greetingTextStyle.fontSize = compactGreetingFontSize;
+  greetingTextStyle.lineHeight = Math.ceil(compactGreetingFontSize * 1.18);
+  greetingTextStyle.includeFontPadding = false;
   greetingTextStyle.fontWeight = resolveFontWeight(
     greeting.fontWeight,
     greeting.bold ? "700" : "400"
@@ -1124,6 +1146,7 @@ export default function Header2({ section }) {
             >
               {greeting?.title && (
                 <Text
+                  numberOfLines={1}
                   style={[
                     convertStyles(greetingTitleStyle),
                     greetingTextStyle,
@@ -1136,6 +1159,7 @@ export default function Header2({ section }) {
               )}
               {greeting?.name && (
                 <Text
+                  numberOfLines={1}
                   style={[
                     convertStyles(greetingNameStyle),
                     greetingTextStyle,

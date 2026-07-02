@@ -2,7 +2,7 @@ import React from "react";
 import { StyleSheet, Text, View } from "react-native";
 import FontAwesome from "react-native-vector-icons/FontAwesome";
 import { convertStyles } from "../utils/convertStyles";
-import { getTypography, resolveFont } from "../services/typographyService";
+import { getTypography, resolveFont, resolveFontFace } from "../services/typographyService";
 import { resolveFA4IconName } from "../utils/faIconAlias";
 import { resolveTextDecorationLine } from "../utils/textDecoration";
 
@@ -213,6 +213,27 @@ const applyTextAttributes = (baseStyle, attributes, decorationOverrides = {}) =>
   return next;
 };
 
+const applyNativeFontFace = (style = {}) => {
+  if (!style?.fontFamily) return style;
+  const resolved = resolveFontFace(style.fontFamily, {
+    fontWeight: style.fontWeight,
+    fontStyle: style.fontStyle,
+  });
+  if (!resolved?.fontFamily) return style;
+
+  const next = {
+    ...style,
+    fontFamily: resolved.fontFamily,
+  };
+
+  if (!resolved.preserveWeightStyle) {
+    delete next.fontWeight;
+    delete next.fontStyle;
+  }
+
+  return next;
+};
+
 // ── Component ──────────────────────────────────────────────────────────────────
 
 export default function TextBlock({ section }) {
@@ -342,7 +363,7 @@ export default function TextBlock({ section }) {
   // font is used only when no per-element override is present.
   const typography = getTypography();
 
-  const headlineStyle = applyTextAttributes(
+  let headlineStyle = applyTextAttributes(
     stripTextCss(convertStyles(layoutCss.headline || {})),
     headlineAttributes,
     {
@@ -353,8 +374,9 @@ export default function TextBlock({ section }) {
   if (!headlineStyle.fontFamily && typography.headlineFontFamily) {
     headlineStyle.fontFamily = typography.headlineFontFamily;
   }
+  headlineStyle = applyNativeFontFace(headlineStyle);
 
-  const subtextStyle  = applyTextAttributes(
+  let subtextStyle  = applyTextAttributes(
     stripTextCss(convertStyles(layoutCss.subtext || {})),
     subtextAttributes,
     {
@@ -365,6 +387,7 @@ export default function TextBlock({ section }) {
   if (!subtextStyle.fontFamily && typography.subtextFontFamily) {
     subtextStyle.fontFamily = typography.subtextFontFamily;
   }
+  subtextStyle = applyNativeFontFace(subtextStyle);
 
   // Per-element alignment — fall back to globalAlign so setting one place controls both
   const headtextAlign = resolveAlign(

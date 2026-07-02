@@ -74,6 +74,34 @@ const GENERIC_FONT_NAMES = new Set([
   'helvetica',
 ]);
 
+const normalizeFontKey = (name) =>
+  String(name || '').trim().replace(/[\'"]/g, '').toLowerCase();
+
+const normalizeFontWeight = (weight) => {
+  if (weight === undefined || weight === null || weight === '') return '400';
+  const normalized = String(weight).trim().toLowerCase();
+  if (normalized === 'bold' || normalized === 'semibold' || normalized === 'semi bold') {
+    return '700';
+  }
+  if (normalized === 'normal' || normalized === 'regular') return '400';
+  const parsed = Number.parseInt(normalized, 10);
+  if (!Number.isFinite(parsed)) return '400';
+  return parsed >= 600 ? '700' : '400';
+};
+
+const ANDROID_FONT_FACE_VARIANTS = {
+  lato: {
+    normal: {
+      '400': 'Lato',
+      '700': 'Lato-Bold',
+    },
+    italic: {
+      '400': 'Lato-Italic',
+      '700': 'Lato-BoldItalic',
+    },
+  },
+};
+
 export function resolveFont(name) {
   if (!name || typeof name !== 'string') return null;
   const candidates = name
@@ -89,6 +117,44 @@ export function resolveFont(name) {
   }
 
   return null;
+}
+
+export function resolveFontFace(name, options = {}) {
+  const resolved = resolveFont(name);
+  if (!resolved) return null;
+
+  if (Platform.OS !== 'android') {
+    return {
+      fontFamily: resolved,
+      preserveWeightStyle: true,
+    };
+  }
+
+  const variants =
+    ANDROID_FONT_FACE_VARIANTS[normalizeFontKey(resolved)] ||
+    ANDROID_FONT_FACE_VARIANTS[normalizeFontKey(name)];
+
+  if (!variants) {
+    return {
+      fontFamily: resolved,
+      preserveWeightStyle: true,
+    };
+  }
+
+  const styleKey = String(options.fontStyle || '').toLowerCase() === 'italic'
+    ? 'italic'
+    : 'normal';
+  const weightKey = normalizeFontWeight(options.fontWeight);
+  const fontFamily =
+    variants?.[styleKey]?.[weightKey] ||
+    variants?.[styleKey]?.['400'] ||
+    variants?.normal?.[weightKey] ||
+    resolved;
+
+  return {
+    fontFamily,
+    preserveWeightStyle: false,
+  };
 }
 
 export function resolveFirstFont(...names) {
