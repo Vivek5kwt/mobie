@@ -1,5 +1,5 @@
 import React, { PureComponent } from "react";
-import { ImageBackground, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { Image, ImageBackground, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import LinearGradient from "react-native-linear-gradient";
 import FontAwesome from "react-native-vector-icons/FontAwesome";
 import { Linking } from "react-native";
@@ -39,6 +39,45 @@ const asNumber = (value, fallback = undefined) => {
   if (typeof resolved === "number") return resolved;
   const parsed = parseFloat(resolved);
   return Number.isNaN(parsed) ? fallback : parsed;
+};
+
+const parseRatio = (value, fallback = 1) => {
+  const raw = String(unwrapValue(value, "") || "").trim().toLowerCase();
+  if (!raw || raw === "auto") return fallback;
+
+  const pair = raw.match(/^(\d+(?:\.\d+)?)\s*[:/]\s*(\d+(?:\.\d+)?)/);
+  if (pair) {
+    const width = Number(pair[1]);
+    const height = Number(pair[2]);
+    if (width > 0 && height > 0) return width / height;
+  }
+
+  const numeric = Number(raw);
+  return Number.isFinite(numeric) && numeric > 0 ? numeric : fallback;
+};
+
+const normalizeImagePosition = (rawProps) => {
+  const raw = String(
+    unwrapValue(
+      rawProps?.imagePosition ??
+        rawProps?.imagePlacement ??
+        rawProps?.imageLayout ??
+        rawProps?.imageAlign ??
+        rawProps?.layoutStyle,
+      "top"
+    ) || "top"
+  )
+    .trim()
+    .toLowerCase()
+    .replace(/[_-]+/g, " ");
+
+  if (["background", "bg", "cover", "overlay", "image background"].some((key) => raw.includes(key))) {
+    return "background";
+  }
+  if (raw.includes("left")) return "inline-left";
+  if (raw.includes("right")) return "inline-right";
+  if (raw.includes("bottom")) return "bottom";
+  return "top";
 };
 
 const applyTextAttributes = (baseStyle, attributes) => {
@@ -661,6 +700,28 @@ class Countdown extends PureComponent {
       ? unwrapValue(rawProps?.image ?? rawProps?.imageUrl ?? rawProps?.backgroundImage, null)
       : null;
     const imageResizeMode = this.resolveImageResizeMode(rawProps);
+    const imageAttributes = rawProps?.imageAttributes?.properties || rawProps?.imageAttributes || {};
+    const imagePosition = normalizeImagePosition(rawProps);
+    const imageCornerRadius = asNumber(
+      rawProps?.imageCorner ??
+        rawProps?.imageCornerRadius ??
+        imageAttributes?.imageCorner ??
+        imageAttributes?.borderRadius,
+      0
+    );
+    const imageAspectRatio = parseRatio(
+      rawProps?.imageRatio ?? imageAttributes?.imageRatio ?? imageAttributes?.ratio,
+      1
+    );
+    const imageWidth =
+      asNumber(rawProps?.imageWidth ?? imageAttributes?.width, undefined) ||
+      unwrapValue(rawProps?.imageWidthValue ?? imageAttributes?.widthValue, undefined);
+    const imageHeight = asNumber(rawProps?.imageHeight ?? imageAttributes?.height, undefined);
+    const imageGap = asNumber(
+      rawProps?.imageGap ?? rawProps?.mediaGap ?? imageAttributes?.gap,
+      12
+    );
+    const isInlineImageLayout = imagePosition.startsWith("inline");
 
     const layoutStyleRaw = String(unwrapValue(rawProps?.layoutStyle, "top")).trim().toLowerCase();
     const isTopLayout = layoutStyleRaw === "top";
@@ -736,13 +797,14 @@ class Countdown extends PureComponent {
         </View>
 
         {showTimer && (
-          <View style={styles.timerRow}>
+          <View style={[styles.timerRow, isInlineImageLayout ? styles.timerRowWrapped : null]}>
             {timerUnits.map(({ key, label }, idx) => (
               <View
                 key={key}
                 style={[
                   styles.timerSegment,
-                  idx > 0 && { marginLeft: timerGap },
+                  isInlineImageLayout ? styles.timerSegmentWrapped : null,
+                  !isInlineImageLayout && idx > 0 ? { marginLeft: timerGap } : null,
                 ]}
               >
                 <View
@@ -857,19 +919,35 @@ class Countdown extends PureComponent {
     // ── When a background image is configured, overlay the content on top ─────
     // The ImageBackground must be full-width (no horizontal padding on the outer
     // container). Padding is moved to an inner View so the image extends edge-to-edge.
-    if (imageUrl) {
-      const imageCornerRadius = asNumber(
-        rawProps?.imageCorner ?? rawProps?.imageCornerRadius,
-        enhancedContainerStyle.borderRadius ?? 0
+    const renderInlineImage = (extraStyle = null) => {
+      if (!imageUrl) return null;
+      return (
+        <Image
+          source={{ uri: imageUrl }}
+          style={[
+            styles.contentImage,
+            {
+              borderRadius: imageCornerRadius,
+              aspectRatio: imageAspectRatio,
+            },
+            imageWidth != null ? { width: imageWidth } : null,
+            imageHeight != null ? { height: imageHeight } : null,
+            extraStyle,
+          ]}
+          resizeMode={imageResizeMode}
+        />
       );
-      // Collect content padding separately so the image is not clipped by padding
+    };
+
+    if (imageUrl && imagePosition === "background") {
+      const backgroundImageRadius =
+        imageCornerRadius ?? enhancedContainerStyle.borderRadius ?? 0;
       const contentPadding = {
         paddingTop:    enhancedContainerStyle.paddingTop    ?? pt ?? 16,
         paddingBottom: enhancedContainerStyle.paddingBottom ?? pb ?? 16,
         paddingLeft:   enhancedContainerStyle.paddingLeft   ?? pl ?? 16,
         paddingRight:  enhancedContainerStyle.paddingRight  ?? pr ?? 16,
       };
-      // Outer style: full-width, no padding, keep border/radius/background for frame
       const {
         paddingTop: _pt, paddingBottom: _pb, paddingLeft: _pl, paddingRight: _pr,
         padding: _p, alignItems: _ai,
@@ -880,7 +958,7 @@ class Countdown extends PureComponent {
         <ImageBackground
           source={{ uri: imageUrl }}
           style={[styles.imageContainer, outerStyle]}
-          imageStyle={{ borderRadius: imageCornerRadius }}
+          imageStyle={{ borderRadius: backgroundImageRadius }}
           resizeMode={imageResizeMode}
         >
           <View style={[contentPadding, { width: "100%" }]}>
@@ -890,12 +968,40 @@ class Countdown extends PureComponent {
       );
     }
 
+    const hasInlineImage = imageUrl && isInlineImageLayout;
+    const contentWithImage = imageUrl ? (
+      hasInlineImage ? (
+        <View
+          style={[
+            styles.inlineImageLayout,
+            imagePosition === "inline-right" ? styles.inlineImageRight : null,
+            { gap: imageGap },
+          ]}
+        >
+          {renderInlineImage(styles.inlineImage)}
+          <View style={styles.inlineContent}>{innerContent}</View>
+        </View>
+      ) : (
+        <>
+          {imagePosition === "top" && renderInlineImage([
+            styles.stackedImage,
+            { marginBottom: imageGap },
+          ])}
+          {innerContent}
+          {imagePosition === "bottom" && renderInlineImage([
+            styles.stackedImage,
+            { marginTop: imageGap },
+          ])}
+        </>
+      )
+    ) : innerContent;
+
     return (
       <ContainerComponent
         style={[styles.container, enhancedContainerStyle]}
         {...containerProps}
       >
-        {innerContent}
+        {contentWithImage}
       </ContainerComponent>
     );
   }
@@ -915,6 +1021,30 @@ const styles = StyleSheet.create({
   imageContainer: {
     width: "100%",
     overflow: "hidden",
+  },
+  contentImage: {
+    overflow: "hidden",
+    backgroundColor: "#FFFFFF",
+  },
+  stackedImage: {
+    width: "100%",
+    alignSelf: "stretch",
+  },
+  inlineImageLayout: {
+    width: "100%",
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  inlineImageRight: {
+    flexDirection: "row-reverse",
+  },
+  inlineImage: {
+    width: "42%",
+    flexShrink: 0,
+  },
+  inlineContent: {
+    flex: 1,
+    minWidth: 0,
   },
   headerRow: {
     flexDirection: "row",
@@ -962,9 +1092,18 @@ const styles = StyleSheet.create({
     width: "100%",
     marginTop: 10,
   },
+  timerRowWrapped: {
+    flexWrap: "wrap",
+    justifyContent: "space-between",
+  },
   timerSegment: {
     flex: 1,
     alignItems: "center",
+  },
+  timerSegmentWrapped: {
+    flex: 0,
+    flexBasis: "48%",
+    marginBottom: 8,
   },
   timerValueBox: {
     width: "100%",

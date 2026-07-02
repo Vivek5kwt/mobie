@@ -9,6 +9,7 @@ import React, {
 } from 'react';
 import { useDispatch } from 'react-redux';
 import { AuthSession, clearSession, login, recoverPassword, restoreSession, signup } from './authService';
+import { clearCart } from '../store/slices/cartSlice';
 import { setWishlistUser } from '../store/slices/wishlistSlice';
 import tokenLogger from '../utils/tokenLogger';
 import { setAnalyticsUser, trackAnalyticsEvent } from './analyticsService';
@@ -44,6 +45,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           }
         } else {
           dispatch(setWishlistUser({ session: null }));
+          dispatch(clearCart());
         }
       } finally {
         setInitializing(false);
@@ -91,6 +93,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   }, []);
 
   const handleLogout = useCallback(async () => {
+    dispatch(clearCart());
     await clearSession();
     trackAnalyticsEvent('logout', {}, { session }).catch(() => {});
     setAnalyticsUser(null).catch(() => {});
@@ -98,7 +101,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     dispatch(setWishlistUser({ session: null }));
     // Clear stored FCM record ID so next login gets a fresh token association
     tokenLogger.clearToken().catch(() => {});
-  }, [dispatch]);
+  }, [dispatch, session]);
 
   const value = useMemo(
     () => ({

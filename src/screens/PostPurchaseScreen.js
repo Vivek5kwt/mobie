@@ -103,6 +103,11 @@ const fillPlaceholders = (text, orderNumber) => {
     .replace(/#\s*[A-Za-z0-9-]+/g, displayNumber);
 };
 
+const isSyntheticOrderReference = (value = "") => {
+  const raw = String(value || "").trim().replace(/^#\s*/, "");
+  return /^(?:ORD|ORDER)[-_]?\d+/i.test(raw);
+};
+
 const normalizeOrderNumber = (value = "") => {
   const raw = String(value || "").trim();
   if (!raw) return "";
@@ -112,7 +117,9 @@ const normalizeOrderNumber = (value = "") => {
   const hash = raw.match(/#\s*([A-Za-z0-9-]+)/);
   const plain = raw.match(/^#?\s*([A-Za-z0-9-]+)\s*$/);
   const valuePart = orderPhrase?.[1] || hash?.[1] || plain?.[1] || "";
-  return valuePart ? `#${valuePart}` : "";
+  const normalized = valuePart ? `#${valuePart}` : "";
+  if (isSyntheticOrderReference(normalized)) return "";
+  return normalized;
 };
 
 const updateConfirmationTextTarget = (target, orderNumber) => {
@@ -403,6 +410,7 @@ export default function PostPurchaseScreen() {
           ...candidate,
           ...latest,
           orderNumber: latestOrderNumber || normalizeOrderNumber(candidate.orderNumber || candidate.name),
+          name: latestOrderNumber || normalizeOrderNumber(latest.name || candidate.name || candidate.orderNumber),
           needsStoreRefresh: !latestOrderNumber && !latest.adminOrderId && !latest.adminGraphqlApiId,
         };
         setSyncedOrder(nextOrder);

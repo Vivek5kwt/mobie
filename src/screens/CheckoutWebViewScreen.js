@@ -30,6 +30,7 @@ import {
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 const CHECKOUT_WEBVIEW_LOG = "[CheckoutWebView]";
+const PENDING_ORDER_NUMBER_DELAY_MS = 3600;
 
 const normalizeCheckoutUrl = (url) => {
   const raw = String(url || "").trim();
@@ -98,7 +99,12 @@ const extractOrderNumber = (url) => {
   return "";
 };
 
-const normalizeOrderNumber = (value = "") => {
+const isSyntheticOrderReference = (value = "") => {
+  const raw = String(value || "").trim().replace(/^#\s*/, "");
+  return /^(?:ORD|ORDER)[-_]?\d+/i.test(raw);
+};
+
+const normalizeOrderReference = (value = "", { allowSynthetic = false } = {}) => {
   const raw = String(value || "").trim();
   if (!raw) return "";
   const orderPhrase =
@@ -107,8 +113,15 @@ const normalizeOrderNumber = (value = "") => {
   const hash = raw.match(/#\s*([A-Za-z0-9-]+)/);
   const plain = raw.match(/^#?\s*([A-Za-z0-9-]+)\s*$/);
   const valuePart = orderPhrase?.[1] || hash?.[1] || plain?.[1] || "";
-  return valuePart ? `#${valuePart}` : "";
+  const normalized = valuePart ? `#${valuePart}` : "";
+  if (!allowSynthetic && isSyntheticOrderReference(normalized)) return "";
+  return normalized;
 };
+
+const normalizeOrderNumber = (value = "") => normalizeOrderReference(value);
+
+const normalizeAnyOrderReference = (value = "") =>
+  normalizeOrderReference(value, { allowSynthetic: true });
 
 const pickSessionCustomerAccessToken = (session) => {
   const candidates = [
@@ -176,13 +189,21 @@ const buildOrderFromCart = (capturedItems, url, storeCurrencyCode = "", explicit
     0
   );
   const total = parseFloat(subtotal.toFixed(2));
-  const orderNumber = normalizeOrderNumber(explicitOrderNumber) || extractOrderNumber(url);
+  const detectedOrderReference =
+    normalizeAnyOrderReference(explicitOrderNumber) ||
+    normalizeAnyOrderReference(extractOrderNumber(url));
+  const orderNumber = isSyntheticOrderReference(detectedOrderReference)
+    ? ""
+    : normalizeOrderNumber(detectedOrderReference);
   const currencySymbol = sharedCurrencySymbolForCode(firstCurrencyCode);
 
   return {
     id:             orderNumber || String(url || ""),
     orderNumber,
     name:           orderNumber,
+    checkoutOrderReference: detectedOrderReference && detectedOrderReference !== orderNumber
+      ? detectedOrderReference
+      : "",
     statusUrl:      String(url || ""),
     orderDate:      fmt(today),
     placedAt:       today.toISOString(),
@@ -211,8 +232,8 @@ const syncShopifyOrderWithRetry = async ({ order, customerAccessToken, attempts 
         return {
           ...order,
           ...latest,
-          orderNumber: syncedOrderNumber || order.orderNumber || latest?.orderNumber || "",
-          name: latest?.name || syncedOrderNumber || order.name || "",
+          orderNumber: syncedOrderNumber || normalizeOrderNumber(order.orderNumber || order.name),
+          name: syncedOrderNumber || normalizeOrderNumber(order.name || order.orderNumber),
           needsStoreRefresh: false,
         };
       }
@@ -228,7 +249,7 @@ const syncShopifyOrderWithRetry = async ({ order, customerAccessToken, attempts 
     ...order,
     ...(latest || {}),
     orderNumber: normalizeOrderNumber(latest?.orderNumber || latest?.name || order?.orderNumber),
-    name: latest?.name || order?.name || "",
+    name: normalizeOrderNumber(latest?.name || latest?.orderNumber || order?.name || order?.orderNumber),
   };
 };
 
@@ -266,19 +287,37 @@ const isOrderCompleteUrl = (url) => {
 // without a URL change — which is exactly what newer Shopify checkout does.
 const DETECT_ORDER_JS = `
 (function() {
+  function isSyntheticOrderName(value) {
+    var raw = String(value || '').replace(/^#\\s*/, '').trim();
+    return /^(?:ORD|ORDER)[-_]?\\d+/i.test(raw);
+  }
+
   function normalizeOrderName(value) {
     var raw = String(value || '').replace(/\\s+/g, ' ').trim();
     if (!raw) return '';
-    var match =
-      raw.match(/order\\s*(?:number|no\\.?)?\\s*#\\s*([A-Za-z0-9-]+)/i) ||
-      raw.match(/order\\s*(?:number|no\\.?)\\s+([A-Za-z0-9-]+)/i) ||
-      raw.match(/#\\s*([A-Za-z0-9-]+)/);
-    if (!match) return '';
-    return '#' + match[1];
+    var matches = [];
+    var patterns = [
+      /order\\s*(?:number|no\\.?)?\\s*#\\s*([A-Za-z0-9-]+)/ig,
+      /order\\s*(?:number|no\\.?)\\s+([A-Za-z0-9-]+)/ig,
+      /#\\s*([A-Za-z0-9-]+)/g
+    ];
+    for (var p = 0; p < patterns.length; p += 1) {
+      var pattern = patterns[p];
+      var match;
+      while ((match = pattern.exec(raw)) !== null) {
+        if (match[1]) matches.push('#' + match[1]);
+      }
+    }
+    if (!matches.length) return '';
+    for (var i = 0; i < matches.length; i += 1) {
+      if (!isSyntheticOrderName(matches[i])) return matches[i];
+    }
+    return matches[0];
   }
 
   function extractOrderName() {
     try {
+      var syntheticFallback = '';
       var attrNode = document.querySelector('[data-order-number], [data-order-name], [data-testid*="order-number"], [class*="order-number"], .os-order-number');
       var attrValue = attrNode && (
         attrNode.getAttribute('data-order-number') ||
@@ -287,7 +326,8 @@ const DETECT_ORDER_JS = `
         attrNode.textContent
       );
       var fromAttr = normalizeOrderName(attrValue);
-      if (fromAttr) return fromAttr;
+      if (fromAttr && !isSyntheticOrderName(fromAttr)) return fromAttr;
+      if (fromAttr) syntheticFallback = fromAttr;
 
       var candidates = [];
       var selectors = ['h1', 'h2', '.os-header__title', '.os-header__heading', '.os-order-number', '[role="heading"]', 'main'];
@@ -301,8 +341,10 @@ const DETECT_ORDER_JS = `
       candidates.push(bodyText.slice(0, 2000));
       for (var k = 0; k < candidates.length; k += 1) {
         var found = normalizeOrderName(candidates[k]);
-        if (found) return found;
+        if (found && !isSyntheticOrderName(found)) return found;
+        if (found && !syntheticFallback) syntheticFallback = found;
       }
+      if (syntheticFallback) return syntheticFallback;
     } catch(e) {}
     return '';
   }
@@ -935,6 +977,7 @@ export default function CheckoutWebViewScreen() {
       triggerOrderNotification({
         type:        ORDER_EVENTS.ORDER_PLACED,
         orderNumber,
+        orderId:     order.adminOrderId || order.adminGraphqlApiId || order.id || order.checkoutOrderReference || null,
         appId:       resolvedAppId,
         userId,
       }).catch(() => {});
@@ -993,7 +1036,7 @@ export default function CheckoutWebViewScreen() {
           completionTimerRef.current = null;
           pendingCompletionRef.current = null;
           completeOrderNow(pending.url || completedUrl || "", pending.orderNumber || "");
-        }, 1600);
+        }, PENDING_ORDER_NUMBER_DELAY_MS);
         return;
       }
 

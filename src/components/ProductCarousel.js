@@ -784,6 +784,25 @@ export default function ProductCarousel({ section }) {
       ? Math.max(0, metricNumber(secondCardMetric, "x", 0) - metricNumber(firstCardMetric, "x", 0) - metricCardWidth)
       : undefined;
   const effectiveColGap = resolveFirstNumber([raw?.colGap, raw?.horizontalGap, metricGap !== undefined ? metricGap * metricScale : undefined, colGap], colGap);
+  const explicitVisibleCards = [
+    raw?.visibleItems,
+    raw?.visibleCards,
+    raw?.itemsPerView,
+    raw?.cardsPerView,
+    raw?.slidesPerView,
+    raw?.perView,
+    grid?.visibleItems,
+    grid?.visibleCards,
+    grid?.itemsPerView,
+    grid?.cardsPerView,
+  ].some(hasExplicitValue);
+  const explicitCardWidth = [
+    raw?.cardWidth,
+    raw?.productCardWidth,
+    raw?.itemWidth,
+    cardStyleFromCss?.width,
+    metricCardWidth,
+  ].some(hasExplicitValue);
   const requestedVisibleCards = Math.max(
     1,
     resolveFirstNumber(
@@ -804,6 +823,20 @@ export default function ProductCarousel({ section }) {
       columns || 2
     )
   );
+  const configuredPeekFraction = resolveFirstNumber(
+    [
+      raw?.peekFraction,
+      raw?.nextItemPeekFraction,
+      raw?.previewFraction,
+      raw?.carouselPeekFraction,
+      grid?.peekFraction,
+    ],
+    undefined
+  );
+  const peekEnabled = toBoolean(
+    raw?.showPeek ?? raw?.peekEnabled ?? raw?.showNextPreview ?? grid?.showPeek,
+    true
+  );
   const visibleCards = getResponsiveColumns({
     screenWidth: viewportWidth,
     requestedColumns: requestedVisibleCards,
@@ -812,8 +845,16 @@ export default function ProductCarousel({ section }) {
     minCardWidth: requestedVisibleCards >= 3 ? 80 : 140,
     maxColumns: 6,
   });
+  const carouselVisibleSlots =
+    !explicitVisibleCards && !explicitCardWidth && peekEnabled
+      ? visibleCards + Math.max(0, configuredPeekFraction ?? 0.5)
+      : visibleCards;
+  const carouselGapCount = Math.max(
+    0,
+    Math.ceil(carouselVisibleSlots) - 1
+  );
   const fallbackCardWidth = Math.floor(
-    (availableWidth - effectiveColGap * Math.max(0, visibleCards - 1)) / visibleCards
+    (availableWidth - effectiveColGap * carouselGapCount) / carouselVisibleSlots
   );
   const cardWidth = Math.max(
     0,
