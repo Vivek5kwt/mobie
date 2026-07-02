@@ -93,6 +93,28 @@ const firstNum = (values, fallback) => {
   return fallback;
 };
 
+const firstStr = (values, fallback = "") => {
+  for (const value of values) {
+    if (!hasExplicitValue(value)) continue;
+    const resolved = toStr(value, "");
+    if (resolved) return resolved;
+  }
+  return fallback;
+};
+
+const parseBoxSpacing = (value) => {
+  const resolved = unwrapValue(value, undefined);
+  if (resolved === undefined || resolved === null || resolved === "") return {};
+  const parts = String(resolved)
+    .trim()
+    .split(/\s+/)
+    .map((part) => toNum(part, undefined))
+    .filter((part) => part !== undefined);
+  if (!parts.length) return {};
+  const [top, right = top, bottom = top, left = right] = parts;
+  return { top, right, bottom, left };
+};
+
 const parseAspectRatio = (value) => {
   const resolved = unwrapValue(value, undefined);
   if (resolved === undefined || resolved === null || resolved === "") return undefined;
@@ -246,9 +268,39 @@ export default function TabProductGrid({ section }) {
     presentationCss?.addToCart ||
     presentationCardCss?.addToCart ||
     {};
-  const tabButtonCss = layoutCss?.tabButton || {};
+  const tabButtonCss =
+    layoutCss?.tabButton ||
+    layoutCss?.tab ||
+    layoutCss?.tabItem ||
+    presentationCss?.tabButton ||
+    presentationCss?.tab ||
+    presentationCss?.tabItem ||
+    {};
+  const activeTabButtonCss =
+    layoutCss?.activeTabButton ||
+    layoutCss?.tabButtonActive ||
+    layoutCss?.activeTab ||
+    layoutCss?.tabActive ||
+    tabButtonCss?.active ||
+    presentationCss?.activeTabButton ||
+    presentationCss?.tabButtonActive ||
+    presentationCss?.activeTab ||
+    presentationCss?.tabActive ||
+    {};
+  const inactiveTabButtonCss =
+    layoutCss?.inactiveTabButton ||
+    layoutCss?.tabButtonInactive ||
+    layoutCss?.inactiveTab ||
+    layoutCss?.tabInactive ||
+    tabButtonCss?.inactive ||
+    presentationCss?.inactiveTabButton ||
+    presentationCss?.tabButtonInactive ||
+    presentationCss?.inactiveTab ||
+    presentationCss?.tabInactive ||
+    {};
   const carouselCss  = layoutCss?.carousel  || {};
-  const tabBarCss    = layoutCss?.tabBar    || {};
+  const tabBarCss    = layoutCss?.tabBar || presentationCss?.tabBar || {};
+  const tabsRowCss   = layoutCss?.tabsRow || presentationCss?.tabsRow || {};
 
   // ── Header props ──────────────────────────────────────────────────────────
   const showHeader      = toBool(rawConfig?.showHeader, false);
@@ -337,28 +389,62 @@ export default function TabProductGrid({ section }) {
   if (!tabs.length) return null;
 
   // ── Read styling from rawConfig ────────────────────────────────────────────
-  const requestedColumns = Math.max(1, toNum(rawConfig?.columns, 2));
-  const containerBg  = toStr(rawConfig?.bgColor || rawConfig?.gridBgColor, "#FFFFFF");
-  const tabBarBg     = toStr(rawConfig?.tabBarBgColor ?? tabBarCss?.backgroundColor, containerBg);
-  const tabBgColor   = toStr(rawConfig?.tabBgColor, "#E5E7EB");
-  const tabTextColor = toStr(rawConfig?.tabTextColor, "#374151");
-  const activeBg     = toStr(rawConfig?.tabActiveBgColor ?? tabButtonCss?.backgroundColor, "#111111");
-  const activeText   = toStr(rawConfig?.tabActiveTextColor ?? tabButtonCss?.color, "#FFFFFF");
-  const tabFontSize  = firstNum([rawConfig?.tabFontSize, tabButtonCss?.fontSize, rawConfig?.fontSize], 12);
-  const tabFontWt    = toFontWeight(rawConfig?.tabFontWeight ?? tabButtonCss?.fontWeight, "600");
+  const requestedColumns = Math.max(1, toNum(rawConfig?.columns ?? rawConfig?.gridColumns ?? rawConfig?.itemsPerRow, 2));
+  const containerBg  = firstStr([rawConfig?.bgColor, rawConfig?.gridBgColor, layoutCss?.container?.backgroundColor], "#FFFFFF");
+  const tabBarBg     = firstStr([rawConfig?.tabBarBgColor, tabBarCss?.backgroundColor], containerBg);
+  const tabBgColor   = firstStr(
+    [
+      rawConfig?.tabBgColor,
+      rawConfig?.tabInactiveBgColor,
+      inactiveTabButtonCss?.backgroundColor,
+      inactiveTabButtonCss?.background,
+      tabButtonCss?.backgroundColor,
+      tabButtonCss?.background,
+    ],
+    "transparent"
+  );
+  const tabTextColor = firstStr([rawConfig?.tabTextColor, inactiveTabButtonCss?.color, tabButtonCss?.color], "#374151");
+  const activeBg     = firstStr(
+    [
+      rawConfig?.tabActiveBgColor,
+      activeTabButtonCss?.backgroundColor,
+      activeTabButtonCss?.background,
+      tabButtonCss?.activeBackgroundColor,
+      tabButtonCss?.activeBgColor,
+      tabButtonCss?.backgroundColor,
+      tabButtonCss?.background,
+    ],
+    tabBgColor
+  );
+  const activeText   = firstStr([rawConfig?.tabActiveTextColor, activeTabButtonCss?.color, tabButtonCss?.activeColor, tabButtonCss?.color], tabTextColor);
+  const tabFontSize  = firstNum([rawConfig?.tabFontSize, activeTabButtonCss?.fontSize, tabButtonCss?.fontSize, rawConfig?.fontSize], 12);
+  const tabFontWt    = toFontWeight(rawConfig?.tabFontWeight ?? activeTabButtonCss?.fontWeight ?? tabButtonCss?.fontWeight, "600");
   const tabFamily    = cleanFontFamily(toStr(rawConfig?.tabFontFamily ?? tabButtonCss?.fontFamily ?? rawConfig?.fontFamily, ""));
-  const tabBorderRadius = toNum(rawConfig?.tabBorderRadius ?? tabButtonCss?.borderRadius, 999);
-  const tabPadT = firstNum([rawConfig?.tabPadT, tabButtonCss?.paddingTop], undefined);
-  const tabPadB = firstNum([rawConfig?.tabPadB, tabButtonCss?.paddingBottom], undefined);
-  const tabPadL = firstNum([rawConfig?.tabPadL, tabButtonCss?.paddingLeft], undefined);
-  const tabPadR = firstNum([rawConfig?.tabPadR, tabButtonCss?.paddingRight], undefined);
-  const tabPadX = firstNum([rawConfig?.tabPadX, tabButtonCss?.paddingHorizontal], 14);
-  const tabPadY = firstNum([rawConfig?.tabPadY, tabButtonCss?.paddingVertical], 7);
+  const tabPadding = parseBoxSpacing(activeTabButtonCss?.padding ?? tabButtonCss?.padding);
+  const tabBorderRadius = firstNum(
+    [rawConfig?.tabBorderRadius, rawConfig?.tabBgCorner, rawConfig?.tabCorner, activeTabButtonCss?.borderRadius, tabButtonCss?.borderRadius],
+    0
+  );
+  const tabBorderWidth = firstNum([rawConfig?.tabBorderSize, rawConfig?.tabBgBorderSize, activeTabButtonCss?.borderWidth, tabButtonCss?.borderWidth], 0);
+  const tabBorderColor = firstStr([rawConfig?.tabBorderColor, rawConfig?.tabBgBorderColor, activeTabButtonCss?.borderColor, tabButtonCss?.borderColor], "transparent");
+  const tabPadT = firstNum([rawConfig?.tabPadT, rawConfig?.tabBgPaddingTop, activeTabButtonCss?.paddingTop, tabButtonCss?.paddingTop], tabPadding.top);
+  const tabPadB = firstNum([rawConfig?.tabPadB, rawConfig?.tabBgPaddingBottom, activeTabButtonCss?.paddingBottom, tabButtonCss?.paddingBottom], tabPadding.bottom);
+  const tabPadL = firstNum([rawConfig?.tabPadL, rawConfig?.tabBgPaddingLeft, activeTabButtonCss?.paddingLeft, tabButtonCss?.paddingLeft], tabPadding.left);
+  const tabPadR = firstNum([rawConfig?.tabPadR, rawConfig?.tabBgPaddingRight, activeTabButtonCss?.paddingRight, tabButtonCss?.paddingRight], tabPadding.right);
+  const tabPadX = firstNum([rawConfig?.tabPadX, activeTabButtonCss?.paddingHorizontal, tabButtonCss?.paddingHorizontal], 14);
+  const tabPadY = firstNum([rawConfig?.tabPadY, activeTabButtonCss?.paddingVertical, tabButtonCss?.paddingVertical], 7);
+  const tabGap = firstNum([rawConfig?.tabGap, rawConfig?.tabsGap, tabsRowCss?.gap, tabBarCss?.gap], 6);
+  const tabBarPadT = firstNum([rawConfig?.tabBarPaddingTop, tabBarCss?.paddingTop], 0);
+  const tabBarPadB = firstNum([rawConfig?.tabBarPaddingBottom, tabBarCss?.paddingBottom], 0);
+  const tabBarPadL = firstNum([rawConfig?.tabBarPaddingLeft, tabBarCss?.paddingLeft], 0);
+  const tabBarPadR = firstNum([rawConfig?.tabBarPaddingRight, tabBarCss?.paddingRight], 0);
+  const tabBarRadius = firstNum([rawConfig?.tabBarBorderRadius, tabBarCss?.borderRadius], 0);
+  const showTabBar = resolveBoolSetting([rawConfig?.showTabBar, rawConfig?.showTabsRow, visibilityConfig?.tabs, visibilityConfig?.tabBar], true);
 
-  const paddingTop    = toNum(rawConfig?.paddingTop,    0);
-  const paddingBottom = toNum(rawConfig?.paddingBottom, 0);
-  const paddingLeft   = toNum(rawConfig?.paddingLeft,   16);
-  const paddingRight  = toNum(rawConfig?.paddingRight,  16);
+  const paddingTop    = firstNum([rawConfig?.paddingTop, rawConfig?.pt, layoutCss?.container?.paddingTop], 0);
+  const paddingBottom = firstNum([rawConfig?.paddingBottom, rawConfig?.pb, layoutCss?.container?.paddingBottom], 0);
+  const paddingLeft   = firstNum([rawConfig?.paddingLeft, rawConfig?.pl, layoutCss?.container?.paddingLeft], 16);
+  const paddingRight  = firstNum([rawConfig?.paddingRight, rawConfig?.pr, layoutCss?.container?.paddingRight], 16);
 
   const cardRadius     = toNum(rawConfig?.cardBorderRadius, 12);
   const imageCorner    = toNum(rawConfig?.cardImageCorner, 0);
@@ -405,14 +491,26 @@ export default function TabProductGrid({ section }) {
       rawConfig?.favoriteActive,
       rawConfig?.favoriteVisible,
       rawConfig?.favoriteIconVisible,
+      rawConfig?.wishlistActive,
+      rawConfig?.wishlistVisible,
+      rawConfig?.wishlistIconVisible,
+      rawConfig?.showWishlist,
+      rawConfig?.showWishlistIcon,
+      rawConfig?.showAddToWishlist,
+      rawConfig?.addToWishlist,
+      rawConfig?.addToWishlistActive,
+      rawConfig?.addToWishlistVisible,
       rawConfig?.addToFavoriteActive,
       rawConfig?.addToFavoriteVisible,
+      visibilityConfig?.wishlist,
+      visibilityConfig?.wishlistIcon,
+      visibilityConfig?.addToWishlist,
       visibilityConfig?.favorite,
       visibilityConfig?.favoriteIcon,
       visibilityConfig?.addToFavorite,
       rawConfig?.favoriteIconEnabled,
     ],
-    true
+    false
   );
   const favoriteToggleConfig = buildFavoriteToggleConfig(rawConfig);
   const showAddToCart  = resolveBoolSetting(
@@ -584,11 +682,11 @@ export default function TabProductGrid({ section }) {
   const viewportWidth = Math.max(1, screenWidth);
   const availableW = viewportWidth - paddingLeft - paddingRight;
   const gridColGap = firstNum(
-    [rawConfig?.colGap, rawConfig?.columnGap, rawConfig?.gapX, layoutCss?.grid?.columnGap, layoutCss?.grid?.gap],
+    [rawConfig?.gridColGap, rawConfig?.colGap, rawConfig?.columnGap, rawConfig?.gapX, layoutCss?.grid?.columnGap, layoutCss?.grid?.gap],
     COL_GAP
   );
   const gridRowGap = firstNum(
-    [rawConfig?.rowGap, rawConfig?.gapY, layoutCss?.grid?.rowGap, layoutCss?.grid?.gap],
+    [rawConfig?.gridRowGap, rawConfig?.rowGap, rawConfig?.gapY, layoutCss?.grid?.rowGap, layoutCss?.grid?.gap],
     COL_GAP
   );
   const columns = getResponsiveColumns({
@@ -795,11 +893,24 @@ export default function TabProductGrid({ section }) {
       )}
 
       {/* ── Tab Bar ── */}
-      <View style={[styles.tabBar, { backgroundColor: tabBarBg }]}>
+      {showTabBar && (
+      <View
+        style={[
+          styles.tabBar,
+          {
+            backgroundColor: tabBarBg,
+            borderRadius: tabBarRadius,
+            paddingTop: tabBarPadT,
+            paddingBottom: tabBarPadB,
+            paddingLeft: tabBarPadL,
+            paddingRight: tabBarPadR,
+          },
+        ]}
+      >
         <ScrollView
           horizontal
           showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.tabsRow}
+          contentContainerStyle={[styles.tabsRow, { gap: tabGap }]}
         >
           {tabs.map((tab) => {
             const isActive = tab.id === activeTabId;
@@ -817,6 +928,8 @@ export default function TabProductGrid({ section }) {
                     paddingBottom: tabPadB ?? tabPadY,
                     paddingLeft:   tabPadL ?? tabPadX,
                     paddingRight:  tabPadR ?? tabPadX,
+                    borderWidth: tabBorderWidth,
+                    borderColor: tabBorderColor,
                   },
                 ]}
               >
@@ -837,6 +950,7 @@ export default function TabProductGrid({ section }) {
           })}
         </ScrollView>
       </View>
+      )}
 
       {/* ── Products (Grid or Carousel) ── */}
       {isLoading ? (
@@ -1157,8 +1271,6 @@ const styles = StyleSheet.create({
   },
   tabsRow: {
     flexDirection: "row",
-    gap: 6,
-    paddingVertical: 8,
   },
   tabButton: {
     alignItems: "center",

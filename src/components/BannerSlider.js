@@ -57,6 +57,19 @@ const asString = (value, fallback = "") => {
   return s || fallback;
 };
 
+const hasExplicitValue = (value) => {
+  if (value === undefined || value === null) return false;
+  if (typeof value === "string") return value.trim() !== "";
+  return true;
+};
+
+const resolveBooleanSetting = (values, fallback = true) => {
+  for (const value of values) {
+    if (hasExplicitValue(value)) return asBoolean(value, fallback);
+  }
+  return fallback;
+};
+
 const parseFontWeight = (value, fallback = "700") => {
   if (!value) return fallback;
   if (typeof value === "number") return String(value);
@@ -189,11 +202,6 @@ export default function BannerSlider({ section }) {
 
   // CSS snapshot (from layout.css) — secondary source for style tokens
   const layoutCss = rawProps?.layout?.css ?? rp?.styles ?? rp?.layout?.css ?? {};
-  const layoutMetrics =
-    rawProps?.layout?.metrics ??
-    rp?.styles?.metrics ??
-    rp?.layout?.metrics ??
-    {};
 
   // ── Container ──
   const styleProp = rawProps?.style || {};
@@ -230,9 +238,24 @@ export default function BannerSlider({ section }) {
   // Overlay on image
   const overlayColor = rp?.overlayColor || "rgba(0,0,0,0)";
   const imageActive = asBoolean(rp?.imageActive, true);
-  const textActive  = asBoolean(rp?.textActive, true);
+  const textActive  = resolveBooleanSetting(
+    [
+      rp?.textActive,
+      rawProps?.textActive,
+      rp?.showText,
+      rawProps?.showText,
+      rp?.textVisible,
+      rawProps?.textVisible,
+      rp?.headingActive,
+      rawProps?.headingActive,
+    ],
+    true
+  );
   const imageResizeMode = (() => {
     const raw = String(
+      layoutCss?.slider?.scale ||
+      layoutCss?.image?.objectFit ||
+      layoutCss?.image?.resizeMode ||
       rp?.imageScale ||
       rp?.scale ||
       rawProps?.scale ||
@@ -315,7 +338,17 @@ export default function BannerSlider({ section }) {
     : "flex-start";
 
   // ── Button ──
-  const showButton = asBoolean(rp?.showButton, true);
+  const showButton = resolveBooleanSetting(
+    [
+      rp?.showButton,
+      rawProps?.showButton,
+      rp?.buttonActive,
+      rawProps?.buttonActive,
+      rp?.buttonVisible,
+      rawProps?.buttonVisible,
+    ],
+    true
+  );
   const buttonBgColor =
     rp?.buttonBgColor ||
     layoutCss?.button?.background ||
@@ -371,20 +404,18 @@ export default function BannerSlider({ section }) {
   // Actual pixel dimensions of each banner image, keyed by URL
   const [imageSizes, setImageSizes] = useState({});
 
-  const metricsWidth = asNumber(
-    layoutMetrics?.container?.width ??
-      layoutMetrics?.elements?.container?.width ??
-      layoutMetrics?.elements?.slider?.width ??
-      rp?.layoutMeta?.width,
-    undefined
-  );
+  const requestedBannerWidth = (() => {
+    const rawWidth = rp?.bannerWidth ?? rp?.width ?? layoutCss?.slider?.width;
+    if (typeof rawWidth === "string" && rawWidth.includes("%")) return undefined;
+    return asNumber(rawWidth, undefined);
+  })();
   const availableFrameWidth = Math.max(
     (containerWidth || windowWidth || 1) - outerPl - outerPr,
     1
   );
   const slideFrameWidth = Math.max(
     1,
-    Math.min(metricsWidth || availableFrameWidth, availableFrameWidth)
+    Math.min(requestedBannerWidth || availableFrameWidth, availableFrameWidth)
   );
 
   // Pre-load the natural pixel size of every slide image so we can size the
