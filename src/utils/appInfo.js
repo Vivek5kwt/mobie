@@ -1,13 +1,13 @@
 /**
- * Utility to read app information from app.json
- * This file is copied to Android assets during build, so we can read it at runtime
+ * Utility to read app information from the shared app identity config.
+ * app.json is still supported as a legacy fallback.
  */
 import { getBrandLogoSync } from '../services/brandKitService';
 
 let cachedAppInfo = null;
 
 /**
- * Synchronous version - reads app.json from project root
+ * Synchronous version - reads shared app identity from project root.
  * Use this for components that can't be async
  */
 export const getAppInfoSync = () => {
@@ -15,7 +15,25 @@ export const getAppInfoSync = () => {
     return cachedAppInfo;
   }
 
-  // Try to require app.json synchronously
+  try {
+    const appIdentity = require('../../config/appIdentity.json');
+    const legacyAppInfo = (() => {
+      try {
+        return require('../../app.json');
+      } catch (_) {
+        return {};
+      }
+    })();
+    const appInfo = {
+      ...legacyAppInfo,
+      ...appIdentity,
+      displayName: appIdentity?.displayName || appIdentity?.name || legacyAppInfo?.displayName || legacyAppInfo?.name || '',
+    };
+    cachedAppInfo = appInfo;
+    return appInfo;
+  } catch (_) {}
+
+  // Try to require app.json synchronously as a fallback.
   try {
     const appInfo = require('../../app.json');
     cachedAppInfo = appInfo;
@@ -34,7 +52,7 @@ export const getAppInfoSync = () => {
 };
 
 /**
- * Gets app name from app.json (synchronous)
+ * Gets app name from app identity config (synchronous)
  */
 export const getAppNameSync = () => {
   const appInfo = getAppInfoSync();
@@ -42,7 +60,7 @@ export const getAppNameSync = () => {
 };
 
 /**
- * Gets app logo URL from app.json (synchronous)
+ * Gets app logo URL from app identity config / brand assets (synchronous)
  */
 export const getAppLogoSync = () => {
   const brandLogo = getBrandLogoSync();

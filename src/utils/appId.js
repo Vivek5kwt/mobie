@@ -1,4 +1,12 @@
-const DEFAULT_APP_ID = 148;
+const appIdentity = (() => {
+  try {
+    return require("../../config/appIdentity.json");
+  } catch (_) {
+    return {};
+  }
+})();
+
+const DEFAULT_APP_ID = Number(appIdentity?.appId) || 187;
 
 const isValidId = (n) => Number.isFinite(n) && n > 1;
 
@@ -11,6 +19,14 @@ export const resolveAppId = (appId) => {
       return n;
     }
   }
+
+  try {
+    const n = Number(appIdentity?.appId);
+    if (isValidId(n)) {
+      console.log(`Using appId from app identity config: ${n}`);
+      return n;
+    }
+  } catch (_) {}
 
   try {
     const appJson = require("../../app.json");

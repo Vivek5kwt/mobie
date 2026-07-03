@@ -21,13 +21,8 @@ const path = require('path');
 const zlib = require('zlib');
 const { execFileSync } = require('child_process');
 
-const APP_ID = process.env.APP_ID || process.env.REACT_APP_APP_ID || '148';
-const GRAPHQL_ENDPOINT = process.env.GRAPHQL_ENDPOINT || 'https://app.mobidrag.com/graphql';
-const APP_LOGO_URL = process.env.APP_LOGO || process.env.APP_ICON || '';
-const SPLASH_IMAGE_URL = process.env.SPLASH_IMAGE || process.env.SPLASH_IMAGE_URL || '';
-const APP_DISPLAY_NAME = process.env.APP_DISPLAY_NAME || process.env.APP_NAME || '';
-
 const ROOT_DIR = path.join(__dirname, '..');
+const APP_IDENTITY_PATH = path.join(ROOT_DIR, 'config', 'appIdentity.json');
 const IOS_ASSETS_DIR = path.join(ROOT_DIR, 'ios', 'MobiDrag', 'Images.xcassets');
 const APP_ICON_SET_DIR = path.join(IOS_ASSETS_DIR, 'AppIcon.appiconset');
 const SPLASH_IMAGE_SET_DIR = path.join(IOS_ASSETS_DIR, 'SplashImage.imageset');
@@ -36,6 +31,22 @@ const TEMP_DIR = path.join(ROOT_DIR, 'tmp', 'brand-assets');
 const INFO_PLIST_PATH = path.join(ROOT_DIR, 'ios', 'MobiDrag', 'Info.plist');
 const APP_JSON_PATH = path.join(ROOT_DIR, 'app.json');
 const GENERATED_BRAND_ASSETS_PATH = path.join(ROOT_DIR, 'src', 'generated', 'brandAssets.json');
+
+const readAppIdentity = () => {
+  try {
+    if (!fs.existsSync(APP_IDENTITY_PATH)) return {};
+    return JSON.parse(fs.readFileSync(APP_IDENTITY_PATH, 'utf8'));
+  } catch (_) {
+    return {};
+  }
+};
+
+const APP_IDENTITY = readAppIdentity();
+const APP_ID = process.env.APP_ID || process.env.REACT_APP_APP_ID || String(APP_IDENTITY.appId || '187');
+const GRAPHQL_ENDPOINT = process.env.GRAPHQL_ENDPOINT || 'https://app.mobidrag.com/graphql';
+const APP_LOGO_URL = process.env.APP_LOGO || process.env.APP_ICON || '';
+const SPLASH_IMAGE_URL = process.env.SPLASH_IMAGE || process.env.SPLASH_IMAGE_URL || '';
+const APP_DISPLAY_NAME = process.env.APP_DISPLAY_NAME || process.env.APP_NAME || APP_IDENTITY.displayName || APP_IDENTITY.name || '';
 
 const isObject = (value) =>
   value !== null && typeof value === 'object' && !Array.isArray(value);

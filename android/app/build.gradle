@@ -30,9 +30,20 @@ tasks.whenTaskAdded { task ->
     }
 }
 
+def appIdentityFile = file("../../config/appIdentity.json")
+def appIdentity = [:]
+if (appIdentityFile.exists()) {
+    try {
+        appIdentity = new groovy.json.JsonSlurper().parseText(appIdentityFile.text) ?: [:]
+    } catch (Exception e) {
+        println "Warning: Could not parse config/appIdentity.json: ${e.message}"
+    }
+}
+def defaultAppId = appIdentity.appId ? appIdentity.appId.toString() : "187"
+
 def appIdForBrandAssets = providers.environmentVariable("APP_ID")
     .orElse(providers.environmentVariable("REACT_APP_APP_ID"))
-    .orElse("173")
+    .orElse(defaultAppId)
 
 tasks.register("updateDynamicAppIcon", Exec) {
     workingDir rootProject.projectDir.parentFile
@@ -40,7 +51,13 @@ tasks.register("updateDynamicAppIcon", Exec) {
     environment "APP_ID", appIdForBrandAssets.get()
 }
 
-preBuild.dependsOn("updateDynamicAppIcon")
+tasks.register("syncAppIdentity", Exec) {
+    workingDir rootProject.projectDir.parentFile
+    commandLine "node", "scripts/sync-app-identity.js"
+}
+
+updateDynamicAppIcon.dependsOn("syncAppIdentity")
+preBuild.dependsOn("syncAppIdentity", "updateDynamicAppIcon")
 
 /**
  * Hermes Enable (Required for React Native 0.82 + Reanimated 4)
@@ -84,15 +101,15 @@ android {
         versionCode 1
         versionName "1.0"
         
-        // Read app name from app.json to ensure consistency with React Native bundle
+        // Read app name from the shared app identity config to ensure consistency with the React Native bundle
         def appJsonFile = file("../../app.json")
-        def appName = "MobiDrag"
+        def appName = appIdentity.displayName ?: appIdentity.name ?: "MobiDrag"
         if (appJsonFile.exists()) {
             try {
                 def appJsonText = appJsonFile.text
                 // Simple JSON parsing to extract "name" field
-                def nameMatch = appJsonText =~ /"name"\s*:\s*"([^"]+)"/ 
-                if (nameMatch) {
+                def nameMatch = appJsonText =~ /"displayName"\s*:\s*"([^"]+)"/
+                if (nameMatch && appName == "MobiDrag") {
                     appName = nameMatch[0][1]
                 }
             } catch (Exception e) {

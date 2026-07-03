@@ -16,15 +16,27 @@ const { execFileSync } = require('child_process');
 
 let APP_LOGO_URL = process.env.APP_LOGO || process.env.APP_ICON;
 let SPLASH_IMAGE_URL = process.env.SPLASH_IMAGE || process.env.SPLASH_IMAGE_URL;
-let APP_DISPLAY_NAME = process.env.APP_DISPLAY_NAME || process.env.APP_NAME || '';
-const APP_ID = process.env.APP_ID || process.env.REACT_APP_APP_ID || '148';
 const GRAPHQL_ENDPOINT = process.env.GRAPHQL_ENDPOINT || 'https://app.mobidrag.com/graphql';
 const ROOT_DIR = path.join(__dirname, '..');
+const APP_IDENTITY_PATH = path.join(ROOT_DIR, 'config', 'appIdentity.json');
 const ANDROID_RES_PATH = path.join(ROOT_DIR, 'android', 'app', 'src', 'main', 'res');
 const ANDROID_MANIFEST_PATH = path.join(ROOT_DIR, 'android', 'app', 'src', 'main', 'AndroidManifest.xml');
 const APP_JSON_PATH = path.join(ROOT_DIR, 'app.json');
 const GENERATED_BRAND_ASSETS_PATH = path.join(ROOT_DIR, 'src', 'generated', 'brandAssets.json');
 const DEFAULT_SPLASH_BACKGROUND = '#ffffff';
+
+const readAppIdentity = () => {
+  try {
+    if (!fs.existsSync(APP_IDENTITY_PATH)) return {};
+    return JSON.parse(fs.readFileSync(APP_IDENTITY_PATH, 'utf8'));
+  } catch (_) {
+    return {};
+  }
+};
+
+const APP_IDENTITY = readAppIdentity();
+let APP_DISPLAY_NAME = process.env.APP_DISPLAY_NAME || process.env.APP_NAME || APP_IDENTITY.displayName || APP_IDENTITY.name || '';
+const APP_ID = process.env.APP_ID || process.env.REACT_APP_APP_ID || String(APP_IDENTITY.appId || '187');
 
 const ICON_SIZES = {
   'mipmap-mdpi': 48,
