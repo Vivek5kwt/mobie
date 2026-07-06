@@ -101,14 +101,15 @@ android {
         versionCode 1
         versionName "1.0"
         
-        // Read app name from the shared app identity config to ensure consistency with the React Native bundle
+        // React Native component name must stay aligned with AppRegistry/app.json "name".
+        // The visible installed app label is controlled separately by strings.xml/displayName.
         def appJsonFile = file("../../app.json")
-        def appName = appIdentity.displayName ?: appIdentity.name ?: "MobiDrag"
+        def appName = appIdentity.name ?: "MobiDrag"
         if (appJsonFile.exists()) {
             try {
                 def appJsonText = appJsonFile.text
                 // Simple JSON parsing to extract "name" field
-                def nameMatch = appJsonText =~ /"displayName"\s*:\s*"([^"]+)"/
+                def nameMatch = appJsonText =~ /"name"\s*:\s*"([^"]+)"/
                 if (nameMatch && appName == "MobiDrag") {
                     appName = nameMatch[0][1]
                 }
