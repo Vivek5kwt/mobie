@@ -6,6 +6,21 @@ This directory contains scripts for dynamically updating package names and app n
 
 ## Scripts
 
+### `sync-app-identity.js`
+Syncs the shared app identity config into legacy/native files.
+
+**Source of truth:**
+```bash
+config/appIdentity.json
+```
+
+**Usage:**
+```bash
+npm run sync:app-identity
+```
+
+Use this when changing the app id or visible app name locally. Android Gradle also runs this before brand assets are generated.
+
 ### `update-package-config.js`
 Main script that updates both Android and iOS configurations.
 
