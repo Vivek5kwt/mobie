@@ -21,9 +21,9 @@ jobs:
     runs-on: ubuntu-latest
  
     env:
-      APP_ID: ${{ github.event.client_payload.app_id || github.event.inputs.app_id }}
-      APP_NAME: ${{ github.event.client_payload.app_name || '' }}
-      APP_LOGO: ${{ github.event.client_payload.app_logo || '' }}
+      APP_ID: ${{ github.event.client_payload.app_id || github.event.client_payload.appId || github.event.inputs.app_id }}
+      APP_NAME: ${{ github.event.client_payload.app_name || github.event.client_payload.appName || '' }}
+      APP_LOGO: ${{ github.event.client_payload.app_logo || github.event.client_payload.appLogo || '' }}
  
     steps:
       - name: Checkout repo
@@ -36,6 +36,18 @@ jobs:
  
       - name: Install dependencies
         run: npm install
+
+      - name: Validate App ID
+        run: |
+          if [ -z "${APP_ID}" ]; then
+            echo "APP_ID is missing. Pass app_id/appId in repository_dispatch or app_id in workflow_dispatch."
+            exit 1
+          fi
+          if ! echo "${APP_ID}" | grep -Eq '^[0-9]+$'; then
+            echo "APP_ID must be numeric. Received: ${APP_ID}"
+            exit 1
+          fi
+          echo "Building dynamic Android app for APP_ID=${APP_ID}"
  
       - name: Set App Name and Logo from Mutation
         id: set_app_info
@@ -193,6 +205,18 @@ jobs:
           if [ -n "${APP_ID}" ]; then
             echo "✅ Updated app.json with app ID: ${APP_ID}"
           fi
+
+      - name: Sync App Identity From Build Env
+        env:
+          APP_ID: ${{ env.APP_ID }}
+          REACT_APP_APP_ID: ${{ env.APP_ID }}
+          APP_NAME: ${{ env.APP_NAME }}
+          APP_DISPLAY_NAME: ${{ env.APP_NAME }}
+        run: |
+          npm run sync:app-identity
+          echo "Synced dynamic app identity for APP_ID=${APP_ID}"
+          echo "config/appIdentity.json: $(cat config/appIdentity.json)"
+          echo "app.json: $(cat app.json)"
 
       - name: Install ImageMagick for icon resizing
         run: |
@@ -435,6 +459,7 @@ jobs:
 
       - name: Build Android APK
         env:
+          APP_ID: ${{ env.APP_ID }}
           REACT_APP_APP_ID: ${{ env.APP_ID }}
         run: |
           cd android
@@ -454,6 +479,7 @@ jobs:
           
       - name: Build Android APK (Final)
         env:
+          APP_ID: ${{ env.APP_ID }}
           REACT_APP_APP_ID: ${{ env.APP_ID }}
         run: |
           cd android

@@ -54,6 +54,8 @@ tasks.register("updateDynamicAppIcon", Exec) {
 tasks.register("syncAppIdentity", Exec) {
     workingDir rootProject.projectDir.parentFile
     commandLine "node", "scripts/sync-app-identity.js"
+    environment "APP_ID", appIdForBrandAssets.get()
+    environment "REACT_APP_APP_ID", appIdForBrandAssets.get()
 }
 
 updateDynamicAppIcon.dependsOn("syncAppIdentity")

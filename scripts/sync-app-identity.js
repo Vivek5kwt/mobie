@@ -11,6 +11,15 @@ const ANDROID_STRINGS_PATH = path.join(ROOT_DIR, 'android', 'app', 'src', 'main'
 const IOS_INFO_PLIST_PATH = path.join(ROOT_DIR, 'ios', 'MobiDrag', 'Info.plist');
 const GENERATED_BRAND_ASSETS_PATH = path.join(ROOT_DIR, 'src', 'generated', 'brandAssets.json');
 
+const firstNonEmpty = (...values) => {
+  for (const value of values) {
+    if (value === undefined || value === null) continue;
+    const text = String(value).trim();
+    if (text) return text;
+  }
+  return '';
+};
+
 const readJson = (filePath, fallback = {}) => {
   try {
     if (!fs.existsSync(filePath)) return fallback;
@@ -70,14 +79,27 @@ const updateIosInfoPlist = (displayName) => {
 
 const main = () => {
   const identity = readJson(APP_IDENTITY_PATH);
-  const appId = Number.parseInt(identity.appId, 10);
+  const envAppId = firstNonEmpty(process.env.APP_ID, process.env.REACT_APP_APP_ID);
+  const appId = Number.parseInt(envAppId || identity.appId, 10);
 
   if (!Number.isFinite(appId) || appId <= 1) {
-    throw new Error('config/appIdentity.json must contain a valid numeric appId.');
+    throw new Error('A valid numeric appId is required in APP_ID, REACT_APP_APP_ID, or config/appIdentity.json.');
   }
 
   const internalName = String(identity.name || 'MobiDrag').trim() || 'MobiDrag';
-  const displayName = String(identity.displayName || internalName || `App-${appId}`).trim();
+  const displayName = firstNonEmpty(
+    process.env.APP_DISPLAY_NAME,
+    process.env.APP_NAME,
+    identity.displayName,
+    internalName,
+    `App-${appId}`
+  );
+  const nextIdentity = {
+    ...identity,
+    appId,
+    name: internalName,
+    displayName,
+  };
 
   const appJson = readJson(APP_JSON_PATH, { name: internalName });
   const nextAppJson = {
@@ -87,6 +109,7 @@ const main = () => {
     displayName,
   };
 
+  writeJson(APP_IDENTITY_PATH, nextIdentity);
   writeJson(APP_JSON_PATH, nextAppJson);
   writeJson(ANDROID_ASSET_APP_JSON_PATH, nextAppJson);
   updateAndroidStrings(displayName);

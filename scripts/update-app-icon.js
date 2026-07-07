@@ -24,6 +24,7 @@ const ANDROID_MANIFEST_PATH = path.join(ROOT_DIR, 'android', 'app', 'src', 'main
 const APP_JSON_PATH = path.join(ROOT_DIR, 'app.json');
 const GENERATED_BRAND_ASSETS_PATH = path.join(ROOT_DIR, 'src', 'generated', 'brandAssets.json');
 const DEFAULT_SPLASH_BACKGROUND = '#ffffff';
+const NOTIFICATION_ICON_SIZE = 96;
 
 const readAppIdentity = () => {
   try {
@@ -335,6 +336,39 @@ const updateAndroidManifestLauncherIcons = () => {
   fs.writeFileSync(ANDROID_MANIFEST_PATH, content);
 };
 
+const upsertApplicationMetaData = (content, name, resource) => {
+  const escapedName = name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const metaDataRegex = new RegExp(
+    `\\n\\s*<meta-data\\b(?=[^>]*android:name="${escapedName}")[^>]*\\/?>`,
+    'm'
+  );
+  const metaData = [
+    '        <meta-data',
+    `            android:name="${name}"`,
+    `            android:resource="${resource}"`,
+    '            tools:replace="android:resource" />',
+  ].join('\n');
+  const withoutExisting = content.replace(metaDataRegex, '');
+  return withoutExisting.replace(/(<application\b[^>]*>)/, `$1\n\n${metaData}`);
+};
+
+const updateAndroidManifestNotificationDefaults = () => {
+  if (!fs.existsSync(ANDROID_MANIFEST_PATH)) return;
+
+  let content = fs.readFileSync(ANDROID_MANIFEST_PATH, 'utf8');
+  content = upsertApplicationMetaData(
+    content,
+    'com.google.firebase.messaging.default_notification_icon',
+    '@drawable/ic_notification'
+  );
+  content = upsertApplicationMetaData(
+    content,
+    'com.google.firebase.messaging.default_notification_color',
+    '@color/notification_icon_color'
+  );
+  fs.writeFileSync(ANDROID_MANIFEST_PATH, content);
+};
+
 const requestJson = (url, payload) =>
   new Promise((resolve, reject) => {
     const body = JSON.stringify(payload);
@@ -554,6 +588,100 @@ const resizeImage = async (inputPath, outputPath, size) => {
     console.error(`Error resizing image: ${error.message}`);
     return warnAndKeepExistingIcon(outputPath, size);
   }
+};
+
+const createAndroidNotificationIcon = async (inputPath) => {
+  const drawableDir = path.join(ANDROID_RES_PATH, 'drawable');
+  fs.mkdirSync(drawableDir, { recursive: true });
+
+  const outputPath = path.join(drawableDir, 'ic_notification.png');
+  const tempOutput = makeTempPngPath(outputPath);
+  const iconContentSize = Math.floor(NOTIFICATION_ICON_SIZE * 0.72);
+
+  try {
+    execFileSync(
+      'magick',
+      [
+        inputPath,
+        '-resize',
+        `${iconContentSize}x${iconContentSize}`,
+        '-background',
+        'none',
+        '-gravity',
+        'center',
+        '-extent',
+        `${NOTIFICATION_ICON_SIZE}x${NOTIFICATION_ICON_SIZE}`,
+        '-fuzz',
+        '14%',
+        '-transparent',
+        'white',
+        '-alpha',
+        'on',
+        '-fill',
+        'white',
+        '-colorize',
+        '100',
+        `PNG32:${tempOutput}`,
+      ],
+      { stdio: 'ignore' }
+    );
+
+    if (finalizePngOutput(tempOutput, outputPath, NOTIFICATION_ICON_SIZE)) {
+      console.log(`Android notification icon updated successfully: ${path.basename(outputPath)}`);
+      return true;
+    }
+  } catch (_) {
+    removeFileIfExists(tempOutput);
+  }
+
+  try {
+    if (process.platform === 'win32') {
+      const script = [
+        'Add-Type -AssemblyName System.Drawing;',
+        `$inputPath = '${escapePowerShell(inputPath)}';`,
+        `$outputPath = '${escapePowerShell(tempOutput)}';`,
+        `$size = ${NOTIFICATION_ICON_SIZE};`,
+        '$src = [System.Drawing.Image]::FromFile($inputPath);',
+        '$bmp = New-Object System.Drawing.Bitmap($size, $size);',
+        '$gfx = [System.Drawing.Graphics]::FromImage($bmp);',
+        '$gfx.InterpolationMode = [System.Drawing.Drawing2D.InterpolationMode]::HighQualityBicubic;',
+        '$gfx.SmoothingMode = [System.Drawing.Drawing2D.SmoothingMode]::HighQuality;',
+        '$gfx.PixelOffsetMode = [System.Drawing.Drawing2D.PixelOffsetMode]::HighQuality;',
+        '$gfx.Clear([System.Drawing.Color]::Transparent);',
+        '$content = [Math]::Floor($size * 0.72);',
+        '$ratio = [Math]::Min($content / $src.Width, $content / $src.Height);',
+        '$drawW = [int][Math]::Max(1, [Math]::Round($src.Width * $ratio));',
+        '$drawH = [int][Math]::Max(1, [Math]::Round($src.Height * $ratio));',
+        '$x = [int][Math]::Round(($size - $drawW) / 2);',
+        '$y = [int][Math]::Round(($size - $drawH) / 2);',
+        '$gfx.DrawImage($src, $x, $y, $drawW, $drawH);',
+        '$gfx.Dispose(); $src.Dispose();',
+        'for ($px = 0; $px -lt $size; $px++) {',
+        '  for ($py = 0; $py -lt $size; $py++) {',
+        '    $color = $bmp.GetPixel($px, $py);',
+        '    $isNearWhite = $color.R -ge 244 -and $color.G -ge 244 -and $color.B -ge 244;',
+        '    if ($color.A -le 8 -or $isNearWhite) {',
+        '      $bmp.SetPixel($px, $py, [System.Drawing.Color]::Transparent);',
+        '    } else {',
+        '      $bmp.SetPixel($px, $py, [System.Drawing.Color]::FromArgb($color.A, 255, 255, 255));',
+        '    }',
+        '  }',
+        '}',
+        '$bmp.Save($outputPath, [System.Drawing.Imaging.ImageFormat]::Png);',
+        '$bmp.Dispose();',
+      ].join(' ');
+      execFileSync('powershell', ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-Command', script], { stdio: 'ignore' });
+      if (finalizePngOutput(tempOutput, outputPath, NOTIFICATION_ICON_SIZE)) {
+        console.log(`Android notification icon updated successfully: ${path.basename(outputPath)} using PowerShell`);
+        return true;
+      }
+    }
+  } catch (_) {
+    removeFileIfExists(tempOutput);
+  }
+
+  console.warn('Unable to generate Android notification icon from DSL logo; preserving existing notification icon if present.');
+  return isValidPng(outputPath, NOTIFICATION_ICON_SIZE);
 };
 
 const normalizeHex = (value, fallback = DEFAULT_SPLASH_BACKGROUND) => {
@@ -810,6 +938,7 @@ const writeAndroidSplashXml = (
       '<resources>',
       `    <color name="splash_screen_background">${startColor}</color>`,
       `    <color name="splash_screen_background_end">${endColor}</color>`,
+      `    <color name="notification_icon_color">${startColor}</color>`,
       '</resources>',
       '',
     ].join('\n')
@@ -955,6 +1084,7 @@ const updateAndroidSplash = async (assets) => {
     writeGeneratedBrandAssets(finalBrandAssets);
     updateAndroidAppName(APP_DISPLAY_NAME);
     updateAndroidManifestLauncherIcons();
+    updateAndroidManifestNotificationDefaults();
     await updateAndroidSplash(finalBrandAssets);
 
     if (!APP_LOGO_URL) {
@@ -982,6 +1112,8 @@ const updateAndroidSplash = async (assets) => {
       if (!(await resizeImage(tempIconPath, iconPath, size))) failedIconUpdates += 1;
       if (!(await resizeImage(tempIconPath, roundIconPath, size))) failedIconUpdates += 1;
     }
+
+    if (!(await createAndroidNotificationIcon(tempIconPath))) failedIconUpdates += 1;
 
     if (fs.existsSync(tempIconPath)) {
       fs.unlinkSync(tempIconPath);
