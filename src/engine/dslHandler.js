@@ -1,5 +1,6 @@
 import client from "../apollo/client";
 import LAYOUT_VERSION_QUERY from "../graphql/queries/layoutVersionQuery";
+import LAYOUT_VERSION_PAGE_QUERY from "../graphql/queries/layoutVersionPageQuery";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import authLayoutFallback from "../data/authLayoutFallback";
 import { resolveAppId } from "../utils/appId";
@@ -121,6 +122,17 @@ const getFreshLayoutsCache = (appId) =>
 
 const getStaleLayoutsCache = (appId) =>
   getCachedEntry(liveLayoutsCache, getLiveLayoutsCacheKey(appId), DSL_STALE_TTL_MS);
+
+const unwrapGraphqlJson = (value) => {
+  if (!value) return null;
+  if (typeof value === "object") return value;
+  if (typeof value !== "string") return null;
+  try {
+    return JSON.parse(value);
+  } catch (_) {
+    return null;
+  }
+};
 
 const withTimeout = (promise, timeoutMs, label) =>
   new Promise((resolve, reject) => {
@@ -581,6 +593,105 @@ const buildLiveDslPayloadFromLayouts = (layouts, appIdInt, pageName, fetchedAt =
   return payload;
 };
 
+const buildLiveDslPayloadFromPageResult = (pageResult, appIdInt, pageName, fetchedAt = Date.now()) => {
+  if (!pageResult) return null;
+
+  const pageDsl = unwrapGraphqlJson(pageResult.page_dsl);
+  if (!pageDsl) return null;
+
+  const responseBrandKit = unwrapGraphqlJson(pageResult.brandKit) || pageResult.brandKit || null;
+  const layoutMeta = {
+    id: pageResult.layout_id,
+    page_name: pageResult.page_name || pageName,
+    layout_versions: [
+      {
+        id: pageResult.version_id,
+        layout_id: pageResult.layout_id,
+        version_number: pageResult.version_number,
+        page_name: pageResult.page_name || pageName,
+        dsl: pageDsl,
+      },
+    ],
+  };
+
+  const selectedDsl = sanitizeSections(selectDslPage(pageDsl, layoutMeta, pageName));
+  if (!selectedDsl) return null;
+
+  const dslWithDefaults = {
+    ...selectedDsl,
+    ...(responseBrandKit != null ? { brandKit: selectedDsl.brandKit ?? responseBrandKit } : {}),
+  };
+  const finalDsl = injectDefaultSectionsIfNeeded(dslWithDefaults, pageName);
+
+  setBrandKitAssetsFromDsl({ ...pageDsl, ...(responseBrandKit != null ? { brandKit: responseBrandKit } : {}) }, appIdInt);
+  setTypography(finalDsl);
+
+  if (!isCacheableDsl(finalDsl)) {
+    console.log(`No usable page DSL found for "${pageName || "home"}"`);
+    return null;
+  }
+
+  const payload = {
+    dsl: finalDsl,
+    versionNumber: pageResult.version_number ?? null,
+  };
+  const cacheKey = getLiveDslCacheKey(appIdInt, pageName);
+  liveDslCache.set(cacheKey, payload);
+  liveDslCacheTimes.set(cacheKey, fetchedAt);
+  persistLastGoodDsl(appIdInt, pageName, payload).catch(() => {});
+  return payload;
+};
+
+const getLayoutVersionPageCandidates = (pageName) => {
+  const original = String(pageName || "home").trim() || "home";
+  const normalized = normalizeName(original) || "home";
+  const aliases = PAGE_ALIASES[normalized] || [];
+  return [...new Set([original, normalized, ...aliases].filter(Boolean))];
+};
+
+const fetchLayoutVersionPagePayload = async (appIdInt, pageName, options = {}) => {
+  const storeId =
+    options?.storeId ??
+    options?.store_id ??
+    options?.store?.id ??
+    options?.session?.user?.storeId ??
+    options?.session?.user?.store_id ??
+    null;
+  const storeIdNumber = Number(storeId);
+  const storeIdVariable = Number.isFinite(storeIdNumber) && storeIdNumber > 0 ? storeIdNumber : null;
+  const pageCandidates = getLayoutVersionPageCandidates(pageName);
+
+  for (const candidate of pageCandidates) {
+    try {
+      console.log(`🔍 Querying layoutVersionPage appId=${appIdInt} page="${candidate}" storeId=${storeIdVariable || "none"}`);
+      const res = await withTimeout(
+        client.query({
+          query: LAYOUT_VERSION_PAGE_QUERY,
+          variables: {
+            app_id: appIdInt,
+            store_id: storeIdVariable,
+            page_name: candidate,
+          },
+          fetchPolicy: "network-only",
+        }),
+        DSL_QUERY_TIMEOUT_MS,
+        "DSL page query"
+      );
+
+      const pageResult = res?.data?.layoutVersionPage;
+      const payload = buildLiveDslPayloadFromPageResult(pageResult, appIdInt, pageName, Date.now());
+      if (payload) {
+        console.log(`✅ LIVE PAGE DSL FETCHED - Page "${candidate}" Version ${payload.versionNumber}`);
+        return payload;
+      }
+    } catch (error) {
+      console.log(`layoutVersionPage failed for "${candidate}":`, error?.message || error);
+    }
+  }
+
+  return null;
+};
+
 const isFresh = (fetchedAt, maxAgeMs) =>
   Boolean(fetchedAt && Date.now() - fetchedAt < maxAgeMs);
 
@@ -640,6 +751,9 @@ export async function fetchLiveDSL(appId, pageName, options = {}) {
         return null;
       }
     }
+    const pagePayload = await fetchLayoutVersionPagePayload(appIdInt, pageName, options);
+    if (pagePayload) return pagePayload;
+
     console.log(`🔍 Querying layouts with appId: ${appIdInt} (type: ${typeof appIdInt})`);
 
     const layoutRequest = withTimeout(

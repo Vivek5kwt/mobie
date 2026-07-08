@@ -101,10 +101,10 @@ const buildButtonStyles = (config, defaultBg = "#1F2937") => {
   const borderWidth = config?.borderLine || borderColor ? 1 : 0;
 
   return {
-    paddingTop: hasValue(config?.pt) ? toNumber(config?.pt, 0) : 12,
-    paddingBottom: hasValue(config?.pb) ? toNumber(config?.pb, 0) : 12,
-    paddingLeft: hasValue(config?.pl) ? toNumber(config?.pl, 0) : 16,
-    paddingRight: hasValue(config?.pr) ? toNumber(config?.pr, 0) : 16,
+    paddingTop: hasValue(config?.pt) ? toNumber(config?.pt, 0) : 8,
+    paddingBottom: hasValue(config?.pb) ? toNumber(config?.pb, 0) : 8,
+    paddingLeft: hasValue(config?.pl) ? toNumber(config?.pl, 0) : 18,
+    paddingRight: hasValue(config?.pr) ? toNumber(config?.pr, 0) : 18,
     backgroundColor: toString(config?.bgColor, defaultBg),
     borderRadius: toNumber(config?.borderRadius ?? config?.corner ?? config?.radius, 999),
     borderColor: borderColor || undefined,

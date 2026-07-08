@@ -3,7 +3,7 @@ import { resolveAppId } from '../utils/appId';
 const GRAPHQL_ENDPOINT = 'https://app.mobidrag.com/graphql';
 
 // Fallback storeId used when layouts query can't resolve one
-const FALLBACK_STORE_ID = 73;
+const FALLBACK_STORE_ID = 40;
 
 // ── Queries ────────────────────────────────────────────────────────────────
 
