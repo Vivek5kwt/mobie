@@ -35,7 +35,7 @@ import { trackScreenView } from "../services/analyticsService";
 const SIGNIN_SLUGS = new Set(["signin", "sign-in", "login", "log-in", "auth"]);
 const CART_EMPTY_VISIBLE_COMPONENTS = new Set(["cart_line_items"]);
 const ORDERS_EMPTY_VISIBLE_COMPONENTS = new Set(["order_history", "orderhistory", "orders", "my_orders"]);
-const WISHLIST_EMPTY_VISIBLE_COMPONENTS = new Set(["wishlist", "wishlist_item", "wishlist-item"]);
+const WISHLIST_EMPTY_VISIBLE_COMPONENTS = new Set(["text_block", "wishlist", "wishlist_item", "wishlist-item"]);
 const LIVE_DSL_REFRESH_INTERVAL_MS = 30000;
 
 const getSectionCount = (incomingDsl) =>
@@ -323,15 +323,14 @@ export default function BottomNavScreen() {
           NAV_COMPONENTS.includes(getComponentName(s).toLowerCase())
         ) || null;
 
-      // Home DSL is the canonical nav source for every tab/inner page, including
-      // pages opened from drawers, headers, or account-menu links.
-      const homeDslData = await fetchDSL(appId, "home");
-      if (homeDslData?.dsl) {
-        incomingBottomNav = findNav(homeDslData.dsl);
-      }
-
-      // Fall back to the current page's DSL only when Home does not define a nav.
-      if (!incomingBottomNav) {
+      if (hasInitialBottomNav) {
+        // Tab navigation already passed a real nav section; keep it synced from Home.
+        const homeDslData = await fetchDSL(appId, "home");
+        if (homeDslData?.dsl) {
+          incomingBottomNav = findNav(homeDslData.dsl);
+        }
+      } else {
+        // Standalone pages should only show bottom nav when their own DSL defines it.
         const currentPageDslData = await fetchDSL(appId, pageName);
         if (currentPageDslData?.dsl) {
           incomingBottomNav = findNav(currentPageDslData.dsl);

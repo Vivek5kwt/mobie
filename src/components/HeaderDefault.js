@@ -65,6 +65,17 @@ const normalizeFontWeight = (value, fallback = "400") => {
   return map[normalized] || fallback;
 };
 
+const resolveLineHeight = (value, fontSize, multiplier = 1.25) => {
+  const resolved = resolveVal(value);
+  const parsed = typeof resolved === "number"
+    ? resolved
+    : Number.parseFloat(String(resolved ?? "").replace("px", "").trim());
+  if (Number.isFinite(parsed) && parsed > 0) {
+    return parsed < 10 ? Math.ceil(parsed * fontSize) : parsed;
+  }
+  return Math.ceil(fontSize * multiplier);
+};
+
 const normalizeNavKey = (value) =>
   String(value || "").trim().toLowerCase().replace(/[\s_-]+/g, "");
 
@@ -259,11 +270,16 @@ export default function HeaderDefault({
     "700"
   );
   const resolvedTitleColor = resolveVal(config.titleColor) ?? resolveVal(config.titleTextColor) ?? textColor;
+  const resolvedTitleLineHeight = resolveLineHeight(
+    config.titleLineHeight ?? config.textLineHeight ?? config.lineHeight,
+    resolvedTitleFontSize
+  );
   const centeredTitleTextStyle = {
     fontSize: resolvedTitleFontSize,
+    lineHeight: resolvedTitleLineHeight,
     fontWeight: resolvedTitleFontWeight,
     color: resolvedTitleColor,
-    includeFontPadding: false,
+    includeFontPadding: true,
     textAlignVertical: "center",
     ...(resolvedTitleFontFamily ? { fontFamily: resolvedTitleFontFamily } : {}),
   };
@@ -293,7 +309,6 @@ export default function HeaderDefault({
           title: "Wishlist",
           pageName: "wishlist",
           link: "wishlist",
-          bottomNavSection: navSection,
         },
       },
     });
@@ -302,7 +317,6 @@ export default function HeaderDefault({
         title: "Wishlist",
         pageName: "wishlist",
         link: "wishlist",
-        bottomNavSection: navSection,
       });
     }
   };
@@ -486,6 +500,10 @@ export default function HeaderDefault({
       "700"
     );
     const titleColor = resolveVal(config.titleColor) ?? resolveVal(config.titleTextColor) ?? textColor;
+    const titleLineHeight = resolveLineHeight(
+      config.titleLineHeight ?? config.textLineHeight ?? config.lineHeight,
+      titleFontSize
+    );
 
     // ── Title box / border styling ─────────────────────────────────────────
     // Check nested sub-objects in case builder stores box style there
@@ -606,9 +624,10 @@ export default function HeaderDefault({
                     <Text
                       style={{
                         fontSize: titleFontSize,
+                        lineHeight: titleLineHeight,
                         fontWeight: titleFontWeight,
                         color: titleColor,
-                        includeFontPadding: false,
+                        includeFontPadding: true,
                         textAlignVertical: "center",
                         ...(titleFontFamily ? { fontFamily: titleFontFamily } : {}),
                       }}
@@ -784,6 +803,10 @@ export default function HeaderDefault({
     );
     const _txtSz = rv(item.textSize) ?? rv(item.fontSize) ?? rv(item.size);
     const itemFontSize = _txtSz != null ? Number(_txtSz) : 13;
+    const itemLineHeight = resolveLineHeight(
+      rv(item.textLineHeight) ?? rv(item.titleLineHeight) ?? rv(item.lineHeight),
+      itemFontSize
+    );
 
     // Normalise font-weight: builder may send "Medium", "Bold", "700", etc.
     const _fwRaw = rv(item.textBold) || rv(item.bold)
@@ -953,10 +976,11 @@ export default function HeaderDefault({
         style={{
           color: itemTextColor,
           fontSize: itemFontSize,
+          lineHeight: itemLineHeight,
           fontWeight: itemFontWeight,
           fontStyle: itemFontStyle,
           textDecorationLine: itemTextDecoration,
-          includeFontPadding: false,
+          includeFontPadding: true,
           textAlignVertical: "center",
           ...(itemFontFamily ? { fontFamily: itemFontFamily } : {}),
         }}

@@ -64,6 +64,16 @@ const toNumber = (value, fallback) => {
   return Number.isFinite(parsed) ? parsed : fallback;
 };
 
+const resolveTextLineHeight = (value, fontSize, fallbackMetric) => {
+  const metricHeight = toNumber(fallbackMetric, undefined);
+  const parsed = toNumber(value, undefined);
+  if (Number.isFinite(parsed) && parsed > 0) {
+    return parsed < 10 ? Math.ceil(parsed * fontSize) : parsed;
+  }
+  if (Number.isFinite(metricHeight) && metricHeight >= fontSize) return metricHeight;
+  return Math.ceil(fontSize * 1.25);
+};
+
 const resolveAvatarCorner = (value, size, options = {}) => {
   const resolved = resolveValue(value, undefined);
   if (resolved === undefined || resolved === null || resolved === "") return size / 2;
@@ -181,19 +191,41 @@ export default function AccountProfile({ section }) {
 
   const nameFontFamily = cleanFontFamily(resolveValue(rawProps?.nameFontFamily ?? rawProps?.headlineFontFamily ?? rawProps?.fontFamily, ""));
   const emailFontFamily = cleanFontFamily(resolveValue(rawProps?.emailFontFamily ?? rawProps?.subtextFontFamily ?? rawProps?.fontFamily, ""));
+  const resolvedNameFontSize = toNumber(
+    rawProps?.nameFontSize ?? rawProps?.headlineSize ?? rawProps?.fontSize,
+    toNumber(nameStyle?.fontSize, 18)
+  );
+  const resolvedEmailFontSize = toNumber(
+    rawProps?.emailFontSize ?? rawProps?.subtextSize,
+    toNumber(emailStyle?.fontSize, 14)
+  );
   const resolvedNameStyle = {
     ...nameStyle,
     color: resolveValue(rawProps?.nameColor, nameStyle?.color),
-    fontSize: resolveValue(rawProps?.nameFontSize ?? rawProps?.headlineSize ?? rawProps?.fontSize, nameStyle?.fontSize),
+    fontSize: resolvedNameFontSize,
+    lineHeight: resolveTextLineHeight(
+      rawProps?.nameLineHeight ?? rawProps?.headlineLineHeight ?? rawProps?.lineHeight ?? nameStyle?.lineHeight,
+      resolvedNameFontSize,
+      nameMetrics?.height
+    ),
     fontWeight: resolveFontWeight(rawProps?.nameFontWeight ?? rawProps?.headlineWeight ?? rawProps?.fontWeight, nameStyle?.fontWeight || "700"),
+    includeFontPadding: true,
+    textAlignVertical: "center",
     ...(nameFontFamily ? { fontFamily: nameFontFamily } : {}),
   };
 
   const resolvedEmailStyle = {
     ...emailStyle,
     color: resolveValue(rawProps?.emailColor, emailStyle?.color),
-    fontSize: resolveValue(rawProps?.emailFontSize ?? rawProps?.subtextSize, emailStyle?.fontSize),
+    fontSize: resolvedEmailFontSize,
+    lineHeight: resolveTextLineHeight(
+      rawProps?.emailLineHeight ?? rawProps?.subtextLineHeight ?? emailStyle?.lineHeight,
+      resolvedEmailFontSize,
+      metricElements?.email?.height
+    ),
     fontWeight: resolveFontWeight(rawProps?.emailFontWeight ?? rawProps?.subtextWeight ?? rawProps?.fontWeight, emailStyle?.fontWeight || "400"),
+    includeFontPadding: true,
+    textAlignVertical: "center",
     ...(emailFontFamily ? { fontFamily: emailFontFamily } : {}),
   };
 

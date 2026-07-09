@@ -118,10 +118,7 @@ export default function WishlistScreen() {
     try {
       if (!silent) setDslLoading(true);
 
-      const [wishlistResult, homeResult] = await Promise.all([
-        fetchDSL(appId, "wishlist").catch(() => null),
-        fetchDSL(appId, "home").catch(() => null),
-      ]);
+      const wishlistResult = await fetchDSL(appId, "wishlist").catch(() => null);
 
       const dsl = wishlistResult?.dsl || wishlistResult;
       const fp = getDslFingerprint(dsl);
@@ -154,11 +151,10 @@ export default function WishlistScreen() {
         );
       }
 
-      // Extract bottom navigation from home DSL (canonical source)
-      const homeDsl = homeResult?.dsl || homeResult;
-      const homeSections = homeDsl?.sections || [];
+      // Wishlist only shows bottom navigation when its own DSL defines it.
+      const wishlistSections = dsl?.sections || [];
       const navSection =
-        homeSections.find((s) => NAV_COMPS.includes(normalizeComp(s))) || null;
+        wishlistSections.find((s) => NAV_COMPS.includes(normalizeComp(s))) || null;
       setBottomNavSection(navSection);
     } catch (_) {
       // DSL fetch failed — renders with defaults
@@ -435,7 +431,7 @@ export default function WishlistScreen() {
           showsVerticalScrollIndicator={false}
           contentContainerStyle={{ flexGrow: 1, paddingBottom: bottomNavSection ? bottomNavHeight : 0 }}
         >
-          {wishlistItems.length > 0 && otherSections.map((section, i) => (
+          {otherSections.map((section, i) => (
             <DynamicRenderer key={i} section={section} />
           ))}
 
@@ -443,8 +439,33 @@ export default function WishlistScreen() {
             /* ── Empty state ──────────────────────────────────────────────── */
             <View style={[styles.emptyWrap, { backgroundColor: emptyBgColor }]}>
               <Icon name="heart" size={52} color="#E5E7EB" />
-              <Text style={styles.emptyTitle}>{emptyTitle}</Text>
-              <Text style={styles.emptySubtitle}>{emptySubtitle}</Text>
+              <Text
+                style={[
+                  styles.emptyTitle,
+                  {
+                    color: titleColor,
+                    fontSize: titleFontSize,
+                    fontWeight: titleFontWeight,
+                    lineHeight: Math.max(Math.ceil(titleFontSize * 1.25), titleLineHeight),
+                    ...(titleFontFamily ? { fontFamily: titleFontFamily } : null),
+                  },
+                ]}
+              >
+                {emptyTitle}
+              </Text>
+              <Text
+                style={[
+                  styles.emptySubtitle,
+                  {
+                    color: countColor,
+                    fontSize: countFontSize,
+                    lineHeight: Math.max(Math.ceil(countFontSize * 1.35), countFontSize + 4),
+                    ...(countFontFamily ? { fontFamily: countFontFamily } : null),
+                  },
+                ]}
+              >
+                {emptySubtitle}
+              </Text>
             </View>
           ) : (
             /* ── Product grid ────────────────────────────────────────────── */

@@ -234,6 +234,19 @@ const applyNativeFontFace = (style = {}) => {
   return next;
 };
 
+const normalizeNativeTextMetrics = (style = {}) => {
+  const next = { ...(style || {}) };
+  const fontSize = asNumber(next.fontSize, undefined);
+  const rawLineHeight = asNumber(next.lineHeight, undefined);
+  if (fontSize != null && rawLineHeight != null) {
+    const lineHeight = rawLineHeight > 0 && rawLineHeight <= 4
+      ? rawLineHeight * fontSize
+      : rawLineHeight;
+    next.lineHeight = Math.max(Math.ceil(lineHeight), Math.ceil(fontSize * 1.15));
+  }
+  return next;
+};
+
 // ── Component ──────────────────────────────────────────────────────────────────
 
 export default function TextBlock({ section }) {
@@ -278,8 +291,9 @@ export default function TextBlock({ section }) {
     iconCfg?.icon ?? iconCfg?.iconName ?? iconCfg?.name ?? iconCfg?.emoji,
     ""
   );
-  const faIconName   = containsEmoji(rawIconValue) ? "" : resolveTextBlockIconName(rawIconValue);
-  const iconColor    = asStr(iconCfg?.color ?? iconStyle?.color, "#FFFFFF");
+  const emojiIcon    = containsEmoji(rawIconValue) ? rawIconValue : "";
+  const faIconName   = emojiIcon ? "" : resolveTextBlockIconName(rawIconValue);
+  const iconColor    = asStr(iconStyle?.color ?? iconCfg?.color, "#FFFFFF");
   const iconBgColor  = asStr(
     iconCfg?.bgColor ?? iconCfg?.backgroundColor ?? iconStyle?.backgroundColor,
     "transparent"
@@ -289,7 +303,7 @@ export default function TextBlock({ section }) {
   const iconRadius   = asNumber(iconCfg?.borderRadius ?? iconCfg?.corner ?? iconStyle?.borderRadius, 0);
   const iconAlign    = resolveAlign(asStr(iconCfg?.align, globalAlign));
 
-  const hasRenderableIcon = !!faIconName;
+  const hasRenderableIcon = !!faIconName || !!emojiIcon;
 
   const hasIcon = showIconDsl && hasRenderableIcon;
   const hasHeadline  = showHeadline && !!headline;
@@ -375,6 +389,7 @@ export default function TextBlock({ section }) {
     headlineStyle.fontFamily = typography.headlineFontFamily;
   }
   headlineStyle = applyNativeFontFace(headlineStyle);
+  headlineStyle = normalizeNativeTextMetrics(headlineStyle);
 
   let subtextStyle  = applyTextAttributes(
     stripTextCss(convertStyles(layoutCss.subtext || {})),
@@ -388,6 +403,7 @@ export default function TextBlock({ section }) {
     subtextStyle.fontFamily = typography.subtextFontFamily;
   }
   subtextStyle = applyNativeFontFace(subtextStyle);
+  subtextStyle = normalizeNativeTextMetrics(subtextStyle);
 
   // Per-element alignment — fall back to globalAlign so setting one place controls both
   const headtextAlign = resolveAlign(
@@ -447,6 +463,20 @@ export default function TextBlock({ section }) {
               color={iconColor}
             />
           )}
+          {!faIconName && !!emojiIcon && (
+            <Text
+              style={[
+                styles.iconEmoji,
+                {
+                  fontSize: iconFaSize,
+                  color: iconColor,
+                  lineHeight: Math.max(iconFaSize + 2, iconSize),
+                },
+              ]}
+            >
+              {emojiIcon}
+            </Text>
+          )}
         </View>
       )}
 
@@ -494,6 +524,10 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems:     "center",
     flexShrink:     0,
+  },
+  iconEmoji: {
+    textAlign: "center",
+    includeFontPadding: false,
   },
   textContainer: {
     flexDirection: "column",

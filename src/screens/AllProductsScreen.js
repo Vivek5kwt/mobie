@@ -22,6 +22,7 @@ import FilterSortHeader from "../components/FilterSortHeader";
 import BottomNavigation, { BOTTOM_NAV_RESERVED_HEIGHT } from "../components/BottomNavigation";
 import Snackbar from "../components/Snackbar";
 import { fetchDSL } from "../engine/dslHandler";
+import DynamicRenderer from "../engine/DynamicRenderer";
 import { resolveAppId } from "../utils/appId";
 import { buildProductFilterOptions, productMatchesFilter } from "../utils/productFilters";
 import { formatMoney, parseMoneyAmount } from "../utils/money";
@@ -83,6 +84,12 @@ const findFilterSortSection = (dsl = {}) =>
   (dsl?.sections || []).find((section) => {
     const component = getComponentName(section);
     return component === "filter_sort_header" || component === "filter_sort";
+  }) || null;
+
+const findProductListHeadingSection = (dsl = {}) =>
+  (dsl?.sections || []).find((section) => {
+    const component = getComponentName(section);
+    return component === "text_block" || component === "collection_heading" || component === "page_heading";
   }) || null;
 
 const resolveString = (value, fallback = "") => {
@@ -270,6 +277,7 @@ export default function AllProductsScreen() {
   const [homeHeaderConfig, setHomeHeaderConfig] = useState(null);
   const [productListHeaderConfig, setProductListHeaderConfig] = useState(null);
   const [commonBackHeaderConfig, setCommonBackHeaderConfig] = useState(null);
+  const [productListHeadingSection, setProductListHeadingSection] = useState(null);
   const [productListGridSection, setProductListGridSection] = useState(null);
   const [productListFilterSortSection, setProductListFilterSortSection] = useState(null);
   const [cartSnackbarVisible, setCartSnackbarVisible] = useState(false);
@@ -387,6 +395,19 @@ export default function AllProductsScreen() {
       ],
       true
     );
+    const showFavorite = resolveBoolean(
+      [
+        raw?.favoriteIconEnabled,
+        raw?.showFavorite,
+        raw?.showWishlist,
+        raw?.addToFavorite,
+        raw?.addToFavoriteActive,
+        visibility?.favorite,
+        visibility?.addToFavorite,
+        visibility?.wishlist,
+      ],
+      false
+    );
     return {
       columns,
       colGap,
@@ -414,16 +435,18 @@ export default function AllProductsScreen() {
       priceWeight,
       priceFamily,
       showAddToCart,
+      showFavorite,
       bgColor: resolveString(raw?.bgColor ?? containerCss?.backgroundColor, "#FFFFFF"),
     };
   }, [productListGridSection]);
 
   const viewportWidth = Math.max(1, screenWidth);
-  const horizontalPadding = isSearchMode
+  const useProductListDslLayout = isSearchMode || !!productListGridSection;
+  const horizontalPadding = useProductListDslLayout
     ? searchGridConfig.padLeft + searchGridConfig.padRight
     : H_PAD * 2;
-  const columnGap = isSearchMode ? searchGridConfig.colGap : GAP;
-  const requestedColumns = isSearchMode ? searchGridConfig.columns : 2;
+  const columnGap = useProductListDslLayout ? searchGridConfig.colGap : GAP;
+  const requestedColumns = useProductListDslLayout ? searchGridConfig.columns : 2;
   const numColumns = viewMode === "list"
     ? 1
     : getResponsiveColumns({
@@ -436,7 +459,7 @@ export default function AllProductsScreen() {
       });
   const CARD_W = viewMode === "list"
     ? viewportWidth - horizontalPadding
-    : isSearchMode
+    : useProductListDslLayout
     ? (viewportWidth - searchGridConfig.padLeft - searchGridConfig.padRight - searchGridConfig.colGap * (numColumns - 1)) / numColumns
     : (viewportWidth - H_PAD * 2 - GAP * (numColumns - 1)) / numColumns;
   const searchImageHeight = viewMode === "list" ? 100 : Math.round(CARD_W);
@@ -514,6 +537,7 @@ export default function AllProductsScreen() {
       setHomeHeaderConfig(homeDsl?.headerdefault || null);
       setProductListHeaderConfig(productListDsl?.headerdefault || null);
       setCommonBackHeaderConfig(productDetailDsl?.headerdefault || null);
+      setProductListHeadingSection(findProductListHeadingSection(productListDsl));
       setProductListGridSection(findProductGridSection(productListDsl));
       setProductListFilterSortSection(findFilterSortSection(productListDsl));
       const nav = (homeDsl?.sections || []).find((s) => {
@@ -637,7 +661,7 @@ export default function AllProductsScreen() {
 
   const renderItem = ({ item }) => {
     const isListMode = viewMode === "list";
-    if (isSearchMode) {
+    if (useProductListDslLayout) {
       const inStock = isProductAvailable(item);
       const isFav = isWishlistProduct(wishlistItems, item);
       const price = formatMoney(
@@ -653,7 +677,7 @@ export default function AllProductsScreen() {
               width: CARD_W,
               marginBottom: searchGridConfig.rowGap,
               borderRadius: searchGridConfig.cardRadius,
-              backgroundColor: "#FFFFFF",
+              backgroundColor: searchGridConfig.cardBgColor,
               borderColor: searchGridConfig.cardBorderColor,
               borderWidth: searchGridConfig.cardBorderWidth,
             },
@@ -671,6 +695,7 @@ export default function AllProductsScreen() {
           <View
             style={[
               styles.productResultImageWrap,
+              { backgroundColor: searchGridConfig.imageBgColor },
               isListMode && styles.productResultImageWrapList,
             ]}
           >
@@ -704,21 +729,23 @@ export default function AllProductsScreen() {
                 </Text>
               </View>
             )}
-            <FavoriteToggleButton
-              isFavorite={isFav}
-              config={favoriteToggleConfig}
-              onPress={async (e) => {
-                e?.stopPropagation?.();
-                e?.preventDefault?.();
-                const blocked = await requireLoginForAction({ session, navigation, initializing });
-                if (blocked) return;
-                favoriteTapRef.current = true;
-                setTimeout(() => {
-                  favoriteTapRef.current = false;
-                }, 0);
-                dispatch(toggleWishlist({ product: item }));
-              }}
-            />
+            {searchGridConfig.showFavorite ? (
+              <FavoriteToggleButton
+                isFavorite={isFav}
+                config={favoriteToggleConfig}
+                onPress={async (e) => {
+                  e?.stopPropagation?.();
+                  e?.preventDefault?.();
+                  const blocked = await requireLoginForAction({ session, navigation, initializing });
+                  if (blocked) return;
+                  favoriteTapRef.current = true;
+                  setTimeout(() => {
+                    favoriteTapRef.current = false;
+                  }, 0);
+                  dispatch(toggleWishlist({ product: item }));
+                }}
+              />
+            ) : null}
           </View>
 
           <View style={[styles.searchInfoColumn, isListMode && styles.searchInfoColumnList]}>
@@ -926,13 +953,15 @@ export default function AllProductsScreen() {
         ) : resultHeaderConfig ? (
           <HeaderDefault config={resultHeaderConfig} bottomNavSection={bottomNavSection} hideTabs showBack />
         ) : null}
-        {!isSearchMode && (
+        {!isSearchMode && productListHeadingSection ? (
+          <DynamicRenderer section={productListHeadingSection} />
+        ) : !isSearchMode ? (
           <View style={styles.headerSection}>
             <Text style={[styles.heading, { color: resolvedHeadingColor, fontSize: resolvedHeadingSize }]}>
               {title || "Products"}
             </Text>
           </View>
-        )}
+        ) : null}
 
         {/* Filter + Sort bar */}
         <FilterSortHeader
@@ -943,11 +972,11 @@ export default function AllProductsScreen() {
           onFilterChange={(filter) => setActiveFilter(filter)}
         />
 
-        <View style={[styles.listArea, isSearchMode && styles.searchListArea]}>
+        <View style={[styles.listArea, useProductListDslLayout && styles.searchListArea]}>
           {error ? <Text style={styles.error}>{error}</Text> : null}
 
-          {loading && isSearchMode ? renderSearchSkeleton() : null}
-          {loading && !isSearchMode ? <ActivityIndicator size="small" color="#111827" /> : null}
+          {loading && useProductListDslLayout ? renderSearchSkeleton() : null}
+          {loading && !useProductListDslLayout ? <ActivityIndicator size="small" color="#111827" /> : null}
 
           {!loading && !error && (
             <FlatList
@@ -959,14 +988,14 @@ export default function AllProductsScreen() {
               renderItem={renderItem}
               contentContainerStyle={[
                 styles.listContent,
-                isSearchMode && {
+                useProductListDslLayout && {
                   paddingTop: searchGridConfig.padTop,
                   paddingBottom: searchGridConfig.padBottom + (bottomNavSection ? bottomNavHeight + 16 : 24),
                   paddingLeft: searchGridConfig.padLeft,
                   paddingRight: searchGridConfig.padRight,
-                  backgroundColor: "#FFFFFF",
+                  backgroundColor: searchGridConfig.bgColor,
                 },
-                !isSearchMode && { paddingBottom: bottomNavSection ? bottomNavHeight + 16 : 24 },
+                !useProductListDslLayout && { paddingBottom: bottomNavSection ? bottomNavHeight + 16 : 24 },
               ]}
               ListEmptyComponent={
                 isSearchMode ? renderEmptyState : (

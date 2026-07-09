@@ -153,9 +153,10 @@ const withTimeout = (promise, timeoutMs, label) =>
 
 // Common page name aliases — maps any incoming slug to alternatives worth trying
 const PAGE_ALIASES = {
-  "profile":        ["profile", "account", "accounts", "my-account", "my-profile", "user-profile", "user"],
-  "account":        ["account", "accounts", "profile", "my-account", "user"],
-  "accounts":       ["accounts", "account", "profile", "my-account"],
+  "profile":        ["profile", "my-account", "account", "accounts", "my-profile", "user-profile", "user"],
+  "account":        ["account", "my-account", "accounts", "profile", "user"],
+  "accounts":       ["accounts", "my-account", "account", "profile"],
+  "my-account":     ["my-account", "account", "profile", "accounts", "my-profile", "user-profile", "user"],
   "cart":           ["cart", "shopping-cart", "bag", "my-cart", "my-bag"],
   "search":         ["search", "search-results", "find", "explore"],
   "home":           ["home", "index", "main"],

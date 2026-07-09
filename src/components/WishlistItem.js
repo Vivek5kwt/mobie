@@ -4,6 +4,7 @@ import {
   StyleSheet,
   Text,
   TouchableOpacity,
+  useWindowDimensions,
   View,
 } from "react-native";
 import { useNavigation } from "@react-navigation/native";
@@ -65,6 +66,7 @@ const buildRawProps = (rawProps = {}) => {
 export default function WishlistItem({ section }) {
   const navigation = useNavigation();
   const dispatch = useDispatch();
+  const { width: screenWidth } = useWindowDimensions();
   const wishlistItems = useSelector((state) => dedupeWishlistProducts(state.wishlist?.items || []));
   const [snackVisible, setSnackVisible] = useState(false);
 
@@ -82,6 +84,13 @@ export default function WishlistItem({ section }) {
   const pb = toNumber(raw?.pb ?? raw?.paddingBottom, 12);
   const pl = toNumber(raw?.pl ?? raw?.paddingLeft, 12);
   const pr = toNumber(raw?.pr ?? raw?.paddingRight, 12);
+  const outerPt = toNumber(raw?.pt2 ?? raw?.outerPt ?? raw?.containerPt ?? raw?.gridPt, 12);
+  const outerPb = toNumber(raw?.pb2 ?? raw?.outerPb ?? raw?.containerPb ?? raw?.gridPb, 12);
+  const outerPl = toNumber(raw?.pl2 ?? raw?.outerPl ?? raw?.containerPl ?? raw?.gridPl, 12);
+  const outerPr = toNumber(raw?.pr2 ?? raw?.outerPr ?? raw?.containerPr ?? raw?.gridPr, 12);
+  const columns = Math.max(1, Math.round(toNumber(raw?.columns ?? raw?.itemsPerRow, 2)));
+  const gridGap = toNumber(raw?.gap ?? raw?.gridGap ?? raw?.itemGap ?? raw?.columnGap, 12);
+  const rowGap = toNumber(raw?.rowGap ?? raw?.verticalGap, gridGap);
   const radius = toNumber(raw?.radius, 12);
   const bgColor = toString(raw?.bgColor, "#FFFFFF");
   const emptyBgColor = toString(raw?.emptyBgColor ?? raw?.emptyBackgroundColor, "#FFFFFF");
@@ -129,6 +138,15 @@ export default function WishlistItem({ section }) {
   const priceAlign = toAlign(firstDefined(raw?.priceAlign, raw?.productPriceAlign, raw?.cardPriceAlign), contentAlign);
   const contentJustify = alignToFlex(contentAlign);
   const priceJustify = alignToFlex(priceAlign);
+  const countColor = toString(raw?.countColor ?? raw?.labelColor ?? raw?.titleColor, titleColor);
+  const countFontSize = toNumber(raw?.countFontSize ?? raw?.labelFontSize, titleFontSize);
+  const countFontWeight = toString(raw?.countFontWeight ?? raw?.labelFontWeight, titleFontWeight);
+  const countFontFamily = resolveFont(toString(raw?.countFontFamily ?? raw?.labelFontFamily ?? raw?.titleFontFamily ?? raw?.fontFamily, ""));
+  const countMarginBottom = toNumber(raw?.countMarginBottom ?? raw?.labelMarginBottom, gridGap);
+  const titleLineHeight = Math.max(Math.ceil(titleFontSize * 1.25), toNumber(raw?.titleLineHeight, 0));
+  const priceLineHeight = Math.max(Math.ceil(priceFontSize * 1.25), toNumber(raw?.priceLineHeight, 0));
+  const availableWidth = Math.max(1, screenWidth - outerPl - outerPr - gridGap * (columns - 1));
+  const cardWidth = availableWidth / columns;
 
   // Resolve image aspect ratio: "1:1" → 1, "4:3" → 0.75 (height/width), etc.
   const resolveAspectRatio = (ratio) => {
@@ -143,21 +161,65 @@ export default function WishlistItem({ section }) {
     return (
       <View style={[styles.empty, { backgroundColor: emptyBgColor }]}>
         <FontAwesome name="heart-o" size={48} color="#D1D5DB" />
-        <Text style={styles.emptyTitle}>{emptyTitle}</Text>
-        <Text style={styles.emptySubtitle}>{emptySubtitle}</Text>
+        <Text
+          style={[
+            styles.emptyTitle,
+            {
+              color: titleColor,
+              fontSize: titleFontSize,
+              fontWeight: titleFontWeight,
+              lineHeight: titleLineHeight,
+              ...(titleFontFamily ? { fontFamily: titleFontFamily } : null),
+            },
+          ]}
+        >
+          {emptyTitle}
+        </Text>
+        <Text
+          style={[
+            styles.emptySubtitle,
+            {
+              color: priceColor,
+              fontSize: priceFontSize,
+              lineHeight: priceLineHeight,
+            },
+          ]}
+        >
+          {emptySubtitle}
+        </Text>
       </View>
     );
   }
 
   return (
-    <View style={[styles.grid, { paddingHorizontal: 12, paddingVertical: 12 }]}>
-      <Text style={styles.countLabel}>
+    <View
+      style={[
+        styles.grid,
+        {
+          paddingTop: outerPt,
+          paddingBottom: outerPb,
+          paddingLeft: outerPl,
+          paddingRight: outerPr,
+        },
+      ]}
+    >
+      <Text
+        style={[
+          styles.countLabel,
+          {
+            color: countColor,
+            fontSize: countFontSize,
+            fontWeight: countFontWeight,
+            marginBottom: countMarginBottom,
+            ...(countFontFamily ? { fontFamily: countFontFamily } : null),
+          },
+        ]}
+      >
         {wishlistItems.length} {wishlistItems.length === 1 ? "item" : "items"} saved
       </Text>
-      <View style={styles.row}>
+      <View style={[styles.row, { gap: gridGap, rowGap }]}>
         {wishlistItems.map((product) => {
-          const cardWidth = "48%";
-          const imageHeight = 150 * imageAspect;
+          const imageHeight = cardWidth * imageAspect;
 
           return (
             <TouchableOpacity
@@ -233,6 +295,7 @@ export default function WishlistItem({ section }) {
                       color: titleColor,
                       fontSize: titleFontSize,
                       fontWeight: titleFontWeight,
+                      lineHeight: titleLineHeight,
                       textAlign: titleAlign,
                       ...(titleFontFamily ? { fontFamily: titleFontFamily } : null),
                     },
@@ -248,6 +311,7 @@ export default function WishlistItem({ section }) {
                         color: priceColor,
                         fontSize: priceFontSize,
                         fontWeight: priceFontWeight,
+                        lineHeight: priceLineHeight,
                         textAlign: priceAlign,
                       },
                     ]}
@@ -304,8 +368,7 @@ const styles = StyleSheet.create({
   row: {
     flexDirection: "row",
     flexWrap: "wrap",
-    justifyContent: "space-between",
-    gap: 12,
+    justifyContent: "flex-start",
   },
   card: {
     borderWidth: 1,

@@ -23,6 +23,38 @@ function resolveProp(obj, key, fallback) {
   return raw;
 }
 
+function resolveBoolProp(obj, key, fallback = false) {
+  const value = resolveProp(obj, key, undefined);
+  if (value === undefined || value === null || value === "") return fallback;
+  if (typeof value === "boolean") return value;
+  if (typeof value === "number") return value !== 0;
+  const normalized = String(value).trim().toLowerCase();
+  if (["true", "yes", "1"].includes(normalized)) return true;
+  if (["false", "no", "0"].includes(normalized)) return false;
+  return fallback;
+}
+
+function resolveNumberProp(obj, key, fallback) {
+  const value = resolveProp(obj, key, undefined);
+  const parsed = typeof value === "number" ? value : parseFloat(value);
+  return Number.isFinite(parsed) ? parsed : fallback;
+}
+
+function resolveWeight(value, fallback = "500") {
+  if (value === undefined || value === null || value === "") return fallback;
+  if (typeof value === "number") return String(value);
+  const normalized = String(value).trim().toLowerCase();
+  if (normalized === "bold") return "700";
+  if (normalized === "semibold" || normalized === "semi bold") return "600";
+  if (normalized === "medium") return "500";
+  if (normalized === "regular" || normalized === "normal") return "400";
+  return /^\d+$/.test(normalized) ? normalized : fallback;
+}
+
+function hasResolvedProp(obj, key) {
+  return resolveProp(obj, key, undefined) !== undefined;
+}
+
 function deepUnwrap(value) {
   if (value === undefined || value === null) return value;
   if (typeof value !== "object" || Array.isArray(value)) return value;
@@ -66,10 +98,29 @@ export default function FilterSortHeader({
   const pl           = resolveProp(raw, "pl", 16);
   const pr           = resolveProp(raw, "pr", 16);
   const showSortText = resolveProp(raw, "sortButtonTextVisible", true);
+  const hasCompactStyle = [
+    "sortBgColor",
+    "sortBorderColor",
+    "sortBorderRadius",
+    "filterBgColor",
+    "filterBorderColor",
+    "filterBorderRadius",
+  ].some((key) => hasResolvedProp(raw, key));
   const compactControls =
     resolveProp(raw, "compactSearchControls", false) === true ||
     resolveProp(raw, "compactControls", false) === true ||
-    resolveProp(raw, "variant", "") === "searchResults";
+    resolveProp(raw, "variant", "") === "searchResults" ||
+    hasCompactStyle;
+  const showColumnPicker = resolveBoolProp(raw, "columnPickerVisible", true) &&
+    resolveBoolProp(raw, "gridListToggleVisible", true) &&
+    resolveBoolProp(raw, "viewToggleVisible", true) &&
+    resolveBoolProp(raw, "showViewToggle", true);
+  const showSortButton = resolveBoolProp(raw, "sortVisible", true) &&
+    resolveBoolProp(raw, "sortButtonVisible", true) &&
+    resolveBoolProp(raw, "showSort", true);
+  const showFilterButton = resolveBoolProp(raw, "filterVisible", true) &&
+    resolveBoolProp(raw, "filterButtonVisible", true) &&
+    resolveBoolProp(raw, "showFilter", true);
   const dropdownIconColor = resolveProp(
     raw,
     "dropdownIconColor",
@@ -93,7 +144,7 @@ export default function FilterSortHeader({
 
   // Filter items from DSL (for the filter modal)
   const rawItems    = resolveProp(raw, "items", []);
-  const filterItems = Array.isArray(filterItemsProp)
+  const filterItems = Array.isArray(filterItemsProp) && filterItemsProp.length > 0
     ? filterItemsProp
     : Array.isArray(rawItems) ? rawItems : [];
 
@@ -133,6 +184,39 @@ export default function FilterSortHeader({
     backgroundColor: bgColor,
   };
 
+  const sortPillStyle = {
+    backgroundColor: resolveProp(raw, "sortBgColor", "#ECECEC"),
+    borderColor: resolveProp(raw, "sortBorderColor", "transparent"),
+    borderWidth: resolveProp(raw, "sortBorderSide", "none") === "none" ? 0 : 1,
+    borderRadius: resolveNumberProp(raw, "sortBorderRadius", 18),
+    paddingTop: resolveNumberProp(raw, "sortPt", 8),
+    paddingBottom: resolveNumberProp(raw, "sortPb", 8),
+    paddingLeft: resolveNumberProp(raw, "sortPl", 14),
+    paddingRight: resolveNumberProp(raw, "sortPr", 14),
+  };
+  const sortPillTextStyle = {
+    color: resolveProp(raw, "sorttitleColor", "#111827"),
+    fontSize: resolveNumberProp(raw, "sorttitleFontSize", 14),
+    fontWeight: resolveWeight(resolveProp(raw, "sorttitleFontWeight", undefined), "500"),
+  };
+  const filterPillStyle = {
+    backgroundColor: resolveProp(raw, "filterBgColor", "#ECECEC"),
+    borderColor: resolveProp(raw, "filterBorderColor", "transparent"),
+    borderWidth: resolveProp(raw, "filterBorderSide", "none") === "none" ? 0 : 1,
+    borderRadius: resolveNumberProp(raw, "filterBorderRadius", 18),
+    paddingTop: resolveNumberProp(raw, "filterPt", 8),
+    paddingBottom: resolveNumberProp(raw, "filterPb", 8),
+    paddingLeft: resolveNumberProp(raw, "filterPl", 14),
+    paddingRight: resolveNumberProp(raw, "filterPr", 14),
+  };
+  const filterPillTextStyle = {
+    color: resolveProp(raw, "filtertitleColor", "#111827"),
+    fontSize: resolveNumberProp(raw, "filtertitleFontSize", 14),
+    fontWeight: resolveWeight(resolveProp(raw, "filtertitleFontWeight", undefined), "500"),
+  };
+
+  if (!showSortButton && !showFilterButton && !showColumnPicker) return null;
+
   return (
     <>
       {/* ── Main bar ─────────────────────────────────────────────────── */}
@@ -140,24 +224,28 @@ export default function FilterSortHeader({
         {/* Left: Filter + Sort tabs */}
         {compactControls ? (
           <View style={styles.compactLeft}>
-            <TouchableOpacity
-              style={styles.compactPill}
-              activeOpacity={0.75}
-              onPress={() => setSortVisible(true)}
-            >
-              <Text style={styles.compactPillText} numberOfLines={1}>Sort</Text>
-              <Icon name={sortDropdownIcon} size={dropdownIconSize} color={dropdownIconColor} />
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={styles.compactPill}
-              activeOpacity={0.75}
-              onPress={() => setFilterVisible(true)}
-            >
-              <Text style={styles.compactPillText} numberOfLines={1}>
-                {activeFilter?.label || "Filter"}
-              </Text>
-              <Icon name={filterDropdownIcon} size={dropdownIconSize} color={dropdownIconColor} />
-            </TouchableOpacity>
+            {showSortButton ? (
+              <TouchableOpacity
+                style={[styles.compactPill, sortPillStyle]}
+                activeOpacity={0.75}
+                onPress={() => setSortVisible(true)}
+              >
+                <Text style={[styles.compactPillText, sortPillTextStyle]} numberOfLines={1}>Sort</Text>
+                <Icon name={sortDropdownIcon} size={dropdownIconSize} color={dropdownIconColor} />
+              </TouchableOpacity>
+            ) : null}
+            {showFilterButton ? (
+              <TouchableOpacity
+                style={[styles.compactPill, filterPillStyle]}
+                activeOpacity={0.75}
+                onPress={() => setFilterVisible(true)}
+              >
+                <Text style={[styles.compactPillText, filterPillTextStyle]} numberOfLines={1}>
+                  {activeFilter?.label || "Filter"}
+                </Text>
+                <Icon name={filterDropdownIcon} size={dropdownIconSize} color={dropdownIconColor} />
+              </TouchableOpacity>
+            ) : null}
           </View>
         ) : (
           <ScrollView
@@ -166,21 +254,23 @@ export default function FilterSortHeader({
             contentContainerStyle={styles.leftScroll}
           >
             {/* Filter button */}
-            <TouchableOpacity
-              style={styles.pill}
-              activeOpacity={0.75}
-              onPress={() => setFilterVisible(true)}
-            >
-              <Icon name="sliders" size={12} color="#111827" style={styles.pillIcon} />
-              {showSortText && (
-                <Text style={styles.pillText} numberOfLines={1}>
-                  {activeFilter?.label || "Filter"}
-                </Text>
-              )}
-            </TouchableOpacity>
+            {showFilterButton ? (
+              <TouchableOpacity
+                style={styles.pill}
+                activeOpacity={0.75}
+                onPress={() => setFilterVisible(true)}
+              >
+                <Icon name="sliders" size={12} color="#111827" style={styles.pillIcon} />
+                {showSortText && (
+                  <Text style={styles.pillText} numberOfLines={1}>
+                    {activeFilter?.label || "Filter"}
+                  </Text>
+                )}
+              </TouchableOpacity>
+            ) : null}
 
             {/* Sort option chips */}
-            {SORT_OPTIONS.map((opt) => {
+            {showSortButton ? SORT_OPTIONS.map((opt) => {
               const active = selectedSort === opt;
               return (
                 <TouchableOpacity
@@ -194,27 +284,29 @@ export default function FilterSortHeader({
                   </Text>
                 </TouchableOpacity>
               );
-            })}
+            }) : null}
           </ScrollView>
         )}
 
         {/* Right: List / Grid toggle */}
-        <View style={[styles.viewToggle, compactControls && styles.compactViewToggle]}>
-          <TouchableOpacity
-            style={[styles.toggleBtn, compactControls && styles.compactToggleBtn, viewMode === "list" && styles.toggleBtnActive]}
-            activeOpacity={0.75}
-            onPress={() => handleViewMode("list")}
-          >
-            <Icon name={listIconName} size={14} color={viewMode === "list" ? "#111827" : "#D1D5DB"} />
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[styles.toggleBtn, compactControls && styles.compactToggleBtn, viewMode === "grid" && styles.toggleBtnActive]}
-            activeOpacity={0.75}
-            onPress={() => handleViewMode("grid")}
-          >
-            <Icon name={gridIconName} size={14} color={viewMode === "grid" ? "#111827" : "#D1D5DB"} />
-          </TouchableOpacity>
-        </View>
+        {showColumnPicker ? (
+          <View style={[styles.viewToggle, compactControls && styles.compactViewToggle]}>
+            <TouchableOpacity
+              style={[styles.toggleBtn, compactControls && styles.compactToggleBtn, viewMode === "list" && styles.toggleBtnActive]}
+              activeOpacity={0.75}
+              onPress={() => handleViewMode("list")}
+            >
+              <Icon name={listIconName} size={14} color={viewMode === "list" ? "#111827" : "#D1D5DB"} />
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.toggleBtn, compactControls && styles.compactToggleBtn, viewMode === "grid" && styles.toggleBtnActive]}
+              activeOpacity={0.75}
+              onPress={() => handleViewMode("grid")}
+            >
+              <Icon name={gridIconName} size={14} color={viewMode === "grid" ? "#111827" : "#D1D5DB"} />
+            </TouchableOpacity>
+          </View>
+        ) : null}
       </View>
 
       {/* ── Filter Modal ─────────────────────────────────────────────── */}
