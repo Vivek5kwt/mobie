@@ -131,6 +131,22 @@ export default function DiscountCode({ section }) {
   const inputTextSize = toNumber(raw?.inputTextSize ?? raw?.inputFontSize, 14);
   const inputHeight = toNumber(raw?.inputHeight, 44);
   const placeholderColor = toString(raw?.placeholderColor, "#9CA3AF");
+  const inputBorderWidth = borderWidthFromLine(
+    firstDefined(raw?.inputBorderLine, raw?.inputBorderWidth),
+    raw?.inputBorderColor ? 1 : 1
+  );
+  const inputPadL = toNumber(
+    firstDefined(raw?.inputPaddingLeft, raw?.inputPl, raw?.inputPadL),
+    12
+  );
+  const inputPadR = toNumber(
+    firstDefined(raw?.inputPaddingRight, raw?.inputPr, raw?.inputPadR),
+    12
+  );
+  const inputButtonGap = toNumber(
+    firstDefined(raw?.inputButtonGap, raw?.buttonGap, raw?.fieldGap, raw?.gap),
+    10
+  );
 
   // Apply button
   const applyText = toString(raw?.applyButtonText ?? raw?.applyText ?? raw?.buttonText ?? raw?.btnText, "Apply");
@@ -145,19 +161,24 @@ export default function DiscountCode({ section }) {
       raw?.buttonBg,
       raw?.btnBg
     ),
-    undefined
+    "#111111"
   );
   const applyTextColor = toString(
     firstDefined(raw?.applyTextColor, raw?.buttonTextColor, raw?.buttonColor),
-    undefined
+    "#FFFFFF"
   );
   const applyBorderColor = toString(
     firstDefined(raw?.applyBorderColor, raw?.buttonBorderColor, raw?.borderColor),
     undefined
   );
+  const applyBorderLine = firstDefined(
+    raw?.applyBorderLine,
+    raw?.buttonBorderLine,
+    raw?.borderLine
+  );
   const applyBorderWidth = borderWidthFromLine(
-    firstDefined(raw?.applyBorderLine, raw?.buttonBorderLine, raw?.borderLine),
-    applyBorderColor ? 1 : 0
+    applyBorderLine,
+    toNumber(firstDefined(raw?.applyBorderWidth, raw?.buttonBorderWidth), 0)
   );
   const applyBorderRadius = toNumber(
     firstDefined(raw?.applyBorderRadius, raw?.buttonBorderRadius, raw?.buttonRadius, raw?.btnRadius),
@@ -322,17 +343,20 @@ export default function DiscountCode({ section }) {
       )}
 
       {/* Input row */}
-      <View style={styles.inputRow}>
+      <View style={[styles.inputRow, { gap: inputButtonGap }]}>
         <TextInput
           style={[
             styles.input,
             {
               backgroundColor: inputBg,
               borderColor: inputBorderColor,
+              borderWidth: inputBorderWidth,
               borderRadius: inputBorderRadius,
               color: inputTextColor,
               fontSize: inputTextSize,
               height: inputHeight,
+              paddingLeft: inputPadL,
+              paddingRight: inputPadR,
               ...(inputFontFamily ? { fontFamily: inputFontFamily } : {}),
             },
           ]}
@@ -455,12 +479,9 @@ const styles = StyleSheet.create({
   inputRow: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 10,
   },
   input: {
     flex: 1,
-    borderWidth: 1,
-    paddingHorizontal: 12,
     paddingVertical: 0,
   },
   applyButton: {
