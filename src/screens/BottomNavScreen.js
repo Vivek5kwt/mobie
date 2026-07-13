@@ -43,9 +43,9 @@ const getSectionCount = (incomingDsl) =>
 
 // ── Default profile menu items shown when DSL has no account_menu sections ───
 const DEFAULT_PROFILE_MENU = [
-  { id: "orders",   label: "My Orders",   icon: "📦", link: "orders" },
-  { id: "wishlist", label: "Wishlist",     icon: "🤍", link: "wishlist" },
-  { id: "settings", label: "Settings",    icon: "⚙️", link: "settings" },
+  { id: "orders",   label: "My Orders",   icon: "box", link: "orders" },
+  { id: "wishlist", label: "Wishlist",     icon: "heart", link: "wishlist" },
+  { id: "settings", label: "Settings",    icon: "gear", link: "settings" },
 ];
 
 function FallbackProfile({ session, logout, navigation }) {
@@ -135,7 +135,7 @@ function FallbackProfile({ session, logout, navigation }) {
             activeOpacity={0.7}
           >
             <View style={styles.profileMenuIcon}>
-              <Text style={{ fontSize: 16 }}>{item.icon}</Text>
+              <HeaderIcon name={item.icon} size={16} color="#374151" />
             </View>
             <Text style={styles.profileMenuLabel}>{item.label}</Text>
             <Text style={styles.profileMenuChevron}>›</Text>
@@ -149,7 +149,7 @@ function FallbackProfile({ session, logout, navigation }) {
           activeOpacity={0.7}
         >
           <View style={[styles.profileMenuIcon, { backgroundColor: "#FEF2F2" }]}>
-            <Text style={{ fontSize: 16 }}>🚪</Text>
+            <HeaderIcon name="right-from-bracket" size={16} color="#DC2626" />
           </View>
           <Text style={styles.profileMenuLabelLogout}>Log Out</Text>
         </TouchableOpacity>

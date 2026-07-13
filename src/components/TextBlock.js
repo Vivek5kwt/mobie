@@ -291,8 +291,7 @@ export default function TextBlock({ section }) {
     iconCfg?.icon ?? iconCfg?.iconName ?? iconCfg?.name ?? iconCfg?.emoji,
     ""
   );
-  const emojiIcon    = containsEmoji(rawIconValue) ? rawIconValue : "";
-  const faIconName   = emojiIcon ? "" : resolveTextBlockIconName(rawIconValue);
+  const faIconName   = containsEmoji(rawIconValue) ? "" : resolveTextBlockIconName(rawIconValue);
   const iconColor    = asStr(iconStyle?.color ?? iconCfg?.color, "#FFFFFF");
   const iconBgColor  = asStr(
     iconCfg?.bgColor ?? iconCfg?.backgroundColor ?? iconStyle?.backgroundColor,
@@ -303,7 +302,7 @@ export default function TextBlock({ section }) {
   const iconRadius   = asNumber(iconCfg?.borderRadius ?? iconCfg?.corner ?? iconStyle?.borderRadius, 0);
   const iconAlign    = resolveAlign(asStr(iconCfg?.align, globalAlign));
 
-  const hasRenderableIcon = !!faIconName || !!emojiIcon;
+  const hasRenderableIcon = !!faIconName;
 
   const hasIcon = showIconDsl && hasRenderableIcon;
   const hasHeadline  = showHeadline && !!headline;
@@ -463,20 +462,6 @@ export default function TextBlock({ section }) {
               color={iconColor}
             />
           )}
-          {!faIconName && !!emojiIcon && (
-            <Text
-              style={[
-                styles.iconEmoji,
-                {
-                  fontSize: iconFaSize,
-                  color: iconColor,
-                  lineHeight: Math.max(iconFaSize + 2, iconSize),
-                },
-              ]}
-            >
-              {emojiIcon}
-            </Text>
-          )}
         </View>
       )}
 
@@ -524,10 +509,6 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems:     "center",
     flexShrink:     0,
-  },
-  iconEmoji: {
-    textAlign: "center",
-    includeFontPadding: false,
   },
   textContainer: {
     flexDirection: "column",
