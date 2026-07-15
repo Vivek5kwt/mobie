@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from "react";
-import { Animated, StyleSheet, View } from "react-native";
+import { Animated, StyleSheet, Text, View } from "react-native";
 import FontAwesome from "react-native-vector-icons/FontAwesome";
 import { resolveProductImageResizeMode } from "../utils/productImageFit";
 
@@ -54,7 +54,12 @@ export default function ProductImage({
       {(!loaded || noImage) && (
         <View style={[StyleSheet.absoluteFillObject, styles.overlay, { backgroundColor: placeholderBg, borderRadius }]}>
           {noImage ? (
-            <FontAwesome name="picture-o" size={iconSize} color={iconColor} />
+            <View style={styles.dummyImage}>
+              <View style={styles.dummyIconWrap}>
+                <FontAwesome name="picture-o" size={iconSize} color={iconColor} />
+              </View>
+              <Text style={[styles.dummyText, { color: iconColor }]}>Product image</Text>
+            </View>
           ) : (
             <ShimmerBone
               style={[
@@ -88,5 +93,22 @@ const styles = StyleSheet.create({
   overlay: {
     alignItems: "center",
     justifyContent: "center",
+  },
+  dummyImage: {
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+  },
+  dummyIconWrap: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "rgba(255,255,255,0.72)",
+  },
+  dummyText: {
+    fontSize: 12,
+    fontWeight: "600",
   },
 });

@@ -8,7 +8,6 @@ import {
   TouchableOpacity,
   View,
   useWindowDimensions,
-  Image,
 } from "react-native";
 import { useNavigation } from "@react-navigation/native";
 import { useDispatch, useSelector } from "react-redux";
@@ -26,6 +25,7 @@ import { requireLoginForAction } from "../utils/authGate";
 import Snackbar from "./Snackbar";
 import { resolveFont } from "../services/typographyService";
 import FavoriteToggleButton, { buildFavoriteToggleConfig } from "./FavoriteToggleButton";
+import ProductImage from "./ProductImage";
 import { formatMoney, parseMoneyAmount } from "../utils/money";
 import { resolveProductImageResizeMode } from "../utils/productImageFit";
 import { getResponsiveColumns } from "../utils/responsiveLayout";
@@ -1016,15 +1016,12 @@ export default function TabProductGrid({ section }) {
                     },
                   ]}
                 >
-                  {product.image ? (
-                    <Image
-                      source={{ uri: product.image }}
-                      style={styles.image}
-                      resizeMode={productImageResizeMode}
-                    />
-                  ) : (
-                    <View style={styles.imagePlaceholder} />
-                  )}
+                  <ProductImage
+                    uri={product.image}
+                    style={styles.image}
+                    resizeMode={productImageResizeMode}
+                    placeholderBg={imageBgColor}
+                  />
                   {showFavorite && (
                     <FavoriteToggleButton
                       isFavorite={isFav}
@@ -1148,15 +1145,12 @@ export default function TabProductGrid({ section }) {
                         },
                       ]}
                     >
-                      {product.image ? (
-                        <Image
-                          source={{ uri: product.image }}
-                          style={styles.image}
-                          resizeMode={productImageResizeMode}
-                        />
-                      ) : (
-                        <View style={styles.imagePlaceholder} />
-                      )}
+                      <ProductImage
+                        uri={product.image}
+                        style={styles.image}
+                        resizeMode={productImageResizeMode}
+                        placeholderBg={imageBgColor}
+                      />
 
                       {showFavorite && (
                         <FavoriteToggleButton

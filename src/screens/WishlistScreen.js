@@ -1,7 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
-  Image,
   ScrollView,
   StyleSheet,
   Text,
@@ -23,6 +22,7 @@ import DynamicRenderer from "../engine/DynamicRenderer";
 import BottomNavigation from "../components/BottomNavigation";
 import { resolveFont } from "../services/typographyService";
 import FavoriteToggleButton, { buildFavoriteToggleConfig } from "../components/FavoriteToggleButton";
+import ProductImage from "../components/ProductImage";
 import { formatMoney } from "../utils/money";
 import { isAuthenticatedSession } from "../utils/authGate";
 import { resolveProductImageResizeMode } from "../utils/productImageFit";
@@ -301,30 +301,18 @@ export default function WishlistScreen() {
       onPress={() => navigation.navigate("ProductDetail", { product: item })}
     >
       <View style={{ position: "relative" }}>
-        {item.image ? (
-          <Image
-            source={{ uri: item.image }}
-            style={{
-              width:                "100%",
-              height:               imgH,
-              borderTopLeftRadius:  imageRadius,
-              borderTopRightRadius: imageRadius,
-              backgroundColor:      imageBgColor,
-            }}
-            resizeMode={imageResizeMode}
-          />
-        ) : (
-          <View
-            style={[
-              styles.imgPlaceholder,
-              { height: imgH, borderTopLeftRadius: imageRadius, borderTopRightRadius: imageRadius, backgroundColor: imageBgColor },
-            ]}
-          >
-            <Text style={styles.placeholderLetter}>
-              {(item.title || "?").charAt(0).toUpperCase()}
-            </Text>
-          </View>
-        )}
+        <ProductImage
+          uri={item.image}
+          style={{
+            width:                "100%",
+            height:               imgH,
+            borderTopLeftRadius:  imageRadius,
+            borderTopRightRadius: imageRadius,
+            backgroundColor:      imageBgColor,
+          }}
+          resizeMode={imageResizeMode}
+          placeholderBg={imageBgColor}
+        />
 
         <FavoriteToggleButton
           isFavorite

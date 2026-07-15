@@ -2,7 +2,6 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import {
   ActivityIndicator,
   FlatList,
-  Image,
   StyleSheet,
   Text,
   TextInput,
@@ -31,6 +30,7 @@ import { resolveFont } from "../services/typographyService";
 import { addItem } from "../store/slices/cartSlice";
 import { isWishlistProduct, toggleWishlist } from "../store/slices/wishlistSlice";
 import FavoriteToggleButton, { buildFavoriteToggleConfig } from "../components/FavoriteToggleButton";
+import ProductImage from "../components/ProductImage";
 import { useAuth } from "../services/AuthContext";
 import { requireLoginForAction } from "../utils/authGate";
 import { getResponsiveColumns } from "../utils/responsiveLayout";
@@ -280,6 +280,7 @@ export default function AllProductsScreen() {
   const [productListHeadingSection, setProductListHeadingSection] = useState(null);
   const [productListGridSection, setProductListGridSection] = useState(null);
   const [productListFilterSortSection, setProductListFilterSortSection] = useState(null);
+  const [productListDslReady, setProductListDslReady] = useState(false);
   const [cartSnackbarVisible, setCartSnackbarVisible] = useState(false);
   const [cartSnackbarMessage, setCartSnackbarMessage] = useState("");
   const favoriteToggleConfig = useMemo(() => buildFavoriteToggleConfig(), []);
@@ -325,6 +326,12 @@ export default function AllProductsScreen() {
     const timeout = setTimeout(() => updateSearchParams(next), 450);
     return () => clearTimeout(timeout);
   }, [isSearchMode, searchInput, searchTerm, updateSearchParams]);
+
+  useEffect(() => {
+    setSortKey("Popular");
+    setViewMode("grid");
+    setActiveFilter(null);
+  }, [isSearchMode, searchTerm, route?.params?.collectionHandle, route?.params?.handle, route?.params?.title]);
 
   const submitSearch = useCallback(() => {
     updateSearchParams(searchInput);
@@ -525,6 +532,12 @@ export default function AllProductsScreen() {
   useEffect(() => {
     const appId = resolveAppId();
     let mounted = true;
+    setProductListDslReady(false);
+    setProductListHeaderConfig(null);
+    setCommonBackHeaderConfig(null);
+    setProductListHeadingSection(null);
+    setProductListGridSection(null);
+    setProductListFilterSortSection(null);
     Promise.all([
       fetchDSL(appId, "home").catch(() => null),
       fetchDSL(appId, "product-list").catch(() => null),
@@ -540,6 +553,7 @@ export default function AllProductsScreen() {
       setProductListHeadingSection(findProductListHeadingSection(productListDsl));
       setProductListGridSection(findProductGridSection(productListDsl));
       setProductListFilterSortSection(findFilterSortSection(productListDsl));
+      setProductListDslReady(true);
       const nav = (homeDsl?.sections || []).find((s) => {
         const c = (
           s?.component?.const || s?.component ||
@@ -548,9 +562,11 @@ export default function AllProductsScreen() {
         return ["bottom_navigation", "bottom_navigation_style_1", "bottom_navigation_style_2"].includes(c);
       });
       if (nav) setBottomNavSection(nav);
-    }).catch(() => {});
+    }).catch(() => {
+      if (mounted) setProductListDslReady(true);
+    });
     return () => { mounted = false; };
-  }, []);
+  }, [isSearchMode, searchTerm, route?.params?.collectionHandle, route?.params?.handle, route?.params?.title]);
 
   const handleLoadMore = () => {
     if (loadingMore || !pageInfo?.hasNextPage) return;
@@ -699,36 +715,20 @@ export default function AllProductsScreen() {
               isListMode && styles.productResultImageWrapList,
             ]}
           >
-            {item.imageUrl ? (
-              <Image
-                source={{ uri: item.imageUrl }}
-                style={[
-                  styles.productResultImage,
-                  {
-                    height: searchImageHeight,
-                    borderRadius: searchGridConfig.imageCorner,
-                  },
-                  isListMode && styles.productResultImageList,
-                ]}
-                resizeMode={searchGridConfig.imageScale || resolveProductImageResizeMode()}
-              />
-            ) : (
-              <View
-                style={[
-                  styles.productResultImage,
-                  styles.productResultPlaceholder,
-                  {
-                    height: searchImageHeight,
-                    borderRadius: searchGridConfig.imageCorner,
-                  },
-                  isListMode && styles.productResultImageList,
-                ]}
-              >
-                <Text style={styles.productResultPlaceholderText}>
-                  {(item.title || "?").charAt(0).toUpperCase()}
-                </Text>
-              </View>
-            )}
+            <ProductImage
+              uri={item.imageUrl}
+              style={[
+                styles.productResultImage,
+                {
+                  height: searchImageHeight,
+                  borderRadius: searchGridConfig.imageCorner,
+                  backgroundColor: searchGridConfig.imageBgColor,
+                },
+                isListMode && styles.productResultImageList,
+              ]}
+              resizeMode={searchGridConfig.imageScale || resolveProductImageResizeMode()}
+              placeholderBg={searchGridConfig.imageBgColor}
+            />
             {searchGridConfig.showFavorite ? (
               <FavoriteToggleButton
                 isFavorite={isFav}
@@ -811,17 +811,11 @@ export default function AllProductsScreen() {
           navigation.navigate("ProductDetail", { product: item, detailSections })
         }
       >
-        {item.imageUrl ? (
-          <Image
-            source={{ uri: item.imageUrl }}
-            style={[styles.image, isListMode && styles.imageList]}
-            resizeMode={resolveProductImageResizeMode()}
-          />
-        ) : (
-          <View style={[styles.image, isListMode && styles.imageList, styles.placeholder]}>
-            <Text style={styles.placeholderText}>No image</Text>
-          </View>
-        )}
+        <ProductImage
+          uri={item.imageUrl}
+          style={[styles.image, isListMode && styles.imageList]}
+          resizeMode={resolveProductImageResizeMode()}
+        />
         <View style={styles.content}>
           <Text numberOfLines={isListMode ? 1 : 2} style={styles.name}>
             {item.title}
@@ -876,8 +870,6 @@ export default function AllProductsScreen() {
       </TouchableOpacity>
     </View>
   );
-
-  const resultFilterSortSection = productListFilterSortSection || {};
 
   return (
     <SafeArea edges={["top", "left", "right"]}>
@@ -964,13 +956,15 @@ export default function AllProductsScreen() {
         ) : null}
 
         {/* Filter + Sort bar */}
-        <FilterSortHeader
-          section={resultFilterSortSection}
-          filterItems={filterOptions}
-          onSortChange={(opt) => setSortKey(opt)}
-          onViewModeChange={(mode) => setViewMode(mode)}
-          onFilterChange={(filter) => setActiveFilter(filter)}
-        />
+        {productListDslReady && productListFilterSortSection ? (
+          <FilterSortHeader
+            section={productListFilterSortSection}
+            filterItems={filterOptions}
+            onSortChange={(opt) => setSortKey(opt)}
+            onViewModeChange={(mode) => setViewMode(mode)}
+            onFilterChange={(filter) => setActiveFilter(filter)}
+          />
+        ) : null}
 
         <View style={[styles.listArea, useProductListDslLayout && styles.searchListArea]}>
           {error ? <Text style={styles.error}>{error}</Text> : null}
