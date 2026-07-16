@@ -190,6 +190,12 @@ export default function ProductLibrary({ section }) {
     visibility?.slider ?? raw?.showSlider ?? sliderConfig?.visible ?? sliderConfig?.enabled,
     true
   );
+  const indicatorStyle = toString(
+    raw?.sliderIndicatorStyle ?? sliderConfig?.indicatorStyle ?? raw?.indicatorStyle,
+    "Dots"
+  ).trim().toLowerCase();
+  const indicatorUsesImages =
+    indicatorStyle.includes("image") || indicatorStyle.includes("thumbnail");
   const showThumbnails = toBoolean(
     visibility?.thumbnails ??
       visibility?.thumbnailStrip ??
@@ -197,7 +203,7 @@ export default function ProductLibrary({ section }) {
       raw?.showThumbnailStrip ??
       sliderConfig?.showThumbnails ??
       sliderConfig?.thumbnailStrip,
-    false
+    indicatorUsesImages
   );
   const showIndicator = toBoolean(
     visibility?.indicator ??
@@ -208,10 +214,21 @@ export default function ProductLibrary({ section }) {
       sliderConfig?.showIndicators,
     true
   );
-  const indicatorStyle = toString(
-    raw?.indicatorStyle ?? raw?.sliderIndicatorStyle ?? sliderConfig?.indicatorStyle,
-    "Dots"
-  ).trim().toLowerCase();
+  const autoplayEnabled = toBoolean(
+    firstDefined(raw?.sliderAutoplay, raw?.autoplay, sliderConfig?.autoplay),
+    false
+  );
+  const autoplayIntervalSeconds = toNumber(
+    firstDefined(raw?.sliderInterval, raw?.autoplayInterval, sliderConfig?.interval),
+    3
+  );
+  const autoplayIntervalMs = Math.max(
+    1000,
+    toNumber(
+      firstDefined(raw?.sliderIntervalMs, raw?.autoplayIntervalMs, sliderConfig?.intervalMs),
+      autoplayIntervalSeconds * 1000
+    )
+  );
 
   // ── Visibility toggles ────────────────────────────────────────────────────
   const showRating = toBoolean(raw?.showRating, true);
@@ -286,18 +303,53 @@ export default function ProductLibrary({ section }) {
     galleryRef.current?.scrollTo({ x: safeIdx * galleryWidth, animated: false });
   }, [galleryWidth]);
 
+  useEffect(() => {
+    if (
+      !autoplayEnabled ||
+      !sliderVisible ||
+      isFullscreenVisible ||
+      images.length <= 1 ||
+      !galleryWidth
+    ) {
+      return undefined;
+    }
+
+    const intervalId = setInterval(() => {
+      setCurrentIdx((previousIdx) => {
+        const nextIdx = (previousIdx + 1) % images.length;
+        galleryRef.current?.scrollTo({ x: nextIdx * galleryWidth, animated: true });
+        return nextIdx;
+      });
+    }, autoplayIntervalMs);
+
+    return () => clearInterval(intervalId);
+  }, [
+    autoplayEnabled,
+    autoplayIntervalMs,
+    galleryWidth,
+    images.length,
+    isFullscreenVisible,
+    sliderVisible,
+  ]);
+
   if (!images.length) return null;
 
   // ── Dimensions ────────────────────────────────────────────────────────────
   const metrics = layout?.metrics?.elements || {};
-  const imageMetrics = metrics?.image || {};
-  const imageWidth = imageMetrics?.width
-    ? Math.min(Number(imageMetrics.width), Math.max(galleryWidth - 32, 1))
-    : Math.max(galleryWidth - 32, 1);
-  const imageHeight = imageMetrics?.height
-    ? Number(imageMetrics.height)
+  const imageMetrics = metrics?.image || metrics?.imageWrap || {};
+  const availableGalleryWidth = Math.max(galleryWidth, 1);
+  const metricImageWidth = toNumber(imageMetrics?.width, 0);
+  const metricImageHeight = toNumber(imageMetrics?.height, 0);
+  const imageWidth = metricImageWidth > 0
+    ? Math.min(metricImageWidth, availableGalleryWidth)
+    : availableGalleryWidth;
+  const imageHeight = metricImageHeight > 0
+    ? metricImageHeight
     : Math.round(imageWidth * 1.0);
-  const imageCorner = toNumber(imageStyles?.corner, 16);
+  const imageCorner = toNumber(
+    firstDefined(imageStyles?.imageCorner, imageStyles?.corner, raw?.imageCorner, raw?.corner, raw?.borderRadius),
+    0
+  );
   const imageScale = toString(imageStyles?.scale, "Fit").toLowerCase();
   const resizeMode = resolveProductImageResizeMode(
     imageScale,
@@ -325,9 +377,11 @@ export default function ProductLibrary({ section }) {
         imageStyles?.paddingY,
         imageStyles?.py,
         raw?.imagePaddingVertical,
-        raw?.imagePadY
+        raw?.imagePadY,
+        raw?.imagePaddingTop,
+        raw?.imagePaddingBottom
       ),
-      8
+      0
     )
   );
   const imageHorizontalOffset = Math.max(0, (galleryWidth - imageWidth) / 2);

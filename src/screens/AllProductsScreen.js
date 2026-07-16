@@ -2,7 +2,6 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import {
   ActivityIndicator,
   FlatList,
-  Image,
   StyleSheet,
   Text,
   TextInput,
@@ -22,6 +21,7 @@ import FilterSortHeader from "../components/FilterSortHeader";
 import BottomNavigation, { BOTTOM_NAV_RESERVED_HEIGHT } from "../components/BottomNavigation";
 import Snackbar from "../components/Snackbar";
 import { fetchDSL } from "../engine/dslHandler";
+import DynamicRenderer from "../engine/DynamicRenderer";
 import { resolveAppId } from "../utils/appId";
 import { buildProductFilterOptions, productMatchesFilter } from "../utils/productFilters";
 import { formatMoney, parseMoneyAmount } from "../utils/money";
@@ -30,6 +30,7 @@ import { resolveFont } from "../services/typographyService";
 import { addItem } from "../store/slices/cartSlice";
 import { isWishlistProduct, toggleWishlist } from "../store/slices/wishlistSlice";
 import FavoriteToggleButton, { buildFavoriteToggleConfig } from "../components/FavoriteToggleButton";
+import ProductImage from "../components/ProductImage";
 import { useAuth } from "../services/AuthContext";
 import { requireLoginForAction } from "../utils/authGate";
 import { getResponsiveColumns } from "../utils/responsiveLayout";
@@ -83,6 +84,12 @@ const findFilterSortSection = (dsl = {}) =>
   (dsl?.sections || []).find((section) => {
     const component = getComponentName(section);
     return component === "filter_sort_header" || component === "filter_sort";
+  }) || null;
+
+const findProductListHeadingSection = (dsl = {}) =>
+  (dsl?.sections || []).find((section) => {
+    const component = getComponentName(section);
+    return component === "text_block" || component === "collection_heading" || component === "page_heading";
   }) || null;
 
 const resolveString = (value, fallback = "") => {
@@ -270,8 +277,10 @@ export default function AllProductsScreen() {
   const [homeHeaderConfig, setHomeHeaderConfig] = useState(null);
   const [productListHeaderConfig, setProductListHeaderConfig] = useState(null);
   const [commonBackHeaderConfig, setCommonBackHeaderConfig] = useState(null);
+  const [productListHeadingSection, setProductListHeadingSection] = useState(null);
   const [productListGridSection, setProductListGridSection] = useState(null);
   const [productListFilterSortSection, setProductListFilterSortSection] = useState(null);
+  const [productListDslReady, setProductListDslReady] = useState(false);
   const [cartSnackbarVisible, setCartSnackbarVisible] = useState(false);
   const [cartSnackbarMessage, setCartSnackbarMessage] = useState("");
   const favoriteToggleConfig = useMemo(() => buildFavoriteToggleConfig(), []);
@@ -317,6 +326,12 @@ export default function AllProductsScreen() {
     const timeout = setTimeout(() => updateSearchParams(next), 450);
     return () => clearTimeout(timeout);
   }, [isSearchMode, searchInput, searchTerm, updateSearchParams]);
+
+  useEffect(() => {
+    setSortKey("Popular");
+    setViewMode("grid");
+    setActiveFilter(null);
+  }, [isSearchMode, searchTerm, route?.params?.collectionHandle, route?.params?.handle, route?.params?.title]);
 
   const submitSearch = useCallback(() => {
     updateSearchParams(searchInput);
@@ -387,6 +402,19 @@ export default function AllProductsScreen() {
       ],
       true
     );
+    const showFavorite = resolveBoolean(
+      [
+        raw?.favoriteIconEnabled,
+        raw?.showFavorite,
+        raw?.showWishlist,
+        raw?.addToFavorite,
+        raw?.addToFavoriteActive,
+        visibility?.favorite,
+        visibility?.addToFavorite,
+        visibility?.wishlist,
+      ],
+      false
+    );
     return {
       columns,
       colGap,
@@ -414,16 +442,18 @@ export default function AllProductsScreen() {
       priceWeight,
       priceFamily,
       showAddToCart,
+      showFavorite,
       bgColor: resolveString(raw?.bgColor ?? containerCss?.backgroundColor, "#FFFFFF"),
     };
   }, [productListGridSection]);
 
   const viewportWidth = Math.max(1, screenWidth);
-  const horizontalPadding = isSearchMode
+  const useProductListDslLayout = isSearchMode || !!productListGridSection;
+  const horizontalPadding = useProductListDslLayout
     ? searchGridConfig.padLeft + searchGridConfig.padRight
     : H_PAD * 2;
-  const columnGap = isSearchMode ? searchGridConfig.colGap : GAP;
-  const requestedColumns = isSearchMode ? searchGridConfig.columns : 2;
+  const columnGap = useProductListDslLayout ? searchGridConfig.colGap : GAP;
+  const requestedColumns = useProductListDslLayout ? searchGridConfig.columns : 2;
   const numColumns = viewMode === "list"
     ? 1
     : getResponsiveColumns({
@@ -436,7 +466,7 @@ export default function AllProductsScreen() {
       });
   const CARD_W = viewMode === "list"
     ? viewportWidth - horizontalPadding
-    : isSearchMode
+    : useProductListDslLayout
     ? (viewportWidth - searchGridConfig.padLeft - searchGridConfig.padRight - searchGridConfig.colGap * (numColumns - 1)) / numColumns
     : (viewportWidth - H_PAD * 2 - GAP * (numColumns - 1)) / numColumns;
   const searchImageHeight = viewMode === "list" ? 100 : Math.round(CARD_W);
@@ -502,6 +532,12 @@ export default function AllProductsScreen() {
   useEffect(() => {
     const appId = resolveAppId();
     let mounted = true;
+    setProductListDslReady(false);
+    setProductListHeaderConfig(null);
+    setCommonBackHeaderConfig(null);
+    setProductListHeadingSection(null);
+    setProductListGridSection(null);
+    setProductListFilterSortSection(null);
     Promise.all([
       fetchDSL(appId, "home").catch(() => null),
       fetchDSL(appId, "product-list").catch(() => null),
@@ -514,8 +550,10 @@ export default function AllProductsScreen() {
       setHomeHeaderConfig(homeDsl?.headerdefault || null);
       setProductListHeaderConfig(productListDsl?.headerdefault || null);
       setCommonBackHeaderConfig(productDetailDsl?.headerdefault || null);
+      setProductListHeadingSection(findProductListHeadingSection(productListDsl));
       setProductListGridSection(findProductGridSection(productListDsl));
       setProductListFilterSortSection(findFilterSortSection(productListDsl));
+      setProductListDslReady(true);
       const nav = (homeDsl?.sections || []).find((s) => {
         const c = (
           s?.component?.const || s?.component ||
@@ -524,9 +562,11 @@ export default function AllProductsScreen() {
         return ["bottom_navigation", "bottom_navigation_style_1", "bottom_navigation_style_2"].includes(c);
       });
       if (nav) setBottomNavSection(nav);
-    }).catch(() => {});
+    }).catch(() => {
+      if (mounted) setProductListDslReady(true);
+    });
     return () => { mounted = false; };
-  }, []);
+  }, [isSearchMode, searchTerm, route?.params?.collectionHandle, route?.params?.handle, route?.params?.title]);
 
   const handleLoadMore = () => {
     if (loadingMore || !pageInfo?.hasNextPage) return;
@@ -637,7 +677,7 @@ export default function AllProductsScreen() {
 
   const renderItem = ({ item }) => {
     const isListMode = viewMode === "list";
-    if (isSearchMode) {
+    if (useProductListDslLayout) {
       const inStock = isProductAvailable(item);
       const isFav = isWishlistProduct(wishlistItems, item);
       const price = formatMoney(
@@ -653,7 +693,7 @@ export default function AllProductsScreen() {
               width: CARD_W,
               marginBottom: searchGridConfig.rowGap,
               borderRadius: searchGridConfig.cardRadius,
-              backgroundColor: "#FFFFFF",
+              backgroundColor: searchGridConfig.cardBgColor,
               borderColor: searchGridConfig.cardBorderColor,
               borderWidth: searchGridConfig.cardBorderWidth,
             },
@@ -671,54 +711,41 @@ export default function AllProductsScreen() {
           <View
             style={[
               styles.productResultImageWrap,
+              { backgroundColor: searchGridConfig.imageBgColor },
               isListMode && styles.productResultImageWrapList,
             ]}
           >
-            {item.imageUrl ? (
-              <Image
-                source={{ uri: item.imageUrl }}
-                style={[
-                  styles.productResultImage,
-                  {
-                    height: searchImageHeight,
-                    borderRadius: searchGridConfig.imageCorner,
-                  },
-                  isListMode && styles.productResultImageList,
-                ]}
-                resizeMode={searchGridConfig.imageScale || resolveProductImageResizeMode()}
-              />
-            ) : (
-              <View
-                style={[
-                  styles.productResultImage,
-                  styles.productResultPlaceholder,
-                  {
-                    height: searchImageHeight,
-                    borderRadius: searchGridConfig.imageCorner,
-                  },
-                  isListMode && styles.productResultImageList,
-                ]}
-              >
-                <Text style={styles.productResultPlaceholderText}>
-                  {(item.title || "?").charAt(0).toUpperCase()}
-                </Text>
-              </View>
-            )}
-            <FavoriteToggleButton
-              isFavorite={isFav}
-              config={favoriteToggleConfig}
-              onPress={async (e) => {
-                e?.stopPropagation?.();
-                e?.preventDefault?.();
-                const blocked = await requireLoginForAction({ session, navigation, initializing });
-                if (blocked) return;
-                favoriteTapRef.current = true;
-                setTimeout(() => {
-                  favoriteTapRef.current = false;
-                }, 0);
-                dispatch(toggleWishlist({ product: item }));
-              }}
+            <ProductImage
+              uri={item.imageUrl}
+              style={[
+                styles.productResultImage,
+                {
+                  height: searchImageHeight,
+                  borderRadius: searchGridConfig.imageCorner,
+                  backgroundColor: searchGridConfig.imageBgColor,
+                },
+                isListMode && styles.productResultImageList,
+              ]}
+              resizeMode={searchGridConfig.imageScale || resolveProductImageResizeMode()}
+              placeholderBg={searchGridConfig.imageBgColor}
             />
+            {searchGridConfig.showFavorite ? (
+              <FavoriteToggleButton
+                isFavorite={isFav}
+                config={favoriteToggleConfig}
+                onPress={async (e) => {
+                  e?.stopPropagation?.();
+                  e?.preventDefault?.();
+                  const blocked = await requireLoginForAction({ session, navigation, initializing });
+                  if (blocked) return;
+                  favoriteTapRef.current = true;
+                  setTimeout(() => {
+                    favoriteTapRef.current = false;
+                  }, 0);
+                  dispatch(toggleWishlist({ product: item }));
+                }}
+              />
+            ) : null}
           </View>
 
           <View style={[styles.searchInfoColumn, isListMode && styles.searchInfoColumnList]}>
@@ -784,17 +811,11 @@ export default function AllProductsScreen() {
           navigation.navigate("ProductDetail", { product: item, detailSections })
         }
       >
-        {item.imageUrl ? (
-          <Image
-            source={{ uri: item.imageUrl }}
-            style={[styles.image, isListMode && styles.imageList]}
-            resizeMode={resolveProductImageResizeMode()}
-          />
-        ) : (
-          <View style={[styles.image, isListMode && styles.imageList, styles.placeholder]}>
-            <Text style={styles.placeholderText}>No image</Text>
-          </View>
-        )}
+        <ProductImage
+          uri={item.imageUrl}
+          style={[styles.image, isListMode && styles.imageList]}
+          resizeMode={resolveProductImageResizeMode()}
+        />
         <View style={styles.content}>
           <Text numberOfLines={isListMode ? 1 : 2} style={styles.name}>
             {item.title}
@@ -849,8 +870,6 @@ export default function AllProductsScreen() {
       </TouchableOpacity>
     </View>
   );
-
-  const resultFilterSortSection = productListFilterSortSection || {};
 
   return (
     <SafeArea edges={["top", "left", "right"]}>
@@ -926,28 +945,32 @@ export default function AllProductsScreen() {
         ) : resultHeaderConfig ? (
           <HeaderDefault config={resultHeaderConfig} bottomNavSection={bottomNavSection} hideTabs showBack />
         ) : null}
-        {!isSearchMode && (
+        {!isSearchMode && productListHeadingSection ? (
+          <DynamicRenderer section={productListHeadingSection} />
+        ) : !isSearchMode ? (
           <View style={styles.headerSection}>
             <Text style={[styles.heading, { color: resolvedHeadingColor, fontSize: resolvedHeadingSize }]}>
               {title || "Products"}
             </Text>
           </View>
-        )}
+        ) : null}
 
         {/* Filter + Sort bar */}
-        <FilterSortHeader
-          section={resultFilterSortSection}
-          filterItems={filterOptions}
-          onSortChange={(opt) => setSortKey(opt)}
-          onViewModeChange={(mode) => setViewMode(mode)}
-          onFilterChange={(filter) => setActiveFilter(filter)}
-        />
+        {productListDslReady && productListFilterSortSection ? (
+          <FilterSortHeader
+            section={productListFilterSortSection}
+            filterItems={filterOptions}
+            onSortChange={(opt) => setSortKey(opt)}
+            onViewModeChange={(mode) => setViewMode(mode)}
+            onFilterChange={(filter) => setActiveFilter(filter)}
+          />
+        ) : null}
 
-        <View style={[styles.listArea, isSearchMode && styles.searchListArea]}>
+        <View style={[styles.listArea, useProductListDslLayout && styles.searchListArea]}>
           {error ? <Text style={styles.error}>{error}</Text> : null}
 
-          {loading && isSearchMode ? renderSearchSkeleton() : null}
-          {loading && !isSearchMode ? <ActivityIndicator size="small" color="#111827" /> : null}
+          {loading && useProductListDslLayout ? renderSearchSkeleton() : null}
+          {loading && !useProductListDslLayout ? <ActivityIndicator size="small" color="#111827" /> : null}
 
           {!loading && !error && (
             <FlatList
@@ -959,14 +982,14 @@ export default function AllProductsScreen() {
               renderItem={renderItem}
               contentContainerStyle={[
                 styles.listContent,
-                isSearchMode && {
+                useProductListDslLayout && {
                   paddingTop: searchGridConfig.padTop,
                   paddingBottom: searchGridConfig.padBottom + (bottomNavSection ? bottomNavHeight + 16 : 24),
                   paddingLeft: searchGridConfig.padLeft,
                   paddingRight: searchGridConfig.padRight,
-                  backgroundColor: "#FFFFFF",
+                  backgroundColor: searchGridConfig.bgColor,
                 },
-                !isSearchMode && { paddingBottom: bottomNavSection ? bottomNavHeight + 16 : 24 },
+                !useProductListDslLayout && { paddingBottom: bottomNavSection ? bottomNavHeight + 16 : 24 },
               ]}
               ListEmptyComponent={
                 isSearchMode ? renderEmptyState : (

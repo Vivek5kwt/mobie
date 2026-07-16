@@ -215,6 +215,10 @@ export default function AccountMenu({ section }) {
   const labelStrikethrough = bool(rawProps?.textStrikethrough, false);
   const labelUppercase = bool(rawProps?.textUppercase, false);
   const labelFontFamily = resolveFont(str(rawProps?.textFontFamily ?? rawProps?.fontFamily, ""));
+  const labelLineHeight = num(
+    rawProps?.textLineHeight ?? rawProps?.labelLineHeight ?? rawProps?.lineHeight,
+    parsePx(css?.label?.lineHeight, Math.ceil(labelSize * 1.25))
+  );
 
   // ── chevron ───────────────────────────────────────────────────────────────
   const showChevron  = bool(rawProps?.showChevron ?? rawProps?.showArrow, true);
@@ -461,8 +465,11 @@ export default function AccountMenu({ section }) {
                   {
                     color:      labelColor,
                     fontSize:   labelSize,
+                    lineHeight: labelLineHeight,
                     fontWeight: labelBold ? "700" : labelWeight,
                     fontStyle: labelItalic ? "italic" : "normal",
+                    includeFontPadding: true,
+                    textAlignVertical: "center",
                     textTransform: labelUppercase ? "uppercase" : "none",
                     textDecorationLine:
                       labelUnderline && labelStrikethrough

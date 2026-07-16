@@ -1,6 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
-  Image,
   StyleSheet,
   Text,
   TouchableOpacity,
@@ -20,6 +19,7 @@ import { resolveProductImageResizeMode } from "../utils/productImageFit";
 import { getResponsiveColumns } from "../utils/responsiveLayout";
 import { resolveFirstFont } from "../services/typographyService";
 import FavoriteToggleButton, { buildFavoriteToggleConfig } from "./FavoriteToggleButton";
+import ProductImage from "./ProductImage";
 import { formatMoney, parseMoneyAmount } from "../utils/money";
 import { ADD_TO_CART_SUCCESS_MESSAGE } from "../utils/cartFeedback";
 import Snackbar from "./Snackbar";
@@ -487,7 +487,7 @@ export default function RecentProducts({ section }) {
                 onPress={() => handleProductPress(product)}
               >
                 {/* Image */}
-                {showImage && (product.imageUrl || product.image) ? (
+                {showImage ? (
                   <View
                     style={{
                       width: "100%",
@@ -500,38 +500,12 @@ export default function RecentProducts({ section }) {
                       position: "relative",
                     }}
                   >
-                    <Image
-                      source={{ uri: product.imageUrl || product.image }}
+                    <ProductImage
+                      uri={product.imageUrl || product.image}
                       style={{ width: "100%", height: "100%" }}
                       resizeMode={imageResizeMode}
+                      placeholderBg={imageBgColor}
                     />
-                    {showFavorite && (
-                      <FavoriteToggleButton
-                        isFavorite={isFavorite}
-                        config={favoriteToggleConfig}
-                        onPress={(e) => {
-                          e?.stopPropagation?.();
-                          handleToggleFavorite(product);
-                        }}
-                      />
-                    )}
-                  </View>
-                ) : showImage ? (
-                  <View
-                    style={{
-                      width:        "100%",
-                      height:       imageHeight,
-                      backgroundColor: imageBgColor,
-                      alignItems:   "center",
-                      justifyContent: "center",
-                      borderTopLeftRadius:  cardRadius,
-                      borderTopRightRadius: cardRadius,
-                      position: "relative",
-                    }}
-                  >
-                    <Text style={{ fontSize: 28, color: "#D1D5DB" }}>
-                      {(product.title || "?").charAt(0).toUpperCase()}
-                    </Text>
                     {showFavorite && (
                       <FavoriteToggleButton
                         isFavorite={isFavorite}

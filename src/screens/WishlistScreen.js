@@ -1,7 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
-  Image,
   ScrollView,
   StyleSheet,
   Text,
@@ -23,6 +22,7 @@ import DynamicRenderer from "../engine/DynamicRenderer";
 import BottomNavigation from "../components/BottomNavigation";
 import { resolveFont } from "../services/typographyService";
 import FavoriteToggleButton, { buildFavoriteToggleConfig } from "../components/FavoriteToggleButton";
+import ProductImage from "../components/ProductImage";
 import { formatMoney } from "../utils/money";
 import { isAuthenticatedSession } from "../utils/authGate";
 import { resolveProductImageResizeMode } from "../utils/productImageFit";
@@ -118,10 +118,7 @@ export default function WishlistScreen() {
     try {
       if (!silent) setDslLoading(true);
 
-      const [wishlistResult, homeResult] = await Promise.all([
-        fetchDSL(appId, "wishlist").catch(() => null),
-        fetchDSL(appId, "home").catch(() => null),
-      ]);
+      const wishlistResult = await fetchDSL(appId, "wishlist").catch(() => null);
 
       const dsl = wishlistResult?.dsl || wishlistResult;
       const fp = getDslFingerprint(dsl);
@@ -154,11 +151,10 @@ export default function WishlistScreen() {
         );
       }
 
-      // Extract bottom navigation from home DSL (canonical source)
-      const homeDsl = homeResult?.dsl || homeResult;
-      const homeSections = homeDsl?.sections || [];
+      // Wishlist only shows bottom navigation when its own DSL defines it.
+      const wishlistSections = dsl?.sections || [];
       const navSection =
-        homeSections.find((s) => NAV_COMPS.includes(normalizeComp(s))) || null;
+        wishlistSections.find((s) => NAV_COMPS.includes(normalizeComp(s))) || null;
       setBottomNavSection(navSection);
     } catch (_) {
       // DSL fetch failed — renders with defaults
@@ -305,30 +301,18 @@ export default function WishlistScreen() {
       onPress={() => navigation.navigate("ProductDetail", { product: item })}
     >
       <View style={{ position: "relative" }}>
-        {item.image ? (
-          <Image
-            source={{ uri: item.image }}
-            style={{
-              width:                "100%",
-              height:               imgH,
-              borderTopLeftRadius:  imageRadius,
-              borderTopRightRadius: imageRadius,
-              backgroundColor:      imageBgColor,
-            }}
-            resizeMode={imageResizeMode}
-          />
-        ) : (
-          <View
-            style={[
-              styles.imgPlaceholder,
-              { height: imgH, borderTopLeftRadius: imageRadius, borderTopRightRadius: imageRadius, backgroundColor: imageBgColor },
-            ]}
-          >
-            <Text style={styles.placeholderLetter}>
-              {(item.title || "?").charAt(0).toUpperCase()}
-            </Text>
-          </View>
-        )}
+        <ProductImage
+          uri={item.image}
+          style={{
+            width:                "100%",
+            height:               imgH,
+            borderTopLeftRadius:  imageRadius,
+            borderTopRightRadius: imageRadius,
+            backgroundColor:      imageBgColor,
+          }}
+          resizeMode={imageResizeMode}
+          placeholderBg={imageBgColor}
+        />
 
         <FavoriteToggleButton
           isFavorite
@@ -435,7 +419,7 @@ export default function WishlistScreen() {
           showsVerticalScrollIndicator={false}
           contentContainerStyle={{ flexGrow: 1, paddingBottom: bottomNavSection ? bottomNavHeight : 0 }}
         >
-          {wishlistItems.length > 0 && otherSections.map((section, i) => (
+          {otherSections.map((section, i) => (
             <DynamicRenderer key={i} section={section} />
           ))}
 
@@ -443,8 +427,33 @@ export default function WishlistScreen() {
             /* ── Empty state ──────────────────────────────────────────────── */
             <View style={[styles.emptyWrap, { backgroundColor: emptyBgColor }]}>
               <Icon name="heart" size={52} color="#E5E7EB" />
-              <Text style={styles.emptyTitle}>{emptyTitle}</Text>
-              <Text style={styles.emptySubtitle}>{emptySubtitle}</Text>
+              <Text
+                style={[
+                  styles.emptyTitle,
+                  {
+                    color: titleColor,
+                    fontSize: titleFontSize,
+                    fontWeight: titleFontWeight,
+                    lineHeight: Math.max(Math.ceil(titleFontSize * 1.25), titleLineHeight),
+                    ...(titleFontFamily ? { fontFamily: titleFontFamily } : null),
+                  },
+                ]}
+              >
+                {emptyTitle}
+              </Text>
+              <Text
+                style={[
+                  styles.emptySubtitle,
+                  {
+                    color: countColor,
+                    fontSize: countFontSize,
+                    lineHeight: Math.max(Math.ceil(countFontSize * 1.35), countFontSize + 4),
+                    ...(countFontFamily ? { fontFamily: countFontFamily } : null),
+                  },
+                ]}
+              >
+                {emptySubtitle}
+              </Text>
             </View>
           ) : (
             /* ── Product grid ────────────────────────────────────────────── */

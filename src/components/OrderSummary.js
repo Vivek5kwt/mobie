@@ -61,6 +61,14 @@ const toFontWeight = (value, fallback = "400") => {
   return fallback;
 };
 
+const borderWidthFromLine = (value, fallback = 0) => {
+  const line = toString(value, "").trim().toLowerCase();
+  if (!line) return fallback;
+  if (line === "none" || line === "hidden" || line === "0") return 0;
+  const parsed = parseFloat(line);
+  return Number.isFinite(parsed) ? parsed : 1;
+};
+
 const normalizeCurrencyLabel = (value, fallback = "") => {
   const label = toString(value, fallback).trim();
   if (!label) return "";
@@ -182,9 +190,31 @@ export default function OrderSummary({ section }) {
   const sourceItems = usesDslItems ? dslItems : cartItems;
 
   // DSL styling for item cards
-  const cardBgColor = toString(raw?.cardBgColor, "#FFFFFF");
-  const cardRadius = toNumber(raw?.radius ?? raw?.cardRadius, 12);
-  const cardBorderColor = toString(raw?.borderColor, "#E5E7EB");
+  const cardBgColor = toString(raw?.cardBgColor ?? raw?.cardColor, "#FFFFFF");
+  const cardRadius = toNumber(raw?.cardBorderRadius ?? raw?.cardRadius ?? raw?.radius, 0);
+  const cardBorderColor = toString(raw?.cardBorderColor ?? raw?.borderColor, "transparent");
+  const cardBorderWidth = borderWidthFromLine(
+    raw?.cardBorderLine ?? raw?.borderLine,
+    toNumber(raw?.cardBorderWidth, 0)
+  );
+  const cardPadT = toNumber(raw?.cardPadT ?? raw?.cardPt, 0);
+  const cardPadR = toNumber(raw?.cardPadR ?? raw?.cardPr, 0);
+  const cardPadB = toNumber(raw?.cardPadB ?? raw?.cardPb, 0);
+  const cardPadL = toNumber(raw?.cardPadL ?? raw?.cardPl, 0);
+  const hasCardContainer =
+    firstDefined(
+      raw?.cardBgColor,
+      raw?.cardColor,
+      raw?.cardBorderColor,
+      raw?.cardBorderRadius,
+      raw?.cardRadius,
+      raw?.cardBorderLine,
+      raw?.cardBorderWidth,
+      raw?.cardPt,
+      raw?.cardPr,
+      raw?.cardPb,
+      raw?.cardPl
+    ) !== undefined;
   const imageBgColor = toString(
     raw?.imageBg ??
       raw?.imageBgColor ??
@@ -297,7 +327,7 @@ export default function OrderSummary({ section }) {
     : (toNumber(raw?.savingsPercent, 0) / 100) * cartTotal;
 
   // Discount row (applied codes)
-  const showDiscount = toBoolean(raw?.showDiscount, !usesDslItems);
+  const showDiscount = toBoolean(raw?.showDiscount ?? raw?.discountActive, !usesDslItems);
   const discountLabel = toString(raw?.discountLabel, "Discount");
   const discountLabelSize = toNumber(raw?.discountsFontSize ?? raw?.discountFontSize, rowLabelSize);
   const discountValueSize = toNumber(raw?.discountPriceSize ?? raw?.discountValueSize, rowValueSize);
@@ -321,6 +351,10 @@ export default function OrderSummary({ section }) {
   const chipBorderLine = toString(raw?.discountChipborderSide ?? raw?.discountChipBorderSide ?? raw?.chipBorderLine, "all");
   const chipBorderWidth = chipBorderLine.trim().toLowerCase() === "none" ? 0 : 1;
   const chipPrefix = toString(raw?.chipPrefix, "Discount - ");
+  const showDiscountChips = toBoolean(
+    raw?.showDiscountChip ?? raw?.showDiscountBadge ?? raw?.showAppliedDiscountBadge,
+    true
+  );
 
   // Tax row
   const configuredTaxAmount = firstDefined(
@@ -330,7 +364,7 @@ export default function OrderSummary({ section }) {
     raw?.saleAmount,
     raw?.salePrice,
     raw?.sale,
-    usesDslItems && !toBoolean(raw?.savingsActive, false) ? raw?.savings : undefined
+    !toBoolean(raw?.savingsActive, false) ? raw?.savings : undefined
   );
   const computedLineTax = sourceItems.reduce((sum, item) => sum + resolveLineTax(item), 0);
   const showTax = toBoolean(
@@ -380,7 +414,7 @@ export default function OrderSummary({ section }) {
 
   // Sub total row
   const showSubTotal = toBoolean(raw?.showSubTotal ?? raw?.showSubtotal, raw?.subTotal != null || true);
-  const subTotalLabel = toString(raw?.subTotalLabel ?? raw?.subtotalLabel, usesDslItems ? "Total" : "Sub Total");
+  const subTotalLabel = toString(raw?.subTotalLabel ?? raw?.subtotalLabel ?? raw?.subtotalText, usesDslItems ? "Total" : "Sub Total");
   const subTotalLabelSize = toNumber(raw?.subtotalSize ?? raw?.subTotalFontSize, rowLabelSize);
   const subTotalValueSize = toNumber(raw?.subtotalPriceSize ?? raw?.subTotalPriceSize, rowValueSize);
   const subTotalColor = toString(raw?.subtotalPriceColor ?? raw?.subTotalColor, "#EF4444");
@@ -412,6 +446,23 @@ export default function OrderSummary({ section }) {
         },
       ]}
     >
+      <View
+        style={[
+          hasCardContainer ? styles.summaryCard : styles.summaryContent,
+          hasCardContainer
+            ? {
+                backgroundColor: cardBgColor,
+                borderColor: cardBorderColor,
+                borderRadius: cardRadius,
+                borderWidth: cardBorderWidth,
+                paddingTop: cardPadT,
+                paddingRight: cardPadR,
+                paddingBottom: cardPadB,
+                paddingLeft: cardPadL,
+              }
+            : null,
+        ]}
+      >
       {/* Title */}
       {showTitle && !!titleText && (
         <Text
@@ -518,44 +569,48 @@ export default function OrderSummary({ section }) {
       )}
 
       {/* Discount */}
-      {showDiscount && activeDiscounts.length > 0 && totalDiscountAmount > 0 && (
+      {showDiscount && activeDiscounts.length > 0 && (
         <>
-          <SummaryRow
-            label={discountLabel}
-            value={fmt(totalDiscountAmount, currencyLabel)}
-            labelColor={rowLabelColor}
-            valueColor={discountColor}
-            labelSize={discountLabelSize}
-            valueSize={discountValueSize}
-            labelWeight={discountLabelWeight}
-            valueWeight={discountValueWeight}
-            fontFamily={rowFontFamily}
-          />
+          {totalDiscountAmount > 0 && (
+            <SummaryRow
+              label={discountLabel}
+              value={fmt(totalDiscountAmount, currencyLabel)}
+              labelColor={rowLabelColor}
+              valueColor={discountColor}
+              labelSize={discountLabelSize}
+              valueSize={discountValueSize}
+              labelWeight={discountLabelWeight}
+              valueWeight={discountValueWeight}
+              fontFamily={rowFontFamily}
+            />
+          )}
           {/* Applied code chips */}
-          <View style={styles.chipRow}>
-            {activeDiscounts.map((discount) => (
-              <View
-                key={discount.code}
-                style={[
-                  styles.chip,
-                  {
-                    backgroundColor: chipBg,
-                    borderColor: chipBorderColor,
-                    borderRadius: chipBorderRadius,
-                    borderWidth: chipBorderWidth,
-                    paddingTop: chipPadT,
-                    paddingRight: chipPadR,
-                    paddingBottom: chipPadB,
-                    paddingLeft: chipPadL,
-                  },
-                ]}
-              >
-                <Text style={[styles.chipText, { color: chipTextColor, fontSize: chipFontSize, fontWeight: chipFontWeight, ...(chipFontFamily ? { fontFamily: chipFontFamily } : {}) }]}>
-                  {chipPrefix}{discount.code}
-                </Text>
-              </View>
-            ))}
-          </View>
+          {showDiscountChips && (
+            <View style={styles.chipRow}>
+              {activeDiscounts.map((discount) => (
+                <View
+                  key={discount.code}
+                  style={[
+                    styles.chip,
+                    {
+                      backgroundColor: chipBg,
+                      borderColor: chipBorderColor,
+                      borderRadius: chipBorderRadius,
+                      borderWidth: chipBorderWidth,
+                      paddingTop: chipPadT,
+                      paddingRight: chipPadR,
+                      paddingBottom: chipPadB,
+                      paddingLeft: chipPadL,
+                    },
+                  ]}
+                >
+                  <Text style={[styles.chipText, { color: chipTextColor, fontSize: chipFontSize, fontWeight: chipFontWeight, ...(chipFontFamily ? { fontFamily: chipFontFamily } : {}) }]}>
+                    {chipPrefix}{discount.code}
+                  </Text>
+                </View>
+              ))}
+            </View>
+          )}
         </>
       )}
 
@@ -625,6 +680,7 @@ export default function OrderSummary({ section }) {
           </View>
         </View>
       )}
+      </View>
     </View>
   );
 }
@@ -655,6 +711,13 @@ function SummaryRow({
 
 const styles = StyleSheet.create({
   container: {
+    width: "100%",
+  },
+  summaryContent: {
+    width: "100%",
+    gap: 10,
+  },
+  summaryCard: {
     width: "100%",
     gap: 10,
   },

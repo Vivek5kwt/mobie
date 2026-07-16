@@ -303,11 +303,13 @@ export default function CheckoutButton({ section }) {
     ],
     isOutlined ? textColor : ""
   );
+  const borderLine = toStr(raw?.buttonBorderLine ?? raw?.borderLine ?? btnCss?.borderStyle, "").toLowerCase();
+  const borderLineDisabled = ["none", "hidden", "0"].includes(borderLine);
   const borderWidthRaw = pickNum(
     [raw?.buttonBorderWidth, raw?.borderWidth, raw?.borderSize, raw?.border_width, btnCss?.borderWidth],
     0
   );
-  const showBorder  = isOutlined || !!borderColorVal || borderWidthRaw > 0;
+  const showBorder  = !borderLineDisabled && (isOutlined || !!borderLine || borderWidthRaw > 0);
   const borderWidth = showBorder ? (borderWidthRaw > 0 ? borderWidthRaw : 1) : 0;
 
   // ── Dimensions & shape ────────────────────────────────────────────────────────
@@ -362,7 +364,14 @@ export default function CheckoutButton({ section }) {
   // Container uses its own keys — NOT backgroundColor (that belongs to the button)
   const showBgPadding = toBool(raw?.buttonShowBackgroundPadding, true);
   const containerBg   = pickStr(
-    [raw?.containerBg, raw?.outerBg, raw?.wrapperBg, raw?.sectionBg],
+    [
+      raw?.containerBg,
+      raw?.containerBgColor,
+      raw?.outerBg,
+      raw?.wrapperBg,
+      raw?.sectionBg,
+      raw?.backgroundColor,
+    ],
     "transparent"
   );
   const gap = pickNum([raw?.gap, raw?.marginTop, raw?.mt], 0);

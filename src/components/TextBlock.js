@@ -234,6 +234,19 @@ const applyNativeFontFace = (style = {}) => {
   return next;
 };
 
+const normalizeNativeTextMetrics = (style = {}) => {
+  const next = { ...(style || {}) };
+  const fontSize = asNumber(next.fontSize, undefined);
+  const rawLineHeight = asNumber(next.lineHeight, undefined);
+  if (fontSize != null && rawLineHeight != null) {
+    const lineHeight = rawLineHeight > 0 && rawLineHeight <= 4
+      ? rawLineHeight * fontSize
+      : rawLineHeight;
+    next.lineHeight = Math.max(Math.ceil(lineHeight), Math.ceil(fontSize * 1.15));
+  }
+  return next;
+};
+
 // ── Component ──────────────────────────────────────────────────────────────────
 
 export default function TextBlock({ section }) {
@@ -279,7 +292,7 @@ export default function TextBlock({ section }) {
     ""
   );
   const faIconName   = containsEmoji(rawIconValue) ? "" : resolveTextBlockIconName(rawIconValue);
-  const iconColor    = asStr(iconCfg?.color ?? iconStyle?.color, "#FFFFFF");
+  const iconColor    = asStr(iconStyle?.color ?? iconCfg?.color, "#FFFFFF");
   const iconBgColor  = asStr(
     iconCfg?.bgColor ?? iconCfg?.backgroundColor ?? iconStyle?.backgroundColor,
     "transparent"
@@ -375,6 +388,7 @@ export default function TextBlock({ section }) {
     headlineStyle.fontFamily = typography.headlineFontFamily;
   }
   headlineStyle = applyNativeFontFace(headlineStyle);
+  headlineStyle = normalizeNativeTextMetrics(headlineStyle);
 
   let subtextStyle  = applyTextAttributes(
     stripTextCss(convertStyles(layoutCss.subtext || {})),
@@ -388,6 +402,7 @@ export default function TextBlock({ section }) {
     subtextStyle.fontFamily = typography.subtextFontFamily;
   }
   subtextStyle = applyNativeFontFace(subtextStyle);
+  subtextStyle = normalizeNativeTextMetrics(subtextStyle);
 
   // Per-element alignment — fall back to globalAlign so setting one place controls both
   const headtextAlign = resolveAlign(

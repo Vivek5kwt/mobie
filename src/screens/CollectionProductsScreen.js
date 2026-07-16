@@ -2,7 +2,6 @@ import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
   FlatList,
-  Image,
   StyleSheet,
   Text,
   TouchableOpacity,
@@ -23,6 +22,7 @@ import { fetchDSL } from "../engine/dslHandler";
 import { resolveAppId } from "../utils/appId";
 import { buildProductFilterOptions, productMatchesFilter } from "../utils/productFilters";
 import FavoriteToggleButton, { buildFavoriteToggleConfig } from "../components/FavoriteToggleButton";
+import ProductImage from "../components/ProductImage";
 import { useAuth } from "../services/AuthContext";
 import { requireLoginForAction } from "../utils/authGate";
 import { resolveProductImageResizeMode } from "../utils/productImageFit";
@@ -326,6 +326,7 @@ export default function CollectionProductsScreen() {
   const [homeHeaderConfig, setHomeHeaderConfig] = useState(null);
   const [productListHeaderConfig, setProductListHeaderConfig] = useState(null);
   const [productListFilterSortSection, setProductListFilterSortSection] = useState(null);
+  const [productListDslReady, setProductListDslReady] = useState(false);
   const [collectionTitleVisible, setCollectionTitleVisible] = useState(false);
   const [productCardConfig, setProductCardConfig] = useState(DEFAULT_PRODUCT_CARD_CONFIG);
   const [filterOptions, setFilterOptions] = useState([]);
@@ -404,6 +405,12 @@ export default function CollectionProductsScreen() {
   useEffect(() => {
     loadProducts();
   }, [loadProducts]);
+
+  useEffect(() => {
+    setSortKey("Popular");
+    setViewMode("grid");
+    setActiveFilter(null);
+  }, [resolvedCollectionHandle, resolvedCollectionTitle, sourcePageName]);
 
   useEffect(() => {
     let mounted = true;
@@ -491,24 +498,17 @@ export default function CollectionProductsScreen() {
       >
         {/* Product image */}
         <View style={[styles.imageWrap, isListMode && styles.imageWrapList]}>
-          {item.imageUrl ? (
-            <Image
-              source={{ uri: item.imageUrl }}
-              style={[
-                styles.image,
-                productCardConfig.imageHeight ? { height: productCardConfig.imageHeight, aspectRatio: undefined } : null,
-                { backgroundColor: productCardConfig.imageBgColor },
-                isListMode && styles.imageList,
-              ]}
-              resizeMode={resolveProductImageResizeMode()}
-            />
-          ) : (
-            <View style={[styles.image, { backgroundColor: productCardConfig.imageBgColor }, isListMode && styles.imageList, styles.placeholder]}>
-              <Text style={styles.placeholderText}>
-                {(item.title || "?").charAt(0).toUpperCase()}
-              </Text>
-            </View>
-          )}
+          <ProductImage
+            uri={item.imageUrl}
+            style={[
+              styles.image,
+              productCardConfig.imageHeight ? { height: productCardConfig.imageHeight, aspectRatio: undefined } : null,
+              { backgroundColor: productCardConfig.imageBgColor },
+              isListMode && styles.imageList,
+            ]}
+            resizeMode={resolveProductImageResizeMode()}
+            placeholderBg={productCardConfig.imageBgColor}
+          />
           {/* Favourite toggle */}
           <FavoriteToggleButton
             isFavorite={isFav}
@@ -595,6 +595,9 @@ export default function CollectionProductsScreen() {
   useEffect(() => {
     const appId = resolveAppId();
     let mounted = true;
+    setProductListDslReady(false);
+    setProductListHeaderConfig(null);
+    setProductListFilterSortSection(null);
     setCollectionTitleVisible(false);
     setProductCardConfig(DEFAULT_PRODUCT_CARD_CONFIG);
     const pageCandidates = Array.from(new Set([
@@ -621,6 +624,7 @@ export default function CollectionProductsScreen() {
       setProductListFilterSortSection(findFilterSortSection(productListDsl));
       setCollectionTitleVisible(resolveCollectionTitleVisible(...matchedPageDsls, productListDsl));
       setProductCardConfig(resolveProductCardConfig(...matchedPageDsls, productListDsl));
+      setProductListDslReady(true);
       const nav = (data?.dsl?.sections || []).find((s) => {
         const c = (
           s?.component?.const || s?.component ||
@@ -629,7 +633,9 @@ export default function CollectionProductsScreen() {
         return ["bottom_navigation", "bottom_navigation_style_1", "bottom_navigation_style_2"].includes(c);
       });
       if (nav) setBottomNavSection(nav);
-    }).catch(() => {});
+    }).catch(() => {
+      if (mounted) setProductListDslReady(true);
+    });
     return () => { mounted = false; };
   }, [resolvedCollectionHandle, resolvedCollectionTitle, sourcePageName]);
 
@@ -678,13 +684,15 @@ export default function CollectionProductsScreen() {
         ) : null}
 
         {/* Filter + Sort header bar */}
-        <FilterSortHeader
-          section={productListFilterSortSection || {}}
-          filterItems={filterOptions}
-          onSortChange={(opt) => setSortKey(opt)}
-          onViewModeChange={(mode) => setViewMode(mode)}
-          onFilterChange={(filter) => setActiveFilter(filter)}
-        />
+        {productListDslReady && productListFilterSortSection ? (
+          <FilterSortHeader
+            section={productListFilterSortSection}
+            filterItems={filterOptions}
+            onSortChange={(opt) => setSortKey(opt)}
+            onViewModeChange={(mode) => setViewMode(mode)}
+            onFilterChange={(filter) => setActiveFilter(filter)}
+          />
+        ) : null}
 
         <View style={styles.body}>
           {loading && (

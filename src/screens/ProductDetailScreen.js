@@ -98,6 +98,14 @@ const resolvePageBackground = (sections = [], headerConfig = {}) => {
   );
 };
 
+const resolveHeaderBackground = (headerConfig = {}) =>
+  unwrapValue(
+    headerConfig?.backgroundColor ||
+      headerConfig?.bgColor ||
+      headerConfig?.headerBackgroundColor,
+    "#FFFFFF"
+  );
+
 const getDslFingerprint = (incomingDsl) => {
   try {
     return JSON.stringify({
@@ -538,6 +546,10 @@ export default function ProductDetailScreen() {
     () => resolvePageBackground(renderSections, headerConfig),
     [renderSections, headerConfig]
   );
+  const headerBackground = useMemo(
+    () => resolveHeaderBackground(headerConfig),
+    [headerConfig]
+  );
   const stickyAtcReservedSpace = stickyAddToCartSections.length > 0 ? stickyAtcHeight : 0;
   const hasProductData = !!productForRender;
   const waitingForInitialProduct = loading && !hasProductData && !productLoadSettled;
@@ -552,7 +564,7 @@ export default function ProductDetailScreen() {
   return (
     <SafeAreaView style={[styles.safeArea, { backgroundColor: pageBackground }]} edges={["left", "right"]}>
       <View style={[styles.container, { backgroundColor: pageBackground }]}>
-        <View style={[styles.headerWrapper, { paddingTop: insets.top }]}>
+        <View style={[styles.headerWrapper, { paddingTop: insets.top, backgroundColor: headerBackground }]}>
           <HeaderDefault
             config={headerConfig}
             hideTabs={true}

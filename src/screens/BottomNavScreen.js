@@ -35,7 +35,7 @@ import { trackScreenView } from "../services/analyticsService";
 const SIGNIN_SLUGS = new Set(["signin", "sign-in", "login", "log-in", "auth"]);
 const CART_EMPTY_VISIBLE_COMPONENTS = new Set(["cart_line_items"]);
 const ORDERS_EMPTY_VISIBLE_COMPONENTS = new Set(["order_history", "orderhistory", "orders", "my_orders"]);
-const WISHLIST_EMPTY_VISIBLE_COMPONENTS = new Set(["wishlist", "wishlist_item", "wishlist-item"]);
+const WISHLIST_EMPTY_VISIBLE_COMPONENTS = new Set(["text_block", "wishlist", "wishlist_item", "wishlist-item"]);
 const LIVE_DSL_REFRESH_INTERVAL_MS = 30000;
 
 const getSectionCount = (incomingDsl) =>
@@ -43,9 +43,9 @@ const getSectionCount = (incomingDsl) =>
 
 // ── Default profile menu items shown when DSL has no account_menu sections ───
 const DEFAULT_PROFILE_MENU = [
-  { id: "orders",   label: "My Orders",   icon: "📦", link: "orders" },
-  { id: "wishlist", label: "Wishlist",     icon: "🤍", link: "wishlist" },
-  { id: "settings", label: "Settings",    icon: "⚙️", link: "settings" },
+  { id: "orders",   label: "My Orders",   icon: "box", link: "orders" },
+  { id: "wishlist", label: "Wishlist",     icon: "heart", link: "wishlist" },
+  { id: "settings", label: "Settings",    icon: "gear", link: "settings" },
 ];
 
 function FallbackProfile({ session, logout, navigation }) {
@@ -135,7 +135,7 @@ function FallbackProfile({ session, logout, navigation }) {
             activeOpacity={0.7}
           >
             <View style={styles.profileMenuIcon}>
-              <Text style={{ fontSize: 16 }}>{item.icon}</Text>
+              <HeaderIcon name={item.icon} size={16} color="#374151" />
             </View>
             <Text style={styles.profileMenuLabel}>{item.label}</Text>
             <Text style={styles.profileMenuChevron}>›</Text>
@@ -149,7 +149,7 @@ function FallbackProfile({ session, logout, navigation }) {
           activeOpacity={0.7}
         >
           <View style={[styles.profileMenuIcon, { backgroundColor: "#FEF2F2" }]}>
-            <Text style={{ fontSize: 16 }}>🚪</Text>
+            <HeaderIcon name="right-from-bracket" size={16} color="#DC2626" />
           </View>
           <Text style={styles.profileMenuLabelLogout}>Log Out</Text>
         </TouchableOpacity>
@@ -323,15 +323,14 @@ export default function BottomNavScreen() {
           NAV_COMPONENTS.includes(getComponentName(s).toLowerCase())
         ) || null;
 
-      // Home DSL is the canonical nav source for every tab/inner page, including
-      // pages opened from drawers, headers, or account-menu links.
-      const homeDslData = await fetchDSL(appId, "home");
-      if (homeDslData?.dsl) {
-        incomingBottomNav = findNav(homeDslData.dsl);
-      }
-
-      // Fall back to the current page's DSL only when Home does not define a nav.
-      if (!incomingBottomNav) {
+      if (hasInitialBottomNav) {
+        // Tab navigation already passed a real nav section; keep it synced from Home.
+        const homeDslData = await fetchDSL(appId, "home");
+        if (homeDslData?.dsl) {
+          incomingBottomNav = findNav(homeDslData.dsl);
+        }
+      } else {
+        // Standalone pages should only show bottom nav when their own DSL defines it.
         const currentPageDslData = await fetchDSL(appId, pageName);
         if (currentPageDslData?.dsl) {
           incomingBottomNav = findNav(currentPageDslData.dsl);
