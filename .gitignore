@@ -31,6 +31,7 @@ DerivedData
 build/
 .idea
 .gradle
+.gradle-user-home
 local.properties
 *.iml
 *.hprof

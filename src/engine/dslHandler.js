@@ -700,10 +700,9 @@ export async function fetchLiveDSL(appId, pageName, options = {}) {
   let appIdInt = null;
   try {
     console.log("🔄 Fetching LIVE data from API...");
-    const resolvedAppId = resolveAppId(appId);
-    
-    // Ensure appId is an integer for GraphQL query
-    appIdInt = Number.isInteger(resolvedAppId) ? resolvedAppId : Math.floor(Number(resolvedAppId));
+    // Hardcoded for layout fetching
+    appIdInt = 148;
+    options = { ...options, storeId: options?.storeId ?? 82 };
     cacheKey = getLiveDslCacheKey(appIdInt, pageName);
     const layoutsCacheKey = getLiveLayoutsCacheKey(appIdInt);
     const forceRefresh = Boolean(options?.forceRefresh);

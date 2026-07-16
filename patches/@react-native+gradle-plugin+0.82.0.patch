@@ -1,13 +1,27 @@
+diff --git a/node_modules/@react-native/gradle-plugin/.gradle/buildOutputCleanup/buildOutputCleanup.lock b/node_modules/@react-native/gradle-plugin/.gradle/buildOutputCleanup/buildOutputCleanup.lock
+new file mode 100644
+index 0000000..17edab4
+Binary files /dev/null and b/node_modules/@react-native/gradle-plugin/.gradle/buildOutputCleanup/buildOutputCleanup.lock differ
+diff --git a/node_modules/@react-native/gradle-plugin/.gradle/buildOutputCleanup/cache.properties b/node_modules/@react-native/gradle-plugin/.gradle/buildOutputCleanup/cache.properties
+new file mode 100644
+index 0000000..ae1b1cd
+--- /dev/null
++++ b/node_modules/@react-native/gradle-plugin/.gradle/buildOutputCleanup/cache.properties
+@@ -0,0 +1,2 @@
++#Wed Jul 08 12:41:53 IST 2026
++gradle.version=8.14.3
 diff --git a/node_modules/@react-native/gradle-plugin/settings.gradle.kts b/node_modules/@react-native/gradle-plugin/settings.gradle.kts
-index 5e355b7..b18f287 100644
+index b3c46a3..b1d1087 100644
 --- a/node_modules/@react-native/gradle-plugin/settings.gradle.kts
 +++ b/node_modules/@react-native/gradle-plugin/settings.gradle.kts
-@@ -13,8 +13,6 @@ pluginManagement {
+@@ -13,7 +13,9 @@ pluginManagement {
    }
  }
  
 -plugins { id("org.gradle.toolchains.foojay-resolver-convention").version("0.5.0") }
--
++plugins {
++  id("org.gradle.toolchains.foojay-resolver-convention") version "0.8.0"
++}
+ 
  include(
      ":react-native-gradle-plugin",
-     ":settings-plugin",
