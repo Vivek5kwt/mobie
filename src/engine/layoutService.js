@@ -3,8 +3,7 @@ import LAYOUT_VERSION_QUERY from "../graphql/queries/layoutVersionQuery";
 
 export async function fetchLayoutDSL(appId) {
   try {
-    // Hardcoded for layout fetching
-    const appIdInt = 148;
+    const appIdInt = Number(appId);
     console.log(`🔍 fetchLayoutDSL: Using appId ${appIdInt}`);
     
     const response = await client.query({

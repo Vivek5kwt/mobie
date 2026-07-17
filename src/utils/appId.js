@@ -6,7 +6,7 @@ const appIdentity = (() => {
   }
 })();
 
-const DEFAULT_APP_ID = Number(appIdentity?.appId) || 187;
+const DEFAULT_APP_ID = Number(appIdentity?.appId) || 132;
 
 const isValidId = (n) => Number.isFinite(n) && n > 1;
 

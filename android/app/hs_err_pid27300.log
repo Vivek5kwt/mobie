@@ -1,0 +1,244 @@
+#
+# There is insufficient memory for the Java Runtime Environment to continue.
+# Native memory allocation (mmap) failed to map 260046848 bytes. Error detail: G1 virtual space
+# Possible reasons:
+#   The system is out of physical RAM or swap space
+#   This process is running with CompressedOops enabled, and the Java Heap may be blocking the growth of the native heap
+# Possible solutions:
+#   Reduce memory load on the system
+#   Increase physical memory or swap space
+#   Check if swap backing store is full
+#   Decrease Java heap size (-Xmx/-Xms)
+#   Decrease number of Java threads
+#   Decrease Java thread stack sizes (-Xss)
+#   Set larger code cache with -XX:ReservedCodeCacheSize=
+#   JVM is running with Zero Based Compressed Oops mode in which the Java heap is
+#     placed in the first 32GB address space. The Java Heap base address is the
+#     maximum limit for the native heap growth. Please use -XX:HeapBaseMinAddress
+#     to set the Java Heap base and to place the Java Heap above 32GB virtual address.
+# This output file may be truncated or incomplete.
+#
+#  Out of Memory Error (os_windows.cpp:3714), pid=27300, tid=2388
+#
+# JRE version:  (21.0.10+7) (build )
+# Java VM: OpenJDK 64-Bit Server VM (21.0.10+7-LTS, mixed mode, sharing, tiered, compressed oops, compressed class ptrs, g1 gc, windows-amd64)
+# No core dump will be written. Minidumps are not enabled by default on client versions of Windows
+#
+
+---------------  S U M M A R Y ------------
+
+Command Line: com.google.prefab.cli.AppKt --build-system cmake --platform android --abi arm64-v8a --os-version 24 --stl c++_shared --ndk-version 27 --output D:\\tmp\\agp-prefab-staging10749089180075607556\\staged-cli-output D:\\gh\\caches\\8.14.3\\transforms\\47094eae595fdbfdefdcb4807bb391e0\\transformed\\jetified-react-android-0.82.0-debug\\prefab D:\\gh\\caches\\8.14.3\\transforms\\f079df72f882a071897c552bd51aff31\\transformed\\jetified-hermes-android-0.82.0-debug\\prefab D:\\gh\\caches\\8.14.3\\transforms\\50128dafb8c629095a7afbf0f85df0d7\\transformed\\jetified-fbjni-0.7.0\\prefab
+
+Host: AMD Ryzen 7 4800H with Radeon Graphics         , 16 cores, 15G,  Windows 11 , 64 bit Build 26100 (10.0.26100.8875)
+Time: Fri Jul 17 13:26:06 2026 India Standard Time elapsed time: 0.023455 seconds (0d 0h 0m 0s)
+
+---------------  T H R E A D  ---------------
+
+Current thread (0x0000014b39997dd0):  JavaThread "Unknown thread" [_thread_in_vm, id=2388, stack(0x00000045be900000,0x00000045bea00000) (1024K)]
+
+Stack: [0x00000045be900000,0x00000045bea00000]
+Native frames: (J=compiled Java code, j=interpreted, Vv=VM code, C=native code)
+V  [jvm.dll+0x6d7a39]
+V  [jvm.dll+0x8b4b26]
+V  [jvm.dll+0x8b70de]
+V  [jvm.dll+0x8b77c3]
+V  [jvm.dll+0x284346]
+V  [jvm.dll+0x6d4355]
+V  [jvm.dll+0x6c808a]
+V  [jvm.dll+0x35edb8]
+V  [jvm.dll+0x3669f6]
+V  [jvm.dll+0x3b7afe]
+V  [jvm.dll+0x3b7da8]
+V  [jvm.dll+0x332fbc]
+V  [jvm.dll+0x333b0b]
+V  [jvm.dll+0x87eadb]
+V  [jvm.dll+0x3c4a81]
+V  [jvm.dll+0x867d25]
+V  [jvm.dll+0x457b31]
+V  [jvm.dll+0x459721]
+C  [jli.dll+0x52d0]
+C  [ucrtbase.dll+0x2cd30]
+C  [KERNEL32.DLL+0x2e957]
+C  [ntdll.dll+0xaad6c]
+
+
+---------------  P R O C E S S  ---------------
+
+Threads class SMR info:
+_java_thread_list=0x00007fffc0d9a1c8, length=0, elements={
+}
+
+Java Threads: ( => current thread )
+Total: 0
+
+Other Threads:
+  0x0000014b3bd94bc0 WorkerThread "GC Thread#0"                     [id=27708, stack(0x00000045bea00000,0x00000045beb00000) (1024K)]
+  0x0000014b3bda71f0 ConcurrentGCThread "G1 Main Marker"            [id=22888, stack(0x00000045beb00000,0x00000045bec00000) (1024K)]
+  0x0000014b3bda96e0 WorkerThread "G1 Conc#0"                       [id=13060, stack(0x00000045bec00000,0x00000045bed00000) (1024K)]
+
+[error occurred during error reporting (printing all threads), id 0xc0000005, EXCEPTION_ACCESS_VIOLATION (0xc0000005) at pc=0x00007fffc04956a7]
+VM state: not at safepoint (not fully initialized)
+
+VM Mutex/Monitor currently owned by a thread:  ([mutex/lock_event])
+[0x00007fffc0e0e660] Heap_lock - owner thread: 0x0000014b39997dd0
+
+Heap address: 0x0000000709400000, size: 3948 MB, Compressed Oops mode: Zero based, Oop shift amount: 3
+
+CDS archive(s) mapped at: [0x0000000000000000-0x0000000000000000-0x0000000000000000), size 0, SharedBaseAddress: 0x0000000800000000, ArchiveRelocationMode: 1.
+Narrow klass base: 0x0000000000000000, Narrow klass shift: 0, Narrow klass range: 0x0
+
+GC Precious Log:
+ CardTable entry size: 512
+ Card Set container configuration: InlinePtr #cards 4 size 8 Array Of Cards #cards 16 size 48 Howl #buckets 8 coarsen threshold 3686 Howl Bitmap #cards 512 size 80 coarsen threshold 460 Card regions per heap region 1 cards per card region 4096
+
+Heap:
+ garbage-first heap   total 0K, used 0K [0x0000000709400000, 0x0000000800000000)
+  region size 2048K, 0 young (0K), 0 survivors (0K)
+
+[error occurred during error reporting (printing heap information), id 0xc0000005, EXCEPTION_ACCESS_VIOLATION (0xc0000005) at pc=0x00007fffc08813b9]
+GC Heap History (0 events):
+No events
+
+Dll operation events (1 events):
+Event: 0.016 Loaded shared library C:\Program Files\Eclipse Adoptium\jdk-21.0.10.7-hotspot\bin\java.dll
+
+Deoptimization events (0 events):
+No events
+
+Classes loaded (0 events):
+No events
+
+Classes unloaded (0 events):
+No events
+
+Classes redefined (0 events):
+No events
+
+Internal exceptions (0 events):
+No events
+
+ZGC Phase Switch (0 events):
+No events
+
+VM Operations (0 events):
+No events
+
+Memory protections (0 events):
+No events
+
+Nmethod flushes (0 events):
+No events
+
+Events (0 events):
+No events
+
+
+Dynamic libraries:
+0x00007ff7f6330000 - 0x00007ff7f633e000 	C:\Program Files\Eclipse Adoptium\jdk-21.0.10.7-hotspot\bin\java.exe
+0x00007ff8862e0000 - 0x00007ff886546000 	C:\WINDOWS\SYSTEM32\ntdll.dll
+0x00007ff884de0000 - 0x00007ff884ea9000 	C:\WINDOWS\System32\KERNEL32.DLL
+0x00007ff883a80000 - 0x00007ff883e7e000 	C:\WINDOWS\System32\KERNELBASE.dll
+0x00007ff883590000 - 0x00007ff8836dc000 	C:\WINDOWS\System32\ucrtbase.dll
+0x00007ff84f010000 - 0x00007ff84f02e000 	C:\Program Files\Eclipse Adoptium\jdk-21.0.10.7-hotspot\bin\VCRUNTIME140.dll
+0x00007ff844430000 - 0x00007ff844448000 	C:\Program Files\Eclipse Adoptium\jdk-21.0.10.7-hotspot\bin\jli.dll
+0x00007ff8860d0000 - 0x00007ff886297000 	C:\WINDOWS\System32\USER32.dll
+0x00007ff8705b0000 - 0x00007ff870842000 	C:\WINDOWS\WinSxS\amd64_microsoft.windows.common-controls_6595b64144ccf1df_6.0.26100.8875_none_3e0d5d42e32fe9dd\COMCTL32.dll
+0x00007ff883990000 - 0x00007ff8839b7000 	C:\WINDOWS\System32\win32u.dll
+0x00007ff885f80000 - 0x00007ff886029000 	C:\WINDOWS\System32\msvcrt.dll
+0x00007ff884010000 - 0x00007ff88403b000 	C:\WINDOWS\System32\GDI32.dll
+0x00007ff8836f0000 - 0x00007ff88381a000 	C:\WINDOWS\System32\gdi32full.dll
+0x00007ff8838e0000 - 0x00007ff883983000 	C:\WINDOWS\System32\msvcp_win.dll
+0x00007ff885e80000 - 0x00007ff885eb2000 	C:\WINDOWS\System32\IMM32.DLL
+0x00007ff849350000 - 0x00007ff84935c000 	C:\Program Files\Eclipse Adoptium\jdk-21.0.10.7-hotspot\bin\vcruntime140_1.dll
+0x00007ff80ea10000 - 0x00007ff80ea9d000 	C:\Program Files\Eclipse Adoptium\jdk-21.0.10.7-hotspot\bin\msvcp140.dll
+0x00007fffc0150000 - 0x00007fffc0ef1000 	C:\Program Files\Eclipse Adoptium\jdk-21.0.10.7-hotspot\bin\server\jvm.dll
+0x00007ff885ec0000 - 0x00007ff885f77000 	C:\WINDOWS\System32\ADVAPI32.dll
+0x00007ff884fb0000 - 0x00007ff88505a000 	C:\WINDOWS\System32\sechost.dll
+0x00007ff884730000 - 0x00007ff884848000 	C:\WINDOWS\System32\RPCRT4.dll
+0x00007ff8844c0000 - 0x00007ff884540000 	C:\WINDOWS\System32\WS2_32.dll
+0x00007ff883360000 - 0x00007ff8833be000 	C:\WINDOWS\SYSTEM32\POWRPROF.dll
+0x00007ff87af80000 - 0x00007ff87afb6000 	C:\WINDOWS\SYSTEM32\WINMM.dll
+0x00007ff87afc0000 - 0x00007ff87afcb000 	C:\WINDOWS\SYSTEM32\VERSION.dll
+0x00007ff883340000 - 0x00007ff883354000 	C:\WINDOWS\SYSTEM32\UMPDC.dll
+0x00007ff8821e0000 - 0x00007ff8821fb000 	C:\WINDOWS\SYSTEM32\kernel.appcore.dll
+0x00007ff847ce0000 - 0x00007ff847cea000 	C:\Program Files\Eclipse Adoptium\jdk-21.0.10.7-hotspot\bin\jimage.dll
+0x00007ff877250000 - 0x00007ff877492000 	C:\WINDOWS\SYSTEM32\DBGHELP.DLL
+0x00007ff8850d0000 - 0x00007ff885453000 	C:\WINDOWS\System32\combase.dll
+0x00007ff885460000 - 0x00007ff885539000 	C:\WINDOWS\System32\OLEAUT32.dll
+0x00007ff85c890000 - 0x00007ff85c8cb000 	C:\WINDOWS\SYSTEM32\dbgcore.DLL
+0x00007ff8839c0000 - 0x00007ff883a6c000 	C:\WINDOWS\System32\bcryptPrimitives.dll
+0x00007ff83c240000 - 0x00007ff83c260000 	C:\Program Files\Eclipse Adoptium\jdk-21.0.10.7-hotspot\bin\java.dll
+
+JVMTI agents: none
+
+dbghelp: loaded successfully - version: 4.0.5 - missing functions: none
+symbol engine: initialized successfully - sym options: 0x614 - pdb path: .;C:\Program Files\Eclipse Adoptium\jdk-21.0.10.7-hotspot\bin;C:\WINDOWS\SYSTEM32;C:\WINDOWS\WinSxS\amd64_microsoft.windows.common-controls_6595b64144ccf1df_6.0.26100.8875_none_3e0d5d42e32fe9dd;C:\Program Files\Eclipse Adoptium\jdk-21.0.10.7-hotspot\bin\server
+
+VM Arguments:
+java_command: com.google.prefab.cli.AppKt --build-system cmake --platform android --abi arm64-v8a --os-version 24 --stl c++_shared --ndk-version 27 --output D:\\tmp\\agp-prefab-staging10749089180075607556\\staged-cli-output D:\\gh\\caches\\8.14.3\\transforms\\47094eae595fdbfdefdcb4807bb391e0\\transformed\\jetified-react-android-0.82.0-debug\\prefab D:\\gh\\caches\\8.14.3\\transforms\\f079df72f882a071897c552bd51aff31\\transformed\\jetified-hermes-android-0.82.0-debug\\prefab D:\\gh\\caches\\8.14.3\\transforms\\50128dafb8c629095a7afbf0f85df0d7\\transformed\\jetified-fbjni-0.7.0\\prefab
+java_class_path (initial): D:\\gh\\caches\\modules-2\\files-2.1\\com.google.prefab\\cli\\2.1.0\\aa32fec809c44fa531f01dcfb739b5b3304d3050\\cli-2.1.0-all.jar
+Launcher Type: SUN_STANDARD
+
+[Global flags]
+     intx CICompilerCount                          = 12                                        {product} {ergonomic}
+     uint ConcGCThreads                            = 3                                         {product} {ergonomic}
+     uint G1ConcRefinementThreads                  = 13                                        {product} {ergonomic}
+   size_t G1HeapRegionSize                         = 2097152                                   {product} {ergonomic}
+    uintx GCDrainStackTargetSize                   = 64                                        {product} {ergonomic}
+   size_t InitialHeapSize                          = 260046848                                 {product} {ergonomic}
+   size_t MarkStackSize                            = 4194304                                   {product} {ergonomic}
+   size_t MaxHeapSize                              = 4139778048                                {product} {ergonomic}
+   size_t MinHeapDeltaBytes                        = 2097152                                   {product} {ergonomic}
+   size_t MinHeapSize                              = 8388608                                   {product} {ergonomic}
+    uintx NonNMethodCodeHeapSize                   = 7602480                                {pd product} {ergonomic}
+    uintx NonProfiledCodeHeapSize                  = 122027880                              {pd product} {ergonomic}
+    uintx ProfiledCodeHeapSize                     = 122027880                              {pd product} {ergonomic}
+    uintx ReservedCodeCacheSize                    = 251658240                              {pd product} {ergonomic}
+     bool SegmentedCodeCache                       = true                                      {product} {ergonomic}
+   size_t SoftMaxHeapSize                          = 4139778048                             {manageable} {ergonomic}
+     bool UseCompressedOops                        = true                           {product lp64_product} {ergonomic}
+     bool UseG1GC                                  = true                                      {product} {ergonomic}
+     bool UseLargePagesIndividualAllocation        = false                                  {pd product} {ergonomic}
+
+Logging:
+Log output configuration:
+ #0: stdout all=warning uptime,level,tags foldmultilines=false
+ #1: stderr all=off uptime,level,tags foldmultilines=false
+
+Release file:
+<release file has not been read>
+Environment Variables:
+JAVA_HOME=C:\Program Files\Eclipse Adoptium\jdk-21.0.10.7-hotspot
+PATH=C:\Users\abhis\Downloads\platform-tools-latest-windows (1)\platform-tools;C:\Users\abhis\bin;C:\Program Files\Git\mingw64\bin;C:\Program Files\Git\usr\local\bin;C:\Program Files\Git\usr\bin;C:\Program Files\Git\usr\bin;C:\Program Files\Git\mingw64\bin;C:\Program Files\Git\usr\bin;C:\Users\abhis\bin;C:\Program Files\Eclipse Adoptium\jdk-21.0.10.7-hotspot\bin;C:\Python312\Scripts;C:\Python312;C:\Program Files\Python38\Scripts;C:\Program Files\Python38;C:\Python310\Scripts;C:\Python310;C:\Windows\system32;C:\Windows;C:\Windows\System32\Wbem;C:\Windows\System32\WindowsPowerShell\v1.0;C:\Windows\System32\OpenSSH;C:\Program Files (x86)\NVIDIA Corporation\PhysX\Common;C:\Program Files\NVIDIA Corporation\NVIDIA NvDLISR;C:\Users\abhis\AppData\Roaming\nvm;C:\Program Files\nodejs;C:\WINDOWS\system32;C:\WINDOWS;C:\WINDOWS\System32\Wbem;C:\WINDOWS\System32\WindowsPowerShell\v1.0;C:\WINDOWS\System32\OpenSSH;C:\Program Files\Git\cmd;C:\ProgramData\chocolatey\bin;C:\Program Files (x86)\Versa Secure Access;C:\php-8.2.20;C:\composer;C:\Program Files\nodejs;C:\Users\abhis\Downloads\platform-tools-latest-windows (1)\platform-tools;C:\Program Files\Eclipse Adoptium\jdk-21.0.10.7-hotspot\bin;C:\Python312\Scripts;C:\Python312;C:\Program Files\Python38\Scripts;C:\Program Files\Python38;C:\Python310\Scripts;C:\Python310;C:\Windows\system32;C:\Windows;C:\Windows\System32\Wbem;C:\Windows\System32\WindowsPowerShell\v1.0;C:\Windows\System32\OpenSSH;C:\Program Files (x86)\NVIDIA Corporation\PhysX\Common;C:\Program Files\NVIDIA Corporation\NVIDIA NvDLISR;C:\Users\abhis\AppData\Roaming\nvm;C:\Program Files\nodejs;C:\WINDOWS\system32;C:\WINDOWS;C:\WINDOWS\System32\Wbem;C:\WINDOWS\System32\WindowsPowerShell\v1.0;C:\WINDOWS\System32\OpenSSH;C:\Program Files\Git\cmd;C:\ProgramData\chocolatey\bin;C:\Program Files (x86)\Versa Secure Access;C:\php-8.2.20;C:\composer;C:\Program Files\nodejs;C:\Python312\Scripts;C:\Python312;C:\Program Files\Python38\Scripts;C:\Program Files\Python38;C:\Python310\Scripts;C:\Python310;C:\Windows\system32;C:\Windows;C:\Windows\System32\Wbem;C:\Windows\System32\WindowsPowerShell\v1.0;C:\Windows\System32\Open;
+USERNAME=abhis
+SHELL=C:\Program Files\Git\bin\bash.exe
+TERM=xterm-256color
+OS=Windows_NT
+PROCESSOR_IDENTIFIER=AMD64 Family 23 Model 96 Stepping 1, AuthenticAMD
+TMP=D:\tmp
+TEMP=D:\tmp
+
+
+
+
+Periodic native trim disabled
+
+---------------  S Y S T E M  ---------------
+
+OS:
+ Windows 11 , 64 bit Build 26100 (10.0.26100.8875)
+OS uptime: 0 days 1:12 hours
+Hyper-V role detected
+
+CPU: total 16 (initial active 16) (16 cores per cpu, 2 threads per core) family 23 model 96 stepping 1 microcode 0x8600106, cx8, cmov, fxsr, ht, mmx, 3dnowpref, sse, sse2, sse3, ssse3, sse4a, sse4.1, sse4.2, popcnt, lzcnt, tsc, tscinvbit, avx, avx2, aes, clmul, bmi1, bmi2, adx, sha, fma, vzeroupper, clflush, clflushopt, hv, rdtscp, rdpid, f16c
+Processor Information for the first 16 processors :
+  Max Mhz: 2901, Current Mhz: 2901, Mhz Limit: 2901
+
+Memory: 4k page, system-wide physical 15789M (665M free)
+TotalPageFile size 32529M (AvailPageFile size 159M)
+current process WorkingSet (physical memory assigned to process): 13M, peak: 13M
+current process commit charge ("private bytes"): 71M, peak: 318M
+
+vm_info: OpenJDK 64-Bit Server VM (21.0.10+7-LTS) for windows-amd64 JRE (21.0.10+7-LTS), built on 2026-01-20T00:00:00Z by "admin" with MS VC++ 17.12 (VS2022)
+
+END.

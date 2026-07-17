@@ -174,6 +174,8 @@ const PAGE_ALIASES = {
   "signup":         ["signup", "sign-up", "create-account", "register", "create-an-account"],
   "sign-up":        ["sign-up", "signup", "create-account", "register"],
   "post-purchase":  ["post-purchase", "post-purchase-screen", "order-confirmation", "order-confirmed", "thank-you", "thankyou", "purchase-complete", "order-complete"],
+  "reset-password": ["reset-password", "resetpassword", "reset-password-page", "forgot-password", "forgot", "reset"],
+  "forgot-password": ["forgot-password", "reset-password", "resetpassword", "forgot", "reset"],
 };
 
 // Pages that should auto-show a sign-up form when DSL sections are empty
@@ -701,9 +703,7 @@ export async function fetchLiveDSL(appId, pageName, options = {}) {
   let appIdInt = null;
   try {
     console.log("🔄 Fetching LIVE data from API...");
-    // Hardcoded for layout fetching
-    appIdInt = 148;
-    options = { ...options, storeId: options?.storeId ?? 82 };
+    appIdInt = resolveAppId(appId);
     cacheKey = getLiveDslCacheKey(appIdInt, pageName);
     const layoutsCacheKey = getLiveLayoutsCacheKey(appIdInt);
     const forceRefresh = Boolean(options?.forceRefresh);

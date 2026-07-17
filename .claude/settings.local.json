@@ -2,7 +2,17 @@
   "permissions": {
     "allow": [
       "Bash(adb -s emulator-5554 shell input swipe 540 1200 540 600 500)",
-      "Bash(adb -s emulator-5554 exec-out screencap -p)"
+      "Bash(adb -s emulator-5554 exec-out screencap -p)",
+      "Bash(jobs)",
+      "Bash(npx react-native *)",
+      "Bash(tail -80 \"/d/tmp/claude/d--mobidragfull-app-mobie/69aebbfb-b3b3-4ef5-89c9-904faed219e7/tasks/b3bs3iak2.output\")",
+      "Read(//d/tmp/claude/d--mobidragfull-app-mobie/69aebbfb-b3b3-4ef5-89c9-904faed219e7/tasks/**)",
+      "Bash(./gradlew.bat app:installDebug -PreactNativeDevServerPort=8081)",
+      "Bash(cd /d/mobidragfull/app/mobie/android)",
+      "Bash(export GRADLE_USER_HOME=\"D:\\\\\\\\gh\")",
+      "Bash(emulator -list-avds)",
+      "Bash(adb devices *)",
+      "Bash(\"/c/Users/abhis/AppData/Local/Android/Sdk/emulator/emulator.exe\" -list-avds)"
     ]
   }
 }

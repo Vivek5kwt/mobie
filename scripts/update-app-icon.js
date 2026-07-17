@@ -37,7 +37,7 @@ const readAppIdentity = () => {
 
 const APP_IDENTITY = readAppIdentity();
 let APP_DISPLAY_NAME = process.env.APP_DISPLAY_NAME || process.env.APP_NAME || APP_IDENTITY.displayName || APP_IDENTITY.name || '';
-const APP_ID = process.env.APP_ID || process.env.REACT_APP_APP_ID || String(APP_IDENTITY.appId || '187');
+const APP_ID = process.env.APP_ID || process.env.REACT_APP_APP_ID || String(APP_IDENTITY.appId || '132');
 
 const ICON_SIZES = {
   'mipmap-mdpi': 48,
