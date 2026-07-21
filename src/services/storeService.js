@@ -46,7 +46,7 @@ let _cacheAppId = null;   // track which appId the cache belongs to
 let _inflight = null;
 
 // ── Helpers ────────────────────────────────────────────────────────────────
-
+  
 async function graphqlFetch(query, variables) {
   const response = await fetch(GRAPHQL_ENDPOINT, {
     method: 'POST',

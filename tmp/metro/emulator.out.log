@@ -1,0 +1,170 @@
+INFO         | Android emulator version 35.5.10.0 (build_id 13402964) (CL:N/A)
+INFO         | Graphics backend: gfxstream
+INFO         | Found systemPath C:\Users\vivek\AppData\Local\Android\Sdk\system-images\android-35\google_apis_playstore\x86_64\
+INFO         | Increasing RAM size to 2048MB
+INFO         | IPv4 server found: 192.168.1.1
+INFO         | Ignore IPv6 address: 8029:1d85:1002:0:8029:1d85:1002:0
+INFO         | Ignore IPv6 address: 8029:1d85:1002:0:8029:1d85:1002:0
+INFO         | Ignore IPv6 address: 8029:1d85:1002:0:8029:1d85:1002:0
+INFO         | Ignore IPv6 address: 702f:1d85:1002:0:8029:1d85:1002:0
+INFO         | Ignore IPv6 address: 702f:1d85:1002:0:8029:1d85:1002:0
+INFO         | Ignore IPv6 address: 702f:1d85:1002:0:8029:1d85:1002:0
+INFO         | Ignore IPv6 address: 8835:1d85:1002:0:8029:1d85:1002:0
+INFO         | Ignore IPv6 address: 8835:1d85:1002:0:8029:1d85:1002:0
+INFO         | Ignore IPv6 address: 8835:1d85:1002:0:8029:1d85:1002:0
+INFO         | Ignore IPv6 address: a03b:1d85:1002:0:8029:1d85:1002:0
+INFO         | Ignore IPv6 address: 9846:1d85:1002:0:8029:1d85:1002:0
+INFO         | Ignore IPv6 address: 9846:1d85:1002:0:8029:1d85:1002:0
+INFO         | Ignore IPv6 address: 9846:1d85:1002:0:8029:1d85:1002:0
+INFO         | Checking system compatibility:
+INFO         |   Checking: hasCompatibleHypervisor
+INFO         |      Ok: Hypervisor compatibility to run avd: `Pixel_5_x86_64` are met
+INFO         |   Checking: hasSufficientSystem
+INFO         |      Ok: System requirements to run avd: `Pixel_5_x86_64` are met
+INFO         |   Checking: hasSufficientHwGpu
+INFO         |      Ok: Hardware GPU requirements to run avd: `Pixel_5_x86_64` are passed
+INFO         |   Checking: hasSufficientDiskSpace
+INFO         |      Ok: Disk space requirements to run avd: `Pixel_5_x86_64` are met
+INFO         | Critical: Failed to load opengl32sw (The specified module could not be found.) (:0, )
+INFO         | Warning: Software OpenGL failed. Falling back to system OpenGL. (:0, )
+INFO         | Warning: QMetaObject::connectSlotsByName: No matching signal for on_btn_xr_environment_living_room_day_clicked() (:0, )
+INFO         | Warning: QMetaObject::connectSlotsByName: No matching signal for on_btn_xr_environment_living_room_night_clicked() (:0, )
+INFO         | Warning: QMetaObject::connectSlotsByName: No matching signal for on_new_posture_requested(int) (:0, )
+INFO         | Warning: QMetaObject::connectSlotsByName: No matching signal for on_dismiss_posture_selection_dialog() (:0, )
+INFO         | Warning: QMetaObject::connectSlotsByName: No matching signal for on_new_resizable_requested(PresetEmulatorSizeType) (:0, )
+INFO         | Warning: QMetaObject::connectSlotsByName: No matching signal for on_dismiss_resizable_dialog() (:0, )
+INFO         | Warning: QMetaObject::connectSlotsByName: No matching signal for on_xr_environment_mode_changed(int) (:0, )
+INFO         | Warning: QMetaObject::connectSlotsByName: No matching signal for on_dismiss_xr_environment_mode_dialog() (:0, )
+INFO         | Warning: QMetaObject::connectSlotsByName: No matching signal for on_xr_input_mode_changed(int) (:0, )
+INFO         | Warning: QMetaObject::connectSlotsByName: No matching signal for on_dismiss_xr_input_mode_dialog() (:0, )
+INFO         | Warning: QMetaObject::connectSlotsByName: No matching signal for on_sleep_timer_done() (:0, )
+INFO         | Warning: QMetaObject::connectSlotsByName: No matching signal for on_unfold_timer_done() (:0, )
+INFO         | Storing crashdata in: C:\Users\vivek\AppData\Local\Temp\\AndroidEmulator\emu-crash-35.5.10.db, detection is enabled for process: 16808
+INFO         | Guest Driver: Auto (ext controls)
+library_mode host gpu mode host
+INFO         | emuglConfig_get_vulkan_hardware_gpu_support_info: Found physical GPU 'Intel(R) HD Graphics 620', type: VK_PHYSICAL_DEVICE_TYPE_INTEGRATED_GPU, apiVersion: 1.2.177, driverVersion: 0.402.1472
+
+INFO         | GPU device local memory = 8139MB
+WARNING      | Your GPU 'Intel(R) HD Graphics 620' has driver version 1.2.177, and cannot support Vulkan properly. Please try updating your GPU Drivers.
+INFO         | Initializing hardware OpenGLES emulation support
+INFO         | HealthMonitor disabled.
+INFO         | SharedLibrary::open for [opengl32.dll]: not found in map, open for the first time
+
+INFO         | SharedLibrary::open for [opengl32.dll] (win32): call LoadLibraryA
+
+INFO         | SharedLibrary::open succeeded for [opengl32.dll]. File name: [C:\WINDOWS\SYSTEM32\opengl32.DLL]
+
+INFO         | SharedLibrary::open for [libshadertranslator.dll]: not found in map, open for the first time
+
+INFO         | SharedLibrary::open for [libshadertranslator.dll] (win32): call LoadLibraryA
+
+INFO         | SharedLibrary::open succeeded for [libshadertranslator.dll]. File name: [C:\Users\vivek\AppData\Local\Android\Sdk\emulator\lib64\libshadertranslator.dll]
+
+INFO         | Graphics Adapter Vendor Google (Intel)
+INFO         | Graphics Adapter Android Emulator OpenGL ES Translator (Intel(R) HD Graphics 620)
+INFO         | Graphics API Version OpenGL ES 3.0 (4.5.0 - Build 27.20.100.9664)
+INFO         | Graphics API Extensions GL_OES_EGL_sync GL_OES_EGL_image GL_OES_EGL_image_external GL_OES_depth24 GL_OES_depth32 GL_OES_element_index_uint GL_OES_texture_float GL_OES_texture_float_linear GL_OES_compressed_paletted_texture GL_OES_compressed_ETC1_RGB8_texture GL_OES_depth_texture GL_OES_texture_half_float GL_OES_texture_half_float_linear GL_OES_packed_depth_stencil GL_OES_vertex_half_float GL_OES_texture_npot GL_OES_rgb8_rgba8 GL_EXT_color_buffer_float GL_EXT_color_buffer_half_float GL_EXT_texture_format_BGRA8888 GL_APPLE_texture_format_BGRA8888 
+INFO         | Graphics Device Extensions N/A
+INFO         | Sending adb public key [QAAAAK2uxtrbGtezfNJXrK/ZzKtjQbFH5vDsgV05bpD1LwqT2NlWh3826jS8VbUipAmLHwkTNH+9ByWsHaIFtTN40yBpVlY1ccMnyxRoVYt/BGnl3X9kCU54uP7N9mazlsuVr2XoQ5kUFnhxZfLyP/Bj+/jfFDL9inh/cggGxF00dRpJo5DLJLmZGPZF2Cvl3EzKum7kQ7+aIlkn3pZUF29pvhYI8FspiWQlXH32SXNwtxI/XpKse8NqY07s8y+Ub6+T1++8vdW1nuvDas6WM58A3e/th86rdnAcbODi+bPQp0X/txxqjmE9QAuls8zImb8PRr39BijvbviQ+nrKYmxUSVQ6z7/ynNj+1nCBSI43Er/x4vKnf9504iC0mqsRQf8HUTpGXILU9Ngysk+Q19R2uKoHGwDf7DBWL08Q5aj3hOXz5yXVdZKWL1+UPJnPx/alO/ReVj3Ly6klghS1eV82cKv9pIEjPQI7CmmKxCmoD35jqpzhD9rZhMgINASqOXmYFqe4wNvKj47ltDNDNBJu6cMSJmSj1qDFsY/VhbPfbaiTIuwVkw+QIYwohQY2fslKRiU8166WPDzNk+deIsUSMFQCcA07oUovkFDCEahkMs82JT1al/cwB8tn6s22hJ/VbAYrlKnOStv0BP2VWUfx/w9A+RnbXPVy+IRd62wKYDLTHR/lFwEAAQA= @unknown]
+WHPX on Windows 10.0.22631 detected.
+Windows Hypervisor Platform accelerator is operational
+host doesn't support requested feature: CPUID.80000001H:EDX [bit 0]
+host doesn't support requested feature: CPUID.80000001H:EDX [bit 2]
+host doesn't support requested feature: CPUID.80000001H:EDX [bit 3]
+host doesn't support requested feature: CPUID.80000001H:EDX [bit 4]
+host doesn't support requested feature: CPUID.80000001H:EDX [bit 5]
+host doesn't support requested feature: CPUID.80000001H:EDX [bit 6]
+host doesn't support requested feature: CPUID.80000001H:EDX [bit 7]
+host doesn't support requested feature: CPUID.80000001H:EDX [bit 8]
+host doesn't support requested feature: CPUID.80000001H:EDX [bit 9]
+host doesn't support requested feature: CPUID.80000001H:EDX [bit 13]
+host doesn't support requested feature: CPUID.80000001H:EDX [bit 15]
+host doesn't support requested feature: CPUID.80000001H:EDX [bit 16]
+host doesn't support requested feature: CPUID.80000001H:EDX [bit 23]
+host doesn't support requested feature: CPUID.80000001H:EDX [bit 24]
+host doesn't support requested feature: CPUID.80000001H:EDX [bit 0]
+host doesn't support requested feature: CPUID.80000001H:EDX [bit 2]
+host doesn't support requested feature: CPUID.80000001H:EDX [bit 3]
+host doesn't support requested feature: CPUID.80000001H:EDX [bit 4]
+host doesn't support requested feature: CPUID.80000001H:EDX [bit 5]
+host doesn't support requested feature: CPUID.80000001H:EDX [bit 6]
+host doesn't support requested feature: CPUID.80000001H:EDX [bit 7]
+host doesn't support requested feature: CPUID.80000001H:EDX [bit 8]
+host doesn't support requested feature: CPUID.80000001H:EDX [bit 9]
+host doesn't support requested feature: CPUID.80000001H:EDX [bit 13]
+host doesn't support requested feature: CPUID.80000001H:EDX [bit 15]
+host doesn't support requested feature: CPUID.80000001H:EDX [bit 16]
+host doesn't support requested feature: CPUID.80000001H:EDX [bit 23]
+host doesn't support requested feature: CPUID.80000001H:EDX [bit 24]
+INFO         | Monitoring duration of emulator setup.
+WARNING      | The emulator now requires a signed jwt token for gRPC access! Use the -grpc flag if you really want an open unprotected grpc port
+INFO         | Using security allow list from: C:\Users\vivek\AppData\Local\Android\Sdk\emulator\lib\emulator_access.json
+WARNING      | *** Basic token auth should only be used by android-studio ***
+INFO         | The active JSON Web Key Sets can be found here: C:\Users\vivek\AppData\Local\Temp\avd\running\16808\jwks\339e75cc-e177-4190-a73b-edaeb2e8e25c\active.jwk
+INFO         | Scanning C:\Users\vivek\AppData\Local\Temp\avd\running\16808\jwks\339e75cc-e177-4190-a73b-edaeb2e8e25c for jwk keys.
+INFO         | Started GRPC server at 127.0.0.1:8554, security: Local, auth: +token
+INFO         | Advertising in: C:\Users\vivek\AppData\Local\Temp\avd\running\pid_16808.ini
+INFO         | Setting display: 0 configuration to: 1080x2340, dpi: 440x440 
+INFO         | setDisplayActiveConfig 0
+INFO         | Checking system compatibility:
+INFO         |   Checking: hasCompatibleHypervisor
+INFO         |      Ok: Hypervisor compatibility to run avd: `Pixel_5_x86_64` are met
+INFO         |   Checking: hasSufficientSystem
+INFO         |      Ok: System requirements to run avd: `Pixel_5_x86_64` are met
+INFO         |   Checking: hasSufficientHwGpu
+INFO         |      Ok: Hardware GPU requirements to run avd: `Pixel_5_x86_64` are passed
+INFO         |   Checking: hasSufficientDiskSpace
+INFO         |      Ok: Disk space requirements to run avd: `Pixel_5_x86_64` are met
+USER_INFO    | Emulator is performing a full startup. This may take upto two minutes, or more.
+WARNING      | UpdateCheck: Failure: SSL peer certificate or SSH remote key was not OK
+WARNING      | UpdateCheck: failed to get the latest version, skipping check (current version '35.5.10-13402964')
+INFO         | Activated packet streamer for bluetooth emulation
+INFO         | Critical: UpdateLayeredWindowIndirect failed for ptDst=(130, 131), size=(223x21), dirty=(223x21 0, 0) (A device attached to the system is not functioning.) (:0, )
+INFO         | Boot completed in 242936 ms
+INFO         | Increasing screen off timeout, logcat buffer size to 2M.
+INFO         | IPv4 server found: 192.168.1.1
+INFO         | Ignore IPv6 address: 40d0:6b83:1002:0:40d0:6b83:1002:0
+INFO         | Ignore IPv6 address: 40d0:6b83:1002:0:40d0:6b83:1002:0
+INFO         | Ignore IPv6 address: 40d0:6b83:1002:0:40d0:6b83:1002:0
+INFO         | Ignore IPv6 address: 30d6:6b83:1002:0:40d0:6b83:1002:0
+INFO         | Ignore IPv6 address: 30d6:6b83:1002:0:40d0:6b83:1002:0
+INFO         | Ignore IPv6 address: 30d6:6b83:1002:0:40d0:6b83:1002:0
+INFO         | Ignore IPv6 address: 48dc:6b83:1002:0:40d0:6b83:1002:0
+INFO         | Ignore IPv6 address: 48dc:6b83:1002:0:40d0:6b83:1002:0
+INFO         | Ignore IPv6 address: 48dc:6b83:1002:0:40d0:6b83:1002:0
+INFO         | Ignore IPv6 address: 60e2:6b83:1002:0:40d0:6b83:1002:0
+INFO         | Ignore IPv6 address: 58ed:6b83:1002:0:40d0:6b83:1002:0
+INFO         | Ignore IPv6 address: 58ed:6b83:1002:0:40d0:6b83:1002:0
+INFO         | Ignore IPv6 address: 58ed:6b83:1002:0:40d0:6b83:1002:0
+INFO         | IPv4 server found: 192.168.1.1
+INFO         | Ignore IPv6 address: 40d0:6b83:1002:0:40d0:6b83:1002:0
+INFO         | Ignore IPv6 address: 40d0:6b83:1002:0:40d0:6b83:1002:0
+INFO         | Ignore IPv6 address: 40d0:6b83:1002:0:40d0:6b83:1002:0
+INFO         | Ignore IPv6 address: 30d6:6b83:1002:0:40d0:6b83:1002:0
+INFO         | Ignore IPv6 address: 30d6:6b83:1002:0:40d0:6b83:1002:0
+INFO         | Ignore IPv6 address: 30d6:6b83:1002:0:40d0:6b83:1002:0
+INFO         | Ignore IPv6 address: 48dc:6b83:1002:0:40d0:6b83:1002:0
+INFO         | Ignore IPv6 address: 48dc:6b83:1002:0:40d0:6b83:1002:0
+INFO         | Ignore IPv6 address: 48dc:6b83:1002:0:40d0:6b83:1002:0
+INFO         | Ignore IPv6 address: 60e2:6b83:1002:0:40d0:6b83:1002:0
+INFO         | Ignore IPv6 address: 58ed:6b83:1002:0:40d0:6b83:1002:0
+INFO         | Ignore IPv6 address: 58ed:6b83:1002:0:40d0:6b83:1002:0
+INFO         | Ignore IPv6 address: 58ed:6b83:1002:0:40d0:6b83:1002:0
+INFO         | IPv4 server found: 192.168.1.1
+INFO         | Ignore IPv6 address: 40d0:6b83:1002:0:40d0:6b83:1002:0
+INFO         | Ignore IPv6 address: 40d0:6b83:1002:0:40d0:6b83:1002:0
+INFO         | Ignore IPv6 address: 40d0:6b83:1002:0:40d0:6b83:1002:0
+INFO         | Ignore IPv6 address: 30d6:6b83:1002:0:40d0:6b83:1002:0
+INFO         | Ignore IPv6 address: 30d6:6b83:1002:0:40d0:6b83:1002:0
+INFO         | Ignore IPv6 address: 30d6:6b83:1002:0:40d0:6b83:1002:0
+INFO         | Ignore IPv6 address: 48dc:6b83:1002:0:40d0:6b83:1002:0
+INFO         | Ignore IPv6 address: 48dc:6b83:1002:0:40d0:6b83:1002:0
+INFO         | Ignore IPv6 address: 48dc:6b83:1002:0:40d0:6b83:1002:0
+INFO         | Ignore IPv6 address: 60e2:6b83:1002:0:40d0:6b83:1002:0
+INFO         | Ignore IPv6 address: 58ed:6b83:1002:0:40d0:6b83:1002:0
+INFO         | Ignore IPv6 address: 58ed:6b83:1002:0:40d0:6b83:1002:0
+INFO         | Ignore IPv6 address: 58ed:6b83:1002:0:40d0:6b83:1002:0
+INFO         | Critical: UpdateLayeredWindowIndirect failed for ptDst=(130, 131), size=(223x21), dirty=(223x21 0, 0) (A device attached to the system is not functioning.) (:0, )
+INFO         | Wait for emulator (pid 16808) 20 seconds to shutdown gracefully before kill;you can set environment variable ANDROID_EMULATOR_WAIT_TIME_BEFORE_KILL(in seconds) to change the default value (20 seconds)
+
+INFO         | Saving with gfxstream=1
