@@ -87,17 +87,6 @@ const isDefaultHeaderTitle = (value) => {
   return normalized === "mobidrag";
 };
 
-const resolveHeaderTitleText = (config = {}, fallbackTitle = "") => {
-  const candidates = [config.title, config.headerText, config.text];
-  for (const candidate of candidates) {
-    const text = String(resolveVal(candidate) || "").trim();
-    if (!text || isDefaultHeaderTitle(text)) continue;
-    return text;
-  }
-  const fallback = String(resolveVal(fallbackTitle) || "").trim();
-  return fallback && !isDefaultHeaderTitle(fallback) ? fallback : "";
-};
-
 const isBackNavigationTarget = (navRef, navType) => {
   const typeKey = normalizeNavKey(navType);
   const refKey = normalizeNavKey(navRef);
@@ -116,14 +105,6 @@ const HEADER_HEIGHT = 56;
 const HEADER_HORIZONTAL_PADDING = 16;
 const HEADER_TOUCH_SIZE = 44;
 const HEADER_ITEM_GAP = 12;
-
-const headerIconButtonStyle = {
-  width: HEADER_TOUCH_SIZE,
-  height: HEADER_TOUCH_SIZE,
-  alignItems: "center",
-  justifyContent: "center",
-  overflow: "visible",
-};
 
 const countVisibleHeaderItems = (items = []) =>
   items.reduce((count, rawItem) => {
@@ -147,8 +128,6 @@ export default function HeaderDefault({
   bottomNavSection,
   hideTabs = false,
   showBack = false,
-  fallbackTitle = "",
-  disableDefaultTitlePress = false,
 }) {
   const navigation = useNavigation();
   const { openSideMenu, toggleSideMenu } = useSideMenu();
@@ -178,11 +157,10 @@ export default function HeaderDefault({
   const typography = getTypography() || {};
 
   // ── Global style tokens ───────────────────────────────────────────────────
-  // bgColor falls back to bgColor field in case backgroundColor is absent
-  const bgColor   = resolveVal(config.backgroundColor) || resolveVal(config.bgColor) || "#e6d7cd";
+  // bgStart takes priority; fall back to backgroundColor/bgColor only when absent
+  const bgColor   = resolveVal(config.bgStart) || resolveVal(config.backgroundColor) || resolveVal(config.bgColor) || "#e6d7cd";
   const textColor = resolveVal(config.textColor)       || "#111111";
   const iconColor = resolveVal(config.iconColor)       || "#000000";
-  const titleText = resolveHeaderTitleText(config, fallbackTitle);
 
   // ── Bottom divider ───────────────────────────────────────────────────────
   const _dividerRaw = resolveVal(
@@ -249,40 +227,6 @@ export default function HeaderDefault({
     typography.headlineFontFamily,
     typography.bodyFontFamily
   ) || "";
-
-  const titleFontSizeRaw = resolveVal(config.titleFontSize) ?? resolveVal(config.fontSize);
-  const resolvedTitleFontSize =
-    Number.isFinite(Number(titleFontSizeRaw)) && Number(titleFontSizeRaw) > 0 ? Number(titleFontSizeRaw) : 18;
-  const resolvedTitleFontFamily = resolveFirstFont(
-    resolveVal(config.titleFontFamily),
-    resolveVal(config.textFontFamily),
-    resolveVal(config.headerFontFamily),
-    resolveVal(config.fontFamily),
-    resolveVal(config.titleFamily),
-    headerFontFamily
-  ) || "";
-  const resolvedTitleFontWeight = normalizeFontWeight(
-    resolveVal(config.titleFontWeight) ??
-    resolveVal(config.textWeight) ??
-    resolveVal(config.headerFontWeight) ??
-    resolveVal(config.fontWeight) ??
-    resolveVal(config.titleWeight),
-    "700"
-  );
-  const resolvedTitleColor = resolveVal(config.titleColor) ?? resolveVal(config.titleTextColor) ?? textColor;
-  const resolvedTitleLineHeight = resolveLineHeight(
-    config.titleLineHeight ?? config.textLineHeight ?? config.lineHeight,
-    resolvedTitleFontSize
-  );
-  const centeredTitleTextStyle = {
-    fontSize: resolvedTitleFontSize,
-    lineHeight: resolvedTitleLineHeight,
-    fontWeight: resolvedTitleFontWeight,
-    color: resolvedTitleColor,
-    includeFontPadding: true,
-    textAlignVertical: "center",
-    ...(resolvedTitleFontFamily ? { fontFamily: resolvedTitleFontFamily } : {}),
-  };
 
   // ── Nav helpers ───────────────────────────────────────────────────────────
   const resolveNavItems = (rawSection) => {
@@ -444,246 +388,9 @@ export default function HeaderDefault({
     </View>
   ) : null;
 
-  // ── Flat DSL structure: { title, showBell, showCart, iconColor, textColor, bgColor }
-  // ── Array DSL structure: { left: [...], center: [...], right: [...] }
-  const useFlatMode = leftItems.length === 0 && centerItems.length === 0 && rightItems.length === 0;
-
-  if (useFlatMode) {
-    // ── FLAT MODE: render title on left, icons on right ───────────────────────
-    const showBell     = resolveVal(config.showBell)     === true || resolveVal(config.showBell)     === "true";
-    const showCart     = resolveVal(config.showCart)     === true || resolveVal(config.showCart)     === "true";
-    const showWishlist = resolveVal(config.showWishlist) === true || resolveVal(config.showWishlist) === "true";
-    const cartConfig = resolveVal(config.cart) || {};
-    const cartVisible = showCart || resolveVal(cartConfig.visible) === true || resolveVal(cartConfig.visible) === "true";
-    const cartIconName = normalizeIconName(resolveVal(cartConfig.iconId) || resolveVal(cartConfig.icon) || "cart-shopping");
-    const cartIconSizeRaw = Number(resolveVal(cartConfig.width) ?? resolveVal(cartConfig.iconSize));
-    const cartIconSize = Number.isFinite(cartIconSizeRaw) && cartIconSizeRaw > 0 ? cartIconSizeRaw : 20;
-    const cartIconColor = resolveVal(cartConfig.color) || iconColor;
-    const rightIconCount = [showWishlist, showBell, cartVisible].filter(Boolean).length;
-    const rightTouchSize = Math.max(HEADER_TOUCH_SIZE, cartIconSize + 16);
-    const rightSlotWidth = rightIconCount > 0
-      ? (rightIconCount * rightTouchSize) + ((rightIconCount - 1) * HEADER_ITEM_GAP)
-      : HEADER_TOUCH_SIZE;
-    const balancedSideWidth = Math.max(HEADER_TOUCH_SIZE, rightSlotWidth);
-    const flatBackConfig = resolveVal(config.backIcon) || resolveVal(config.back) || {};
-    const flatBackIconName = normalizeIconName(
-      resolveVal(flatBackConfig.iconId) ||
-      resolveVal(flatBackConfig.icon) ||
-      resolveVal(config.backIconName) ||
-      "arrow-left-long"
-    );
-    const flatBackIconSizeRaw = Number(
-      resolveVal(flatBackConfig.iconSize) ??
-      resolveVal(config.backIconSize) ??
-      resolveVal(config.iconSize)
-    );
-    const flatBackIconSize = Number.isFinite(flatBackIconSizeRaw) && flatBackIconSizeRaw > 0 ? flatBackIconSizeRaw : 18;
-    const flatBackIconColor = resolveVal(flatBackConfig.iconColor) || iconColor;
-
-    // ── Title text styling (DSL-driven) ──────────────────────────────────────
-    const _fsr = resolveVal(config.titleFontSize) ?? resolveVal(config.fontSize);
-    const titleFontSize   = Number.isFinite(Number(_fsr)) && Number(_fsr) > 0 ? Number(_fsr) : 18;
-    const titleFontFamily = resolveFirstFont(
-      resolveVal(config.titleFontFamily),
-      resolveVal(config.textFontFamily),
-      resolveVal(config.headerFontFamily),
-      resolveVal(config.fontFamily),
-      resolveVal(config.titleFamily),
-      headerFontFamily
-    ) || "";
-    const titleFontWeight = normalizeFontWeight(
-      resolveVal(config.titleFontWeight) ??
-      resolveVal(config.textWeight) ??
-      resolveVal(config.headerFontWeight) ??
-      resolveVal(config.fontWeight) ??
-      resolveVal(config.titleWeight),
-      "700"
-    );
-    const titleColor = resolveVal(config.titleColor) ?? resolveVal(config.titleTextColor) ?? textColor;
-    const titleLineHeight = resolveLineHeight(
-      config.titleLineHeight ?? config.textLineHeight ?? config.lineHeight,
-      titleFontSize
-    );
-
-    // ── Title box / border styling ─────────────────────────────────────────
-    // Check nested sub-objects in case builder stores box style there
-    const _rawSub   = resolveVal(config.raw)           || {};
-    const _titleSub = resolveVal(config.titleStyle)    || resolveVal(config.titleSettings) || resolveVal(config.titleBox) || {};
-    const _logoSub  = resolveVal(config.logoStyle)     || resolveVal(config.logoSettings)  || {};
-    const _sub = (typeof _rawSub === "object" ? _rawSub : {});
-    const _tsub = (typeof _titleSub === "object" ? _titleSub : {});
-    const _lsub = (typeof _logoSub === "object" ? _logoSub : {});
-
-    const titleBoxBg = resolveVal(
-      config.titleBgColor ??
-      config.titleBackgroundColor ??
-      config.titleContainerBg ??
-      config.titleBoxBg ??
-      config.titleBoxBgColor ??
-      config.logoBgColor ??
-      config.logoBackgroundColor ??
-      config.brandBgColor ??
-      config.nameBgColor ??
-      config.labelBgColor ??
-      config.textBoxBgColor ??
-      config.titleLabelBg ??
-      _sub.titleBgColor ?? _sub.titleBoxBg ?? _sub.logoBgColor ??
-      _tsub.bgColor ?? _tsub.backgroundColor ?? _tsub.bg ??
-      _lsub.bgColor ?? _lsub.backgroundColor
-    ) || "";
-
-    const _borderRaw = resolveVal(
-      config.titleBorder ??
-      config.showTitleBorder ??
-      config.titleBorderEnabled ??
-      config.showBorder ??
-      config.titleBoxBorder ??
-      config.logoBorder ??
-      config.titleBorderVisible ??
-      config.hasTitleBorder ??
-      _sub.titleBorder ?? _sub.showBorder ??
-      _tsub.border ?? _tsub.showBorder ?? _tsub.borderEnabled ??
-      _lsub.border ?? _lsub.borderEnabled
-    );
-    const titleBorderEnabled =
-      _borderRaw === true ||
-      (typeof _borderRaw === "string" &&
-        _borderRaw !== "" && _borderRaw !== "false" && _borderRaw !== "0" && _borderRaw !== "none");
-
-    const titleBorderWidth  = titleBorderEnabled ? Number(resolveVal(config.titleBorderWidth  ?? config.titleBorderSize ?? _tsub.borderWidth  ?? _sub.titleBorderWidth)  ?? 1) : 0;
-    const titleBorderColor  = resolveVal(config.titleBorderColor ?? config.titleBorderColour ?? _tsub.borderColor ?? _tsub.color ?? _sub.titleBorderColor) || "#000000";
-    const titleBorderRadius = Number(resolveVal(config.titleBorderRadius ?? config.titleRadius ?? config.titleCorner ?? _tsub.borderRadius ?? _tsub.radius ?? _sub.titleBorderRadius) ?? 0);
-    const titleBoxPaddingH  = Number(resolveVal(config.titleBoxPaddingH ?? config.titlePaddingH ?? config.titlePadX ?? _tsub.paddingH ?? _tsub.px) ?? 10);
-    const titleBoxPaddingV  = Number(resolveVal(config.titleBoxPaddingV ?? config.titlePaddingV ?? config.titlePadY ?? _tsub.paddingV ?? _tsub.py) ?? 5);
-    const hasBox = !!titleBoxBg || titleBorderEnabled;
-
-    const badgeStyle = {
-      position: "absolute",
-      top: -5,
-      right: -7,
-      backgroundColor: "#EF4444",
-      borderRadius: 8,
-      minWidth: 16,
-      height: 16,
-      alignItems: "center",
-      justifyContent: "center",
-      paddingHorizontal: 3,
-    };
-    const badgeText = { color: "#FFFFFF", fontSize: 9, fontWeight: "700" };
-
-    return (
-      <View>
-        <View
-          style={{
-            flexDirection: "row",
-            alignItems: "center",
-            justifyContent: "space-between",
-            backgroundColor: bgColor,
-            paddingVertical: 6,
-            paddingHorizontal: HEADER_HORIZONTAL_PADDING,
-            minHeight: HEADER_HEIGHT,
-            ...dividerStyle,
-          }}
-        >
-          {/* Left slot — back button on detail screens, spacer elsewhere */}
-          <View style={{ width: balancedSideWidth, alignItems: "flex-start", justifyContent: "center" }}>
-            {showBack && canGoBack ? (
-              <TouchableOpacity
-                style={headerIconButtonStyle}
-                onPress={() => navigation.goBack()}
-                activeOpacity={0.7}
-                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-              >
-                <Icon name={flatBackIconName} size={flatBackIconSize} color={flatBackIconColor} />
-              </TouchableOpacity>
-            ) : null}
-          </View>
-
-          {/* Brand title — absolutely overlaid to guarantee true center regardless of icon count */}
-          <View style={{ position: "absolute", left: 0, right: 0, top: 0, bottom: 0, alignItems: "center", justifyContent: "center" }} pointerEvents="box-none">
-            <View style={{ alignItems: "center", justifyContent: "center", paddingHorizontal: balancedSideWidth + HEADER_HORIZONTAL_PADDING, maxWidth: "100%" }}>
-              {!!titleText ? (
-                <TouchableOpacity
-                  activeOpacity={disableDefaultTitlePress ? 1 : 0.75}
-                  disabled={disableDefaultTitlePress}
-                  onPress={() => navigation.navigate("LayoutScreen")}
-                >
-                  <View
-                    style={{
-                      alignSelf: "center",
-                      ...(hasBox ? {
-                        borderWidth: titleBorderWidth,
-                        borderColor: titleBorderColor,
-                        borderRadius: titleBorderRadius,
-                        backgroundColor: titleBoxBg || "transparent",
-                        paddingHorizontal: titleBoxPaddingH,
-                        paddingVertical: titleBoxPaddingV,
-                      } : {}),
-                    }}
-                  >
-                    <Text
-                      style={{
-                        fontSize: titleFontSize,
-                        lineHeight: titleLineHeight,
-                        fontWeight: titleFontWeight,
-                        color: titleColor,
-                        includeFontPadding: true,
-                        textAlignVertical: "center",
-                        ...(titleFontFamily ? { fontFamily: titleFontFamily } : {}),
-                      }}
-                      numberOfLines={1}
-                    >
-                      {titleText}
-                    </Text>
-                  </View>
-                </TouchableOpacity>
-              ) : null}
-            </View>
-          </View>
-
-          {/* Right slot */}
-          <View style={{ width: balancedSideWidth, flexDirection: "row", alignItems: "center", justifyContent: "flex-end", gap: HEADER_ITEM_GAP, overflow: "visible" }}>
-            {showWishlist && (
-              <TouchableOpacity
-                activeOpacity={0.7}
-                onPress={openWishlist}
-                style={[headerIconButtonStyle, { position: "relative" }]}
-              >
-                <Icon name="heart" size={20} color={iconColor} />
-                {wishlistCount > 0 && (
-                  <View style={badgeStyle}>
-                    <Text style={badgeText}>{wishlistCount > 99 ? "99+" : String(wishlistCount)}</Text>
-                  </View>
-                )}
-              </TouchableOpacity>
-            )}
-            {showBell && (
-              <TouchableOpacity style={headerIconButtonStyle} activeOpacity={0.7} onPress={() => openNavTarget("notification")}>
-                <Icon name="bell" size={20} color={iconColor} />
-              </TouchableOpacity>
-            )}
-            {cartVisible && (
-              <TouchableOpacity
-                activeOpacity={0.7}
-                onPress={() => openNavTarget("cart")}
-                style={[headerIconButtonStyle, { position: "relative" }]}
-              >
-                <Icon name={cartIconName} size={cartIconSize} color={cartIconColor} />
-                {cartCount > 0 && (
-                  <View style={badgeStyle}>
-                    <Text style={badgeText}>{cartCount > 99 ? "99+" : String(cartCount)}</Text>
-                  </View>
-                )}
-              </TouchableOpacity>
-            )}
-          </View>
-        </View>
-
-        {/* Tab bar (shown below header when multiTab + tabs configured) */}
-        {tabBar}
-      </View>
-    );
-  }
+  // ── DSL structure is always { left: [...], center: [...], right: [...] }.
+  // showBell / showCart / title are legacy fields and are intentionally ignored —
+  // if left/center/right are all empty, the header below renders as an empty bar.
 
   // ── Top-level navigation (used as fallback for left-slot items) ─────────
   const topLevelNavRef  = String(resolveVal(config.navigateRef) || resolveVal(config.linkTo) || "").trim();
@@ -1042,7 +749,6 @@ export default function HeaderDefault({
   const leftSlotWidth = estimateHeaderSlotWidth(leftItems);
   const rightSlotWidth = estimateHeaderSlotWidth(rightItems);
   const centerSidePadding = Math.max(leftSlotWidth, rightSlotWidth) + HEADER_HORIZONTAL_PADDING;
-  const shouldRenderCenterTitle = centerItems.length === 0 && !!titleText;
 
   return (
     <View>
@@ -1058,13 +764,18 @@ export default function HeaderDefault({
           ...dividerStyle,
         }}
       >
-        {/* Left — flex:1 fills available space, pushing right slot to edge */}
+        {/* Left — flex:1 fills available space, pushing right slot to edge.
+            overflow:hidden + flexShrink so oversized left content (a large
+            image, long text) clips instead of squeezing the right icon slot
+            out of view. */}
         <View
           style={{
             flexDirection: "row",
             alignItems: "center",
             gap: HEADER_ITEM_GAP,
             flex: 1,
+            flexShrink: 1,
+            overflow: "hidden",
             minWidth: leftSlotWidth,
             minHeight: HEADER_TOUCH_SIZE,
           }}
@@ -1074,7 +785,7 @@ export default function HeaderDefault({
 
         {/* Center — absolutely overlaid so it is always visually centered
             regardless of how many items are in left/right slots */}
-        {(centerItems.length > 0 || shouldRenderCenterTitle) && (
+        {centerItems.length > 0 && (
           <View
             style={{
               position: "absolute",
@@ -1097,21 +808,17 @@ export default function HeaderDefault({
                 maxWidth: "100%",
               }}
             >
-              {centerItems.length > 0 ? (
-                centerItems.map((item, idx) => renderItem(item, idx))
-              ) : (
-                <Text style={centeredTitleTextStyle} numberOfLines={1}>
-                  {titleText}
-                </Text>
-              )}
+              {centerItems.map((item, idx) => renderItem(item, idx))}
             </View>
           </View>
         )}
 
-        {/* Right — flex:1 with flex-end keeps it at the right edge */}
+        {/* Right — fixed to its own content width and never shrinks, so it can
+            never be squeezed out of view by oversized left/center content. */}
         <View
           style={{
-            flex: 1,
+            flexGrow: 0,
+            flexShrink: 0,
             flexDirection: "row",
             alignItems: "center",
             gap: HEADER_ITEM_GAP,

@@ -55,13 +55,34 @@ const unwrapValue = (value, fallback = undefined) => {
   return value;
 };
 
+// Components that belong to a different page's chrome (product listing filter/sort
+// bar, navigation drawers, etc.) and must never render inside Product Detail, even
+// if they leak in through a stale/incorrect `detailSections` passed via route params.
+const PRODUCT_DETAIL_BLOCKED_COMPONENTS = new Set([
+  "filter_sort_header",
+  "filter_header",
+  "sort_header",
+  "side_navigation",
+  "bottom_navigation",
+  "bottom_navigation_style_1",
+  "bottom_navigation_style_2",
+  "header",
+  "header_2",
+  "header_mobile",
+]);
+
 const resolveSections = (detailSections) => {
   const sections = Array.isArray(detailSections)
     ? detailSections
     : Array.isArray(detailSections?.sections)
       ? detailSections.sections
       : [];
-  return sections.filter((section) => section && typeof section === "object");
+  return sections.filter(
+    (section) =>
+      section &&
+      typeof section === "object" &&
+      !PRODUCT_DETAIL_BLOCKED_COMPONENTS.has(getComponentName(section))
+  );
 };
 
 const extractSectionRaw = (section) => {
@@ -429,7 +450,10 @@ export default function ProductDetailScreen() {
         } else {
           setHeaderDefaultConfig(null);
         }
-        if (nextSections.length) {
+        if (liveDsl?.dsl) {
+          // A successful live fetch is always authoritative — even when it comes
+          // back empty — so a stale/incorrect provisional `detailSections` (passed
+          // in via route params) never lingers on screen forever.
           setDslSections(nextSections);
           dslVersionRef.current = liveDsl?.versionNumber ?? null;
           dslFingerprintRef.current = getDslFingerprint(liveDsl?.dsl);
@@ -518,12 +542,10 @@ export default function ProductDetailScreen() {
     [detailProduct, product]
   );
 
-  const headerConfig = useMemo(() => {
-    const base = headerDefaultConfig || DEFAULT_PRODUCT_DETAIL_HEADER;
-    const productTitle = productForRender?.title || productForRender?.titleText || "";
-    if (!productTitle) return base;
-    return { ...base, title: productTitle };
-  }, [headerDefaultConfig, productForRender]);
+  const headerConfig = useMemo(
+    () => headerDefaultConfig || DEFAULT_PRODUCT_DETAIL_HEADER,
+    [headerDefaultConfig]
+  );
 
   // Render as soon as DSL plus route product data are available, then hydrate
   // with fuller Shopify detail data when that request settles.

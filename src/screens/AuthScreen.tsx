@@ -22,7 +22,6 @@ import Icon from 'react-native-vector-icons/FontAwesome6';
 import { useAuth } from '../services/AuthContext';
 import { fetchDSL } from '../engine/dslHandler';
 import authLayoutFallback from '../data/authLayoutFallback';
-import HeaderDefaultComponent from '../components/HeaderDefault';
 import DynamicRenderer from '../engine/DynamicRenderer';
 import { resolveFont } from '../services/typographyService';
 import { resolveDslNavigationTarget } from '../utils/navigationTarget';
@@ -1678,10 +1677,12 @@ const buildSignUpTokens = (rawProps: Record<string, unknown>): SignUpTokens => (
   firstNameAlignment: (pick(rawProps, ['firstNameAlignmenT', 'firstNameAlignment']) as string) ?? defaultSignUpTokens.firstNameAlignment,
   lastNameAlignment: (pick(rawProps, ['lastNameAlignmenT', 'lastNameAlignment']) as string) ?? defaultSignUpTokens.lastNameAlignment,
   passwordAlignment: (pick(rawProps, ['passwordAlignmenT', 'passwordAlignment']) as string) ?? defaultSignUpTokens.passwordAlignment,
-  emailInputTextAlignment: (pick(rawProps, ['emailInputTextAlignment', 'emailAlignmenT', 'emailAlignment']) as string) ?? defaultSignUpTokens.emailInputTextAlignment,
-  firstNameInputTextAlignment: (pick(rawProps, ['firstNameInputTextAlignment', 'firstNameAlignmenT', 'firstNameAlignment']) as string) ?? defaultSignUpTokens.firstNameInputTextAlignment,
-  lastNameInputTextAlignment: (pick(rawProps, ['lastNameInputTextAlignment', 'lastNameAlignmenT', 'lastNameAlignment']) as string) ?? defaultSignUpTokens.lastNameInputTextAlignment,
-  passwordInputTextAlignment: (pick(rawProps, ['passwordInputTextAlignment', 'passwordAlignmenT', 'passwordAlignment']) as string) ?? defaultSignUpTokens.passwordInputTextAlignment,
+  // Builder emits the input-text alignment under the "*AlignmenT" (capital T) key —
+  // NOT the plain "*Alignment" key, which is a separate field-level alignment concept.
+  emailInputTextAlignment: (pick(rawProps, ['emailInputTextAlignment', 'emailAlignmenT']) as string) ?? defaultSignUpTokens.emailInputTextAlignment,
+  firstNameInputTextAlignment: (pick(rawProps, ['firstNameAlignmenT', 'firstNameInputTextAlignment']) as string) ?? defaultSignUpTokens.firstNameInputTextAlignment,
+  lastNameInputTextAlignment: (pick(rawProps, ['lastNameInputTextAlignment', 'lastNameAlignmenT']) as string) ?? defaultSignUpTokens.lastNameInputTextAlignment,
+  passwordInputTextAlignment: (pick(rawProps, ['passwordInputTextAlignment', 'passwordAlignmenT']) as string) ?? defaultSignUpTokens.passwordInputTextAlignment,
   emailLabelVisible: (rawProps?.emailLabelVisible as boolean) ?? defaultSignUpTokens.emailLabelVisible,
   firstNameLabelVisible: (rawProps?.firstNameLabelVisible as boolean) ?? defaultSignUpTokens.firstNameLabelVisible,
   lastNameLabelVisible: (rawProps?.lastNameLabelVisible as boolean) ?? defaultSignUpTokens.lastNameLabelVisible,
@@ -2035,15 +2036,20 @@ type AuthLogoProps = {
 
 const AuthLogo: React.FC<AuthLogoProps> = ({ visible, imageUrl, ratio, scale, bgColor, borderColor, corners }) => {
   if (!visible || !imageUrl.trim()) return null;
+  // Builder shape convention: "Auto" ratio renders as a round image (independent
+  // of imageCorners); every other explicit W:H ratio renders at that aspect with
+  // imageCorners driving the corner radius (0 = square corners).
+  const isAutoRatio = String(ratio || '').trim().toLowerCase() === 'auto';
   const ratioValue = parseAuthLogoRatio(ratio);
   const width = AUTH_LOGO_BASE_WIDTH;
-  const height = Math.round(width / ratioValue);
+  const height = isAutoRatio ? width : Math.round(width / ratioValue);
+  const borderRadius = isAutoRatio ? width / 2 : corners;
   return (
     <View
       style={{
         width,
         height,
-        borderRadius: corners,
+        borderRadius,
         backgroundColor: bgColor,
         borderWidth: borderColor?.trim() ? 1 : 0,
         borderColor,
@@ -2215,9 +2221,6 @@ const AuthScreen = () => {
   const [signUpTokens, setSignUpTokens] = useState<SignUpTokens>(defaultSignUpTokens);
   const [forgotPasswordTokens, setForgotPasswordTokens] = useState<ForgotPasswordTokens>(defaultForgotPasswordTokens);
   const [resetPasswordTokens, setResetPasswordTokens] = useState<ResetPasswordTokens>(defaultResetPasswordTokens);
-  const [signInHeaderConfig, setSignInHeaderConfig] = useState<Record<string, unknown> | null>(null);
-  const [signUpHeaderConfig, setSignUpHeaderConfig] = useState<Record<string, unknown> | null>(null);
-  const [resetPasswordHeaderConfig, setResetPasswordHeaderConfig] = useState<Record<string, unknown> | null>(null);
   const [signInDslSections, setSignInDslSections] = useState<Record<string, unknown>[]>([]);
   const [signUpDslSections, setSignUpDslSections] = useState<Record<string, unknown>[]>([]);
   const [hasForgotPasswordSection, setHasForgotPasswordSection] = useState(false);
@@ -2352,7 +2355,6 @@ const AuthScreen = () => {
         setHasForgotPasswordSection(hasEnabledForgotPasswordSection || nextSignInTokens.forgotPasswordVisible);
         setSignInTokens(nextSignInTokens);
         setForgotPasswordTokens(forgotSection ? buildForgotPasswordTokens(forgotRawProps) : defaultForgotPasswordTokens);
-        setSignInHeaderConfig(hasLiveSignInPage ? ((signInDsl?.dsl?.headerdefault as Record<string, unknown> | undefined) ?? null) : null);
         if (hasLiveSignInPage) hasLiveSignInLayoutRef.current = true;
       }
 
@@ -2360,14 +2362,12 @@ const AuthScreen = () => {
         const signUpSection = signUpSections.find(isSignUpSection);
         setSignUpDslSections(signUpSections as Record<string, unknown>[]);
         setSignUpTokens(signUpSection ? buildSignUpTokens(getSectionRawProps(signUpSection)) : defaultSignUpTokens);
-        setSignUpHeaderConfig(hasResolvedLiveSignUpPage ? (((hasLiveSignUpPage ? signUpDsl : signInDsl)?.dsl?.headerdefault as Record<string, unknown> | undefined) ?? null) : null);
         if (hasResolvedLiveSignUpPage) hasLiveSignUpLayoutRef.current = true;
       }
 
       if (resetPasswordSections) {
         const resetPasswordSection = resetPasswordSections.find(isResetPasswordSection);
         setResetPasswordTokens(resetPasswordSection ? buildResetPasswordTokens(getSectionRawProps(resetPasswordSection)) : defaultResetPasswordTokens);
-        setResetPasswordHeaderConfig(hasLiveResetPasswordPage ? ((resetPasswordDsl?.dsl?.headerdefault as Record<string, unknown> | undefined) ?? null) : null);
         if (hasLiveResetPasswordPage) hasLiveResetPasswordLayoutRef.current = true;
       }
     } finally {
@@ -2456,11 +2456,6 @@ const AuthScreen = () => {
   }, [initialAuthMode, switchAuthMode, openForgotPasswordMode]);
 
   const t = mode === 'signup' ? signUpTokens : signInTokens;
-  const activeHeaderConfig = useMemo(() => {
-    const dslConfig =
-      mode === 'signup' ? signUpHeaderConfig : mode === 'forgot' ? resetPasswordHeaderConfig : signInHeaderConfig;
-    return dslConfig ?? null;
-  }, [mode, signInHeaderConfig, signUpHeaderConfig, resetPasswordHeaderConfig]);
 
   const toggleMode = () => {
     switchAuthMode(currentModeRef.current === 'login' ? 'signup' : 'login');
@@ -2664,21 +2659,9 @@ const AuthScreen = () => {
   const formCardMarginBottom = resolveAuthVerticalSpace(t.formCardMarginBottom, viewportHeight, 0.04);
   const forgotLoginLinkMarginTop = resolveAuthVerticalSpace(forgotPasswordTokens.loginLinkMarginTop, viewportHeight, 0.08);
   const hasDynamicDecor = hasDynamicSignInLayout || hasDynamicSignUpLayout;
-  const baseFirstNameInputAlign = toTextAlign(signUpTokens.firstNameInputTextAlignment);
-  const firstNameLooksLikeFullName = `${signUpTokens.firstNamePlaceholder} ${signUpTokens.firstNameLabelText}`
-    .toLowerCase()
-    .includes('full name');
-  const signUpFirstNameInputAlign =
-    !signUpTokens.lastNameVisible && firstNameLooksLikeFullName && baseFirstNameInputAlign === 'center'
-      ? 'left'
-      : baseFirstNameInputAlign;
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: activePageBgColor }}>
-      {activeHeaderConfig ? (
-        <HeaderDefaultComponent config={activeHeaderConfig} bottomNavSection={null} hideTabs showBack />
-      ) : null}
-
       <KeyboardAvoidingView
         style={{ flex: 1 }}
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
@@ -2813,7 +2796,7 @@ const AuthScreen = () => {
                 inputFontSize={signUpTokens.firstNameInputTextFontSize}
                 inputFontFamily={signUpTokens.firstNameInputTextFontFamily}
                 inputFontWeight={signUpTokens.firstNameInputTextFontWeight}
-                inputAlign={signUpFirstNameInputAlign}
+                inputAlign={toTextAlign(signUpTokens.firstNameInputTextAlignment)}
                 inputBorderColor={signUpTokens.inputBorderColor}
                 inputBorderRadius={signUpTokens.inputBorderRadius}
                 inputHeight={signUpTokens.inputHeight}

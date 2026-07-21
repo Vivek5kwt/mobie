@@ -970,8 +970,6 @@ export default function BottomNavScreen() {
                 config={headerDefaultConfig}
                 bottomNavSection={resolvedBottomNavSection}
                 hideTabs={isProfilePage || isNotificationPage || isSearchPage || isCartPage}
-                fallbackTitle=""
-                disableDefaultTitlePress={isNotificationPage}
                 showBack={hideBottomNav}
               />
             )}
