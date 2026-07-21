@@ -56,6 +56,13 @@ const parsePx = (v, fb) => {
 const firstDefined = (...values) =>
   values.find((value) => value !== undefined && value !== null && value !== "");
 
+const toTextAlign = (v, fb = "left") => {
+  const resolved = str(v, fb).toLowerCase();
+  if (resolved === "center") return "center";
+  if (resolved === "right") return "right";
+  return "left";
+};
+
 const parseBorder = (borderValue, fallbackColor = "#E5E7EB") => {
   const border = str(borderValue, "");
   if (!border || border.toLowerCase() === "none") return null;
@@ -215,6 +222,10 @@ export default function RecentProducts({ section }) {
     underline: firstDefined(raw?.headerUnderline, raw?.sectionTitleUnderline, raw?.headlineUnderline),
     strikethrough: firstDefined(raw?.headerStrikethrough, raw?.sectionTitleStrikethrough, raw?.headlineStrikethrough),
   });
+  const headerAlign   = toTextAlign(
+    firstDefined(raw?.headerAlign, raw?.sectionTitleAlign, raw?.headerTextAlign, headerCss?.textAlign),
+    "left"
+  );
   const headerMB      = parsePx(headerCss?.marginBottom, 8);
   const headerPL      = parsePx(firstDefined(raw?.headerPaddingLeft, headerCss?.paddingLeft), undefined);
   const headerPR      = parsePx(firstDefined(raw?.headerPaddingRight, headerCss?.paddingRight), undefined);
@@ -446,6 +457,7 @@ export default function RecentProducts({ section }) {
             fontSize:   headerSize,
             fontWeight: headerWeight,
             textDecorationLine: headerDecoration,
+            textAlign:  headerAlign,
             marginBottom: headerMB,
             ...(headerPL != null ? { paddingLeft: headerPL } : {}),
             ...(headerPR != null ? { paddingRight: headerPR } : {}),
