@@ -25,6 +25,7 @@ import authLayoutFallback from '../data/authLayoutFallback';
 import HeaderDefaultComponent from '../components/HeaderDefault';
 import DynamicRenderer from '../engine/DynamicRenderer';
 import { resolveFont } from '../services/typographyService';
+import { resolveDslNavigationTarget } from '../utils/navigationTarget';
 
 const LIVE_DSL_REFRESH_INTERVAL_MS = 30000;
 
@@ -125,9 +126,34 @@ type SignInTokens = {
   headlineSize: number;
   headlineWeight: string;
   headlineFontFamily: string;
+  headlineFontStyle: 'normal' | 'italic';
+  headlineTextDecoration: 'none' | 'underline' | 'line-through' | 'underline line-through';
   subtextSize: number;
   subtextWeight: string;
   subtextFontFamily: string;
+  emailPlaceholderFontStyle: 'normal' | 'italic';
+  emailPlaceholderTextDecoration: 'none' | 'underline' | 'line-through' | 'underline line-through';
+  passwordPlaceholderFontStyle: 'normal' | 'italic';
+  passwordPlaceholderTextDecoration: 'none' | 'underline' | 'line-through' | 'underline line-through';
+  buttonTextFontStyle: 'normal' | 'italic';
+  buttonTextTextDecoration: 'none' | 'underline' | 'line-through' | 'underline line-through';
+  footerLinkFontStyle: 'normal' | 'italic';
+  footerLinkTextDecoration: 'none' | 'underline' | 'line-through' | 'underline line-through';
+  footerTextFontStyle: 'normal' | 'italic';
+  footerTextTextDecoration: 'none' | 'underline' | 'line-through' | 'underline line-through';
+  logoVisible: boolean;
+  logoImageUrl: string;
+  logoRatio: string;
+  logoScale: string;
+  logoBgColor: string;
+  logoBorderColor: string;
+  logoCorners: number;
+  buttonIcon: string;
+  buttonIconSize: number;
+  buttonIconColor: string;
+  buttonIconAlignment: string;
+  navigateTo: string;
+  selectScreen: string;
 };
 
 type SignUpTokens = SignInTokens & {
@@ -221,6 +247,12 @@ type SignUpTokens = SignInTokens & {
   profilePictureSize: number;
   profilePictureBgColor: string;
   profilePictureBorderColor: string;
+  headerTitleFontStyle: 'normal' | 'italic';
+  headerTitleTextDecoration: 'none' | 'underline' | 'line-through' | 'underline line-through';
+  firstNamePlaceholderFontStyle: 'normal' | 'italic';
+  firstNamePlaceholderTextDecoration: 'none' | 'underline' | 'line-through' | 'underline line-through';
+  lastNamePlaceholderFontStyle: 'normal' | 'italic';
+  lastNamePlaceholderTextDecoration: 'none' | 'underline' | 'line-through' | 'underline line-through';
 };
 
 type ForgotPasswordTokens = {
@@ -264,6 +296,16 @@ type ForgotPasswordTokens = {
   resetPasswordTitleMarginTop: number;
   resetPasswordButtonText: string;
   backToLoginText: string;
+  emailPlaceholder: string;
+  emailPlaceholderColor: string;
+  inputTextColor: string;
+  inputFontSize: number;
+  inputFontFamily: string;
+  inputBorderColor: string;
+  inputBorderRadius: number;
+  inputHeight: number;
+  inputPaddingHorizontal: number;
+  inputPaddingVertical: number;
   successMessageText: string;
   errorMessageText: string;
   successMessageBgColor: string;
@@ -277,6 +319,67 @@ type ForgotPasswordTokens = {
   requiredMessage: string;
   invalidEmailMessage: string;
   fields: ForgotPasswordFieldConfig[];
+};
+
+// Tokens for the full-screen Reset Password page content, sourced from Builder's
+// separate "Reset Password" page (component id `reset_password`) — distinct from
+// ForgotPasswordTokens above, which only covers the small "Forgot Password?" link
+// shown on the SignIn page (component id `forgot_password`).
+type ResetPasswordTokens = {
+  headingText: string;
+  descriptionColor: string;
+  descriptionFontSize: number;
+  descriptionFontFamily: string;
+  descriptionFontWeight: string;
+  descriptionFontStyle: 'normal' | 'italic';
+  descriptionTextDecoration: 'none' | 'underline' | 'line-through' | 'underline line-through';
+  descriptionLineHeight: number;
+  descriptionLetterSpacing: number;
+  descriptionAlign: 'left' | 'center' | 'right';
+  cardBgColor: string;
+  cardBorderColor: string;
+  cardBorderWidth: number;
+  cardBorderRadius: number;
+  cardPaddingTop: number;
+  cardPaddingBottom: number;
+  cardPaddingLeft: number;
+  cardPaddingRight: number;
+  emailPlaceholder: string;
+  emailPlaceholderColor: string;
+  inputTextColor: string;
+  inputFontSize: number;
+  inputFontFamily: string;
+  inputBorderColor: string;
+  inputBorderRadius: number;
+  inputHeight: number;
+  inputPaddingHorizontal: number;
+  inputPaddingVertical: number;
+  buttonText: string;
+  buttonTextColor: string;
+  buttonBorderColor: string;
+  buttonBorderWidth: number;
+  buttonFillColor: string;
+  buttonRadius: number;
+  buttonPaddingTop: number;
+  buttonPaddingBottom: number;
+  buttonPaddingLeft: number;
+  buttonPaddingRight: number;
+  buttonMarginTop: number;
+  buttonFontSize: number;
+  buttonFontFamily: string;
+  buttonFontWeight: string;
+  successMessageText: string;
+  errorMessageText: string;
+  successMessageBgColor: string;
+  successMessageTextColor: string;
+  errorMessageBgColor: string;
+  errorMessageTextColor: string;
+  messageFontSize: number;
+  messageFontFamily: string;
+  messageFontWeight: string;
+  messageBorderRadius: number;
+  requiredMessage: string;
+  invalidEmailMessage: string;
 };
 
 type AuthFieldKeyboardType =
@@ -380,6 +483,14 @@ const firstDefined = (...values: unknown[]): unknown => {
   return undefined;
 };
 
+// Centralized DSL alias resolver: tries each candidate key (in order) against
+// rawProps and returns the first defined value. Builder property names have
+// drifted across casing/typos over time (e.g. buttonwidth vs buttonWidth,
+// emailInputColor vs emailInputTextColor) — this is the single place new
+// aliases get registered instead of scattering ad hoc `??` chains.
+const pick = (rawProps: Record<string, unknown>, keys: string[]): unknown =>
+  firstDefined(...keys.map((key) => rawProps?.[key]));
+
 const toLocalizedString = (value: unknown, fallback = ''): string => {
   const resolved = unwrapValue(value as unknown, undefined as unknown);
   if (resolved === undefined || resolved === null || resolved === '') return fallback;
@@ -404,6 +515,20 @@ const toLocalizedString = (value: unknown, fallback = ''): string => {
   }
   return fallback;
 };
+
+// Builder's ResetPassword/Preview.tsx renders headingText via dangerouslySetInnerHTML
+// (designers can bold/link portions of it); RN's <Text> can't render HTML, so strip
+// tags and decode the handful of entities Builder's rich-text toolbar can emit.
+const stripHtmlTags = (value: string): string =>
+  value
+    .replace(/<[^>]*>/g, '')
+    .replace(/&nbsp;/g, ' ')
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&#39;/g, "'")
+    .replace(/&quot;/g, '"')
+    .trim();
 
 const toFontFamily = (value: unknown, fallback = 'System'): string => {
   const resolved = unwrapValue(value as string | null | undefined, fallback);
@@ -544,10 +669,12 @@ const normalizeSectionName = (value: unknown): string =>
 const SIGN_IN_COMPONENTS = new Set(['signin', 'sign_in']);
 const SIGN_UP_COMPONENTS = new Set(['signup', 'sign_up']);
 const FORGOT_PASSWORD_COMPONENTS = new Set(['forgot_password', 'forgotpassword']);
+const RESET_PASSWORD_COMPONENTS = new Set(['reset_password', 'resetpassword']);
 const AUTH_FORM_COMPONENTS = new Set([
   ...SIGN_IN_COMPONENTS,
   ...SIGN_UP_COMPONENTS,
   ...FORGOT_PASSWORD_COMPONENTS,
+  ...RESET_PASSWORD_COMPONENTS,
 ]);
 const AUTH_DECOR_BLOCKED_COMPONENTS = new Set([
   'bottom_navigation',
@@ -580,6 +707,9 @@ const isSignUpSection = (section: Record<string, unknown> | null | undefined): b
 
 const isForgotPasswordSection = (section: Record<string, unknown> | null | undefined): boolean =>
   FORGOT_PASSWORD_COMPONENTS.has(getSectionComponent(section));
+
+const isResetPasswordSection = (section: Record<string, unknown> | null | undefined): boolean =>
+  RESET_PASSWORD_COMPONENTS.has(getSectionComponent(section));
 
 const isAllowedAuthDecorSection = (section: Record<string, unknown> | null | undefined): boolean => {
   const component = getSectionComponent(section);
@@ -638,8 +768,8 @@ const defaultSignInTokens: SignInTokens = {
   cardPaddingRight: 20,
   formGap: 6,
   fieldGap: 14,
-  inputPaddingHorizontal: 14,
-  inputPaddingVertical: 0,
+  inputPaddingHorizontal: 16,
+  inputPaddingVertical: 14,
   formCardMarginBottom: 0,
   buttonMarginTop: 4,
   footerMarginTop: 20,
@@ -649,8 +779,8 @@ const defaultSignInTokens: SignInTokens = {
   pagePaddingBottom: 32,
   pagePaddingLeft: 16,
   pagePaddingRight: 16,
-  inputBorderColor: '#C7DADA',
-  inputHeight: 50,
+  inputBorderColor: '#027579',
+  inputHeight: 58,
   footerTextColor: '#0a0a0a',
   footerLinkColor: '#027579',
   buttonTextColor: '#FFFFFF',
@@ -677,54 +807,82 @@ const defaultSignInTokens: SignInTokens = {
   passwordLabelColor: '#065F63',
   emailLabelFontSize: 14,
   passwordLabelFontSize: 14,
-  emailLabelFontFamily: 'System',
-  passwordLabelFontFamily: 'System',
+  emailLabelFontFamily: 'Inter',
+  passwordLabelFontFamily: 'Inter',
   emailLabelFontWeight: '600',
   passwordLabelFontWeight: '600',
   emailInputTextColor: '#0a0a0a',
   passwordInputTextColor: '#0a0a0a',
-  emailInputTextFontSize: 15,
-  passwordInputTextFontSize: 15,
-  emailInputTextFontFamily: 'System',
-  passwordInputTextFontFamily: 'System',
-  emailInputTextFontWeight: '400',
-  passwordInputTextFontWeight: '400',
-  emailPlaceholderColor: '#A0AEC0',
-  passwordPlaceholderColor: '#A0AEC0',
-  emailPlaceholderFontSize: 15,
-  passwordPlaceholderFontSize: 15,
-  emailPlaceholderFontFamily: 'System',
-  passwordPlaceholderFontFamily: 'System',
-  emailPlaceholderFontWeight: '400',
-  passwordPlaceholderFontWeight: '400',
-  buttonFontSize: 16,
-  buttonFontFamily: 'System',
-  buttonFontWeight: '700',
+  emailInputTextFontSize: 16,
+  passwordInputTextFontSize: 16,
+  emailInputTextFontFamily: 'Inter',
+  passwordInputTextFontFamily: 'Inter',
+  emailInputTextFontWeight: '500',
+  passwordInputTextFontWeight: '500',
+  emailPlaceholderColor: '#000000',
+  passwordPlaceholderColor: '#000000',
+  emailPlaceholderFontSize: 16,
+  passwordPlaceholderFontSize: 16,
+  emailPlaceholderFontFamily: 'Inter',
+  passwordPlaceholderFontFamily: 'Inter',
+  emailPlaceholderFontWeight: '500',
+  passwordPlaceholderFontWeight: '500',
+  buttonFontSize: 22,
+  buttonFontFamily: 'Inter',
+  buttonFontWeight: '500',
   buttonHeight: 50,
   buttonWidth: 100,
   footerTextFontSize: 14,
-  footerTextFontFamily: 'System',
+  footerTextFontFamily: 'Inter',
   footerTextFontWeight: '400',
-  footerLinkFontSize: 14,
-  footerLinkFontFamily: 'System',
-  footerLinkFontWeight: '700',
+  footerLinkFontSize: 16,
+  footerLinkFontFamily: 'Inter',
+  footerLinkFontWeight: '600',
   footerLinkAlignment: 'Left',
   footerVisible: true,
   forgotPasswordVisible: false,
   authVisible: true,
-  buttonRadius: 12,
-  inputBorderRadius: 10,
-  headlineSize: 22,
-  headlineWeight: '700',
-  headlineFontFamily: 'System',
+  buttonRadius: 10,
+  inputBorderRadius: 8,
+  headlineSize: 18,
+  headlineWeight: '400',
+  headlineFontFamily: 'Inter',
+  headlineFontStyle: 'normal',
+  headlineTextDecoration: 'none',
   subtextSize: 14,
   subtextWeight: '400',
-  subtextFontFamily: 'System',
+  subtextFontFamily: 'Inter',
+  emailPlaceholderFontStyle: 'normal',
+  emailPlaceholderTextDecoration: 'none',
+  passwordPlaceholderFontStyle: 'normal',
+  passwordPlaceholderTextDecoration: 'none',
+  buttonTextFontStyle: 'normal',
+  buttonTextTextDecoration: 'none',
+  footerLinkFontStyle: 'normal',
+  footerLinkTextDecoration: 'none',
+  footerTextFontStyle: 'normal',
+  footerTextTextDecoration: 'none',
+  logoVisible: false,
+  logoImageUrl: '',
+  logoRatio: '1:1',
+  logoScale: 'fit',
+  logoBgColor: '#E0F7FA',
+  logoBorderColor: '#027579',
+  logoCorners: 0,
+  buttonIcon: '',
+  buttonIconSize: 16,
+  buttonIconColor: '#FFFFFF',
+  buttonIconAlignment: 'Left',
+  navigateTo: '',
+  selectScreen: '',
 };
 
 const defaultForgotPasswordTokens: ForgotPasswordTokens = {
   bgColor: '#FFFFFF',
-  titleColor: '#0C9297',
+  // titleColor/headlineText/headlineFontSize/Family/Weight/TextAlign below serve the
+  // small "Forgot Password?" LINK shown on the Signin page (Builder's forgot_password
+  // block) — kept separate from the full-screen reset form's own text (resetPasswordTitle*).
+  titleColor: '#027579',
   cardBgColor: '#FFFFFF',
   cardBorderColor: '#D1E7E7',
   cardBorderWidth: 0,
@@ -733,35 +891,40 @@ const defaultForgotPasswordTokens: ForgotPasswordTokens = {
   cardPaddingBottom: 20,
   cardPaddingLeft: 20,
   cardPaddingRight: 20,
-  buttonTextColor: '#0C9297',
-  buttonBorderColor: '#0c9297',
-  buttonBorderWidth: 1,
-  buttonFillColor: '#E6F6F6',
-  buttonRadius: 10,
-  buttonPaddingTop: 12,
-  buttonPaddingBottom: 12,
+  // Button styling matches Builder's ResetPassword/Preview.tsx hardcoded "Send Reset
+  // Link" button (solid fill, white text, no border) — that component barely reads any
+  // DSL props for button styling, so these defaults ARE effectively the real spec.
+  buttonTextColor: '#FFFFFF',
+  buttonBorderColor: '#22B8AD',
+  buttonBorderWidth: 0,
+  buttonFillColor: '#22B8AD',
+  buttonRadius: 6,
+  buttonPaddingTop: 15,
+  buttonPaddingBottom: 15,
   buttonPaddingLeft: 14,
   buttonPaddingRight: 14,
   buttonMarginTop: 14,
-  buttonFontSize: 14,
-  buttonFontFamily: 'System',
-  buttonFontWeight: '700',
+  buttonFontSize: 18,
+  buttonFontFamily: 'Inter',
+  buttonFontWeight: '500',
   headlineText: 'Forgot Password?',
   headlineFontSize: 18,
-  headlineFontFamily: 'System',
+  headlineFontFamily: 'Inter',
   headlineFontWeight: '700',
   headlineFontStyle: 'normal',
   headlineTextDecoration: 'none',
   headlineTextTransform: 'none',
   headlineTextAlign: 'Center',
   loginLinkMarginTop: 12,
-  resetPasswordTitle: 'Reset Password Link',
-  resetPasswordTitleColor: '#0C9297',
-  resetPasswordTitleFontSize: 13,
-  resetPasswordTitleFontFamily: 'System',
+  // resetPasswordTitle is the full-screen reset form's single subtitle line, matching
+  // Builder's ResetPassword/Preview.tsx hardcoded "headingText" default/styling.
+  resetPasswordTitle: "Enter your email and we'll send you a password reset link.",
+  resetPasswordTitleColor: '#333333',
+  resetPasswordTitleFontSize: 18,
+  resetPasswordTitleFontFamily: 'Inter',
   resetPasswordTitleFontWeight: '400',
-  resetPasswordTitleMarginTop: 4,
-  resetPasswordButtonText: 'Forgot Password?',
+  resetPasswordTitleMarginTop: 0,
+  resetPasswordButtonText: 'Send Reset Link',
   backToLoginText: 'Sign in',
   successMessageText: 'If an account exists for this email, a password reset link has been sent.',
   errorMessageText: 'Password reset is temporarily unavailable. Please try again later.',
@@ -770,12 +933,83 @@ const defaultForgotPasswordTokens: ForgotPasswordTokens = {
   errorMessageBgColor: '#FEF2F2',
   errorMessageTextColor: '#DC2626',
   messageFontSize: 13,
-  messageFontFamily: 'System',
+  messageFontFamily: 'Inter',
   messageFontWeight: '500',
   messageBorderRadius: 8,
   requiredMessage: 'Email is required.',
   invalidEmailMessage: 'Enter a valid email address.',
+  emailPlaceholder: 'you@example.com',
+  emailPlaceholderColor: '#9CA3AF',
+  inputTextColor: '#111827',
+  inputFontSize: 14,
+  inputFontFamily: 'Inter',
+  inputBorderColor: '#D9DEE5',
+  inputBorderRadius: 8,
+  inputHeight: 52,
+  inputPaddingHorizontal: 16,
+  inputPaddingVertical: 0,
   fields: [],
+};
+
+// Matches Builder's ResetPassword/Preview.tsx — the ONLY DSL-driven text on that
+// page is the description paragraph (headingText/description*); the input and
+// button are entirely hardcoded there too (no live Inspector binding reaches the
+// canvas), so these defaults ARE the real spec and are never overridden from DSL.
+const defaultResetPasswordTokens: ResetPasswordTokens = {
+  headingText: "Enter your email and we'll send you a password reset link.",
+  descriptionColor: '#333333',
+  descriptionFontSize: 18,
+  descriptionFontFamily: 'Inter',
+  descriptionFontWeight: '400',
+  descriptionFontStyle: 'normal',
+  descriptionTextDecoration: 'none',
+  descriptionLineHeight: 1.5,
+  descriptionLetterSpacing: 0,
+  descriptionAlign: 'center',
+  cardBgColor: '#FFFFFF',
+  cardBorderColor: '#DDD3D3',
+  cardBorderWidth: 0,
+  cardBorderRadius: 0,
+  cardPaddingTop: 0,
+  cardPaddingBottom: 0,
+  cardPaddingLeft: 0,
+  cardPaddingRight: 0,
+  emailPlaceholder: 'you@example.com',
+  emailPlaceholderColor: '#9CA3AF',
+  inputTextColor: '#111827',
+  inputFontSize: 14,
+  inputFontFamily: 'Inter',
+  inputBorderColor: '#D9DEE5',
+  inputBorderRadius: 8,
+  inputHeight: 52,
+  inputPaddingHorizontal: 16,
+  inputPaddingVertical: 0,
+  buttonText: 'Send Reset Link',
+  buttonTextColor: '#FFFFFF',
+  buttonBorderColor: '#22B8AD',
+  buttonBorderWidth: 0,
+  buttonFillColor: '#22B8AD',
+  buttonRadius: 6,
+  buttonPaddingTop: 15,
+  buttonPaddingBottom: 15,
+  buttonPaddingLeft: 14,
+  buttonPaddingRight: 14,
+  buttonMarginTop: 20,
+  buttonFontSize: 18,
+  buttonFontFamily: 'Inter',
+  buttonFontWeight: '500',
+  successMessageText: 'If an account exists for this email, a password reset link has been sent.',
+  errorMessageText: 'Password reset is temporarily unavailable. Please try again later.',
+  successMessageBgColor: '#ECFDF5',
+  successMessageTextColor: '#047857',
+  errorMessageBgColor: '#FEF2F2',
+  errorMessageTextColor: '#DC2626',
+  messageFontSize: 13,
+  messageFontFamily: 'Inter',
+  messageFontWeight: '500',
+  messageBorderRadius: 8,
+  requiredMessage: 'Email is required.',
+  invalidEmailMessage: 'Enter a valid email address.',
 };
 
 const defaultSignUpTokens: SignUpTokens = {
@@ -792,24 +1026,24 @@ const defaultSignUpTokens: SignUpTokens = {
   cardPaddingRight: 20,
   formGap: 6,
   fieldGap: 14,
-  inputPaddingHorizontal: 14,
-  inputPaddingVertical: 0,
+  inputPaddingHorizontal: 16,
+  inputPaddingVertical: 14,
   formCardMarginBottom: 0,
   buttonMarginTop: 4,
   footerMarginTop: 20,
   footerLinkMarginTop: 6,
   footerInline: true,
-  inputBorderColor: '#C7DADA',
-  inputHeight: 50,
+  inputBorderColor: '#027579',
+  inputHeight: 58,
   authTitle: 'Create an Account',
   buttonText: 'Create Account',
   footerText: 'Already have an account?',
   footerLinkText: 'Sign in',
   headerTitle: 'Create an Account',
   headerTitleColor: '#065F63',
-  headerTitleFontSize: 22,
-  headerTitleFontFamily: 'System',
-  headerTitleFontWeight: '700',
+  headerTitleFontSize: 18,
+  headerTitleFontFamily: 'Inter',
+  headerTitleFontWeight: '400',
   emailAlignment: 'Left',
   firstNameAlignment: 'Left',
   lastNameAlignment: 'Left',
@@ -834,12 +1068,12 @@ const defaultSignUpTokens: SignUpTokens = {
   lastNamePlaceholder: 'Enter last name',
   firstNamePlaceholderVisible: true,
   lastNamePlaceholderVisible: true,
-  firstNamePlaceholderFontSize: 15,
-  lastNamePlaceholderFontSize: 15,
-  firstNamePlaceholderFontFamily: 'System',
-  lastNamePlaceholderFontFamily: 'System',
-  firstNamePlaceholderFontWeight: '400',
-  lastNamePlaceholderFontWeight: '400',
+  firstNamePlaceholderFontSize: 16,
+  lastNamePlaceholderFontSize: 16,
+  firstNamePlaceholderFontFamily: 'Inter',
+  lastNamePlaceholderFontFamily: 'Inter',
+  firstNamePlaceholderFontWeight: '500',
+  lastNamePlaceholderFontWeight: '500',
   emailLabelColor: '#374151',
   firstNameLabelColor: '#374151',
   lastNameLabelColor: '#374151',
@@ -848,10 +1082,10 @@ const defaultSignUpTokens: SignUpTokens = {
   firstNameLabelFontSize: 13,
   lastNameLabelFontSize: 13,
   passwordLabelFontSize: 13,
-  emailLabelFontFamily: 'System',
-  firstNameLabelFontFamily: 'System',
-  lastNameLabelFontFamily: 'System',
-  passwordLabelFontFamily: 'System',
+  emailLabelFontFamily: 'Inter',
+  firstNameLabelFontFamily: 'Inter',
+  lastNameLabelFontFamily: 'Inter',
+  passwordLabelFontFamily: 'Inter',
   emailLabelFontWeight: '600',
   firstNameLabelFontWeight: '600',
   lastNameLabelFontWeight: '600',
@@ -860,31 +1094,31 @@ const defaultSignUpTokens: SignUpTokens = {
   firstNameInputTextColor: '#111827',
   lastNameInputTextColor: '#111827',
   passwordInputTextColor: '#111827',
-  emailInputTextFontSize: 15,
-  firstNameInputTextFontSize: 15,
-  lastNameInputTextFontSize: 15,
-  passwordInputTextFontSize: 15,
-  emailInputTextFontFamily: 'System',
-  firstNameInputTextFontFamily: 'System',
-  lastNameInputTextFontFamily: 'System',
-  passwordInputTextFontFamily: 'System',
-  emailInputTextFontWeight: '400',
-  firstNameInputTextFontWeight: '400',
-  lastNameInputTextFontWeight: '400',
-  passwordInputTextFontWeight: '400',
-  emailPlaceholderColor: '#9CA3AF',
-  firstNamePlaceholderColor: '#9CA3AF',
-  lastNamePlaceholderColor: '#9CA3AF',
-  passwordPlaceholderColor: '#9CA3AF',
+  emailInputTextFontSize: 16,
+  firstNameInputTextFontSize: 16,
+  lastNameInputTextFontSize: 16,
+  passwordInputTextFontSize: 16,
+  emailInputTextFontFamily: 'Inter',
+  firstNameInputTextFontFamily: 'Inter',
+  lastNameInputTextFontFamily: 'Inter',
+  passwordInputTextFontFamily: 'Inter',
+  emailInputTextFontWeight: '500',
+  firstNameInputTextFontWeight: '500',
+  lastNameInputTextFontWeight: '500',
+  passwordInputTextFontWeight: '500',
+  emailPlaceholderColor: '#000000',
+  firstNamePlaceholderColor: '#000000',
+  lastNamePlaceholderColor: '#000000',
+  passwordPlaceholderColor: '#000000',
   buttonHeight: 50,
   buttonWidth: 100,
-  buttonFontSize: 16,
-  buttonFontFamily: 'System',
-  buttonFontWeight: '700',
-  footerTextFontSize: 13,
-  footerLinkFontSize: 14,
-  footerLinkFontFamily: 'System',
-  footerLinkFontWeight: '600',
+  buttonFontSize: 22,
+  buttonFontFamily: 'Inter',
+  buttonFontWeight: '500',
+  footerTextFontSize: 16,
+  footerLinkFontSize: 16,
+  footerLinkFontFamily: 'Inter',
+  footerLinkFontWeight: '500',
   footerLinkAlignment: 'Left',
   footerLinkAutoUppercase: false,
   footerVisible: true,
@@ -895,6 +1129,12 @@ const defaultSignUpTokens: SignUpTokens = {
   profilePictureSize: 72,
   profilePictureBgColor: '#E5F3F4',
   profilePictureBorderColor: '#33B8C4',
+  headerTitleFontStyle: 'normal',
+  headerTitleTextDecoration: 'none',
+  firstNamePlaceholderFontStyle: 'normal',
+  firstNamePlaceholderTextDecoration: 'none',
+  lastNamePlaceholderFontStyle: 'normal',
+  lastNamePlaceholderTextDecoration: 'none',
 };
 
 const toFontWeight = (
@@ -1150,22 +1390,24 @@ const buildSignInTokens = (rawProps: Record<string, unknown>): SignInTokens => (
   passwordLabelFontFamily: toFontFamily(rawProps?.passwordLabelFontFamily ?? rawProps?.fontFamily, defaultSignInTokens.passwordLabelFontFamily),
   emailLabelFontWeight: toFontWeight(rawProps?.emailLabelFontWeight, defaultSignInTokens.emailLabelFontWeight),
   passwordLabelFontWeight: toFontWeight(rawProps?.passwordLabelFontWeight, defaultSignInTokens.passwordLabelFontWeight),
-  emailInputTextColor: (rawProps?.emailInputTextColor as string) ?? defaultSignInTokens.emailInputTextColor,
-  passwordInputTextColor: (rawProps?.passwordInputTextColor as string) ?? defaultSignInTokens.passwordInputTextColor,
-  emailInputTextFontSize: toNumber(rawProps?.emailInputTextFontSize ?? rawProps?.inputFontSize ?? rawProps?.fontSize, defaultSignInTokens.emailInputTextFontSize),
-  passwordInputTextFontSize: toNumber(rawProps?.passwordInputTextFontSize ?? rawProps?.inputFontSize ?? rawProps?.fontSize, defaultSignInTokens.passwordInputTextFontSize),
-  emailInputTextFontFamily: toFontFamily(rawProps?.emailInputTextFontFamily ?? rawProps?.fontFamily, defaultSignInTokens.emailInputTextFontFamily),
-  passwordInputTextFontFamily: toFontFamily(rawProps?.passwordInputTextFontFamily ?? rawProps?.fontFamily, defaultSignInTokens.passwordInputTextFontFamily),
-  emailInputTextFontWeight: toFontWeight(rawProps?.emailInputTextFontWeight ?? rawProps?.fontWeight, defaultSignInTokens.emailInputTextFontWeight),
-  passwordInputTextFontWeight: toFontWeight(rawProps?.passwordInputTextFontWeight ?? rawProps?.fontWeight, defaultSignInTokens.passwordInputTextFontWeight),
+  // Builder's "Input" subsection writes emailInputColor/passInputColor (not
+  // emailInputTextColor/passwordInputTextColor) — both spellings accepted.
+  emailInputTextColor: (pick(rawProps, ['emailInputTextColor', 'emailInputColor']) as string) ?? defaultSignInTokens.emailInputTextColor,
+  passwordInputTextColor: (pick(rawProps, ['passwordInputTextColor', 'passInputColor']) as string) ?? defaultSignInTokens.passwordInputTextColor,
+  emailInputTextFontSize: toNumber(pick(rawProps, ['emailInputTextFontSize', 'emailInputFontSize', 'inputFontSize', 'fontSize']), defaultSignInTokens.emailInputTextFontSize),
+  passwordInputTextFontSize: toNumber(pick(rawProps, ['passwordInputTextFontSize', 'passInputFontSize', 'inputFontSize', 'fontSize']), defaultSignInTokens.passwordInputTextFontSize),
+  emailInputTextFontFamily: toFontFamily(pick(rawProps, ['emailInputTextFontFamily', 'emailInputFontFamily', 'fontFamily']), defaultSignInTokens.emailInputTextFontFamily),
+  passwordInputTextFontFamily: toFontFamily(pick(rawProps, ['passwordInputTextFontFamily', 'passInputFontFamily', 'fontFamily']), defaultSignInTokens.passwordInputTextFontFamily),
+  emailInputTextFontWeight: toFontWeight(pick(rawProps, ['emailInputTextFontWeight', 'emailInputFontWeight', 'fontWeight']), defaultSignInTokens.emailInputTextFontWeight),
+  passwordInputTextFontWeight: toFontWeight(pick(rawProps, ['passwordInputTextFontWeight', 'passInputFontWeight', 'fontWeight']), defaultSignInTokens.passwordInputTextFontWeight),
   emailPlaceholderColor: (rawProps?.emailPlaceholderColor as string) ?? defaultSignInTokens.emailPlaceholderColor,
   passwordPlaceholderColor: (rawProps?.passwordPlaceholderColor as string) ?? defaultSignInTokens.passwordPlaceholderColor,
   emailPlaceholderFontSize: toNumber(rawProps?.emailPlaceholderFontSize ?? rawProps?.placeholderFontSize ?? rawProps?.fontSize, defaultSignInTokens.emailPlaceholderFontSize),
   passwordPlaceholderFontSize: toNumber(rawProps?.passwordPlaceholderFontSize ?? rawProps?.placeholderFontSize ?? rawProps?.fontSize, defaultSignInTokens.passwordPlaceholderFontSize),
   emailPlaceholderFontFamily: toFontFamily(rawProps?.emailPlaceholderFontFamily ?? rawProps?.placeholderFontFamily ?? rawProps?.fontFamily, defaultSignInTokens.emailPlaceholderFontFamily),
   passwordPlaceholderFontFamily: toFontFamily(rawProps?.passwordPlaceholderFontFamily ?? rawProps?.placeholderFontFamily ?? rawProps?.fontFamily, defaultSignInTokens.passwordPlaceholderFontFamily),
-  emailPlaceholderFontWeight: toFontWeight(rawProps?.emailPlaceholderFontWeight ?? rawProps?.placeholderFontWeight ?? rawProps?.fontWeight, defaultSignInTokens.emailPlaceholderFontWeight),
-  passwordPlaceholderFontWeight: toFontWeight(rawProps?.passwordPlaceholderFontWeight ?? rawProps?.placeholderFontWeight ?? rawProps?.fontWeight, defaultSignInTokens.passwordPlaceholderFontWeight),
+  emailPlaceholderFontWeight: toFontWeight(rawProps?.emailPlaceholderFontWeight ?? rawProps?.placeholderFontWeight ?? rawProps?.fontWeight, defaultSignInTokens.emailPlaceholderFontWeight, rawProps?.emailPlaceholderBold as boolean | undefined),
+  passwordPlaceholderFontWeight: toFontWeight(rawProps?.passwordPlaceholderFontWeight ?? rawProps?.placeholderFontWeight ?? rawProps?.fontWeight, defaultSignInTokens.passwordPlaceholderFontWeight, rawProps?.passwordPlaceholderBold as boolean | undefined),
   buttonHeight: toNumber(rawProps?.buttonHeight, defaultSignInTokens.buttonHeight),
   buttonWidth: toNumber(rawProps?.buttonWidth, defaultSignInTokens.buttonWidth),
   footerTextFontSize: toNumber(rawProps?.footerTextFontSize ?? rawProps?.subtextSize ?? rawProps?.fontSize, defaultSignInTokens.footerTextFontSize),
@@ -1179,13 +1421,47 @@ const buildSignInTokens = (rawProps: Record<string, unknown>): SignInTokens => (
   forgotPasswordVisible: toBoolean(rawProps?.forgotPasswordVisible, defaultSignInTokens.forgotPasswordVisible),
   authVisible: toBoolean(rawProps?.authVisible, defaultSignInTokens.authVisible),
   buttonRadius: toNumber(rawProps?.buttonRadius ?? rawProps?.buttonBorderRadius, defaultSignInTokens.buttonRadius),
-  inputBorderRadius: toNumber(rawProps?.borderRadius ?? rawProps?.inputRadius ?? rawProps?.inputBorderRadius, defaultSignInTokens.inputBorderRadius),
+  // NOTE: `borderRadius` is the card's corner-radius field (see cardBorderRadius
+  // above) — Builder's SignIn/PreviewLive.tsx renders the input radius as a flat
+  // hardcoded 8px, completely independent of the card radius, so it must NOT be
+  // aliased here. inputRadius/inputBorderRadius are kept for forward-compat but
+  // Builder currently has no live control that writes either.
+  inputBorderRadius: toNumber(rawProps?.inputRadius ?? rawProps?.inputBorderRadius, defaultSignInTokens.inputBorderRadius),
   headlineSize: toNumber(rawProps?.headlineSize, defaultSignInTokens.headlineSize),
-  headlineWeight: toFontWeight(rawProps?.headlineWeight, defaultSignInTokens.headlineWeight),
+  // authTitleBold (from Builder's rich-text title editor) overrides weight when
+  // no explicit headlineWeight is set (Builder never writes headlineWeight itself).
+  headlineWeight: toFontWeight(rawProps?.headlineWeight, defaultSignInTokens.headlineWeight, rawProps?.authTitleBold as boolean | undefined),
   headlineFontFamily: toFontFamily(rawProps?.headlineFontFamily ?? rawProps?.fontFamily, defaultSignInTokens.headlineFontFamily),
+  headlineFontStyle: toBoolean(rawProps?.authTitleItalic, false) ? 'italic' : 'normal',
+  headlineTextDecoration: toTextDecoration(toBoolean(rawProps?.authTitleUnderline, false), toBoolean(rawProps?.authTitleStrikethrough, false)),
   subtextSize: toNumber(rawProps?.subtextSize, defaultSignInTokens.subtextSize),
   subtextWeight: toFontWeight(rawProps?.subtextWeight, defaultSignInTokens.subtextWeight),
   subtextFontFamily: toFontFamily(rawProps?.subtextFontFamily ?? rawProps?.fontFamily, defaultSignInTokens.subtextFontFamily),
+  emailPlaceholderFontStyle: toBoolean(rawProps?.emailPlaceholderItalic, false) ? 'italic' : 'normal',
+  emailPlaceholderTextDecoration: toTextDecoration(toBoolean(rawProps?.emailPlaceholderUnderline, false), toBoolean(rawProps?.emailPlaceholderStrikethrough, false)),
+  passwordPlaceholderFontStyle: toBoolean(rawProps?.passwordPlaceholderItalic, false) ? 'italic' : 'normal',
+  passwordPlaceholderTextDecoration: toTextDecoration(toBoolean(rawProps?.passwordPlaceholderUnderline, false), toBoolean(rawProps?.passwordPlaceholderStrikethrough, false)),
+  buttonTextFontStyle: toBoolean(rawProps?.buttonTextItalic, false) ? 'italic' : 'normal',
+  buttonTextTextDecoration: toTextDecoration(toBoolean(rawProps?.buttonTextUnderline, false), toBoolean(rawProps?.buttonTextStrikethrough, false)),
+  footerLinkFontStyle: toBoolean(rawProps?.footerLinkTextItalic, false) ? 'italic' : 'normal',
+  footerLinkTextDecoration: toTextDecoration(toBoolean(rawProps?.footerLinkTextUnderline, false), toBoolean(rawProps?.footerLinkTextStrikethrough, false)),
+  footerTextFontStyle: toBoolean(rawProps?.footerTextItalic, false) ? 'italic' : 'normal',
+  // Builder's "Text" section writes footerTextAccountStrikethrough (irregular
+  // name) rather than footerTextStrikethrough for this specific toggle.
+  footerTextTextDecoration: toTextDecoration(toBoolean(rawProps?.footerTextUnderline, false), toBoolean(rawProps?.footerTextAccountStrikethrough, false)),
+  logoVisible: toBoolean(rawProps?.logoVisible, defaultSignInTokens.logoVisible),
+  logoImageUrl: (rawProps?.logoImage as string) ?? defaultSignInTokens.logoImageUrl,
+  logoRatio: (rawProps?.imageRatio as string) ?? defaultSignInTokens.logoRatio,
+  logoScale: (rawProps?.imageScale as string) ?? defaultSignInTokens.logoScale,
+  logoBgColor: (rawProps?.imageBgColor as string) ?? defaultSignInTokens.logoBgColor,
+  logoBorderColor: (rawProps?.imageBorderColor as string) ?? defaultSignInTokens.logoBorderColor,
+  logoCorners: toNumber(rawProps?.imageCorners, defaultSignInTokens.logoCorners),
+  buttonIcon: (rawProps?.buttonIcon as string) ?? defaultSignInTokens.buttonIcon,
+  buttonIconSize: toNumber(rawProps?.buttonIconSize, defaultSignInTokens.buttonIconSize),
+  buttonIconColor: (rawProps?.buttonIconColor as string) ?? defaultSignInTokens.buttonIconColor,
+  buttonIconAlignment: (rawProps?.buttonIconAlignment as string) ?? defaultSignInTokens.buttonIconAlignment,
+  navigateTo: (rawProps?.navigateTo as string) ?? defaultSignInTokens.navigateTo,
+  selectScreen: (rawProps?.selectScreen as string) ?? defaultSignInTokens.selectScreen,
 });
 
 const buildForgotPasswordTokens = (rawProps: Record<string, unknown>): ForgotPasswordTokens => ({
@@ -1203,19 +1479,27 @@ const buildForgotPasswordTokens = (rawProps: Record<string, unknown>): ForgotPas
   cardPaddingBottom: toNumber(rawProps?.pb ?? rawProps?.paddingBottom, defaultForgotPasswordTokens.cardPaddingBottom),
   cardPaddingLeft: toNumber(rawProps?.pl ?? rawProps?.paddingLeft, defaultForgotPasswordTokens.cardPaddingLeft),
   cardPaddingRight: toNumber(rawProps?.pr ?? rawProps?.paddingRight, defaultForgotPasswordTokens.cardPaddingRight),
-  buttonTextColor: toLocalizedString(rawProps?.buttonTextColor, defaultForgotPasswordTokens.buttonTextColor),
-  buttonBorderColor: toLocalizedString(rawProps?.buttonBorderColor, defaultForgotPasswordTokens.buttonBorderColor),
-  buttonBorderWidth: resolveBorderWidth(rawProps?.buttonBorderLine, rawProps?.buttonBorderColor, defaultForgotPasswordTokens.buttonBorderWidth),
-  buttonFillColor: resolveButtonColor(rawProps?.buttonBgColor, defaultForgotPasswordTokens.buttonFillColor),
-  buttonRadius: toNumber(rawProps?.buttonRadius ?? rawProps?.buttonBorderRadius, defaultForgotPasswordTokens.buttonRadius),
-  buttonPaddingTop: toNumber(rawProps?.buttonPaddingTop ?? rawProps?.buttonPt, defaultForgotPasswordTokens.buttonPaddingTop),
-  buttonPaddingBottom: toNumber(rawProps?.buttonPaddingBottom ?? rawProps?.buttonPb, defaultForgotPasswordTokens.buttonPaddingBottom),
-  buttonPaddingLeft: toNumber(rawProps?.buttonPaddingLeft ?? rawProps?.buttonPl, defaultForgotPasswordTokens.buttonPaddingLeft),
-  buttonPaddingRight: toNumber(rawProps?.buttonPaddingRight ?? rawProps?.buttonPr, defaultForgotPasswordTokens.buttonPaddingRight),
+  // Builder's forgot_password Inspector has NO button controls at all (only
+  // Headline + Background/Padding) — any buttonXxx/resetPasswordButtonText keys
+  // occasionally present in older stored sections are orphaned/legacy leftovers
+  // from a prior schema version with no UI to edit or clear them. Deliberately
+  // NOT reading them keeps this screen matching the current, real Builder spec
+  // (ResetPassword/Preview.tsx's hardcoded "Send Reset Link" button) instead of
+  // stale data. Only genuinely-editable Inspector fields (bg/padding/border,
+  // headline text+color+font) are read from rawProps above/below.
+  buttonTextColor: defaultForgotPasswordTokens.buttonTextColor,
+  buttonBorderColor: defaultForgotPasswordTokens.buttonBorderColor,
+  buttonBorderWidth: defaultForgotPasswordTokens.buttonBorderWidth,
+  buttonFillColor: defaultForgotPasswordTokens.buttonFillColor,
+  buttonRadius: defaultForgotPasswordTokens.buttonRadius,
+  buttonPaddingTop: defaultForgotPasswordTokens.buttonPaddingTop,
+  buttonPaddingBottom: defaultForgotPasswordTokens.buttonPaddingBottom,
+  buttonPaddingLeft: defaultForgotPasswordTokens.buttonPaddingLeft,
+  buttonPaddingRight: defaultForgotPasswordTokens.buttonPaddingRight,
   buttonMarginTop: toNumber(rawProps?.buttonMarginTop ?? rawProps?.buttonMt, defaultForgotPasswordTokens.buttonMarginTop),
-  buttonFontSize: toNumber(rawProps?.buttonFontSize ?? rawProps?.buttonfontSize ?? rawProps?.fontSize, defaultForgotPasswordTokens.buttonFontSize),
-  buttonFontFamily: toFontFamily(rawProps?.buttonFontFamily ?? rawProps?.buttonfontFamily ?? rawProps?.fontFamily, defaultForgotPasswordTokens.buttonFontFamily),
-  buttonFontWeight: toFontWeight(rawProps?.buttonFontWeight ?? rawProps?.buttonfontWeight, defaultForgotPasswordTokens.buttonFontWeight),
+  buttonFontSize: defaultForgotPasswordTokens.buttonFontSize,
+  buttonFontFamily: defaultForgotPasswordTokens.buttonFontFamily,
+  buttonFontWeight: defaultForgotPasswordTokens.buttonFontWeight,
   headlineText: toLocalizedString(
     firstDefined(rawProps?.headlineText, rawProps?.title, rawProps?.heading),
     defaultForgotPasswordTokens.headlineText
@@ -1240,19 +1524,30 @@ const buildForgotPasswordTokens = (rawProps: Record<string, unknown>): ForgotPas
       rawProps?.paddingTop,
     defaultForgotPasswordTokens.loginLinkMarginTop
   ),
-  resetPasswordTitle: toLocalizedString(
-    firstDefined(rawProps?.resetPasswordTitle, rawProps?.description, rawProps?.subtext, rawProps?.helperText, rawProps?.instructionText),
-    defaultForgotPasswordTokens.resetPasswordTitle
-  ),
-  resetPasswordTitleColor: toLocalizedString(firstDefined(rawProps?.resetPasswordTitleColor, rawProps?.titleColor), defaultForgotPasswordTokens.resetPasswordTitleColor),
-  resetPasswordTitleFontSize: toNumber(rawProps?.resetPasswordTitleFontSize ?? rawProps?.subtextSize ?? rawProps?.fontSize, defaultForgotPasswordTokens.resetPasswordTitleFontSize),
-  resetPasswordTitleFontFamily: toFontFamily(rawProps?.resetPasswordTitleFontFamily ?? rawProps?.subtextFontFamily ?? rawProps?.fontFamily, defaultForgotPasswordTokens.resetPasswordTitleFontFamily),
-  resetPasswordTitleFontWeight: toFontWeight(rawProps?.resetPasswordTitleFontWeight ?? rawProps?.subtextWeight, defaultForgotPasswordTokens.resetPasswordTitleFontWeight),
-  resetPasswordTitleMarginTop: toNumber(rawProps?.resetPasswordTitleMarginTop ?? rawProps?.resetPasswordTitleMt, defaultForgotPasswordTokens.resetPasswordTitleMarginTop),
-  resetPasswordButtonText: toLocalizedString(
-    firstDefined(rawProps?.resetPasswordButtonText, rawProps?.buttonText, rawProps?.buttonLabel, rawProps?.submitText, rawProps?.sendButtonText),
-    defaultForgotPasswordTokens.resetPasswordButtonText
-  ),
+  // Builder's real ResetPassword component reads this subtitle as headingText/
+  // descriptionColor/descriptionFontSize/descriptionFontFamily/descriptionFontWeight.
+  // forgot_password's Inspector has no separate subtitle/description field or
+  // button field (only Headline + Background/Padding) — resetPasswordTitle/
+  // resetPasswordButtonText are legacy leftover keys with no live UI to edit
+  // them, so they're intentionally NOT read from rawProps (avoids surfacing
+  // stale content). The single real heading is headlineText, read below.
+  resetPasswordTitle: defaultForgotPasswordTokens.resetPasswordTitle,
+  resetPasswordTitleColor: defaultForgotPasswordTokens.resetPasswordTitleColor,
+  resetPasswordTitleFontSize: defaultForgotPasswordTokens.resetPasswordTitleFontSize,
+  resetPasswordTitleFontFamily: defaultForgotPasswordTokens.resetPasswordTitleFontFamily,
+  resetPasswordTitleFontWeight: defaultForgotPasswordTokens.resetPasswordTitleFontWeight,
+  resetPasswordTitleMarginTop: defaultForgotPasswordTokens.resetPasswordTitleMarginTop,
+  resetPasswordButtonText: defaultForgotPasswordTokens.resetPasswordButtonText,
+  emailPlaceholder: toLocalizedString(firstDefined(rawProps?.emailPlaceholder, rawProps?.placeholder), defaultForgotPasswordTokens.emailPlaceholder),
+  emailPlaceholderColor: toLocalizedString(rawProps?.emailPlaceholderColor, defaultForgotPasswordTokens.emailPlaceholderColor),
+  inputTextColor: toLocalizedString(rawProps?.inputTextColor, defaultForgotPasswordTokens.inputTextColor),
+  inputFontSize: toNumber(rawProps?.inputFontSize, defaultForgotPasswordTokens.inputFontSize),
+  inputFontFamily: toFontFamily(rawProps?.inputFontFamily, defaultForgotPasswordTokens.inputFontFamily),
+  inputBorderColor: toLocalizedString(rawProps?.inputBorderColor, defaultForgotPasswordTokens.inputBorderColor),
+  inputBorderRadius: toNumber(rawProps?.inputBorderRadius, defaultForgotPasswordTokens.inputBorderRadius),
+  inputHeight: toNumber(rawProps?.inputHeight, defaultForgotPasswordTokens.inputHeight),
+  inputPaddingHorizontal: toNumber(rawProps?.inputPaddingHorizontal, defaultForgotPasswordTokens.inputPaddingHorizontal),
+  inputPaddingVertical: toNumber(rawProps?.inputPaddingVertical, defaultForgotPasswordTokens.inputPaddingVertical),
   backToLoginText: toLocalizedString(
     firstDefined(rawProps?.backToLoginText, rawProps?.loginText, rawProps?.signInText),
     defaultForgotPasswordTokens.backToLoginText
@@ -1284,6 +1579,52 @@ const buildForgotPasswordTokens = (rawProps: Record<string, unknown>): ForgotPas
   fields: buildForgotPasswordFields(rawProps),
 });
 
+// Reads Builder's real "Reset Password" page component (`reset_password`). Its
+// background/border/padding controls are nested under `buyNow`/`addToCart` (a
+// schema borrowed from the AddToCart block) rather than the flat pt/pb/pl/pr keys
+// used elsewhere in this file — confirmed by reading ResetPassword/Preview.tsx and
+// Inspector.tsx directly. Input/button styling is intentionally NOT read here (see
+// defaultResetPasswordTokens comment) since Builder's own canvas ignores those
+// Inspector fields entirely.
+const buildResetPasswordTokens = (rawProps: Record<string, unknown>): ResetPasswordTokens => {
+  const buyNow = toRecord(rawProps?.buyNow);
+  const addToCart = toRecord(rawProps?.addToCart);
+  const visibility = toRecord(rawProps?.visibility);
+  const showBgSection = toBoolean(firstDefined(visibility?.buyNowBgPadding), true);
+  const heading = stripHtmlTags(
+    toLocalizedString(
+      firstDefined(rawProps?.headingText, rawProps?.title, rawProps?.heading),
+      defaultResetPasswordTokens.headingText
+    )
+  );
+  return {
+    ...defaultResetPasswordTokens,
+    headingText: heading || defaultResetPasswordTokens.headingText,
+    descriptionColor: toLocalizedString(rawProps?.descriptionColor, defaultResetPasswordTokens.descriptionColor),
+    descriptionFontSize: toNumber(rawProps?.descriptionFontSize, defaultResetPasswordTokens.descriptionFontSize),
+    descriptionFontFamily: toFontFamily(rawProps?.descriptionFontFamily, defaultResetPasswordTokens.descriptionFontFamily),
+    descriptionFontWeight: toFontWeight(rawProps?.descriptionFontWeight, defaultResetPasswordTokens.descriptionFontWeight),
+    descriptionFontStyle: toBoolean(rawProps?.headingItalic, false) ? 'italic' : 'normal',
+    descriptionTextDecoration: toTextDecoration(
+      toBoolean(rawProps?.headingUnderline, false),
+      toBoolean(rawProps?.headingStrikethrough, false)
+    ),
+    descriptionLineHeight: toNumber(rawProps?.descriptionLineHeight, defaultResetPasswordTokens.descriptionLineHeight),
+    descriptionLetterSpacing: toNumber(rawProps?.descriptionLetterSpacing, defaultResetPasswordTokens.descriptionLetterSpacing),
+    descriptionAlign: toTextAlign(rawProps?.descriptionAlign, defaultResetPasswordTokens.descriptionAlign),
+    cardBgColor: showBgSection ? toLocalizedString(buyNow?.bgColor, defaultResetPasswordTokens.cardBgColor) : 'transparent',
+    cardBorderColor: toLocalizedString(buyNow?.borderColor, defaultResetPasswordTokens.cardBorderColor),
+    cardBorderWidth: showBgSection
+      ? resolveBorderWidth(buyNow?.borderLine, buyNow?.borderColor, defaultResetPasswordTokens.cardBorderWidth)
+      : 0,
+    cardBorderRadius: showBgSection ? toNumber(addToCart?.contBorderRadius, defaultResetPasswordTokens.cardBorderRadius) : 0,
+    cardPaddingTop: showBgSection ? toNumber(buyNow?.pt, defaultResetPasswordTokens.cardPaddingTop) : 0,
+    cardPaddingBottom: showBgSection ? toNumber(buyNow?.pb, defaultResetPasswordTokens.cardPaddingBottom) : 0,
+    cardPaddingLeft: showBgSection ? toNumber(buyNow?.pl, defaultResetPasswordTokens.cardPaddingLeft) : 0,
+    cardPaddingRight: showBgSection ? toNumber(buyNow?.pr, defaultResetPasswordTokens.cardPaddingRight) : 0,
+  };
+};
+
 const buildSignUpTokens = (rawProps: Record<string, unknown>): SignUpTokens => ({
   ...defaultSignUpTokens,
   bgColor: (rawProps?.bgColor as string) ?? defaultSignUpTokens.bgColor,
@@ -1291,7 +1632,8 @@ const buildSignUpTokens = (rawProps: Record<string, unknown>): SignUpTokens => (
   cardBgColor: (rawProps?.cardBgColor as string) ?? defaultSignUpTokens.cardBgColor,
   cardBorderColor: (rawProps?.cardBorderColor as string) ?? defaultSignUpTokens.cardBorderColor,
   cardBorderWidth: resolveBorderWidth(rawProps?.borderLine, rawProps?.cardBorderColor ?? rawProps?.borderColor, defaultSignUpTokens.cardBorderWidth),
-  cardBorderRadius: toNumber(rawProps?.borderRadius, defaultSignUpTokens.cardBorderRadius),
+  // SignUp's "Background & Padding" section writes borderRadiusBox, not borderRadius.
+  cardBorderRadius: toNumber(pick(rawProps, ['borderRadiusBox', 'borderRadius']), defaultSignUpTokens.cardBorderRadius),
   cardPaddingTop: toNumber(rawProps?.pt ?? rawProps?.paddingTop, defaultSignUpTokens.cardPaddingTop),
   cardPaddingBottom: toNumber(rawProps?.pb ?? rawProps?.paddingBottom, defaultSignUpTokens.cardPaddingBottom),
   cardPaddingLeft: toNumber(rawProps?.pl ?? rawProps?.paddingLeft, defaultSignUpTokens.cardPaddingLeft),
@@ -1327,15 +1669,19 @@ const buildSignUpTokens = (rawProps: Record<string, unknown>): SignUpTokens => (
   headerTitleColor: (rawProps?.headerTitleColor as string) ?? defaultSignUpTokens.headerTitleColor,
   headerTitleFontSize: toNumber(rawProps?.headerTitleFontSize, defaultSignUpTokens.headerTitleFontSize),
   headerTitleFontFamily: toFontFamily(rawProps?.headerTitleFontFamily ?? rawProps?.fontFamily, defaultSignUpTokens.headerTitleFontFamily),
-  headerTitleFontWeight: toFontWeight(rawProps?.headerTitleFontWeight, defaultSignUpTokens.headerTitleFontWeight),
-  emailAlignment: (rawProps?.emailAlignment as string) ?? defaultSignUpTokens.emailAlignment,
-  firstNameAlignment: (rawProps?.firstNameAlignment as string) ?? defaultSignUpTokens.firstNameAlignment,
-  lastNameAlignment: (rawProps?.lastNameAlignment as string) ?? defaultSignUpTokens.lastNameAlignment,
-  passwordAlignment: (rawProps?.passwordAlignment as string) ?? defaultSignUpTokens.passwordAlignment,
-  emailInputTextAlignment: (rawProps?.emailInputTextAlignment as string) ?? defaultSignUpTokens.emailInputTextAlignment,
-  firstNameInputTextAlignment: (rawProps?.firstNameInputTextAlignment as string) ?? defaultSignUpTokens.firstNameInputTextAlignment,
-  lastNameInputTextAlignment: (rawProps?.lastNameInputTextAlignment as string) ?? defaultSignUpTokens.lastNameInputTextAlignment,
-  passwordInputTextAlignment: (rawProps?.passwordInputTextAlignment as string) ?? defaultSignUpTokens.passwordInputTextAlignment,
+  headerTitleFontWeight: toFontWeight(rawProps?.headerTitleFontWeight, defaultSignUpTokens.headerTitleFontWeight, rawProps?.authTitleBold as boolean | undefined),
+  // Builder's per-field alignment control writes {field}AlignmenT (typo'd
+  // trailing capital T) — the field group's actual rendered alignment. The
+  // correctly-spelled *Alignment/*InputTextAlignment keys are kept as
+  // forward-compatible aliases in case the typo gets fixed upstream.
+  emailAlignment: (pick(rawProps, ['emailAlignmenT', 'emailAlignment']) as string) ?? defaultSignUpTokens.emailAlignment,
+  firstNameAlignment: (pick(rawProps, ['firstNameAlignmenT', 'firstNameAlignment']) as string) ?? defaultSignUpTokens.firstNameAlignment,
+  lastNameAlignment: (pick(rawProps, ['lastNameAlignmenT', 'lastNameAlignment']) as string) ?? defaultSignUpTokens.lastNameAlignment,
+  passwordAlignment: (pick(rawProps, ['passwordAlignmenT', 'passwordAlignment']) as string) ?? defaultSignUpTokens.passwordAlignment,
+  emailInputTextAlignment: (pick(rawProps, ['emailInputTextAlignment', 'emailAlignmenT', 'emailAlignment']) as string) ?? defaultSignUpTokens.emailInputTextAlignment,
+  firstNameInputTextAlignment: (pick(rawProps, ['firstNameInputTextAlignment', 'firstNameAlignmenT', 'firstNameAlignment']) as string) ?? defaultSignUpTokens.firstNameInputTextAlignment,
+  lastNameInputTextAlignment: (pick(rawProps, ['lastNameInputTextAlignment', 'lastNameAlignmenT', 'lastNameAlignment']) as string) ?? defaultSignUpTokens.lastNameInputTextAlignment,
+  passwordInputTextAlignment: (pick(rawProps, ['passwordInputTextAlignment', 'passwordAlignmenT', 'passwordAlignment']) as string) ?? defaultSignUpTokens.passwordInputTextAlignment,
   emailLabelVisible: (rawProps?.emailLabelVisible as boolean) ?? defaultSignUpTokens.emailLabelVisible,
   firstNameLabelVisible: (rawProps?.firstNameLabelVisible as boolean) ?? defaultSignUpTokens.firstNameLabelVisible,
   lastNameLabelVisible: (rawProps?.lastNameLabelVisible as boolean) ?? defaultSignUpTokens.lastNameLabelVisible,
@@ -1368,18 +1714,21 @@ const buildSignUpTokens = (rawProps: Record<string, unknown>): SignUpTokens => (
   firstNameInputTextColor: (rawProps?.firstNameInputTextColor as string) ?? defaultSignUpTokens.firstNameInputTextColor,
   lastNameInputTextColor: (rawProps?.lastNameInputTextColor as string) ?? defaultSignUpTokens.lastNameInputTextColor,
   passwordInputTextColor: (rawProps?.passwordInputTextColor as string) ?? defaultSignUpTokens.passwordInputTextColor,
-  emailInputTextFontSize: toNumber(rawProps?.emailInputTextFontSize, defaultSignUpTokens.emailInputTextFontSize),
-  firstNameInputTextFontSize: toNumber(rawProps?.firstNameInputTextFontSize, defaultSignUpTokens.firstNameInputTextFontSize),
-  lastNameInputTextFontSize: toNumber(rawProps?.lastNameInputTextFontSize, defaultSignUpTokens.lastNameInputTextFontSize),
-  passwordInputTextFontSize: toNumber(rawProps?.passwordInputTextFontSize, defaultSignUpTokens.passwordInputTextFontSize),
+  // Builder's per-field "Input Text" subsection writes {field}InputTextfontSize
+  // and {field}InputTextfontWeight (lowercase "font") — capitalized spelling
+  // kept as a forward-compatible alias.
+  emailInputTextFontSize: toNumber(pick(rawProps, ['emailInputTextFontSize', 'emailInputTextfontSize']), defaultSignUpTokens.emailInputTextFontSize),
+  firstNameInputTextFontSize: toNumber(pick(rawProps, ['firstNameInputTextFontSize', 'firstNameInputTextfontSize']), defaultSignUpTokens.firstNameInputTextFontSize),
+  lastNameInputTextFontSize: toNumber(pick(rawProps, ['lastNameInputTextFontSize', 'lastNameInputTextfontSize']), defaultSignUpTokens.lastNameInputTextFontSize),
+  passwordInputTextFontSize: toNumber(pick(rawProps, ['passwordInputTextFontSize', 'passwordInputTextfontSize']), defaultSignUpTokens.passwordInputTextFontSize),
   emailInputTextFontFamily: toFontFamily(rawProps?.emailInputTextFontFamily ?? rawProps?.fontFamily, defaultSignUpTokens.emailInputTextFontFamily),
   firstNameInputTextFontFamily: toFontFamily(rawProps?.firstNameInputTextFontFamily ?? rawProps?.fontFamily, defaultSignUpTokens.firstNameInputTextFontFamily),
   lastNameInputTextFontFamily: toFontFamily(rawProps?.lastNameInputTextFontFamily ?? rawProps?.fontFamily, defaultSignUpTokens.lastNameInputTextFontFamily),
   passwordInputTextFontFamily: toFontFamily(rawProps?.passwordInputTextFontFamily ?? rawProps?.fontFamily, defaultSignUpTokens.passwordInputTextFontFamily),
-  emailInputTextFontWeight: toFontWeight(rawProps?.emailInputTextFontWeight ?? rawProps?.fontWeight, defaultSignUpTokens.emailInputTextFontWeight),
-  firstNameInputTextFontWeight: toFontWeight(rawProps?.firstNameInputTextFontWeight, defaultSignUpTokens.firstNameInputTextFontWeight),
-  lastNameInputTextFontWeight: toFontWeight(rawProps?.lastNameInputTextFontWeight, defaultSignUpTokens.lastNameInputTextFontWeight),
-  passwordInputTextFontWeight: toFontWeight(rawProps?.passwordInputTextFontWeight ?? rawProps?.fontWeight, defaultSignUpTokens.passwordInputTextFontWeight),
+  emailInputTextFontWeight: toFontWeight(pick(rawProps, ['emailInputTextFontWeight', 'emailInputTextfontWeight', 'fontWeight']), defaultSignUpTokens.emailInputTextFontWeight),
+  firstNameInputTextFontWeight: toFontWeight(pick(rawProps, ['firstNameInputTextFontWeight', 'firstNameInputTextfontWeight']), defaultSignUpTokens.firstNameInputTextFontWeight),
+  lastNameInputTextFontWeight: toFontWeight(pick(rawProps, ['lastNameInputTextFontWeight', 'lastNameInputTextfontWeight']), defaultSignUpTokens.lastNameInputTextFontWeight),
+  passwordInputTextFontWeight: toFontWeight(pick(rawProps, ['passwordInputTextFontWeight', 'passwordInputTextfontWeight', 'fontWeight']), defaultSignUpTokens.passwordInputTextFontWeight),
   emailPlaceholderColor: (rawProps?.emailPlaceholderColor as string) ?? defaultSignUpTokens.emailPlaceholderColor,
   firstNamePlaceholderColor: (rawProps?.firstNamePlaceholderColor as string) ?? defaultSignUpTokens.firstNamePlaceholderColor,
   lastNamePlaceholderColor: (rawProps?.lastNamePlaceholderColor as string) ?? defaultSignUpTokens.lastNamePlaceholderColor,
@@ -1392,18 +1741,22 @@ const buildSignUpTokens = (rawProps: Record<string, unknown>): SignUpTokens => (
   firstNamePlaceholderFontFamily: toFontFamily(rawProps?.firstNamePlaceholderFontFamily ?? rawProps?.placeholderFontFamily ?? rawProps?.fontFamily, defaultSignUpTokens.firstNamePlaceholderFontFamily),
   lastNamePlaceholderFontFamily: toFontFamily(rawProps?.lastNamePlaceholderFontFamily ?? rawProps?.placeholderFontFamily ?? rawProps?.fontFamily, defaultSignUpTokens.lastNamePlaceholderFontFamily),
   passwordPlaceholderFontFamily: toFontFamily(rawProps?.passwordPlaceholderFontFamily ?? rawProps?.placeholderFontFamily ?? rawProps?.fontFamily, defaultSignUpTokens.passwordPlaceholderFontFamily),
-  emailPlaceholderFontWeight: toFontWeight(rawProps?.emailPlaceholderFontWeight ?? rawProps?.placeholderFontWeight ?? rawProps?.fontWeight, defaultSignUpTokens.emailPlaceholderFontWeight),
-  firstNamePlaceholderFontWeight: toFontWeight(rawProps?.firstNamePlaceholderFontWeight ?? rawProps?.placeholderFontWeight ?? rawProps?.fontWeight, defaultSignUpTokens.firstNamePlaceholderFontWeight),
-  lastNamePlaceholderFontWeight: toFontWeight(rawProps?.lastNamePlaceholderFontWeight ?? rawProps?.placeholderFontWeight ?? rawProps?.fontWeight, defaultSignUpTokens.lastNamePlaceholderFontWeight),
-  passwordPlaceholderFontWeight: toFontWeight(rawProps?.passwordPlaceholderFontWeight ?? rawProps?.placeholderFontWeight ?? rawProps?.fontWeight, defaultSignUpTokens.passwordPlaceholderFontWeight),
+  // Builder's per-field placeholder subsection writes {field}PlaceholderfontWeight
+  // (lowercase "font") — capitalized spelling kept as a forward-compatible alias.
+  emailPlaceholderFontWeight: toFontWeight(pick(rawProps, ['emailPlaceholderFontWeight', 'emailPlaceholderfontWeight', 'placeholderFontWeight', 'fontWeight']), defaultSignUpTokens.emailPlaceholderFontWeight, rawProps?.emailPlaceholderbold as boolean | undefined),
+  firstNamePlaceholderFontWeight: toFontWeight(pick(rawProps, ['firstNamePlaceholderFontWeight', 'firstNamePlaceholderfontWeight', 'placeholderFontWeight', 'fontWeight']), defaultSignUpTokens.firstNamePlaceholderFontWeight, rawProps?.firstNamePlaceholderbold as boolean | undefined),
+  lastNamePlaceholderFontWeight: toFontWeight(pick(rawProps, ['lastNamePlaceholderFontWeight', 'lastNamePlaceholderfontWeight', 'placeholderFontWeight', 'fontWeight']), defaultSignUpTokens.lastNamePlaceholderFontWeight, rawProps?.lastNamePlaceholderbold as boolean | undefined),
+  passwordPlaceholderFontWeight: toFontWeight(pick(rawProps, ['passwordPlaceholderFontWeight', 'passwordPlaceholderfontWeight', 'placeholderFontWeight', 'fontWeight']), defaultSignUpTokens.passwordPlaceholderFontWeight, rawProps?.passwordPlaceholderbold as boolean | undefined),
   ...buildButtonStyleTokens(rawProps, defaultSignUpTokens),
   buttonBorderColor: (rawProps?.buttonBorderColor as string) ?? defaultSignUpTokens.buttonBorderColor,
   buttonBorderWidth: resolveBorderWidth(rawProps?.buttonBorderLine, rawProps?.buttonBorderColor, defaultSignUpTokens.buttonBorderWidth),
   buttonPaddingTop: toNumber(rawProps?.buttonPaddingTop, defaultSignUpTokens.buttonPaddingTop),
   buttonPaddingBottom: toNumber(rawProps?.buttonPaddingBottom, defaultSignUpTokens.buttonPaddingBottom),
   buttonAutoUppercase: (rawProps?.buttonAutoUppercase as boolean) ?? defaultSignUpTokens.buttonAutoUppercase,
-  buttonHeight: toNumber(rawProps?.buttonHeight, defaultSignUpTokens.buttonHeight),
-  buttonWidth: toNumber(rawProps?.buttonWidth, defaultSignUpTokens.buttonWidth),
+  // Builder's Button section writes buttonheightt (typo, double "t") and
+  // buttonwidth (lowercase "w") — correctly-spelled keys kept as aliases.
+  buttonHeight: toNumber(pick(rawProps, ['buttonheightt', 'buttonHeight']), defaultSignUpTokens.buttonHeight),
+  buttonWidth: toNumber(pick(rawProps, ['buttonwidth', 'buttonWidth']), defaultSignUpTokens.buttonWidth),
   footerTextColor: (rawProps?.footerTextColor as string) ?? defaultSignUpTokens.footerTextColor,
   footerLinkColor: (rawProps?.footerLinkColor as string) ?? defaultSignUpTokens.footerLinkColor,
   footerTextFontSize: toNumber(rawProps?.footerTextFontSize ?? rawProps?.subtextSize ?? rawProps?.fontSize, defaultSignUpTokens.footerTextFontSize),
@@ -1417,19 +1770,58 @@ const buildSignUpTokens = (rawProps: Record<string, unknown>): SignUpTokens => (
   footerVisible: (rawProps?.footerVisible as boolean) ?? defaultSignUpTokens.footerVisible,
   signInLinkVisible: (rawProps?.signInLinkVisible as boolean) ?? defaultSignUpTokens.signInLinkVisible,
   buttonVisible: (rawProps?.buttonVisible as boolean) ?? defaultSignUpTokens.buttonVisible,
-  showProfilePicture: toBoolean(rawProps?.showProfilePicture, defaultSignUpTokens.showProfilePicture),
-  profilePictureUrl: toStringValue(rawProps?.profilePictureUrl, defaultSignUpTokens.profilePictureUrl).trim(),
+  // SignUp's Logo/Image section writes logoImgVisible/logoImage/logoBgColor/
+  // logoBorderColor (distinct from SignIn's logoVisible/imageBgColor/
+  // imageBorderColor) — the profile-picture-styled avatar block reuses these.
+  showProfilePicture: toBoolean(pick(rawProps, ['logoImgVisible', 'showProfilePicture']), defaultSignUpTokens.showProfilePicture),
+  profilePictureUrl: toStringValue(pick(rawProps, ['logoImage', 'profilePictureUrl']), defaultSignUpTokens.profilePictureUrl).trim(),
   profilePictureSize: toNumber(rawProps?.profilePictureSize, defaultSignUpTokens.profilePictureSize),
-  profilePictureBgColor: (rawProps?.profilePictureBgColor as string) ?? defaultSignUpTokens.profilePictureBgColor,
-  profilePictureBorderColor: (rawProps?.profilePictureBorderColor as string) ?? defaultSignUpTokens.profilePictureBorderColor,
+  profilePictureBgColor: (pick(rawProps, ['logoBgColor', 'profilePictureBgColor']) as string) ?? defaultSignUpTokens.profilePictureBgColor,
+  profilePictureBorderColor: (pick(rawProps, ['logoBorderColor', 'profilePictureBorderColor']) as string) ?? defaultSignUpTokens.profilePictureBorderColor,
   buttonRadius: toNumber(rawProps?.buttonRadius ?? rawProps?.buttonBorderRadius, defaultSignUpTokens.buttonRadius),
-  inputBorderRadius: toNumber(rawProps?.borderRadius ?? rawProps?.inputRadius ?? rawProps?.inputBorderRadius, defaultSignUpTokens.inputBorderRadius),
+  // NOTE: `borderRadius` is SignUp's card corner-radius alias fallback (the real
+  // field is borderRadiusBox, see cardBorderRadius above) — Builder's
+  // SignUp/PreviewLive.tsx renders the input radius as a flat hardcoded 8px,
+  // completely independent of the card radius, so it must NOT be aliased here.
+  inputBorderRadius: toNumber(rawProps?.inputRadius ?? rawProps?.inputBorderRadius, defaultSignUpTokens.inputBorderRadius),
   headlineSize: toNumber(rawProps?.headlineSize, defaultSignUpTokens.headlineSize),
   headlineWeight: toFontWeight(rawProps?.headlineWeight, defaultSignUpTokens.headlineWeight),
   headlineFontFamily: toFontFamily(rawProps?.headlineFontFamily ?? rawProps?.fontFamily, defaultSignUpTokens.headlineFontFamily),
+  headlineFontStyle: toBoolean(rawProps?.authTitleItalic, false) ? 'italic' : 'normal',
+  headlineTextDecoration: toTextDecoration(toBoolean(rawProps?.authTitleUnderline, false), toBoolean(rawProps?.authTitleStrikethrough, false)),
   subtextSize: toNumber(rawProps?.subtextSize, defaultSignUpTokens.subtextSize),
   subtextWeight: toFontWeight(rawProps?.subtextWeight, defaultSignUpTokens.subtextWeight),
   subtextFontFamily: toFontFamily(rawProps?.subtextFontFamily ?? rawProps?.fontFamily, defaultSignUpTokens.subtextFontFamily),
+  emailPlaceholderFontStyle: toBoolean(rawProps?.emailPlaceholderItalic, false) ? 'italic' : 'normal',
+  emailPlaceholderTextDecoration: toTextDecoration(toBoolean(rawProps?.emailPlaceholderUnderline, false), toBoolean(rawProps?.emailPlaceholderStrikethrough, false)),
+  passwordPlaceholderFontStyle: toBoolean(rawProps?.passwordPlaceholderItalic, false) ? 'italic' : 'normal',
+  passwordPlaceholderTextDecoration: toTextDecoration(toBoolean(rawProps?.passwordPlaceholderUnderline, false), toBoolean(rawProps?.passwordPlaceholderStrikethrough, false)),
+  firstNamePlaceholderFontStyle: toBoolean(rawProps?.firstNamePlaceholderItalic, false) ? 'italic' : 'normal',
+  firstNamePlaceholderTextDecoration: toTextDecoration(toBoolean(rawProps?.firstNamePlaceholderUnderline, false), toBoolean(rawProps?.firstNamePlaceholderStrikethrough, false)),
+  lastNamePlaceholderFontStyle: toBoolean(rawProps?.lastNamePlaceholderItalic, false) ? 'italic' : 'normal',
+  lastNamePlaceholderTextDecoration: toTextDecoration(toBoolean(rawProps?.lastNamePlaceholderUnderline, false), toBoolean(rawProps?.lastNamePlaceholderStrikethrough, false)),
+  buttonTextFontStyle: toBoolean(rawProps?.buttonTextItalic, false) ? 'italic' : 'normal',
+  buttonTextTextDecoration: toTextDecoration(toBoolean(rawProps?.buttonTextUnderline, false), toBoolean(rawProps?.buttonTextStrikethrough, false)),
+  footerLinkFontStyle: toBoolean(rawProps?.footerLinkTextItalic, false) ? 'italic' : 'normal',
+  footerLinkTextDecoration: toTextDecoration(toBoolean(rawProps?.footerLinkTextUnderline, false), toBoolean(rawProps?.footerLinkTextStrikethrough, false)),
+  footerTextFontStyle: toBoolean(rawProps?.footerTextItalic, false) ? 'italic' : 'normal',
+  // SignUp's footer "Strikethrough" toggle writes accountStrikethrough (not
+  // footerTextAccountStrikethrough like SignIn's does).
+  footerTextTextDecoration: toTextDecoration(toBoolean(rawProps?.footerTextUnderline, false), toBoolean(rawProps?.accountStrikethrough, false)),
+  logoVisible: toBoolean(pick(rawProps, ['logoImgVisible', 'logoVisible']), defaultSignUpTokens.logoVisible),
+  logoImageUrl: (pick(rawProps, ['logoImage']) as string) ?? defaultSignUpTokens.logoImageUrl,
+  logoRatio: (rawProps?.imageRatio as string) ?? defaultSignUpTokens.logoRatio,
+  logoScale: (rawProps?.imageScale as string) ?? defaultSignUpTokens.logoScale,
+  logoBgColor: (pick(rawProps, ['logoBgColor']) as string) ?? defaultSignUpTokens.logoBgColor,
+  logoBorderColor: (pick(rawProps, ['logoBorderColor']) as string) ?? defaultSignUpTokens.logoBorderColor,
+  logoCorners: toNumber(rawProps?.imageCorners, defaultSignUpTokens.logoCorners),
+  buttonIcon: (rawProps?.buttonIcon as string) ?? defaultSignUpTokens.buttonIcon,
+  buttonIconSize: toNumber(rawProps?.buttonIconSize, defaultSignUpTokens.buttonIconSize),
+  buttonIconColor: (rawProps?.buttonIconColor as string) ?? defaultSignUpTokens.buttonIconColor,
+  // SignUp's icon-alignment control writes buttonIconAlignmenT (typo).
+  buttonIconAlignment: (pick(rawProps, ['buttonIconAlignmenT', 'buttonIconAlignment']) as string) ?? defaultSignUpTokens.buttonIconAlignment,
+  navigateTo: (rawProps?.navigateTo as string) ?? defaultSignUpTokens.navigateTo,
+  selectScreen: (rawProps?.selectScreen as string) ?? defaultSignUpTokens.selectScreen,
 });
 
 // ─── Field components ────────────────────────────────────────────────────────
@@ -1448,6 +1840,8 @@ type FieldProps = {
   placeholderFontSize?: number;
   placeholderFontFamily?: string;
   placeholderFontWeight?: string;
+  placeholderFontStyle?: 'normal' | 'italic';
+  placeholderTextDecoration?: 'none' | 'underline' | 'line-through' | 'underline line-through';
   value: string;
   onChangeText: (v: string) => void;
   inputColor: string;
@@ -1489,6 +1883,8 @@ const FormField: React.FC<FieldProps> = ({
   placeholderFontSize,
   placeholderFontFamily,
   placeholderFontWeight,
+  placeholderFontStyle = 'normal',
+  placeholderTextDecoration = 'none',
   value,
   onChangeText,
   inputColor,
@@ -1520,6 +1916,8 @@ const FormField: React.FC<FieldProps> = ({
   const resolvedInputFontSize = usePlaceholderTypography ? placeholderFontSize ?? inputFontSize : inputFontSize;
   const resolvedInputFontFamily = usePlaceholderTypography ? placeholderFontFamily ?? inputFontFamily : inputFontFamily;
   const resolvedInputFontWeight = usePlaceholderTypography ? placeholderFontWeight ?? inputFontWeight : inputFontWeight;
+  const resolvedFontStyle = usePlaceholderTypography ? placeholderFontStyle : 'normal';
+  const resolvedTextDecoration = usePlaceholderTypography ? placeholderTextDecoration : 'none';
   const resolvedInputAlign = inputAlign;
   return (
   <View style={[fieldStyles.group, { marginBottom: fieldGap }]}>
@@ -1556,6 +1954,8 @@ const FormField: React.FC<FieldProps> = ({
             fontSize: resolvedInputFontSize,
             fontFamily: resolvedInputFontFamily !== 'System' ? resolvedInputFontFamily : undefined,
             fontWeight: resolvedInputFontWeight as any,
+            fontStyle: resolvedFontStyle,
+            textDecorationLine: resolvedTextDecoration,
             textAlign: resolvedInputAlign,
             textAlignVertical: 'center',
             flex: rightSlot ? 1 : undefined,
@@ -1606,6 +2006,62 @@ const fieldStyles = StyleSheet.create({
     textAlignVertical: 'center',
   },
 });
+
+// ─── Logo ─────────────────────────────────────────────────────────────────────
+// Shared by SignIn and SignUp — Builder's "Logo/Image" section (imageRatio/
+// imageScale/imageCorners + a bg/border-colored container) uses the same
+// concept on both blocks, just under different key names on the SignUp side
+// (handled by the alias reads in buildSignUpTokens above).
+
+const AUTH_LOGO_BASE_WIDTH = 120;
+
+const parseAuthLogoRatio = (ratio: string): number => {
+  const match = String(ratio || '').match(/^(\d+(?:\.\d+)?):(\d+(?:\.\d+)?)$/);
+  if (!match) return 1;
+  const w = Number(match[1]);
+  const h = Number(match[2]);
+  return w > 0 && h > 0 ? w / h : 1;
+};
+
+type AuthLogoProps = {
+  visible: boolean;
+  imageUrl: string;
+  ratio: string;
+  scale: string;
+  bgColor: string;
+  borderColor: string;
+  corners: number;
+};
+
+const AuthLogo: React.FC<AuthLogoProps> = ({ visible, imageUrl, ratio, scale, bgColor, borderColor, corners }) => {
+  if (!visible || !imageUrl.trim()) return null;
+  const ratioValue = parseAuthLogoRatio(ratio);
+  const width = AUTH_LOGO_BASE_WIDTH;
+  const height = Math.round(width / ratioValue);
+  return (
+    <View
+      style={{
+        width,
+        height,
+        borderRadius: corners,
+        backgroundColor: bgColor,
+        borderWidth: borderColor?.trim() ? 1 : 0,
+        borderColor,
+        alignSelf: 'center',
+        marginBottom: 16,
+        overflow: 'hidden',
+        justifyContent: 'center',
+        alignItems: 'center',
+      }}
+    >
+      <Image
+        source={{ uri: imageUrl }}
+        style={{ width, height }}
+        resizeMode={scale === 'fill' ? 'cover' : 'contain'}
+      />
+    </View>
+  );
+};
 
 const AuthSkeletonBone = ({ style }: { style?: any }) => {
   const pulse = useRef(new Animated.Value(0)).current;
@@ -1718,6 +2174,26 @@ const authSkeletonStyles = StyleSheet.create({
   },
 });
 
+// Builder's button-icon dropdown offers a fixed 9-icon FontAwesome set —
+// mapped to their FontAwesome6 solid names (a couple were renamed in FA6).
+const BUTTON_ICON_NAME_MAP: Record<string, string> = {
+  heart: 'heart',
+  star: 'star',
+  tag: 'tag',
+  gift: 'gift',
+  fire: 'fire',
+  bell: 'bell',
+  cart: 'cart-shopping',
+  truck: 'truck',
+  info: 'circle-info',
+};
+
+const resolveButtonIconName = (value: string): string | null => {
+  const key = String(value || '').trim().toLowerCase();
+  if (!key) return null;
+  return BUTTON_ICON_NAME_MAP[key] ?? key;
+};
+
 // ─── Main screen ─────────────────────────────────────────────────────────────
 
 const AuthScreen = () => {
@@ -1735,12 +2211,13 @@ const AuthScreen = () => {
   const [successMessage, setSuccessMessage] = useState('');
   const [loading, setLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
-  const [passwordVisible, setPasswordVisible] = useState(false);
   const [signInTokens, setSignInTokens] = useState<SignInTokens>(defaultSignInTokens);
   const [signUpTokens, setSignUpTokens] = useState<SignUpTokens>(defaultSignUpTokens);
   const [forgotPasswordTokens, setForgotPasswordTokens] = useState<ForgotPasswordTokens>(defaultForgotPasswordTokens);
+  const [resetPasswordTokens, setResetPasswordTokens] = useState<ResetPasswordTokens>(defaultResetPasswordTokens);
   const [signInHeaderConfig, setSignInHeaderConfig] = useState<Record<string, unknown> | null>(null);
   const [signUpHeaderConfig, setSignUpHeaderConfig] = useState<Record<string, unknown> | null>(null);
+  const [resetPasswordHeaderConfig, setResetPasswordHeaderConfig] = useState<Record<string, unknown> | null>(null);
   const [signInDslSections, setSignInDslSections] = useState<Record<string, unknown>[]>([]);
   const [signUpDslSections, setSignUpDslSections] = useState<Record<string, unknown>[]>([]);
   const [hasForgotPasswordSection, setHasForgotPasswordSection] = useState(false);
@@ -1754,6 +2231,7 @@ const AuthScreen = () => {
   const authLayoutRequestSeqRef = useRef(0);
   const hasLiveSignInLayoutRef = useRef(false);
   const hasLiveSignUpLayoutRef = useRef(false);
+  const hasLiveResetPasswordLayoutRef = useRef(false);
   const appStateRef = useRef(AppState.currentState);
   const emailRef = useRef('');
 
@@ -1777,7 +2255,6 @@ const AuthScreen = () => {
     setForgotFieldValues({});
     setError('');
     setSuccessMessage('');
-    setPasswordVisible(false);
   }, []);
 
   const switchAuthMode = useCallback((nextMode: Exclude<AuthMode, 'forgot'>) => {
@@ -1796,7 +2273,6 @@ const AuthScreen = () => {
     setForgotFieldValues((prev) => ({ ...prev, email: emailRef.current }));
     setError('');
     setSuccessMessage('');
-    setPasswordVisible(false);
     setMode('forgot');
   }, []);
 
@@ -1817,14 +2293,25 @@ const AuthScreen = () => {
       setAuthLayoutBlocking(true);
     }
     try {
-      const [signInDsl, signUpDsl] = await Promise.all([
+      const [signInDsl, signUpDsl, resetPasswordDsl] = await Promise.all([
         fetchDSL(undefined, 'signin'),
         fetchDSL(undefined, 'create-account'),
+        fetchDSL(undefined, 'reset-password'),
       ]);
       if (!isMountedRef.current || authLayoutRequestSeqRef.current !== requestSeq) return;
 
       const liveSignInSections = Array.isArray(signInDsl?.dsl?.sections) ? signInDsl.dsl.sections : [];
       const liveSignUpSections = Array.isArray(signUpDsl?.dsl?.sections) ? signUpDsl.dsl.sections : [];
+      const liveResetPasswordSections = Array.isArray(resetPasswordDsl?.dsl?.sections) ? resetPasswordDsl.dsl.sections : [];
+      const hasLiveResetPasswordPage = hasAuthSections(
+        liveResetPasswordSections,
+        (section) => isResetPasswordSection(section) && !isGeneratedFallbackSection(section)
+      );
+      const resetPasswordSections = hasLiveResetPasswordPage
+        ? liveResetPasswordSections
+        : hasLiveResetPasswordLayoutRef.current
+          ? null
+          : [];
       const hasLiveSignInPage = hasAuthSections(liveSignInSections, (section) =>
         (isSignInSection(section) || isForgotPasswordSection(section)) && !isGeneratedFallbackSection(section)
       );
@@ -1876,6 +2363,13 @@ const AuthScreen = () => {
         setSignUpHeaderConfig(hasResolvedLiveSignUpPage ? (((hasLiveSignUpPage ? signUpDsl : signInDsl)?.dsl?.headerdefault as Record<string, unknown> | undefined) ?? null) : null);
         if (hasResolvedLiveSignUpPage) hasLiveSignUpLayoutRef.current = true;
       }
+
+      if (resetPasswordSections) {
+        const resetPasswordSection = resetPasswordSections.find(isResetPasswordSection);
+        setResetPasswordTokens(resetPasswordSection ? buildResetPasswordTokens(getSectionRawProps(resetPasswordSection)) : defaultResetPasswordTokens);
+        setResetPasswordHeaderConfig(hasLiveResetPasswordPage ? ((resetPasswordDsl?.dsl?.headerdefault as Record<string, unknown> | undefined) ?? null) : null);
+        if (hasLiveResetPasswordPage) hasLiveResetPasswordLayoutRef.current = true;
+      }
     } finally {
       if (isMountedRef.current && authLayoutRequestSeqRef.current === requestSeq) {
         setRefreshing(false);
@@ -1901,13 +2395,37 @@ const AuthScreen = () => {
 
       const postLoginTarget = (route?.params as { postLoginTarget?: { name?: string; params?: Record<string, unknown> } } | undefined)?.postLoginTarget;
       const hasPostLoginTarget = Boolean(postLoginTarget?.name);
-      const targetName = hasPostLoginTarget ? (postLoginTarget?.name as string) : 'LayoutScreen';
-      const targetParams = hasPostLoginTarget ? (postLoginTarget?.params as Record<string, unknown> | undefined) : undefined;
+
+      // Precedence: an explicit caller-supplied postLoginTarget (e.g. "return to
+      // checkout after login") wins over the designer's DSL-configured redirect,
+      // which in turn wins over the hardcoded LayoutScreen fallback.
+      let targetName = 'LayoutScreen';
+      let targetParams: Record<string, unknown> | undefined;
+
+      if (hasPostLoginTarget) {
+        targetName = postLoginTarget?.name as string;
+        targetParams = postLoginTarget?.params as Record<string, unknown> | undefined;
+      } else {
+        const activeTokens = currentModeRef.current === 'signup' ? signUpTokens : signInTokens;
+        const dslTarget = activeTokens.selectScreen
+          ? resolveDslNavigationTarget({
+              navigateType: activeTokens.navigateTo === 'url' ? 'url' : undefined,
+              target: activeTokens.selectScreen,
+              navigateRef: activeTokens.selectScreen,
+              label: activeTokens.selectScreen,
+            })
+          : null;
+        if (dslTarget?.type === 'stack') {
+          targetName = dslTarget.name;
+          targetParams = dslTarget.params as Record<string, unknown> | undefined;
+        }
+      }
+
       const mergedParams = loginSuccessToast ? { ...(targetParams || {}), loginSuccessToast } : targetParams;
 
       navigation.reset({ index: 0, routes: [{ name: targetName as never, params: mergedParams as never }] });
     }
-  }, [session, navigation, route?.params]);
+  }, [session, navigation, route?.params, signInTokens, signUpTokens]);
 
   useEffect(() => { loadAuthLayout(); }, [loadAuthLayout]);
 
@@ -1939,9 +2457,10 @@ const AuthScreen = () => {
 
   const t = mode === 'signup' ? signUpTokens : signInTokens;
   const activeHeaderConfig = useMemo(() => {
-    const dslConfig = mode === 'signup' ? signUpHeaderConfig : signInHeaderConfig;
+    const dslConfig =
+      mode === 'signup' ? signUpHeaderConfig : mode === 'forgot' ? resetPasswordHeaderConfig : signInHeaderConfig;
     return dslConfig ?? null;
-  }, [mode, signInHeaderConfig, signUpHeaderConfig]);
+  }, [mode, signInHeaderConfig, signUpHeaderConfig, resetPasswordHeaderConfig]);
 
   const toggleMode = () => {
     switchAuthMode(currentModeRef.current === 'login' ? 'signup' : 'login');
@@ -1966,56 +2485,10 @@ const AuthScreen = () => {
   const resolveForgotPasswordErrorMessage = (err: unknown) => {
     const message = err instanceof Error ? err.message : String(err || '');
     if (/storefront|http\s*40[13]|unauthorized|forbidden|token/i.test(message)) {
-      return forgotPasswordTokens.errorMessageText;
+      return resetPasswordTokens.errorMessageText;
     }
-    return message || forgotPasswordTokens.errorMessageText;
+    return message || resetPasswordTokens.errorMessageText;
   };
-
-  const forgotPasswordFields = useMemo<ForgotPasswordFieldConfig[]>(() => {
-    const schemaFields = forgotPasswordTokens.fields.filter((field) => field.visible);
-    if (schemaFields.length) return schemaFields;
-    return [
-      {
-        key: 'email',
-        type: 'email',
-        visible: true,
-        label: signInTokens.emailLabelText,
-        labelVisible: signInTokens.emailLabelVisible,
-        placeholder: signInTokens.emailPlaceholder,
-        placeholderVisible: signInTokens.emailPlaceholderVisible,
-        required: true,
-        requiredMessage: forgotPasswordTokens.requiredMessage,
-        invalidMessage: forgotPasswordTokens.invalidEmailMessage,
-        helperText: '',
-        helperVisible: false,
-        keyboardType: 'email-address',
-        autoCapitalize: 'none',
-        autoCorrect: false,
-        secureTextEntry: false,
-      },
-    ];
-  }, [
-    forgotPasswordTokens.fields,
-    forgotPasswordTokens.invalidEmailMessage,
-    forgotPasswordTokens.requiredMessage,
-    signInTokens.emailLabelText,
-    signInTokens.emailLabelVisible,
-    signInTokens.emailPlaceholder,
-    signInTokens.emailPlaceholderVisible,
-  ]);
-
-  useEffect(() => {
-    if (mode !== 'forgot') return;
-    setForgotFieldValues((prev) => {
-      const next = { ...prev };
-      forgotPasswordFields.forEach((field) => {
-        if (next[field.key] === undefined) {
-          next[field.key] = field.type === 'email' || field.key.includes('email') ? email : '';
-        }
-      });
-      return next;
-    });
-  }, [email, forgotPasswordFields, mode]);
 
   const validateForm = () => {
     const e = email.trim(), p = password.trim(), fn = firstName.trim(), ln = lastName.trim();
@@ -2058,28 +2531,19 @@ const AuthScreen = () => {
     setError('');
     setSuccessMessage('');
     if (loading) return;
-    const activeFields = forgotPasswordFields.filter((field) => field.visible);
-    for (const field of activeFields) {
-      const value = (forgotFieldValues[field.key] ?? (field.key === 'email' ? email : '')).trim();
-      if (field.required && !value) {
-        setError(field.requiredMessage || forgotPasswordTokens.requiredMessage);
-        return;
-      }
-      if (field.type === 'email' && value && !isValidEmailAddress(value)) {
-        setError(field.invalidMessage || forgotPasswordTokens.invalidEmailMessage);
-        return;
-      }
-    }
-    const emailField = activeFields.find((field) => field.type === 'email' || field.key.includes('email'));
-    const trimmedEmail = (emailField ? forgotFieldValues[emailField.key] : email).trim();
+    const trimmedEmail = (forgotFieldValues.email ?? email).trim();
     if (!trimmedEmail) {
-      setError(forgotPasswordTokens.requiredMessage);
+      setError(resetPasswordTokens.requiredMessage);
+      return;
+    }
+    if (!isValidEmailAddress(trimmedEmail)) {
+      setError(resetPasswordTokens.invalidEmailMessage);
       return;
     }
     try {
       setLoading(true);
       await recoverPassword(trimmedEmail);
-      setSuccessMessage(forgotPasswordTokens.successMessageText);
+      setSuccessMessage(resetPasswordTokens.successMessageText);
     } catch (err: unknown) {
       setError(resolveForgotPasswordErrorMessage(err));
     } finally {
@@ -2090,10 +2554,10 @@ const AuthScreen = () => {
   const isForgotMode = mode === 'forgot';
 
   const buttonLabel = useMemo(() => {
-    if (mode === 'forgot') return forgotPasswordTokens.resetPasswordButtonText;
+    if (mode === 'forgot') return resetPasswordTokens.buttonText;
     const label = t.buttonText;
     return t.buttonAutoUppercase ? label.toUpperCase() : label;
-  }, [mode, forgotPasswordTokens.resetPasswordButtonText, t]);
+  }, [mode, resetPasswordTokens.buttonText, t]);
 
   const buttonWidthStyle = useMemo(() => {
     if (mode === 'forgot') return { alignSelf: 'stretch' as const };
@@ -2102,14 +2566,14 @@ const AuthScreen = () => {
     return { alignSelf: 'stretch' as const };
   }, [mode, t.buttonWidth]);
 
-  const submitButtonTextColor = isForgotMode ? forgotPasswordTokens.buttonTextColor : t.buttonTextColor;
-  const submitButtonFontSize = isForgotMode ? forgotPasswordTokens.buttonFontSize : t.buttonFontSize;
-  const submitButtonFontFamily = isForgotMode ? forgotPasswordTokens.buttonFontFamily : t.buttonFontFamily;
-  const submitButtonFontWeight = isForgotMode ? forgotPasswordTokens.buttonFontWeight : t.buttonFontWeight;
+  const submitButtonTextColor = isForgotMode ? resetPasswordTokens.buttonTextColor : t.buttonTextColor;
+  const submitButtonFontSize = isForgotMode ? resetPasswordTokens.buttonFontSize : t.buttonFontSize;
+  const submitButtonFontFamily = isForgotMode ? resetPasswordTokens.buttonFontFamily : t.buttonFontFamily;
+  const submitButtonFontWeight = isForgotMode ? resetPasswordTokens.buttonFontWeight : t.buttonFontWeight;
+  // Forgot-password has no icon control in Builder — icon only applies to login/signup.
+  const submitButtonIconName = isForgotMode ? null : resolveButtonIconName(t.buttonIcon);
 
-  const submitButtonContent = loading ? (
-    <ActivityIndicator color={submitButtonTextColor} />
-  ) : (
+  const submitButtonText = (
     <Text
       allowFontScaling={false}
       style={{
@@ -2117,10 +2581,28 @@ const AuthScreen = () => {
         fontSize: submitButtonFontSize,
         fontWeight: submitButtonFontWeight as any,
         fontFamily: submitButtonFontFamily !== 'System' ? submitButtonFontFamily : undefined,
+        fontStyle: isForgotMode ? 'normal' : t.buttonTextFontStyle,
+        textDecorationLine: isForgotMode ? 'none' : t.buttonTextTextDecoration,
       }}
     >
       {buttonLabel}
     </Text>
+  );
+
+  const submitButtonContent = loading ? (
+    <ActivityIndicator color={submitButtonTextColor} />
+  ) : submitButtonIconName ? (
+    <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
+      {t.buttonIconAlignment === 'Right' ? null : (
+        <Icon name={submitButtonIconName} size={t.buttonIconSize} color={t.buttonIconColor} />
+      )}
+      {submitButtonText}
+      {t.buttonIconAlignment === 'Right' ? (
+        <Icon name={submitButtonIconName} size={t.buttonIconSize} color={t.buttonIconColor} />
+      ) : null}
+    </View>
+  ) : (
+    submitButtonText
   );
 
   const signInDecorSections = useMemo(
@@ -2153,35 +2635,35 @@ const AuthScreen = () => {
 
   const pagePadLeft = t.pagePaddingLeft;
   const pagePadRight = t.pagePaddingRight;
-  const activePageBgColor = isForgotMode ? forgotPasswordTokens.bgColor : t.bgColor;
+  const activePageBgColor = isForgotMode ? resetPasswordTokens.cardBgColor : t.bgColor;
   const pagePadTop = resolveAuthVerticalSpace(t.pagePaddingTop, viewportHeight, 0.06);
   const pagePadBottom = resolveAuthVerticalSpace(t.pagePaddingBottom, viewportHeight, 0.06);
   const cardPadTop = resolveAuthVerticalSpace(t.cardPaddingTop, viewportHeight, 0.055);
   const cardPadBottom = resolveAuthVerticalSpace(t.cardPaddingBottom, viewportHeight, 0.055);
-  const activeCardBgColor = isForgotMode ? forgotPasswordTokens.cardBgColor : t.cardBgColor;
-  const activeCardBorderRadius = isForgotMode ? forgotPasswordTokens.cardBorderRadius : t.cardBorderRadius;
-  const activeCardBorderWidth = isForgotMode ? forgotPasswordTokens.cardBorderWidth : t.cardBorderWidth;
-  const activeCardBorderColor = isForgotMode ? forgotPasswordTokens.cardBorderColor : t.cardBorderColor;
+  const activeCardBgColor = isForgotMode ? resetPasswordTokens.cardBgColor : t.cardBgColor;
+  const activeCardBorderRadius = isForgotMode ? resetPasswordTokens.cardBorderRadius : t.cardBorderRadius;
+  const activeCardBorderWidth = isForgotMode ? resetPasswordTokens.cardBorderWidth : t.cardBorderWidth;
+  const activeCardBorderColor = isForgotMode ? resetPasswordTokens.cardBorderColor : t.cardBorderColor;
   const activeCardPaddingTop = isForgotMode
-    ? resolveAuthVerticalSpace(forgotPasswordTokens.cardPaddingTop, viewportHeight, 0.055)
+    ? resolveAuthVerticalSpace(resetPasswordTokens.cardPaddingTop, viewportHeight, 0.055)
     : cardPadTop;
   const activeCardPaddingBottom = isForgotMode
-    ? resolveAuthVerticalSpace(forgotPasswordTokens.cardPaddingBottom, viewportHeight, 0.055)
+    ? resolveAuthVerticalSpace(resetPasswordTokens.cardPaddingBottom, viewportHeight, 0.055)
     : cardPadBottom;
-  const activeCardPaddingLeft = isForgotMode ? forgotPasswordTokens.cardPaddingLeft : t.cardPaddingLeft;
-  const activeCardPaddingRight = isForgotMode ? forgotPasswordTokens.cardPaddingRight : t.cardPaddingRight;
+  const activeCardPaddingLeft = isForgotMode ? resetPasswordTokens.cardPaddingLeft : t.cardPaddingLeft;
+  const activeCardPaddingRight = isForgotMode ? resetPasswordTokens.cardPaddingRight : t.cardPaddingRight;
   const titleFormGap = resolveAuthVerticalSpace(t.formGap, viewportHeight, 0.03);
   const fieldGap = resolveAuthVerticalSpace(t.fieldGap, viewportHeight, 0.03);
-  const buttonMarginTop = resolveAuthVerticalSpace(t.buttonMarginTop, viewportHeight, 0.025);
+  const buttonMarginTop = resolveAuthVerticalSpace(
+    isForgotMode ? resetPasswordTokens.buttonMarginTop : t.buttonMarginTop,
+    viewportHeight,
+    0.025
+  );
   const footerMarginTop = resolveAuthVerticalSpace(t.footerMarginTop, viewportHeight, 0.04);
   const footerLinkMarginTop = resolveAuthVerticalSpace(t.footerLinkMarginTop, viewportHeight, 0.02);
   const formCardMarginBottom = resolveAuthVerticalSpace(t.formCardMarginBottom, viewportHeight, 0.04);
-  const forgotTitleMarginTop = resolveAuthVerticalSpace(forgotPasswordTokens.resetPasswordTitleMarginTop, viewportHeight, 0.02);
   const forgotLoginLinkMarginTop = resolveAuthVerticalSpace(forgotPasswordTokens.loginLinkMarginTop, viewportHeight, 0.08);
   const hasDynamicDecor = hasDynamicSignInLayout || hasDynamicSignUpLayout;
-  const signUpProfilePictureUrl = String(signUpTokens.profilePictureUrl || '').trim();
-  const shouldRenderSignUpProfilePicture =
-    mode === 'signup' && signUpTokens.showProfilePicture && Boolean(signUpProfilePictureUrl);
   const baseFirstNameInputAlign = toTextAlign(signUpTokens.firstNameInputTextAlignment);
   const firstNameLooksLikeFullName = `${signUpTokens.firstNamePlaceholder} ${signUpTokens.firstNameLabelText}`
     .toLowerCase()
@@ -2222,6 +2704,8 @@ const AuthScreen = () => {
                   fontSize: signInTokens.headlineSize,
                   fontWeight: signInTokens.headlineWeight as any,
                   fontFamily: signInTokens.headlineFontFamily !== 'System' ? signInTokens.headlineFontFamily : undefined,
+                  fontStyle: signInTokens.headlineFontStyle,
+                  textDecorationLine: signInTokens.headlineTextDecoration,
                 }}
               >
                 {signInTokens.authTitle}
@@ -2235,26 +2719,11 @@ const AuthScreen = () => {
                   fontSize: signUpTokens.headerTitleFontSize,
                   fontWeight: signUpTokens.headerTitleFontWeight as any,
                   fontFamily: signUpTokens.headerTitleFontFamily !== 'System' ? signUpTokens.headerTitleFontFamily : undefined,
+                  fontStyle: signUpTokens.headerTitleFontStyle,
+                  textDecorationLine: signUpTokens.headerTitleTextDecoration,
                 }}
               >
                 {signUpTokens.headerTitle}
-              </Text>
-            ) : null}
-
-            {mode === 'forgot' ? (
-              <Text
-                style={{
-                  color: forgotPasswordTokens.titleColor,
-                  fontSize: forgotPasswordTokens.headlineFontSize,
-                  fontWeight: forgotPasswordTokens.headlineFontWeight as any,
-                  fontFamily: forgotPasswordTokens.headlineFontFamily !== 'System' ? forgotPasswordTokens.headlineFontFamily : undefined,
-                  fontStyle: forgotPasswordTokens.headlineFontStyle,
-                  textDecorationLine: forgotPasswordTokens.headlineTextDecoration,
-                  textTransform: forgotPasswordTokens.headlineTextTransform,
-                  textAlign: toTextAlign(forgotPasswordTokens.headlineTextAlign, 'center'),
-                }}
-              >
-                {forgotPasswordTokens.headlineText}
               </Text>
             ) : null}
           </View>
@@ -2277,44 +2746,46 @@ const AuthScreen = () => {
               marginBottom: formCardMarginBottom,
             }}
           >
-            {/* Profile picture (signup only) */}
-            {shouldRenderSignUpProfilePicture ? (
-              <View
-                style={{
-                  width: signUpTokens.profilePictureSize,
-                  height: signUpTokens.profilePictureSize,
-                  borderRadius: signUpTokens.profilePictureSize / 2,
-                  backgroundColor: signUpTokens.profilePictureBgColor,
-                  borderWidth: 2,
-                  borderColor: signUpTokens.profilePictureBorderColor,
-                  alignSelf: 'center',
-                  marginBottom: 20,
-                  overflow: 'hidden',
-                  justifyContent: 'center',
-                  alignItems: 'center',
-                }}
-              >
-                <Image
-                  source={{ uri: signUpProfilePictureUrl }}
-                  style={{ width: signUpTokens.profilePictureSize, height: signUpTokens.profilePictureSize }}
-                  resizeMode="cover"
-                />
-              </View>
+            {/* Logo */}
+            {mode === 'login' ? (
+              <AuthLogo
+                visible={signInTokens.logoVisible}
+                imageUrl={signInTokens.logoImageUrl}
+                ratio={signInTokens.logoRatio}
+                scale={signInTokens.logoScale}
+                bgColor={signInTokens.logoBgColor}
+                borderColor={signInTokens.logoBorderColor}
+                corners={signInTokens.logoCorners}
+              />
+            ) : null}
+            {mode === 'signup' ? (
+              <AuthLogo
+                visible={signUpTokens.logoVisible}
+                imageUrl={signUpTokens.logoImageUrl}
+                ratio={signUpTokens.logoRatio}
+                scale={signUpTokens.logoScale}
+                bgColor={signUpTokens.logoBgColor}
+                borderColor={signUpTokens.logoBorderColor}
+                corners={signUpTokens.logoCorners}
+              />
             ) : null}
 
-            {mode === 'forgot' && forgotPasswordTokens.resetPasswordTitle ? (
+            {mode === 'forgot' && resetPasswordTokens.headingText ? (
               <Text
                 style={{
-                  color: forgotPasswordTokens.resetPasswordTitleColor,
-                  marginTop: forgotTitleMarginTop,
+                  color: resetPasswordTokens.descriptionColor,
                   marginBottom: fieldGap,
-                  fontSize: forgotPasswordTokens.resetPasswordTitleFontSize,
-                  fontWeight: forgotPasswordTokens.resetPasswordTitleFontWeight as any,
-                  fontFamily: forgotPasswordTokens.resetPasswordTitleFontFamily !== 'System' ? forgotPasswordTokens.resetPasswordTitleFontFamily : undefined,
-                  opacity: 0.8,
+                  fontSize: resetPasswordTokens.descriptionFontSize,
+                  fontWeight: resetPasswordTokens.descriptionFontWeight as any,
+                  fontFamily: resetPasswordTokens.descriptionFontFamily !== 'System' ? resetPasswordTokens.descriptionFontFamily : undefined,
+                  fontStyle: resetPasswordTokens.descriptionFontStyle,
+                  textDecorationLine: resetPasswordTokens.descriptionTextDecoration,
+                  lineHeight: resetPasswordTokens.descriptionFontSize * resetPasswordTokens.descriptionLineHeight,
+                  letterSpacing: resetPasswordTokens.descriptionLetterSpacing,
+                  textAlign: resetPasswordTokens.descriptionAlign,
                 }}
               >
-                {forgotPasswordTokens.resetPasswordTitle}
+                {resetPasswordTokens.headingText}
               </Text>
             ) : null}
 
@@ -2334,6 +2805,8 @@ const AuthScreen = () => {
                 placeholderFontSize={signUpTokens.firstNamePlaceholderFontSize}
                 placeholderFontFamily={signUpTokens.firstNamePlaceholderFontFamily}
                 placeholderFontWeight={signUpTokens.firstNamePlaceholderFontWeight}
+                placeholderFontStyle={signUpTokens.firstNamePlaceholderFontStyle}
+                placeholderTextDecoration={signUpTokens.firstNamePlaceholderTextDecoration}
                 value={firstName}
                 onChangeText={setFirstName}
                 inputColor={signUpTokens.firstNameInputTextColor}
@@ -2368,6 +2841,8 @@ const AuthScreen = () => {
                 placeholderFontSize={signUpTokens.lastNamePlaceholderFontSize}
                 placeholderFontFamily={signUpTokens.lastNamePlaceholderFontFamily}
                 placeholderFontWeight={signUpTokens.lastNamePlaceholderFontWeight}
+                placeholderFontStyle={signUpTokens.lastNamePlaceholderFontStyle}
+                placeholderTextDecoration={signUpTokens.lastNamePlaceholderTextDecoration}
                 value={lastName}
                 onChangeText={setLastName}
                 inputColor={signUpTokens.lastNameInputTextColor}
@@ -2386,50 +2861,35 @@ const AuthScreen = () => {
               />
             ) : null}
 
-            {/* Dynamic forgot-password fields */}
+            {/* Reset Password email field — Builder's reset_password component has exactly
+                one hardcoded email input (no dynamic field list, no label). */}
             {mode === 'forgot' ? (
-              forgotPasswordFields.map((field) => (
-                <FormField
-                  key={field.key}
-                  label={field.label}
-                  labelVisible={field.labelVisible}
-                  labelColor={field.labelColor ?? signInTokens.emailLabelColor}
-                  labelFontSize={field.labelFontSize ?? signInTokens.emailLabelFontSize}
-                  labelFontFamily={field.labelFontFamily ?? signInTokens.emailLabelFontFamily}
-                  labelFontWeight={field.labelFontWeight ?? signInTokens.emailLabelFontWeight}
-                  labelAlign="left"
-                  placeholder={field.placeholder}
-                  placeholderVisible={field.placeholderVisible}
-                  placeholderColor={field.placeholderColor ?? signInTokens.emailPlaceholderColor}
-                  placeholderFontSize={field.placeholderFontSize ?? signInTokens.emailPlaceholderFontSize}
-                  placeholderFontFamily={field.placeholderFontFamily ?? signInTokens.emailPlaceholderFontFamily}
-                  placeholderFontWeight={field.placeholderFontWeight ?? signInTokens.emailPlaceholderFontWeight}
-                  value={forgotFieldValues[field.key] ?? (field.type === 'email' ? email : '')}
-                  onChangeText={(value) => handleForgotFieldChange(field.key, value)}
-                  inputColor={field.inputColor ?? signInTokens.emailInputTextColor}
-                  inputFontSize={field.inputFontSize ?? signInTokens.emailInputTextFontSize}
-                  inputFontFamily={field.inputFontFamily ?? signInTokens.emailInputTextFontFamily}
-                  inputFontWeight={field.inputFontWeight ?? signInTokens.emailInputTextFontWeight}
-                  inputAlign={field.inputAlign ?? 'left'}
-                  inputBorderColor={field.inputBorderColor ?? t.inputBorderColor}
-                  inputBorderRadius={field.inputBorderRadius ?? t.inputBorderRadius}
-                  inputHeight={field.inputHeight ?? t.inputHeight}
-                  fieldGap={fieldGap}
-                  inputPaddingHorizontal={t.inputPaddingHorizontal}
-                  inputPaddingVertical={t.inputPaddingVertical}
-                  cardBgColor={activeCardBgColor}
-                  keyboardType={field.keyboardType}
-                  autoCapitalize={field.autoCapitalize}
-                  autoCorrect={field.autoCorrect}
-                  secureTextEntry={field.secureTextEntry}
-                  helperText={field.helperText}
-                  helperVisible={field.helperVisible}
-                  helperColor={field.helperColor}
-                  helperFontSize={field.helperFontSize}
-                  helperFontFamily={field.helperFontFamily}
-                  helperFontWeight={field.helperFontWeight}
-                />
-              ))
+              <FormField
+                label=""
+                labelVisible={false}
+                labelColor={resetPasswordTokens.inputTextColor}
+                labelAlign="left"
+                placeholder={resetPasswordTokens.emailPlaceholder}
+                placeholderVisible
+                placeholderColor={resetPasswordTokens.emailPlaceholderColor}
+                value={forgotFieldValues.email ?? email}
+                onChangeText={(value) => handleForgotFieldChange('email', value)}
+                inputColor={resetPasswordTokens.inputTextColor}
+                inputFontSize={resetPasswordTokens.inputFontSize}
+                inputFontFamily={resetPasswordTokens.inputFontFamily}
+                inputFontWeight="400"
+                inputAlign="left"
+                inputBorderColor={resetPasswordTokens.inputBorderColor}
+                inputBorderRadius={resetPasswordTokens.inputBorderRadius}
+                inputHeight={resetPasswordTokens.inputHeight}
+                fieldGap={fieldGap}
+                inputPaddingHorizontal={resetPasswordTokens.inputPaddingHorizontal}
+                inputPaddingVertical={resetPasswordTokens.inputPaddingVertical}
+                cardBgColor={activeCardBgColor}
+                keyboardType="email-address"
+                autoCapitalize="none"
+                autoCorrect={false}
+              />
             ) : null}
 
             {/* Email */}
@@ -2448,6 +2908,8 @@ const AuthScreen = () => {
                 placeholderFontSize={mode !== 'signup' ? signInTokens.emailPlaceholderFontSize : signUpTokens.emailPlaceholderFontSize}
                 placeholderFontFamily={mode !== 'signup' ? signInTokens.emailPlaceholderFontFamily : signUpTokens.emailPlaceholderFontFamily}
                 placeholderFontWeight={mode !== 'signup' ? signInTokens.emailPlaceholderFontWeight : signUpTokens.emailPlaceholderFontWeight}
+                placeholderFontStyle={mode !== 'signup' ? signInTokens.emailPlaceholderFontStyle : signUpTokens.emailPlaceholderFontStyle}
+                placeholderTextDecoration={mode !== 'signup' ? signInTokens.emailPlaceholderTextDecoration : signUpTokens.emailPlaceholderTextDecoration}
                 value={email}
                 onChangeText={handleEmailChange}
                 inputColor={mode !== 'signup' ? signInTokens.emailInputTextColor : signUpTokens.emailInputTextColor}
@@ -2484,9 +2946,11 @@ const AuthScreen = () => {
                 placeholderFontSize={mode === 'login' ? signInTokens.passwordPlaceholderFontSize : signUpTokens.passwordPlaceholderFontSize}
                 placeholderFontFamily={mode === 'login' ? signInTokens.passwordPlaceholderFontFamily : signUpTokens.passwordPlaceholderFontFamily}
                 placeholderFontWeight={mode === 'login' ? signInTokens.passwordPlaceholderFontWeight : signUpTokens.passwordPlaceholderFontWeight}
+                placeholderFontStyle={mode === 'login' ? signInTokens.passwordPlaceholderFontStyle : signUpTokens.passwordPlaceholderFontStyle}
+                placeholderTextDecoration={mode === 'login' ? signInTokens.passwordPlaceholderTextDecoration : signUpTokens.passwordPlaceholderTextDecoration}
                 value={password}
                 onChangeText={setPassword}
-                secureTextEntry={!passwordVisible}
+                secureTextEntry
                 inputColor={mode === 'login' ? signInTokens.passwordInputTextColor : signUpTokens.passwordInputTextColor}
                 inputFontSize={mode === 'login' ? signInTokens.passwordInputTextFontSize : signUpTokens.passwordInputTextFontSize}
                 inputFontFamily={mode === 'login' ? signInTokens.passwordInputTextFontFamily : signUpTokens.passwordInputTextFontFamily}
@@ -2501,17 +2965,6 @@ const AuthScreen = () => {
                 cardBgColor={t.cardBgColor}
                 autoCapitalize="none"
                 autoCorrect={false}
-                rightSlot={
-                  <TouchableOpacity
-                    onPress={() => setPasswordVisible((p) => !p)}
-                    style={{ paddingHorizontal: 14, paddingVertical: 12, justifyContent: 'center', alignItems: 'center' }}
-                    accessibilityRole="button"
-                    accessibilityLabel={passwordVisible ? 'Hide password' : 'Show password'}
-                    hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                  >
-                    <Icon name={passwordVisible ? 'eye-slash' : 'eye'} size={16} color={t.inputBorderColor} />
-                  </TouchableOpacity>
-                }
               />
             ) : null}
 
@@ -2519,18 +2972,18 @@ const AuthScreen = () => {
             {error ? (
               <View
                 style={{
-                  backgroundColor: isForgotMode ? forgotPasswordTokens.errorMessageBgColor : '#FEF2F2',
-                  borderRadius: isForgotMode ? forgotPasswordTokens.messageBorderRadius : 8,
+                  backgroundColor: isForgotMode ? resetPasswordTokens.errorMessageBgColor : '#FEF2F2',
+                  borderRadius: isForgotMode ? resetPasswordTokens.messageBorderRadius : 8,
                   padding: 10,
                   marginBottom: 12,
                 }}
               >
                 <Text
                   style={{
-                    color: isForgotMode ? forgotPasswordTokens.errorMessageTextColor : '#DC2626',
-                    fontSize: isForgotMode ? forgotPasswordTokens.messageFontSize : 13,
-                    fontWeight: (isForgotMode ? forgotPasswordTokens.messageFontWeight : '500') as any,
-                    fontFamily: isForgotMode && forgotPasswordTokens.messageFontFamily !== 'System' ? forgotPasswordTokens.messageFontFamily : undefined,
+                    color: isForgotMode ? resetPasswordTokens.errorMessageTextColor : '#DC2626',
+                    fontSize: isForgotMode ? resetPasswordTokens.messageFontSize : 13,
+                    fontWeight: (isForgotMode ? resetPasswordTokens.messageFontWeight : '500') as any,
+                    fontFamily: isForgotMode && resetPasswordTokens.messageFontFamily !== 'System' ? resetPasswordTokens.messageFontFamily : undefined,
                   }}
                 >
                   {error}
@@ -2541,18 +2994,18 @@ const AuthScreen = () => {
             {successMessage ? (
               <View
                 style={{
-                  backgroundColor: isForgotMode ? forgotPasswordTokens.successMessageBgColor : '#ECFDF5',
-                  borderRadius: isForgotMode ? forgotPasswordTokens.messageBorderRadius : 8,
+                  backgroundColor: isForgotMode ? resetPasswordTokens.successMessageBgColor : '#ECFDF5',
+                  borderRadius: isForgotMode ? resetPasswordTokens.messageBorderRadius : 8,
                   padding: 10,
                   marginBottom: 12,
                 }}
               >
                 <Text
                   style={{
-                    color: isForgotMode ? forgotPasswordTokens.successMessageTextColor : '#047857',
-                    fontSize: isForgotMode ? forgotPasswordTokens.messageFontSize : 13,
-                    fontWeight: (isForgotMode ? forgotPasswordTokens.messageFontWeight : '500') as any,
-                    fontFamily: isForgotMode && forgotPasswordTokens.messageFontFamily !== 'System' ? forgotPasswordTokens.messageFontFamily : undefined,
+                    color: isForgotMode ? resetPasswordTokens.successMessageTextColor : '#047857',
+                    fontSize: isForgotMode ? resetPasswordTokens.messageFontSize : 13,
+                    fontWeight: (isForgotMode ? resetPasswordTokens.messageFontWeight : '500') as any,
+                    fontFamily: isForgotMode && resetPasswordTokens.messageFontFamily !== 'System' ? resetPasswordTokens.messageFontFamily : undefined,
                   }}
                 >
                   {successMessage}
@@ -2567,15 +3020,15 @@ const AuthScreen = () => {
                 disabled={loading || initializing}
                 style={[
                   {
-                    backgroundColor: !isForgotMode && t.buttonGradient ? 'transparent' : isForgotMode ? forgotPasswordTokens.buttonFillColor : t.buttonFillColor,
-                    borderRadius: isForgotMode ? forgotPasswordTokens.buttonRadius : t.buttonRadius,
-                    borderWidth: isForgotMode ? forgotPasswordTokens.buttonBorderWidth : t.buttonBorderWidth,
-                    borderColor: isForgotMode ? forgotPasswordTokens.buttonBorderColor : t.buttonBorderColor,
+                    backgroundColor: !isForgotMode && t.buttonGradient ? 'transparent' : isForgotMode ? resetPasswordTokens.buttonFillColor : t.buttonFillColor,
+                    borderRadius: isForgotMode ? resetPasswordTokens.buttonRadius : t.buttonRadius,
+                    borderWidth: isForgotMode ? resetPasswordTokens.buttonBorderWidth : t.buttonBorderWidth,
+                    borderColor: isForgotMode ? resetPasswordTokens.buttonBorderColor : t.buttonBorderColor,
                     height: isForgotMode ? undefined : t.buttonHeight,
-                    paddingTop: isForgotMode ? forgotPasswordTokens.buttonPaddingTop : undefined,
-                    paddingBottom: isForgotMode ? forgotPasswordTokens.buttonPaddingBottom : undefined,
-                    paddingLeft: isForgotMode ? forgotPasswordTokens.buttonPaddingLeft : undefined,
-                    paddingRight: isForgotMode ? forgotPasswordTokens.buttonPaddingRight : undefined,
+                    paddingTop: isForgotMode ? resetPasswordTokens.buttonPaddingTop : undefined,
+                    paddingBottom: isForgotMode ? resetPasswordTokens.buttonPaddingBottom : undefined,
+                    paddingLeft: isForgotMode ? resetPasswordTokens.buttonPaddingLeft : undefined,
+                    paddingRight: isForgotMode ? resetPasswordTokens.buttonPaddingRight : undefined,
                     justifyContent: 'center',
                     alignItems: 'center',
                     marginTop: buttonMarginTop,
@@ -2605,29 +3058,9 @@ const AuthScreen = () => {
               </TouchableOpacity>
             ) : null}
 
-            {/* Footer switcher */}
-            {mode === 'forgot' ? (
-              <TouchableOpacity
-                onPress={() => switchAuthMode('login')}
-                accessibilityRole="button"
-                style={{
-                  marginTop: footerMarginTop,
-                  alignSelf: toFlexAlign(signInTokens.footerLinkAlignment, 'center'),
-                }}
-              >
-                <Text
-                  style={{
-                    color: signInTokens.footerLinkColor,
-                    fontSize: signInTokens.footerLinkFontSize,
-                    fontWeight: signInTokens.footerLinkFontWeight as any,
-                    fontFamily: signInTokens.footerLinkFontFamily !== 'System' ? signInTokens.footerLinkFontFamily : undefined,
-                    textAlign: toTextAlign(signInTokens.footerLinkAlignment, 'center'),
-                  }}
-                >
-                  {forgotPasswordTokens.backToLoginText}
-                </Text>
-              </TouchableOpacity>
-            ) : t.footerVisible ? (
+            {/* Footer switcher — Builder's reset_password component has no back-to-login
+                control at all, so forgot mode intentionally renders nothing here. */}
+            {mode === 'forgot' ? null : t.footerVisible ? (
               <View
                 style={{
                   marginTop: footerMarginTop,
@@ -2647,6 +3080,8 @@ const AuthScreen = () => {
                     fontSize: t.footerTextFontSize,
                     fontFamily: t.footerTextFontFamily !== 'System' ? t.footerTextFontFamily : undefined,
                     fontWeight: t.footerTextFontWeight as any,
+                    fontStyle: t.footerTextFontStyle,
+                    textDecorationLine: t.footerTextTextDecoration,
                   }}
                 >
                   {mode === 'login' ? signInTokens.footerText : signUpTokens.footerText}
@@ -2666,6 +3101,8 @@ const AuthScreen = () => {
                         fontSize: t.footerLinkFontSize,
                         fontWeight: t.footerLinkFontWeight as any,
                         fontFamily: t.footerLinkFontFamily !== 'System' ? t.footerLinkFontFamily : undefined,
+                        fontStyle: t.footerLinkFontStyle,
+                        textDecorationLine: t.footerLinkTextDecoration,
                         textAlign: toTextAlign(t.footerLinkAlignment, 'center'),
                       }}
                     >
