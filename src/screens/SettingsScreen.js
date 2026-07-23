@@ -18,11 +18,6 @@ import DynamicRenderer from "../engine/DynamicRenderer";
 import HeaderDefault from "../components/HeaderDefault";
 import SkeletonLoader from "../components/SkeletonLoader";
 import BottomNavigation, { BOTTOM_NAV_RESERVED_HEIGHT } from "../components/BottomNavigation";
-import { shouldRenderSectionOnMobile } from "../engine/visibility";
-import DynamicRenderer from "../engine/DynamicRenderer";
-import HeaderDefault from "../components/HeaderDefault";
-import SkeletonLoader from "../components/SkeletonLoader";
-import BottomNavigation, { BOTTOM_NAV_RESERVED_HEIGHT } from "../components/BottomNavigation";
 
 const normalizeSlug = (value = "") =>
   String(value || "")

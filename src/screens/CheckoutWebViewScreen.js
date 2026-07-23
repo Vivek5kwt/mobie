@@ -22,18 +22,6 @@ import { getStoreConfigSync } from "../services/storeService";
 import { fetchShopifyOrderDetails } from "../services/shopify";
 import { trackPurchase } from "../services/analyticsService";
 import {
-  import { WebView } from "react-native-webview";
-import { SafeArea } from "../utils/SafeAreaHandler";
-import { useAuth } from "../services/AuthContext";
-import { isAuthenticatedSession } from "../utils/authGate";
-import { resolveAppId } from "../utils/appId";
-import { triggerOrderNotification, ORDER_EVENTS } from "../services/notificationService";
-import { saveCompletedOrder } from "../services/orderHistoryService";
-import { getStoreConfigSync } from "../services/storeService";
-import { fetchShopifyOrderDetails } from "../services/shopify";
-import { trackPurchase } from "../services/analyticsService";
-import {
-  currencyS
   currencySymbolForCode as sharedCurrencySymbolForCode,
   formatMoney as formatSharedMoney,
   parseMoneyAmount,
