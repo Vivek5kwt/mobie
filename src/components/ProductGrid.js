@@ -324,13 +324,15 @@ export default function ProductGrid({ section, limit = 8, title = "Products" }) 
     true
   );
   const resolvedFavMode = toString(rawProps?.favMode, "").toLowerCase();
-  const resolvedShowFavorite = resolveBooleanSetting(
+  // The builder's eye-toggle writes favActive/favEnabled. Any of the recognized
+  // "enabled" flags being explicitly false must hide the icon — a single stale
+  // truthy flag (e.g. favoriteIconEnabled left at its default) must not override
+  // an explicit off from the eye-toggle.
+  const resolvedShowFavorite = resolveVisibilitySetting(
     [
-      // Current builder convention (matches headerGroupActive/backgroundActive/atcActive
-      // naming) — checked first so it isn't shadowed by legacy favActive/favEnabled.
-      rawProps?.favoriteIconEnabled,
       rawProps?.favActive,
       rawProps?.favEnabled,
+      rawProps?.favoriteIconEnabled,
       rawProps?.showFavorite,
       rawProps?.showFavoriteIcon,
       rawProps?.favoriteActive,
@@ -779,7 +781,11 @@ export default function ProductGrid({ section, limit = 8, title = "Products" }) 
   const headerMarginBottom = resolveFirstNumber([rawProps?.headerMarginBottom, rawProps?.titleMarginBottom, rawProps?.headerMb], 12);
 
   // ── Background color ──────────────────────────────────────────────────────
-  const resolvedBgColor = toString(rawProps?.bgColor ?? presentationCss?.container?.backgroundColor, "");
+  // Gated by showBgPadding (backgroundActive) — same toggle already disables
+  // padding, corners, and border, so the color must turn off with them too.
+  const resolvedBgColor = showBgPadding
+    ? toString(rawProps?.bgColor ?? presentationCss?.container?.backgroundColor, "")
+    : "";
   // ── Outer section border/corner ───────────────────────────────────────────
   const resolvedOuterCorners = showBgPadding ? resolveFirstNumber([rawProps?.outerCorners], 0) : 0;
   const resolvedOuterBorderColor = toString(rawProps?.borderColor, "transparent");
@@ -987,7 +993,18 @@ export default function ProductGrid({ section, limit = 8, title = "Products" }) 
           style={[
             styles.headerRow,
             { marginBottom: headerMarginBottom },
-            resolvedTitleAlign === "center" ? { position: "relative", justifyContent: "center" } : null,
+            resolvedTitleAlign === "center" && resolvedShowGridTitle
+              ? { position: "relative", justifyContent: "center" }
+              : null,
+            // Title hidden: "View all" is the row's only child. In the
+            // center-align branch it would otherwise be the sole absolutely-
+            // positioned child of a row with nothing to give it height,
+            // collapsing the row to 0 and letting the button float outside
+            // it (now clipped by the section's overflow:hidden). In the
+            // left/right branches, space-between has nothing to space
+            // against and collapses the lone child to the start. Both cases:
+            // fall back to a normal (non-absolute) flex-end row.
+            !resolvedShowGridTitle ? { justifyContent: "flex-end" } : null,
           ]}
         >
           {resolvedTitleAlign === "center" ? (
@@ -1013,7 +1030,10 @@ export default function ProductGrid({ section, limit = 8, title = "Products" }) 
               )}
               {resolvedViewAllActive && products.length > 0 && hasMoreProductsToShow && (
                 <TouchableOpacity
-                  style={[styles.viewAllInline, styles.viewAllInlineAbsoluteRight]}
+                  style={[
+                    styles.viewAllInline,
+                    resolvedShowGridTitle ? styles.viewAllInlineAbsoluteRight : null,
+                  ]}
                   activeOpacity={0.8}
                   onPress={() => navigation.navigate("AllProducts", { title: resolvedTitle, detailSections })}
                 >
@@ -1383,8 +1403,6 @@ export default function ProductGrid({ section, limit = 8, title = "Products" }) 
                           )}
                           <Text
                             numberOfLines={1}
-                            adjustsFontSizeToFit
-                            minimumFontScale={0.7}
                             style={[
                               styles.addToCartText,
                               {
@@ -1499,8 +1517,6 @@ export default function ProductGrid({ section, limit = 8, title = "Products" }) 
                           )}
                           <Text
                             numberOfLines={1}
-                            adjustsFontSizeToFit
-                            minimumFontScale={0.7}
                             style={[
                               styles.addToCartText,
                               {

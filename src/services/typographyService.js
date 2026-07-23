@@ -112,6 +112,12 @@ export function resolveFont(name) {
   for (const fontName of candidates) {
     const key = fontName.toLowerCase();
     if (GENERIC_FONT_NAMES.has(key)) continue;
+    // Android's bundled Roboto.ttf is a single regular-weight file (no Bold/
+    // SemiBold variant, unlike Lato below), so forcing it as a custom
+    // fontFamily makes fontWeight a no-op. Roboto is Android's native system
+    // font anyway, so skip the override and let the OS font — which supports
+    // the full weight range — render instead.
+    if (Platform.OS === 'android' && key === 'roboto') return null;
     const platformMap = Platform.OS === 'ios' ? IOS_FONT_NAME_MAP : FONT_NAME_MAP;
     return platformMap[key] ?? FONT_NAME_MAP[key] ?? fontName;
   }

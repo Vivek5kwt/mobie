@@ -1,7 +1,6 @@
 import React, { useEffect, useMemo, useState } from "react";
 import {
   Image,
-  Platform,
   StatusBar,
   StyleSheet,
   View,
@@ -17,12 +16,6 @@ import {
 const MIN_SPLASH_MS = 1200;
 const BRAND_ASSET_WAIT_MS = 3500;
 const DEFAULT_BACKGROUND = "transparent";
-
-const getNativeSplashSource = () => {
-  if (Platform.OS === "android") return { uri: "splash_image" };
-  if (Platform.OS === "ios") return { uri: "SplashImage" };
-  return null;
-};
 
 const toRemoteImageSource = (url) => {
   if (typeof url !== "string" || !url.trim()) return null;
@@ -67,14 +60,16 @@ export default function SplashScreen() {
   const navigation = useNavigation();
   const { initializing } = useAuth();
 
-  const nativeSplashSource = useMemo(() => getNativeSplashSource(), []);
   const cachedBrandAssets = useMemo(() => getBrandKitAssetsSync() || {}, []);
   const hasCachedBrandAssets = Object.keys(cachedBrandAssets).length > 0;
+  const cachedSplashUrl = useMemo(
+    () => resolveSplashUrl(cachedBrandAssets),
+    [cachedBrandAssets]
+  );
 
   const [brandAssets, setBrandAssets] = useState(cachedBrandAssets);
-  const [splashSource, setSplashSource] = useState(nativeSplashSource);
-  const [splashSourceKind, setSplashSourceKind] = useState(
-    nativeSplashSource ? "native" : "none"
+  const [splashSource, setSplashSource] = useState(
+    toRemoteImageSource(cachedSplashUrl)
   );
   const [brandReady, setBrandReady] = useState(hasCachedBrandAssets);
   const [authReady, setAuthReady] = useState(false);
@@ -95,12 +90,10 @@ export default function SplashScreen() {
           await Image.prefetch(splashUrl);
         } catch (_) {}
         if (!cancelled) {
-          setSplashSource(toRemoteImageSource(splashUrl) || nativeSplashSource);
-          setSplashSourceKind("remote");
+          setSplashSource(toRemoteImageSource(splashUrl));
         }
-      } else {
-        setSplashSource(nativeSplashSource);
-        setSplashSourceKind(nativeSplashSource ? "native" : "none");
+      } else if (!cancelled) {
+        setSplashSource(null);
       }
 
       if (!cancelled) setBrandReady(true);
@@ -119,7 +112,7 @@ export default function SplashScreen() {
       cancelled = true;
       clearTimeout(fallbackTimer);
     };
-  }, [nativeSplashSource]);
+  }, []);
 
   useEffect(() => {
     if (!initializing) setAuthReady(true);
@@ -166,15 +159,7 @@ export default function SplashScreen() {
           source={splashSource}
           resizeMode="cover"
           style={styles.splashImage}
-          onError={() => {
-            if (splashSourceKind === "remote" && nativeSplashSource) {
-              setSplashSource(nativeSplashSource);
-              setSplashSourceKind("native");
-              return;
-            }
-            setSplashSource(null);
-            setSplashSourceKind("none");
-          }}
+          onError={() => setSplashSource(null)}
         />
       ) : null}
     </View>

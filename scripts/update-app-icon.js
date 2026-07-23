@@ -134,6 +134,12 @@ const normalizeBoolean = (value, fallback = undefined) => {
   return fallback;
 };
 
+// `_brandKitAssets` is a stale build-time snapshot that sometimes gets echoed back
+// inside the live DSL. It must never be treated as a source of truth for brand
+// assets (e.g. it commonly carries an empty splashImageUrl) — only `brand_assets`
+// / `brandAssets` (optionally nested under `brandKit`) are authoritative.
+const SKIP_BRAND_KEYS = new Set(['_brandKitAssets']);
+
 const collectBrandCandidates = (node, candidates = [], depth = 0, seen = new Set()) => {
   if (!isObject(node) && !Array.isArray(node)) return candidates;
   if (seen.has(node) || depth > 10) return candidates;
@@ -144,12 +150,16 @@ const collectBrandCandidates = (node, candidates = [], depth = 0, seen = new Set
     if (node.brandKit?.brandAssets) candidates.push(node.brandKit.brandAssets);
     if (node.brand_assets) candidates.push(node.brand_assets);
     if (node.brandAssets) candidates.push(node.brandAssets);
-    if (node._brandKitAssets) candidates.push(node._brandKitAssets);
     if (node.logoUrl || node.faviconUrl || node.splashImageUrl) candidates.push(node);
+
+    Object.entries(node).forEach(([key, value]) => {
+      if (SKIP_BRAND_KEYS.has(key)) return;
+      collectBrandCandidates(value, candidates, depth + 1, seen);
+    });
+    return candidates;
   }
 
-  const values = Array.isArray(node) ? node : Object.values(node);
-  values.forEach((value) => collectBrandCandidates(value, candidates, depth + 1, seen));
+  node.forEach((value) => collectBrandCandidates(value, candidates, depth + 1, seen));
   return candidates;
 };
 
