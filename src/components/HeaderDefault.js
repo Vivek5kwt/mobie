@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { Image, Text, TouchableOpacity, View } from "react-native";
+import { Image, Platform, Text, TouchableOpacity, View } from "react-native";
 import { useNavigation } from "@react-navigation/native";
 import Icon from "react-native-vector-icons/FontAwesome6";
 import { useSelector } from "react-redux";
@@ -103,8 +103,16 @@ const isBackNavigationTarget = (navRef, navType) => {
 
 const HEADER_HEIGHT = 56;
 const HEADER_HORIZONTAL_PADDING = 16;
-const HEADER_TOUCH_SIZE = 44;
+// Apple HIG minimum is 44x44; Material Design's recommended minimum is 48x48.
+const HEADER_TOUCH_SIZE = Platform.OS === "android" ? 48 : 44;
 const HEADER_ITEM_GAP = 12;
+// Icon-font glyphs (e.g. FA6 "cart-shopping") can render taller than their
+// nominal `size` — some glyphs are drawn edge-to-edge in their em-square.
+// A container sized exactly equal to the icon gives Android's text renderer
+// zero headroom, so it clips the overflow (seen as a straight cut through
+// the icon). Every icon box is padded beyond the glyph size so this can't
+// happen regardless of icon or size.
+const ICON_BOX_PADDING_RATIO = 0.2;
 
 const countVisibleHeaderItems = (items = []) =>
   items.reduce((count, rawItem) => {
@@ -501,7 +509,9 @@ export default function HeaderDefault({
     const itemTitle     = String(rv(item.title) || rv(item.text) || "");
     const hasDefaultTitle = isDefaultHeaderTitle(itemTitle);
     const _iconSz       = rv(item.iconSize);
-    const itemIconSize  = _iconSz != null ? Number(_iconSz) : 18;
+    const itemIconSize  = _iconSz != null ? Number(_iconSz) : 24;
+    // Box is always bigger than the glyph itself — see ICON_BOX_PADDING_RATIO.
+    const itemIconBoxSize = Math.ceil(itemIconSize * (1 + ICON_BOX_PADDING_RATIO));
     const itemIconColor = String(rv(item.iconColor) || iconColor);
 
     // Text styling — cover both prefixed (textColor) and unprefixed (color) DSL keys
@@ -551,56 +561,6 @@ export default function HeaderDefault({
     const itemImageHeight = _imgH != null ? Number(_imgH) : 32;
     const itemImageRadius = _imgR != null ? Number(_imgR) : 0;
 
-    // ── Per-item container box styling ────────────────────────────────────
-    // Cover every property name the builder might emit
-    const itemBgColor = String(
-      rv(item.bgColor) || rv(item.backgroundColor) || rv(item.background) || rv(item.bg) || ""
-    );
-    const itemBorderLine = String(
-      rv(item.borderLine) || rv(item.border) || rv(item.borderSide) || "none"
-    ).toLowerCase();
-    const itemBorderColor = String(
-      rv(item.borderColor) || rv(item.borderColour) || rv(item.borderCol) || "#000000"
-    );
-    const _bw = rv(item.borderWidth) ?? rv(item.borderSize);
-    const itemBorderWidth = _bw != null ? Number(_bw) : 1;
-    const _br = rv(item.borderRadius) ?? rv(item.radius) ?? rv(item.corner) ?? rv(item.borderCorner);
-    const itemBorderRadius = _br != null ? Number(_br) : 0;
-    const itemBorderStyle = (() => {
-      if (!itemBorderLine || itemBorderLine === "none") return {};
-      if (itemBorderLine === "all" || itemBorderLine === "full") {
-        return { borderWidth: itemBorderWidth, borderColor: itemBorderColor };
-      }
-      const sides = {};
-      if (itemBorderLine.includes("left"))   { sides.borderLeftWidth   = itemBorderWidth; sides.borderLeftColor   = itemBorderColor; }
-      if (itemBorderLine.includes("right"))  { sides.borderRightWidth  = itemBorderWidth; sides.borderRightColor  = itemBorderColor; }
-      if (itemBorderLine.includes("top"))    { sides.borderTopWidth    = itemBorderWidth; sides.borderTopColor    = itemBorderColor; }
-      if (itemBorderLine.includes("bottom")) { sides.borderBottomWidth = itemBorderWidth; sides.borderBottomColor = itemBorderColor; }
-      return sides;
-    })();
-
-    const _pH = rv(item.paddingH) ?? rv(item.paddingX) ?? rv(item.px);
-    const _pV = rv(item.paddingV) ?? rv(item.paddingY) ?? rv(item.py);
-    const _pt = rv(item.paddingTop)    ?? rv(item.pt);
-    const _pb = rv(item.paddingBottom) ?? rv(item.pb);
-    const _pl = rv(item.paddingLeft)   ?? rv(item.pl);
-    const _pr = rv(item.paddingRight)  ?? rv(item.pr);
-    const hasItemPadding =
-      _pH != null || _pV != null || _pt != null || _pb != null || _pl != null || _pr != null;
-    const hasItemBorder = itemBorderLine !== "none" && itemBorderLine !== "";
-    const hasPositiveItemRadius = _br != null && Number(_br) > 0;
-    const hasItemBox = hasItemBorder || hasItemPadding || hasPositiveItemRadius;
-
-    const itemBoxStyle = hasItemBox ? {
-      backgroundColor: itemBgColor || "transparent",
-      borderRadius: itemBorderRadius,
-      paddingTop:    _pt != null ? Number(_pt) : (_pV != null ? Number(_pV) : 0),
-      paddingBottom: _pb != null ? Number(_pb) : (_pV != null ? Number(_pV) : 0),
-      paddingLeft:   _pl != null ? Number(_pl) : (_pH != null ? Number(_pH) : 0),
-      paddingRight:  _pr != null ? Number(_pr) : (_pH != null ? Number(_pH) : 0),
-      ...itemBorderStyle,
-    } : {};
-
     const isCart     = itemIconName.includes("cart");
     const isBell     = itemIconName.includes("bell");
     const isWishlist = itemIconName.includes("heart") || itemIconName.includes("bookmark");
@@ -637,33 +597,41 @@ export default function HeaderDefault({
         key="icon"
         style={{
           position: "relative",
-          width: itemIconSize,
-          height: itemIconSize,
+          width: itemIconBoxSize,
+          height: itemIconBoxSize,
           alignItems: "center",
           justifyContent: "center",
+          overflow: "visible",
         }}
       >
         <Icon name={itemIconName} size={itemIconSize} color={itemIconColor} />
-        {showBadge && (
-          <View
-            style={{
-              position: "absolute",
-              top: -4,
-              right: -6,
-              backgroundColor: "#EF4444",
-              borderRadius: 8,
-              minWidth: 16,
-              height: 16,
-              alignItems: "center",
-              justifyContent: "center",
-              paddingHorizontal: 3,
-            }}
-          >
-            <Text style={{ color: "#FFFFFF", fontSize: 9, fontWeight: "700" }}>
-              {badgeCount > 99 ? "99+" : String(badgeCount)}
-            </Text>
-          </View>
-        )}
+        {showBadge && (() => {
+          // Scale the badge to the icon and center it on the icon's corner
+          // (offset = half the badge size) so it sits mostly outside the
+          // glyph instead of covering it.
+          const badgeSize = Math.max(14, Math.round(itemIconSize * 0.5));
+          const badgeOffset = Math.round(badgeSize / 2);
+          return (
+            <View
+              style={{
+                position: "absolute",
+                top: -badgeOffset,
+                right: -badgeOffset,
+                backgroundColor: "#EF4444",
+                borderRadius: badgeSize / 2,
+                minWidth: badgeSize,
+                height: badgeSize,
+                alignItems: "center",
+                justifyContent: "center",
+                paddingHorizontal: 3,
+              }}
+            >
+              <Text style={{ color: "#FFFFFF", fontSize: Math.max(8, Math.round(badgeSize * 0.6)), fontWeight: "700" }}>
+                {badgeCount > 99 ? "99+" : String(badgeCount)}
+              </Text>
+            </View>
+          );
+        })()}
       </View>
     ) : null;
 
@@ -698,15 +666,12 @@ export default function HeaderDefault({
 
     const inner = (
       <View
-        style={[
-          {
-            flexDirection: "row",
-            alignItems: "center",
-            justifyContent: "center",
-            gap: showTitle && (showIcon || showImage) ? 6 : 0,
-          },
-          itemBoxStyle,
-        ]}
+        style={{
+          flexDirection: "row",
+          alignItems: "center",
+          justifyContent: "center",
+          gap: showTitle && (showIcon || showImage) ? 6 : 0,
+        }}
       >
         {imageNode}
         {iconNode}

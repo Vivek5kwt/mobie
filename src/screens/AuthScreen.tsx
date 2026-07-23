@@ -367,6 +367,8 @@ type ResetPasswordTokens = {
   buttonFontSize: number;
   buttonFontFamily: string;
   buttonFontWeight: string;
+  buttonFontStyle: 'normal' | 'italic';
+  buttonTextDecoration: 'none' | 'underline' | 'line-through' | 'underline line-through';
   successMessageText: string;
   errorMessageText: string;
   successMessageBgColor: string;
@@ -737,7 +739,7 @@ const buildButtonStyleTokens = (
     buttonGradient: resolveButtonGradient(bgValue),
     buttonFontSize: toNumber(getButtonFontSizeValue(rawProps), defaults.buttonFontSize),
     buttonFontFamily: toFontFamily(getButtonFontFamilyValue(rawProps), defaults.buttonFontFamily),
-    buttonFontWeight: toFontWeight(getButtonFontWeightValue(rawProps), defaults.buttonFontWeight),
+    buttonFontWeight: toFontWeight(getButtonFontWeightValue(rawProps), defaults.buttonFontWeight, rawProps?.buttonTextBold as boolean | undefined),
   };
 };
 
@@ -997,6 +999,8 @@ const defaultResetPasswordTokens: ResetPasswordTokens = {
   buttonFontSize: 18,
   buttonFontFamily: 'Inter',
   buttonFontWeight: '500',
+  buttonFontStyle: 'normal',
+  buttonTextDecoration: 'none',
   successMessageText: 'If an account exists for this email, a password reset link has been sent.',
   errorMessageText: 'Password reset is temporarily unavailable. Please try again later.',
   successMessageBgColor: '#ECFDF5',
@@ -1141,6 +1145,9 @@ const toFontWeight = (
   fallback: string,
   isBold?: boolean
 ): string => {
+  // The explicit Bold flag is the source of truth when true — a separate
+  // font-weight string (e.g. "500") must never silently override it.
+  if (isBold === true) return '700';
   if (typeof value === 'string' && value.trim()) {
     const normalized = value.trim().toLowerCase();
     if (normalized === 'bold') return '700';
@@ -1411,10 +1418,10 @@ const buildSignInTokens = (rawProps: Record<string, unknown>): SignInTokens => (
   buttonWidth: toNumber(rawProps?.buttonWidth, defaultSignInTokens.buttonWidth),
   footerTextFontSize: toNumber(rawProps?.footerTextFontSize ?? rawProps?.subtextSize ?? rawProps?.fontSize, defaultSignInTokens.footerTextFontSize),
   footerTextFontFamily: toFontFamily(rawProps?.footerTextFontFamily ?? rawProps?.subtextFontFamily ?? rawProps?.fontFamily, defaultSignInTokens.footerTextFontFamily),
-  footerTextFontWeight: toFontWeight(rawProps?.footerTextFontWeight ?? rawProps?.subtextWeight ?? rawProps?.fontWeight, defaultSignInTokens.footerTextFontWeight),
+  footerTextFontWeight: toFontWeight(rawProps?.footerTextFontWeight ?? rawProps?.subtextWeight ?? rawProps?.fontWeight, defaultSignInTokens.footerTextFontWeight, rawProps?.footerTextBold as boolean | undefined),
   footerLinkFontSize: toNumber(rawProps?.footerLinkFontSize, defaultSignInTokens.footerLinkFontSize),
   footerLinkFontFamily: toFontFamily(rawProps?.footerLinkFontFamily ?? rawProps?.fontFamily, defaultSignInTokens.footerLinkFontFamily),
-  footerLinkFontWeight: toFontWeight(rawProps?.footerLinkFontWeight, defaultSignInTokens.footerLinkFontWeight),
+  footerLinkFontWeight: toFontWeight(rawProps?.footerLinkFontWeight, defaultSignInTokens.footerLinkFontWeight, rawProps?.footerLinkTextBold as boolean | undefined),
   footerLinkAlignment: (rawProps?.footerLinkAlignment as string) ?? defaultSignInTokens.footerLinkAlignment,
   footerVisible: toBoolean(rawProps?.footerVisible, defaultSignInTokens.footerVisible),
   forgotPasswordVisible: toBoolean(rawProps?.forgotPasswordVisible, defaultSignInTokens.forgotPasswordVisible),
@@ -1582,9 +1589,10 @@ const buildForgotPasswordTokens = (rawProps: Record<string, unknown>): ForgotPas
 // background/border/padding controls are nested under `buyNow`/`addToCart` (a
 // schema borrowed from the AddToCart block) rather than the flat pt/pb/pl/pr keys
 // used elsewhere in this file — confirmed by reading ResetPassword/Preview.tsx and
-// Inspector.tsx directly. Input/button styling is intentionally NOT read here (see
-// defaultResetPasswordTokens comment) since Builder's own canvas ignores those
-// Inspector fields entirely.
+// Inspector.tsx directly. Button styling (buttonText/Bold/Italic/Underline/
+// Strikethrough/FontSize/FontFamily/Color) is now read from rawProps too —
+// Builder's own canvas used to ignore those Inspector fields and render a
+// static button, but that was fixed on the builder side, so the app must match.
 const buildResetPasswordTokens = (rawProps: Record<string, unknown>): ResetPasswordTokens => {
   const buyNow = toRecord(rawProps?.buyNow);
   const addToCart = toRecord(rawProps?.addToCart);
@@ -1602,7 +1610,9 @@ const buildResetPasswordTokens = (rawProps: Record<string, unknown>): ResetPassw
     descriptionColor: toLocalizedString(rawProps?.descriptionColor, defaultResetPasswordTokens.descriptionColor),
     descriptionFontSize: toNumber(rawProps?.descriptionFontSize, defaultResetPasswordTokens.descriptionFontSize),
     descriptionFontFamily: toFontFamily(rawProps?.descriptionFontFamily, defaultResetPasswordTokens.descriptionFontFamily),
-    descriptionFontWeight: toFontWeight(rawProps?.descriptionFontWeight, defaultResetPasswordTokens.descriptionFontWeight),
+    descriptionFontWeight: toBoolean(rawProps?.headingBold, false)
+      ? '700'
+      : toFontWeight(rawProps?.descriptionFontWeight, defaultResetPasswordTokens.descriptionFontWeight),
     descriptionFontStyle: toBoolean(rawProps?.headingItalic, false) ? 'italic' : 'normal',
     descriptionTextDecoration: toTextDecoration(
       toBoolean(rawProps?.headingUnderline, false),
@@ -1621,6 +1631,33 @@ const buildResetPasswordTokens = (rawProps: Record<string, unknown>): ResetPassw
     cardPaddingBottom: showBgSection ? toNumber(buyNow?.pb, defaultResetPasswordTokens.cardPaddingBottom) : 0,
     cardPaddingLeft: showBgSection ? toNumber(buyNow?.pl, defaultResetPasswordTokens.cardPaddingLeft) : 0,
     cardPaddingRight: showBgSection ? toNumber(buyNow?.pr, defaultResetPasswordTokens.cardPaddingRight) : 0,
+    buttonText: toLocalizedString(rawProps?.buttonText, defaultResetPasswordTokens.buttonText),
+    buttonTextColor: toLocalizedString(
+      firstDefined(rawProps?.buttonColor, rawProps?.buttonTextColor),
+      defaultResetPasswordTokens.buttonTextColor
+    ),
+    buttonBorderColor: toLocalizedString(rawProps?.buttonBorderColor, defaultResetPasswordTokens.buttonBorderColor),
+    buttonBorderWidth: toNumber(rawProps?.buttonBorderWidth, defaultResetPasswordTokens.buttonBorderWidth),
+    buttonFillColor: toLocalizedString(
+      firstDefined(rawProps?.buttonBgColor, rawProps?.buttonFillColor),
+      defaultResetPasswordTokens.buttonFillColor
+    ),
+    buttonRadius: toNumber(rawProps?.buttonRadius, defaultResetPasswordTokens.buttonRadius),
+    buttonPaddingTop: toNumber(rawProps?.buttonPaddingTop, defaultResetPasswordTokens.buttonPaddingTop),
+    buttonPaddingBottom: toNumber(rawProps?.buttonPaddingBottom, defaultResetPasswordTokens.buttonPaddingBottom),
+    buttonPaddingLeft: toNumber(rawProps?.buttonPaddingLeft, defaultResetPasswordTokens.buttonPaddingLeft),
+    buttonPaddingRight: toNumber(rawProps?.buttonPaddingRight, defaultResetPasswordTokens.buttonPaddingRight),
+    buttonMarginTop: toNumber(rawProps?.buttonMarginTop, defaultResetPasswordTokens.buttonMarginTop),
+    buttonFontSize: toNumber(rawProps?.buttonFontSize, defaultResetPasswordTokens.buttonFontSize),
+    buttonFontFamily: toFontFamily(rawProps?.buttonFontFamily, defaultResetPasswordTokens.buttonFontFamily),
+    buttonFontWeight: toBoolean(rawProps?.buttonBold, false)
+      ? '700'
+      : toFontWeight(rawProps?.buttonFontWeight, defaultResetPasswordTokens.buttonFontWeight),
+    buttonFontStyle: toBoolean(rawProps?.buttonItalic, false) ? 'italic' : 'normal',
+    buttonTextDecoration: toTextDecoration(
+      toBoolean(rawProps?.buttonUnderline, false),
+      toBoolean(rawProps?.buttonStrikethrough, false)
+    ),
   };
 };
 
@@ -1762,10 +1799,10 @@ const buildSignUpTokens = (rawProps: Record<string, unknown>): SignUpTokens => (
   footerLinkColor: (rawProps?.footerLinkColor as string) ?? defaultSignUpTokens.footerLinkColor,
   footerTextFontSize: toNumber(rawProps?.footerTextFontSize ?? rawProps?.subtextSize ?? rawProps?.fontSize, defaultSignUpTokens.footerTextFontSize),
   footerTextFontFamily: toFontFamily(rawProps?.footerTextFontFamily ?? rawProps?.subtextFontFamily ?? rawProps?.fontFamily, defaultSignUpTokens.footerTextFontFamily),
-  footerTextFontWeight: toFontWeight(rawProps?.footerTextFontWeight ?? rawProps?.subtextWeight ?? rawProps?.fontWeight, defaultSignUpTokens.footerTextFontWeight),
+  footerTextFontWeight: toFontWeight(rawProps?.footerTextFontWeight ?? rawProps?.subtextWeight ?? rawProps?.fontWeight, defaultSignUpTokens.footerTextFontWeight, rawProps?.footerTextBold as boolean | undefined),
   footerLinkFontSize: toNumber(rawProps?.footerLinkFontSize, defaultSignUpTokens.footerLinkFontSize),
   footerLinkFontFamily: toFontFamily(rawProps?.footerLinkFontFamily ?? rawProps?.fontFamily, defaultSignUpTokens.footerLinkFontFamily),
-  footerLinkFontWeight: toFontWeight(rawProps?.footerLinkFontWeight, defaultSignUpTokens.footerLinkFontWeight),
+  footerLinkFontWeight: toFontWeight(rawProps?.footerLinkFontWeight, defaultSignUpTokens.footerLinkFontWeight, rawProps?.footerLinkTextBold as boolean | undefined),
   footerLinkAlignment: (rawProps?.footerLinkAlignment as string) ?? defaultSignUpTokens.footerLinkAlignment,
   footerLinkAutoUppercase: (rawProps?.footerLinkAutoUppercase as boolean) ?? defaultSignUpTokens.footerLinkAutoUppercase,
   footerVisible: (rawProps?.footerVisible as boolean) ?? defaultSignUpTokens.footerVisible,
@@ -2576,8 +2613,8 @@ const AuthScreen = () => {
         fontSize: submitButtonFontSize,
         fontWeight: submitButtonFontWeight as any,
         fontFamily: submitButtonFontFamily !== 'System' ? submitButtonFontFamily : undefined,
-        fontStyle: isForgotMode ? 'normal' : t.buttonTextFontStyle,
-        textDecorationLine: isForgotMode ? 'none' : t.buttonTextTextDecoration,
+        fontStyle: isForgotMode ? resetPasswordTokens.buttonFontStyle : t.buttonTextFontStyle,
+        textDecorationLine: isForgotMode ? resetPasswordTokens.buttonTextDecoration : t.buttonTextTextDecoration,
       }}
     >
       {buttonLabel}

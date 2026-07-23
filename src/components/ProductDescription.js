@@ -289,10 +289,10 @@ export default function ProductDescription({ section }) {
   const titleStyle     = unwrapValue(titleNode?.style, {});
   const titleFontSize  = toNumber(titleStyle?.fontSize ?? layoutCss?.title?.fontSize, 14);
   const titleColor     = toString(titleStyle?.color    ?? layoutCss?.title?.color,    "#111827");
-  const titleWeight    = (() => {
-    const v = toString(titleStyle?.fontWeight ?? layoutCss?.title?.fontWeight, "700");
-    return v;
-  })();
+  const titleBold      = toBoolean(titleStyle?.bold, false);
+  const titleWeight    = titleBold
+    ? "700"
+    : toString(titleStyle?.fontWeight ?? layoutCss?.title?.fontWeight, "700");
   const titleFontFamily = cleanFontFamily(toString(titleStyle?.fontFamily ?? raw?.titleStyle?.fontFamily ?? raw?.titleFontFamily ?? raw?.fontFamily ?? layoutCss?.title?.fontFamily, ""));
   const titleItalic         = toBoolean(titleStyle?.italic,        false);
   const titleUnderline      = toBoolean(titleStyle?.underline,     false);
@@ -303,7 +303,10 @@ export default function ProductDescription({ section }) {
   const descStyle      = unwrapValue(infoNode?.descriptionStyle, {});
   const bodyFontSize   = toNumber(descStyle?.fontSize ?? layoutCss?.infoText?.fontSize, 12);
   const bodyColor      = toString(descStyle?.color    ?? layoutCss?.infoText?.color,    "#6B7280");
-  const bodyWeight     = toString(descStyle?.fontWeight ?? layoutCss?.infoText?.fontWeight, "400");
+  const bodyBold       = toBoolean(descStyle?.bold, false);
+  const bodyWeight     = bodyBold
+    ? "700"
+    : toString(descStyle?.fontWeight ?? layoutCss?.infoText?.fontWeight, "400");
   const bodyFontFamily = cleanFontFamily(toString(descStyle?.fontFamily ?? raw?.info?.descriptionStyle?.fontFamily ?? raw?.descriptionFontFamily ?? raw?.fontFamily ?? layoutCss?.infoText?.fontFamily, ""));
   const bodyItalic        = toBoolean(descStyle?.italic,    false);
   const bodyUnderline     = toBoolean(descStyle?.underline, false);

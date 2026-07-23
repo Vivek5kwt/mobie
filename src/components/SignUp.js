@@ -348,6 +348,38 @@ export default function SignUp({ section }) {
     const lastNamePlaceholderFontWeight = toFontWeight(raw.lastNamePlaceholderFontWeight) || "700";
     const emailPlaceholderFontWeight = toFontWeight(raw.emailPlaceholderFontWeight) || "700";
     const passwordPlaceholderFontWeight = toFontWeight(raw.passwordPlaceholderFontWeight) || "700";
+    const firstNamePlaceholderBold = raw.firstNamePlaceholderBold === true || raw.firstNamePlaceholderBold === "true";
+    const lastNamePlaceholderBold = raw.lastNamePlaceholderBold === true || raw.lastNamePlaceholderBold === "true";
+    const emailPlaceholderBold = raw.emailPlaceholderBold === true || raw.emailPlaceholderBold === "true";
+    const passwordPlaceholderBold = raw.passwordPlaceholderBold === true || raw.passwordPlaceholderBold === "true";
+    const firstNamePlaceholderItalic = toBoolean(raw.firstNamePlaceholderItalic, false);
+    const lastNamePlaceholderItalic = toBoolean(raw.lastNamePlaceholderItalic, false);
+    const emailPlaceholderItalic = toBoolean(raw.emailPlaceholderItalic, false);
+    const passwordPlaceholderItalic = toBoolean(raw.passwordPlaceholderItalic, false);
+    const placeholderDecoration = (underline, strikethrough) =>
+      underline && strikethrough
+        ? "underline line-through"
+        : underline
+          ? "underline"
+          : strikethrough
+            ? "line-through"
+            : "none";
+    const firstNamePlaceholderDecoration = placeholderDecoration(
+      toBoolean(raw.firstNamePlaceholderUnderline, false),
+      toBoolean(raw.firstNamePlaceholderStrikethrough, false)
+    );
+    const lastNamePlaceholderDecoration = placeholderDecoration(
+      toBoolean(raw.lastNamePlaceholderUnderline, false),
+      toBoolean(raw.lastNamePlaceholderStrikethrough, false)
+    );
+    const emailPlaceholderDecoration = placeholderDecoration(
+      toBoolean(raw.emailPlaceholderUnderline, false),
+      toBoolean(raw.emailPlaceholderStrikethrough, false)
+    );
+    const passwordPlaceholderDecoration = placeholderDecoration(
+      toBoolean(raw.passwordPlaceholderUnderline, false),
+      toBoolean(raw.passwordPlaceholderStrikethrough, false)
+    );
 
     // Alignment
     const firstNameAlignment = getAlignment(raw.firstNameAlignment);
@@ -448,6 +480,9 @@ export default function SignUp({ section }) {
       passwordLabelFontWeight, firstNameInputTextFontWeight, lastNameInputTextFontWeight,
       emailInputTextFontWeight, passwordInputTextFontWeight, firstNamePlaceholderFontWeight,
       lastNamePlaceholderFontWeight, emailPlaceholderFontWeight, passwordPlaceholderFontWeight,
+      firstNamePlaceholderBold, lastNamePlaceholderBold, emailPlaceholderBold, passwordPlaceholderBold,
+      firstNamePlaceholderDecoration, lastNamePlaceholderDecoration, emailPlaceholderDecoration, passwordPlaceholderDecoration,
+      firstNamePlaceholderItalic, lastNamePlaceholderItalic, emailPlaceholderItalic, passwordPlaceholderItalic,
       firstNameAlignment, lastNameAlignment, emailAlignment, passwordAlignment,
       firstNameInputTextAlignment, lastNameInputTextAlignment, emailInputTextAlignment,
       passwordInputTextAlignment, footerLinkAlignment, buttonIconAlignment,
@@ -496,6 +531,7 @@ export default function SignUp({ section }) {
     passwordLabelFontWeight, firstNameInputTextFontWeight, lastNameInputTextFontWeight,
     emailInputTextFontWeight, passwordInputTextFontWeight, firstNamePlaceholderFontWeight,
     lastNamePlaceholderFontWeight, emailPlaceholderFontWeight, passwordPlaceholderFontWeight,
+    firstNamePlaceholderBold, lastNamePlaceholderBold, emailPlaceholderBold, passwordPlaceholderBold,
     firstNameAlignment, lastNameAlignment, emailAlignment, passwordAlignment,
     firstNameInputTextAlignment, lastNameInputTextAlignment, emailInputTextAlignment,
     passwordInputTextAlignment, footerLinkAlignment, buttonIconAlignment,
@@ -781,7 +817,9 @@ export default function SignUp({ section }) {
                   color: firstNameInputTextColor,
                   fontSize: mobileFieldFontSize(firstName ? firstNameInputTextFontSize : firstNamePlaceholderFontSize),
                   fontFamily: firstName ? firstNameInputTextFontFamily : firstNamePlaceholderFontFamily,
-                  fontWeight: firstName ? firstNameInputTextFontWeight : firstNamePlaceholderFontWeight,
+                  fontWeight: firstName ? firstNameInputTextFontWeight : (firstNamePlaceholderBold ? "700" : firstNamePlaceholderFontWeight),
+                  textDecorationLine: firstName ? "none" : firstNamePlaceholderDecoration,
+                  fontStyle: firstName ? "normal" : (firstNamePlaceholderItalic ? "italic" : "normal"),
                   textAlign: firstNameFieldTextAlign,
                   textAlignVertical: "center",
                   borderRadius: inputBorderRadius,
@@ -817,7 +855,9 @@ export default function SignUp({ section }) {
                   color: lastNameInputTextColor,
                   fontSize: mobileFieldFontSize(lastName ? lastNameInputTextFontSize : lastNamePlaceholderFontSize),
                   fontFamily: lastName ? lastNameInputTextFontFamily : lastNamePlaceholderFontFamily,
-                  fontWeight: lastName ? lastNameInputTextFontWeight : lastNamePlaceholderFontWeight,
+                  fontWeight: lastName ? lastNameInputTextFontWeight : (lastNamePlaceholderBold ? "700" : lastNamePlaceholderFontWeight),
+                  textDecorationLine: lastName ? "none" : lastNamePlaceholderDecoration,
+                  fontStyle: lastName ? "normal" : (lastNamePlaceholderItalic ? "italic" : "normal"),
                   textAlign: inputAlignFor(lastNameInputTextAlignment),
                   textAlignVertical: "center",
                   borderRadius: inputBorderRadius,
@@ -853,7 +893,9 @@ export default function SignUp({ section }) {
                   color: emailInputTextColor,
                   fontSize: mobileFieldFontSize(email ? emailInputTextFontSize : emailPlaceholderFontSize),
                   fontFamily: email ? emailInputTextFontFamily : emailPlaceholderFontFamily,
-                  fontWeight: email ? emailInputTextFontWeight : emailPlaceholderFontWeight,
+                  fontWeight: email ? emailInputTextFontWeight : (emailPlaceholderBold ? "700" : emailPlaceholderFontWeight),
+                  textDecorationLine: email ? "none" : emailPlaceholderDecoration,
+                  fontStyle: email ? "normal" : (emailPlaceholderItalic ? "italic" : "normal"),
                   textAlign: inputAlignFor(emailInputTextAlignment),
                   textAlignVertical: "center",
                   borderRadius: inputBorderRadius,
@@ -891,7 +933,9 @@ export default function SignUp({ section }) {
                   color: passwordInputTextColor,
                   fontSize: mobileFieldFontSize(password ? passwordInputTextFontSize : passwordPlaceholderFontSize),
                   fontFamily: password ? passwordInputTextFontFamily : passwordPlaceholderFontFamily,
-                  fontWeight: password ? passwordInputTextFontWeight : passwordPlaceholderFontWeight,
+                  fontWeight: password ? passwordInputTextFontWeight : (passwordPlaceholderBold ? "700" : passwordPlaceholderFontWeight),
+                  textDecorationLine: password ? "none" : passwordPlaceholderDecoration,
+                  fontStyle: password ? "normal" : (passwordPlaceholderItalic ? "italic" : "normal"),
                   textAlign: inputAlignFor(passwordInputTextAlignment),
                   textAlignVertical: "center",
                   borderRadius: inputBorderRadius,

@@ -11,6 +11,26 @@ const unwrapValue = (value, fallback) => {
   return value;
 };
 
+const toBoolean = (value, fallback = false) => {
+  const resolved = unwrapValue(value, fallback);
+  if (typeof resolved === "boolean") return resolved;
+  if (typeof resolved === "string") {
+    const lowered = resolved.trim().toLowerCase();
+    if (["true", "1", "yes"].includes(lowered)) return true;
+    if (["false", "0", "no"].includes(lowered)) return false;
+  }
+  return fallback;
+};
+
+const decorationLine = (underline, strikethrough) =>
+  underline && strikethrough
+    ? "underline line-through"
+    : underline
+      ? "underline"
+      : strikethrough
+        ? "line-through"
+        : "none";
+
 const normalizeProps = (section) =>
   section?.props ||
   section?.properties?.props?.properties ||
@@ -60,6 +80,28 @@ export default function FaqNew({ section }) {
   const answerStyle = convertStyles(css?.answer || {});
   const iconStyle = convertStyles(css?.icon || {});
 
+  const headingBold = toBoolean(raw?.headingBold, false);
+  const headingItalic = toBoolean(raw?.headingItalic, false);
+  const headingFormatStyle = {
+    fontWeight: headingBold ? "700" : questionStyle?.fontWeight ?? styles.question.fontWeight,
+    fontStyle: headingItalic ? "italic" : "normal",
+    textDecorationLine: decorationLine(
+      toBoolean(raw?.headingUnderline, false),
+      toBoolean(raw?.headingStrikethrough, false)
+    ),
+  };
+
+  const subHeadingBold = toBoolean(raw?.subHeadingBold, false);
+  const subHeadingItalic = toBoolean(raw?.subHeadingItalic, false);
+  const subHeadingFormatStyle = {
+    fontWeight: subHeadingBold ? "700" : answerStyle?.fontWeight ?? styles.answer.fontWeight,
+    fontStyle: subHeadingItalic ? "italic" : "normal",
+    textDecorationLine: decorationLine(
+      toBoolean(raw?.subHeadingUnderline, false),
+      toBoolean(raw?.subHeadingStrikethrough, false)
+    ),
+  };
+
   if (!items.length) return null;
 
   return (
@@ -73,13 +115,13 @@ export default function FaqNew({ section }) {
               onPress={() => setActiveItemId((prev) => (prev === item.id ? null : item.id))}
               style={styles.questionRow}
             >
-              <Text style={[styles.question, questionStyle]}>{item.question}</Text>
+              <Text style={[styles.question, questionStyle, headingFormatStyle]}>{item.question}</Text>
               <Text style={[styles.icon, iconStyle]}>{isOpen ? "−" : "+"}</Text>
             </Pressable>
 
             {isOpen && !!item.answer && (
               <View style={styles.answerWrap}>
-                <Text style={[styles.answer, answerStyle]}>{item.answer}</Text>
+                <Text style={[styles.answer, answerStyle, subHeadingFormatStyle]}>{item.answer}</Text>
               </View>
             )}
           </View>

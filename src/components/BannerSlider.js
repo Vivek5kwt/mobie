@@ -131,10 +131,16 @@ const buildSlides = (rawProps = {}, defaultButtonLabel = "Shop Now") => {
       const navigateTo = props?.navigateTo ?? "";
       const navigateValue = props?.navigateValue ?? "";
       const link = props?.link ?? "";
+      const titleBold = asBoolean(props?.titleBold, false);
+      const titleItalic = asBoolean(props?.titleItalic, false);
       const titleUnderline = asBoolean(props?.titleUnderline, false);
       const titleStrikethrough = asBoolean(props?.titleStrikethrough, false);
+      const subtitleBold = asBoolean(props?.subtitleBold, false);
+      const subtitleItalic = asBoolean(props?.subtitleItalic, false);
       const subtitleUnderline = asBoolean(props?.subtitleUnderline, false);
       const subtitleStrikethrough = asBoolean(props?.subtitleStrikethrough, false);
+      const buttonBold = asBoolean(props?.buttonBold, false);
+      const buttonItalic = asBoolean(props?.buttonItalic, false);
       const buttonUnderline = asBoolean(props?.buttonUnderline, false);
       const buttonStrikethrough = asBoolean(props?.buttonStrikethrough, false);
 
@@ -149,18 +155,24 @@ const buildSlides = (rawProps = {}, defaultButtonLabel = "Shop Now") => {
         navigateTo: asString(navigateTo, "").toLowerCase(),
         navigateValue: asString(navigateValue, ""),
         link: asString(link, ""),
+        titleBold,
+        titleItalic,
         titleUnderline,
         titleStrikethrough,
         titleDecorationLine: resolveTextDecorationLine({
           underline: titleUnderline,
           strikethrough: titleStrikethrough,
         }),
+        subtitleBold,
+        subtitleItalic,
         subtitleUnderline,
         subtitleStrikethrough,
         subtitleDecorationLine: resolveTextDecorationLine({
           underline: subtitleUnderline,
           strikethrough: subtitleStrikethrough,
         }),
+        buttonBold,
+        buttonItalic,
         buttonUnderline,
         buttonStrikethrough,
         buttonDecorationLine: resolveTextDecorationLine({
@@ -658,9 +670,9 @@ export default function BannerSlider({ section }) {
                       color: headingColor,
                       fontSize: headingSize,
                       lineHeight: Math.round(headingSize * 1.25),
-                      fontWeight: headingWeight,
+                      fontWeight: slide.titleBold ? "700" : headingWeight,
                       textAlign: headingAlign,
-                      fontStyle: headingItalic ? "italic" : "normal",
+                      fontStyle: slide.titleItalic ? "italic" : "normal",
                       textDecorationLine: headingDecorationLine,
                       textTransform: headingTransform !== "none" ? headingTransform : undefined,
                       letterSpacing: headingLetterSpacing || undefined,
@@ -682,7 +694,8 @@ export default function BannerSlider({ section }) {
                       color: subheadingColor,
                       fontSize: subheadingSize,
                       lineHeight: Math.round(subheadingSize * 1.4),
-                      fontWeight: subheadingWeight,
+                      fontWeight: slide.subtitleBold ? "700" : subheadingWeight,
+                      fontStyle: slide.subtitleItalic ? "italic" : "normal",
                       textAlign: subheadingAlign,
                       width: "100%",
                       ...(subheadingFontFamily ? { fontFamily: subheadingFontFamily } : {}),
@@ -728,7 +741,8 @@ export default function BannerSlider({ section }) {
                         {
                           color: buttonTextColor,
                           fontSize: buttonFontSize,
-                          fontWeight: buttonFontWeight,
+                          fontWeight: slide.buttonBold ? "700" : buttonFontWeight,
+                          fontStyle: slide.buttonItalic ? "italic" : "normal",
                           ...(buttonFontFamily ? { fontFamily: buttonFontFamily } : {}),
                         },
                         { textDecorationLine: slide.buttonDecorationLine },

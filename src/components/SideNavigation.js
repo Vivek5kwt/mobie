@@ -1,6 +1,7 @@
-import React, { useCallback, useMemo } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Alert, Image, ImageBackground, StyleSheet, Text, TouchableOpacity, View } from "react-native";
-import { useNavigation } from "@react-navigation/native";
+import { useNavigation, useRoute } from "@react-navigation/native";
+import LinearGradient from "react-native-linear-gradient";
 import Icon from "react-native-vector-icons/FontAwesome6";
 import { convertStyles } from "../utils/convertStyles";
 import { useAuth } from "../services/AuthContext";
@@ -8,6 +9,7 @@ import { isAuthenticatedSession } from "../utils/authGate";
 import { getAppLogoSync } from "../utils/appInfo";
 import { resolveFont } from "../services/typographyService";
 import { navigateToDslTarget } from "../utils/navigationTarget";
+import { useSideMenu } from "../services/SideMenuContext";
 
 const DEFAULT_DRAWER_WIDTH = 260;
 
@@ -85,19 +87,20 @@ const normalizeIconName = (name) => {
   return cleaned || "circle";
 };
 
-const normalizeTextAlign = (align, fallback = "left") => {
-  const lowered = String(align || "").trim().toLowerCase();
-  if (lowered === "center") return "center";
-  if (lowered === "right" || lowered === "end") return "right";
-  return fallback;
+const isImageUrlValue = (value) => /^(https?:\/\/|data:image\/|\/)/i.test(String(value || "").trim());
+
+const getCustomIconUrlFromValue = (value) => {
+  const str = String(value || "").trim();
+  return isImageUrlValue(str) ? str : null;
 };
 
-const alignToJustify = (align, fallback = "flex-start") => {
-  const lowered = String(align || "").trim().toLowerCase();
-  if (lowered === "center") return "center";
-  if (lowered === "right" || lowered === "end") return "flex-end";
-  return fallback;
-};
+// Header row and item rows only support Left/Center in the builder UI —
+// "Right" is hidden there, so a stored "Right" value is treated as "Left".
+const alignTextLeftOrCenter = (align) =>
+  String(align || "").trim().toLowerCase() === "center" ? "center" : "left";
+
+const alignJustifyLeftOrCenter = (align) =>
+  String(align || "").trim().toLowerCase() === "center" ? "center" : "flex-start";
 
 const normalizeWeight = (value, fallback = undefined) => {
   const converted = convertStyles({ fontWeight: value || fallback });
@@ -120,16 +123,17 @@ const textDecorationFor = ({ underline, strikethrough }, fallback = "none") => {
 };
 
 const isLogoutItem = (item) => {
-  const label = String(item?.label || item?.title || item?.text || "").trim().toLowerCase();
+  const label = String(item?.title || item?.label || item?.text || "").trim().toLowerCase();
   return ["logout", "log out"].includes(label);
 };
 
 const isAuthToggleItem = (item) => {
-  const label = String(item?.label || item?.title || item?.text || "").trim().toLowerCase();
+  const label = String(item?.title || item?.label || item?.text || "").trim().toLowerCase();
   return ["logout", "log out", "login", "log in", "signin", "sign in"].includes(label);
 };
 
 const SIGNIN_SLUGS = new Set(["signin", "sign-in", "login", "log-in", "auth"]);
+const SIGNUP_SLUGS = new Set(["create-user", "create-account", "signup", "sign-up"]);
 
 const labelToSlug = (label) =>
   String(label || "")
@@ -138,9 +142,12 @@ const labelToSlug = (label) =>
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/^-|-$/g, "");
 
-const resolveLogoSource = (logoUrl) => {
+const resolveLogoSource = (logoUrl, brandKitLogoUrl) => {
   const appLogo = getAppLogoSync();
-  const resolvedLogo = logoUrl && logoUrl !== "/images/mobidrag.png" ? logoUrl : appLogo;
+  const resolvedLogo =
+    (logoUrl && logoUrl !== "/images/mobidrag.png" && logoUrl) ||
+    (brandKitLogoUrl && brandKitLogoUrl !== "/images/mobidrag.png" && brandKitLogoUrl) ||
+    appLogo;
   return resolvedLogo ? { uri: resolvedLogo } : null;
 };
 
@@ -218,6 +225,36 @@ export const getSideNavigationWidth = (section = {}, fallback = DEFAULT_DRAWER_W
   );
 };
 
+// "Fit" logoScale: box auto-sizes to the logo's natural aspect ratio,
+// bounded by maxWidth/maxHeight (logoWidth/logoHeight), without upscaling.
+const useContainLogoSize = (uri, maxWidth, maxHeight) => {
+  const [size, setSize] = useState(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    if (!uri) {
+      setSize(null);
+      return undefined;
+    }
+    Image.getSize(
+      uri,
+      (naturalWidth, naturalHeight) => {
+        if (cancelled || !naturalWidth || !naturalHeight) return;
+        const ratio = Math.min(maxWidth / naturalWidth, maxHeight / naturalHeight, 1);
+        setSize({ width: naturalWidth * ratio, height: naturalHeight * ratio });
+      },
+      () => {
+        if (!cancelled) setSize(null);
+      }
+    );
+    return () => {
+      cancelled = true;
+    };
+  }, [uri, maxWidth, maxHeight]);
+
+  return size;
+};
+
 const getItems = (raw, rawProps) => {
   if (Array.isArray(raw?.items)) return raw.items;
   if (Array.isArray(raw?.items?.items)) return raw.items.items;
@@ -227,6 +264,8 @@ const getItems = (raw, rawProps) => {
 
 export default function SideNavigation({ section }) {
   const navigation = useNavigation();
+  const route = useRoute();
+  const { closeSideMenu } = useSideMenu();
   const { logout, session, initializing } = useAuth();
   const isLoggedIn = isAuthenticatedSession(session);
   const rawProps = getPropsNode(section);
@@ -241,91 +280,171 @@ export default function SideNavigation({ section }) {
   const showItems = asBoolean(visibility.items, true);
   const showItemIcons = asBoolean(visibility.itemsIcons, true);
   const showItemText = asBoolean(visibility.itemsText, true);
+  const showBgAndPadding = asBoolean(visibility.bgAndPadding, true);
+  const showBgColor = showBgAndPadding && asBoolean(visibility.bgColor, true);
+  const showBgImage = showBgAndPadding && asBoolean(visibility.bgImage, true);
 
-  const backgroundImage = toStringValue(firstDefined(raw?.backgroundImageUrl, raw?.bgImage), "");
-  const backgroundFit = toStringValue(firstDefined(raw?.bgImageFit, raw?.bgImageScale), "cover");
+  const backgroundImage = showBgImage
+    ? toStringValue(firstDefined(raw?.backgroundImageUrl, raw?.bgImage), "")
+    : "";
+  const backgroundFit = toStringValue(raw?.bgImageScale, "Fill").trim().toLowerCase() === "fit" ? "contain" : "cover";
   const drawerWidth = getSideNavigationWidth(section);
-  const drawerBgColor = firstDefined(raw?.bgColor, presentation.drawer?.backgroundColor, raw?.backgroundColor, "#FFFFFF");
 
-  const contentPadding = {
-    paddingTop: toNumber(firstDefined(raw?.paddingTop, presentation.drawerPadding?.paddingTop, raw?.pt), 0),
-    paddingRight: toNumber(firstDefined(raw?.paddingRight, presentation.drawerPadding?.paddingRight, raw?.pr), 0),
-    paddingBottom: toNumber(firstDefined(raw?.paddingBottom, presentation.drawerPadding?.paddingBottom, raw?.pb), 0),
-    paddingLeft: toNumber(firstDefined(raw?.paddingLeft, presentation.drawerPadding?.paddingLeft, raw?.pl), 0),
-  };
+  const showGradient = showBgAndPadding && asBoolean(visibility.gradient, true);
+  const gradientFrom = showGradient ? toStringValue(raw?.gradientFrom, "") : "";
+  const gradientTo = showGradient ? toStringValue(raw?.gradientTo, "") : "";
+  const hasGradient = showGradient && !backgroundImage && Boolean(gradientFrom || gradientTo);
+  const gradientColors = hasGradient ? [gradientFrom || "#00000000", gradientTo || "#ffffff"] : null;
+
+  const drawerBgColor = !showBgAndPadding
+    ? "#FFFFFF"
+    : hasGradient
+      ? undefined
+      : showBgColor
+        ? firstDefined(
+          raw?.sideNavBgColor,
+          raw?.drawerBgColor,
+          raw?.sidebarBgColor,
+          raw?.bgColor,
+          presentation.drawer?.backgroundColor,
+          "#FFFFFF"
+        )
+        : "transparent";
+
+  const contentPadding = showBgAndPadding
+    ? {
+      paddingTop: toNumber(firstDefined(raw?.paddingTop, presentation.drawerPadding?.paddingTop), 0),
+      paddingRight: toNumber(firstDefined(raw?.paddingRight, presentation.drawerPadding?.paddingRight), 0),
+      paddingBottom: toNumber(firstDefined(raw?.paddingBottom, presentation.drawerPadding?.paddingBottom), 0),
+      paddingLeft: toNumber(firstDefined(raw?.paddingLeft, presentation.drawerPadding?.paddingLeft), 0),
+    }
+    : { paddingTop: 30, paddingRight: 10, paddingBottom: 30, paddingLeft: 10 };
 
   const headerMetrics = metrics?.header || metrics?.elements?.header || {};
-  const firstItemMetrics = Array.isArray(metrics?.items)
-    ? metrics.items[0]?.row
-    : metrics?.elements?.items?.[0]?.row;
   const headerHeight = toNumber(firstDefined(raw?.headerHeight, headerMetrics?.height, presentation.headerRow?.height), undefined);
-  const dividerHeight = toNumber(firstDefined(raw?.dividerSize, raw?.dividerHeight), 1);
-  const measuredDividerGap =
-    toNumber(firstItemMetrics?.y, undefined) !== undefined &&
-    toNumber(headerMetrics?.y, undefined) !== undefined &&
-    headerHeight !== undefined
-      ? Math.max(0, toNumber(firstItemMetrics.y, 0) - (toNumber(headerMetrics.y, 0) + headerHeight) - dividerHeight)
-      : undefined;
 
+  // headerTextValue is the field the Inspector's rich-text editor actually
+  // writes to; headerTitle/headerText are legacy keys that can linger stale
+  // in an export after the title's been edited, so prefer the live one.
   const headerTitle = toStringValue(
-    firstDefined(raw?.headerTextValue, raw?.headerTitle, raw?.logoText),
-    ""
+    firstDefined(raw?.headerTextValue, raw?.headerTitle, raw?.headerText),
+    "Mobidrag"
   );
   const subtitle = toStringValue(raw?.subtitle, "");
   const logoUrl = toStringValue(raw?.logoUrl, "");
-  const logoSource = resolveLogoSource(logoUrl);
-  const showLogo = asBoolean(visibility.headerLogo ?? visibility.logo, Boolean(logoSource));
+  const brandKitLogoUrl = toStringValue(raw?._brandKitAssets?.logoUrl, "");
+  const logoSource = resolveLogoSource(logoUrl, brandKitLogoUrl);
+  // Inspector writes headerLogo + the legacy `uploadLogo` alias together —
+  // the logo only shows when neither has been explicitly turned off.
+  const showLogo =
+    asBoolean(visibility.headerLogo, true) &&
+    asBoolean(visibility.uploadLogo, true) &&
+    Boolean(logoSource);
+  const logoWidth = toNumber(raw?.logoWidth, 92);
+  const logoHeight = toNumber(raw?.logoHeight, 36);
+  const logoScale = toStringValue(raw?.logoScale, "Fit").trim().toLowerCase();
+  const isLogoFit = logoScale === "fit";
+  const fitLogoSize = useContainLogoSize(isLogoFit ? logoSource?.uri : null, logoWidth, logoHeight);
+  const logoBoxStyle = isLogoFit
+    ? {
+      width: fitLogoSize?.width ?? logoWidth,
+      height: fitLogoSize?.height ?? logoHeight,
+      maxWidth: logoWidth,
+      maxHeight: logoHeight,
+    }
+    : { width: logoWidth, height: logoHeight };
 
-  const headerFontSize = toNumber(firstDefined(raw?.headerFontSize, raw?.fontSize), 18);
+  const isHeaderCentered = String(raw?.headerAlign || "").trim().toLowerCase() === "center";
+
+  const headerFontSize = toNumber(firstDefined(raw?.headerFontSize, raw?.fontSize), 24);
   const headerTextStyle = {
-    color: firstDefined(
-      raw?.headerTitleColor,
-      raw?.titleColor,
-      raw?.headerColor,
-      raw?.headerTextColor,
-      "#111827"
-    ),
+    color: firstDefined(raw?.headerColor, raw?.headerTextColor, "#000000"),
     fontSize: headerFontSize,
     fontWeight: asBoolean(raw?.headerBold, false)
       ? "700"
-      : normalizeWeight(firstDefined(raw?.headerFontWeight, raw?.fontWeight), "400"),
+      : normalizeWeight(firstDefined(raw?.headerFontWeight, raw?.fontWeight), "700"),
     fontStyle: asBoolean(raw?.headerItalic, false) ? "italic" : "normal",
-    textAlign: normalizeTextAlign(raw?.headerAlign, "left"),
+    textAlign: alignTextLeftOrCenter(raw?.headerAlign),
     textDecorationLine: textDecorationFor({
       underline: raw?.headerUnderline,
       strikethrough: raw?.headerStrikethrough,
     }),
-    ...(resolveFontFamily(raw?.headerFontFamily, raw?.fontFamily) ? {
-      fontFamily: resolveFontFamily(raw?.headerFontFamily, raw?.fontFamily),
-    } : {}),
+    fontFamily: resolveFontFamily(raw?.headerFontFamily, raw?.fontFamily, "Inter"),
   };
 
+  const itemsAlign = toStringValue(raw?.itemsAlign, "Left").trim().toLowerCase();
+  const itemsIndent = toNumber(raw?.itemsIndent, 14);
+  const isItemsCentered = itemsAlign === "center";
+
+  // Measure each row's natural (unforced) content width so the whole list can
+  // be centered as one straight-column block — the widest label sets the
+  // shared row width, every row (and therefore every icon) aligns to it, and
+  // that uniform block is centered. Purely dynamic: adapts to any labels,
+  // icon sizes, or fonts the DSL sends, no hardcoded widths.
+  const itemContentWidths = useRef({});
+  const [maxItemContentWidth, setMaxItemContentWidth] = useState(0);
+  const measureItemContent = useCallback(
+    (key, width) => {
+      if (!isItemsCentered || !width) return;
+      if (itemContentWidths.current[key] === width) return;
+      itemContentWidths.current[key] = width;
+      const widest = Math.max(0, ...Object.values(itemContentWidths.current));
+      setMaxItemContentWidth((prev) => (prev !== widest ? widest : prev));
+    },
+    [isItemsCentered]
+  );
+
   const rowHeight = toNumber(firstDefined(raw?.itemRowHeight, presentation.itemRow?.height), 44);
-  const rowGap = toNumber(firstDefined(raw?.itemGap, presentation.itemRow?.gap), 12);
+  const rowGap = toNumber(firstDefined(raw?.itemGap, presentation.itemRow?.gap), 14);
   const iconBoxWidth = toNumber(firstDefined(presentation.itemIcon?.width, raw?.iconSize, raw?.iconWidth), 24);
   const iconBoxHeight = toNumber(firstDefined(presentation.itemIcon?.height, raw?.iconSize, raw?.iconHeight), iconBoxWidth);
-  const itemIconSize = toNumber(firstDefined(raw?.iconWidth, raw?.iconHeight, raw?.iconSize, presentation.itemIcon?.width), Math.min(iconBoxWidth, iconBoxHeight));
+  const itemIconSize = Math.max(10, Math.round(Math.min(iconBoxWidth, iconBoxHeight) * 0.85));
   const itemIconColor = firstDefined(raw?.itemsIconColor, raw?.itemIconColor, raw?.iconColor, presentation.itemIcon?.color, "#111827");
   const itemTextColor = firstDefined(raw?.itemsTextColor, raw?.itemTextColor, raw?.itemColor, presentation.itemText?.color, "#111827");
-  const itemFontFamily = resolveFontFamily(raw?.itemFontFamily, raw?.itemsFontFamily, raw?.fontFamily, presentation.itemText?.fontFamily);
+  const itemFontFamily = resolveFontFamily(raw?.itemFontFamily, raw?.itemsFontFamily, raw?.fontFamily, presentation.itemText?.fontFamily, "Inter");
   const itemFontSize = toNumber(
     firstDefined(raw?.itemFontSize, raw?.itemsFontSize, presentation.itemText?.fontSize, raw?.fontSize),
     14
   );
   const itemFontWeight = normalizeWeight(
     firstDefined(raw?.itemFontWeight, raw?.itemsFontWeight, presentation.itemText?.fontWeight, raw?.fontWeight),
-    "400"
+    "700"
   );
 
-  const showDivider = asBoolean(raw?.dividerLine, false) && showHeader && showItems;
-  const dividerColor = firstDefined(raw?.dividerColor, raw?.headerColor, "#E5E7EB");
+  const showDivider = asBoolean(raw?.dividerLine, true) && showHeader;
   const dividerStyle = {
-    height: dividerHeight,
-    backgroundColor: dividerColor,
-    marginBottom: toNumber(firstDefined(raw?.dividerGap, raw?.dividerSpacing, measuredDividerGap), 0),
+    height: 1,
+    backgroundColor: "#E5E7EB",
+    marginTop: 6,
+    marginBottom: 8,
   };
 
-  const DrawerWrapper = backgroundImage ? ImageBackground : View;
+  const DrawerWrapper = backgroundImage ? ImageBackground : hasGradient ? LinearGradient : View;
+  const drawerWrapperExtraProps = backgroundImage
+    ? { source: { uri: backgroundImage }, imageStyle: styles.drawerImage, resizeMode: backgroundFit }
+    : hasGradient
+      ? { colors: gradientColors, angle: 180, useAngle: true }
+      : {};
+
+  const currentPageSlug = useMemo(() => {
+    const routeName = route?.name ?? "";
+    const pageName = route?.params?.pageName;
+    if (pageName) return labelToSlug(String(pageName));
+    if (routeName === "LayoutScreen") return "home";
+    return "";
+  }, [route?.name, route?.params?.pageName]);
+
+  const isItemActive = useCallback(
+    (item) => {
+      if (!currentPageSlug || item.__authToggle) return false;
+      const candidates = [item.id, item.title, item.label, item.link]
+        .filter((value) => value !== undefined && value !== null && value !== "")
+        .map((value) => labelToSlug(String(value).replace(/^\//, "")));
+      return candidates.includes(currentPageSlug);
+    },
+    [currentPageSlug]
+  );
+
   const items = useMemo(
     () => {
       const hasAuthToggle = itemsArray.some((item) => isAuthToggleItem(item));
@@ -355,6 +474,8 @@ export default function SideNavigation({ section }) {
 
   const handleItemPress = useCallback(
     (item) => {
+      closeSideMenu?.();
+
       if (isLogoutItem(item)) {
         if (!isLoggedIn) {
           if (initializing) return;
@@ -380,21 +501,39 @@ export default function SideNavigation({ section }) {
         return;
       }
 
+      const itemLabelForNav = String(item?.title || item?.label || item?.text || "");
+      const navigateType = String(item?.navigateType ?? item?.linkType ?? "").trim().toLowerCase();
+
+      if (navigateType === "screen" && item?.navigateRef) {
+        navigation.navigate(item.navigateRef);
+        return;
+      }
+
       const link = String(
         item?.link ?? item?.href ?? item?.url ?? item?.page ?? item?.navigateTo ?? ""
       ).trim();
 
+      if (link === "/") {
+        navigation.navigate("LayoutScreen");
+        return;
+      }
+
       const slug = link
         ? link.replace(/^\//, "").toLowerCase().replace(/[^a-z0-9-]+/g, "-")
-        : labelToSlug(item?.label || item?.title || item?.text || "");
+        : labelToSlug(itemLabelForNav);
 
       if (!slug) return;
 
       if (/^https?:\/\//i.test(link)) {
         navigation.navigate("CheckoutWebView", {
           url: link,
-          title: String(item?.label || item?.title || item?.text || "Page"),
+          title: itemLabelForNav || "Page",
         });
+        return;
+      }
+
+      if (SIGNUP_SLUGS.has(slug)) {
+        navigation.navigate("Auth", { initialMode: "signup" });
         return;
       }
 
@@ -416,7 +555,7 @@ export default function SideNavigation({ section }) {
       if (slug === "settings" || slug === "setting") {
         navigation.navigate("Settings", {
           pageName: "settings",
-          title: String(item?.label || item?.title || item?.text || "Settings"),
+          title: itemLabelForNav || "Settings",
         });
         return;
       }
@@ -430,12 +569,12 @@ export default function SideNavigation({ section }) {
         navigateRef: item?.navigateRef ?? item?.page ?? item?.screen,
         navigateType: item?.navigateType ?? item?.linkType,
         id: item?.id,
-        label: item?.label || item?.title || item?.text,
-        fallbackTitle: String(item?.label || item?.title || item?.text || slug),
+        label: itemLabelForNav,
+        fallbackTitle: itemLabelForNav || slug,
         preferPush: true,
       });
     },
-    [initializing, isLoggedIn, logout, navigation]
+    [closeSideMenu, initializing, isLoggedIn, logout, navigation]
   );
 
   const itemTextOverrides = useCallback(
@@ -454,19 +593,17 @@ export default function SideNavigation({ section }) {
 
   return (
     <DrawerWrapper
-      source={backgroundImage ? { uri: backgroundImage } : undefined}
+      {...drawerWrapperExtraProps}
       style={[
         styles.drawer,
         presentation.drawer,
         {
           width: drawerWidth,
           minWidth: drawerWidth,
-          backgroundColor: backgroundImage ? "transparent" : drawerBgColor,
+          ...(drawerBgColor !== undefined ? { backgroundColor: drawerBgColor } : null),
         },
         backgroundImage ? styles.drawerWithBackground : null,
       ]}
-      imageStyle={backgroundImage ? styles.drawerImage : undefined}
-      resizeMode={backgroundImage ? backgroundFit : undefined}
     >
       <View style={[styles.drawerContent, contentPadding]}>
         {showHeader && (
@@ -477,13 +614,19 @@ export default function SideNavigation({ section }) {
                 presentation.headerRow,
                 {
                   minHeight: headerHeight,
-                  justifyContent: alignToJustify(raw?.headerAlign, "flex-start"),
+                  justifyContent: alignJustifyLeftOrCenter(raw?.headerAlign),
                 },
               ]}
             >
-              {showLogo && logoSource ? <Image source={logoSource} style={styles.logoImage} /> : null}
-              {showHeaderText && (
-                <View style={styles.headerTextWrap}>
+              {showLogo ? (
+                <Image
+                  source={logoSource}
+                  style={logoBoxStyle}
+                  resizeMode="contain"
+                />
+              ) : null}
+              {showHeaderText && !!headerTitle && (
+                <View style={isHeaderCentered ? styles.headerTextWrapCentered : styles.headerTextWrap}>
                   <Text style={[styles.headerTitle, headerTextStyle]} numberOfLines={1}>
                     {headerTitle}
                   </Text>
@@ -510,61 +653,91 @@ export default function SideNavigation({ section }) {
           </>
         )}
 
-        {showItems &&
-          items.map((item) => {
-            const itemLabel =
-              isLogoutItem(item) && !isLoggedIn && !initializing
-                ? toStringValue(firstDefined(raw?.loginText, raw?.loginLabel), "Login")
-                : (item.label || item.title || item.text);
-            const hideAuthIcon = item.__authToggle && asBoolean(raw?.showLogoutIcon, true) === false;
+        {showItems && (
+          <View
+            style={
+              isItemsCentered
+                ? { alignItems: "center" }
+                : { paddingLeft: itemsIndent }
+            }
+          >
+            {items.map((item) => {
+              const itemLabel =
+                isLogoutItem(item) && !isLoggedIn && !initializing
+                  ? toStringValue(firstDefined(raw?.loginText, raw?.loginLabel), "Login")
+                  : (item.title || item.label || item.text || "Untitled");
+              const hideAuthIcon = item.__authToggle && asBoolean(raw?.showLogoutIcon, true) === false;
+              const customIconUrl = getCustomIconUrlFromValue(item.icon);
+              const active = isItemActive(item);
+              const itemKey = item.id || itemLabel;
 
-            return (
-              <TouchableOpacity
-                key={item.id || itemLabel}
-                style={[
-                  styles.itemRow,
-                  presentation.itemRow,
-                  {
-                    minHeight: rowHeight,
-                    gap: rowGap,
-                    justifyContent: alignToJustify(raw?.itemsAlign, "flex-start"),
-                  },
-                ]}
-                onPress={() => handleItemPress(item)}
-                accessibilityRole="button"
-                accessibilityLabel={itemLabel}
-                activeOpacity={0.7}
-              >
-                {showItemIcons && !hideAuthIcon && (
-                  <View style={[styles.itemIconWrap, { width: iconBoxWidth, height: iconBoxHeight }]}>
-                    <Icon
-                      name={normalizeIconName(item.icon)}
-                      size={itemIconSize}
-                      color={itemIconColor}
-                    />
-                  </View>
-                )}
-                {showItemText && (
-                  <Text
-                    style={[
-                      styles.itemText,
-                      presentation.itemText,
-                      {
-                        color: itemTextColor,
-                        fontSize: itemFontSize,
-                        fontWeight: itemFontWeight,
-                        ...(itemFontFamily ? { fontFamily: itemFontFamily } : {}),
-                      },
-                      itemTextOverrides(item),
-                    ]}
-                    numberOfLines={1}
-                  >
-                    {itemLabel}
-                  </Text>
-                )}
-              </TouchableOpacity>
-            );
-          })}
+              return (
+                <TouchableOpacity
+                  key={itemKey}
+                  onLayout={
+                    isItemsCentered
+                      ? (event) => measureItemContent(itemKey, event.nativeEvent.layout.width)
+                      : undefined
+                  }
+                  style={[
+                    styles.itemRow,
+                    presentation.itemRow,
+                    {
+                      minHeight: rowHeight,
+                      gap: rowGap,
+                      justifyContent: "flex-start",
+                      paddingVertical: 8,
+                      paddingHorizontal: 12,
+                      borderRadius: 8,
+                      backgroundColor: active ? "rgba(9, 109, 112, 0.1)" : "transparent",
+                    },
+                    isItemsCentered && maxItemContentWidth > 0 ? { width: maxItemContentWidth } : null,
+                  ]}
+                  onPress={() => handleItemPress(item)}
+                  accessibilityRole="button"
+                  accessibilityLabel={itemLabel}
+                  activeOpacity={0.7}
+                >
+                  {showItemIcons && !hideAuthIcon && (
+                    <View style={[styles.itemIconWrap, { width: iconBoxWidth, height: iconBoxHeight }]}>
+                      {customIconUrl ? (
+                        <Image
+                          source={{ uri: customIconUrl }}
+                          style={{ width: itemIconSize, height: itemIconSize }}
+                          resizeMode="contain"
+                        />
+                      ) : (
+                        <Icon
+                          name={normalizeIconName(item.icon)}
+                          size={itemIconSize}
+                          color={itemIconColor}
+                        />
+                      )}
+                    </View>
+                  )}
+                  {showItemText && (
+                    <Text
+                      style={[
+                        styles.itemText,
+                        presentation.itemText,
+                        {
+                          color: itemTextColor,
+                          fontSize: itemFontSize,
+                          fontWeight: itemFontWeight,
+                          ...(itemFontFamily ? { fontFamily: itemFontFamily } : {}),
+                        },
+                        itemTextOverrides(item),
+                      ]}
+                      numberOfLines={1}
+                    >
+                      {itemLabel}
+                    </Text>
+                  )}
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+        )}
       </View>
     </DrawerWrapper>
   );
@@ -595,16 +768,15 @@ const styles = StyleSheet.create({
     flex: 1,
     minWidth: 0,
   },
+  headerTextWrapCentered: {
+    flexShrink: 1,
+    minWidth: 0,
+  },
   headerTitle: {
     color: "#111827",
   },
   subtitle: {
     marginTop: 2,
-  },
-  logoImage: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
   },
   itemRow: {
     flexDirection: "row",

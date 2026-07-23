@@ -61,6 +61,7 @@ export const buildFavoriteToggleConfig = (raw = {}, styleNode = {}) => {
     unfavoriteIconSize,
     favoriteIconColor: toString(
       firstDefined(
+        raw.favIconColor,
         raw.favoriteIconColor,
         raw.favoriteColor,
         raw.likedIconColor,
@@ -75,7 +76,6 @@ export const buildFavoriteToggleConfig = (raw = {}, styleNode = {}) => {
         raw.unfavoriteIconColor,
         raw.unfavoriteColor,
         raw.favIconInactiveColor,
-        raw.favIconColor,
         raw.favColor,
         styleNode?.inactiveColor,
         styleNode?.color
