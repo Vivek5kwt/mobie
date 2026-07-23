@@ -631,25 +631,6 @@ export default function ProductCarousel({ section }) {
       raw?.wishlistActiveIconColor,
     "#EF4444"
   );
-  const unfavoriteIconId = toString(
-    raw?.unfavoriteIconId ?? raw?.unfavoriteIcon ?? raw?.unfavIcon,
-    "fa-heart-o"
-  );
-  const unfavoriteIconSize = toNumber(raw?.unfavoriteIconSize ?? raw?.unfavIconSize, favoriteIconSize);
-  const resolvedUnfavoriteIconColor = toString(
-    raw?.unfavoriteIconColor ??
-      raw?.unfavoriteColor ??
-      raw?.favIconInactiveColor ??
-      raw?.favIconColor ??
-      raw?.favColor,
-    "#9CA3AF"
-  );
-  const inactiveFavoriteFallbackColor =
-    favoriteIconColor.trim().toLowerCase() === "#9ca3af" ? "#D1D5DB" : "#9CA3AF";
-  const unfavoriteIconColor =
-    resolvedUnfavoriteIconColor.trim().toLowerCase() === favoriteIconColor.trim().toLowerCase()
-      ? inactiveFavoriteFallbackColor
-      : resolvedUnfavoriteIconColor;
   const favPosition = toString(raw?.favPosition, "top-right").toLowerCase();
   const favBubbleBgColor = toString(raw?.favBubbleBgColor, "#FFFFFF");
   const favBubblePadT = toNumber(raw?.favBubblePadT, 0);
@@ -658,7 +639,6 @@ export default function ProductCarousel({ section }) {
   const favBubblePadL = toNumber(raw?.favBubblePadL, 0);
   const favoriteBubbleInset = toNumber(raw?.favBubbleInset ?? raw?.favBubbleOffset, 12);
   const favoriteOnIconName = resolveFA4IconName(favoriteIconId) || "heart";
-  const favoriteOffIconName = resolveFA4IconName(unfavoriteIconId) || "heart-o";
 
   // Add to Cart configuration
   const atcActive = resolveBooleanSetting(
@@ -1036,6 +1016,8 @@ export default function ProductCarousel({ section }) {
     });
   };
 
+  const headerTextVisible = headerGroupActive && gridTitleActive && !!headerText;
+
   const renderHeader = () => {
     if (!headerGroupActive || !gridTitleActive) return null;
     if (!headerText) return null;
@@ -1128,9 +1110,11 @@ export default function ProductCarousel({ section }) {
   const renderFavorite = (product, isFavorite) => {
     if (!showFavorite) return null;
 
-    const iconSize = isFavorite ? favoriteIconSize : (unfavoriteIconSize || favoriteIconSize);
-    const iconColor = isFavorite ? favoriteIconColor : unfavoriteIconColor;
-    const iconName = isFavorite ? favoriteOnIconName : favoriteOffIconName;
+    // Single style regardless of wishlist state — only favoriteIcon* fields are
+    // configurable in the builder, so the badge always renders that one look.
+    const iconSize = favoriteIconSize;
+    const iconColor = favoriteIconColor;
+    const iconName = favoriteOnIconName;
 
     const positionStyle = {};
     if (favPosition.includes("top")) {
@@ -1304,7 +1288,17 @@ export default function ProductCarousel({ section }) {
       ]}
     >
       {headerGroupActive && (
-        <View style={[styles.headerContainer, headerWrapStyleFromCss, { marginBottom: headerBottomGap }]}>
+        <View
+          style={[
+            styles.headerContainer,
+            headerWrapStyleFromCss,
+            { marginBottom: headerBottomGap },
+            // With the title hidden, "View all" is the row's only child —
+            // space-between has nothing to space it against and collapses it
+            // to the start. Force it to the end so it still lands on the right.
+            !headerTextVisible ? styles.headerContainerViewAllOnly : null,
+          ]}
+        >
           {headerAlign === "right" ? (
             <>
               {renderViewAll()}
@@ -1538,6 +1532,9 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
+  },
+  headerContainerViewAllOnly: {
+    justifyContent: "flex-end",
   },
   headerTextWrapper: {
     flex: 1,

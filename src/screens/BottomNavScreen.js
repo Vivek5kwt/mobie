@@ -1192,6 +1192,7 @@ const styles = StyleSheet.create({
     width: "100%",
     alignSelf: "stretch",
     marginBottom: 0,
+    overflow: "hidden",
   },
   sectionWrapperProduct: {
     marginBottom: 0,

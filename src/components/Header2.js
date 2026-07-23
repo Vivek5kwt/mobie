@@ -158,10 +158,17 @@ const resolveSideMenuIcon = (variant) => {
 
 const normalizeFa6Variant = (value, fallback = "solid") => {
   const v = String(resolveValue(value, fallback) || fallback).trim().toLowerCase();
-  if (["solid", "regular", "light", "thin", "duotone", "brands"].includes(v)) return v;
-  if (v === "brand") return "brands";
+  if (["solid", "regular", "light", "thin", "duotone", "brand"].includes(v)) return v;
+  if (v === "brands") return "brand";
   return fallback;
 };
+
+// react-native-vector-icons' FontAwesome6 multi-style icon set has no generic
+// "variant" prop — it only recognizes one boolean prop per style (solid,
+// regular, light, thin, duotone, brand). Passing an arbitrary iconStyle="solid"
+// string prop is silently ignored and the icon always renders in its default
+// style. This converts a resolved variant into the boolean prop it needs.
+const fa6VariantProps = (variant) => ({ [normalizeFa6Variant(variant)]: true });
 
 export default function Header2({ section }) {
   const { openSideMenu, toggleSideMenu, hasSideNav } = useSideMenu();
@@ -354,6 +361,7 @@ export default function Header2({ section }) {
     underline: resolveBooleanSetting(greetingNode.underline, false),
     strikethrough: resolveBooleanSetting(greetingNode.strikethrough, false),
     fontWeight: resolveValue(greetingNode.fontWeight, "bold"),
+    fontFamily: resolveValue(greetingNode.fontFamily, ""),
   };
 
   // Profile configuration (all from JSON)
@@ -390,7 +398,6 @@ export default function Header2({ section }) {
       searchAndIconsNode.notificationIconColor,
       "#FFFFFF"
     ),
-    notificationIconSize: resolveValue(searchAndIconsNode.notificationIconSize, undefined),
     notificationIconWidth: resolveValue(searchAndIconsNode.notificationIconWidth, 16),
     notificationIconHeight: resolveValue(searchAndIconsNode.notificationIconHeight, 16),
     notificationIconVariant: resolveValue(
@@ -445,6 +452,12 @@ export default function Header2({ section }) {
     ...(styleBlock.container || {}),
     ...(bgSettingsEnabled ? {} : { background: undefined }),
     ...containerPadding,
+    // Fixed vertical-centering baseline: with a fixed container height, content
+    // must center between whatever top/bottom padding the DSL configures rather
+    // than pin to the top (which is what presentation.css's flex-start snapshot
+    // would otherwise do). DSL padding changes still apply on top of this — they
+    // just shrink the centered content box symmetrically instead of top-aligning it.
+    justifyContent: "center",
   };
   const topRowStyle = styleBlock.topRow || {};
   const profileStyle = styleBlock.profile || {};
@@ -470,7 +483,8 @@ export default function Header2({ section }) {
     parseSize(normalizedProfileStyle.height) ||
     40;
 
-  // Profile borderRadius: from props.profile.borderRadius (number) or style.profile, or circle default
+  // Profile borderRadius: from props.profile.borderRadius (number) or style.profile.
+  // Builder's true default (no override anywhere) is a fixed 30, not a computed circle.
   const resolveProfileBorderRadius = () => {
     const raw = profile.borderRadius ?? normalizedProfileStyle.borderRadius;
     if (raw != null && raw !== "") {
@@ -481,7 +495,7 @@ export default function Header2({ section }) {
       }
       if (String(raw).trim() === "50%" || String(raw).includes("999")) return profileSize / 2;
     }
-    return profileSize / 2;
+    return 30;
   };
   const profileBorderRadius = resolveProfileBorderRadius();
 
@@ -490,9 +504,12 @@ export default function Header2({ section }) {
   const normalizedSearchBarStyle = convertStyles(searchBarStyle);
   const normalizedSearchBarInputStyle = convertStyles(searchBarInputStyle);
   const searchMetricHeight = metricNumber(metricElements.search?.height);
+  // The configured field wins — presentation.metrics is a one-time snapshot
+  // of the builder's preview canvas, not a live source of truth, and using
+  // it first silently overrides whatever height was actually set in the DSL.
   const searchBoxHeight =
-    (Number.isFinite(searchMetricHeight) && searchMetricHeight > 0 ? searchMetricHeight : NaN) ||
     parseSize(searchAndIcons.searchBoxHeight) ||
+    (Number.isFinite(searchMetricHeight) && searchMetricHeight > 0 ? searchMetricHeight : NaN) ||
     40;
   const searchTextFontSize =
     parseSize(resolveValue(searchAndIconsNode.searchFontSize, undefined)) ||
@@ -536,12 +553,11 @@ export default function Header2({ section }) {
     iconVariant: normalizeFa6Variant(
       resolveValue(notificationNode.iconVariant, searchAndIcons.notificationIconVariant)
     ),
-    size: Math.min(
+    size:
       parseSize(resolveValue(notificationNode.width, undefined)) ||
-      parseSize(searchAndIcons.notificationIconSize) ||
-      22,
-      24
-    ),
+      parseSize(searchAndIcons.notificationIconWidth) ||
+      parseSize(searchAndIcons.notificationIconHeight) ||
+      32,
     color:
       resolveValue(notificationNode.color, searchAndIcons.notificationIconColor) || "#FFFFFF",
     showBadge: resolveBooleanSetting(
@@ -549,11 +565,15 @@ export default function Header2({ section }) {
       searchAndIcons.showNotificationBadge
     ),
   };
-  
-  let gradientColors = ["#5EB7C6", "#8DD1D5"];
-  let gradientAngle = 90;
 
-  // Use explicit bgStart / bgEnd from Header 2 JSON when provided (dynamic background)
+  let gradientColors = ["#5EB7C6", "#8DD1D5"];
+  // Builder's true default angle is 20deg (not 90) — matches header2Dsl.ts.
+  let gradientAngle = 20;
+
+  // Use explicit bgStart / bgEnd from Header 2 JSON when provided (dynamic background).
+  // The angle itself isn't exposed as a separate bgStart/bgEnd-style field, so it must
+  // still be read from the presentation.css gradient snapshot when available — bgStart/
+  // bgEnd only ever supplies colors, never angle.
   const hasBgStart = typeof bgStart === "string" && bgStart.trim().length > 0;
   const hasBgEnd = typeof bgEnd === "string" && bgEnd.trim().length > 0;
   if (hasBgStart || hasBgEnd) {
@@ -561,6 +581,11 @@ export default function Header2({ section }) {
     const end = (hasBgEnd ? bgEnd.trim() : null) || (hasBgStart ? bgStart.trim() : null);
     if (start && end) gradientColors = [start, end];
     else if (start) gradientColors = [start, start];
+    if (typeof containerStyle?.background === "string" &&
+      containerStyle.background.includes("linear-gradient")) {
+      const angleInfo = extractGradientInfo({ background: containerStyle.background });
+      if (angleInfo?.angle !== undefined) gradientAngle = angleInfo.angle;
+    }
   } else if (typeof containerStyle?.background === "string" &&
     containerStyle.background.includes("linear-gradient")) {
 
@@ -580,30 +605,24 @@ export default function Header2({ section }) {
   
   const greetingTextStyle = {};
   if (greeting.color) greetingTextStyle.color = greeting.color;
+  // The configured fontSize wins outright — it must not be shrunk to fit
+  // presentation.metrics, which is a one-time snapshot of the builder's
+  // preview canvas, not a live layout constraint.
   const rawGreetingFontSize = parseSize(greeting.fontSize) || 16;
-  const greetingLineCount = [greeting?.title, greeting?.name].filter(Boolean).length || 1;
-  const compactGreetingFontSize = (() => {
-    if (!metricsAvailable || greetingLineCount <= 1) return rawGreetingFontSize;
-    const greetingEl = metricElements.greeting;
-    const searchEl = metricElements.search;
-    const greetingY = metricNumber(greetingEl?.y);
-    const searchY = metricNumber(searchEl?.y);
-    if (!Number.isFinite(greetingY) || !Number.isFinite(searchY) || searchY <= greetingY) {
-      return rawGreetingFontSize;
-    }
-    const availableHeight = Math.max(0, searchY - greetingY - 4);
-    const currentBlockHeight = rawGreetingFontSize * 1.18 * greetingLineCount;
-    if (availableHeight <= 0 || availableHeight >= currentBlockHeight) return rawGreetingFontSize;
-    return Math.max(12, Math.floor(availableHeight / (greetingLineCount * 1.18)));
-  })();
-  greetingTextStyle.fontSize = compactGreetingFontSize;
-  greetingTextStyle.lineHeight = Math.ceil(compactGreetingFontSize * 1.18);
+  greetingTextStyle.fontSize = rawGreetingFontSize;
+  greetingTextStyle.lineHeight = Math.ceil(rawGreetingFontSize * 1.18);
   greetingTextStyle.includeFontPadding = false;
   greetingTextStyle.fontWeight = resolveFontWeight(
     greeting.fontWeight,
     greeting.bold ? "700" : "400"
   );
   greetingTextStyle.fontStyle = greeting.italic ? "italic" : "normal";
+  const greetingFontFamily = resolveFirstFont(
+    greeting.fontFamily,
+    typography.headlineFontFamily,
+    typography.bodyFontFamily
+  );
+  if (greetingFontFamily) greetingTextStyle.fontFamily = greetingFontFamily;
   if (greeting.underline || greeting.strikethrough) {
     greetingTextStyle.textDecorationLine = [
       greeting.underline ? "underline" : null,
@@ -775,20 +794,14 @@ export default function Header2({ section }) {
     delete containerStyle.flexGrow;
   }
 
-  if (containerStyle.borderRadius != null) {
-    delete containerStyle.borderRadius;
+  // Builder's Header 2 renders at a fixed 160px height with overflow hidden —
+  // content is clipped rather than the block growing to fit it. Only fall
+  // back to that default when the DSL doesn't already specify a height.
+  if (containerStyle.height == null) {
+    containerStyle.height = 160;
   }
-  if (containerStyle.borderTopLeftRadius != null) {
-    delete containerStyle.borderTopLeftRadius;
-  }
-  if (containerStyle.borderTopRightRadius != null) {
-    delete containerStyle.borderTopRightRadius;
-  }
-  if (containerStyle.borderBottomLeftRadius != null) {
-    delete containerStyle.borderBottomLeftRadius;
-  }
-  if (containerStyle.borderBottomRightRadius != null) {
-    delete containerStyle.borderBottomRightRadius;
+  if (containerStyle.overflow == null) {
+    containerStyle.overflow = "hidden";
   }
 
   useEffect(() => {
@@ -1063,7 +1076,7 @@ export default function Header2({ section }) {
                 name={notificationIconName}
                 size={notificationIconSize}
                 color={notificationIconColor}
-                iconStyle={notificationIconVariant}
+                {...fa6VariantProps(notificationIconVariant)}
               />
               {notificationShowBadge && (
                 <View
@@ -1254,6 +1267,7 @@ export default function Header2({ section }) {
               {
                 height: searchBoxHeight,
                 minHeight: searchBoxHeight,
+                backgroundColor: searchAndIcons.searchBgColor || "#FFFFFF",
               },
             ]}>
               <TouchableOpacity
@@ -1292,6 +1306,7 @@ export default function Header2({ section }) {
                     fontSize: searchTextFontSize,
                     lineHeight: Math.round(searchTextFontSize * 1.25),
                     paddingVertical: 0,
+                    color: searchAndIcons.searchTextColor || "#131b28",
                   },
                 ]}
                 underlineColorAndroid="transparent"
@@ -1315,7 +1330,7 @@ export default function Header2({ section }) {
                   name={notificationBell.iconId}
                   size={notificationBell.size}
                   color={notificationBell.color}
-                  iconStyle={notificationBell.iconVariant}
+                  {...fa6VariantProps(notificationBell.iconVariant)}
                 />
                 {notificationBell.showBadge && (
                   <View
