@@ -33,6 +33,28 @@ const unwrapValue = (value, fallback) => {
   return value;
 };
 
+const deepUnwrap = (value) => {
+  if (value === undefined || value === null) return value;
+  if (Array.isArray(value)) return value.map(deepUnwrap);
+  if (typeof value !== "object") return value;
+  if (value.value !== undefined) return deepUnwrap(value.value);
+  if (value.const !== undefined) return deepUnwrap(value.const);
+  if (value.properties !== undefined) return deepUnwrap(value.properties);
+  return Object.fromEntries(
+    Object.entries(value).map(([key, item]) => [key, deepUnwrap(item)])
+  );
+};
+
+const firstDefined = (...values) => {
+  for (const value of values) {
+    const resolved = deepUnwrap(value);
+    if (resolved !== undefined && resolved !== null && resolved !== "") {
+      return resolved;
+    }
+  }
+  return undefined;
+};
+
 const unwrapBoolean = (value, fallback = false) => {
   const resolved = unwrapValue(value, fallback);
   if (typeof resolved === "boolean") return resolved;
@@ -45,21 +67,32 @@ const unwrapBoolean = (value, fallback = false) => {
   return fallback;
 };
 
-const buildBorderStyles = (borderSide, borderColor) => {
-  const side = String(borderSide || "").toLowerCase();
+const buildBorderStyles = ({ side: borderSide, color: borderColor, width, style }) => {
+  const side = String(borderSide || "none").trim().toLowerCase();
+  const parsedWidth = parseFloat(deepUnwrap(width));
+  const borderWidth = Math.max(0, Number.isNaN(parsedWidth) ? 0 : parsedWidth);
   const out = {};
-  if (!side || side === "all" || side === "full") {
-    out.borderWidth = 1;
+  if (
+    ["all", "full", "solid", "dashed", "dotted"].includes(side) &&
+    borderWidth > 0
+  ) {
+    out.borderWidth = borderWidth;
   } else if (side === "bottom") {
-    out.borderBottomWidth = 1;
+    out.borderBottomWidth = borderWidth;
   } else if (side === "top") {
-    out.borderTopWidth = 1;
+    out.borderTopWidth = borderWidth;
   } else if (side === "left") {
-    out.borderLeftWidth = 1;
+    out.borderLeftWidth = borderWidth;
   } else if (side === "right") {
-    out.borderRightWidth = 1;
+    out.borderRightWidth = borderWidth;
   }
-  if (borderColor) out.borderColor = borderColor;
+  if (borderColor && borderWidth > 0) out.borderColor = borderColor;
+  if (
+    borderWidth > 0 &&
+    ["solid", "dashed", "dotted"].includes(String(style || "").toLowerCase())
+  ) {
+    out.borderStyle = String(style).toLowerCase();
+  }
   return out;
 };
 
@@ -118,18 +151,43 @@ export default function SearchBar({ section }) {
   const route = useRoute();
 
   // Read DSL: most-specific first (properties.props.properties → properties.props → props)
-  const rawProps = useMemo(
-    () =>
+  const rawProps = useMemo(() => {
+    const propsNode =
       section?.properties?.props?.properties ||
       section?.properties?.props ||
       section?.props ||
-      {},
-    [section]
-  );
+      {};
+    const unwrappedProps = deepUnwrap(propsNode) || {};
+    const raw = deepUnwrap(propsNode?.raw ?? unwrappedProps?.raw);
+    return raw && typeof raw === "object" && !Array.isArray(raw)
+      ? { ...unwrappedProps, ...raw }
+      : unwrappedProps;
+  }, [section]);
 
   const get    = (key, fallback) => unwrapValue(rawProps?.[key], fallback);
   const getNum = (key, fallback) => toNumber(rawProps?.[key], fallback);
   const getBool = (key, fallback) => unwrapBoolean(rawProps?.[key], fallback);
+  const visibility = useMemo(
+    () => deepUnwrap(rawProps?.visibility) || {},
+    [rawProps]
+  );
+  const layoutCss = useMemo(() => {
+    const layout =
+      deepUnwrap(rawProps?.layout) ||
+      deepUnwrap(section?.properties?.presentation) ||
+      deepUnwrap(section?.presentation) ||
+      {};
+    return deepUnwrap(layout?.css ?? layout) || {};
+  }, [rawProps, section]);
+  const getVisible = (visibilityKeys, propKeys, fallback) => {
+    const visibilityNames = Array.isArray(visibilityKeys) ? visibilityKeys : [visibilityKeys];
+    const propNames = Array.isArray(propKeys) ? propKeys : [propKeys];
+    const configured = firstDefined(
+      ...visibilityNames.map((key) => visibility?.[key]),
+      ...propNames.map((key) => rawProps?.[key])
+    );
+    return unwrapBoolean(configured, fallback);
+  };
   const isDedicatedSearchPage = useMemo(() => {
     const routeHint = String(
       route?.params?.pageName ||
@@ -142,13 +200,209 @@ export default function SearchBar({ section }) {
     return routeHint === "search" || routeHint.includes("search");
   }, [route?.params?.link, route?.params?.pageName, route?.params?.title]);
 
-  const paddingTop    = getNum("pt", 12);
-  const paddingBottom = getNum("pb", 12);
-  const paddingLeft   = getNum("pl", 16);
-  const paddingRight  = getNum("pr", 16);
-  const bgColor         = get("bgColor", "transparent");
-  const searchBgColor   = get("searchBgColor", "#F3F4F6");
-  const borderColor     = get("borderColor", "#E5E7EB");
+  const searchStyle = deepUnwrap(
+    rawProps?.searchBar ??
+    rawProps?.search ??
+    rawProps?.inputStyle ??
+    rawProps?.input
+  ) || {};
+  const inputCss =
+    layoutCss?.inputWrapper ||
+    layoutCss?.searchBar ||
+    layoutCss?.searchContainer ||
+    layoutCss?.inputContainer ||
+    layoutCss?.input ||
+    {};
+  const containerCss = layoutCss?.container || {};
+  const convertedInputCss = convertStyles(inputCss);
+  const convertedContainerCss = convertStyles(containerCss);
+  const alignmentPadding =
+    deepUnwrap(rawProps?.alignmentAndPadding?.paddingRaw) || {};
+  const componentPadding =
+    deepUnwrap(
+      rawProps?.containerPadding?.paddingRaw ??
+      rawProps?.containerPadding ??
+      rawProps?.contPadding
+    ) || {};
+  const searchPadding =
+    deepUnwrap(
+      rawProps?.searchPadding?.paddingRaw ??
+      rawProps?.searchPadding ??
+      rawProps?.inputPadding
+    ) || {};
+  const hasContainerPadding = [
+    rawProps?.contpt,
+    rawProps?.contpb,
+    rawProps?.contpl,
+    rawProps?.contpr,
+    rawProps?.containerPaddingTop,
+    rawProps?.containerPaddingBottom,
+    rawProps?.containerPaddingLeft,
+    rawProps?.containerPaddingRight,
+  ].some((value) => deepUnwrap(value) !== undefined);
+  const paddingTop = toNumber(
+    firstDefined(
+      rawProps?.contpt,
+      rawProps?.containerPaddingTop,
+      componentPadding?.pt,
+      componentPadding?.paddingTop,
+      convertedContainerCss?.paddingTop,
+      convertedContainerCss?.paddingVertical,
+      convertedContainerCss?.padding,
+      hasContainerPadding ? undefined : rawProps?.pt,
+      hasContainerPadding ? undefined : rawProps?.paddingTop,
+      hasContainerPadding ? undefined : alignmentPadding?.pt
+    ),
+    0
+  );
+  const paddingBottom = toNumber(
+    firstDefined(
+      rawProps?.contpb,
+      rawProps?.containerPaddingBottom,
+      componentPadding?.pb,
+      componentPadding?.paddingBottom,
+      convertedContainerCss?.paddingBottom,
+      convertedContainerCss?.paddingVertical,
+      convertedContainerCss?.padding,
+      hasContainerPadding ? undefined : rawProps?.pb,
+      hasContainerPadding ? undefined : rawProps?.paddingBottom,
+      hasContainerPadding ? undefined : alignmentPadding?.pb
+    ),
+    0
+  );
+  const paddingLeft = toNumber(
+    firstDefined(
+      rawProps?.contpl,
+      rawProps?.containerPaddingLeft,
+      componentPadding?.pl,
+      componentPadding?.paddingLeft,
+      convertedContainerCss?.paddingLeft,
+      convertedContainerCss?.paddingHorizontal,
+      convertedContainerCss?.padding,
+      hasContainerPadding ? undefined : rawProps?.pl,
+      hasContainerPadding ? undefined : rawProps?.paddingLeft,
+      hasContainerPadding ? undefined : alignmentPadding?.pl
+    ),
+    0
+  );
+  const paddingRight = toNumber(
+    firstDefined(
+      rawProps?.contpr,
+      rawProps?.containerPaddingRight,
+      componentPadding?.pr,
+      componentPadding?.paddingRight,
+      convertedContainerCss?.paddingRight,
+      convertedContainerCss?.paddingHorizontal,
+      convertedContainerCss?.padding,
+      hasContainerPadding ? undefined : rawProps?.pr,
+      hasContainerPadding ? undefined : rawProps?.paddingRight,
+      hasContainerPadding ? undefined : alignmentPadding?.pr
+    ),
+    0
+  );
+  const inputPaddingTop = toNumber(
+    firstDefined(
+      rawProps?.searchPaddingTop,
+      rawProps?.inputPaddingTop,
+      searchPadding?.pt,
+      searchPadding?.paddingTop,
+      searchStyle?.paddingTop,
+      convertedInputCss?.paddingTop,
+      convertedInputCss?.paddingVertical,
+      convertedInputCss?.padding,
+      hasContainerPadding ? rawProps?.pt : undefined,
+      hasContainerPadding ? rawProps?.paddingTop : undefined,
+      hasContainerPadding ? alignmentPadding?.pt : undefined
+    ),
+    10
+  );
+  const inputPaddingBottom = toNumber(
+    firstDefined(
+      rawProps?.searchPaddingBottom,
+      rawProps?.inputPaddingBottom,
+      searchPadding?.pb,
+      searchPadding?.paddingBottom,
+      searchStyle?.paddingBottom,
+      convertedInputCss?.paddingBottom,
+      convertedInputCss?.paddingVertical,
+      convertedInputCss?.padding,
+      hasContainerPadding ? rawProps?.pb : undefined,
+      hasContainerPadding ? rawProps?.paddingBottom : undefined,
+      hasContainerPadding ? alignmentPadding?.pb : undefined
+    ),
+    10
+  );
+  const inputPaddingLeft = toNumber(
+    firstDefined(
+      rawProps?.searchPaddingLeft,
+      rawProps?.inputPaddingLeft,
+      searchPadding?.pl,
+      searchPadding?.paddingLeft,
+      searchStyle?.paddingLeft,
+      convertedInputCss?.paddingLeft,
+      convertedInputCss?.paddingHorizontal,
+      convertedInputCss?.padding,
+      hasContainerPadding ? rawProps?.pl : undefined,
+      hasContainerPadding ? rawProps?.paddingLeft : undefined,
+      hasContainerPadding ? alignmentPadding?.pl : undefined
+    ),
+    14
+  );
+  const inputPaddingRight = toNumber(
+    firstDefined(
+      rawProps?.searchPaddingRight,
+      rawProps?.inputPaddingRight,
+      searchPadding?.pr,
+      searchPadding?.paddingRight,
+      searchStyle?.paddingRight,
+      convertedInputCss?.paddingRight,
+      convertedInputCss?.paddingHorizontal,
+      convertedInputCss?.padding,
+      hasContainerPadding ? rawProps?.pr : undefined,
+      hasContainerPadding ? rawProps?.paddingRight : undefined,
+      hasContainerPadding ? alignmentPadding?.pr : undefined
+    ),
+    14
+  );
+  const bgColor = firstDefined(
+    rawProps?.contBgColor,
+    rawProps?.containerBgColor,
+    rawProps?.sectionBgColor,
+    rawProps?.backgroundColor,
+    containerCss?.backgroundColor,
+    containerCss?.background,
+    rawProps?.bgColor,
+    "transparent"
+  );
+  const searchBgColor = firstDefined(
+    rawProps?.searchBgColor,
+    rawProps?.searchBarBgColor,
+    rawProps?.searchBackgroundColor,
+    rawProps?.inputBgColor,
+    rawProps?.inputBackgroundColor,
+    rawProps?.fieldBgColor,
+    searchStyle?.bgColor,
+    searchStyle?.backgroundColor,
+    inputCss?.backgroundColor,
+    inputCss?.background,
+    rawProps?.bgColor,
+    "#F3F4F6"
+  );
+  const cssBorder = firstDefined(inputCss?.border, searchStyle?.border);
+  const cssBorderText = String(cssBorder || "").trim();
+  const cssBorderWidth = cssBorderText.match(/(\d+(?:\.\d+)?)px/i)?.[1];
+  const cssBorderColor = cssBorderText.match(
+    /(#[0-9a-f]{3,8}|rgba?\([^)]+\)|hsla?\([^)]+\))/i
+  )?.[1];
+  const cssBorderStyle = cssBorderText.match(/\b(solid|dashed|dotted)\b/i)?.[1];
+  const borderColor = firstDefined(
+    rawProps?.borderColor,
+    rawProps?.searchBorderColor,
+    rawProps?.inputBorderColor,
+    searchStyle?.borderColor,
+    inputCss?.borderColor,
+    cssBorderColor
+  );
   const searchTextColor = get("searchTextColor", "#111827");
   const placeholderColor = get("placeholderColor", searchTextColor);
   const clearIconColor  = get("clearIconColor", "#6B7280");
@@ -157,8 +411,50 @@ export default function SearchBar({ section }) {
   const fontSize        = getNum("fontSize", 14);
   const fontFamily      = resolveFont(get("fontFamily", undefined));
   const fontWeight      = toFontWeight(rawProps?.fontWeight, "400");
-  const borderRadius    = getNum("borderRadius", 24);
-  const borderSide      = get("borderSide", "none");
+  const borderRadius = toNumber(
+    firstDefined(
+      rawProps?.borderRadius,
+      rawProps?.searchBorderRadius,
+      rawProps?.inputBorderRadius,
+      searchStyle?.borderRadius,
+      inputCss?.borderRadius
+    ),
+    0
+  );
+  const borderSide = firstDefined(
+    rawProps?.borderSide,
+    rawProps?.searchBorderSide,
+    rawProps?.inputBorderSide,
+    rawProps?.borderLine,
+    searchStyle?.borderSide,
+    searchStyle?.borderLine,
+    inputCss?.borderSide,
+    cssBorderText && cssBorderText.toLowerCase() !== "none" ? "all" : undefined,
+    "none"
+  );
+  const borderEnabled = !["", "none", "no", "false", "0"].includes(
+    String(borderSide).trim().toLowerCase()
+  );
+  const borderWidth = toNumber(
+    firstDefined(
+      rawProps?.borderWidth,
+      rawProps?.searchBorderWidth,
+      rawProps?.inputBorderWidth,
+      searchStyle?.borderWidth,
+      inputCss?.borderWidth,
+      cssBorderWidth
+    ),
+    borderEnabled ? 1 : 0
+  );
+  const borderStyleValue = firstDefined(
+    rawProps?.borderStyle,
+    rawProps?.searchBorderStyle,
+    rawProps?.inputBorderStyle,
+    searchStyle?.borderStyle,
+    inputCss?.borderStyle,
+    cssBorderStyle,
+    "solid"
+  );
   const searchIconSize  = getNum("searchIconSize", getNum("fontSize", 14));
   const clearIconSize   = getNum("clearIconSize", 13);
   const voiceIconSize   = getNum("voiceIconSize", 16);
@@ -167,9 +463,34 @@ export default function SearchBar({ section }) {
   const placeholderUnderline   = getBool("placeholderUnderline", false);
   const placeholderStrikethrough = getBool("placeholderStrikethrough", false);
   const searchPlaceholder = get("searchPlaceholder", "Search products...");
-  const showClear  = getBool("clearButtonVisible", true);
-  const showInput  = getBool("searchInputVisible", true);
-  const showVoice  = getBool("voiceSearchVisible", true);
+  const searchIconDisplay = String(
+    firstDefined(
+      layoutCss?.searchIcon?.display,
+      layoutCss?.icon?.display,
+      rawProps?.searchIconDisplay
+    ) || ""
+  ).trim().toLowerCase();
+  const showSearchIcon =
+    getVisible(
+      ["searchIcon", "icon"],
+      ["searchIconVisible", "showSearchIcon", "searchIconActive", "iconVisible", "iconActive", "showIcon"],
+      true
+    ) && searchIconDisplay !== "none";
+  const showClear = getVisible(
+    ["clearButton", "clearIcon"],
+    ["clearButtonVisible", "clearIconVisible", "showClearIcon"],
+    getBool("clearButtonVisible", true)
+  );
+  const showInput = getVisible(
+    ["searchInput", "input"],
+    ["searchInputVisible", "showSearchInput"],
+    getBool("searchInputVisible", true)
+  );
+  const showVoice = getVisible(
+    ["voiceSearch", "voiceIcon"],
+    ["voiceSearchVisible", "voiceIconVisible", "showVoiceIcon"],
+    getBool("voiceSearchVisible", true)
+  );
   const searchLimit = getNum("searchLimit", 10);
   const autocompleteLimit = Math.max(3, getNum("autocompleteLimit", Math.min(searchLimit, 6)));
   const suggestionsTitle = get("suggestionsTitle", "Suggestions");
@@ -241,13 +562,34 @@ export default function SearchBar({ section }) {
   );
 
   const borderStyle = useMemo(
-    () => buildBorderStyles(borderSide, borderColor),
-    [borderSide, borderColor]
+    () =>
+      buildBorderStyles({
+        side: borderSide,
+        color: borderColor,
+        width: borderWidth,
+        style: borderStyleValue,
+      }),
+    [borderSide, borderColor, borderWidth, borderStyleValue]
   );
 
   const inputWrapperStyle = useMemo(
-    () => convertStyles({ backgroundColor: searchBgColor, borderRadius }),
-    [searchBgColor, borderRadius]
+    () =>
+      convertStyles({
+        backgroundColor: searchBgColor,
+        borderRadius,
+        paddingTop: inputPaddingTop,
+        paddingBottom: inputPaddingBottom,
+        paddingLeft: inputPaddingLeft,
+        paddingRight: inputPaddingRight,
+      }),
+    [
+      searchBgColor,
+      borderRadius,
+      inputPaddingTop,
+      inputPaddingBottom,
+      inputPaddingLeft,
+      inputPaddingRight,
+    ]
   );
 
   let textDecorationLine = "none";
@@ -527,15 +869,17 @@ export default function SearchBar({ section }) {
   return (
     <View style={[styles.container, containerStyle]}>
       <View style={[styles.inputWrapper, inputWrapperStyle, borderStyle]}>
-        <TouchableOpacity
-          onPress={() => openSearchResults()}
-          activeOpacity={0.7}
-          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-          accessibilityLabel="Search products"
-          accessibilityRole="button"
-        >
-          <FontAwesome name="search" size={searchIconSize} color={searchIconColor} />
-        </TouchableOpacity>
+        {showSearchIcon ? (
+          <TouchableOpacity
+            onPress={() => openSearchResults()}
+            activeOpacity={0.7}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+            accessibilityLabel="Search products"
+            accessibilityRole="button"
+          >
+            <FontAwesome name="search" size={searchIconSize} color={searchIconColor} />
+          </TouchableOpacity>
+        ) : null}
         {showInput && (
           <View style={styles.inputShell}>
             <TextInput
