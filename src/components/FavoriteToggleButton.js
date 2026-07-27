@@ -1,7 +1,26 @@
 import React from "react";
-import { StyleSheet, TouchableOpacity } from "react-native";
+import { Image, StyleSheet, TouchableOpacity } from "react-native";
 import FontAwesome from "react-native-vector-icons/FontAwesome";
 import { resolveFA4IconName } from "../utils/faIconAlias";
+
+// Matches IconDropdownField.tsx's toCustomIconValue() on the Builder side —
+// an uploaded Brand Kit icon is stored as this prefix + an encoded image URL,
+// not a FontAwesome name. resolveFA4IconName can't map it, so it silently
+// fell back to the default heart glyph with no indication anything was
+// picked at all.
+const CUSTOM_ICON_PREFIX = "custom-icon::";
+
+const getCustomIconUrlFromValue = (value) => {
+  const raw = String(value || "");
+  if (!raw.startsWith(CUSTOM_ICON_PREFIX)) return null;
+  const encoded = raw.slice(CUSTOM_ICON_PREFIX.length);
+  if (!encoded) return null;
+  try {
+    return decodeURIComponent(encoded);
+  } catch {
+    return null;
+  }
+};
 
 const unwrap = (value, fallback = undefined) => {
   if (value === undefined || value === null) return fallback;
@@ -57,6 +76,8 @@ export const buildFavoriteToggleConfig = (raw = {}, styleNode = {}) => {
   return {
     favoriteIconName: resolveFA4IconName(toString(favoriteIconId, "fa-heart")) || "heart",
     unfavoriteIconName: resolveFA4IconName(toString(unfavoriteIconId, "fa-heart-o")) || "heart-o",
+    favoriteIconImageUrl: getCustomIconUrlFromValue(favoriteIconId),
+    unfavoriteIconImageUrl: getCustomIconUrlFromValue(unfavoriteIconId),
     favoriteIconSize,
     unfavoriteIconSize,
     favoriteIconColor: toString(
@@ -123,6 +144,7 @@ export default function FavoriteToggleButton({
   const iconSize = isFavorite ? resolvedConfig.favoriteIconSize : resolvedConfig.unfavoriteIconSize;
   const iconColor = isFavorite ? resolvedConfig.favoriteIconColor : resolvedConfig.unfavoriteIconColor;
   const iconName = isFavorite ? resolvedConfig.favoriteIconName : resolvedConfig.unfavoriteIconName;
+  const iconImageUrl = isFavorite ? resolvedConfig.favoriteIconImageUrl : resolvedConfig.unfavoriteIconImageUrl;
   const bubblePadding = Math.max(
     resolvedConfig.paddingTop || 0,
     resolvedConfig.paddingRight || 0,
@@ -162,7 +184,15 @@ export default function FavoriteToggleButton({
         (isFavorite ? "Remove from wishlist" : "Add to wishlist")
       }
     >
-      <FontAwesome name={iconName} size={iconSize} color={iconColor} />
+      {iconImageUrl ? (
+        <Image
+          source={{ uri: iconImageUrl }}
+          style={{ width: iconSize, height: iconSize }}
+          resizeMode="contain"
+        />
+      ) : (
+        <FontAwesome name={iconName} size={iconSize} color={iconColor} />
+      )}
     </TouchableOpacity>
   );
 }

@@ -111,6 +111,12 @@ const applyTextAttributes = (baseStyle, attributes) => {
   const fontFamily = cleanFontFamily(unwrapValue(attrs.fontFamily, undefined));
   if (fontFamily) next.fontFamily = fontFamily;
 
+  const lineHeight = asNumber(attrs.lineHeight, undefined);
+  if (lineHeight != null) {
+    const fontSize = next.fontSize || size || 16;
+    next.lineHeight = Math.round(fontSize * lineHeight);
+  }
+
   return next;
 };
 
@@ -529,10 +535,51 @@ class Countdown extends PureComponent {
     const titleStyle = applyTextAttributes(baseTitleStyle, titleAttributes);
     const subtextStyle = applyTextAttributes(baseSubtextStyle, subtextAttributes);
 
-    // Title alignment: prefer alignmentAndPadding.textAlign, fall back to titleAttributes.align
+    // Title alignment: the dedicated Title Alignment control (titleAttributes.align)
+    // is more specific than the block-level alignmentAndPadding.textAlign, so it wins.
     const titleAlignAttr = unwrapValue(titleAttributes?.align, null);
     const effectiveTitleAlign =
-      (resolvedTextAlign || titleAlignAttr || "").toLowerCase() || undefined;
+      (titleAlignAttr || resolvedTextAlign || "").toLowerCase() || undefined;
+
+    // Subtext has its own dedicated alignment control — don't reuse the title's.
+    const subtextAlignAttr = unwrapValue(subtextAttributes?.align, null);
+    const effectiveSubtextAlign =
+      (subtextAlignAttr || resolvedTextAlign || "").toLowerCase() || undefined;
+
+    // Subtext border + background — a feature RN previously ignored entirely.
+    const subtextBgEnabled = asBoolean(subtextAttributes?.bgEnabled, true);
+    const subtextBorderLine = unwrapValue(subtextAttributes?.borderLine, "all").toLowerCase();
+    const subtextBorderColor = unwrapValue(subtextAttributes?.borderColor, "#D1D5DB");
+    const subtextBorderWidth = asNumber(subtextAttributes?.borderWidth, 1);
+    const subtextBorderRadius = asNumber(subtextAttributes?.borderRadius, 0);
+    const subtextBgColor = unwrapValue(subtextAttributes?.bgColor, "#FFFFFF");
+    const subtextPaddingLeft = asNumber(subtextAttributes?.paddingLeft, 20);
+    const subtextPaddingRight = asNumber(subtextAttributes?.paddingRight, 20);
+    const subtextPaddingTop = asNumber(subtextAttributes?.paddingTop, 10);
+    const subtextPaddingBottom = asNumber(subtextAttributes?.paddingBottom, 10);
+    const subtextBoxStyle = {
+      paddingLeft: subtextPaddingLeft,
+      paddingRight: subtextPaddingRight,
+      paddingTop: subtextPaddingTop,
+      paddingBottom: subtextPaddingBottom,
+      borderRadius: subtextBorderRadius,
+    };
+    if (subtextBgEnabled) subtextBoxStyle.backgroundColor = subtextBgColor;
+    if (subtextBgEnabled && subtextBorderLine === "all") {
+      subtextBoxStyle.borderWidth = subtextBorderWidth;
+      subtextBoxStyle.borderColor = subtextBorderColor;
+    } else if (subtextBgEnabled && subtextBorderLine !== "none") {
+      const sideKey = {
+        top: "borderTopWidth",
+        right: "borderRightWidth",
+        bottom: "borderBottomWidth",
+        left: "borderLeftWidth",
+      }[subtextBorderLine];
+      if (sideKey) {
+        subtextBoxStyle[sideKey] = subtextBorderWidth;
+        subtextBoxStyle.borderColor = subtextBorderColor;
+      }
+    }
 
     const titleText = unwrapValue(rawProps?.title, "");
     const subtextText = unwrapValue(rawProps?.subtext, "");
@@ -540,6 +587,18 @@ class Countdown extends PureComponent {
     const stripFaPrefix = (name) => {
       if (!name || typeof name !== "string") return "";
       return name.replace(/^fa-/, "").trim();
+    };
+    const CUSTOM_ICON_PREFIX = "custom-icon::";
+    const getCustomIconUrlFromValue = (value) => {
+      const raw = String(value || "");
+      if (!raw.startsWith(CUSTOM_ICON_PREFIX)) return null;
+      const encoded = raw.slice(CUSTOM_ICON_PREFIX.length);
+      if (!encoded) return null;
+      try {
+        return decodeURIComponent(encoded);
+      } catch {
+        return null;
+      }
     };
 
     const buttonAttributes = rawProps?.buttonAttributes?.properties || rawProps?.buttonAttributes || {};
@@ -553,6 +612,19 @@ class Countdown extends PureComponent {
     const buttonUnderline = asBoolean(buttonAttributes?.underline, undefined);
     const buttonStrikethrough = asBoolean(buttonAttributes?.strikethrough, undefined);
     const buttonBorderRadius = asNumber(buttonAttributes?.borderRadius, undefined);
+    const buttonBorderLine = unwrapValue(buttonAttributes?.borderLine, "none").toLowerCase();
+    const buttonBorderColor = unwrapValue(buttonAttributes?.borderColor, "#D1D5DB");
+    const buttonBorderStyle = (() => {
+      if (buttonBorderLine === "none") return null;
+      if (buttonBorderLine === "all") return { borderWidth: 1, borderColor: buttonBorderColor };
+      const sideKey = {
+        top: "borderTopWidth",
+        right: "borderRightWidth",
+        bottom: "borderBottomWidth",
+        left: "borderLeftWidth",
+      }[buttonBorderLine];
+      return sideKey ? { [sideKey]: 1, borderColor: buttonBorderColor } : null;
+    })();
     const buttonPaddingX = asNumber(buttonAttributes?.paddingX, undefined);
     const buttonPaddingY = asNumber(buttonAttributes?.paddingY, undefined);
     const buttonFontWeightRaw = unwrapValue(buttonAttributes?.fontWeight, undefined);
@@ -562,15 +634,15 @@ class Countdown extends PureComponent {
         : buttonFontWeightRaw || undefined;
 
     // Button icon
-    const buttonIconName = stripFaPrefix(
-      unwrapValue(
-        buttonAttributes?.iconName ??
-        buttonAttributes?.icon ??
-        rawProps?.buttonIcon ??
-        rawProps?.iconType,
-        ""
-      )
+    const rawButtonIconValue = unwrapValue(
+      buttonAttributes?.iconName ??
+      buttonAttributes?.icon ??
+      rawProps?.buttonIcon ??
+      rawProps?.iconType,
+      ""
     );
+    const buttonIconImageUrl = getCustomIconUrlFromValue(rawButtonIconValue);
+    const buttonIconName = stripFaPrefix(rawButtonIconValue);
     const buttonIconSize  = asNumber(buttonAttributes?.iconSize, 14);
     const buttonIconColor = unwrapValue(buttonAttributes?.iconColor, buttonTextColor ?? "#FFFFFF");
 
@@ -709,10 +781,18 @@ class Countdown extends PureComponent {
         imageAttributes?.borderRadius,
       0
     );
+    // "Auto" → null (natural image size, no forced ratio) — matches Builder
+    // Preview, which maps Auto to CSS `aspect-ratio: auto`, not 1:1. (Passing
+    // `null` here, not `undefined`, since parseRatio's default param would
+    // otherwise silently substitute its own `1` fallback.)
     const imageAspectRatio = parseRatio(
       rawProps?.imageRatio ?? imageAttributes?.imageRatio ?? imageAttributes?.ratio,
-      1
+      null
     );
+    // Preview darkens the image via a CSS blur (0–100 slider → 0–8px blur);
+    // RN's Image/ImageBackground support the equivalent natively via blurRadius.
+    const overlayOpacityPct = asNumber(rawProps?.overlayOpacity, 0);
+    const imageBlurRadius = overlayOpacityPct > 0 ? Math.round((overlayOpacityPct / 100) * 20) : 0;
     const imageWidth =
       asNumber(rawProps?.imageWidth ?? imageAttributes?.width, undefined) ||
       unwrapValue(rawProps?.imageWidthValue ?? imageAttributes?.widthValue, undefined);
@@ -816,10 +896,13 @@ class Countdown extends PureComponent {
                       borderWidth: timerBorderWidth,
                       borderRadius: resolvedTimerBoxRadius,
                     },
+                    // minHeight only (no hard `height`) so the box grows to fit a
+                    // larger timer font instead of clipping/overlapping the label —
+                    // matches Builder Preview's own `minHeight: timerHeight + 18`.
                     timerHeight
-                      ? { height: timerHeight, minHeight: timerHeight }
+                      ? { minHeight: timerHeight + 18 }
                       : timerStyleHeight
-                        ? { height: timerStyleHeight, minHeight: timerStyleHeight }
+                        ? { minHeight: timerStyleHeight + 18 }
                         : null,
                   ]}
                 >
@@ -853,15 +936,17 @@ class Countdown extends PureComponent {
         )}
 
         {showSubtext && !!subtextText && (
-          <Text
-            style={[
-              styles.subtext,
-              subtextStyle,
-              effectiveTitleAlign ? { textAlign: effectiveTitleAlign } : null,
-            ]}
-          >
-            {subtextText}
-          </Text>
+          <View style={subtextBoxStyle}>
+            <Text
+              style={[
+                styles.subtext,
+                subtextStyle,
+                effectiveSubtextAlign ? { textAlign: effectiveSubtextAlign } : null,
+              ]}
+            >
+              {subtextText}
+            </Text>
+          </View>
         )}
 
         {showButton && (
@@ -876,10 +961,19 @@ class Countdown extends PureComponent {
               buttonPaddingX != null ? { paddingHorizontal: buttonPaddingX } : null,
               buttonPaddingY != null ? { paddingVertical: buttonPaddingY } : null,
               { alignSelf: buttonAlignSelf },
-              buttonIconName ? styles.buttonRow : null,
+              (buttonIconName || buttonIconImageUrl) ? styles.buttonRow : null,
+              buttonBorderStyle,
             ]}
           >
-            {!!buttonIconName && (
+            {!!buttonIconImageUrl ? (
+              <Image
+                source={{ uri: buttonIconImageUrl }}
+                style={[
+                  { width: buttonIconSize, height: buttonIconSize, resizeMode: "contain" },
+                  buttonLabel ? styles.buttonIconGap : null,
+                ]}
+              />
+            ) : !!buttonIconName && (
               <FontAwesome
                 name={buttonIconName}
                 size={buttonIconSize}
@@ -935,6 +1029,7 @@ class Countdown extends PureComponent {
             extraStyle,
           ]}
           resizeMode={imageResizeMode}
+          blurRadius={imageBlurRadius}
         />
       );
     };
@@ -957,9 +1052,14 @@ class Countdown extends PureComponent {
       return (
         <ImageBackground
           source={{ uri: imageUrl }}
-          style={[styles.imageContainer, outerStyle]}
+          style={[
+            styles.imageContainer,
+            outerStyle,
+            imageAspectRatio ? { aspectRatio: imageAspectRatio } : null,
+          ]}
           imageStyle={{ borderRadius: backgroundImageRadius }}
           resizeMode={imageResizeMode}
+          blurRadius={imageBlurRadius}
         >
           <View style={[contentPadding, { width: "100%" }]}>
             {innerContent}

@@ -323,6 +323,7 @@ export default function ProductGrid({ section, limit = 8, title = "Products" }) 
     rawProps?.cardPriceActive ?? rawProps?.showPrice,
     true
   );
+  const resolvedShowCardImage = toBoolean(rawProps?.cardImageActive, true);
   const resolvedFavMode = toString(rawProps?.favMode, "").toLowerCase();
   // The builder's eye-toggle writes favActive/favEnabled. Any of the recognized
   // "enabled" flags being explicitly false must hide the icon — a single stale
@@ -346,7 +347,11 @@ export default function ProductGrid({ section, limit = 8, title = "Products" }) 
     ],
     resolvedFavMode === "always show"
   );
-  const resolvedViewAllActive = resolvedShowHeaderGroup && resolveVisibilitySetting(
+  // Intentionally NOT gated on resolvedShowHeaderGroup — that flag is the
+  // master eye for the title specifically, and View All has its own
+  // independent eye toggle. Tying them together made turning off the title
+  // also silently hide View All, which has nothing to do with the title.
+  const resolvedViewAllActive = resolveVisibilitySetting(
     [
       rawProps?.viewAllActive,
       rawProps?.viewAllVisible,
@@ -787,17 +792,20 @@ export default function ProductGrid({ section, limit = 8, title = "Products" }) 
     ? toString(rawProps?.bgColor ?? presentationCss?.container?.backgroundColor, "")
     : "";
   // ── Outer section border/corner ───────────────────────────────────────────
-  const resolvedOuterCorners = showBgPadding ? resolveFirstNumber([rawProps?.outerCorners], 0) : 0;
+  // Deliberately NOT gated on showBgPadding: that flag also turns on the
+  // section's padding (defaults to a real non-zero value once saved), which
+  // feeds cardWidth's calculation below. Tying corner radius/border to it
+  // meant a merchant had to enable padding just to set a border radius,
+  // silently shifting every grid item's position as a side effect.
+  const resolvedOuterCorners = resolveFirstNumber([rawProps?.outerCorners], 0);
   const resolvedOuterBorderColor = toString(rawProps?.borderColor, "transparent");
-  const resolvedOuterBorderWidth = showBgPadding
-    ? (() => {
-      const raw = toString(rawProps?.borderLine, "").trim().toLowerCase();
-      if (!raw || raw === "none" || raw === "0" || raw === "0px") return 0;
-      const numeric = parseFloat(raw);
-      if (Number.isFinite(numeric)) return numeric;
-      return resolveFirstNumber([rawProps?.borderSize], 1);
-    })()
-    : 0;
+  const resolvedOuterBorderWidth = (() => {
+    const raw = toString(rawProps?.borderLine, "").trim().toLowerCase();
+    if (!raw || raw === "none" || raw === "0" || raw === "0px") return 0;
+    const numeric = parseFloat(raw);
+    if (Number.isFinite(numeric)) return numeric;
+    return resolveFirstNumber([rawProps?.borderSize], 1);
+  })();
   const isSearchPage = useMemo(() => {
     const hints = [
       route?.params?.pageName,
@@ -1307,21 +1315,23 @@ export default function ProductGrid({ section, limit = 8, title = "Products" }) 
               >
                 {/* Product image + favourite badge */}
                 <View style={{ position: "relative" }}>
-                  <ProductImage
-                    uri={product.imageUrl}
-                    style={{
-                      width:        "100%",
-                      height:       imageHeight,
-                      borderRadius: imageCorner,
-                      backgroundColor: resolvedImageBgColor,
-                      marginTop:    imagePad,
-                      marginBottom: imagePad,
-                      marginLeft:   imagePad,
-                      marginRight:  imagePad,
-                    }}
-                    resizeMode={imageResizeMode}
-                    placeholderBg={resolvedImageBgColor}
-                  />
+                  {resolvedShowCardImage && (
+                    <ProductImage
+                      uri={product.imageUrl}
+                      style={{
+                        width:        "100%",
+                        height:       imageHeight,
+                        borderRadius: imageCorner,
+                        backgroundColor: resolvedImageBgColor,
+                        marginTop:    imagePad,
+                        marginBottom: imagePad,
+                        marginLeft:   imagePad,
+                        marginRight:  imagePad,
+                      }}
+                      resizeMode={imageResizeMode}
+                      placeholderBg={resolvedImageBgColor}
+                    />
+                  )}
 
                   {resolvedShowFavorite && (
                     <FavoriteToggleButton

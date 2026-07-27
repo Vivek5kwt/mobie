@@ -127,18 +127,23 @@ const brandColors = {
   tiktok: "#000000",
 };
 
+// NOTE: these must resolve to the exact same glyph variant that the Builder
+// Preview renders per platform (see PLATFORM_ICON_CLASS in PreviewLive.tsx),
+// since several platforms have multiple visually-different brand glyphs
+// (e.g. "facebook" the circled-F logo vs "facebook-f" the bare "f" mark).
+// Self-mapping the bare platform key here would silently pick the wrong glyph.
 const platformIconAliases = {
-  facebook: "facebook",
+  facebook: "facebook-f",
   "facebook-f": "facebook-f",
-  twitter: "twitter",
+  twitter: "x-twitter",
   "x-twitter": "x-twitter",
   x: "x-twitter",
   instagram: "instagram",
   youtube: "youtube",
   whatsapp: "whatsapp",
-  linkedin: "linkedin",
+  linkedin: "linkedin-in",
   "linkedin-in": "linkedin-in",
-  pinterest: "pinterest",
+  pinterest: "pinterest-p",
   "pinterest-p": "pinterest-p",
   tiktok: "tiktok",
 };
@@ -210,13 +215,15 @@ export default function SocialMediaIcons({ section }) {
     [rawProps?.platforms],
   );
 
-  if (!platforms.length) return null;
-
-  const bgColor = unwrapValue(rawProps?.bgColor, "#FFFFFF");
-  const pt = toNumber(rawProps?.pt, 0);
-  const pr = toNumber(rawProps?.pr, 0);
-  const pb = toNumber(rawProps?.pb, 0);
-  const pl = toNumber(rawProps?.pl, 0);
+  // Background/padding eye — matches PreviewLive.tsx's disabled-state fallback
+  // (bgEnabled ? value : {8,8,0,0 / white}) so both surfaces agree when the
+  // toggle is off, instead of RN ignoring the toggle entirely.
+  const bgSettingsEnabled = toBoolean(rawProps?.bgSettingsEnabled, true);
+  const bgColor = bgSettingsEnabled ? unwrapValue(rawProps?.bgColor, "#FFFFFF") : "#FFFFFF";
+  const pt = bgSettingsEnabled ? toNumber(rawProps?.pt, 0) : 8;
+  const pr = bgSettingsEnabled ? toNumber(rawProps?.pr, 0) : 0;
+  const pb = bgSettingsEnabled ? toNumber(rawProps?.pb, 0) : 8;
+  const pl = bgSettingsEnabled ? toNumber(rawProps?.pl, 0) : 0;
   const align = (unwrapValue(rawProps?.align, "left") || "left").toLowerCase();
 
   // ── Feature toggles — respect builder on/off switches ───────────────────────
@@ -241,6 +248,10 @@ export default function SocialMediaIcons({ section }) {
 
   // Title is shown ONLY when the builder explicitly enables it AND there is text
   const showTitle = titleSettingsEnabled && !!titleText;
+
+  // Only bail out entirely when there's neither a title nor any platforms —
+  // removing every social icon shouldn't also hide an otherwise-configured title.
+  if (!platforms.length && !showTitle) return null;
 
   const iconSize = toNumber(rawProps?.iconSize, undefined);
   const iconSpacing = toNumber(rawProps?.iconSpacing, undefined);
@@ -334,7 +345,7 @@ export default function SocialMediaIcons({ section }) {
         </Text>
       )}
 
-      {iconsSettingsEnabled && (
+      {iconsSettingsEnabled && platforms.length > 0 && (
       <View
         style={[
           styles.iconsRow,

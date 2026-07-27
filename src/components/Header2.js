@@ -602,7 +602,16 @@ export default function Header2({ section }) {
     if (gradientInfo?.colors) gradientColors = gradientInfo.colors;
     if (gradientInfo?.angle) gradientAngle = gradientInfo.angle;
   }
-  
+
+  // The actual background is this LinearGradient, not containerStyle.background
+  // (React Native has no CSS gradient support, so the "Background & Padding"
+  // eye's containerStyle.background = undefined trick above never touched
+  // this at all) — turning that eye off left the gradient always rendering
+  // regardless of the toggle.
+  if (!bgSettingsEnabled) {
+    gradientColors = ["transparent", "transparent"];
+  }
+
   const greetingTextStyle = {};
   if (greeting.color) greetingTextStyle.color = greeting.color;
   // The configured fontSize wins outright — it must not be shrunk to fit
@@ -633,7 +642,14 @@ export default function Header2({ section }) {
   }
   
   const placeholderColor = searchAndIcons.searchTextColor || "#4B4B4B";
-  const searchPlaceholder = searchAndIcons.placeholder || "Search products";
+  // `||` treated a merchant deliberately clearing the placeholder (empty
+  // string) the same as it never being set, always falling back to "Search
+  // products" — check for undefined/null specifically so an intentional
+  // empty placeholder stays empty.
+  const searchPlaceholder =
+    searchAndIcons.placeholder !== undefined && searchAndIcons.placeholder !== null
+      ? searchAndIcons.placeholder
+      : "Search products";
 
   const profileBorderWidth =
     Number(profile.borderWidth) ||

@@ -505,7 +505,10 @@ export default function ProductCarousel({ section }) {
   );
 
   // View All configuration
-  const viewAllActive = headerGroupActive && resolveVisibilitySetting(
+  // Intentionally NOT gated on headerGroupActive — that's the title's own
+  // master eye; View All has its own independent eye and shouldn't disappear
+  // just because the title was turned off (matches ProductGrid.js's fix).
+  const viewAllActive = resolveVisibilitySetting(
     [
       raw?.viewAllActive,
       raw?.viewAllVisible,
@@ -580,7 +583,11 @@ export default function ProductCarousel({ section }) {
   // Title configuration
   const cardTitleActive = toBoolean(raw?.cardTitleActive, true);
   const titleSize = resolveFirstNumber([raw?.titleSize, raw?.productTitleSize, raw?.cardTitleSize, cardTitleCss?.fontSize], 14);
-  const titleColor = toString(raw?.titleColor ?? raw?.productTitleColor ?? cardTitleCss?.color, "#000000");
+  // titleTextColor is the key the Inspector actually writes and PreviewLive
+  // actually reads — titleColor/productTitleColor are legacy names nothing
+  // writes, so this always fell through to the CSS snapshot or the
+  // hardcoded default regardless of the color the merchant picked.
+  const titleColor = toString(raw?.titleTextColor ?? raw?.titleColor ?? raw?.productTitleColor ?? cardTitleCss?.color, "#000000");
   const titleFamily = cleanFontFamily(toString(raw?.titleFamily ?? raw?.titleFontFamily ?? raw?.fontFamily ?? cardTitleCss?.fontFamily, ""));
   const titleWeight = toFontWeight(raw?.titleWeight ?? raw?.productTitleWeight ?? cardTitleCss?.fontWeight, "700");
   const titleAlign = toTextAlign(raw?.titleAlign ?? cardTitleCss?.textAlign, "Left");
@@ -624,13 +631,20 @@ export default function ProductCarousel({ section }) {
   const favoriteIconId = toString(raw?.favoriteIconId ?? raw?.favoriteIcon ?? raw?.favIcon, "fa-heart");
   const favoriteIconSize = toNumber(raw?.favIconSize ?? raw?.favoriteIconSize, 18);
   const favoriteIconColor = toString(
-    raw?.favoriteIconColor ??
+    // favIconColor is the key the Inspector actually writes — it was missing
+    // from this chain entirely, so the color the merchant picked was never read.
+    raw?.favIconColor ??
+      raw?.favoriteIconColor ??
       raw?.favoriteColor ??
       raw?.likedIconColor ??
       raw?.likedFavoriteIconColor ??
       raw?.wishlistActiveIconColor,
     "#EF4444"
   );
+  const unfavoriteIconEnabled = toBoolean(raw?.unfavoriteIconEnabled, false);
+  const unfavoriteIconId = toString(raw?.unfavoriteIconId, favoriteIconId);
+  const unfavoriteIconSize = toNumber(raw?.unfavoriteIconSize, favoriteIconSize);
+  const unfavoriteIconColor = toString(raw?.unfavoriteIconColor, favoriteIconColor);
   const favPosition = toString(raw?.favPosition, "top-right").toLowerCase();
   const favBubbleBgColor = toString(raw?.favBubbleBgColor, "#FFFFFF");
   const favBubblePadT = toNumber(raw?.favBubblePadT, 0);
@@ -639,6 +653,7 @@ export default function ProductCarousel({ section }) {
   const favBubblePadL = toNumber(raw?.favBubblePadL, 0);
   const favoriteBubbleInset = toNumber(raw?.favBubbleInset ?? raw?.favBubbleOffset, 12);
   const favoriteOnIconName = resolveFA4IconName(favoriteIconId) || "heart";
+  const favoriteOffIconName = resolveFA4IconName(unfavoriteIconEnabled ? unfavoriteIconId : favoriteIconId) || favoriteOnIconName;
 
   // Add to Cart configuration
   const atcActive = resolveBooleanSetting(
@@ -1025,7 +1040,11 @@ export default function ProductCarousel({ section }) {
     const headerStyle = {
       fontSize: headerSize,
       color: headerColor,
-      fontWeight: headerBold ? "700" : headerWeight,
+      // headerWeight already tracks the Bold toggle (Inspector's
+      // onFormatChange sets it to 700/400), so it alone is the source of
+      // truth — overriding it here made the dedicated Font Weight dropdown
+      // a no-op whenever headerBold was true.
+      fontWeight: headerWeight,
       fontStyle: headerItalic ? "italic" : "normal",
       textDecorationLine: headerDecorationLine,
       textAlign: headerAlign,
@@ -1110,11 +1129,13 @@ export default function ProductCarousel({ section }) {
   const renderFavorite = (product, isFavorite) => {
     if (!showFavorite) return null;
 
-    // Single style regardless of wishlist state — only favoriteIcon* fields are
-    // configurable in the builder, so the badge always renders that one look.
-    const iconSize = favoriteIconSize;
-    const iconColor = favoriteIconColor;
-    const iconName = favoriteOnIconName;
+    // Branch on wishlist state — the Inspector exposes a full separate
+    // "Unfavorite Icon" config (id/size/color), which was previously never
+    // read here at all, so the badge always looked the same regardless of
+    // whether the product was actually in the wishlist.
+    const iconSize = isFavorite ? unfavoriteIconSize : favoriteIconSize;
+    const iconColor = isFavorite ? unfavoriteIconColor : favoriteIconColor;
+    const iconName = isFavorite ? favoriteOffIconName : favoriteOnIconName;
 
     const positionStyle = {};
     if (favPosition.includes("top")) {
@@ -1129,8 +1150,12 @@ export default function ProductCarousel({ section }) {
     if (favPosition.includes("right")) {
       positionStyle.right = favoriteBubbleInset;
     }
-    const bubblePadding = Math.max(favBubblePadT, favBubblePadR, favBubblePadB, favBubblePadL, 0);
-    const bubbleSize = Math.max(30, iconSize + bubblePadding * 2);
+    // Collapsing all four sides into one symmetric value via Math.max meant
+    // asymmetric padding (e.g. more on top than bottom) could never render —
+    // apply each side independently instead, sizing the bubble from real
+    // per-axis totals rather than one shared value doubled on every side.
+    const bubbleWidth = Math.max(30, iconSize + favBubblePadL + favBubblePadR);
+    const bubbleHeight = Math.max(30, iconSize + favBubblePadT + favBubblePadB);
 
     return (
       <TouchableOpacity
@@ -1138,13 +1163,16 @@ export default function ProductCarousel({ section }) {
           styles.favoriteButton,
           positionStyle,
           {
-            width: bubbleSize,
-            height: bubbleSize,
-            borderRadius: bubbleSize / 2,
+            width: bubbleWidth,
+            height: bubbleHeight,
+            borderRadius: Math.max(bubbleWidth, bubbleHeight) / 2,
             backgroundColor: favBubbleBgColor,
             alignItems: "center",
             justifyContent: "center",
-            padding: 0,
+            paddingTop: favBubblePadT,
+            paddingRight: favBubblePadR,
+            paddingBottom: favBubblePadB,
+            paddingLeft: favBubblePadL,
           },
         ]}
         onPress={async (e) => {
@@ -1192,7 +1220,10 @@ export default function ProductCarousel({ section }) {
 
   const renderAddToCart = (product, isSoldOut = false) => {
     const isAvailable = !isSoldOut;
-    if (isAvailable && !atcActive) return null;
+    // Previously only suppressed the button for available products — a
+    // sold-out product's "Sold Out" label ignored atcActive entirely and
+    // always rendered regardless of this visibility toggle.
+    if (!atcActive) return null;
 
     const buttonText = isAvailable ? atcAvailableText : atcSoldOutText;
     const buttonBgColor = isAvailable ? atcBgColor : atcSoldOutBgColor;
@@ -1284,6 +1315,13 @@ export default function ProductCarousel({ section }) {
           paddingBottom: bgPadB,
           paddingLeft: bgPadL,
           backgroundColor: backgroundActive ? bgColor : "transparent",
+          // Builder applies this border/radius to the whole carousel section
+          // (header + scrollable row, as one framed panel) — it was being
+          // applied to each individual product card in the APK instead.
+          borderRadius: outerCorners,
+          borderWidth: resolvedCardBorderWidth,
+          borderColor: borderColor,
+          borderStyle: resolvedCardBorderStyle,
         },
       ]}
     >
@@ -1375,10 +1413,6 @@ export default function ProductCarousel({ section }) {
                   pressed && { opacity: 0.85 },
                   {
                     width: cardWidth,
-                    borderRadius: outerCorners,
-                    borderWidth: resolvedCardBorderWidth,
-                    borderColor: borderColor,
-                    borderStyle: resolvedCardBorderStyle,
                   },
                 ]}
                 onPress={() => {
@@ -1438,7 +1472,7 @@ export default function ProductCarousel({ section }) {
 
                   {cardTitleActive && (
                     <Text
-                      numberOfLines={titleWrap ? undefined : 2}
+                      numberOfLines={titleWrap ? undefined : 1}
                       style={[
                         styles.title,
                         {
@@ -1460,12 +1494,17 @@ export default function ProductCarousel({ section }) {
                       style={[
                         styles.priceContainer,
                         {
-                          alignItems:
+                          // priceContainer is flexDirection:"row" — alignItems
+                          // controls the cross-axis (vertical), not horizontal
+                          // placement; justifyContent is what actually moves
+                          // the price left/center/right in a row.
+                          justifyContent:
                             priceAlign === "center"
                               ? "center"
                               : priceAlign === "right"
                               ? "flex-end"
                               : "flex-start",
+                          alignItems: "center",
                           gap: contentGap,
                         },
                       ]}

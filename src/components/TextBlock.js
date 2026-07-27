@@ -1,5 +1,6 @@
 import React from "react";
 import { StyleSheet, Text, View } from "react-native";
+import LinearGradient from "react-native-linear-gradient";
 import FontAwesome from "react-native-vector-icons/FontAwesome";
 import { convertStyles } from "../utils/convertStyles";
 import { getTypography, resolveFont, resolveFontFace } from "../services/typographyService";
@@ -286,7 +287,10 @@ export default function TextBlock({ section }) {
     ""
   );
   const faIconName   = containsEmoji(rawIconValue) ? "" : resolveTextBlockIconName(rawIconValue);
-  const iconColor    = asStr(iconStyle?.color ?? iconCfg?.color, "#FFFFFF");
+  // iconStyleColor is the flat key InspectorLive/PreviewLive actually write/
+  // read — iconStyle.color (CSS snapshot) and iconCfg.color (nested) were
+  // never populated with it, so the merchant's icon color never applied.
+  const iconColor    = asStr(rawProps?.iconStyleColor ?? iconStyle?.color ?? iconCfg?.color, "#FFFFFF");
   const iconBgColor  = asStr(
     iconCfg?.bgColor ?? iconCfg?.backgroundColor ?? iconStyle?.backgroundColor,
     "transparent"
@@ -294,7 +298,10 @@ export default function TextBlock({ section }) {
   const iconSize     = asNumber(iconCfg?.size ?? iconCfg?.width ?? iconStyle?.width, 20);
   const iconFaSize   = asNumber(iconCfg?.iconSize ?? iconCfg?.faSize ?? iconStyle?.fontSize, 11);
   const iconRadius   = asNumber(iconCfg?.borderRadius ?? iconCfg?.corner ?? iconStyle?.borderRadius, 0);
-  const iconAlign    = resolveAlign(asStr(iconCfg?.align, globalAlign));
+  // rawProps?.iconAlign is the flat key the Inspector's Left/Right control
+  // actually writes — iconCfg?.align (nested) was never populated with it.
+  const iconAlign    = resolveAlign(asStr(rawProps?.iconAlign ?? iconCfg?.align, globalAlign));
+  const iconOnRight  = iconAlign === "right";
 
   const hasRenderableIcon = !!faIconName;
 
@@ -317,24 +324,42 @@ export default function TextBlock({ section }) {
   // Derive alignItems for the container from global alignment
   const containerAlignItems = textAlignToJustify(globalAlign);
 
+  // PreviewLive treats this eye as "background, padding, and gradient all
+  // revert to defaults" rather than a simple on/off — matched here so the
+  // APK doesn't keep showing a background/padding the merchant explicitly
+  // turned off.
+  const bgSettingsActive = asBoolean(
+    rawProps?.showBackgroundAndPadding ?? rawProps?.bgSettingsEnabled,
+    true
+  );
+
   const containerStyle = {
     ...safeContainerStyle,
-    paddingTop:    asNumber(paddingRaw?.pt, safeContainerStyle.paddingTop    ?? 0),
-    paddingRight:  asNumber(paddingRaw?.pr, safeContainerStyle.paddingRight  ?? 0),
-    paddingBottom: asNumber(paddingRaw?.pb, safeContainerStyle.paddingBottom ?? 0),
-    paddingLeft:   asNumber(paddingRaw?.pl, safeContainerStyle.paddingLeft   ?? 0),
+    paddingTop:    bgSettingsActive ? asNumber(paddingRaw?.pt, safeContainerStyle.paddingTop    ?? 0) : 12,
+    paddingRight:  bgSettingsActive ? asNumber(paddingRaw?.pr, safeContainerStyle.paddingRight  ?? 0) : 16,
+    paddingBottom: bgSettingsActive ? asNumber(paddingRaw?.pb, safeContainerStyle.paddingBottom ?? 0) : 12,
+    paddingLeft:   bgSettingsActive ? asNumber(paddingRaw?.pl, safeContainerStyle.paddingLeft   ?? 0) : 16,
     // Override alignItems from global alignment so content centers/aligns correctly
     ...(globalAlign ? { alignItems: containerAlignItems } : {}),
   };
 
-  const overrideBgColor = firstDefined(
-    rawProps?.containerBgColor,
-    rawProps?.bgColor,
-    rawProps?.backgroundColor,
-    layoutCss?.container?.backgroundColor,
-    layoutCss?.container?.background,
-    styleCfg?.bgColor
-  );
+  const overrideBgColor = bgSettingsActive
+    ? firstDefined(
+        rawProps?.containerBgColor,
+        rawProps?.bgColor,
+        rawProps?.backgroundColor,
+        layoutCss?.container?.backgroundColor,
+        layoutCss?.container?.background,
+        styleCfg?.bgColor
+      )
+    : "#FFFFFF";
+
+  // Gradient: a 0-100 slider controlling a left-to-right fade to white,
+  // matching PreviewLive's `linear-gradient(90deg, transparent, white)`
+  // effect — RN has no CSS gradient support, so this needs LinearGradient.
+  const gradientPct = bgSettingsActive
+    ? Math.max(0, Math.min(100, asNumber(rawProps?.gradient, 0)))
+    : 0;
 
   const explicitBorderRadiusSource = firstDefined(
     rawProps?.containerBorderRadius,
@@ -416,10 +441,14 @@ export default function TextBlock({ section }) {
   const subtextLines   = (resolvedSLines != null && Number.isInteger(resolvedSLines) && resolvedSLines >= 1)
     ? resolvedSLines : undefined;
 
-  // When icon is present, switch to row layout so icon sits beside text
+  // When icon is present, switch to row layout so icon sits beside text.
+  // "row-reverse" (rather than reordering the JSX) is what actually moves
+  // the icon to the right of the text — previously iconAlign only nudged
+  // the row's justifyContent, which doesn't relocate the icon relative to
+  // the text at all, so "Right" looked identical to "Left" in the APK.
   const layoutStyle = hasIcon
     ? {
-        flexDirection: "row",
+        flexDirection: iconOnRight ? "row-reverse" : "row",
         alignItems: "center",
         justifyContent: textAlignToJustify(iconAlign),
       }
@@ -428,6 +457,15 @@ export default function TextBlock({ section }) {
 
   return (
     <View style={[styles.container, containerStyle, overrideStyle, layoutStyle]}>
+      {gradientPct > 0 && (
+        <LinearGradient
+          colors={["rgba(255,255,255,0)", `rgba(255,255,255,${gradientPct / 100})`]}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 0 }}
+          style={StyleSheet.absoluteFill}
+          pointerEvents="none"
+        />
+      )}
 
       {/* ── Icon: FontAwesome only — emoji characters are never rendered ─── */}
       {hasIcon && (
@@ -442,7 +480,7 @@ export default function TextBlock({ section }) {
               minHeight:       iconSize,
               borderRadius:    iconRadius,
               backgroundColor: iconBgColor,
-              marginRight:     iconTextGap,
+              ...(iconOnRight ? { marginLeft: iconTextGap } : { marginRight: iconTextGap }),
             },
           ]}
         >

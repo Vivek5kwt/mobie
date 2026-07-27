@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Animated,
   Image,
@@ -10,6 +10,7 @@ import {
   useWindowDimensions,
 } from "react-native";
 import { useNavigation } from "@react-navigation/native";
+import LinearGradient from "react-native-linear-gradient";
 import FontAwesome from "react-native-vector-icons/FontAwesome";
 import { resolveFA4IconName } from "../utils/faIconAlias";
 import { resolveTextDecorationLine } from "../utils/textDecoration";
@@ -55,6 +56,19 @@ const asString = (value, fallback = "") => {
   if (value === undefined || value === null) return fallback;
   const s = String(value).trim();
   return s || fallback;
+};
+
+const CUSTOM_ICON_PREFIX = "custom-icon::";
+const getCustomIconUrlFromValue = (value) => {
+  const raw = String(value || "");
+  if (!raw.startsWith(CUSTOM_ICON_PREFIX)) return null;
+  const encoded = raw.slice(CUSTOM_ICON_PREFIX.length);
+  if (!encoded) return null;
+  try {
+    return decodeURIComponent(encoded);
+  } catch {
+    return null;
+  }
 };
 
 const hasExplicitValue = (value) => {
@@ -247,6 +261,34 @@ export default function BannerSlider({ section }) {
   const slidePb = boxBgActive ? asNumber(rp?.boxPb, contentPadBottom) : contentPadBottom;
   const slideBoxBgColor = boxBgActive ? asString(rp?.boxBgColor, "transparent") : "transparent";
 
+  // Card border (per-slide text box outline) — independent of the box background above.
+  const cardStyleActive = asBoolean(rp?.cardStyleActive, true);
+  const cardBorderSide = asString(rp?.cardBorderSide, "none").toLowerCase();
+  const cardBorderRadius = asNumber(rp?.cardBorderRadius, 8);
+  const cardBorderColor = rp?.cardBorderColor || "#E5E7EB";
+  const cardBorderStyle = (() => {
+    if (!cardStyleActive || cardBorderSide === "none") return {};
+    const base = { borderRadius: cardBorderRadius };
+    switch (cardBorderSide) {
+      case "all":
+        return { ...base, borderWidth: 1, borderColor: cardBorderColor };
+      case "top":
+        return { ...base, borderTopWidth: 1, borderColor: cardBorderColor };
+      case "right":
+        return { ...base, borderRightWidth: 1, borderColor: cardBorderColor };
+      case "bottom":
+        return { ...base, borderBottomWidth: 1, borderColor: cardBorderColor };
+      case "left":
+        return { ...base, borderLeftWidth: 1, borderColor: cardBorderColor };
+      default:
+        return {};
+    }
+  })();
+  // Gradient fallback fill for the text card — only relevant when there's no
+  // slide image, same as Builder Preview's own image-gated cardBackground
+  // (which reuses the container's bgColor/bgGradient as a no-image backdrop).
+  const cardBgGradient = asString(rp?.bgGradient, "");
+
   // Overlay on image
   const overlayColor = rp?.overlayColor || "rgba(0,0,0,0)";
   const imageActive = asBoolean(rp?.imageActive, true);
@@ -293,6 +335,8 @@ export default function BannerSlider({ section }) {
     4
   );
   const showDots = asBoolean(rp?.showIndicators ?? rp?.showDots ?? behavior?.showDots, true);
+  const isFadeTransition =
+    asString(rp?.transitionStyle ?? behavior?.transitionStyle, "slide").toLowerCase() === "fade";
 
   // ── Global typography (app-wide font families from DSL) ──
   const typography = getTypography();
@@ -328,6 +372,9 @@ export default function BannerSlider({ section }) {
   // ── Subheading ──
   const subheadingColor  = rp?.subheadingColor  || layoutCss?.subheading?.color  || "#E5E7EB";
   const subheadingSize   = asNumber(rp?.subheadingSize ?? layoutCss?.subheading?.fontSize, 13);
+  // Preview applies this as a unitless CSS line-height (a multiplier of font size);
+  // RN's `lineHeight` needs an absolute pixel value, so convert here.
+  const subheadingLineHeight = asNumber(rp?.subheadingLineHeight ?? layoutCss?.subheading?.lineHeight, 0.8);
   const subheadingAlign  = (
     rp?.subheadingAlign ||
     layoutCss?.subheading?.textAlign ||
@@ -382,10 +429,30 @@ export default function BannerSlider({ section }) {
     typography.bodyFontFamily ||
     headingFontFamily
   ) || undefined;
+  // Preview's own border-radius control (from the Button "Border" card) always
+  // wins over the legacy pill-shape `buttonRadius` field — match that here.
   const buttonRadius = asNumber(
-    rp?.buttonRadius ?? rp?.buttonBorderRadius ?? layoutCss?.button?.borderRadius,
-    999
+    rp?.borderRadius ?? rp?.buttonRadius ?? rp?.buttonBorderRadius ?? layoutCss?.button?.borderRadius,
+    12
   );
+  const buttonBorderSide = asString(rp?.borderSide, "none").toLowerCase();
+  const buttonBorderColor = rp?.borderColor || "#E5E7EB";
+  const buttonBorderStyle = (() => {
+    switch (buttonBorderSide) {
+      case "all":
+        return { borderWidth: 1, borderColor: buttonBorderColor };
+      case "top":
+        return { borderTopWidth: 1, borderColor: buttonBorderColor };
+      case "right":
+        return { borderRightWidth: 1, borderColor: buttonBorderColor };
+      case "bottom":
+        return { borderBottomWidth: 1, borderColor: buttonBorderColor };
+      case "left":
+        return { borderLeftWidth: 1, borderColor: buttonBorderColor };
+      default:
+        return {};
+    }
+  })();
   const buttonPt = asNumber(rp?.buttonPt, 8);
   const buttonPb = asNumber(rp?.buttonPb, 8);
   const buttonPl = asNumber(rp?.buttonPl, 16);
@@ -406,10 +473,12 @@ export default function BannerSlider({ section }) {
     rp?.icon ||
     ""
   );
+  const buttonIconImageUrl = getCustomIconUrlFromValue(rawButtonIcon);
   const buttonIconName = resolveFA4IconName(rawButtonIcon);
-  const showButtonIcon = asBoolean(rp?.iconActive ?? rp?.showIcon, true) && !!buttonIconName;
+  const showButtonIcon =
+    asBoolean(rp?.iconActive ?? rp?.showIcon, true) && !!(buttonIconName || buttonIconImageUrl);
   const buttonIconPosition = asString(rp?.iconAlign ?? rp?.iconPosition, "left").toLowerCase();
-  const buttonIconSize = asNumber(rp?.iconSize, 14);
+  const buttonIconSize = asNumber(rp?.iconSSize ?? rp?.iconSize, 14);
   const buttonIconColor = rp?.iconColor || buttonTextColor;
   const buttonIconGap = asNumber(rp?.iconGap ?? rp?.buttonIconGap, 6);
   const [containerWidth, setContainerWidth] = useState(Math.max(windowWidth, 1));
@@ -488,12 +557,29 @@ export default function BannerSlider({ section }) {
     rp?.indicatorStyle ?? layoutCss?.slider?.indicatorStyle,
     "dots"
   ).toLowerCase();
-  const filledDots = indicatorStyle === "dots" || indicatorStyle === "dot";
   const indicatorSize = asNumber(rp?.indicatorSize, 9);
   const indicatorColor = rp?.indicatorColor || "#016D77";
+  const indicatorBorderColor = rp?.indicatorBorderColor || "#016D77";
   const indicatorSelectedColor = rp?.indicatorSelectedColor || "#016D77";
   const indicatorBgColor = rp?.indicatorBgColor || rp?.dotsBgColor || "transparent";
-  const indicatorBorderWidth = asNumber(rp?.indicatorBorderWidth, filledDots ? 0 : 1.5);
+  // Shape per indicator style — matches Builder Preview's Dots/Bars/Lines exactly.
+  const indicatorShape = (() => {
+    const size = Math.max(4, Math.min(40, indicatorSize || 7));
+    if (indicatorStyle === "bars") {
+      return { width: size * 2, height: Math.max(2, size / 3), borderRadius: 999 };
+    }
+    if (indicatorStyle === "lines") {
+      return { width: size * 2.2, height: Math.max(2, size / 4), borderRadius: 999 };
+    }
+    return { width: size, height: size, borderRadius: size / 2 };
+  })();
+  const getIndicatorDotStyle = (isActive) => ({
+    ...indicatorShape,
+    backgroundColor: isActive ? indicatorSelectedColor : indicatorColor,
+    borderWidth: isActive ? 1 : 0,
+    borderColor: indicatorBorderColor,
+    marginHorizontal: 3,
+  });
   // "inside" = dots overlaid at the bottom of the banner image; "bottom" = below the banner
   const indicatorPosition = (
     rp?.indicatorPosition ||
@@ -508,23 +594,42 @@ export default function BannerSlider({ section }) {
   const indexRef = useRef(0);
   const [currentIndex, setCurrentIndex] = useState(0);
   const scrollX = useRef(new Animated.Value(0)).current;
+  const fadeOpacity = useRef(new Animated.Value(1)).current;
   useEffect(() => {
     indexRef.current = 0;
     setCurrentIndex(0);
     scrollRef.current?.scrollTo({ x: 0, animated: false });
   }, [slides.length]);
 
+  // "Fade" transition dips opacity to 0, jumps the (non-swipeable) scroll
+  // position instantly, then fades back in — a real crossfade instead of
+  // Slide mode's animated horizontal scroll.
+  const goToIndex = useCallback(
+    (nextIndex) => {
+      if (isFadeTransition) {
+        Animated.timing(fadeOpacity, { toValue: 0, duration: 180, useNativeDriver: true }).start(() => {
+          scrollRef.current?.scrollTo({ x: nextIndex * slideFrameWidth, animated: false });
+          indexRef.current = nextIndex;
+          setCurrentIndex(nextIndex);
+          Animated.timing(fadeOpacity, { toValue: 1, duration: 220, useNativeDriver: true }).start();
+        });
+      } else {
+        scrollRef.current?.scrollTo({ x: nextIndex * slideFrameWidth, animated: true });
+        indexRef.current = nextIndex;
+        setCurrentIndex(nextIndex);
+      }
+    },
+    [isFadeTransition, slideFrameWidth, fadeOpacity]
+  );
+
   useEffect(() => {
     if (!autoScroll || slides.length <= 1 || !slideFrameWidth) return undefined;
     const intervalMs = Math.max(autoScrollSpeed, 1) * 1000;
     const interval = setInterval(() => {
-      const nextIndex = (indexRef.current + 1) % slides.length;
-      scrollRef.current?.scrollTo({ x: nextIndex * slideFrameWidth, animated: true });
-      indexRef.current = nextIndex;
-      setCurrentIndex(nextIndex);
+      goToIndex((indexRef.current + 1) % slides.length);
     }, intervalMs);
     return () => clearInterval(interval);
-  }, [autoScroll, slides.length, slideFrameWidth, autoScrollSpeed]);
+  }, [autoScroll, slides.length, slideFrameWidth, autoScrollSpeed, goToIndex]);
 
   const handleScroll = (event) => {
     const xOffset = event?.nativeEvent?.contentOffset?.x || 0;
@@ -602,10 +707,12 @@ export default function BannerSlider({ section }) {
         if (w && w > 0) setContainerWidth(w);
       }}
     >
+      <Animated.View style={{ opacity: fadeOpacity }}>
       <Animated.ScrollView
         ref={scrollRef}
         horizontal
         pagingEnabled
+        scrollEnabled={!isFadeTransition}
         showsHorizontalScrollIndicator={false}
         scrollEventThrottle={16}
         onScroll={Animated.event(
@@ -627,6 +734,16 @@ export default function BannerSlider({ section }) {
               backgroundColor: bgColor || "transparent",
             }}
           >
+            {/* Gradient fallback fill (shows through wherever the image doesn't cover) */}
+            {cardStyleActive && cardBgGradient ? (
+              <LinearGradient
+                colors={[bgColor || "#FFFFFF", cardBgGradient]}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 0 }}
+                style={[StyleSheet.absoluteFill, { borderRadius: bannerRadius }]}
+              />
+            ) : null}
+
             {/* Background image */}
             {imageActive && slide.image ? (
               <Image
@@ -658,8 +775,12 @@ export default function BannerSlider({ section }) {
                   paddingLeft: slidePl,
                   paddingRight: slidePr,
                   alignItems: contentAlignItems,
-                  backgroundColor: slideBoxBgColor,
+                  // Don't let the box tint cover an uploaded slide image — only
+                  // show it as a fallback backdrop when there's no image, same
+                  // as Builder Preview's own `!slide.image` guard.
+                  backgroundColor: imageActive && slide.image ? "transparent" : slideBoxBgColor,
                 },
+                cardBorderStyle,
               ]}
             >
               {slide.headline ? (
@@ -693,7 +814,7 @@ export default function BannerSlider({ section }) {
                     {
                       color: subheadingColor,
                       fontSize: subheadingSize,
-                      lineHeight: Math.round(subheadingSize * 1.4),
+                      lineHeight: Math.round(subheadingSize * subheadingLineHeight),
                       fontWeight: slide.subtitleBold ? "700" : subheadingWeight,
                       fontStyle: slide.subtitleItalic ? "italic" : "normal",
                       textAlign: subheadingAlign,
@@ -720,6 +841,7 @@ export default function BannerSlider({ section }) {
                       paddingLeft: buttonPl,
                       paddingRight: buttonPr,
                       alignSelf: buttonAlignSelf,
+                      ...buttonBorderStyle,
                     },
                   ]}
                   onPress={() => onSlideButtonPress(slide)}
@@ -728,12 +850,19 @@ export default function BannerSlider({ section }) {
                     style={styles.buttonInner}
                   >
                     {showButtonIcon && buttonIconPosition !== "right" ? (
-                      <FontAwesome
-                        name={buttonIconName}
-                        size={buttonIconSize}
-                        color={buttonIconColor}
-                        style={{ marginRight: buttonIconGap }}
-                      />
+                      buttonIconImageUrl ? (
+                        <Image
+                          source={{ uri: buttonIconImageUrl }}
+                          style={{ width: buttonIconSize, height: buttonIconSize, marginRight: buttonIconGap, resizeMode: "contain" }}
+                        />
+                      ) : (
+                        <FontAwesome
+                          name={buttonIconName}
+                          size={buttonIconSize}
+                          color={buttonIconColor}
+                          style={{ marginRight: buttonIconGap }}
+                        />
+                      )
                     ) : null}
                     <Text
                       style={[
@@ -751,12 +880,19 @@ export default function BannerSlider({ section }) {
                       {slide.buttonLabel}
                     </Text>
                     {showButtonIcon && buttonIconPosition === "right" ? (
-                      <FontAwesome
-                        name={buttonIconName}
-                        size={buttonIconSize}
-                        color={buttonIconColor}
-                        style={{ marginLeft: buttonIconGap }}
-                      />
+                      buttonIconImageUrl ? (
+                        <Image
+                          source={{ uri: buttonIconImageUrl }}
+                          style={{ width: buttonIconSize, height: buttonIconSize, marginLeft: buttonIconGap, resizeMode: "contain" }}
+                        />
+                      ) : (
+                        <FontAwesome
+                          name={buttonIconName}
+                          size={buttonIconSize}
+                          color={buttonIconColor}
+                          style={{ marginLeft: buttonIconGap }}
+                        />
+                      )
                     ) : null}
                   </View>
                 </TouchableOpacity>
@@ -773,15 +909,7 @@ export default function BannerSlider({ section }) {
                     return (
                       <View
                         key={`dot-in-${dotIdx}`}
-                        style={{
-                          width: indicatorSize,
-                          height: indicatorSize,
-                          borderRadius: indicatorSize / 2,
-                          backgroundColor: isActive ? indicatorSelectedColor : (filledDots ? indicatorColor : "transparent"),
-                          borderWidth: indicatorBorderWidth,
-                          borderColor: isActive ? indicatorSelectedColor : indicatorColor,
-                          marginHorizontal: 3,
-                        }}
+                        style={getIndicatorDotStyle(isActive)}
                       />
                     );
                   })}
@@ -792,6 +920,7 @@ export default function BannerSlider({ section }) {
           );
         })}
       </Animated.ScrollView>
+      </Animated.View>
 
       {/* Dots below the banner (indicatorPosition: "bottom" or default) */}
       {!indicatorsInside && showDots && slides.length > 1 ? (
@@ -811,15 +940,7 @@ export default function BannerSlider({ section }) {
               return (
                 <View
                   key={`dot-${idx}`}
-                  style={{
-                    width: indicatorSize,
-                    height: indicatorSize,
-                    borderRadius: indicatorSize / 2,
-                    backgroundColor: isActive ? indicatorSelectedColor : (filledDots ? indicatorColor : "transparent"),
-                    borderWidth: indicatorBorderWidth,
-                    borderColor: isActive ? indicatorSelectedColor : indicatorColor,
-                    marginHorizontal: 3,
-                  }}
+                  style={getIndicatorDotStyle(isActive)}
                 />
               );
             })}

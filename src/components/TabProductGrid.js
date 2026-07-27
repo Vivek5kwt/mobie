@@ -337,7 +337,10 @@ export default function TabProductGrid({ section }) {
     if (!activeTabId || productsByTab[activeTabId]) return;
 
     let alive = true;
-    const limit = Math.max(1, Number(activeTab?.limit ?? toNum(rawConfig?.productsPerTab, 4)) || 4);
+    const limit = Math.max(
+      1,
+      Number(activeTab?.limit ?? toNum(rawConfig?.gridItemsShown ?? rawConfig?.productsPerTab, 4)) || 4
+    );
     const handle = activeTab?.handle || "";
 
     const load = async () => {
@@ -391,6 +394,34 @@ export default function TabProductGrid({ section }) {
   // ── Read styling from rawConfig ────────────────────────────────────────────
   const requestedColumns = Math.max(1, toNum(rawConfig?.columns ?? rawConfig?.gridColumns ?? rawConfig?.itemsPerRow, 2));
   const containerBg  = firstStr([rawConfig?.bgColor, rawConfig?.gridBgColor, layoutCss?.container?.backgroundColor], "#FFFFFF");
+  // Overall section border + radius — Preview gates these (and bgColor) on
+  // `backgroundActive`; RN previously had no border/radius mechanism for the
+  // outer container at all.
+  const outerBackgroundActive = resolveBoolSetting([rawConfig?.backgroundActive], true);
+  const outerCorners = outerBackgroundActive ? firstNum([rawConfig?.outerCorners], 0) : 8;
+  const outerBorderSide = (outerBackgroundActive ? toStr(rawConfig?.borderLine, "") : "").toLowerCase();
+  const outerBorderColor = outerBackgroundActive ? firstStr([rawConfig?.borderColor], "#D1D5DB") : "#E5E7EB";
+  const outerBorderSize = outerBackgroundActive ? firstNum([rawConfig?.borderSize], 1) : 1;
+  const outerBorderStyle = (() => {
+    const style = { borderRadius: outerCorners };
+    if (!outerBorderSide || outerBorderSide === "none") return style;
+    if (outerBorderSide === "all") {
+      style.borderWidth = outerBorderSize;
+      style.borderColor = outerBorderColor;
+      return style;
+    }
+    const sideKey = {
+      top: "borderTopWidth",
+      right: "borderRightWidth",
+      bottom: "borderBottomWidth",
+      left: "borderLeftWidth",
+    }[outerBorderSide];
+    if (sideKey) {
+      style[sideKey] = outerBorderSize;
+      style.borderColor = outerBorderColor;
+    }
+    return style;
+  })();
   const tabBarBg     = firstStr([rawConfig?.tabBarBgColor, tabBarCss?.backgroundColor], containerBg);
   const tabBgColor   = firstStr(
     [
@@ -414,37 +445,90 @@ export default function TabProductGrid({ section }) {
       tabButtonCss?.backgroundColor,
       tabButtonCss?.background,
     ],
-    tabBgColor
+    // Match Inspector/Preview's own default — falling back to the inactive
+    // tab's own color collapsed the highlight entirely on any unedited block.
+    "#096d70"
   );
-  const activeText   = firstStr([rawConfig?.tabActiveTextColor, activeTabButtonCss?.color, tabButtonCss?.activeColor, tabButtonCss?.color], tabTextColor);
+  const activeText   = firstStr([rawConfig?.tabActiveTextColor, activeTabButtonCss?.color, tabButtonCss?.activeColor, tabButtonCss?.color], "#FFFFFF");
   const tabFontSize  = firstNum([rawConfig?.tabFontSize, activeTabButtonCss?.fontSize, tabButtonCss?.fontSize, rawConfig?.fontSize], 12);
   const tabFontWt    = toFontWeight(rawConfig?.tabFontWeight ?? activeTabButtonCss?.fontWeight ?? tabButtonCss?.fontWeight, "600");
   const tabFamily    = cleanFontFamily(toStr(rawConfig?.tabFontFamily ?? tabButtonCss?.fontFamily ?? rawConfig?.fontFamily, ""));
   const tabPadding = parseBoxSpacing(activeTabButtonCss?.padding ?? tabButtonCss?.padding);
   const tabBorderRadius = firstNum(
     [rawConfig?.tabBorderRadius, rawConfig?.tabBgCorner, rawConfig?.tabCorner, activeTabButtonCss?.borderRadius, tabButtonCss?.borderRadius],
-    0
+    8
   );
-  const tabBorderWidth = firstNum([rawConfig?.tabBorderSize, rawConfig?.tabBgBorderSize, activeTabButtonCss?.borderWidth, tabButtonCss?.borderWidth], 0);
+  const tabBorderWidthRaw = firstNum([rawConfig?.tabBorderSize, rawConfig?.tabBgBorderSize, activeTabButtonCss?.borderWidth, tabButtonCss?.borderWidth], 0);
   const tabBorderColor = firstStr([rawConfig?.tabBorderColor, rawConfig?.tabBgBorderColor, activeTabButtonCss?.borderColor, tabButtonCss?.borderColor], "transparent");
+  // The Border control's own side selector ("" = disabled, matching this
+  // block's BorderLineControl default) must be able to suppress the border
+  // even though a non-zero width is still stored — the group's own "off"
+  // state leaves tabBgBorderSize at 1.
+  const tabBorderSide = toStr(rawConfig?.tabBgBorderSide, "").toLowerCase();
+  const tabBorderWidth = (!tabBorderSide || tabBorderSide === "none") ? 0 : tabBorderWidthRaw;
   const tabPadT = firstNum([rawConfig?.tabPadT, rawConfig?.tabBgPaddingTop, activeTabButtonCss?.paddingTop, tabButtonCss?.paddingTop], tabPadding.top);
   const tabPadB = firstNum([rawConfig?.tabPadB, rawConfig?.tabBgPaddingBottom, activeTabButtonCss?.paddingBottom, tabButtonCss?.paddingBottom], tabPadding.bottom);
   const tabPadL = firstNum([rawConfig?.tabPadL, rawConfig?.tabBgPaddingLeft, activeTabButtonCss?.paddingLeft, tabButtonCss?.paddingLeft], tabPadding.left);
   const tabPadR = firstNum([rawConfig?.tabPadR, rawConfig?.tabBgPaddingRight, activeTabButtonCss?.paddingRight, tabButtonCss?.paddingRight], tabPadding.right);
   const tabPadX = firstNum([rawConfig?.tabPadX, activeTabButtonCss?.paddingHorizontal, tabButtonCss?.paddingHorizontal], 14);
   const tabPadY = firstNum([rawConfig?.tabPadY, activeTabButtonCss?.paddingVertical, tabButtonCss?.paddingVertical], 7);
-  const tabGap = firstNum([rawConfig?.tabGap, rawConfig?.tabsGap, tabsRowCss?.gap, tabBarCss?.gap], 6);
+  const tabGap = firstNum([rawConfig?.tabGap, rawConfig?.tabsGap, tabsRowCss?.gap, tabBarCss?.gap], 2);
   const tabBarPadT = firstNum([rawConfig?.tabBarPaddingTop, tabBarCss?.paddingTop], 0);
   const tabBarPadB = firstNum([rawConfig?.tabBarPaddingBottom, tabBarCss?.paddingBottom], 0);
   const tabBarPadL = firstNum([rawConfig?.tabBarPaddingLeft, tabBarCss?.paddingLeft], 0);
   const tabBarPadR = firstNum([rawConfig?.tabBarPaddingRight, tabBarCss?.paddingRight], 0);
-  const tabBarRadius = firstNum([rawConfig?.tabBarBorderRadius, tabBarCss?.borderRadius], 0);
+  const tabBarRadius = firstNum([rawConfig?.tabBarCorner, rawConfig?.tabBarBorderRadius, tabBarCss?.borderRadius], 0);
+  const tabBarBorderColor = firstStr([rawConfig?.tabBarBorderColor, tabBarCss?.borderColor], "transparent");
+  const tabBarBorderSide = toStr(rawConfig?.tabBarBorderSide, "").toLowerCase();
+  const tabBarBorderWidth =
+    !tabBarBorderSide || tabBarBorderSide === "none"
+      ? 0
+      : firstNum([rawConfig?.tabBarBorderSize, tabBarCss?.borderWidth], 0);
   const showTabBar = resolveBoolSetting([rawConfig?.showTabBar, rawConfig?.showTabsRow, visibilityConfig?.tabs, visibilityConfig?.tabBar], true);
+  const tabAlignRaw = toStr(rawConfig?.tabAlign, "Left").toLowerCase();
+  const tabsRowJustify =
+    tabAlignRaw === "center" ? "center" : tabAlignRaw === "right" ? "flex-end" : "flex-start";
 
-  const paddingTop    = firstNum([rawConfig?.paddingTop, rawConfig?.pt, layoutCss?.container?.paddingTop], 0);
-  const paddingBottom = firstNum([rawConfig?.paddingBottom, rawConfig?.pb, layoutCss?.container?.paddingBottom], 0);
-  const paddingLeft   = firstNum([rawConfig?.paddingLeft, rawConfig?.pl, layoutCss?.container?.paddingLeft], 16);
-  const paddingRight  = firstNum([rawConfig?.paddingRight, rawConfig?.pr, layoutCss?.container?.paddingRight], 16);
+  // `bgPadT/R/B/L` are the real live keys Inspector's "Overall Background and
+  // Padding" writes — checked first since `paddingTop`/etc are only ever a
+  // stale seed value that never updates once the merchant edits padding.
+  const paddingTop    = firstNum([rawConfig?.bgPadT, rawConfig?.paddingTop, rawConfig?.pt, layoutCss?.container?.paddingTop], 0);
+  const paddingBottom = firstNum([rawConfig?.bgPadB, rawConfig?.paddingBottom, rawConfig?.pb, layoutCss?.container?.paddingBottom], 0);
+  const paddingLeft   = firstNum([rawConfig?.bgPadL, rawConfig?.paddingLeft, rawConfig?.pl, layoutCss?.container?.paddingLeft], 16);
+  const paddingRight  = firstNum([rawConfig?.bgPadR, rawConfig?.paddingRight, rawConfig?.pr, layoutCss?.container?.paddingRight], 16);
+
+  // Grid Settings — its own eye toggle, background, border, and padding,
+  // distinct from the Overall group above and the Tab Bar group below.
+  const gridSettingsEnabled = resolveBoolSetting([rawConfig?.gridSettingsEnabled], true);
+  const gridBgColor = firstStr([rawConfig?.gridBgColor], "transparent");
+  const gridBorderColor = firstStr([rawConfig?.gridBorderColor], "transparent");
+  const gridBorderWidth = firstNum([rawConfig?.gridBorderSize], 0);
+  const gridBorderSide = toStr(rawConfig?.gridBorderSide, "all").toLowerCase();
+  const gridRadius = firstNum([rawConfig?.gridCorner], 0);
+  const gridPadTop = firstNum([rawConfig?.gridPaddingTop], 0);
+  const gridPadBottom = firstNum([rawConfig?.gridPaddingBottom], 0);
+  const gridPadLeft = firstNum([rawConfig?.gridPaddingLeft], 0);
+  const gridPadRight = firstNum([rawConfig?.gridPaddingRight], 0);
+  const gridBorderStyle = (() => {
+    const style = { borderRadius: gridRadius };
+    if (gridBorderWidth <= 0 || gridBorderSide === "none") return style;
+    if (gridBorderSide === "all") {
+      style.borderWidth = gridBorderWidth;
+      style.borderColor = gridBorderColor;
+      return style;
+    }
+    const sideKey = {
+      top: "borderTopWidth",
+      right: "borderRightWidth",
+      bottom: "borderBottomWidth",
+      left: "borderLeftWidth",
+    }[gridBorderSide];
+    if (sideKey) {
+      style[sideKey] = gridBorderWidth;
+      style.borderColor = gridBorderColor;
+    }
+    return style;
+  })();
 
   const cardRadius     = toNum(rawConfig?.cardBorderRadius, 12);
   const imageCorner    = toNum(rawConfig?.cardImageCorner, 0);
@@ -482,7 +566,10 @@ export default function TabProductGrid({ section }) {
     "Left"
   ).toLowerCase();
   const titleTextAlign = titleAlignRaw === "center" ? "center" : titleAlignRaw === "right" ? "right" : "left";
-  const showFavorite   = resolveBoolSetting(
+  // Master "Product Card" eye — Preview AND-gates every sub-element's own
+  // toggle with this; RN never checked it at all, so disabling it did nothing.
+  const showProductCard = resolveBoolSetting([rawConfig?.showProductCard], true);
+  const showFavoriteRaw   = resolveBoolSetting(
     [
       rawConfig?.favActive,
       rawConfig?.favEnabled,
@@ -512,8 +599,9 @@ export default function TabProductGrid({ section }) {
     ],
     false
   );
+  const showFavorite = showProductCard && showFavoriteRaw;
   const favoriteToggleConfig = buildFavoriteToggleConfig(rawConfig);
-  const showAddToCart  = resolveBoolSetting(
+  const showAddToCartRaw  = resolveBoolSetting(
     [
       rawConfig?.atcActive,
       rawConfig?.addToCartActive,
@@ -528,8 +616,10 @@ export default function TabProductGrid({ section }) {
     ],
     true
   );
-  const showPrice      = toBool(rawConfig?.showPrice ?? rawConfig?.cardPriceActive, true);
-  const showTitleText  = toBool(rawConfig?.showTitle ?? rawConfig?.cardTitleActive, true);
+  const showAddToCart  = showProductCard && showAddToCartRaw;
+  const showPrice      = showProductCard && toBool(rawConfig?.showPrice ?? rawConfig?.cardPriceActive, true);
+  const showTitleText  = showProductCard && toBool(rawConfig?.showTitle ?? rawConfig?.cardTitleActive, true);
+  const showCardImage  = showProductCard;
   const imageBgColor = toStr(
     rawConfig?.imageBg ??
       rawConfig?.imageBgColor ??
@@ -672,7 +762,9 @@ export default function TabProductGrid({ section }) {
   const isCarouselMode = sectionComponent.includes("carousel");
 
   // Carousel CSS values
-  const carouselGap        = firstNum([carouselCss?.gap, rawConfig?.carouselGap], 12);
+  // "Horizontal Gap" in Carousel Settings actually writes `gridColGap`, not
+  // the never-populated `carouselGap`.
+  const carouselGap        = firstNum([rawConfig?.gridColGap, carouselCss?.gap, rawConfig?.carouselGap], 12);
   const carouselPadLeft    = firstNum([carouselCss?.paddingLeft, carouselCss?.paddingHorizontal], 0);
   const carouselPadRight   = firstNum([carouselCss?.paddingRight, carouselCss?.paddingHorizontal], 0);
   const carouselPadTop     = firstNum([carouselCss?.paddingTop, carouselCss?.paddingVertical], 0);
@@ -870,6 +962,7 @@ export default function TabProductGrid({ section }) {
           paddingLeft,
           paddingRight,
         },
+        outerBorderStyle,
       ]}
     >
       {/* ── Section Header ── */}
@@ -900,6 +993,9 @@ export default function TabProductGrid({ section }) {
           {
             backgroundColor: tabBarBg,
             borderRadius: tabBarRadius,
+            borderWidth: tabBarBorderWidth,
+            borderColor: tabBarBorderColor,
+            overflow: "hidden",
             paddingTop: tabBarPadT,
             paddingBottom: tabBarPadB,
             paddingLeft: tabBarPadL,
@@ -910,7 +1006,7 @@ export default function TabProductGrid({ section }) {
         <ScrollView
           horizontal
           showsHorizontalScrollIndicator={false}
-          contentContainerStyle={[styles.tabsRow, { gap: tabGap }]}
+          contentContainerStyle={[styles.tabsRow, { gap: tabGap, justifyContent: tabsRowJustify, flexGrow: 1 }]}
         >
           {tabs.map((tab) => {
             const isActive = tab.id === activeTabId;
@@ -953,6 +1049,13 @@ export default function TabProductGrid({ section }) {
       )}
 
       {/* ── Products (Grid or Carousel) ── */}
+      {gridSettingsEnabled && (
+      <View
+        style={[
+          { backgroundColor: gridBgColor, paddingTop: gridPadTop, paddingBottom: gridPadBottom, paddingLeft: gridPadLeft, paddingRight: gridPadRight },
+          gridBorderStyle,
+        ]}
+      >
       {isLoading ? (
         <ActivityIndicator
           style={{ paddingVertical: 32 }}
@@ -1016,12 +1119,14 @@ export default function TabProductGrid({ section }) {
                     },
                   ]}
                 >
-                  <ProductImage
-                    uri={product.image}
-                    style={styles.image}
-                    resizeMode={productImageResizeMode}
-                    placeholderBg={imageBgColor}
-                  />
+                  {showCardImage && (
+                    <ProductImage
+                      uri={product.image}
+                      style={styles.image}
+                      resizeMode={productImageResizeMode}
+                      placeholderBg={imageBgColor}
+                    />
+                  )}
                   {showFavorite && (
                     <FavoriteToggleButton
                       isFavorite={isFav}
@@ -1145,12 +1250,14 @@ export default function TabProductGrid({ section }) {
                         },
                       ]}
                     >
-                      <ProductImage
-                        uri={product.image}
-                        style={styles.image}
-                        resizeMode={productImageResizeMode}
-                        placeholderBg={imageBgColor}
-                      />
+                      {showCardImage && (
+                        <ProductImage
+                          uri={product.image}
+                          style={styles.image}
+                          resizeMode={productImageResizeMode}
+                          placeholderBg={imageBgColor}
+                        />
+                      )}
 
                       {showFavorite && (
                         <FavoriteToggleButton
@@ -1239,6 +1346,8 @@ export default function TabProductGrid({ section }) {
             </View>
           ))}
         </View>
+      )}
+      </View>
       )}
 
       <Snackbar
