@@ -1371,8 +1371,11 @@ const buildSignInTokens = (rawProps: Record<string, unknown>): SignInTokens => (
   footerTextColor: (rawProps?.footerTextColor as string) ?? defaultSignInTokens.footerTextColor,
   footerLinkColor: (rawProps?.footerLinkColor as string) ?? defaultSignInTokens.footerLinkColor,
   ...buildButtonStyleTokens(rawProps, defaultSignInTokens),
-  buttonBorderColor: (rawProps?.buttonBorderColor as string) ?? defaultSignInTokens.buttonBorderColor,
-  buttonBorderWidth: resolveBorderWidth(rawProps?.buttonBorderLine, rawProps?.buttonBorderColor, defaultSignInTokens.buttonBorderWidth),
+  // SignIn's Inspector also writes buttonborderColor (lowercase "b"), the same
+  // drift confirmed in SignUp — must be the first candidate ahead of the
+  // registry-seeded capitalized spelling.
+  buttonBorderColor: (pick(rawProps, ['buttonborderColor', 'buttonBorderColor']) as string) ?? defaultSignInTokens.buttonBorderColor,
+  buttonBorderWidth: resolveBorderWidth(rawProps?.buttonBorderLine, pick(rawProps, ['buttonborderColor', 'buttonBorderColor']), defaultSignInTokens.buttonBorderWidth),
   buttonPaddingTop: toNumber(rawProps?.buttonPaddingTop, defaultSignInTokens.buttonPaddingTop),
   buttonPaddingBottom: toNumber(rawProps?.buttonPaddingBottom, defaultSignInTokens.buttonPaddingBottom),
   buttonAutoUppercase: (rawProps?.buttonAutoUppercase as boolean) ?? defaultSignInTokens.buttonAutoUppercase,
@@ -1598,9 +1601,12 @@ const buildResetPasswordTokens = (rawProps: Record<string, unknown>): ResetPassw
   const addToCart = toRecord(rawProps?.addToCart);
   const visibility = toRecord(rawProps?.visibility);
   const showBgSection = toBoolean(firstDefined(visibility?.buyNowBgPadding), true);
+  // `title` is deliberately excluded from this chain: liveRegistry.ts seeds a
+  // registry-default `title` on every reset_password block, which would always
+  // shadow the RN default below before the merchant ever touches the Text field.
   const heading = stripHtmlTags(
     toLocalizedString(
-      firstDefined(rawProps?.headingText, rawProps?.title, rawProps?.heading),
+      firstDefined(rawProps?.headingText, rawProps?.heading),
       defaultResetPasswordTokens.headingText
     )
   );
@@ -1701,8 +1707,12 @@ const buildSignUpTokens = (rawProps: Record<string, unknown>): SignUpTokens => (
   passwordPlaceholderVisible: toBoolean(rawProps?.passwordPlaceHolderVisible ?? rawProps?.passwordPlaceholderVisible, defaultSignUpTokens.passwordPlaceholderVisible),
   firstNamePlaceholderVisible: toBoolean(rawProps?.firstNamePlaceHolderVisible ?? rawProps?.firstNamePlaceholderVisible, defaultSignUpTokens.firstNamePlaceholderVisible),
   lastNamePlaceholderVisible: toBoolean(rawProps?.lastNamePlaceHolderVisible ?? rawProps?.lastNamePlaceholderVisible, defaultSignUpTokens.lastNamePlaceholderVisible),
-  headerTitle: (rawProps?.headerTitle as string) ?? defaultSignUpTokens.headerTitle,
-  headerTitleColor: (rawProps?.headerTitleColor as string) ?? defaultSignUpTokens.headerTitleColor,
+  // The Inspector's Title controls write authTitle/titleColor (the same keys
+  // buildSignInTokens uses) — these must be the first candidates. The signup
+  // JSX renders headerTitle/headerTitleColor, and liveRegistry.ts previously
+  // seeded those directly, which always shadowed the Inspector's real value.
+  headerTitle: (pick(rawProps, ['authTitle', 'headerTitle']) as string) ?? defaultSignUpTokens.headerTitle,
+  headerTitleColor: (pick(rawProps, ['titleColor', 'headerTitleColor']) as string) ?? defaultSignUpTokens.headerTitleColor,
   headerTitleFontSize: toNumber(rawProps?.headerTitleFontSize, defaultSignUpTokens.headerTitleFontSize),
   headerTitleFontFamily: toFontFamily(rawProps?.headerTitleFontFamily ?? rawProps?.fontFamily, defaultSignUpTokens.headerTitleFontFamily),
   headerTitleFontWeight: toFontWeight(rawProps?.headerTitleFontWeight, defaultSignUpTokens.headerTitleFontWeight, rawProps?.authTitleBold as boolean | undefined),
@@ -1724,10 +1734,13 @@ const buildSignUpTokens = (rawProps: Record<string, unknown>): SignUpTokens => (
   firstNameLabelVisible: (rawProps?.firstNameLabelVisible as boolean) ?? defaultSignUpTokens.firstNameLabelVisible,
   lastNameLabelVisible: (rawProps?.lastNameLabelVisible as boolean) ?? defaultSignUpTokens.lastNameLabelVisible,
   passwordLabelVisible: (rawProps?.passwordLabelVisible as boolean) ?? defaultSignUpTokens.passwordLabelVisible,
-  emailInputVisible: (rawProps?.emailInputVisible as boolean) ?? defaultSignUpTokens.emailInputVisible,
+  // The field-level eye toggle writes {prefix}Visible (emailVisible/passwordVisible) —
+  // NOT emailInputVisible/passwordInputVisible, which liveRegistry.ts seeds to `true`
+  // on every signup block and would otherwise always win.
+  emailInputVisible: toBoolean(pick(rawProps, ['emailVisible', 'emailInputVisible']), defaultSignUpTokens.emailInputVisible),
   firstNameVisible: (rawProps?.firstNameVisible as boolean) ?? defaultSignUpTokens.firstNameVisible,
   lastNameVisible: (rawProps?.lastNameVisible as boolean) ?? defaultSignUpTokens.lastNameVisible,
-  passwordInputVisible: (rawProps?.passwordInputVisible as boolean) ?? defaultSignUpTokens.passwordInputVisible,
+  passwordInputVisible: toBoolean(pick(rawProps, ['passwordVisible', 'passwordInputVisible']), defaultSignUpTokens.passwordInputVisible),
   emailLabelText: (rawProps?.emailLabelText as string) ?? defaultSignUpTokens.emailLabelText,
   firstNameLabelText: (rawProps?.firstNameLabelText as string) ?? defaultSignUpTokens.firstNameLabelText,
   lastNameLabelText: (rawProps?.lastNameLabelText as string) ?? defaultSignUpTokens.lastNameLabelText,
@@ -1753,20 +1766,22 @@ const buildSignUpTokens = (rawProps: Record<string, unknown>): SignUpTokens => (
   lastNameInputTextColor: (rawProps?.lastNameInputTextColor as string) ?? defaultSignUpTokens.lastNameInputTextColor,
   passwordInputTextColor: (rawProps?.passwordInputTextColor as string) ?? defaultSignUpTokens.passwordInputTextColor,
   // Builder's per-field "Input Text" subsection writes {field}InputTextfontSize
-  // and {field}InputTextfontWeight (lowercase "font") — capitalized spelling
-  // kept as a forward-compatible alias.
-  emailInputTextFontSize: toNumber(pick(rawProps, ['emailInputTextFontSize', 'emailInputTextfontSize']), defaultSignUpTokens.emailInputTextFontSize),
-  firstNameInputTextFontSize: toNumber(pick(rawProps, ['firstNameInputTextFontSize', 'firstNameInputTextfontSize']), defaultSignUpTokens.firstNameInputTextFontSize),
-  lastNameInputTextFontSize: toNumber(pick(rawProps, ['lastNameInputTextFontSize', 'lastNameInputTextfontSize']), defaultSignUpTokens.lastNameInputTextFontSize),
-  passwordInputTextFontSize: toNumber(pick(rawProps, ['passwordInputTextFontSize', 'passwordInputTextfontSize']), defaultSignUpTokens.passwordInputTextFontSize),
+  // and {field}InputTextfontWeight (lowercase "font") — this MUST be the first
+  // candidate in each chain. liveRegistry.ts seeds the capitalized spelling on
+  // every signup block, so putting it first would always shadow the Inspector's
+  // real value (this was SignIn's original Bug A, re-created here).
+  emailInputTextFontSize: toNumber(pick(rawProps, ['emailInputTextfontSize', 'emailInputTextFontSize']), defaultSignUpTokens.emailInputTextFontSize),
+  firstNameInputTextFontSize: toNumber(pick(rawProps, ['firstNameInputTextfontSize', 'firstNameInputTextFontSize']), defaultSignUpTokens.firstNameInputTextFontSize),
+  lastNameInputTextFontSize: toNumber(pick(rawProps, ['lastNameInputTextfontSize', 'lastNameInputTextFontSize']), defaultSignUpTokens.lastNameInputTextFontSize),
+  passwordInputTextFontSize: toNumber(pick(rawProps, ['passwordInputTextfontSize', 'passwordInputTextFontSize']), defaultSignUpTokens.passwordInputTextFontSize),
   emailInputTextFontFamily: toFontFamily(rawProps?.emailInputTextFontFamily ?? rawProps?.fontFamily, defaultSignUpTokens.emailInputTextFontFamily),
   firstNameInputTextFontFamily: toFontFamily(rawProps?.firstNameInputTextFontFamily ?? rawProps?.fontFamily, defaultSignUpTokens.firstNameInputTextFontFamily),
   lastNameInputTextFontFamily: toFontFamily(rawProps?.lastNameInputTextFontFamily ?? rawProps?.fontFamily, defaultSignUpTokens.lastNameInputTextFontFamily),
   passwordInputTextFontFamily: toFontFamily(rawProps?.passwordInputTextFontFamily ?? rawProps?.fontFamily, defaultSignUpTokens.passwordInputTextFontFamily),
-  emailInputTextFontWeight: toFontWeight(pick(rawProps, ['emailInputTextFontWeight', 'emailInputTextfontWeight', 'fontWeight']), defaultSignUpTokens.emailInputTextFontWeight),
-  firstNameInputTextFontWeight: toFontWeight(pick(rawProps, ['firstNameInputTextFontWeight', 'firstNameInputTextfontWeight']), defaultSignUpTokens.firstNameInputTextFontWeight),
-  lastNameInputTextFontWeight: toFontWeight(pick(rawProps, ['lastNameInputTextFontWeight', 'lastNameInputTextfontWeight']), defaultSignUpTokens.lastNameInputTextFontWeight),
-  passwordInputTextFontWeight: toFontWeight(pick(rawProps, ['passwordInputTextFontWeight', 'passwordInputTextfontWeight', 'fontWeight']), defaultSignUpTokens.passwordInputTextFontWeight),
+  emailInputTextFontWeight: toFontWeight(pick(rawProps, ['emailInputTextfontWeight', 'emailInputTextFontWeight', 'fontWeight']), defaultSignUpTokens.emailInputTextFontWeight),
+  firstNameInputTextFontWeight: toFontWeight(pick(rawProps, ['firstNameInputTextfontWeight', 'firstNameInputTextFontWeight']), defaultSignUpTokens.firstNameInputTextFontWeight),
+  lastNameInputTextFontWeight: toFontWeight(pick(rawProps, ['lastNameInputTextfontWeight', 'lastNameInputTextFontWeight']), defaultSignUpTokens.lastNameInputTextFontWeight),
+  passwordInputTextFontWeight: toFontWeight(pick(rawProps, ['passwordInputTextfontWeight', 'passwordInputTextFontWeight', 'fontWeight']), defaultSignUpTokens.passwordInputTextFontWeight),
   emailPlaceholderColor: (rawProps?.emailPlaceholderColor as string) ?? defaultSignUpTokens.emailPlaceholderColor,
   firstNamePlaceholderColor: (rawProps?.firstNamePlaceholderColor as string) ?? defaultSignUpTokens.firstNamePlaceholderColor,
   lastNamePlaceholderColor: (rawProps?.lastNamePlaceholderColor as string) ?? defaultSignUpTokens.lastNamePlaceholderColor,
@@ -1780,14 +1795,19 @@ const buildSignUpTokens = (rawProps: Record<string, unknown>): SignUpTokens => (
   lastNamePlaceholderFontFamily: toFontFamily(rawProps?.lastNamePlaceholderFontFamily ?? rawProps?.placeholderFontFamily ?? rawProps?.fontFamily, defaultSignUpTokens.lastNamePlaceholderFontFamily),
   passwordPlaceholderFontFamily: toFontFamily(rawProps?.passwordPlaceholderFontFamily ?? rawProps?.placeholderFontFamily ?? rawProps?.fontFamily, defaultSignUpTokens.passwordPlaceholderFontFamily),
   // Builder's per-field placeholder subsection writes {field}PlaceholderfontWeight
-  // (lowercase "font") — capitalized spelling kept as a forward-compatible alias.
-  emailPlaceholderFontWeight: toFontWeight(pick(rawProps, ['emailPlaceholderFontWeight', 'emailPlaceholderfontWeight', 'placeholderFontWeight', 'fontWeight']), defaultSignUpTokens.emailPlaceholderFontWeight, rawProps?.emailPlaceholderbold as boolean | undefined),
-  firstNamePlaceholderFontWeight: toFontWeight(pick(rawProps, ['firstNamePlaceholderFontWeight', 'firstNamePlaceholderfontWeight', 'placeholderFontWeight', 'fontWeight']), defaultSignUpTokens.firstNamePlaceholderFontWeight, rawProps?.firstNamePlaceholderbold as boolean | undefined),
-  lastNamePlaceholderFontWeight: toFontWeight(pick(rawProps, ['lastNamePlaceholderFontWeight', 'lastNamePlaceholderfontWeight', 'placeholderFontWeight', 'fontWeight']), defaultSignUpTokens.lastNamePlaceholderFontWeight, rawProps?.lastNamePlaceholderbold as boolean | undefined),
-  passwordPlaceholderFontWeight: toFontWeight(pick(rawProps, ['passwordPlaceholderFontWeight', 'passwordPlaceholderfontWeight', 'placeholderFontWeight', 'fontWeight']), defaultSignUpTokens.passwordPlaceholderFontWeight, rawProps?.passwordPlaceholderbold as boolean | undefined),
+  // (lowercase "font") — this must be the first candidate; liveRegistry.ts seeds
+  // the capitalized spelling on every signup block, which would otherwise always
+  // shadow the Inspector's real value.
+  emailPlaceholderFontWeight: toFontWeight(pick(rawProps, ['emailPlaceholderfontWeight', 'emailPlaceholderFontWeight', 'placeholderFontWeight', 'fontWeight']), defaultSignUpTokens.emailPlaceholderFontWeight, rawProps?.emailPlaceholderbold as boolean | undefined),
+  firstNamePlaceholderFontWeight: toFontWeight(pick(rawProps, ['firstNamePlaceholderfontWeight', 'firstNamePlaceholderFontWeight', 'placeholderFontWeight', 'fontWeight']), defaultSignUpTokens.firstNamePlaceholderFontWeight, rawProps?.firstNamePlaceholderbold as boolean | undefined),
+  lastNamePlaceholderFontWeight: toFontWeight(pick(rawProps, ['lastNamePlaceholderfontWeight', 'lastNamePlaceholderFontWeight', 'placeholderFontWeight', 'fontWeight']), defaultSignUpTokens.lastNamePlaceholderFontWeight, rawProps?.lastNamePlaceholderbold as boolean | undefined),
+  passwordPlaceholderFontWeight: toFontWeight(pick(rawProps, ['passwordPlaceholderfontWeight', 'passwordPlaceholderFontWeight', 'placeholderFontWeight', 'fontWeight']), defaultSignUpTokens.passwordPlaceholderFontWeight, rawProps?.passwordPlaceholderbold as boolean | undefined),
   ...buildButtonStyleTokens(rawProps, defaultSignUpTokens),
-  buttonBorderColor: (rawProps?.buttonBorderColor as string) ?? defaultSignUpTokens.buttonBorderColor,
-  buttonBorderWidth: resolveBorderWidth(rawProps?.buttonBorderLine, rawProps?.buttonBorderColor, defaultSignUpTokens.buttonBorderWidth),
+  // Builder's Button section writes buttonborderColor (lowercase "b") — must be
+  // the first candidate; liveRegistry.ts seeds buttonBorderColor on every signup
+  // block, which would otherwise always shadow the Inspector's real value.
+  buttonBorderColor: (pick(rawProps, ['buttonborderColor', 'buttonBorderColor']) as string) ?? defaultSignUpTokens.buttonBorderColor,
+  buttonBorderWidth: resolveBorderWidth(rawProps?.buttonBorderLine, pick(rawProps, ['buttonborderColor', 'buttonBorderColor']), defaultSignUpTokens.buttonBorderWidth),
   buttonPaddingTop: toNumber(rawProps?.buttonPaddingTop, defaultSignUpTokens.buttonPaddingTop),
   buttonPaddingBottom: toNumber(rawProps?.buttonPaddingBottom, defaultSignUpTokens.buttonPaddingBottom),
   buttonAutoUppercase: (rawProps?.buttonAutoUppercase as boolean) ?? defaultSignUpTokens.buttonAutoUppercase,
@@ -1797,12 +1817,16 @@ const buildSignUpTokens = (rawProps: Record<string, unknown>): SignUpTokens => (
   buttonWidth: toNumber(pick(rawProps, ['buttonwidth', 'buttonWidth']), defaultSignUpTokens.buttonWidth),
   footerTextColor: (rawProps?.footerTextColor as string) ?? defaultSignUpTokens.footerTextColor,
   footerLinkColor: (rawProps?.footerLinkColor as string) ?? defaultSignUpTokens.footerLinkColor,
-  footerTextFontSize: toNumber(rawProps?.footerTextFontSize ?? rawProps?.subtextSize ?? rawProps?.fontSize, defaultSignUpTokens.footerTextFontSize),
+  // Builder writes footerTextfontSize/footerLinkfontSize/footerLinkfontWeight
+  // (lowercase "font") — must be the first candidate; liveRegistry.ts seeds the
+  // capitalized spellings on every signup block, which would otherwise always
+  // shadow the Inspector's real value.
+  footerTextFontSize: toNumber(pick(rawProps, ['footerTextfontSize', 'footerTextFontSize']) ?? rawProps?.subtextSize ?? rawProps?.fontSize, defaultSignUpTokens.footerTextFontSize),
   footerTextFontFamily: toFontFamily(rawProps?.footerTextFontFamily ?? rawProps?.subtextFontFamily ?? rawProps?.fontFamily, defaultSignUpTokens.footerTextFontFamily),
   footerTextFontWeight: toFontWeight(rawProps?.footerTextFontWeight ?? rawProps?.subtextWeight ?? rawProps?.fontWeight, defaultSignUpTokens.footerTextFontWeight, rawProps?.footerTextBold as boolean | undefined),
-  footerLinkFontSize: toNumber(rawProps?.footerLinkFontSize, defaultSignUpTokens.footerLinkFontSize),
+  footerLinkFontSize: toNumber(pick(rawProps, ['footerLinkfontSize', 'footerLinkFontSize']), defaultSignUpTokens.footerLinkFontSize),
   footerLinkFontFamily: toFontFamily(rawProps?.footerLinkFontFamily ?? rawProps?.fontFamily, defaultSignUpTokens.footerLinkFontFamily),
-  footerLinkFontWeight: toFontWeight(rawProps?.footerLinkFontWeight, defaultSignUpTokens.footerLinkFontWeight, rawProps?.footerLinkTextBold as boolean | undefined),
+  footerLinkFontWeight: toFontWeight(pick(rawProps, ['footerLinkfontWeight', 'footerLinkFontWeight']), defaultSignUpTokens.footerLinkFontWeight, rawProps?.footerLinkTextBold as boolean | undefined),
   footerLinkAlignment: (rawProps?.footerLinkAlignment as string) ?? defaultSignUpTokens.footerLinkAlignment,
   footerLinkAutoUppercase: (rawProps?.footerLinkAutoUppercase as boolean) ?? defaultSignUpTokens.footerLinkAutoUppercase,
   footerVisible: (rawProps?.footerVisible as boolean) ?? defaultSignUpTokens.footerVisible,

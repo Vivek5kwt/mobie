@@ -1,5 +1,7 @@
 // engine/DynamicRenderer.js
 import React from "react";
+import { Text } from "react-native";
+import { trackAnalyticsEvent } from "../services/analyticsService";
 
 // LIVE COMPONENTS
 import Header from "../components/Topheader";       // Live Header (v1)
@@ -228,15 +230,42 @@ export default function DynamicRenderer({ section }) {
     const Component = componentMap[compName];
 
     if (!Component) {
-      console.log("❌ Component NOT FOUND:", compName);
-      console.log("Available:", Object.keys(componentMap));
+      // This section was invisible with zero signal outside a manual code read —
+      // console.log doesn't surface in release builds. Fire an analytics event so
+      // unmapped component types (e.g. a new builder block with no RN consumer
+      // yet) are actually discoverable in production, and show a visible
+      // placeholder in dev so nobody mistakes a blank space for "nothing was there".
+      trackAnalyticsEvent("dsl_component_not_found", { component_name: compName });
+      if (__DEV__) {
+        console.log("❌ Component NOT FOUND:", compName);
+        console.log("Available:", Object.keys(componentMap));
+        return (
+          <Text style={{ color: "#B91C1C", backgroundColor: "#FEF2F2", padding: 8 }}>
+            ⚠️ Unknown DSL component: "{compName}"
+          </Text>
+        );
+      }
       return null;
     }
 
     return <Component section={section} />;
 
   } catch (err) {
-    console.log("❌ DynamicRenderer error:", err);
+    // Same visibility problem as above, but for a component that IS registered
+    // and threw while rendering — previously indistinguishable from "not found"
+    // and equally invisible in production.
+    trackAnalyticsEvent("dsl_component_render_error", {
+      component_name: String(section?.component?.const || section?.component || section?.properties?.component?.const || section?.properties?.component || ""),
+      error_message: err?.message || String(err),
+    });
+    if (__DEV__) {
+      console.log("❌ DynamicRenderer error:", err);
+      return (
+        <Text style={{ color: "#B91C1C", backgroundColor: "#FEF2F2", padding: 8 }}>
+          ⚠️ Render error in this section: {err?.message || String(err)}
+        </Text>
+      );
+    }
     return null;
   }
 }

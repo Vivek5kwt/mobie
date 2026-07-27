@@ -224,6 +224,44 @@ export default function OrderSummary({ section }) {
     "#FFFFFF"
   );
 
+  // DSL item-card sub-sections (Product > Image / Product Name / Variant & Quantity /
+  // Price) — the Inspector has always exposed these; RN previously ignored every one
+  // of them and rendered a fully hardcoded card (fixed 52x52 image, fixed text
+  // styles). Only affects the usesDslItems fallback path (see below).
+  const showProductCard = toBoolean(raw?.productVisible, true);
+  const showCardImage = toBoolean(raw?.cardImage, true);
+  const imageCornerRadius = toNumber(raw?.imageCorner, 8);
+  const imageAspectRatio = (() => {
+    const parts = toString(raw?.ratio, "1:1").split(":").map((n) => parseFloat(n));
+    if (parts.length === 2 && parts[0] > 0 && parts[1] > 0) return parts[0] / parts[1];
+    return 1;
+  })();
+  const itemImageSize = { width: 52, height: 52 / imageAspectRatio };
+
+  const showProductName = toBoolean(raw?.productNameVisible, true);
+  const productNameStyle = {
+    fontSize: toNumber(raw?.productNameSize, 14),
+    fontWeight: toFontWeight(raw?.productNameFontWeight, "600"),
+    color: toString(raw?.productNameColor, "#111827"),
+    ...(cleanFontFamily(toString(raw?.productNameFontFamily, "")) ? { fontFamily: cleanFontFamily(toString(raw?.productNameFontFamily, "")) } : {}),
+  };
+
+  const showVariantQty = toBoolean(raw?.v_QVisible, true);
+  const variantQtyStyle = {
+    fontSize: toNumber(raw?.v_QSize, 12),
+    fontWeight: toFontWeight(raw?.v_QFontWeight, "400"),
+    color: toString(raw?.v_QColor, "#6B7280"),
+    ...(cleanFontFamily(toString(raw?.v_QFontFamily, "")) ? { fontFamily: cleanFontFamily(toString(raw?.v_QFontFamily, "")) } : {}),
+  };
+
+  const showItemPrice = toBoolean(raw?.priceVisible, true);
+  const itemPriceStyle = {
+    fontSize: toNumber(raw?.priceSize, 14),
+    fontWeight: toFontWeight(raw?.priceFontWeight, "600"),
+    color: toString(raw?.priceColor, "#111827"),
+    ...(cleanFontFamily(toString(raw?.priceFontFamily, "")) ? { fontFamily: cleanFontFamily(toString(raw?.priceFontFamily, "")) } : {}),
+  };
+
   // Cart total from items
   const computedCartTotal = useMemo(
     () =>
@@ -284,6 +322,10 @@ export default function OrderSummary({ section }) {
     : titleStrikethrough
     ? "line-through"
     : "none";
+  const titleItalic = toBoolean(raw?.titleItalic, false);
+  const titleFontStyle = titleItalic ? "italic" : "normal";
+  const titleAlignRaw = toString(raw?.titleAlign, "left").trim().toLowerCase();
+  const titleAlign = titleAlignRaw === "center" ? "center" : titleAlignRaw === "right" ? "right" : "left";
 
   // Currency
   const currencyLabel = resolveCurrencyLabel(
@@ -411,6 +453,12 @@ export default function OrderSummary({ section }) {
   const titleFontFamily = cleanFontFamily(toString(raw?.titleFontFamily ?? raw?.fontFamily, ""));
   const rowFontFamily   = cleanFontFamily(toString(raw?.rowFontFamily   ?? raw?.fontFamily, ""));
   const chipFontFamily  = cleanFontFamily(toString(raw?.chipFontFamily  ?? raw?.fontFamily, ""));
+  // Cart Total is the one row type with its own Inspector font-family control
+  // (the "Cart Total" section) — falls back to the shared row family, then the
+  // block-level family, just like every other row.
+  const cartTotalFontFamily = cleanFontFamily(
+    toString(raw?.cartTotalFontFamily ?? raw?.rowFontFamily ?? raw?.fontFamily, "")
+  );
 
   // Sub total row
   const showSubTotal = toBoolean(raw?.showSubTotal ?? raw?.showSubtotal, raw?.subTotal != null || true);
@@ -473,6 +521,8 @@ export default function OrderSummary({ section }) {
               fontSize: titleSize,
               fontWeight: titleWeight,
               textDecorationLine: titleTextDecoration,
+              fontStyle: titleFontStyle,
+              textAlign: titleAlign,
               ...(titleFontFamily ? { fontFamily: titleFontFamily } : {}),
             },
           ]}
@@ -482,7 +532,7 @@ export default function OrderSummary({ section }) {
       )}
 
       {/* DSL item cards (post-purchase line items) */}
-      {usesDslItems && dslItems.map((item, idx) => {
+      {usesDslItems && showProductCard && dslItems.map((item, idx) => {
         const itemQty = toNumber(item?.qty ?? item?.quantity, 1);
         const itemPrice = toNumber(item?.price, 0);
         const lineTotal = itemQty * itemPrice;
@@ -505,37 +555,47 @@ export default function OrderSummary({ section }) {
             ]}
           >
             {/* Product image */}
-            <View style={[styles.itemImageWrap, { backgroundColor: imageBgColor }]}>
-              {item?.image ? (
-                <Image
-                  source={{ uri: item.image }}
-                  style={styles.itemImage}
-                  resizeMode={resolveProductImageResizeMode(
-                    raw?.imageScale,
-                    raw?.scale,
-                    raw?.imageResizeMode
-                  )}
-                />
-              ) : (
-                <View style={[styles.itemImagePlaceholder, { backgroundColor: imageBgColor }]} />
-              )}
-            </View>
+            {showCardImage && (
+              <View style={[styles.itemImageWrap, itemImageSize, { borderRadius: imageCornerRadius, backgroundColor: imageBgColor }]}>
+                {item?.image ? (
+                  <Image
+                    source={{ uri: item.image }}
+                    style={styles.itemImage}
+                    resizeMode={resolveProductImageResizeMode(
+                      raw?.imageScale,
+                      raw?.scale,
+                      raw?.imageResizeMode
+                    )}
+                  />
+                ) : (
+                  <View style={[styles.itemImagePlaceholder, { backgroundColor: imageBgColor }]} />
+                )}
+              </View>
+            )}
 
             {/* Item details */}
             <View style={styles.itemDetails}>
-              <Text style={styles.itemTitle} numberOfLines={2}>
-                {toString(item?.title, "Product")}
-              </Text>
-              {!!item?.variant && (
-                <Text style={styles.itemVariant}>{item.variant}</Text>
+              {showProductName && (
+                <Text style={[styles.itemTitle, productNameStyle]} numberOfLines={2}>
+                  {toString(item?.title, "Product")}
+                </Text>
               )}
-              <Text style={styles.itemQty}>Qty {itemQty}</Text>
+              {showVariantQty && (
+                <>
+                  {!!item?.variant && (
+                    <Text style={[styles.itemVariant, variantQtyStyle]}>{item.variant}</Text>
+                  )}
+                  <Text style={[styles.itemQty, variantQtyStyle]}>Qty {itemQty}</Text>
+                </>
+              )}
             </View>
 
             {/* Price */}
-            <Text style={styles.itemPrice}>
-              {fmt(lineTotal, itemCurrency)}
-            </Text>
+            {showItemPrice && (
+              <Text style={[styles.itemPrice, itemPriceStyle]}>
+                {fmt(lineTotal, itemCurrency)}
+              </Text>
+            )}
           </View>
         );
       })}
@@ -551,7 +611,7 @@ export default function OrderSummary({ section }) {
           valueSize={cartTotalValueSize}
           labelWeight={cartTotalWeight}
           valueWeight={cartTotalValueWeight}
-          fontFamily={rowFontFamily}
+          fontFamily={cartTotalFontFamily}
         />
       )}
 

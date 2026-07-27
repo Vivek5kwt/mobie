@@ -175,6 +175,7 @@ export default function AddToCart({ section }) {
 
   const addToCartConfig = mergeConfig(css?.addToCart, raw?.addToCart);
   const quantityConfig  = mergeConfig(css?.quantityPicker, raw?.quantityPicker);
+  const buyNowConfig    = mergeConfig(css?.buyNow, raw?.buyNow);
 
   // Visibility
   const rawWrappedVis = (rawWrapped && typeof rawWrapped === "object") ? rawWrapped : {};
@@ -195,6 +196,8 @@ export default function AddToCart({ section }) {
   const showQuantityPicker = toBoolean(deepUnwrap(visibility?.quantityPicker),      true);
   const showQuantityText   = toBoolean(deepUnwrap(visibility?.quantityPickerText),  true);
   const showQuantityIcons  = toBoolean(deepUnwrap(visibility?.quantityPickerIcons), true);
+  const showBuyNow         = toBoolean(deepUnwrap(visibility?.buyNow),              true);
+  const showBuyNowText     = toBoolean(deepUnwrap(visibility?.buyNowText),         true);
 
   const addToCartText = toString(
     addToCartConfig?.text ?? addToCartConfig?.label ?? raw?.buttonText ?? raw?.addToCartText,
@@ -273,12 +276,17 @@ export default function AddToCart({ section }) {
     textAlign: atcTextAlign,
   };
 
+  // borderWidth derives from borderLine/borderColor, matching buildButtonStyles()'s
+  // rule for the Add to Cart / Buy Now buttons — `quantityConfig.borderWidth` isn't
+  // a key the Inspector (or its defaults) ever produces, so reading it directly
+  // always fell back to a hardcoded 1 regardless of the merchant's border setting.
+  const quantityBorderColor = toString(quantityConfig?.borderColor, "#E5E7EB");
   const quantityContainerStyle = {
     ...buildPadding(quantityConfig),
-    backgroundColor: toString(quantityConfig?.bgColor,     "#FFFFFF"),
-    borderColor:     toString(quantityConfig?.borderColor, "#E5E7EB"),
-    borderWidth:     toNumber(quantityConfig?.borderWidth, 1),
-    borderRadius:    toNumber(quantityConfig?.borderRadius, 6),
+    backgroundColor: toString(quantityConfig?.bgColor, "#FFFFFF"),
+    borderColor: quantityBorderColor,
+    borderWidth: quantityConfig?.borderLine || quantityBorderColor ? 1 : 0,
+    borderRadius: toNumber(quantityConfig?.borderRadius, 6),
   };
 
   const quantityTextStyle = {
@@ -318,6 +326,38 @@ export default function AddToCart({ section }) {
       size={toNumber(addToCartConfig?.iconSize, 14)}
       color={toString(addToCartConfig?.iconColor, addToCartTextStyle.color)}
       style={addToCartIconOnRight ? { marginLeft: 6 } : { marginRight: 6 }}
+    />
+  ) : null;
+
+  // ── Buy Now button — fully configured/saved by the Builder (buyNow.* + the
+  // buyNow/buyNowText/buyNowIcon/buyNowBgPadding visibility flags) but never
+  // rendered here until now.
+  const buyNowButtonStyle = buildButtonStyles(buyNowConfig, "#FFFFFF");
+  const buyNowTextAlign = resolveTextAlign(buyNowConfig, raw);
+  const buyNowTextStyle = {
+    color: toString(buyNowConfig?.textColor, "#FFFFFF"),
+    fontSize: toNumber(buyNowConfig?.textSize, 12),
+    fontWeight: toString(buyNowConfig?.textWeight, "700"),
+    fontFamily: resolveFirstFont(buyNowConfig?.textFamily, buyNowConfig?.fontFamily) || undefined,
+    textAlign: buyNowTextAlign,
+  };
+  const buyNowIconRaw = firstDefined(
+    buyNowConfig?.icon?.value,
+    buyNowConfig?.icon,
+    buyNowConfig?.iconName,
+    buyNowConfig?.iconId
+  );
+  const buyNowIconName = resolveIconName(buyNowIconRaw);
+  const showBuyNowIconSetting = deepUnwrap(visibility?.buyNowIcon);
+  const showBuyNowIcon = toBoolean(showBuyNowIconSetting, !!buyNowIconRaw);
+  const buyNowIconAlign = toString(buyNowConfig?.iconAlign ?? buyNowConfig?.align, "right").toLowerCase();
+  const buyNowIconOnRight = buyNowIconAlign === "right" || buyNowIconAlign === "end";
+  const buyNowIcon = showBuyNowIcon && !!buyNowIconName ? (
+    <FontAwesome
+      name={buyNowIconName}
+      size={toNumber(buyNowConfig?.iconSize, 14)}
+      color={toString(buyNowConfig?.iconColor, buyNowTextStyle.color)}
+      style={buyNowIconOnRight ? { marginLeft: 6 } : { marginRight: 6 }}
     />
   ) : null;
 
@@ -392,6 +432,14 @@ export default function AddToCart({ section }) {
     );
 
     setSnackbarVisible(true);
+  };
+
+  // Buy Now skips the local cart entirely and goes straight to a Shopify
+  // checkout permalink for just this variant/quantity — addToCartUrl was
+  // already being computed above for exactly this purpose but had no caller.
+  const handleBuyNow = () => {
+    if (!productAvailable || !addToCartUrl) return;
+    navigation.navigate("CheckoutWebView", { url: addToCartUrl });
   };
 
   const containerBg = toString(
@@ -493,6 +541,20 @@ export default function AddToCart({ section }) {
         </TouchableOpacity>
       )}
 
+      {/* ── Buy Now button (full-width) ── */}
+      {showBuyNow && productAvailable && (
+        <TouchableOpacity
+          style={[styles.fullButton, styles.buyNowButton, buyNowButtonStyle]}
+          onPress={handleBuyNow}
+          disabled={!addToCartUrl}
+          activeOpacity={0.8}
+        >
+          {!buyNowIconOnRight && buyNowIcon}
+          {showBuyNowText && <Text style={buyNowTextStyle}>Buy Now</Text>}
+          {buyNowIconOnRight && buyNowIcon}
+        </TouchableOpacity>
+      )}
+
       {/* ── Add to Cart snackbar ── */}
       <Snackbar
         visible={snackbarVisible}
@@ -551,5 +613,8 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     borderRadius: 8,
     overflow: "hidden",
+  },
+  buyNowButton: {
+    marginTop: 10,
   },
 });

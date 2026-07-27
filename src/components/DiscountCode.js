@@ -7,6 +7,7 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
+import FontAwesome from "react-native-vector-icons/FontAwesome";
 import { useDispatch, useSelector } from "react-redux";
 import { removeDiscount, setDiscounts } from "../store/slices/cartSlice";
 import { resolveFont } from "../services/typographyService";
@@ -18,6 +19,7 @@ import {
   normalizeDiscountCode,
   normalizeDiscountRecords,
 } from "../utils/cartDiscounts";
+import { resolveFA4IconName } from "../utils/faIconAlias";
 
 const unwrapValue = (value, fallback = undefined) => {
   if (value === undefined || value === null) return fallback;
@@ -104,13 +106,16 @@ export default function DiscountCode({ section }) {
   // DSL styling
   const enabled = toBoolean(raw?.enabled ?? raw?.active, true);
 
-  // Container
-  const bgColor = toString(raw?.bgColor ?? raw?.backgroundColor, "#FFFFFF");
-  const padT = toNumber(raw?.padT ?? raw?.pt, 16);
-  const padR = toNumber(raw?.padR ?? raw?.pr, 16);
-  const padB = toNumber(raw?.padB ?? raw?.pb, 16);
-  const padL = toNumber(raw?.padL ?? raw?.pl, 16);
-  const cornerRadius = toNumber(raw?.cornerRadius ?? raw?.borderRadius, 0);
+  // Container ("Card" panel in the Inspector)
+  const cardActive = toBoolean(raw?.cardVisible, true);
+  const bgColor = cardActive ? toString(raw?.cardBgColor ?? raw?.bgColor ?? raw?.backgroundColor, "#FFFFFF") : "transparent";
+  const padT = cardActive ? toNumber(raw?.cardPt ?? raw?.padT ?? raw?.pt, 16) : 0;
+  const padR = cardActive ? toNumber(raw?.cardPr ?? raw?.padR ?? raw?.pr, 16) : 0;
+  const padB = cardActive ? toNumber(raw?.cardPb ?? raw?.padB ?? raw?.pb, 16) : 0;
+  const padL = cardActive ? toNumber(raw?.cardPl ?? raw?.padL ?? raw?.pl, 16) : 0;
+  const cornerRadius = cardActive ? toNumber(raw?.cardBorderRadius ?? raw?.cornerRadius ?? raw?.borderRadius, 0) : 0;
+  const cardBorderWidth = cardActive ? borderWidthFromLine(raw?.cardBorderSide, 0) : 0;
+  const cardBorderColor = toString(raw?.cardBorderColor, "#E5E7EB");
 
   // Title
   const titleText = toString(raw?.title ?? raw?.titleText ?? raw?.heading, "Discounts and Gift Cards");
@@ -121,20 +126,70 @@ export default function DiscountCode({ section }) {
   const titleColor = toString(raw?.titleColor, "#111827");
   const titleSize = toNumber(raw?.titleSize ?? raw?.titleFontSize, 16);
   const titleWeight = toFontWeight(raw?.titleWeight ?? raw?.titleFontWeight, "700");
+  const titleItalic = toBoolean(raw?.titleItalic, false);
+  const titleFontStyle = titleItalic ? "italic" : "normal";
+  const titleUnderline = toBoolean(raw?.titleUnderline, false);
+  const titleStrikethrough = toBoolean(raw?.titleStrikethrough, false);
+  const titleTextDecoration = titleUnderline && titleStrikethrough
+    ? "underline line-through"
+    : titleUnderline
+    ? "underline"
+    : titleStrikethrough
+    ? "line-through"
+    : "none";
+  const titleAlignRaw = toString(raw?.titleAlign, "left").trim().toLowerCase();
+  const titleAlign = titleAlignRaw === "center" ? "center" : titleAlignRaw === "right" ? "right" : "left";
+
+  // Input Label (caption shown above the input field)
+  const showInputField = toBoolean(raw?.inputFieldVisible, true);
+  const showInputLabel = toBoolean(raw?.inputLabelVisible, true);
+  const inputLabelText = toString(raw?.inputLabel, "");
+  const inputLabelColor = toString(raw?.inputLabelColor, "#111827");
+  const inputLabelSize = toNumber(raw?.inputLabelSize, 13);
+  const inputLabelWeight = toFontWeight(raw?.inputLabelFontWeight, "400");
+  const inputLabelItalic = toBoolean(raw?.inputLabelItalic, false);
+  const inputLabelFontStyle = inputLabelItalic ? "italic" : "normal";
+  const inputLabelUnderline = toBoolean(raw?.inputLabelUnderline, false);
+  const inputLabelStrikethrough = toBoolean(raw?.inputLabelStrikethrough, false);
+  const inputLabelTextDecoration = inputLabelUnderline && inputLabelStrikethrough
+    ? "underline line-through"
+    : inputLabelUnderline
+    ? "underline"
+    : inputLabelStrikethrough
+    ? "line-through"
+    : "none";
+  const inputLabelAlignRaw = toString(raw?.inputLabelAlign, "left").trim().toLowerCase();
+  const inputLabelAlign = inputLabelAlignRaw === "center" ? "center" : inputLabelAlignRaw === "right" ? "right" : "left";
+  const inputLabelFontFamily = cleanFontFamily(toString(raw?.inputLabelFontFamily, ""));
 
   // Input
   const placeholder = toString(raw?.placeholder ?? raw?.inputPlaceholder, "Enter Discount Code");
-  const inputBg = toString(raw?.inputBg ?? raw?.inputBgColor, "#FFFFFF");
+  const inputBackgroundActive = toBoolean(raw?.inputBackgroundVisible, true);
+  const inputBg = inputBackgroundActive ? toString(raw?.inputBg ?? raw?.inputBgColor, "#FFFFFF") : "transparent";
   const inputBorderColor = toString(raw?.inputBorderColor ?? raw?.borderColor, "#E5E7EB");
-  const inputBorderRadius = toNumber(raw?.inputBorderRadius, 8);
+  const inputBorderRadius = inputBackgroundActive ? toNumber(raw?.inputBorderRadius, 8) : 0;
   const inputTextColor = toString(raw?.inputTextColor ?? raw?.inputColor, "#111827");
   const inputTextSize = toNumber(raw?.inputTextSize ?? raw?.inputFontSize, 14);
+  const inputTextWeight = toFontWeight(raw?.inputTextFontWeight, "400");
+  const inputTextItalic = toBoolean(raw?.inputTextItalic, false);
+  const inputTextFontStyle = inputTextItalic ? "italic" : "normal";
+  const inputTextUnderline = toBoolean(raw?.inputTextUnderline, false);
+  const inputTextStrikethrough = toBoolean(raw?.inputTextStrikethrough, false);
+  const inputTextDecoration = inputTextUnderline && inputTextStrikethrough
+    ? "underline line-through"
+    : inputTextUnderline
+    ? "underline"
+    : inputTextStrikethrough
+    ? "line-through"
+    : "none";
+  const inputTextAlignRaw = toString(raw?.inputTextAlign, "left").trim().toLowerCase();
+  const inputTextAlign = inputTextAlignRaw === "center" ? "center" : inputTextAlignRaw === "right" ? "right" : "left";
   const inputHeight = toNumber(raw?.inputHeight, 44);
   const placeholderColor = toString(raw?.placeholderColor, "#9CA3AF");
-  const inputBorderWidth = borderWidthFromLine(
+  const inputBorderWidth = inputBackgroundActive ? borderWidthFromLine(
     firstDefined(raw?.inputBorderLine, raw?.inputBorderWidth),
     raw?.inputBorderColor ? 1 : 1
-  );
+  ) : 0;
   const inputPadL = toNumber(
     firstDefined(raw?.inputPaddingLeft, raw?.inputPl, raw?.inputPadL),
     12
@@ -143,12 +198,16 @@ export default function DiscountCode({ section }) {
     firstDefined(raw?.inputPaddingRight, raw?.inputPr, raw?.inputPadR),
     12
   );
+  const inputPadT = toNumber(raw?.inputPt, 0);
+  const inputPadB = toNumber(raw?.inputPb, 0);
   const inputButtonGap = toNumber(
     firstDefined(raw?.inputButtonGap, raw?.buttonGap, raw?.fieldGap, raw?.gap),
     10
   );
 
   // Apply button
+  const showApplyButton = toBoolean(raw?.applybuttonVisible, true);
+  const showApplyButtonText = toBoolean(raw?.buttonVisible, true);
   const applyText = toString(raw?.applyButtonText ?? raw?.applyText ?? raw?.buttonText ?? raw?.btnText, "Apply");
   const applyBg = toString(
     firstDefined(
@@ -192,6 +251,17 @@ export default function DiscountCode({ section }) {
     firstDefined(raw?.applyFontWeight, raw?.buttonTextFontWeight, raw?.buttonFontWeight),
     "600"
   );
+  const applyItalic = toBoolean(raw?.buttonTextItalic, false);
+  const applyFontStyle = applyItalic ? "italic" : "normal";
+  const applyUnderline = toBoolean(raw?.buttonTextUnderline, false);
+  const applyStrikethrough = toBoolean(raw?.buttonTextStrikethrough, false);
+  const applyTextDecoration = applyUnderline && applyStrikethrough
+    ? "underline line-through"
+    : applyUnderline
+    ? "underline"
+    : applyStrikethrough
+    ? "line-through"
+    : "none";
   const applyHeight = toNumber(raw?.buttonHeight ?? raw?.applyHeight, 44);
   const applyPadL = toNumber(
     firstDefined(raw?.applyPadL, raw?.applyPaddingLeft, raw?.buttonPl, raw?.buttonPaddingLeft, raw?.buttonPadL, raw?.buttonPaddingX, raw?.buttonPadX),
@@ -210,19 +280,52 @@ export default function DiscountCode({ section }) {
     0
   );
 
-  // Applied code chips
-  const chipBg = toString(raw?.chipBg ?? raw?.codeBg, "#F3F4F6");
-  const chipTextColor = toString(raw?.chipTextColor ?? raw?.codeTextColor, "#111827");
-  const chipBorderColor = toString(raw?.chipBorderColor, "#E5E7EB");
-  const chipBorderRadius = toNumber(raw?.chipBorderRadius, 6);
-  const chipFontSize = toNumber(raw?.chipFontSize, 13);
-  const removeIconColor = toString(raw?.removeIconColor ?? raw?.closeColor, "#6B7280");
+  // Apply button icon
+  const showApplyIcon = toBoolean(raw?.buttonIconVisible, false);
+  const applyIconRaw = toString(raw?.buttonIcon, "");
+  const applyIconName = applyIconRaw ? resolveFA4IconName(applyIconRaw) : "";
+  const applyIconSize = toNumber(raw?.buttonIconSize, 15);
+  const applyIconColor = toString(raw?.buttonIconColor, applyTextColor);
+
+  // Applied code chips ("Saved Codes")
+  const showSavedCodes = toBoolean(raw?.savedCodesVisible, true);
+  const chipBorderActive = toBoolean(raw?.border1Visible, true);
+  const chipBgActive = toBoolean(raw?.bg1Visible, true);
+  const chipBg = chipBgActive
+    ? toString(raw?.savedCodesBgColor ?? raw?.chipBg ?? raw?.codeBg, "#F3F4F6")
+    : "transparent";
+  const chipTextColor = toString(raw?.savedCodesColor ?? raw?.chipTextColor ?? raw?.codeTextColor, "#111827");
+  const chipBorderColor = toString(raw?.savedCodesBorderColor ?? raw?.chipBorderColor, "#E5E7EB");
+  const chipBorderRadius = toNumber(raw?.savedCodesBorderRadius ?? raw?.chipBorderRadius, 6);
+  const chipBorderWidth = chipBorderActive ? borderWidthFromLine(raw?.savedCodesBorderSide, 1) : 0;
+  const chipFontSize = toNumber(raw?.savedCodesSize ?? raw?.chipFontSize, 13);
+  const chipFontWeight = toFontWeight(raw?.savedCodesFontWeight, "400");
+  const chipItalic = toBoolean(raw?.savedCodesItalic, false);
+  const chipFontStyle = chipItalic ? "italic" : "normal";
+  const chipUnderline = toBoolean(raw?.savedCodesUnderline, false);
+  const chipStrikethrough = toBoolean(raw?.savedCodesStrikethrough, false);
+  const chipTextDecoration = chipUnderline && chipStrikethrough
+    ? "underline line-through"
+    : chipUnderline
+    ? "underline"
+    : chipStrikethrough
+    ? "line-through"
+    : "none";
+  const chipPadT = toNumber(raw?.savedCodesPt, 10);
+  const chipPadB = toNumber(raw?.savedCodesPb, 10);
+  const chipPadL = toNumber(raw?.savedCodesPl, 14);
+  const chipPadR = toNumber(raw?.savedCodesPr, 14);
+  const showRemoveIcon = toBoolean(raw?.iconVisible, true);
+  const removeIconColor = toString(raw?.savedCodesIconColor ?? raw?.removeIconColor ?? raw?.closeColor, "#6B7280");
+  const removeIconRaw = toString(raw?.savedCodesIcon, "");
+  const removeIconName = removeIconRaw ? resolveFA4IconName(removeIconRaw) : "";
+  const removeIconSize = toNumber(raw?.savedCodesIconSize, 16);
 
   // Font families
   const titleFontFamily = cleanFontFamily(toString(raw?.titleFontFamily ?? raw?.fontFamily, ""));
   const inputFontFamily = cleanFontFamily(toString(raw?.inputTextFontFamily ?? raw?.inputFontFamily ?? raw?.fontFamily, ""));
   const applyFontFamily = cleanFontFamily(toString(raw?.applyFontFamily ?? raw?.buttonTextFontFamily ?? raw?.buttonFontFamily ?? raw?.fontFamily, ""));
-  const chipFontFamily  = cleanFontFamily(toString(raw?.chipFontFamily ?? raw?.fontFamily, ""));
+  const chipFontFamily  = cleanFontFamily(toString(raw?.savedCodesFontFamily ?? raw?.chipFontFamily ?? raw?.fontFamily, ""));
   const successColor = toString(raw?.successColor ?? raw?.validMessageColor, "#047857");
   const errorColor = toString(raw?.errorColor ?? raw?.invalidMessageColor, "#DC2626");
   const successMessage = toString(raw?.successMessage ?? raw?.validMessage, "Discount applied.");
@@ -323,6 +426,8 @@ export default function DiscountCode({ section }) {
           paddingBottom: padB,
           paddingLeft: padL,
           borderRadius: cornerRadius,
+          borderWidth: cardBorderWidth,
+          borderColor: cardBorderColor,
         },
       ]}
     >
@@ -334,6 +439,9 @@ export default function DiscountCode({ section }) {
               color: titleColor,
               fontSize: titleSize,
               fontWeight: titleWeight,
+              fontStyle: titleFontStyle,
+              textDecorationLine: titleTextDecoration,
+              textAlign: titleAlign,
               ...(titleFontFamily ? { fontFamily: titleFontFamily } : {}),
             },
           ]}
@@ -342,72 +450,115 @@ export default function DiscountCode({ section }) {
         </Text>
       )}
 
+      {showInputField && showInputLabel && !!inputLabelText && (
+        <Text
+          style={[
+            styles.inputLabel,
+            {
+              color: inputLabelColor,
+              fontSize: inputLabelSize,
+              fontWeight: inputLabelWeight,
+              fontStyle: inputLabelFontStyle,
+              textDecorationLine: inputLabelTextDecoration,
+              textAlign: inputLabelAlign,
+              ...(inputLabelFontFamily ? { fontFamily: inputLabelFontFamily } : {}),
+            },
+          ]}
+        >
+          {inputLabelText}
+        </Text>
+      )}
+
       {/* Input row */}
       <View style={[styles.inputRow, { gap: inputButtonGap }]}>
-        <TextInput
-          style={[
-            styles.input,
-            {
-              backgroundColor: inputBg,
-              borderColor: inputBorderColor,
-              borderWidth: inputBorderWidth,
-              borderRadius: inputBorderRadius,
-              color: inputTextColor,
-              fontSize: inputTextSize,
-              height: inputHeight,
-              paddingLeft: inputPadL,
-              paddingRight: inputPadR,
-              ...(inputFontFamily ? { fontFamily: inputFontFamily } : {}),
-            },
-          ]}
-          value={inputValue}
-          onChangeText={setInputValue}
-          placeholder={placeholder}
-          placeholderTextColor={placeholderColor}
-          autoCapitalize="characters"
-          autoCorrect={false}
-          returnKeyType="done"
-          onSubmitEditing={handleApply}
-          editable={!validating}
-        />
-        <TouchableOpacity
-          style={[
-            styles.applyButton,
-            {
-              backgroundColor: applyBg,
-              borderColor: applyBorderColor,
-              borderWidth: applyBorderWidth,
-              borderRadius: applyBorderRadius,
-              height: applyHeight,
-              paddingTop: applyPadT,
-              paddingBottom: applyPadB,
-              paddingLeft: applyPadL,
-              paddingRight: applyPadR,
-              opacity: validating ? 0.75 : 1,
-            },
-          ]}
-          onPress={handleApply}
-          disabled={validating}
-          activeOpacity={0.8}
-        >
-          {validating ? (
-            <ActivityIndicator size="small" color={applyTextColor} />
-          ) : (
-            <Text
-              style={[
-                styles.applyText,
-                {
-                  color: applyTextColor,
-                  fontSize: applyFontSize,
-                  fontWeight: applyFontWeight,
-                  ...(applyFontFamily ? { fontFamily: applyFontFamily } : {}),
-                },
-              ]}
-            >
-              {applyText}
-            </Text>
-          )}
-        </TouchableOpacity>
+        {showInputField && (
+          <TextInput
+            style={[
+              styles.input,
+              {
+                backgroundColor: inputBg,
+                borderColor: inputBorderColor,
+                borderWidth: inputBorderWidth,
+                borderRadius: inputBorderRadius,
+                color: inputTextColor,
+                fontSize: inputTextSize,
+                fontWeight: inputTextWeight,
+                fontStyle: inputTextFontStyle,
+                textDecorationLine: inputTextDecoration,
+                textAlign: inputTextAlign,
+                height: inputHeight,
+                paddingTop: inputPadT,
+                paddingBottom: inputPadB,
+                paddingLeft: inputPadL,
+                paddingRight: inputPadR,
+                ...(inputFontFamily ? { fontFamily: inputFontFamily } : {}),
+              },
+            ]}
+            value={inputValue}
+            onChangeText={setInputValue}
+            placeholder={placeholder}
+            placeholderTextColor={placeholderColor}
+            autoCapitalize="characters"
+            autoCorrect={false}
+            returnKeyType="done"
+            onSubmitEditing={handleApply}
+            editable={!validating}
+          />
+        )}
+        {showApplyButton && (
+          <TouchableOpacity
+            style={[
+              styles.applyButton,
+              {
+                backgroundColor: applyBg,
+                borderColor: applyBorderColor,
+                borderWidth: applyBorderWidth,
+                borderRadius: applyBorderRadius,
+                height: applyHeight,
+                paddingTop: applyPadT,
+                paddingBottom: applyPadB,
+                paddingLeft: applyPadL,
+                paddingRight: applyPadR,
+                opacity: validating ? 0.75 : 1,
+              },
+            ]}
+            onPress={handleApply}
+            disabled={validating}
+            activeOpacity={0.8}
+          >
+            {validating ? (
+              <ActivityIndicator size="small" color={applyTextColor} />
+            ) : (
+              <>
+                {showApplyIcon && !!applyIconName && (
+                  <FontAwesome
+                    name={applyIconName}
+                    size={applyIconSize}
+                    color={applyIconColor}
+                    style={styles.applyIcon}
+                  />
+                )}
+                {showApplyButtonText && (
+                  <Text
+                    style={[
+                      styles.applyText,
+                      {
+                        color: applyTextColor,
+                        fontSize: applyFontSize,
+                        fontWeight: applyFontWeight,
+                        fontStyle: applyFontStyle,
+                        textDecorationLine: applyTextDecoration,
+                        ...(applyFontFamily ? { fontFamily: applyFontFamily } : {}),
+                      },
+                    ]}
+                  >
+                    {applyText}
+                  </Text>
+                )}
+              </>
+            )}
+          </TouchableOpacity>
+        )}
       </View>
 
       {!!feedback?.message && (
@@ -425,7 +576,7 @@ export default function DiscountCode({ section }) {
       )}
 
       {/* Applied codes */}
-      {appliedCodes.length > 0 && (
+      {showSavedCodes && appliedCodes.length > 0 && (
         <View style={styles.chipList}>
           {appliedCodes.map((discount) => (
             <View
@@ -436,6 +587,11 @@ export default function DiscountCode({ section }) {
                   backgroundColor: chipBg,
                   borderColor: chipBorderColor,
                   borderRadius: chipBorderRadius,
+                  borderWidth: chipBorderWidth,
+                  paddingTop: chipPadT,
+                  paddingBottom: chipPadB,
+                  paddingLeft: chipPadL,
+                  paddingRight: chipPadR,
                 },
               ]}
             >
@@ -445,21 +601,30 @@ export default function DiscountCode({ section }) {
                   {
                     color: chipTextColor,
                     fontSize: chipFontSize,
+                    fontWeight: chipFontWeight,
+                    fontStyle: chipFontStyle,
+                    textDecorationLine: chipTextDecoration,
                     ...(chipFontFamily ? { fontFamily: chipFontFamily } : {}),
                   },
                 ]}
               >
                 {discount.code}
               </Text>
-              <TouchableOpacity
-                style={styles.chipRemove}
-                onPress={() => handleRemove(discount.code)}
-                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-              >
-                <Text style={[styles.chipRemoveText, { color: removeIconColor }]}>
-                  x
-                </Text>
-              </TouchableOpacity>
+              {showRemoveIcon && (
+                <TouchableOpacity
+                  style={styles.chipRemove}
+                  onPress={() => handleRemove(discount.code)}
+                  hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                >
+                  {removeIconName ? (
+                    <FontAwesome name={removeIconName} size={removeIconSize} color={removeIconColor} />
+                  ) : (
+                    <Text style={[styles.chipRemoveText, { color: removeIconColor }]}>
+                      x
+                    </Text>
+                  )}
+                </TouchableOpacity>
+              )}
             </View>
           ))}
         </View>
@@ -476,6 +641,9 @@ const styles = StyleSheet.create({
   title: {
     marginBottom: 2,
   },
+  inputLabel: {
+    marginBottom: 4,
+  },
   inputRow: {
     flexDirection: "row",
     alignItems: "center",
@@ -485,9 +653,13 @@ const styles = StyleSheet.create({
     paddingVertical: 0,
   },
   applyButton: {
+    flexDirection: "row",
     paddingHorizontal: 18,
     alignItems: "center",
     justifyContent: "center",
+  },
+  applyIcon: {
+    marginRight: 6,
   },
   applyText: {},
   message: {

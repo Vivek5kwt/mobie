@@ -116,11 +116,13 @@ export default function FavoriteToggleButton({
   hitSlop = { top: 12, bottom: 12, left: 12, right: 12 },
 }) {
   const resolvedConfig = config || buildFavoriteToggleConfig();
-  // Single style regardless of wishlist state — only favoriteIcon* fields are
-  // configurable in the builder, so the badge always renders that one look.
-  const iconSize = resolvedConfig.favoriteIconSize;
-  const iconColor = resolvedConfig.favoriteIconColor;
-  const iconName = resolvedConfig.favoriteIconName;
+  // buildFavoriteToggleConfig() resolves both favorite and unfavorite icon
+  // name/size/color from the builder's DSL — branch on isFavorite so the
+  // not-yet-wishlisted state actually uses its own configured look instead of
+  // always rendering the favorited icon.
+  const iconSize = isFavorite ? resolvedConfig.favoriteIconSize : resolvedConfig.unfavoriteIconSize;
+  const iconColor = isFavorite ? resolvedConfig.favoriteIconColor : resolvedConfig.unfavoriteIconColor;
+  const iconName = isFavorite ? resolvedConfig.favoriteIconName : resolvedConfig.unfavoriteIconName;
   const bubblePadding = Math.max(
     resolvedConfig.paddingTop || 0,
     resolvedConfig.paddingRight || 0,
