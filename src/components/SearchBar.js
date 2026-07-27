@@ -225,7 +225,6 @@ export default function SearchBar({ section }) {
     return routeHint === "search" || routeHint.includes("search");
   }, [route?.params?.link, route?.params?.pageName, route?.params?.title]);
 
-<<<<<<< HEAD
   const searchStyle = deepUnwrap(
     rawProps?.searchBar ??
     rawProps?.search ??
@@ -429,23 +428,19 @@ export default function SearchBar({ section }) {
     inputCss?.borderColor,
     cssBorderColor
   );
-=======
-  // Outer container — "Background & Padding" card in the Inspector.
   const contBgSettingsEnabled = getBool("contBackgroundPaddingSettingsEnabled", true);
-  const contPaddingTop    = contBgSettingsEnabled ? getNum("contpt", 16) : 0;
-  const contPaddingBottom = contBgSettingsEnabled ? getNum("contpb", 16) : 0;
-  const contPaddingLeft   = contBgSettingsEnabled ? getNum("contpl", 16) : 0;
-  const contPaddingRight  = contBgSettingsEnabled ? getNum("contpr", 16) : 0;
-  const contBgColor       = contBgSettingsEnabled ? get("contBgColor", "#FFFFFF") : "transparent";
-  const contBorderRadius  = contBgSettingsEnabled ? getNum("contBorderRadius", 12) : 0;
-  const contBorderSide    = get("contBorderSide", "none");
-  const contBorderColor   = get("contBorderColor", "#E5E7EB");
-
-  // Inner search input — "Background & Padding" card nested under Search Input.
-  const bgSettingsEnabled = getBool("backgroundPaddingSettingsEnabled", true);
-  const searchBgColor   = bgSettingsEnabled ? get("searchBgColor", "#F3F4F6") : "transparent";
-  const borderColor     = get("borderColor", "#E5E7EB");
->>>>>>> 7f79a86f3db896ae5c3abc4567d655823a2d5952
+  const contBgColor = contBgSettingsEnabled ? bgColor : "transparent";
+  const contPaddingTop = contBgSettingsEnabled ? paddingTop : 0;
+  const contPaddingBottom = contBgSettingsEnabled ? paddingBottom : 0;
+  const contPaddingLeft = contBgSettingsEnabled ? paddingLeft : 0;
+  const contPaddingRight = contBgSettingsEnabled ? paddingRight : 0;
+  const contBorderRadius = contBgSettingsEnabled
+    ? toNumber(firstDefined(rawProps?.contBorderRadius, containerCss?.borderRadius), 0)
+    : 0;
+  const contBorderSide = firstDefined(rawProps?.contBorderSide, "none");
+  const contBorderColor = firstDefined(rawProps?.contBorderColor, "#E5E7EB");
+  const contBorderWidth = toNumber(rawProps?.contBorderWidth, 1);
+  const contBorderStyleValue = firstDefined(rawProps?.contBorderStyle, "solid");
   const searchTextColor = get("searchTextColor", "#111827");
   const placeholderColor = get("placeholderColor", searchTextColor);
   const clearIconColor  = get("clearIconColor", "#6B7280");
@@ -454,7 +449,6 @@ export default function SearchBar({ section }) {
   const fontSize        = getNum("fontSize", 14);
   const fontFamily      = resolveFont(get("fontFamily", undefined));
   const fontWeight      = toFontWeight(rawProps?.fontWeight, "400");
-<<<<<<< HEAD
   const borderRadius = toNumber(
     firstDefined(
       rawProps?.borderRadius,
@@ -500,10 +494,6 @@ export default function SearchBar({ section }) {
     "solid"
   );
   const searchIconSize  = getNum("searchIconSize", getNum("fontSize", 14));
-=======
-  const borderRadius    = getNum("borderRadius", 24);
-  const borderSide      = get("borderSide", "bottom");
->>>>>>> 7f79a86f3db896ae5c3abc4567d655823a2d5952
   const clearIconSize   = getNum("clearIconSize", 13);
   const voiceIconSize   = getNum("voiceIconSize", 16);
   const placeholderBold        = getBool("placeholderBold", false);
@@ -627,12 +617,17 @@ export default function SearchBar({ section }) {
   );
 
   const contBorderStyle = useMemo(
-    () => buildBorderStyles(contBorderSide, contBorderColor),
-    [contBorderSide, contBorderColor]
+    () =>
+      buildBorderStyles({
+        side: contBorderSide,
+        color: contBorderColor,
+        width: contBorderWidth,
+        style: contBorderStyleValue,
+      }),
+    [contBorderSide, contBorderColor, contBorderWidth, contBorderStyleValue]
   );
 
   const borderStyle = useMemo(
-<<<<<<< HEAD
     () =>
       buildBorderStyles({
         side: borderSide,
@@ -641,10 +636,6 @@ export default function SearchBar({ section }) {
         style: borderStyleValue,
       }),
     [borderSide, borderColor, borderWidth, borderStyleValue]
-=======
-    () => (bgSettingsEnabled ? buildBorderStyles(borderSide, borderColor) : {}),
-    [bgSettingsEnabled, borderSide, borderColor]
->>>>>>> 7f79a86f3db896ae5c3abc4567d655823a2d5952
   );
 
   const inputWrapperStyle = useMemo(
@@ -944,11 +935,7 @@ export default function SearchBar({ section }) {
   return (
     <View style={[styles.container, containerStyle, contBorderStyle]}>
       <View style={[styles.inputWrapper, inputWrapperStyle, borderStyle]}>
-<<<<<<< HEAD
         {showSearchIcon ? (
-=======
-        {showVoice && (
->>>>>>> 7f79a86f3db896ae5c3abc4567d655823a2d5952
           <TouchableOpacity
             onPress={() => openSearchResults()}
             activeOpacity={0.7}
@@ -956,22 +943,9 @@ export default function SearchBar({ section }) {
             accessibilityLabel="Search products"
             accessibilityRole="button"
           >
-<<<<<<< HEAD
             <FontAwesome name="search" size={searchIconSize} color={searchIconColor} />
           </TouchableOpacity>
         ) : null}
-=======
-            {voiceIconImageUrl ? (
-              <Image
-                source={{ uri: voiceIconImageUrl }}
-                style={{ width: voiceIconSize, height: voiceIconSize, resizeMode: "contain" }}
-              />
-            ) : (
-              <FA6Icon name={voiceIconName} size={voiceIconSize} color={voiceIconColor} />
-            )}
-          </TouchableOpacity>
-        )}
->>>>>>> 7f79a86f3db896ae5c3abc4567d655823a2d5952
         {showInput && (
           <View style={styles.inputShell}>
             <TextInput
@@ -1026,8 +1000,13 @@ export default function SearchBar({ section }) {
           >
             {isListening ? (
               <ActivityIndicator size="small" color={voiceIconColor} />
+            ) : voiceIconImageUrl ? (
+              <Image
+                source={{ uri: voiceIconImageUrl }}
+                style={{ width: voiceIconSize, height: voiceIconSize, resizeMode: "contain" }}
+              />
             ) : (
-              <FontAwesome name="microphone" size={voiceIconSize} color={voiceIconColor} />
+              <FA6Icon name={voiceIconName} size={voiceIconSize} color={voiceIconColor} />
             )}
           </TouchableOpacity>
         )}
