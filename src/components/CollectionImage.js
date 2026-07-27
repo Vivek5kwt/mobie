@@ -332,11 +332,11 @@ export default function CollectionImage({ section }) {
   const headerSize        = asNumber(headerCfg?.headerSize ?? layoutCss?.header?.fontSize, 16);
   const headerColor       = asString(unwrapValue(headerCfg?.headerColor ?? layoutCss?.header?.color, "#000000"));
   const headerMarginBottom = asNumber(firstDefined(headerCfg?.marginBottom, headerCfg?.mb, rawSnapshot?.headerMarginBottom, layoutCss?.header?.marginBottom), 8);
-  const headerBold        = asBoolean(headerCfg?.headerBold, false);
+  const headerBold        = asBoolean(headerCfg?.headerBold ?? rawProps?.headerBold, false);
   const headerWeight      = headerBold ? "700" : deriveFontWeight(headerCfg?.headerWeight ?? layoutCss?.header?.fontWeight, "700");
-  const headerItalic      = asBoolean(headerCfg?.headerItalic, false);
-  const headerUnderline   = asBoolean(headerCfg?.headerUnderline, false);
-  const headerStrikethrough = asBoolean(headerCfg?.headerStrikethrough, false);
+  const headerItalic      = asBoolean(headerCfg?.headerItalic ?? rawProps?.headerItalic, false);
+  const headerUnderline   = asBoolean(headerCfg?.headerUnderline ?? rawProps?.headerUnderline, false);
+  const headerStrikethrough = asBoolean(headerCfg?.headerStrikethrough ?? rawProps?.headerStrikethrough, false);
   const headerFontFamily  = cleanFontFamily(
     asString(unwrapValue(headerCfg?.headerFontFamily ?? headerCfg?.fontFamily ?? rawProps?.headerFontFamily ?? layoutCss?.header?.fontFamily, ""))
   ) || cleanFontFamily(convertStyles(layoutCss?.header || {})?.fontFamily);
@@ -368,7 +368,7 @@ export default function CollectionImage({ section }) {
   const cardTextColor       = asString(unwrapValue(titleNode?.color ?? rawSnapshot?.titleSubCColor ?? rawSnapshot?.titleColor ?? cardCfg?.textColor ?? layoutCardText?.color, "#000000"));
   const cardTextWeight      = deriveFontWeight(titleNode?.fontWeight ?? rawSnapshot?.titleFontWeight ?? cardCfg?.textWeight ?? layoutCardText?.weight, "500");
   const cardFontFamily      = cleanFontFamily(
-    asString(unwrapValue(titleNode?.fontFamily ?? rawSnapshot?.titleFontFamily ?? cardCfg?.textFontFamily ?? cardCfg?.fontFamily ?? rawProps?.cardFontFamily ?? layoutCardText?.fontFamily, ""))
+    asString(unwrapValue(titleNode?.fontFamily ?? rawSnapshot?.titleFontFamily ?? cardCfg?.textFontFamily ?? cardCfg?.fontFamily ?? rawProps?.textFontFamily ?? layoutCardText?.fontFamily, ""))
   ) || cleanFontFamily(convertStyles(layoutCss?.card?.text || {})?.fontFamily);
   const cardTextAlign       = asString(unwrapValue(titleNode?.align ?? rawSnapshot?.titleAlign ?? cardCfg?.textAlign ?? layoutCardText?.align, "center")).toLowerCase();
   const titlePosition       = asString(unwrapValue(titleNode?.position ?? rawSnapshot?.titlePosition ?? cardCfg?.titlePosition, "below")).toLowerCase();
@@ -425,8 +425,6 @@ export default function CollectionImage({ section }) {
 
   // ── Behavior ─────────────────────────────────────────────────────────────────
   // behavior props use "default" keys in the DSL schema — unwrapValue now handles this
-  const autoScrollEnabled = asBoolean(behavior?.autoScroll ?? layoutCss?.slider?.autoScroll, true);
-  const scrollSpeedSec    = Math.max(asNumber(behavior?.scrollSpeed ?? layoutCss?.slider?.speedSec, 3), 1);
   const showArrows        = asBoolean(behavior?.showArrows ?? layoutCss?.slider?.showArrows, false);
 
   const routePageSlug = normalizeKey(
@@ -483,9 +481,8 @@ export default function CollectionImage({ section }) {
   const isScrollable = !shouldFitHorizontalRow && items.length > 1;
 
   // ── State ────────────────────────────────────────────────────────────────────
-  const listRef       = useRef(null);
-  const indexRef      = useRef(0);
-  const autoScrollRef = useRef(false);
+  const listRef  = useRef(null);
+  const indexRef = useRef(0);
 
   useEffect(() => {
     indexRef.current = 0;
@@ -496,19 +493,6 @@ export default function CollectionImage({ section }) {
     indexRef.current = newIndex;
   }, []);
 
-  // ── Auto-scroll ───────────────────────────────────────────────────────────────
-  useEffect(() => {
-    if (isGrid || !isScrollable || !autoScrollEnabled || items.length < 2) return;
-    const timer = setInterval(() => {
-      const next = (indexRef.current + 1) % items.length;
-      autoScrollRef.current = true;
-      listRef.current?.scrollToIndex({ index: next, animated: true });
-      updateIndex(next);
-      setTimeout(() => { autoScrollRef.current = false; }, 500);
-    }, scrollSpeedSec * 1000);
-    return () => clearInterval(timer);
-  }, [isGrid, isScrollable, autoScrollEnabled, items.length, scrollSpeedSec, updateIndex]);
-
   // ── Callbacks ─────────────────────────────────────────────────────────────────
   const getItemLayout = useCallback(
     (_, index) => ({ length: stepSize, offset: stepSize * index, index }),
@@ -516,7 +500,6 @@ export default function CollectionImage({ section }) {
   );
 
   const onMomentumScrollEnd = useCallback((e) => {
-    if (autoScrollRef.current) return;
     const x = e?.nativeEvent?.contentOffset?.x ?? 0;
     const newIndex = Math.min(Math.max(Math.round(x / stepSize), 0), items.length - 1);
     if (newIndex !== indexRef.current) updateIndex(newIndex);
@@ -712,6 +695,7 @@ export default function CollectionImage({ section }) {
               fontStyle: headerItalic ? "italic" : "normal",
               textDecorationLine: headerDecorationLine,
               marginBottom: headerMarginBottom,
+              marginLeft: 10,
               ...(headerFontFamily ? { fontFamily: headerFontFamily } : {}),
             },
           ]}

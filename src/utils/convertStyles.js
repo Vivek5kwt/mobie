@@ -301,22 +301,8 @@ export function convertStyles(styleObj = {}) {
     }
 
     // --------- 3) BORDER SHORTHANDS ---------
-    if (key === "border" && typeof val === "string") {
-      const parts = splitSpace(val);
-      const widthPart = parts.find((p) => p.includes("px"));
-      const colorPart = parts.find(
-        (p) =>
-          p.startsWith("#") ||
-          p.startsWith("rgb(") ||
-          p.startsWith("rgba(") ||
-          p.startsWith("hsl(") ||
-          p.startsWith("hsla(")
-      );
-      if (widthPart) out.borderWidth = pxToNum(widthPart);
-      if (colorPart) out.borderColor = colorPart;
-      continue;
-    }
-
+    // (bare "border" is already handled above, in the ENHANCED block that also
+    // extracts borderStyle — this section covers only the per-side shorthands.)
     if (
       (key === "borderTop" ||
         key === "borderRight" ||
