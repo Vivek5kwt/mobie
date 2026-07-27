@@ -13,6 +13,7 @@ import {
 import { useNavigation } from "@react-navigation/native";
 import { convertStyles } from "../utils/convertStyles";
 import { resolveTextDecorationLine } from "../utils/textDecoration";
+import { resolveFont } from "../services/typographyService";
 import { fetchShopifyProductsPage } from "../services/shopify";
 import { formatMoney } from "../utils/money";
 import { navigateToDslTarget } from "../utils/navigationTarget";
@@ -181,13 +182,13 @@ function MediaCard({
   item,
   cardWidth,
   fixedAspectRatio,   // null → use Image.getSize
-  cardRadius,
   imageRadius,
   showCardTitle,
   cardTitleColor,
   cardTitleSize,
   cardTitleWeight,
   cardTitleAlign,
+  cardTitleFontFamily,
   cardStyle,
   mediaStyle,
   resizeMode,
@@ -215,17 +216,15 @@ function MediaCard({
     <TouchableOpacity
       activeOpacity={item.src ? 0.88 : 1}
       onPress={onPress}
-      style={[
-        styles.card,
-        cardStyle,
-        { width: cardWidth, borderRadius: cardRadius, overflow: "hidden" },
-      ]}
+      style={[styles.card, { width: cardWidth }]}
     >
-      {/* Image */}
+      {/* Image — background/radius/clip apply only to the image tile, not the
+          title below it, matching Builder Preview's separate image-wrap div. */}
       <View
         style={[
           styles.mediaContainer,
-          { width: cardWidth, height: imageHeight, borderRadius: imageRadius },
+          cardStyle,
+          { width: cardWidth, height: imageHeight, borderRadius: imageRadius, overflow: "hidden" },
         ]}
       >
         {showMediaImage && item.src ? (
@@ -265,6 +264,7 @@ function MediaCard({
                 strikethrough: toBoolean(item.titleStrikethrough, false),
               }),
               textAlign: cardTitleAlign,
+              ...(cardTitleFontFamily ? { fontFamily: cardTitleFontFamily } : {}),
             },
           ]}
         >
@@ -379,12 +379,33 @@ export default function MediaGrid({ section }) {
     underline: headerUnderline,
     strikethrough: headerStrikethrough,
   });
+  const headerFontFamily = resolveFont(unwrapValue(rawProps?.headerFontFamily, undefined)) || undefined;
 
   const showButton = toBoolean(rawProps?.showButton, false);
   const buttonLabel = unwrapValue(rawProps?.buttonLabel, "View all");
   const buttonTextColor = unwrapValue(rawProps?.buttonTextColor, "#FFFFFF");
-  const buttonBgColor = unwrapValue(rawProps?.buttonBgColor, "#111827");
-  const buttonRadius = toNumber(rawProps?.buttonRadius, 4);
+  // "Button Background And Padding" eye — when off, Preview ignores every
+  // saved value below (bg/border/radius/padding) and shows its own defaults.
+  const buttonBgEnabled = toBoolean(rawProps?.buttonBgEnabled, true);
+  const buttonBgColor = buttonBgEnabled
+    ? unwrapValue(rawProps?.buttonBgColor, "#111827")
+    : "#111111";
+  const buttonBorderSide = toString(rawProps?.buttonBorderSide, "all").toLowerCase();
+  const buttonBorderColor = buttonBgEnabled
+    ? unwrapValue(rawProps?.buttonBorderColor, "#111111")
+    : "#111111";
+  const buttonBorderStyle = (() => {
+    if (buttonBorderSide === "none") return {};
+    if (buttonBorderSide === "all") return { borderWidth: 1, borderColor: buttonBorderColor };
+    const sideKey = {
+      top: "borderTopWidth",
+      right: "borderRightWidth",
+      bottom: "borderBottomWidth",
+      left: "borderLeftWidth",
+    }[buttonBorderSide];
+    return sideKey ? { [sideKey]: 1, borderColor: buttonBorderColor } : {};
+  })();
+  const buttonRadius = buttonBgEnabled ? toNumber(rawProps?.buttonRadius, 4) : 4;
   const buttonFontSize = toNumber(rawProps?.buttonFontSize, 12);
   const buttonTextBold = toBoolean(rawProps?.buttonTextBold, false);
   const buttonTextItalic = toBoolean(rawProps?.buttonTextItalic, false);
@@ -397,14 +418,16 @@ export default function MediaGrid({ section }) {
     underline: buttonTextUnderline,
     strikethrough: buttonTextStrikethrough,
   });
-  const buttonPaddingTop = toNumber(rawProps?.buttonPaddingTop, 10);
-  const buttonPaddingBottom = toNumber(rawProps?.buttonPaddingBottom, 10);
-  const buttonPaddingLeft = toNumber(rawProps?.buttonPaddingLeft, 40);
-  const buttonPaddingRight = toNumber(rawProps?.buttonPaddingRight, 40);
+  const buttonFontFamily = resolveFont(unwrapValue(rawProps?.buttonFontFamily, undefined)) || undefined;
+  const buttonPaddingTop = buttonBgEnabled ? toNumber(rawProps?.buttonPaddingTop, 10) : 10;
+  const buttonPaddingBottom = buttonBgEnabled ? toNumber(rawProps?.buttonPaddingBottom, 10) : 10;
+  const buttonPaddingLeft = buttonBgEnabled ? toNumber(rawProps?.buttonPaddingLeft, 40) : 10;
+  const buttonPaddingRight = buttonBgEnabled ? toNumber(rawProps?.buttonPaddingRight, 40) : 10;
 
-  const alignRaw = (unwrapValue(rawProps?.align, "left") || "left").toLowerCase();
-  const buttonJustify =
-    alignRaw === "center" ? "center" : alignRaw === "right" ? "flex-end" : "flex-start";
+  // Builder Preview always centers the button row regardless of the header's
+  // alignment — it has no independent button-alignment control, so don't
+  // couple this to `align` (that made the button visually "follow" the heading).
+  const buttonJustify = "center";
 
   const showCardTitle = toBoolean(rawProps?.showCardTitle, true);
   const showGrid = toBoolean(rawProps?.showGrid, true);
@@ -414,8 +437,25 @@ export default function MediaGrid({ section }) {
   const cardTitleSize = toNumber(rawProps?.cardTitleSize, 12);
   const cardTitleWeight = deriveWeight(rawProps?.cardTitleWeight, "500");
   const cardTitleAlign = (unwrapValue(rawProps?.cardTitleAlign, "left") || "left").toLowerCase();
+  const cardTitleFontFamily = resolveFont(unwrapValue(rawProps?.cardTitleFontFamily, undefined)) || undefined;
 
-  const bgColor = unwrapValue(rawProps?.bgColor, "#FFFFFF");
+  const layoutBgEnabled = toBoolean(rawProps?.layoutBgEnabled, true);
+  const bgColor = layoutBgEnabled
+    ? unwrapValue(rawProps?.layoutBgColor ?? rawProps?.bgColor, "#FFFFFF")
+    : "transparent";
+  const contBorderSide = toString(rawProps?.contBorderSide, "all").toLowerCase();
+  const contBorderColor = unwrapValue(rawProps?.contBorderColor, "#e0e0e0");
+  const containerBorderStyle = (() => {
+    if (!layoutBgEnabled || contBorderSide === "none") return {};
+    if (contBorderSide === "all") return { borderWidth: 1, borderColor: contBorderColor };
+    const sideKey = {
+      top: "borderTopWidth",
+      right: "borderRightWidth",
+      bottom: "borderBottomWidth",
+      left: "borderLeftWidth",
+    }[contBorderSide];
+    return sideKey ? { [sideKey]: 1, borderColor: contBorderColor } : {};
+  })();
   const shopifyDomain = toString(rawProps?.shopifyDomain, "");
   const shopifyToken = toString(rawProps?.storefrontToken, "");
   // Only use Shopify when DSL has no items OR explicitly enabled via useShopifyProducts
@@ -497,12 +537,14 @@ export default function MediaGrid({ section }) {
     headerBold ? "700" : "600"
   );
 
-  const contentPadding = {
-    paddingTop: toNumber(rawProps?.pt, 0),
-    paddingRight: toNumber(rawProps?.pr, 16),
-    paddingBottom: toNumber(rawProps?.pb, 0),
-    paddingLeft: toNumber(rawProps?.pl, 16),
-  };
+  const contentPadding = layoutBgEnabled
+    ? {
+        paddingTop: toNumber(rawProps?.pt, 0),
+        paddingRight: toNumber(rawProps?.pr, 16),
+        paddingBottom: toNumber(rawProps?.pb, 0),
+        paddingLeft: toNumber(rawProps?.pl, 16),
+      }
+    : { paddingTop: 16, paddingRight: 16, paddingBottom: 16, paddingLeft: 16 };
 
   const horizontalPadding = (contentPadding.paddingLeft || 0) + (contentPadding.paddingRight || 0);
   const layoutWidth = measuredWidth > 0 ? measuredWidth : screenWidth;
@@ -522,11 +564,12 @@ export default function MediaGrid({ section }) {
       rawProps?.style?.borderRadius,
       rawProps?.style?.radius,
       rawProps?.style?.cornerRadius,
+      rawProps?.contRadius,
       rawProps?.containerBorderRadius,
       rawProps?.borderRadius,
       rawProps?.radius,
     ],
-    0
+    4
   );
   const cardBorderRadius = resolveRadius(
     [
@@ -649,13 +692,13 @@ export default function MediaGrid({ section }) {
       item={item}
       cardWidth={computedCardWidth}
       fixedAspectRatio={cardAspectRatio}
-      cardRadius={cardBorderRadius}
       imageRadius={imageBorderRadius}
       showCardTitle={showCardTitle}
       cardTitleColor={cardTitleColor}
       cardTitleSize={cardTitleSize}
       cardTitleWeight={cardTitleWeight}
       cardTitleAlign={cardTitleAlign}
+      cardTitleFontFamily={cardTitleFontFamily}
       cardStyle={cardStyle}
       mediaStyle={mediaStyle}
       resizeMode={resizeMode}
@@ -679,8 +722,9 @@ export default function MediaGrid({ section }) {
       style={[
         styles.container,
         containerStyleWithoutRadius,
-        { backgroundColor: bgColor, borderRadius: containerBorderRadius },
+        { backgroundColor: bgColor, borderRadius: containerBorderRadius, overflow: "hidden" },
         contentPadding,
+        containerBorderStyle,
       ]}
     >
       {showHeader && (
@@ -694,6 +738,7 @@ export default function MediaGrid({ section }) {
               fontWeight: headerBold ? "700" : headerFontWeight,
               fontStyle: headerItalic ? "italic" : "normal",
               textDecorationLine: headerDecorationLine,
+              ...(headerFontFamily ? { fontFamily: headerFontFamily } : {}),
             },
           ]}
         >
@@ -795,6 +840,7 @@ export default function MediaGrid({ section }) {
                 paddingLeft: buttonPaddingLeft,
                 paddingRight: buttonPaddingRight,
               },
+              buttonBorderStyle,
             ]}
           >
             <Text
@@ -804,6 +850,7 @@ export default function MediaGrid({ section }) {
                 fontWeight: buttonTextBold ? "700" : "600",
                 fontStyle: buttonTextItalic ? "italic" : "normal",
                 textDecorationLine: buttonTextDecorationLine,
+                ...(buttonFontFamily ? { fontFamily: buttonFontFamily } : {}),
               }}
             >
               {buttonLabel}

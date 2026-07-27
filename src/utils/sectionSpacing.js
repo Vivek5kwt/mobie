@@ -1,3 +1,10 @@
+// Applied only to the last section on a page when it has no explicit spacing
+// of its own — every other section without explicit spacing falls through to
+// 0 by existing convention, but the last section sits directly above the
+// bottom navigation bar, where 0 reads as the block being cut off rather
+// than intentionally flush.
+const DEFAULT_SECTION_MARGIN_BOTTOM = 16;
+
 const unwrapValue = (value, fallback = undefined) => {
   if (value === undefined || value === null) return fallback;
   if (typeof value === "object") {
@@ -96,10 +103,19 @@ export const getHomeSectionMarginBottom = ({
   nextComponentName,
   nextSection,
 }) => {
-  if (!nextSection) return 0;
-
   const explicitSpacing = resolveSectionBottomSpacing(section);
   if (explicitSpacing !== undefined) return explicitSpacing;
+
+  if (!nextSection) {
+    // The last section on the page has no "next" section to compare against,
+    // but it still sits directly above the bottom navigation bar — leaving
+    // this at 0 (as it was) put every page's final block flush against the
+    // nav with no breathing room at all, regardless of that block's own
+    // configured spacing (which the early-return above already skipped
+    // checking). Give it the same default any other section without
+    // explicit spacing would get.
+    return DEFAULT_SECTION_MARGIN_BOTTOM;
+  }
 
   const current = normalizeName(componentName);
   const next = normalizeName(nextComponentName);

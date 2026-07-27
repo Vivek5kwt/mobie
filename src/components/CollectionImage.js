@@ -229,7 +229,17 @@ export default function CollectionImage({ section }) {
     ...((rawPropsSnapshot && typeof rawPropsSnapshot === "object") ? rawPropsSnapshot : {}),
   };
   const layoutSource = rawSnapshot?.layout || rawProps?.layout || {};
-  const layoutCss    = unwrapDeep(layoutSource?.css) || {};
+  // On a block's first-ever save (before any restore round-trip has run once
+  // to flatten it via the rawProps blob-dump fallback above), `layout` here is
+  // still schema-wrapped as `{ type: "object", properties: { css, ... } }`
+  // rather than the flat `{ css: {...} }` shape — so `layoutSource.css` alone
+  // resolves to undefined, layoutCss silently becomes `{}`, and every reader
+  // below falls through to hardcoded defaults (or, for headerText, all the way
+  // through to `section.title`, which literally displays the schema's own
+  // "Collection Image Component Schema" doc title instead of the merchant's
+  // heading). Check both shapes directly instead of relying on a later restore
+  // cycle to have already flattened it.
+  const layoutCss    = unwrapDeep(layoutSource?.css ?? layoutSource?.properties?.css) || {};
   const generalNode  = unwrapValue(rawProps?.general, {});
   const titleNode    = unwrapValue(rawProps?.title, {});
   const imageNode    = unwrapValue(rawProps?.image, {});
@@ -300,13 +310,19 @@ export default function CollectionImage({ section }) {
       "#FFFFFF"
     )
   );
+  // The Inspector's container border controls write flat borderLineCollection/
+  // borderColorCollection/borderRadiusCollection — none of the candidates below
+  // matched those names (containerCfg/rawSnapshot.bgBorder* are dead legacy
+  // names with no Inspector control writing them, and the CSS snapshot's
+  // container section never carried a border at all), so the border never
+  // rendered in the APK regardless of what was set in the Inspector.
   const containerRadius = asNumber(
-    firstDefined(containerCfg?.borderRadius, containerCfg?.radius, rawSnapshot?.bgBorderRadius, rawSnapshot?.borderRadius, layoutCss?.container?.borderRadius),
+    firstDefined(rawProps?.borderRadiusCollection, containerCfg?.borderRadius, containerCfg?.radius, rawSnapshot?.bgBorderRadius, rawSnapshot?.borderRadius, layoutCss?.container?.borderRadius),
     0
   );
   const containerBorderStyle = buildBorderStyle(
-    firstDefined(containerCfg?.borderLine, containerCfg?.borderSide, rawSnapshot?.bgBorderSide, rawSnapshot?.borderLine),
-    firstDefined(containerCfg?.borderColor, rawSnapshot?.bgBorderColor, rawSnapshot?.borderColor, layoutCss?.container?.borderColor)
+    firstDefined(rawProps?.borderLineCollection, containerCfg?.borderLine, containerCfg?.borderSide, rawSnapshot?.bgBorderSide, rawSnapshot?.borderLine),
+    firstDefined(rawProps?.borderColorCollection, containerCfg?.borderColor, rawSnapshot?.bgBorderColor, rawSnapshot?.borderColor, layoutCss?.container?.borderColor)
   );
 
   // ── Header ───────────────────────────────────────────────────────────────────

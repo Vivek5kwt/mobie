@@ -15,6 +15,8 @@ import {
   View,
 } from "react-native";
 import FontAwesome from "react-native-vector-icons/FontAwesome";
+import FA6Icon from "react-native-vector-icons/FontAwesome6";
+import FA6GlyphMap from "react-native-vector-icons/glyphmaps/FontAwesome6Free.json";
 import { useNavigation, useRoute } from "@react-navigation/native";
 import { resolveFont } from "../services/typographyService";
 import { convertStyles } from "../utils/convertStyles";
@@ -106,6 +108,29 @@ const toFontWeight = (value, fallback) => {
   return fallback;
 };
 
+const CUSTOM_ICON_PREFIX = "custom-icon::";
+const getCustomIconUrlFromValue = (value) => {
+  const raw = String(value || "");
+  if (!raw.startsWith(CUSTOM_ICON_PREFIX)) return null;
+  const encoded = raw.slice(CUSTOM_ICON_PREFIX.length);
+  if (!encoded) return null;
+  try {
+    return decodeURIComponent(encoded);
+  } catch {
+    return null;
+  }
+};
+
+// Inspector's IconDropdownField saves ids like "fa-magnifying-glass" or
+// "fa-regular fa-heart" — strip the style/"fa-" prefixes to get the bare
+// FA6 glyph name used as a key in FontAwesome6Free.json.
+const normalizeIconId = (value) => {
+  const trimmed = String(value || "").trim().toLowerCase();
+  if (!trimmed) return "";
+  const withoutStyle = trimmed.replace(/^fa-(solid|regular|light|brands|brand|thin|duotone|sharp)\s+/, "");
+  return withoutStyle.replace(/^fa-/, "");
+};
+
 let VoiceModule = null;
 try {
   VoiceModule = require("@react-native-voice/voice").default;
@@ -142,12 +167,20 @@ export default function SearchBar({ section }) {
     return routeHint === "search" || routeHint.includes("search");
   }, [route?.params?.link, route?.params?.pageName, route?.params?.title]);
 
-  const paddingTop    = getNum("pt", 12);
-  const paddingBottom = getNum("pb", 12);
-  const paddingLeft   = getNum("pl", 16);
-  const paddingRight  = getNum("pr", 16);
-  const bgColor         = get("bgColor", "transparent");
-  const searchBgColor   = get("searchBgColor", "#F3F4F6");
+  // Outer container — "Background & Padding" card in the Inspector.
+  const contBgSettingsEnabled = getBool("contBackgroundPaddingSettingsEnabled", true);
+  const contPaddingTop    = contBgSettingsEnabled ? getNum("contpt", 16) : 0;
+  const contPaddingBottom = contBgSettingsEnabled ? getNum("contpb", 16) : 0;
+  const contPaddingLeft   = contBgSettingsEnabled ? getNum("contpl", 16) : 0;
+  const contPaddingRight  = contBgSettingsEnabled ? getNum("contpr", 16) : 0;
+  const contBgColor       = contBgSettingsEnabled ? get("contBgColor", "#FFFFFF") : "transparent";
+  const contBorderRadius  = contBgSettingsEnabled ? getNum("contBorderRadius", 12) : 0;
+  const contBorderSide    = get("contBorderSide", "none");
+  const contBorderColor   = get("contBorderColor", "#E5E7EB");
+
+  // Inner search input — "Background & Padding" card nested under Search Input.
+  const bgSettingsEnabled = getBool("backgroundPaddingSettingsEnabled", true);
+  const searchBgColor   = bgSettingsEnabled ? get("searchBgColor", "#F3F4F6") : "transparent";
   const borderColor     = get("borderColor", "#E5E7EB");
   const searchTextColor = get("searchTextColor", "#111827");
   const placeholderColor = get("placeholderColor", searchTextColor);
@@ -158,8 +191,7 @@ export default function SearchBar({ section }) {
   const fontFamily      = resolveFont(get("fontFamily", undefined));
   const fontWeight      = toFontWeight(rawProps?.fontWeight, "400");
   const borderRadius    = getNum("borderRadius", 24);
-  const borderSide      = get("borderSide", "none");
-  const searchIconSize  = getNum("searchIconSize", getNum("fontSize", 14));
+  const borderSide      = get("borderSide", "bottom");
   const clearIconSize   = getNum("clearIconSize", 13);
   const voiceIconSize   = getNum("voiceIconSize", 16);
   const placeholderBold        = getBool("placeholderBold", false);
@@ -181,6 +213,22 @@ export default function SearchBar({ section }) {
   const panelMutedColor = get("suggestionsMutedColor", placeholderColor || "#6B7280");
   const panelAccentColor = get("suggestionsAccentColor", searchIconColor);
   const resultRowBgColor = get("suggestionRowBgColor", "#FFFFFF");
+
+  // Icon selection — Inspector's "Search Icon" (voice*) and "Clear Button" (clear*)
+  // dropdowns save fa-* ids or custom-icon::<url>; resolve to a real glyph/image
+  // instead of the previous hardcoded "microphone"/"times-circle".
+  const rawVoiceIconId = get("voiceIconId", "fa-magnifying-glass");
+  const rawClearIconId = get("clearIconId", "fa-xmark");
+  const voiceIconImageUrl = getCustomIconUrlFromValue(rawVoiceIconId);
+  const clearIconImageUrl = getCustomIconUrlFromValue(rawClearIconId);
+  const voiceIconNameRaw = normalizeIconId(rawVoiceIconId) || "magnifying-glass";
+  const clearIconNameRaw = normalizeIconId(rawClearIconId) || "xmark";
+  const voiceIconName = Object.prototype.hasOwnProperty.call(FA6GlyphMap, voiceIconNameRaw)
+    ? voiceIconNameRaw
+    : "magnifying-glass";
+  const clearIconName = Object.prototype.hasOwnProperty.call(FA6GlyphMap, clearIconNameRaw)
+    ? clearIconNameRaw
+    : "xmark";
 
   const [value, setValue] = useState("");
   const [isFocused, setIsFocused] = useState(false);
@@ -231,18 +279,24 @@ export default function SearchBar({ section }) {
   const containerStyle = useMemo(
     () =>
       convertStyles({
-        backgroundColor: bgColor,
-        paddingTop,
-        paddingBottom,
-        paddingLeft,
-        paddingRight,
+        backgroundColor: contBgColor,
+        paddingTop: contPaddingTop,
+        paddingBottom: contPaddingBottom,
+        paddingLeft: contPaddingLeft,
+        paddingRight: contPaddingRight,
+        borderRadius: contBorderRadius,
       }),
-    [bgColor, paddingTop, paddingBottom, paddingLeft, paddingRight]
+    [contBgColor, contPaddingTop, contPaddingBottom, contPaddingLeft, contPaddingRight, contBorderRadius]
+  );
+
+  const contBorderStyle = useMemo(
+    () => buildBorderStyles(contBorderSide, contBorderColor),
+    [contBorderSide, contBorderColor]
   );
 
   const borderStyle = useMemo(
-    () => buildBorderStyles(borderSide, borderColor),
-    [borderSide, borderColor]
+    () => (bgSettingsEnabled ? buildBorderStyles(borderSide, borderColor) : {}),
+    [bgSettingsEnabled, borderSide, borderColor]
   );
 
   const inputWrapperStyle = useMemo(
@@ -525,17 +579,26 @@ export default function SearchBar({ section }) {
   const showSearchAllRow = !submittedTerm && !!searchTerm;
 
   return (
-    <View style={[styles.container, containerStyle]}>
+    <View style={[styles.container, containerStyle, contBorderStyle]}>
       <View style={[styles.inputWrapper, inputWrapperStyle, borderStyle]}>
-        <TouchableOpacity
-          onPress={() => openSearchResults()}
-          activeOpacity={0.7}
-          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-          accessibilityLabel="Search products"
-          accessibilityRole="button"
-        >
-          <FontAwesome name="search" size={searchIconSize} color={searchIconColor} />
-        </TouchableOpacity>
+        {showVoice && (
+          <TouchableOpacity
+            onPress={() => openSearchResults()}
+            activeOpacity={0.7}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+            accessibilityLabel="Search products"
+            accessibilityRole="button"
+          >
+            {voiceIconImageUrl ? (
+              <Image
+                source={{ uri: voiceIconImageUrl }}
+                style={{ width: voiceIconSize, height: voiceIconSize, resizeMode: "contain" }}
+              />
+            ) : (
+              <FA6Icon name={voiceIconName} size={voiceIconSize} color={voiceIconColor} />
+            )}
+          </TouchableOpacity>
+        )}
         {showInput && (
           <View style={styles.inputShell}>
             <TextInput
@@ -570,7 +633,14 @@ export default function SearchBar({ section }) {
                 accessibilityLabel="Clear search"
                 accessibilityRole="button"
               >
-                <FontAwesome name="times-circle" size={clearIconSize + 1} color={clearIconColor} />
+                {clearIconImageUrl ? (
+                  <Image
+                    source={{ uri: clearIconImageUrl }}
+                    style={{ width: clearIconSize + 1, height: clearIconSize + 1, resizeMode: "contain" }}
+                  />
+                ) : (
+                  <FA6Icon name={clearIconName} size={clearIconSize + 1} color={clearIconColor} />
+                )}
               </TouchableOpacity>
             )}
           </View>
