@@ -1,8 +1,10 @@
 import React, { useMemo } from "react";
-import { StyleSheet, Text, View } from "react-native";
+import { Image, Linking, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { useSelector } from "react-redux";
+import Icon6 from "react-native-vector-icons/FontAwesome6";
+import FA6GlyphMap from "react-native-vector-icons/glyphmaps/FontAwesome6Free.json";
 import { resolveFont } from "../services/typographyService";
-import { formatMoney, normalizeCurrencyLabel } from "../utils/money";
+import { formatMoney } from "../utils/money";
 
 const unwrapValue = (value, fallback = undefined) => {
   if (value === undefined || value === null) return fallback;
@@ -53,6 +55,79 @@ const toFontWeight = (value, fallback = "400") => {
   return fallback;
 };
 
+const CUSTOM_ICON_PREFIX = "custom-icon::";
+const getCustomIconUrlFromValue = (value) => {
+  const raw = String(value || "");
+  if (!raw.startsWith(CUSTOM_ICON_PREFIX)) return null;
+  const encoded = raw.slice(CUSTOM_ICON_PREFIX.length);
+  if (!encoded) return null;
+  try {
+    return decodeURIComponent(encoded);
+  } catch {
+    return null;
+  }
+};
+
+const normalizeIconId = (value) => {
+  const trimmed = String(value || "").trim().toLowerCase();
+  if (!trimmed) return "";
+  const withoutStyle = trimmed.replace(/^fa-(solid|regular|light|brands|brand|thin|duotone|sharp)\s+/, "");
+  return withoutStyle.replace(/^fa-/, "");
+};
+
+const buildBorderStyle = (side, color, radius) => {
+  const style = { borderRadius: radius };
+  const s = String(side || "").toLowerCase();
+  if (!s || s === "none") return style;
+  if (s === "all") {
+    style.borderWidth = 1;
+    style.borderColor = color;
+    return style;
+  }
+  const sideKey = {
+    top: "borderTopWidth",
+    right: "borderRightWidth",
+    bottom: "borderBottomWidth",
+    left: "borderLeftWidth",
+  }[s];
+  if (sideKey) {
+    style[sideKey] = 1;
+    style.borderColor = color;
+  }
+  return style;
+};
+
+const textDecorationLine = (underline, strikethrough) => {
+  if (underline && strikethrough) return "underline line-through";
+  if (underline) return "underline";
+  if (strikethrough) return "line-through";
+  return "none";
+};
+
+const textAlignOf = (value) => {
+  const v = String(value || "").toLowerCase();
+  if (v === "center") return "center";
+  if (v === "right") return "right";
+  return "left";
+};
+
+const normalizeUrl = (url) => {
+  const raw = String(url || "").trim();
+  if (!raw) return "";
+  if (/^[a-z][a-z0-9+.-]*:\/\//i.test(raw)) return raw;
+  return `https://${raw}`;
+};
+
+const LinkableText = ({ href, children }) => {
+  const url = normalizeUrl(href);
+  if (!url) return children;
+  return (
+    <TouchableOpacity activeOpacity={0.7} onPress={() => Linking.openURL(url).catch(() => {})}>
+      {children}
+    </TouchableOpacity>
+  );
+};
+
 export default function FreeShipping({ section }) {
   const propsNode =
     section?.properties?.props?.properties ||
@@ -63,7 +138,9 @@ export default function FreeShipping({ section }) {
   const rawProps = propsNode;
   const raw = unwrapValue(rawProps?.raw, {}) || rawProps || {};
 
-  // Cart total from Redux
+  // Cart total from Redux — used to compute real progress toward the
+  // merchant-configured "Qualifying Amount", since the Builder Preview has
+  // no real cart and can only demo a static value.
   const cartItems = useSelector((state) => state?.cart?.items || []);
   const cartTotal = useMemo(
     () =>
@@ -75,133 +152,188 @@ export default function FreeShipping({ section }) {
     [cartItems]
   );
 
-  // DSL config
-  const enabled = toBoolean(raw?.enabled ?? raw?.active, true);
-  const threshold = toNumber(raw?.threshold ?? raw?.freeShippingThreshold ?? raw?.minAmount, 500);
-  const currencySource = toString(raw?.currencySymbol ?? raw?.currency ?? raw?.symbol, "$");
-  const currencySymbol = normalizeCurrencyLabel(currencySource);
+  // ── Qualifying Amount ───────────────────────────────────────────────────────
+  const qualifyingAmountVisible = toBoolean(raw?.qualifyingAmount, true);
+  const threshold = toNumber(raw?.amount, 120);
+  const remaining = Math.max(0, threshold - cartTotal);
+  const isQualified = remaining <= 0;
 
-  // Text templates — use {amount} placeholder
-  const progressText = toString(
-    raw?.progressText ?? raw?.messageText ?? raw?.text,
-    "You're {symbol}{amount} away from free shipping"
+  // ── Header (shown once the threshold is reached) ───────────────────────────
+  const headerVisible = toBoolean(raw?.headerVisible, true);
+  const headerTemplate = toString(raw?.header, "You're {{amount}} away from free shipping");
+  const headerSize = toNumber(raw?.headerSize, 16);
+  const headerFontFamily = cleanFontFamily(toString(raw?.headerFontFamily, "Inter"));
+  const headerBold = toBoolean(raw?.headerBold, false);
+  const headerFontWeight = headerBold ? "700" : toFontWeight(raw?.headerFontWeight, "400");
+  const headerColor = toString(raw?.headerColor, "#111111");
+  const headerAlign = textAlignOf(toString(raw?.headerAlign, "Left"));
+  const headerItalic = toBoolean(raw?.headerItalic, false);
+  const headerUnderline = toBoolean(raw?.headerUnderline, false);
+  const headerStrikethrough = toBoolean(raw?.headerStrikethrough, false);
+  const headerLinkHref = toString(raw?.headerLinkHref, "");
+
+  const remainingAmountText = formatMoney(remaining);
+  const headerText = headerTemplate.replace(
+    "{{amount}}",
+    qualifyingAmountVisible ? remainingAmountText : ""
   );
-  const completedText = toString(
-    raw?.completedText ?? raw?.successText ?? raw?.reachedText,
-    "You've unlocked free shipping!"
-  );
 
-  // Colors
-  const bgColor = toString(raw?.bgColor ?? raw?.backgroundColor, "transparent");
-  const textColor = toString(raw?.textColor ?? raw?.messageColor, "#111827");
-  const textSize = toNumber(raw?.textSize ?? raw?.fontSize, 13);
-  const textWeight = toFontWeight(raw?.textWeight ?? raw?.fontWeight, "500");
+  // ── UnQualified (shown while still short of the threshold) ─────────────────
+  const unQualifiedVisible = toBoolean(raw?.unQualifiedVisible, true);
+  const unQualifiedText = toString(raw?.unQualified, "You are UnQualified for free Shipping!");
+  const unQualifiedSize = toNumber(raw?.unQualifiedSize, 14);
+  const unQualifiedFontFamily = cleanFontFamily(toString(raw?.unQualifiedFontFamily, "Inter"));
+  const unQualifiedBold = toBoolean(raw?.unQualifiedBold, false);
+  const unQualifiedFontWeight = unQualifiedBold ? "700" : toFontWeight(raw?.unQualifiedFontWeight, "400");
+  const unQualifiedColor = toString(raw?.unQualifiedColor, "#111111");
+  const unQualifiedAlign = textAlignOf(toString(raw?.unQualifiedAlign, "Left"));
+  const unQualifiedLinkHref = toString(raw?.unQualifiedLinkHref, "");
+  const unQualifiedItalic = toBoolean(raw?.unQualifiedItalic, false);
+  const unQualifiedUnderline = toBoolean(raw?.unQualifiedUnderline, false);
+  const unQualifiedStrikethrough = toBoolean(raw?.unQualifiedStrikethrough, false);
 
-  const trackColor = toString(raw?.trackColor ?? raw?.barBgColor ?? raw?.progressBgColor, "#E5E7EB");
-  const fillColor = toString(raw?.fillColor ?? raw?.barColor ?? raw?.barFillColor ?? raw?.progressColor, "#111827");
-  const barHeight = toNumber(raw?.barHeight ?? raw?.progressHeight, 6);
-  const barRadius = toNumber(raw?.barRadius ?? raw?.progressRadius, 999);
+  // ── Icon ─────────────────────────────────────────────────────────────────────
+  const rawIconValue = toString(raw?.buttonIcon, "fa-bolt-lightning");
+  const iconImageUrl = getCustomIconUrlFromValue(rawIconValue);
+  const iconNameRaw = normalizeIconId(rawIconValue) || "bolt-lightning";
+  const iconName = Object.prototype.hasOwnProperty.call(FA6GlyphMap, iconNameRaw)
+    ? iconNameRaw
+    : "bolt-lightning";
+  const iconSize = toNumber(raw?.buttonIconSize, 15);
+  const iconColor = toString(raw?.buttonIconColor, "#000000");
 
-  const padT = toNumber(raw?.padT ?? raw?.pt, 12);
-  const padR = toNumber(raw?.padR ?? raw?.pr, 16);
-  const padB = toNumber(raw?.padB ?? raw?.pb, 12);
-  const padL = toNumber(raw?.padL ?? raw?.pl, 16);
-  const textFontFamily = cleanFontFamily(toString(raw?.fontFamily ?? raw?.textFontFamily, ""));
+  // ── Progress bar ─────────────────────────────────────────────────────────────
+  const progressBarVisible = toBoolean(raw?.progressBar, true);
+  const progressFillColor = toString(raw?.progressFillColor, "#000000");
+  const emptyFillColor = toString(raw?.emptyFillColor, "#d1d5db");
+  const progress = threshold > 0 ? Math.min(1, cartTotal / threshold) : 1;
+  const inputSide = toString(raw?.inputSide, "all");
+  const inputBorderRadius = toNumber(raw?.inputBorderRadius, 8);
+  const inputBorderColor = toString(raw?.inputBorderColor, "#E5E7EB");
+  const trackBorderStyle = buildBorderStyle(inputSide, inputBorderColor, inputBorderRadius);
 
-  if (!enabled) return null;
+  // ── Card background, border and padding ─────────────────────────────────────
+  const cardBgPaddingVisible = toBoolean(raw?.cardBgPadding, true);
+  const cardSide = toString(raw?.cardSide, "all");
+  const cardBorderRadius = toNumber(raw?.cardBorderRadius, 8);
+  const cardBorderColor = toString(raw?.cardBorderColor, "#E5E7EB");
+  const cardBgColor = toString(raw?.cardBgColor, "#ffffff");
+  const cardPt = toNumber(raw?.cardPt, 4);
+  const cardPb = toNumber(raw?.cardPb, 4);
+  const cardPl = toNumber(raw?.cardPl, 2);
+  const cardPr = toNumber(raw?.cardPr, 2);
 
-  // Progress calculation
-  const dslAmountLeft = toNumber(raw?.amountLeft, NaN);
-  const dslProgressPct = toNumber(raw?.progress, NaN);
-  const remaining = Number.isFinite(dslAmountLeft) ? Math.max(0, dslAmountLeft) : Math.max(0, threshold - cartTotal);
-  const progress = Number.isFinite(dslProgressPct)
-    ? Math.max(0, Math.min(1, dslProgressPct / 100))
-    : (threshold > 0 ? Math.min(1, cartTotal / threshold) : 1);
-  const isReached = remaining === 0;
-
-  // Build message
-  const remainingWithCurrency = formatMoney(remaining, currencySource || currencySymbol);
-  const formattedRemaining = currencySymbol && remainingWithCurrency.startsWith(currencySymbol)
-    ? remainingWithCurrency.slice(currencySymbol.length)
-    : remainingWithCurrency;
-  const remainingToken = progressText.includes("{symbol}") || progressText.includes("{currency}")
-    ? formattedRemaining
-    : remainingWithCurrency;
-
-  const message = isReached
-    ? completedText
-    : progressText
-        .replace("{symbol}", currencySymbol)
-        .replace("{amount}", remainingToken)
-        .replace("{remaining}", remainingToken)
-        .replace("{currency}", currencySymbol);
+  const cardStyle = cardBgPaddingVisible
+    ? {
+        backgroundColor: cardBgColor,
+        paddingTop: cardPt,
+        paddingBottom: cardPb,
+        paddingLeft: cardPl,
+        paddingRight: cardPr,
+        ...buildBorderStyle(cardSide, cardBorderColor, cardBorderRadius),
+      }
+    : { backgroundColor: "transparent", padding: 0 };
 
   return (
-    <View
-      style={[
-        styles.container,
-        {
-          backgroundColor: bgColor,
-          paddingTop: padT,
-          paddingRight: padR,
-          paddingBottom: padB,
-          paddingLeft: padL,
-        },
-      ]}
-    >
-      <Text
-        style={[
-          styles.message,
-          {
-            color: isReached ? fillColor : textColor,
-            fontSize: textSize,
-            fontWeight: textWeight,
-            ...(textFontFamily ? { fontFamily: textFontFamily } : {}),
-          },
-        ]}
-        numberOfLines={2}
-      >
-        {message}
-      </Text>
+    <View style={[styles.card, cardStyle]}>
+      <View style={styles.row}>
+        {iconImageUrl ? (
+          <Image
+            source={{ uri: iconImageUrl }}
+            style={{ width: iconSize, height: iconSize, resizeMode: "contain", marginRight: 8 }}
+          />
+        ) : (
+          <Icon6 name={iconName} size={iconSize} color={iconColor} style={styles.icon} />
+        )}
 
-      {/* Progress bar */}
-      <View
-        style={[
-          styles.track,
-          {
-            height: barHeight,
-            borderRadius: barRadius,
-            backgroundColor: trackColor,
-            marginTop: 8,
-          },
-        ]}
-      >
-        <View
-          style={[
-            styles.fill,
-            {
-              width: `${Math.round(progress * 100)}%`,
-              height: barHeight,
-              borderRadius: barRadius,
-              backgroundColor: fillColor,
-            },
-          ]}
-        />
+        <View style={styles.textCol}>
+          {isQualified ? (
+            headerVisible && (
+              <LinkableText href={headerLinkHref}>
+                <Text
+                  numberOfLines={2}
+                  style={{
+                    fontSize: headerSize,
+                    fontWeight: headerFontWeight,
+                    color: headerColor,
+                    textAlign: headerAlign,
+                    fontStyle: headerItalic ? "italic" : "normal",
+                    textDecorationLine: textDecorationLine(headerUnderline, headerStrikethrough),
+                    marginBottom: 6,
+                    ...(headerFontFamily ? { fontFamily: headerFontFamily } : {}),
+                  }}
+                >
+                  {headerText}
+                </Text>
+              </LinkableText>
+            )
+          ) : (
+            unQualifiedVisible && (
+              <LinkableText href={unQualifiedLinkHref}>
+                <Text
+                  numberOfLines={2}
+                  style={{
+                    fontSize: unQualifiedSize,
+                    fontWeight: unQualifiedFontWeight,
+                    color: unQualifiedColor,
+                    textAlign: unQualifiedAlign,
+                    fontStyle: unQualifiedItalic ? "italic" : "normal",
+                    textDecorationLine: textDecorationLine(unQualifiedUnderline, unQualifiedStrikethrough),
+                    marginBottom: 6,
+                    ...(unQualifiedFontFamily ? { fontFamily: unQualifiedFontFamily } : {}),
+                  }}
+                >
+                  {unQualifiedText}
+                </Text>
+              </LinkableText>
+            )
+          )}
+
+          {progressBarVisible && (
+            <View
+              style={[
+                styles.track,
+                { backgroundColor: emptyFillColor, overflow: "hidden" },
+                trackBorderStyle,
+              ]}
+            >
+              <View
+                style={[
+                  styles.fill,
+                  {
+                    width: `${Math.round(progress * 100)}%`,
+                    backgroundColor: progressFillColor,
+                    borderRadius: inputBorderRadius,
+                  },
+                ]}
+              />
+            </View>
+          )}
+        </View>
       </View>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
+  card: {
     width: "100%",
   },
-  message: {
-    lineHeight: 20,
+  row: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  icon: {
+    marginRight: 8,
+  },
+  textCol: {
+    flex: 1,
   },
   track: {
-    width: "100%",
-    overflow: "hidden",
+    width: "95%",
+    height: 6,
   },
-  fill: {},
+  fill: {
+    height: "100%",
+  },
 });

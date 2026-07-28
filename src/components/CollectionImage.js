@@ -12,6 +12,7 @@ import { useNavigation, useRoute } from "@react-navigation/native";
 import { WebView } from "react-native-webview";
 import { convertStyles } from "../utils/convertStyles";
 import { resolveFont } from "../services/typographyService";
+import { navigateToDslTarget } from "../utils/navigationTarget";
 
 // ─── helpers ──────────────────────────────────────────────────────────────────
 
@@ -137,6 +138,12 @@ const buildCollections = (block = {}) => {
       const image  = asString(unwrapValue(p?.image,  ""));
       const link   = asString(unwrapValue(p?.link,   ""));
       const handle = asString(unwrapValue(p?.handle ?? p?.collectionHandle ?? p?.navigateRef ?? p?.linkTo, ""));
+      // "Choose where users will be redirected" (Inspector's NavigateToField)
+      // was parsed only as a fallback source for `handle`, never as its own
+      // type — a Product/URL/Screen choice was silently treated as "Collection".
+      const navigateType = asString(unwrapValue(p?.navigateType, ""));
+      const navigateRef  = asString(unwrapValue(p?.navigateRef,  ""));
+      const linkTo       = asString(unwrapValue(p?.linkTo,       ""));
       const children = toArray(
         p?.children ??
         p?.items ??
@@ -146,7 +153,7 @@ const buildCollections = (block = {}) => {
         p?.sub_collections
       );
       if (!title && !image) return null;
-      return { id, title, image, link, handle, children };
+      return { id, title, image, link, handle, children, navigateType, navigateRef, linkTo };
     })
     .filter(Boolean);
 };
@@ -421,7 +428,10 @@ export default function CollectionImage({ section }) {
   const borderMatch = asString(layoutCardImage?.border, "").match(/(\d+(?:\.\d+)?)px\s+\w+\s+([^,\s]+)/i);
   const cardImageBorder     = asNumber(cardCfg?.imageBorder ?? rawSnapshot?.imageBorder, borderMatch ? Number(borderMatch[1]) : 0);
   const cardImageBorderColor = asString(unwrapValue(cardCfg?.imageBorderColor ?? rawSnapshot?.imageBorderColor, borderMatch?.[2] || "#A8A7AE"));
-  const cardImageBgColor    = asString(unwrapValue(firstDefined(imageNode?.bgColor, imageNode?.backgroundColor, rawSnapshot?.imageBgColor, cardCfg?.imageBgColor), "#FFFFFF"));
+  // Match the card's own background so any letterbox space around a
+  // Fit-scaled image blends with the card instead of a mismatched
+  // hardcoded white.
+  const cardImageBgColor    = asString(unwrapValue(firstDefined(imageNode?.bgColor, imageNode?.backgroundColor, rawSnapshot?.imageBgColor, cardCfg?.imageBgColor), cardBackgroundColor));
   const placeholderBgColor  = asString(unwrapValue(firstDefined(rawSnapshot?.placeholderBgColor, cardCfg?.placeholderBgColor, imageNode?.placeholderBgColor), "#E0F2F1"));
   const placeholderTextColor = asString(unwrapValue(firstDefined(rawSnapshot?.placeholderTextColor, cardCfg?.placeholderTextColor, imageNode?.placeholderTextColor), "#096D70"));
   const imageShape          = asString(unwrapValue(cardCfg?.imageShape ?? layoutCardImage?.shape, rawSnapshot?.imageRadius != null ? "rounded" : "circle")).toLowerCase();
@@ -522,6 +532,22 @@ export default function CollectionImage({ section }) {
   }, [stepSize, items.length, updateIndex]);
 
   const onItemPress = useCallback((item) => {
+    // An explicit Product/URL/Screen/etc. choice overrides the block's
+    // default "open this collection" behavior — only a truly empty/"None"/
+    // "Collection" choice falls through to the existing collection flow, so
+    // pages saved before this field existed keep behaving exactly as before.
+    const navType = String(item?.navigateType || "").trim().toLowerCase();
+    if (navType && navType !== "none" && navType !== "collection" && navType !== "collections") {
+      void navigateToDslTarget(navigation, {
+        target: item?.navigateRef || item?.linkTo,
+        navigateRef: item?.navigateRef,
+        navigateType: item?.navigateType,
+        linkTo: item?.linkTo,
+        fallbackTitle: item?.title || "Collection",
+      });
+      return;
+    }
+
     const handle = deriveHandle(item);
     if (!handle) return;
     const params = {

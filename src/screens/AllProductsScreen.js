@@ -623,6 +623,7 @@ export default function AllProductsScreen() {
           price: parseMoneyAmount(product.priceAmount ?? product.price) || 0,
           variant: "",
           currency: productCurrency(product),
+          availableForSale: isProductAvailable(product),
           quantity: 1,
         },
       })

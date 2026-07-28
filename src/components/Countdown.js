@@ -781,13 +781,15 @@ class Countdown extends PureComponent {
         imageAttributes?.borderRadius,
       0
     );
-    // "Auto" → null (natural image size, no forced ratio) — matches Builder
-    // Preview, which maps Auto to CSS `aspect-ratio: auto`, not 1:1. (Passing
-    // `null` here, not `undefined`, since parseRatio's default param would
-    // otherwise silently substitute its own `1` fallback.)
+    // "Auto" → 1 (square) — matches Builder Preview, which maps Auto to a
+    // concrete 1/1 CSS aspect-ratio so Fit/Fill (resizeMode contain/cover)
+    // stay visually distinguishable. Mapping Auto to `null`/natural-image-
+    // size here made the box always match the image's own ratio exactly,
+    // which defeats the Fit/Fill toggle the same way "aspect-ratio: auto"
+    // did in CSS.
     const imageAspectRatio = parseRatio(
       rawProps?.imageRatio ?? imageAttributes?.imageRatio ?? imageAttributes?.ratio,
-      null
+      1
     );
     // Preview darkens the image via a CSS blur (0–100 slider → 0–8px blur);
     // RN's Image/ImageBackground support the equivalent natively via blurRadius.

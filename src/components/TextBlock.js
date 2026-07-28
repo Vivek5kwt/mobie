@@ -1,11 +1,13 @@
 import React from "react";
-import { StyleSheet, Text, View } from "react-native";
+import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { useNavigation } from "@react-navigation/native";
 import LinearGradient from "react-native-linear-gradient";
 import FontAwesome from "react-native-vector-icons/FontAwesome";
 import { convertStyles } from "../utils/convertStyles";
 import { getTypography, resolveFont, resolveFontFace } from "../services/typographyService";
 import { resolveFA4IconName } from "../utils/faIconAlias";
 import { resolveTextDecorationLine } from "../utils/textDecoration";
+import { navigateToDslTarget } from "../utils/navigationTarget";
 
 // ── DSL helpers ────────────────────────────────────────────────────────────────
 
@@ -245,12 +247,31 @@ const normalizeNativeTextMetrics = (style = {}) => {
 // ── Component ──────────────────────────────────────────────────────────────────
 
 export default function TextBlock({ section }) {
+  const navigation = useNavigation();
   const propsRoot =
     section?.props ||
     section?.properties?.props?.properties ||
     section?.properties?.props ||
     {};
   const rawProps = mergeRawProps(propsRoot);
+
+  // "Choose where users will be redirected" (NavigateToField) — Builder
+  // saves/restores this, but the RN Text Block never read it, so tapping
+  // the text did nothing regardless of what the merchant configured.
+  const navigateType = asStr(rawProps?.navigateType, "None");
+  const navigateRef = asStr(rawProps?.navigateRef, "");
+  const linkTo = asStr(rawProps?.linkTo, "");
+  const hasNavigateTarget = navigateType.toLowerCase() !== "none" && navigateType !== "";
+  const handlePress = () => {
+    if (!hasNavigateTarget) return;
+    void navigateToDslTarget(navigation, {
+      target: navigateRef || linkTo,
+      navigateRef,
+      navigateType,
+      linkTo,
+      fallbackTitle: "Text Block",
+    });
+  };
 
   const layoutNode    = asObject(rawProps?.layout?.properties || rawProps?.layout, {});
   const layoutCss     = asObject(layoutNode?.css, {});
@@ -455,8 +476,16 @@ export default function TextBlock({ section }) {
     : {};
   const iconTextGap = asNumber(layoutCss?.container?.gap, 0);
 
+  const Wrapper = hasNavigateTarget ? TouchableOpacity : View;
+  const wrapperInteractionProps = hasNavigateTarget
+    ? { onPress: handlePress, activeOpacity: 0.75 }
+    : {};
+
   return (
-    <View style={[styles.container, containerStyle, overrideStyle, layoutStyle]}>
+    <Wrapper
+      style={[styles.container, containerStyle, overrideStyle, layoutStyle]}
+      {...wrapperInteractionProps}
+    >
       {gradientPct > 0 && (
         <LinearGradient
           colors={["rgba(255,255,255,0)", `rgba(255,255,255,${gradientPct / 100})`]}
@@ -524,7 +553,7 @@ export default function TextBlock({ section }) {
           </Text>
         )}
       </View>
-    </View>
+    </Wrapper>
   );
 }
 

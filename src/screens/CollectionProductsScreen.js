@@ -121,6 +121,7 @@ const DEFAULT_PRODUCT_CARD_CONFIG = {
   cardBorderRadius: 8,
   imageBgColor: "#FFFFFF",
   imageHeight: undefined,
+  imageScale: "Fill",
   titleColor: "#111827",
   titleSize: 12,
   titleWeight: "600",
@@ -159,13 +160,19 @@ const resolveProductCardConfig = (...dsls) => {
         : {}),
     };
     const css = getLayoutCss(raw, props);
+    // Resolve the card's own background first so imageBgColor can fall back
+    // to it (matching the "Background & Padding" section's color) instead
+    // of an independent hardcoded white — keeps any letterbox space around
+    // a Fit-scaled image blended with the card.
+    const cardBgColorResolved = toStringOr(firstDefinedDsl(raw?.cardBackgroundColor, raw?.cardBgColor, css.card?.backgroundColor), DEFAULT_PRODUCT_CARD_CONFIG.cardBgColor);
     return {
-      cardBgColor: toStringOr(firstDefinedDsl(raw?.cardBackgroundColor, raw?.cardBgColor, css.card?.backgroundColor), DEFAULT_PRODUCT_CARD_CONFIG.cardBgColor),
+      cardBgColor: cardBgColorResolved,
       cardBorderColor: toStringOr(firstDefinedDsl(raw?.cardBorderColor, css.card?.borderColor), DEFAULT_PRODUCT_CARD_CONFIG.cardBorderColor),
       cardBorderWidth: toNumberOr(firstDefinedDsl(raw?.cardBorderWidth, css.card?.borderWidth), DEFAULT_PRODUCT_CARD_CONFIG.cardBorderWidth),
       cardBorderRadius: toNumberOr(firstDefinedDsl(raw?.cardCorner, raw?.cardRadius, raw?.cardBorderRadius, css.card?.borderRadius), DEFAULT_PRODUCT_CARD_CONFIG.cardBorderRadius),
-      imageBgColor: toStringOr(firstDefinedDsl(raw?.imageBackgroundColor, raw?.productImageBackgroundColor, raw?.imageBgColor, raw?.productImageBgColor, css.image?.backgroundColor), DEFAULT_PRODUCT_CARD_CONFIG.imageBgColor),
+      imageBgColor: toStringOr(firstDefinedDsl(raw?.imageBackgroundColor, raw?.productImageBackgroundColor, raw?.imageBgColor, raw?.productImageBgColor, css.image?.backgroundColor), cardBgColorResolved),
       imageHeight: toNumberOr(firstDefinedDsl(raw?.imageHeight, raw?.productImageHeight, css.image?.height), DEFAULT_PRODUCT_CARD_CONFIG.imageHeight),
+      imageScale: toStringOr(firstDefinedDsl(raw?.imageScale, raw?.scale, raw?.imageResizeMode, css.image?.objectFit), DEFAULT_PRODUCT_CARD_CONFIG.imageScale),
       titleColor: toStringOr(firstDefinedDsl(raw?.productTitleColor, raw?.itemTitleColor, raw?.cardTitleColor, raw?.titleColor, css.title?.color), DEFAULT_PRODUCT_CARD_CONFIG.titleColor),
       titleSize: toNumberOr(firstDefinedDsl(raw?.productTitleSize, raw?.itemTitleSize, raw?.cardTitleSize, raw?.titleSize, css.title?.fontSize), DEFAULT_PRODUCT_CARD_CONFIG.titleSize),
       titleWeight: toStringOr(firstDefinedDsl(raw?.productTitleWeight, raw?.itemTitleWeight, raw?.cardTitleWeight, raw?.titleWeight, css.title?.fontWeight), DEFAULT_PRODUCT_CARD_CONFIG.titleWeight),
@@ -444,6 +451,7 @@ export default function CollectionProductsScreen() {
           price: parseMoneyAmount(product.priceAmount ?? product.price) || 0,
           variant: "",
           currency: product.priceCurrency || "",
+          availableForSale: isProductAvailable(product),
           quantity: 1,
         },
       })
@@ -506,7 +514,7 @@ export default function CollectionProductsScreen() {
               { backgroundColor: productCardConfig.imageBgColor },
               isListMode && styles.imageList,
             ]}
-            resizeMode={resolveProductImageResizeMode()}
+            resizeMode={resolveProductImageResizeMode(productCardConfig.imageScale)}
             placeholderBg={productCardConfig.imageBgColor}
           />
           {/* Favourite toggle */}

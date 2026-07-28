@@ -108,13 +108,17 @@ export default function WishlistItem({ section }) {
   const iconSize = toNumber(raw?.iconSize, 18);
   const favoriteToggleConfig = buildFavoriteToggleConfig({ favIconSize: iconSize, favoriteIconColor: iconColor });
   const imageRadius = toNumber(raw?.imageRadius, 8);
+  // Match the card's own background (bgColor) so any letterbox space
+  // around a Fit-scaled image blends with the card instead of a
+  // mismatched hardcoded white — Builder Preview already renders the
+  // image directly on the card with no separate wrapper background.
   const imageBgColor = toString(
     raw?.imageBg ??
       raw?.imageBgColor ??
       raw?.imageBackgroundColor ??
       raw?.productImageBgColor ??
       raw?.productImageBackgroundColor,
-    "#FFFFFF"
+    bgColor
   );
   const imageRatio = toString(raw?.imageRatio, "1:1");
   const priceColor = toString(raw?.priceColor, "#16A34A");

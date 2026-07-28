@@ -34,6 +34,11 @@ const cartSlice = createSlice({
       const nextCompareAtPrice = toPositiveNumber(item.compareAtPrice ?? item.originalPrice, 0);
       const existing = state.items.find((entry) => normalizeId(entry) === id);
 
+      // Availability at the moment the item was added — real-time
+      // out-of-stock detection after adding would need a live product
+      // lookup, which the cart doesn't do; this reflects last-known state.
+      const availableForSale = item.availableForSale !== false;
+
       if (existing) {
         existing.quantity = Math.max(1, (existing.quantity || 0) + quantity);
         existing.title = existing.title && existing.title !== "Product" ? existing.title : item.title || "Product";
@@ -42,6 +47,7 @@ const cartSlice = createSlice({
         existing.vendor = existing.vendor || item.vendor || "";
         existing.variant = existing.variant || item.variant || "";
         existing.currency = existing.currency || item.currency || "";
+        existing.availableForSale = availableForSale;
         if (nextPrice > 0) existing.price = nextPrice;
         else existing.price = existing.price ?? item.price ?? 0;
         if (nextCompareAtPrice > 0) existing.compareAtPrice = nextCompareAtPrice;
@@ -58,6 +64,7 @@ const cartSlice = createSlice({
           vendor: item.vendor || "",
           variant: item.variant || "",
           currency: item.currency || "",
+          availableForSale,
           quantity: Math.max(1, quantity),
         });
       }

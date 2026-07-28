@@ -40,6 +40,19 @@ const toString = (value, fallback = "") => {
   return String(resolved);
 };
 
+const CUSTOM_ICON_PREFIX = "custom-icon::";
+const getCustomIconUrlFromValue = (value) => {
+  const raw = String(value || "");
+  if (!raw.startsWith(CUSTOM_ICON_PREFIX)) return null;
+  const encoded = raw.slice(CUSTOM_ICON_PREFIX.length);
+  if (!encoded) return null;
+  try {
+    return decodeURIComponent(encoded);
+  } catch {
+    return null;
+  }
+};
+
 const cleanFontFamily = (family) => resolveFont(family) || "";
 
 const toBoolean = (value, fallback = false) => {
@@ -79,6 +92,30 @@ const toTextTransform = (value, fallback = "none") => {
   if (normalized === "lowercase" || normalized === "lower") return "lowercase";
   if (normalized === "capitalize" || normalized === "capitalized") return "capitalize";
   return "none";
+};
+
+// Builder's BorderLineControl lets merchants pick a single side
+// (none/left/right/top/bottom/all), and Preview renders exactly that side —
+// RN was collapsing this down to "full 4-side border or none", ignoring
+// which specific side was chosen. Computes per-side widths so a single
+// selected side renders as only that side, matching Preview.
+const borderSideStyle = (line, width) => {
+  const w = Math.max(0, toNumber(width, 1));
+  switch (String(line || "").toLowerCase()) {
+    case "none":
+      return { borderWidth: 0 };
+    case "top":
+      return { borderWidth: 0, borderTopWidth: w, borderRightWidth: 0, borderBottomWidth: 0, borderLeftWidth: 0 };
+    case "bottom":
+      return { borderWidth: 0, borderTopWidth: 0, borderRightWidth: 0, borderBottomWidth: w, borderLeftWidth: 0 };
+    case "left":
+      return { borderWidth: 0, borderTopWidth: 0, borderRightWidth: 0, borderBottomWidth: 0, borderLeftWidth: w };
+    case "right":
+      return { borderWidth: 0, borderTopWidth: 0, borderRightWidth: w, borderBottomWidth: 0, borderLeftWidth: 0 };
+    case "all":
+    default:
+      return { borderWidth: w };
+  }
 };
 
 const lineHeightFor = (size, ratio = 1.35) => Math.ceil(toNumber(size, 14) * ratio);
@@ -143,20 +180,33 @@ export default function CartLineItems({ section }) {
   const usesDslItems = cartItems.length === 0 && allowDslItemsFallback && dslItems.length > 0;
   const sourceItems = cartItems.length > 0 ? cartItems : (usesDslItems ? dslItems : []);
 
-  // Container
-  const bgColor = toString(raw?.bgColor ?? raw?.backgroundColor, "#FFFFFF");
+  // Container background — Background3.tsx ("Container Background") owns
+  // showBackground/backgroundColor/borderColor/borderLine for the OUTER
+  // wrapper; these must not be conflated with the per-card border below.
+  const showContainerBackground = toBoolean(raw?.showBackground, true);
+  const bgColor = showContainerBackground
+    ? toString(raw?.bgColor ?? raw?.backgroundColor, "#FFFFFF")
+    : "transparent";
   const emptyBgColor = toString(raw?.emptyBgColor ?? raw?.emptyBackgroundColor, "#FFFFFF");
   const padT = toNumber(raw?.padT ?? raw?.pt, 12);
   const padR = toNumber(raw?.padR ?? raw?.pr, 16);
   const padB = toNumber(raw?.padB ?? raw?.pb, 12);
   const padL = toNumber(raw?.padL ?? raw?.pl, 16);
+  const containerBorderLine = toString(raw?.borderLine, "all").toLowerCase();
+  const containerBorderStyle = !showContainerBackground
+    ? { borderWidth: 0 }
+    : borderSideStyle(containerBorderLine, 1);
+  const containerBorderColor = toString(raw?.borderColor, "#F3F4F6");
 
   // Card
-  const cardBgColor = toString(raw?.cardBgColor, "#FFFFFF");
-  const cardBorderColor = toString(raw?.cardBorderColor ?? raw?.borderColor, "#F3F4F6");
-  const cardBorderRadius = toNumber(raw?.cardBorderRadius ?? raw?.borderRadius, 12);
-  const cardBorderLine = toString(raw?.cardBorderLine ?? raw?.borderLine ?? raw?.borderStyle, "all").toLowerCase();
-  const cardBorderWidth = cardBorderLine === "none" ? 0 : toNumber(raw?.cardBorderWidth ?? raw?.borderSize, 1);
+  // The Inspector never writes `cardBgColor` (Builder's CartItems.tsx has no
+  // control for it), so this always falls back to the container's own
+  // "Background" color instead of a mismatched hardcoded white.
+  const cardBgColor = toString(raw?.cardBgColor, bgColor);
+  const cardBorderColor = toString(raw?.cardBorderColor, "#F3F4F6");
+  const cardBorderRadius = toNumber(raw?.cardBorderRadius, 12);
+  const cardBorderLine = toString(raw?.cardBorderLine, "all").toLowerCase();
+  const cardBorderWidth = cardBorderLine === "none" ? 0 : toNumber(raw?.cardBorderWidth, 1);
   const cardGap = toNumber(raw?.cardGap ?? raw?.gap, 12);
   const derivedCardPad = Math.max(0, Math.round(cardBorderRadius * 0.75));
   const cardPadT = toNumber(raw?.cardPadT ?? raw?.cardPt ?? raw?.itemPadT, derivedCardPad);
@@ -166,18 +216,35 @@ export default function CartLineItems({ section }) {
   const cardInnerGap = toNumber(raw?.cardInnerGap ?? raw?.itemGap, responsiveSize(screenWidth, 0.02, 8, 12));
 
   // Image
+  const showImage = toBoolean(raw?.showImage, true);
+  // Preview's own default image box is 96-120px wide (fixed, by imageRatio)
+  // — the previous 58-72px default here was roughly half that, making the
+  // product thumbnail look noticeably smaller in the APK by default.
   const imageSize = toNumber(
     raw?.imageSize ?? raw?.imageWidth ?? raw?.productImageSize,
-    responsiveSize(screenWidth, 0.16, 58, 72)
+    responsiveSize(screenWidth, 0.26, 90, 120)
   );
+  const imageRatioRaw = toString(raw?.imageRatio, "Auto");
+  // Preview's own default/"Auto" box (96x140) is a tall rectangle, not a
+  // square (aspect ≈ 0.686, not 1) — RN previously treated "Auto" as square,
+  // giving the thumbnail a different shape than Preview whenever Ratio is
+  // left unset (the default state).
+  const imageAspect =
+    imageRatioRaw === "1:1" ? 1 : imageRatioRaw === "2:3" ? 2 / 3 : imageRatioRaw === "4:5" ? 4 / 5 : 96 / 140;
+  const imageHeight = Math.round(imageSize / imageAspect);
   const imageRadius = toNumber(raw?.imageRadius ?? raw?.imageCorner ?? raw?.cardImageCorner, 0);
+  // No dedicated Inspector control writes any of these image-background
+  // keys today, so this always falls back to bgColor — matching the
+  // container "Background" color, so any letterbox space around a
+  // Fit-scaled image blends with the card instead of a mismatched
+  // hardcoded white.
   const imageBg = toString(
     raw?.imageBg ??
       raw?.imageBgColor ??
       raw?.imageBackgroundColor ??
       raw?.productImageBgColor ??
       raw?.productImageBackgroundColor,
-    "#FFFFFF"
+    bgColor
   );
 
   // Variant row
@@ -217,6 +284,11 @@ export default function CartLineItems({ section }) {
 
   // Price
   const showPrice = toBoolean(raw?.showPrice ?? raw?.showStandardPrice, true);
+  // Price.tsx's "Standard" sub-panel has its own independent eye
+  // (showStandardPrice) distinct from the master showPrice — this was never
+  // read separately, so turning off just the Standard price eye (while
+  // keeping the master Price eye on) had no effect in the APK.
+  const showStandardPrice = toBoolean(raw?.showStandardPrice, true);
   const showTotal = toBoolean(raw?.showTotal ?? raw?.showLineTotal, false);
   const priceColor = toString(raw?.priceColor, "#111827");
   const priceSize = toNumber(raw?.priceSize ?? raw?.priceFontSize, 14);
@@ -231,28 +303,75 @@ export default function CartLineItems({ section }) {
     raw?.symbol
   );
 
-  // Compare-at (original) price
-  const showCompareAt = toBoolean(raw?.showCompareAt ?? raw?.showOriginalPrice, true);
-  const compareAtColor = toString(raw?.compareAtColor ?? raw?.strikeColor, "#9CA3AF");
-  const compareAtSize = toNumber(raw?.compareAtSize, 13);
+  // Compare-at (original / strikethrough) price — Price.tsx's "Strikethrough" group
+  const showCompareAt = toBoolean(raw?.showStrikePrice ?? raw?.showCompareAt ?? raw?.showOriginalPrice, true);
+  const compareAtColor = toString(raw?.strikePriceColor ?? raw?.compareAtColor ?? raw?.strikeColor, "#9CA3AF");
+  const compareAtSize = toNumber(raw?.strikePriceFontSize ?? raw?.compareAtSize, 13);
+  const compareAtWeight = toFontWeight(raw?.strikePriceFontWeight, "400");
+  const compareAtFontFamily = cleanFontFamily(toString(raw?.strikePriceFontFamily, ""));
 
   // Savings badge
+  // Sold Out badge — SoldOutBadge.tsx (text) + Background.tsx (box)
+  const showSoldOut = toBoolean(raw?.showSoldOut, true);
+  const soldOutShow = toBoolean(raw?.soldOutShow, true);
+  const soldOutBackgroundColor = toString(raw?.soldOutBackgroundColor, "#FEE2E2");
+  const soldOutBorderColor = toString(raw?.soldOutBorderColor, "#000000");
+  const soldOutBorderLine = toString(raw?.soldOutBorderLine, "all").toLowerCase();
+  const soldOutFontSize = toNumber(raw?.soldOutFontSize, 12);
+  const soldOutFontFamily = cleanFontFamily(toString(raw?.soldOutFontFamily, ""));
+  const soldOutFontWeight = toFontWeight(raw?.soldOutFontWeight, "600");
+  const soldOutTextTransform = toTextTransform(raw?.soldOutTextTransform, "none");
+  const soldOutColor = toString(raw?.soldOutColor, "#B91C1C");
+  const soldOutCorners = toNumber(raw?.soldOutCorners, 20);
+  const soldOutBoxStyle = soldOutShow
+    ? {
+        paddingHorizontal: 10,
+        paddingVertical: 5,
+        backgroundColor: soldOutBackgroundColor,
+        borderRadius: soldOutCorners,
+        ...borderSideStyle(soldOutBorderLine, 1),
+        borderColor: soldOutBorderColor,
+      }
+    : { paddingHorizontal: 0, paddingVertical: 0, backgroundColor: "transparent", borderRadius: 0, borderWidth: 0 };
+
   const showSavings = toBoolean(raw?.showSavings, true);
   const savingsLabel = toString(raw?.savingsLabel, "Savings");
-  const savingsBg = toString(raw?.savingsBg, "#FFFFFF");
+  // Background2.tsx's ("Saving tag Background") own eye + real keys —
+  // previously read raw?.savingsBg/raw?.savingsBorderRadius, neither of
+  // which the Inspector ever writes, and showBackground2 wasn't read at
+  // all, so the badge chrome was permanently stuck at its hardcoded
+  // defaults regardless of the merchant's settings.
+  const showBackground2 = toBoolean(raw?.showBackground2, true);
+  const savingsBackgroundColor = toString(raw?.savingsBackgroundColor, "#FFFFFF");
   const savingsColor = toString(raw?.savingsColor, "#16A34A");
   const savingsBorderColor = toString(raw?.savingsBorderColor, "#16A34A");
-  const savingsBorderRadius = toNumber(raw?.savingsBorderRadius, 20);
+  const savingsBorderLine = toString(raw?.savingsBorderLine, "all").toLowerCase();
+  const background2Radius = toNumber(raw?.background2Radius, 20);
+  const background2Padding = toNumber(raw?.background2Padding, 10);
   const savingsFontSize = toNumber(raw?.savingsFontSize, 12);
   const savingsFontWeight = toFontWeight(raw?.savingsFontWeight, "600");
+  const savingsTextTransform = toTextTransform(raw?.savingsTextTransform, "none");
+  const savingsBoxStyle = showBackground2
+    ? {
+        paddingHorizontal: background2Padding,
+        paddingVertical: background2Padding / 2,
+        backgroundColor: savingsBackgroundColor,
+        borderRadius: background2Radius,
+        ...borderSideStyle(savingsBorderLine, 1),
+        borderColor: savingsBorderColor,
+      }
+    : { paddingHorizontal: 0, paddingVertical: 0, backgroundColor: "transparent", borderRadius: 0, borderWidth: 0 };
 
-  // Discounts applied badge
-  const showDiscountBadge = toBoolean(raw?.showDiscountBadge, true);
+  // Discounts applied badge — AppliedDiscounts.tsx's Inspector keys
+  // (discount*) drive this same real, Redux-backed badge.
+  const showDiscountBadge = toBoolean(raw?.showDiscount ?? raw?.showDiscountBadge, true);
   const discountBadgeBg = toString(raw?.discountBadgeBg, "#DBEAFE");
-  const discountBadgeColor = toString(raw?.discountBadgeColor, "#1D4ED8");
-  const discountBadgeRadius = toNumber(raw?.discountBadgeRadius, 20);
-  const discountBadgeFontSize = toNumber(raw?.discountBadgeFontSize, 11);
-  const discountBadgeFontWeight = toFontWeight(raw?.discountBadgeFontWeight, "700");
+  const discountBadgeColor = toString(raw?.discountColor ?? raw?.discountBadgeColor, "#1D4ED8");
+  const discountBadgeRadius = toNumber(raw?.discountCorners ?? raw?.discountBadgeRadius, 20);
+  const discountBadgeFontSize = toNumber(raw?.discountFontSize ?? raw?.discountBadgeFontSize, 11);
+  const discountBadgeFontWeight = toFontWeight(raw?.discountFontWeight ?? raw?.discountBadgeFontWeight, "700");
+  const discountBadgeTextTransform = toTextTransform(raw?.discountTextTransform, "none");
+  const discountBadgeFontFamily = cleanFontFamily(toString(raw?.discountFontFamily, ""));
   const discountBadgeSuffix = toString(raw?.discountBadgeSuffix, "DISCOUNTS APPLIED");
 
   // Quantity controls
@@ -265,29 +384,54 @@ export default function CartLineItems({ section }) {
   const qtyWrapBgColor = toString(raw?.qtyWrapBgColor ?? raw?.quantityWrapBgColor, "transparent");
   const qtyBtnSize = toNumber(raw?.qtyBtnSize, responsiveSize(screenWidth, 0.06, 22, 28));
   const qtyBtnRadius = toNumber(raw?.qtyBtnRadius, Math.round(qtyBtnSize / 2));
-  const qtyTextColor = toString(raw?.qtyTextColor, "#111827");
-  const qtyTextSize = toNumber(raw?.qtyTextSize, 12);
-  const qtyIconSize = toNumber(raw?.qtyIconSize, 10);
-  const qtyIconColor = toString(raw?.qtyIconColor, "#111827");
-  const qtyAlignRaw = toString(raw?.qtyAlign ?? raw?.quantityAlign ?? raw?.quantityAlignment, "left").toLowerCase();
+  // Preview has no Inspector control for this at all — the quantity row is
+  // unconditionally pinned to the right (justifyContent: "flex-end"). The
+  // "left" default here never matched that, making the qty controls sit on
+  // the wrong side whenever no explicit qtyAlign value is set (i.e. always).
+  const qtyAlignRaw = toString(raw?.qtyAlign ?? raw?.quantityAlign ?? raw?.quantityAlignment, "right").toLowerCase();
   const qtyJustifyContent = qtyAlignRaw === "right" || qtyAlignRaw === "flex-end"
     ? "flex-end"
     : qtyAlignRaw === "center"
       ? "center"
       : "flex-start";
 
+  // Quantity — Text sub-panel
+  const showQtyText = toBoolean(raw?.showText, true);
+  const qtyTextColor = toString(raw?.qpTextColor ?? raw?.qtyTextColor, "#111827");
+  const qtyTextSize = toNumber(raw?.qpTextFontSize ?? raw?.qtyTextSize, 12);
+  const qtyTextWeight = toFontWeight(raw?.qpTextFontWeight, "600");
+  const qtyTextFontFamily = cleanFontFamily(toString(raw?.qpTextFontFamily ?? raw?.qtyFontFamily, ""));
+
+  // Quantity — Increase / Decrease sub-panels (independent icon/color/size each)
+  const showIncrease = toBoolean(raw?.showIncrease, true);
+  const increaseIconName = resolveFA4IconName(toString(raw?.qpIncreaseIcon, "")) || "plus";
+  const increaseIconColor = toString(raw?.qpIncreaseColor ?? raw?.qtyIconColor, "#111827");
+  const increaseIconSize = toNumber(raw?.qpIncreaseSize ?? raw?.qtyIconSize, 10);
+
+  const showDecrease = toBoolean(raw?.showDecrease, true);
+  const decreaseIconName = resolveFA4IconName(toString(raw?.qpDecreaseIcon, "")) || "minus";
+  const decreaseIconColor = toString(raw?.qpDecreaseColor ?? raw?.qtyIconColor, "#111827");
+  const decreaseIconSize = toNumber(raw?.qpDecreaseSize ?? raw?.qtyIconSize, 10);
+
   // Delete button
   const showDelete = toBoolean(raw?.showDelete ?? raw?.showDeleteButton, true);
-  const deleteIconColor = toString(raw?.deleteIconColor, "#9CA3AF");
-  const deleteIconSize = toNumber(raw?.deleteIconSize, 14);
+  const deleteIconColor = toString(raw?.qpDeleteColor ?? raw?.deleteIconColor, "#9CA3AF");
+  const deleteIconSize = toNumber(raw?.qpDeleteSize ?? raw?.deleteIconSize, 14);
 
   // Item icon (e.g. vendor/profile icon from DSR brandKit — shown top-right of each card)
-  const showItemIcon   = toBoolean(raw?.showItemIcon ?? raw?.showVendorIcon ?? raw?.showCardIcon, false);
+  // Icon.tsx's real key is "showIcon"; the show* aliases below are legacy/unused.
+  const showItemIcon   = toBoolean(raw?.showIcon ?? raw?.showItemIcon ?? raw?.showVendorIcon ?? raw?.showCardIcon, true);
   const rawItemIcon    = toString(
     raw?.itemIcon ?? raw?.itemIconName ?? raw?.vendorIcon ?? raw?.cardIcon ?? raw?.iconName ?? raw?.icon,
     ""
   );
-  const itemIconName   = showItemIcon ? (resolveFA4IconName(rawItemIcon) || "user") : null;
+  // Match Preview's own gate exactly: an icon shows only when both the eye is
+  // on AND the merchant has actually picked one — no default fallback glyph.
+  // A "custom-icon::<url>" value (BrandKit-uploaded icon) never resolves via
+  // resolveFA4IconName, so it silently rendered nothing — add the same
+  // custom-icon URL fallback used elsewhere in the app (e.g. OrderSummary.js).
+  const itemIconUrl     = showItemIcon ? getCustomIconUrlFromValue(rawItemIcon) : null;
+  const itemIconName   = showItemIcon && rawItemIcon && !itemIconUrl ? resolveFA4IconName(rawItemIcon) : "";
   const itemIconSize   = toNumber(raw?.itemIconSize ?? raw?.cardIconSize ?? raw?.iconSize, 18);
   const itemIconColor  = toString(raw?.itemIconColor ?? raw?.cardIconColor ?? raw?.iconColor, "#9CA3AF");
   const itemIconBg     = toString(raw?.itemIconBg ?? raw?.cardIconBg ?? raw?.iconBg, "transparent");
@@ -303,7 +447,6 @@ export default function CartLineItems({ section }) {
   const variantFontFamily  = cleanFontFamily(toString(raw?.variantFontFamily  ?? raw?.fontFamily, ""));
   const priceFontFamily    = cleanFontFamily(toString(raw?.priceFontFamily    ?? raw?.fontFamily, ""));
   const savingsFontFamily  = cleanFontFamily(toString(raw?.savingsFontFamily  ?? raw?.fontFamily, ""));
-  const qtyFontFamily      = cleanFontFamily(toString(raw?.qtyFontFamily      ?? raw?.fontFamily, ""));
   const titleLineHeight = toNumber(raw?.titleLineHeight, lineHeightFor(titleSize, 1.3));
   const variantLineHeight = toNumber(raw?.variantLineHeight, lineHeightFor(variantSize, 1.35));
   const vendorLineHeight = toNumber(raw?.vendorLineHeight, lineHeightFor(vendorSize, 1.35));
@@ -314,7 +457,10 @@ export default function CartLineItems({ section }) {
     raw?.emptySubtitle ?? raw?.emptyCartSubtitle ?? raw?.emptyDescription,
     "Looks like you haven't added anything to your cart yet"
   );
-  const showEmptyButton = false;
+  // No Inspector control currently sets this, but it should still be
+  // DSL-driven on principle (matching every other flag in this file) rather
+  // than a literal constant that would silently ignore a future control.
+  const showEmptyButton = toBoolean(raw?.showEmptyButton, false);
   const emptyButtonText = toString(raw?.emptyButtonText ?? raw?.continueShoppingText, "Continue Shopping");
   const emptyIconName = resolveFA4IconName(toString(raw?.emptyIcon ?? raw?.emptyCartIcon, "shopping-bag")) || "shopping-bag";
   const emptyIconColor = toString(raw?.emptyIconColor, "#B6B6B6");
@@ -420,6 +566,8 @@ export default function CartLineItems({ section }) {
           paddingBottom: padB,
           paddingLeft: padL,
           gap: cardGap,
+          ...containerBorderStyle,
+          borderColor: containerBorderColor,
         },
       ]}
     >
@@ -455,6 +603,9 @@ export default function CartLineItems({ section }) {
             item?.merchandise?.title,
           ""
         );
+        // Reflects availability at add-to-cart time — the cart doesn't do a
+        // live re-check, so an item that sells out afterward won't flip this.
+        const isSoldOut = item?.soldOut === true || item?.availableForSale === false;
         const quantity = toNumber(item?.quantity, 1);
         const price = toNumber(item?.price, 0);
         const compareAt = toNumber(item?.compareAtPrice, 0);
@@ -511,12 +662,13 @@ export default function CartLineItems({ section }) {
               ]}
             >
               {/* Image */}
+              {showImage && (
               <View
                 style={[
                   styles.imageWrap,
                   {
                     width: imageSize,
-                    height: imageSize,
+                    height: imageHeight,
                     borderRadius: imageRadius,
                     backgroundColor: imageBg,
                   },
@@ -532,9 +684,10 @@ export default function CartLineItems({ section }) {
                   <View style={[styles.imagePlaceholder, { backgroundColor: imageBg }]} />
                 )}
               </View>
+              )}
 
               {/* Item icon — top-right of card, only when DSR provides it */}
-              {showItemIcon && !!itemIconName && (
+              {showItemIcon && (itemIconUrl || !!itemIconName) && (
                 <View
                   style={[
                     styles.itemIconWrap,
@@ -542,12 +695,20 @@ export default function CartLineItems({ section }) {
                   ]}
                   pointerEvents="none"
                 >
-                  <FontAwesome name={itemIconName} size={itemIconSize} color={itemIconColor} />
+                  {itemIconUrl ? (
+                    <Image
+                      source={{ uri: itemIconUrl }}
+                      style={{ width: itemIconSize, height: itemIconSize }}
+                      resizeMode="contain"
+                    />
+                  ) : (
+                    <FontAwesome name={itemIconName} size={itemIconSize} color={itemIconColor} />
+                  )}
                 </View>
               )}
 
               {/* Right content */}
-              <View style={[styles.info, { minHeight: imageSize, gap: contentGap }]}>
+              <View style={[styles.info, { minHeight: showImage ? imageHeight : 0, gap: contentGap }]}>
 
                 {/* Title */}
                 {showTitle && !!itemTitle && (
@@ -579,14 +740,33 @@ export default function CartLineItems({ section }) {
                   </Text>
                 )}
 
-                {/* Price row */}
-                {showPrice && (
-                  <View style={styles.priceRow}>
-                    <Text style={[styles.price, { color: priceColor, fontSize: priceSize, fontWeight: priceWeight, lineHeight: priceLineHeight, ...(priceFontFamily ? { fontFamily: priceFontFamily } : {}) }]}>
-                      {fmtPrice(displayPrice, itemCurrency)}
+                {/* Sold Out badge */}
+                {isSoldOut && showSoldOut && (
+                  <View style={[styles.badge, soldOutBoxStyle]}>
+                    <Text
+                      style={{
+                        color: soldOutColor,
+                        fontSize: soldOutFontSize,
+                        fontWeight: soldOutFontWeight,
+                        textTransform: soldOutTextTransform,
+                        ...(soldOutFontFamily ? { fontFamily: soldOutFontFamily } : {}),
+                      }}
+                    >
+                      Sold Out
                     </Text>
+                  </View>
+                )}
+
+                {/* Price row */}
+                {showPrice && !isSoldOut && (
+                  <View style={styles.priceRow}>
+                    {showStandardPrice && (
+                      <Text style={[styles.price, { color: priceColor, fontSize: priceSize, fontWeight: priceWeight, lineHeight: priceLineHeight, ...(priceFontFamily ? { fontFamily: priceFontFamily } : {}) }]}>
+                        {fmtPrice(displayPrice, itemCurrency)}
+                      </Text>
+                    )}
                     {showCompareAt && compareAt > 0 && (
-                      <Text style={[styles.compareAt, { color: compareAtColor, fontSize: compareAtSize, lineHeight: priceLineHeight, ...(priceFontFamily ? { fontFamily: priceFontFamily } : {}) }]}>
+                      <Text style={[styles.compareAt, { color: compareAtColor, fontSize: compareAtSize, fontWeight: compareAtWeight, lineHeight: priceLineHeight, ...(compareAtFontFamily ? { fontFamily: compareAtFontFamily } : {}) }]}>
                         {fmtPrice(displayCompareAt, itemCurrency)}
                       </Text>
                     )}
@@ -594,21 +774,17 @@ export default function CartLineItems({ section }) {
                 )}
 
                 {/* Savings badge */}
-                {showSavings && savings > 0 && (
+                {!isSoldOut && showSavings && savings > 0 && (
                   <View
                     style={[
                       styles.badge,
-                      {
-                        backgroundColor: savingsBg,
-                        borderColor: savingsBorderColor,
-                        borderRadius: savingsBorderRadius,
-                      },
+                      savingsBoxStyle,
                     ]}
                   >
                     <Text
                       style={[
                         styles.badgeText,
-                        { color: savingsColor, fontSize: savingsFontSize, fontWeight: savingsFontWeight, ...(savingsFontFamily ? { fontFamily: savingsFontFamily } : {}) },
+                        { color: savingsColor, fontSize: savingsFontSize, fontWeight: savingsFontWeight, textTransform: savingsTextTransform, ...(savingsFontFamily ? { fontFamily: savingsFontFamily } : {}) },
                       ]}
                     >
                       {savingsLabel} : {fmtPrice(savings, itemCurrency)}
@@ -634,6 +810,8 @@ export default function CartLineItems({ section }) {
                           color: discountBadgeColor,
                           fontSize: discountBadgeFontSize,
                           fontWeight: discountBadgeFontWeight,
+                          textTransform: discountBadgeTextTransform,
+                          ...(discountBadgeFontFamily ? { fontFamily: discountBadgeFontFamily } : {}),
                         },
                       ]}
                     >
@@ -643,10 +821,11 @@ export default function CartLineItems({ section }) {
                 )}
 
                 {/* Quantity + Delete row */}
-                {showQuantityControls && (
+                {!isSoldOut && showQuantityControls && (
                   <View style={[styles.qtyRow, { justifyContent: qtyJustifyContent }]}>
                     <View style={[styles.qtyControls, { backgroundColor: qtyWrapBgColor }]}>
                       {/* Minus */}
+                      {showDecrease && (
                       <TouchableOpacity
                         style={[
                           styles.qtyBtn,
@@ -664,15 +843,19 @@ export default function CartLineItems({ section }) {
                         }}
                         hitSlop={{ top: 4, bottom: 4, left: 4, right: 4 }}
                       >
-                        <FontAwesome name="minus" size={qtyIconSize} color={qtyIconColor} />
+                        <FontAwesome name={decreaseIconName} size={decreaseIconSize} color={decreaseIconColor} />
                       </TouchableOpacity>
+                      )}
 
                       {/* Count */}
-                      <Text style={[styles.qtyText, { color: qtyTextColor, fontSize: qtyTextSize, ...(qtyFontFamily ? { fontFamily: qtyFontFamily } : {}) }]}>
+                      {showQtyText && (
+                      <Text style={[styles.qtyText, { color: qtyTextColor, fontSize: qtyTextSize, fontWeight: qtyTextWeight, ...(qtyTextFontFamily ? { fontFamily: qtyTextFontFamily } : {}) }]}>
                         {quantity}
                       </Text>
+                      )}
 
                       {/* Plus */}
+                      {showIncrease && (
                       <TouchableOpacity
                         style={[
                           styles.qtyBtn,
@@ -690,8 +873,9 @@ export default function CartLineItems({ section }) {
                         }}
                         hitSlop={{ top: 4, bottom: 4, left: 4, right: 4 }}
                       >
-                        <FontAwesome name="plus" size={qtyIconSize} color={qtyIconColor} />
+                        <FontAwesome name={increaseIconName} size={increaseIconSize} color={increaseIconColor} />
                       </TouchableOpacity>
+                      )}
                     </View>
 
                     {/* Delete */}
