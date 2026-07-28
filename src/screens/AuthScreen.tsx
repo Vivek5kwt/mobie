@@ -34,6 +34,19 @@ type ButtonGradient = {
 };
 
 type SignInTokens = {
+  emailInputVisible: boolean;
+  passwordInputVisible: boolean;
+  buttonVisible: boolean;
+  iconsVisible: boolean;
+  bgPadVisible: boolean;
+  forgotPasswordText: string;
+  forgotPasswordColor: string;
+  forgotPasswordPt: number;
+  forgotPasswordPb: number;
+  forgotPasswordBold: boolean;
+  forgotPasswordItalic: boolean;
+  forgotPasswordUnderline: boolean;
+  forgotPasswordStrikethrough: boolean;
   bgColor: string;
   titleColor: string;
   cardBgColor: string;
@@ -240,7 +253,9 @@ type SignUpTokens = SignInTokens & {
   footerLinkAutoUppercase: boolean;
   footerVisible: boolean;
   signInLinkVisible: boolean;
+  signInLinkTextVisible: boolean;
   buttonVisible: boolean;
+  buttonIconsVisible: boolean;
   showProfilePicture: boolean;
   profilePictureUrl: string;
   profilePictureSize: number;
@@ -255,6 +270,9 @@ type SignUpTokens = SignInTokens & {
 };
 
 type ForgotPasswordTokens = {
+  headlineVisible: boolean;
+  bgPaddingVisible: boolean;
+  borderLine: string;
   bgColor: string;
   titleColor: string;
   cardBgColor: string;
@@ -325,6 +343,14 @@ type ForgotPasswordTokens = {
 // ForgotPasswordTokens above, which only covers the small "Forgot Password?" link
 // shown on the SignIn page (component id `forgot_password`).
 type ResetPasswordTokens = {
+  headingVisible: boolean;
+  inputVisible: boolean;
+  inputPlaceholderVisible: boolean;
+  inputBgVisible: boolean;
+  buttonVisible: boolean;
+  buttonTextVisible: boolean;
+  buttonIconVisible: boolean;
+  buttonBgVisible: boolean;
   headingText: string;
   descriptionColor: string;
   descriptionFontSize: number;
@@ -345,9 +371,16 @@ type ResetPasswordTokens = {
   cardPaddingRight: number;
   emailPlaceholder: string;
   emailPlaceholderColor: string;
+  emailPlaceholderFontSize: number;
+  emailPlaceholderFontFamily: string;
+  emailPlaceholderFontWeight: string;
+  emailPlaceholderFontStyle: 'normal' | 'italic';
+  emailPlaceholderTextDecoration: 'none' | 'underline' | 'line-through' | 'underline line-through';
   inputTextColor: string;
   inputFontSize: number;
   inputFontFamily: string;
+  inputFontWeight: string;
+  inputBgColor: string;
   inputBorderColor: string;
   inputBorderRadius: number;
   inputHeight: number;
@@ -369,6 +402,11 @@ type ResetPasswordTokens = {
   buttonFontWeight: string;
   buttonFontStyle: 'normal' | 'italic';
   buttonTextDecoration: 'none' | 'underline' | 'line-through' | 'underline line-through';
+  buttonUppercase: boolean;
+  buttonIcon: string;
+  buttonIconSize: number;
+  buttonIconColor: string;
+  buttonIconAlign: string;
   successMessageText: string;
   errorMessageText: string;
   successMessageBgColor: string;
@@ -634,6 +672,32 @@ const resolveBorderWidth = (line: unknown, color: unknown, fallback: number): nu
   return fallback;
 };
 
+// Builder's BorderLineControl lets a merchant pick a single side
+// (none/left/right/top/bottom/all) rather than always drawing a full
+// 4-side border — produces the matching RN per-side border style object.
+const borderSideStyleWeb = (
+  line: string,
+  width: number,
+  color: string
+): Record<string, number | string> => {
+  const w = Math.max(0, width);
+  switch (String(line || '').toLowerCase()) {
+    case 'none':
+      return { borderWidth: 0 };
+    case 'top':
+      return { borderWidth: 0, borderTopWidth: w, borderColor: color };
+    case 'bottom':
+      return { borderWidth: 0, borderBottomWidth: w, borderColor: color };
+    case 'left':
+      return { borderWidth: 0, borderLeftWidth: w, borderColor: color };
+    case 'right':
+      return { borderWidth: 0, borderRightWidth: w, borderColor: color };
+    case 'all':
+    default:
+      return { borderWidth: w, borderColor: color };
+  }
+};
+
 const resolveAuthVerticalSpace = (value: number, viewportHeight: number, maxViewportShare: number): number => {
   const normalized = Number.isFinite(value) ? Math.max(0, value) : 0;
   if (!Number.isFinite(viewportHeight) || viewportHeight <= 0) return normalized;
@@ -757,6 +821,19 @@ const getSectionRawProps = (section: Record<string, unknown> | null | undefined)
 };
 
 const defaultSignInTokens: SignInTokens = {
+  emailInputVisible: true,
+  passwordInputVisible: true,
+  buttonVisible: true,
+  iconsVisible: true,
+  bgPadVisible: true,
+  forgotPasswordText: 'Forgot Password?',
+  forgotPasswordColor: '#027579',
+  forgotPasswordPt: 12,
+  forgotPasswordPb: 0,
+  forgotPasswordBold: false,
+  forgotPasswordItalic: false,
+  forgotPasswordUnderline: false,
+  forgotPasswordStrikethrough: false,
   bgColor: '#F3F7F7',
   titleColor: '#065F63',
   cardBgColor: '#FFFFFF',
@@ -879,6 +956,9 @@ const defaultSignInTokens: SignInTokens = {
 };
 
 const defaultForgotPasswordTokens: ForgotPasswordTokens = {
+  headlineVisible: true,
+  bgPaddingVisible: true,
+  borderLine: 'none',
   bgColor: '#FFFFFF',
   // titleColor/headlineText/headlineFontSize/Family/Weight/TextAlign below serve the
   // small "Forgot Password?" LINK shown on the Signin page (Builder's forgot_password
@@ -957,6 +1037,14 @@ const defaultForgotPasswordTokens: ForgotPasswordTokens = {
 // button are entirely hardcoded there too (no live Inspector binding reaches the
 // canvas), so these defaults ARE the real spec and are never overridden from DSL.
 const defaultResetPasswordTokens: ResetPasswordTokens = {
+  headingVisible: true,
+  inputVisible: true,
+  inputPlaceholderVisible: true,
+  inputBgVisible: true,
+  buttonVisible: true,
+  buttonTextVisible: true,
+  buttonIconVisible: true,
+  buttonBgVisible: true,
   headingText: "Enter your email and we'll send you a password reset link.",
   descriptionColor: '#333333',
   descriptionFontSize: 18,
@@ -977,9 +1065,16 @@ const defaultResetPasswordTokens: ResetPasswordTokens = {
   cardPaddingRight: 0,
   emailPlaceholder: 'you@example.com',
   emailPlaceholderColor: '#9CA3AF',
+  emailPlaceholderFontSize: 14,
+  emailPlaceholderFontFamily: 'Inter',
+  emailPlaceholderFontWeight: '400',
+  emailPlaceholderFontStyle: 'normal',
+  emailPlaceholderTextDecoration: 'none',
   inputTextColor: '#111827',
   inputFontSize: 14,
   inputFontFamily: 'Inter',
+  inputFontWeight: '400',
+  inputBgColor: '#FFFFFF',
   inputBorderColor: '#D9DEE5',
   inputBorderRadius: 8,
   inputHeight: 52,
@@ -1001,6 +1096,11 @@ const defaultResetPasswordTokens: ResetPasswordTokens = {
   buttonFontWeight: '500',
   buttonFontStyle: 'normal',
   buttonTextDecoration: 'none',
+  buttonUppercase: false,
+  buttonIcon: '',
+  buttonIconSize: 16,
+  buttonIconColor: '#3B3C40',
+  buttonIconAlign: 'right',
   successMessageText: 'If an account exists for this email, a password reset link has been sent.',
   errorMessageText: 'Password reset is temporarily unavailable. Please try again later.',
   successMessageBgColor: '#ECFDF5',
@@ -1126,7 +1226,9 @@ const defaultSignUpTokens: SignUpTokens = {
   footerLinkAutoUppercase: false,
   footerVisible: true,
   signInLinkVisible: true,
+  signInLinkTextVisible: true,
   buttonVisible: true,
+  buttonIconsVisible: true,
   showProfilePicture: false,
   profilePictureUrl: '',
   profilePictureSize: 72,
@@ -1346,8 +1448,12 @@ const buildSignInTokens = (rawProps: Record<string, unknown>): SignInTokens => (
   bgColor: (rawProps?.bgColor as string) ?? defaultSignInTokens.bgColor,
   titleColor: (rawProps?.titleColor as string) ?? defaultSignInTokens.titleColor,
   cardBgColor: (rawProps?.cardBgColor as string) ?? defaultSignInTokens.cardBgColor,
-  cardBorderColor: (rawProps?.cardBorderColor as string) ?? defaultSignInTokens.cardBorderColor,
-  cardBorderWidth: resolveBorderWidth(rawProps?.borderLine, rawProps?.cardBorderColor ?? rawProps?.borderColor, defaultSignInTokens.cardBorderWidth),
+  // Inspector's live "Border Color" control (Background & Padding section)
+  // writes `borderColor`, not `cardBorderColor` (the Authentication section's
+  // own Card Background/Border color pickers are commented out/dead) — the
+  // chosen color never reached the render without this alias.
+  cardBorderColor: (pick(rawProps, ['borderColor', 'cardBorderColor']) as string) ?? defaultSignInTokens.cardBorderColor,
+  cardBorderWidth: resolveBorderWidth(rawProps?.borderLine, rawProps?.borderColor ?? rawProps?.cardBorderColor, defaultSignInTokens.cardBorderWidth),
   cardBorderRadius: toNumber(rawProps?.borderRadius, defaultSignInTokens.cardBorderRadius),
   cardPaddingTop: toNumber(rawProps?.pt ?? rawProps?.paddingTop, defaultSignInTokens.cardPaddingTop),
   cardPaddingBottom: toNumber(rawProps?.pb ?? rawProps?.paddingBottom, defaultSignInTokens.cardPaddingBottom),
@@ -1375,7 +1481,12 @@ const buildSignInTokens = (rawProps: Record<string, unknown>): SignInTokens => (
   // drift confirmed in SignUp — must be the first candidate ahead of the
   // registry-seeded capitalized spelling.
   buttonBorderColor: (pick(rawProps, ['buttonborderColor', 'buttonBorderColor']) as string) ?? defaultSignInTokens.buttonBorderColor,
-  buttonBorderWidth: resolveBorderWidth(rawProps?.buttonBorderLine, pick(rawProps, ['buttonborderColor', 'buttonBorderColor']), defaultSignInTokens.buttonBorderWidth),
+  // Sign In's Inspector has no line-side control for the button border (only
+  // a Border Color picker) — Preview always draws a fixed 1px border
+  // whenever that color is set (PreviewLive.tsx:820). Routing this through
+  // resolveBorderWidth (which needs a real "line" value) always fell into
+  // its "no line, return 0" branch, so the button border never rendered.
+  buttonBorderWidth: pick(rawProps, ['buttonborderColor', 'buttonBorderColor']) ? 1 : defaultSignInTokens.buttonBorderWidth,
   buttonPaddingTop: toNumber(rawProps?.buttonPaddingTop, defaultSignInTokens.buttonPaddingTop),
   buttonPaddingBottom: toNumber(rawProps?.buttonPaddingBottom, defaultSignInTokens.buttonPaddingBottom),
   buttonAutoUppercase: (rawProps?.buttonAutoUppercase as boolean) ?? defaultSignInTokens.buttonAutoUppercase,
@@ -1426,9 +1537,37 @@ const buildSignInTokens = (rawProps: Record<string, unknown>): SignInTokens => (
   footerLinkFontFamily: toFontFamily(rawProps?.footerLinkFontFamily ?? rawProps?.fontFamily, defaultSignInTokens.footerLinkFontFamily),
   footerLinkFontWeight: toFontWeight(rawProps?.footerLinkFontWeight, defaultSignInTokens.footerLinkFontWeight, rawProps?.footerLinkTextBold as boolean | undefined),
   footerLinkAlignment: (rawProps?.footerLinkAlignment as string) ?? defaultSignInTokens.footerLinkAlignment,
-  footerVisible: toBoolean(rawProps?.footerVisible, defaultSignInTokens.footerVisible),
-  forgotPasswordVisible: toBoolean(rawProps?.forgotPasswordVisible, defaultSignInTokens.forgotPasswordVisible),
+  // Inspector's footer section writes createAccountLinkVisible (whole
+  // section) and textVisible (its nested "Text" sub-toggle) — `footerVisible`
+  // is a key nothing ever writes, so this was permanently stuck at its
+  // default `true` regardless of either real toggle.
+  footerVisible:
+    toBoolean(rawProps?.createAccountLinkVisible, defaultSignInTokens.footerVisible) &&
+    toBoolean(rawProps?.textVisible, true),
+  // The embedded case (a Forgot Password block dragged onto the Sign In
+  // block) toggles via `showForgotPassword`, written by AppNavigation.tsx —
+  // `forgotPasswordVisible` alone is never set by that flow.
+  forgotPasswordVisible: toBoolean(rawProps?.showForgotPassword ?? rawProps?.forgotPasswordVisible, defaultSignInTokens.forgotPasswordVisible),
   authVisible: toBoolean(rawProps?.authVisible, defaultSignInTokens.authVisible),
+  emailInputVisible: toBoolean(rawProps?.emailInputVisible, defaultSignInTokens.emailInputVisible),
+  passwordInputVisible: toBoolean(rawProps?.passwordInputVisible, defaultSignInTokens.passwordInputVisible),
+  buttonVisible: toBoolean(rawProps?.buttonVisible, defaultSignInTokens.buttonVisible),
+  iconsVisible: toBoolean(rawProps?.iconsVisible, defaultSignInTokens.iconsVisible),
+  bgPadVisible: toBoolean(rawProps?.bgPadVisible, defaultSignInTokens.bgPadVisible),
+  // Sign In has no dedicated Inspector UI for the "Forgot Password" link —
+  // when a Forgot Password block is dragged onto the Sign In block in
+  // Builder, these fields get written directly onto the Sign In section's
+  // OWN props (see AppNavigation.tsx), not a separate forgot_password DSL
+  // section. Reading them here lets the embedded case work even when no
+  // standalone forgot_password section exists.
+  forgotPasswordText: toLocalizedString(rawProps?.forgotPasswordText, defaultSignInTokens.forgotPasswordText),
+  forgotPasswordColor: (rawProps?.forgotPasswordColor as string) ?? defaultSignInTokens.forgotPasswordColor,
+  forgotPasswordPt: toNumber(rawProps?.forgotPasswordPt, defaultSignInTokens.forgotPasswordPt),
+  forgotPasswordPb: toNumber(rawProps?.forgotPasswordPb, defaultSignInTokens.forgotPasswordPb),
+  forgotPasswordBold: toBoolean(rawProps?.forgotPasswordBold, defaultSignInTokens.forgotPasswordBold),
+  forgotPasswordItalic: toBoolean(rawProps?.forgotPasswordItalic, defaultSignInTokens.forgotPasswordItalic),
+  forgotPasswordUnderline: toBoolean(rawProps?.forgotPasswordUnderline, defaultSignInTokens.forgotPasswordUnderline),
+  forgotPasswordStrikethrough: toBoolean(rawProps?.forgotPasswordStrikethrough, defaultSignInTokens.forgotPasswordStrikethrough),
   buttonRadius: toNumber(rawProps?.buttonRadius ?? rawProps?.buttonBorderRadius, defaultSignInTokens.buttonRadius),
   // NOTE: `borderRadius` is the card's corner-radius field (see cardBorderRadius
   // above) — Builder's SignIn/PreviewLive.tsx renders the input radius as a flat
@@ -1475,15 +1614,24 @@ const buildSignInTokens = (rawProps: Record<string, unknown>): SignInTokens => (
 
 const buildForgotPasswordTokens = (rawProps: Record<string, unknown>): ForgotPasswordTokens => ({
   ...defaultForgotPasswordTokens,
+  // Headline (InspectorLive.tsx:179) and Background & Padding
+  // (InspectorLive.tsx:456) each have their own independent eye toggle —
+  // neither was previously read at all, so turning either off in Builder
+  // had zero effect on the APK.
+  headlineVisible: toBoolean(rawProps?.headlineVisible, defaultForgotPasswordTokens.headlineVisible),
+  bgPaddingVisible: toBoolean(rawProps?.bgPaddingVisible, defaultForgotPasswordTokens.bgPaddingVisible),
+  borderLine: toStringValue(rawProps?.borderLine, defaultForgotPasswordTokens.borderLine).toLowerCase(),
   bgColor: toLocalizedString(rawProps?.bgColor ?? rawProps?.backgroundColor, defaultForgotPasswordTokens.bgColor),
   titleColor: toLocalizedString(
     firstDefined(rawProps?.headlineColor, rawProps?.titleColor),
     defaultForgotPasswordTokens.titleColor
   ),
   cardBgColor: toLocalizedString(rawProps?.cardBgColor, defaultForgotPasswordTokens.cardBgColor),
-  cardBorderColor: toLocalizedString(rawProps?.cardBorderColor, defaultForgotPasswordTokens.cardBorderColor),
-  cardBorderWidth: resolveBorderWidth(rawProps?.borderLine, rawProps?.cardBorderColor ?? rawProps?.borderColor, defaultForgotPasswordTokens.cardBorderWidth),
-  cardBorderRadius: toNumber(rawProps?.borderRadius, defaultForgotPasswordTokens.cardBorderRadius),
+  cardBorderColor: toLocalizedString(rawProps?.borderColor ?? rawProps?.cardBorderColor, defaultForgotPasswordTokens.cardBorderColor),
+  cardBorderWidth: resolveBorderWidth(rawProps?.borderLine, rawProps?.borderColor ?? rawProps?.cardBorderColor, defaultForgotPasswordTokens.cardBorderWidth),
+  // Real Inspector key is "borderCorners" (InspectorLive.tsx:529) — the
+  // never-editable "borderRadius" key was always a static, unwritten value.
+  cardBorderRadius: toNumber(rawProps?.borderCorners ?? rawProps?.borderRadius, defaultForgotPasswordTokens.cardBorderRadius),
   cardPaddingTop: toNumber(rawProps?.pt ?? rawProps?.paddingTop, defaultForgotPasswordTokens.cardPaddingTop),
   cardPaddingBottom: toNumber(rawProps?.pb ?? rawProps?.paddingBottom, defaultForgotPasswordTokens.cardPaddingBottom),
   cardPaddingLeft: toNumber(rawProps?.pl ?? rawProps?.paddingLeft, defaultForgotPasswordTokens.cardPaddingLeft),
@@ -1588,6 +1736,27 @@ const buildForgotPasswordTokens = (rawProps: Record<string, unknown>): ForgotPas
   fields: buildForgotPasswordFields(rawProps),
 });
 
+// When a "Forgot Password" block is dragged onto the Sign In block in
+// Builder, its text/color/spacing/format fields (forgotPasswordText,
+// forgotPasswordColor, forgotPasswordPt/Pb, forgotPasswordBold/Italic/
+// Underline/Strikethrough) get written directly onto the Sign In section's
+// OWN props (see AppNavigation.tsx) rather than becoming a separate
+// forgot_password DSL section — this is the common case in practice. Builds
+// a ForgotPasswordTokens-shaped object from those embedded fields so the
+// same render path can be reused; there's no separate box/background
+// control in this embedded variant, so the box styling stays off.
+const buildEmbeddedForgotPasswordTokens = (signInRawProps: Record<string, unknown>): ForgotPasswordTokens => ({
+  ...defaultForgotPasswordTokens,
+  headlineVisible: true,
+  bgPaddingVisible: false,
+  headlineText: toLocalizedString(signInRawProps?.forgotPasswordText, defaultForgotPasswordTokens.headlineText),
+  titleColor: (signInRawProps?.forgotPasswordColor as string) ?? defaultForgotPasswordTokens.titleColor,
+  headlineFontWeight: toFontWeight(undefined, defaultForgotPasswordTokens.headlineFontWeight, signInRawProps?.forgotPasswordBold as boolean | undefined),
+  headlineFontStyle: (signInRawProps?.forgotPasswordItalic as boolean | undefined) ? 'italic' : 'normal',
+  headlineTextDecoration: toTextDecoration(signInRawProps?.forgotPasswordUnderline as boolean | undefined, signInRawProps?.forgotPasswordStrikethrough as boolean | undefined),
+  loginLinkMarginTop: toNumber(signInRawProps?.forgotPasswordPt, defaultForgotPasswordTokens.loginLinkMarginTop),
+});
+
 // Reads Builder's real "Reset Password" page component (`reset_password`). Its
 // background/border/padding controls are nested under `buyNow`/`addToCart` (a
 // schema borrowed from the AddToCart block) rather than the flat pt/pb/pl/pr keys
@@ -1601,6 +1770,7 @@ const buildResetPasswordTokens = (rawProps: Record<string, unknown>): ResetPassw
   const addToCart = toRecord(rawProps?.addToCart);
   const visibility = toRecord(rawProps?.visibility);
   const showBgSection = toBoolean(firstDefined(visibility?.buyNowBgPadding), true);
+  const showInputBgSection = toBoolean(firstDefined(visibility?.inputBg), true);
   // `title` is deliberately excluded from this chain: liveRegistry.ts seeds a
   // registry-default `title` on every reset_password block, which would always
   // shadow the RN default below before the merchant ever touches the Text field.
@@ -1612,6 +1782,17 @@ const buildResetPasswordTokens = (rawProps: Record<string, unknown>): ResetPassw
   );
   return {
     ...defaultResetPasswordTokens,
+    // Inspector's VIS_DEFAULT toggles (Inspector.tsx:142-149) — only
+    // visibility.buyNowBgPadding was previously read; the other 5 (heading,
+    // inputBg, button, buttonIcon, buttonBg) had no reader at all.
+    headingVisible: toBoolean(firstDefined(visibility?.heading), defaultResetPasswordTokens.headingVisible),
+    inputVisible: toBoolean(firstDefined(visibility?.input), defaultResetPasswordTokens.inputVisible),
+    inputPlaceholderVisible: toBoolean(firstDefined(visibility?.inputPlaceholder), defaultResetPasswordTokens.inputPlaceholderVisible),
+    inputBgVisible: toBoolean(firstDefined(visibility?.inputBg), defaultResetPasswordTokens.inputBgVisible),
+    buttonVisible: toBoolean(firstDefined(visibility?.button), defaultResetPasswordTokens.buttonVisible),
+    buttonTextVisible: toBoolean(firstDefined(visibility?.buttonText), defaultResetPasswordTokens.buttonTextVisible),
+    buttonIconVisible: toBoolean(firstDefined(visibility?.buttonIcon), defaultResetPasswordTokens.buttonIconVisible),
+    buttonBgVisible: toBoolean(firstDefined(visibility?.buttonBg), defaultResetPasswordTokens.buttonBgVisible),
     headingText: heading || defaultResetPasswordTokens.headingText,
     descriptionColor: toLocalizedString(rawProps?.descriptionColor, defaultResetPasswordTokens.descriptionColor),
     descriptionFontSize: toNumber(rawProps?.descriptionFontSize, defaultResetPasswordTokens.descriptionFontSize),
@@ -1629,10 +1810,20 @@ const buildResetPasswordTokens = (rawProps: Record<string, unknown>): ResetPassw
     descriptionAlign: toTextAlign(rawProps?.descriptionAlign, defaultResetPasswordTokens.descriptionAlign),
     cardBgColor: showBgSection ? toLocalizedString(buyNow?.bgColor, defaultResetPasswordTokens.cardBgColor) : 'transparent',
     cardBorderColor: toLocalizedString(buyNow?.borderColor, defaultResetPasswordTokens.cardBorderColor),
+    // buyNow.borderLine's real values are the words "left/right/top/bottom/
+    // all/none" (BorderLineControl), never a numeric pixel string —
+    // resolveBorderWidth's non-numeric branch was falling through to the
+    // token's own "off" default (0), so a border never actually rendered
+    // even with a side/color explicitly chosen. Preview always draws 1px
+    // solid when a border is on, so pass that literal as the fallback.
     cardBorderWidth: showBgSection
-      ? resolveBorderWidth(buyNow?.borderLine, buyNow?.borderColor, defaultResetPasswordTokens.cardBorderWidth)
+      ? resolveBorderWidth(buyNow?.borderLine, buyNow?.borderColor, 1)
       : 0,
-    cardBorderRadius: showBgSection ? toNumber(addToCart?.contBorderRadius, defaultResetPasswordTokens.cardBorderRadius) : 0,
+    // Inspector's Container Background & Padding now writes buyNow.borderRadius
+    // (moved from addToCart.contBorderRadius so every field in this group
+    // lives under the same parent) — addToCart kept as a fallback for
+    // already-saved pages using the old key.
+    cardBorderRadius: showBgSection ? toNumber(firstDefined(buyNow?.borderRadius, addToCart?.contBorderRadius), defaultResetPasswordTokens.cardBorderRadius) : 0,
     cardPaddingTop: showBgSection ? toNumber(buyNow?.pt, defaultResetPasswordTokens.cardPaddingTop) : 0,
     cardPaddingBottom: showBgSection ? toNumber(buyNow?.pb, defaultResetPasswordTokens.cardPaddingBottom) : 0,
     cardPaddingLeft: showBgSection ? toNumber(buyNow?.pl, defaultResetPasswordTokens.cardPaddingLeft) : 0,
@@ -1642,17 +1833,26 @@ const buildResetPasswordTokens = (rawProps: Record<string, unknown>): ResetPassw
       firstDefined(rawProps?.buttonColor, rawProps?.buttonTextColor),
       defaultResetPasswordTokens.buttonTextColor
     ),
-    buttonBorderColor: toLocalizedString(rawProps?.buttonBorderColor, defaultResetPasswordTokens.buttonBorderColor),
-    buttonBorderWidth: toNumber(rawProps?.buttonBorderWidth, defaultResetPasswordTokens.buttonBorderWidth),
+    // The Button "Background & Padding" panel's real keys all live nested
+    // under buyNow.* (buttonbgColor/buttonborderColor/buttonborderLine/
+    // buttonpt-pr) or addToCart.* (buttonBorderRadius) — the flat top-level
+    // keys read below were never written by the Inspector, so this whole
+    // panel had zero effect regardless of what the merchant set.
+    buttonBorderColor: toLocalizedString(firstDefined(buyNow?.buttonborderColor, rawProps?.buttonBorderColor), defaultResetPasswordTokens.buttonBorderColor),
+    // buyNow.buttonborderLine is a side word (left/right/top/bottom/all/none),
+    // not a pixel width — mirror the same fallback-to-1 fix as cardBorderWidth.
+    buttonBorderWidth: resolveBorderWidth(buyNow?.buttonborderLine, buyNow?.buttonborderColor, 1),
     buttonFillColor: toLocalizedString(
-      firstDefined(rawProps?.buttonBgColor, rawProps?.buttonFillColor),
+      firstDefined(buyNow?.buttonbgColor, rawProps?.buttonBgColor, rawProps?.buttonFillColor),
       defaultResetPasswordTokens.buttonFillColor
     ),
-    buttonRadius: toNumber(rawProps?.buttonRadius, defaultResetPasswordTokens.buttonRadius),
-    buttonPaddingTop: toNumber(rawProps?.buttonPaddingTop, defaultResetPasswordTokens.buttonPaddingTop),
-    buttonPaddingBottom: toNumber(rawProps?.buttonPaddingBottom, defaultResetPasswordTokens.buttonPaddingBottom),
-    buttonPaddingLeft: toNumber(rawProps?.buttonPaddingLeft, defaultResetPasswordTokens.buttonPaddingLeft),
-    buttonPaddingRight: toNumber(rawProps?.buttonPaddingRight, defaultResetPasswordTokens.buttonPaddingRight),
+    // Moved from addToCart.buttonBorderRadius to buyNow.buttonBorderRadius,
+    // alongside every other Button Background & Padding field.
+    buttonRadius: toNumber(firstDefined(buyNow?.buttonBorderRadius, addToCart?.buttonBorderRadius, rawProps?.buttonRadius), defaultResetPasswordTokens.buttonRadius),
+    buttonPaddingTop: toNumber(firstDefined(buyNow?.buttonpt, rawProps?.buttonPaddingTop), defaultResetPasswordTokens.buttonPaddingTop),
+    buttonPaddingBottom: toNumber(firstDefined(buyNow?.buttonpb, rawProps?.buttonPaddingBottom), defaultResetPasswordTokens.buttonPaddingBottom),
+    buttonPaddingLeft: toNumber(firstDefined(buyNow?.buttonpl, rawProps?.buttonPaddingLeft), defaultResetPasswordTokens.buttonPaddingLeft),
+    buttonPaddingRight: toNumber(firstDefined(buyNow?.buttonpr, rawProps?.buttonPaddingRight), defaultResetPasswordTokens.buttonPaddingRight),
     buttonMarginTop: toNumber(rawProps?.buttonMarginTop, defaultResetPasswordTokens.buttonMarginTop),
     buttonFontSize: toNumber(rawProps?.buttonFontSize, defaultResetPasswordTokens.buttonFontSize),
     buttonFontFamily: toFontFamily(rawProps?.buttonFontFamily, defaultResetPasswordTokens.buttonFontFamily),
@@ -1664,6 +1864,53 @@ const buildResetPasswordTokens = (rawProps: Record<string, unknown>): ResetPassw
       toBoolean(rawProps?.buttonUnderline, false),
       toBoolean(rawProps?.buttonStrikethrough, false)
     ),
+    buttonUppercase: toBoolean(rawProps?.buttonUppercase, defaultResetPasswordTokens.buttonUppercase),
+    buttonIcon: toStringValue(rawProps?.buttonIcon, defaultResetPasswordTokens.buttonIcon),
+    buttonIconSize: toNumber(rawProps?.buttonIconSize, defaultResetPasswordTokens.buttonIconSize),
+    buttonIconColor: toLocalizedString(rawProps?.buttonIconColor, defaultResetPasswordTokens.buttonIconColor),
+    buttonIconAlign: toStringValue(rawProps?.buttonIconAlign, defaultResetPasswordTokens.buttonIconAlign),
+    // Input's "Placeholder" panel (Inspector.tsx, nested under the "Input"
+    // parent) writes emailPlaceholder/emailPlaceholderColor/
+    // emailPlaceholderFontSize/emailPlaceholderFontFamily/
+    // emailPlaceholderFontWeight/emailPlaceholderBold/Italic/Underline/
+    // Strikethrough flat on rawProps — none of these were ever resolved
+    // here, so the placeholder text and its styling were permanently stuck
+    // at the hardcoded default.
+    emailPlaceholder: toLocalizedString(rawProps?.emailPlaceholder, defaultResetPasswordTokens.emailPlaceholder),
+    emailPlaceholderColor: toLocalizedString(rawProps?.emailPlaceholderColor, defaultResetPasswordTokens.emailPlaceholderColor),
+    emailPlaceholderFontSize: toNumber(rawProps?.emailPlaceholderFontSize, defaultResetPasswordTokens.emailPlaceholderFontSize),
+    emailPlaceholderFontFamily: toFontFamily(rawProps?.emailPlaceholderFontFamily, defaultResetPasswordTokens.emailPlaceholderFontFamily),
+    emailPlaceholderFontWeight: toBoolean(rawProps?.emailPlaceholderBold, false)
+      ? '700'
+      : toFontWeight(rawProps?.emailPlaceholderFontWeight, defaultResetPasswordTokens.emailPlaceholderFontWeight),
+    emailPlaceholderFontStyle: toBoolean(rawProps?.emailPlaceholderItalic, false) ? 'italic' : 'normal',
+    emailPlaceholderTextDecoration: toTextDecoration(
+      toBoolean(rawProps?.emailPlaceholderUnderline, false),
+      toBoolean(rawProps?.emailPlaceholderStrikethrough, false)
+    ),
+    // Input's "Input Text" panel writes inputFontSize/inputFontFamily/
+    // inputFontWeight/inputTextColor flat on rawProps — same
+    // resolved-but-never-assigned gap as the placeholder fields above.
+    inputTextColor: toLocalizedString(rawProps?.inputTextColor, defaultResetPasswordTokens.inputTextColor),
+    inputFontSize: toNumber(rawProps?.inputFontSize, defaultResetPasswordTokens.inputFontSize),
+    inputFontFamily: toFontFamily(rawProps?.inputFontFamily, defaultResetPasswordTokens.inputFontFamily),
+    inputFontWeight: toFontWeight(rawProps?.inputFontWeight, defaultResetPasswordTokens.inputFontWeight),
+    // Input's "Background & Padding" panel (Inspector.tsx, nested under the
+    // new "Input" parent) writes buyNow.inputBgColor/inputBorderLine/
+    // inputBorderColor/inputBorderRadius/inputpt-pr — none of these were
+    // ever resolved here, so the whole panel was 100% cosmetic in Builder
+    // only and had zero effect in the APK (always the hardcoded default).
+    inputBgColor: showInputBgSection ? toLocalizedString(buyNow?.inputBgColor, defaultResetPasswordTokens.inputBgColor) : 'transparent',
+    inputBorderColor: toLocalizedString(buyNow?.inputBorderColor, defaultResetPasswordTokens.inputBorderColor),
+    inputBorderRadius: showInputBgSection
+      ? toNumber(buyNow?.inputBorderRadius, defaultResetPasswordTokens.inputBorderRadius)
+      : 0,
+    inputPaddingHorizontal: showInputBgSection
+      ? toNumber(buyNow?.inputpl ?? buyNow?.inputpr, defaultResetPasswordTokens.inputPaddingHorizontal)
+      : 0,
+    inputPaddingVertical: showInputBgSection
+      ? toNumber(buyNow?.inputpt ?? buyNow?.inputpb, defaultResetPasswordTokens.inputPaddingVertical)
+      : 0,
   };
 };
 
@@ -1672,14 +1919,22 @@ const buildSignUpTokens = (rawProps: Record<string, unknown>): SignUpTokens => (
   bgColor: (rawProps?.bgColor as string) ?? defaultSignUpTokens.bgColor,
   titleColor: (rawProps?.titleColor as string) ?? defaultSignUpTokens.titleColor,
   cardBgColor: (rawProps?.cardBgColor as string) ?? defaultSignUpTokens.cardBgColor,
-  cardBorderColor: (rawProps?.cardBorderColor as string) ?? defaultSignUpTokens.cardBorderColor,
-  cardBorderWidth: resolveBorderWidth(rawProps?.borderLine, rawProps?.cardBorderColor ?? rawProps?.borderColor, defaultSignUpTokens.cardBorderWidth),
+  // Inspector's live "Border Color" control (Background & Padding section)
+  // writes `borderColor`, not `cardBorderColor` (the Authentication
+  // section's own Card Background/Border pickers are commented out/dead).
+  cardBorderColor: (pick(rawProps, ['borderColor', 'cardBorderColor']) as string) ?? defaultSignUpTokens.cardBorderColor,
+  cardBorderWidth: resolveBorderWidth(rawProps?.borderLine, rawProps?.borderColor ?? rawProps?.cardBorderColor, defaultSignUpTokens.cardBorderWidth),
   // SignUp's "Background & Padding" section writes borderRadiusBox, not borderRadius.
   cardBorderRadius: toNumber(pick(rawProps, ['borderRadiusBox', 'borderRadius']), defaultSignUpTokens.cardBorderRadius),
-  cardPaddingTop: toNumber(rawProps?.pt ?? rawProps?.paddingTop, defaultSignUpTokens.cardPaddingTop),
-  cardPaddingBottom: toNumber(rawProps?.pb ?? rawProps?.paddingBottom, defaultSignUpTokens.cardPaddingBottom),
-  cardPaddingLeft: toNumber(rawProps?.pl ?? rawProps?.paddingLeft, defaultSignUpTokens.cardPaddingLeft),
-  cardPaddingRight: toNumber(rawProps?.pr ?? rawProps?.paddingRight, defaultSignUpTokens.cardPaddingRight),
+  // The "Background & Padding" PaddingGrid writes subgpt/subgpb/subgpl/subgpr
+  // — these are the real, live-editable card-content padding values (Preview
+  // applies them inside the card, around the fields). `pt/pb/pl/pr` are
+  // never written by any control, so reading those left this permanently
+  // stuck at the hardcoded 20px default.
+  cardPaddingTop: toNumber(rawProps?.subgpt ?? rawProps?.pt ?? rawProps?.paddingTop, defaultSignUpTokens.cardPaddingTop),
+  cardPaddingBottom: toNumber(rawProps?.subgpb ?? rawProps?.pb ?? rawProps?.paddingBottom, defaultSignUpTokens.cardPaddingBottom),
+  cardPaddingLeft: toNumber(rawProps?.subgpl ?? rawProps?.pl ?? rawProps?.paddingLeft, defaultSignUpTokens.cardPaddingLeft),
+  cardPaddingRight: toNumber(rawProps?.subgpr ?? rawProps?.pr ?? rawProps?.paddingRight, defaultSignUpTokens.cardPaddingRight),
   formGap: toNumber(rawProps?.formGap ?? rawProps?.titleFormGap ?? rawProps?.headerBottomGap, defaultSignUpTokens.formGap),
   fieldGap: toNumber(rawProps?.fieldGap ?? rawProps?.inputGap ?? rawProps?.fieldMarginBottom, defaultSignUpTokens.fieldGap),
   inputPaddingHorizontal: toNumber(rawProps?.inputPaddingHorizontal ?? rawProps?.inputPx ?? rawProps?.fieldPaddingHorizontal, defaultSignUpTokens.inputPaddingHorizontal),
@@ -1689,10 +1944,15 @@ const buildSignUpTokens = (rawProps: Record<string, unknown>): SignUpTokens => (
   footerMarginTop: toNumber(rawProps?.footerMarginTop ?? rawProps?.footerMt ?? rawProps?.footerPt, defaultSignUpTokens.footerMarginTop),
   footerLinkMarginTop: toNumber(rawProps?.footerLinkMarginTop ?? rawProps?.footerLinkMt ?? rawProps?.signInLinkPt, defaultSignUpTokens.footerLinkMarginTop),
   footerInline: toBoolean(rawProps?.footerInline ?? rawProps?.footerSameLine, defaultSignUpTokens.footerInline),
-  pagePaddingTop: toNumber(rawProps?.subgpt ?? rawProps?.bgpt ?? rawProps?.pagePaddingTop, defaultSignUpTokens.pagePaddingTop),
-  pagePaddingBottom: toNumber(rawProps?.subgpb ?? rawProps?.bgpb ?? rawProps?.pagePaddingBottom, defaultSignUpTokens.pagePaddingBottom),
-  pagePaddingLeft: toNumber(rawProps?.subgpl ?? rawProps?.bgpl ?? rawProps?.pagePaddingLeft, defaultSignUpTokens.pagePaddingLeft),
-  pagePaddingRight: toNumber(rawProps?.subgpr ?? rawProps?.bgpr ?? rawProps?.pagePaddingRight, defaultSignUpTokens.pagePaddingRight),
+  // subgpt/subgpb/subgpl/subgpr are the card's own content padding (see
+  // cardPaddingTop/etc above) — they must not also feed the outer page
+  // margin, or the same slider would double up on two unrelated things.
+  // There's no live Inspector control for outer page margin on Sign Up, so
+  // this stays at its fixed default.
+  pagePaddingTop: toNumber(rawProps?.bgpt ?? rawProps?.pagePaddingTop, defaultSignUpTokens.pagePaddingTop),
+  pagePaddingBottom: toNumber(rawProps?.bgpb ?? rawProps?.pagePaddingBottom, defaultSignUpTokens.pagePaddingBottom),
+  pagePaddingLeft: toNumber(rawProps?.bgpl ?? rawProps?.pagePaddingLeft, defaultSignUpTokens.pagePaddingLeft),
+  pagePaddingRight: toNumber(rawProps?.bgpr ?? rawProps?.pagePaddingRight, defaultSignUpTokens.pagePaddingRight),
   inputBorderColor: (rawProps?.inputBorderColor as string) ?? defaultSignUpTokens.inputBorderColor,
   inputHeight: toNumber(rawProps?.inputHeight ?? rawProps?.fieldHeight, defaultSignUpTokens.inputHeight),
   authTitle: (rawProps?.authTitle as string) ?? defaultSignUpTokens.authTitle,
@@ -1831,7 +2091,14 @@ const buildSignUpTokens = (rawProps: Record<string, unknown>): SignUpTokens => (
   footerLinkAutoUppercase: (rawProps?.footerLinkAutoUppercase as boolean) ?? defaultSignUpTokens.footerLinkAutoUppercase,
   footerVisible: (rawProps?.footerVisible as boolean) ?? defaultSignUpTokens.footerVisible,
   signInLinkVisible: (rawProps?.signInLinkVisible as boolean) ?? defaultSignUpTokens.signInLinkVisible,
+  // Preview only ever gates the link on signInLinkTextVisible (the nested
+  // "Text" sub-toggle) — signInLinkVisible (whole-section toggle) is
+  // destructured in Preview but never actually applied. RN previously did
+  // the opposite (only read signInLinkVisible). Honor both so either real
+  // toggle hides the link.
+  signInLinkTextVisible: toBoolean(rawProps?.signInLinkTextVisible, defaultSignUpTokens.signInLinkTextVisible),
   buttonVisible: (rawProps?.buttonVisible as boolean) ?? defaultSignUpTokens.buttonVisible,
+  buttonIconsVisible: toBoolean(rawProps?.buttonIconsVisible, defaultSignUpTokens.buttonIconsVisible),
   // SignUp's Logo/Image section writes logoImgVisible/logoImage/logoBgColor/
   // logoBorderColor (distinct from SignIn's logoVisible/imageBgColor/
   // imageBorderColor) — the profile-picture-styled avatar block reuses these.
@@ -2284,6 +2551,7 @@ const AuthScreen = () => {
   const [resetPasswordTokens, setResetPasswordTokens] = useState<ResetPasswordTokens>(defaultResetPasswordTokens);
   const [signInDslSections, setSignInDslSections] = useState<Record<string, unknown>[]>([]);
   const [signUpDslSections, setSignUpDslSections] = useState<Record<string, unknown>[]>([]);
+  const [resetPasswordDslSections, setResetPasswordDslSections] = useState<Record<string, unknown>[]>([]);
   const [hasForgotPasswordSection, setHasForgotPasswordSection] = useState(false);
   const [dslLoaded, setDslLoaded] = useState(false);
   const [authLayoutBlocking, setAuthLayoutBlocking] = useState(true);
@@ -2415,7 +2683,13 @@ const AuthScreen = () => {
         setSignInDslSections(signInSections as Record<string, unknown>[]);
         setHasForgotPasswordSection(hasEnabledForgotPasswordSection || nextSignInTokens.forgotPasswordVisible);
         setSignInTokens(nextSignInTokens);
-        setForgotPasswordTokens(forgotSection ? buildForgotPasswordTokens(forgotRawProps) : defaultForgotPasswordTokens);
+        setForgotPasswordTokens(
+          forgotSection
+            ? buildForgotPasswordTokens(forgotRawProps)
+            : nextSignInTokens.forgotPasswordVisible
+              ? buildEmbeddedForgotPasswordTokens(signInRawProps)
+              : defaultForgotPasswordTokens
+        );
         if (hasLiveSignInPage) hasLiveSignInLayoutRef.current = true;
       }
 
@@ -2429,6 +2703,7 @@ const AuthScreen = () => {
       if (resetPasswordSections) {
         const resetPasswordSection = resetPasswordSections.find(isResetPasswordSection);
         setResetPasswordTokens(resetPasswordSection ? buildResetPasswordTokens(getSectionRawProps(resetPasswordSection)) : defaultResetPasswordTokens);
+        setResetPasswordDslSections(resetPasswordSections as Record<string, unknown>[]);
         if (hasLiveResetPasswordPage) hasLiveResetPasswordLayoutRef.current = true;
       }
     } finally {
@@ -2626,10 +2901,26 @@ const AuthScreen = () => {
   const submitButtonFontSize = isForgotMode ? resetPasswordTokens.buttonFontSize : t.buttonFontSize;
   const submitButtonFontFamily = isForgotMode ? resetPasswordTokens.buttonFontFamily : t.buttonFontFamily;
   const submitButtonFontWeight = isForgotMode ? resetPasswordTokens.buttonFontWeight : t.buttonFontWeight;
-  // Forgot-password has no icon control in Builder — icon only applies to login/signup.
-  const submitButtonIconName = isForgotMode ? null : resolveButtonIconName(t.buttonIcon);
+  // SignIn's Icons toggle key is `iconsVisible`; SignUp's is the distinct
+  // `buttonIconsVisible`; Reset Password's is `buttonIconVisible` — none of
+  // these alias each other in the Inspector.
+  const submitIconsVisible = isForgotMode
+    ? resetPasswordTokens.buttonIconVisible
+    : mode === 'signup'
+      ? signUpTokens.buttonIconsVisible
+      : signInTokens.iconsVisible;
+  const submitButtonIconName = !submitIconsVisible
+    ? null
+    : resolveButtonIconName(isForgotMode ? resetPasswordTokens.buttonIcon : t.buttonIcon);
+  const submitButtonIconSize = isForgotMode ? resetPasswordTokens.buttonIconSize : t.buttonIconSize;
+  const submitButtonIconColor = isForgotMode ? resetPasswordTokens.buttonIconColor : t.buttonIconColor;
+  const submitButtonIconAlign = isForgotMode ? resetPasswordTokens.buttonIconAlign : t.buttonIconAlignment;
 
-  const submitButtonText = (
+  // Reset Password's "Text" sub-card (under Button) has its own eye toggle
+  // (visibility.buttonText) — no equivalent exists for SignIn/SignUp, so
+  // this only ever hides the label in forgot mode.
+  const submitTextVisible = !isForgotMode || resetPasswordTokens.buttonTextVisible;
+  const submitButtonText = submitTextVisible ? (
     <Text
       allowFontScaling={false}
       style={{
@@ -2639,22 +2930,24 @@ const AuthScreen = () => {
         fontFamily: submitButtonFontFamily !== 'System' ? submitButtonFontFamily : undefined,
         fontStyle: isForgotMode ? resetPasswordTokens.buttonFontStyle : t.buttonTextFontStyle,
         textDecorationLine: isForgotMode ? resetPasswordTokens.buttonTextDecoration : t.buttonTextTextDecoration,
+        textTransform: isForgotMode && resetPasswordTokens.buttonUppercase ? 'uppercase' : 'none',
       }}
     >
       {buttonLabel}
     </Text>
-  );
+  ) : null;
 
+  const submitIconOnRight = String(submitButtonIconAlign || '').toLowerCase() === 'right';
   const submitButtonContent = loading ? (
     <ActivityIndicator color={submitButtonTextColor} />
   ) : submitButtonIconName ? (
     <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
-      {t.buttonIconAlignment === 'Right' ? null : (
-        <Icon name={submitButtonIconName} size={t.buttonIconSize} color={t.buttonIconColor} />
+      {submitIconOnRight ? null : (
+        <Icon name={submitButtonIconName} size={submitButtonIconSize} color={submitButtonIconColor} />
       )}
       {submitButtonText}
-      {t.buttonIconAlignment === 'Right' ? (
-        <Icon name={submitButtonIconName} size={t.buttonIconSize} color={t.buttonIconColor} />
+      {submitIconOnRight ? (
+        <Icon name={submitButtonIconName} size={submitButtonIconSize} color={submitButtonIconColor} />
       ) : null}
     </View>
   ) : (
@@ -2679,12 +2972,50 @@ const AuthScreen = () => {
   );
 
   const hasDynamicSignUpLayout = mode === 'signup' && signUpDecorSections.length > 0;
+  // Reset Password's page DSL may hold other Builder blocks placed alongside
+  // the reset_password form (logo, image, extra text, etc.) — these were
+  // fetched into resetPasswordDslSections but never rendered, so the APK
+  // only ever showed the fixed heading/input/button, never anything else
+  // the merchant dragged onto that page in Builder. Builder's own array
+  // order IS the merchant's drag-and-drop sequence (fetchDSL returns
+  // dsl.sections in the same order they were saved), so split on the
+  // reset_password section's own index instead of dumping everything above
+  // the form — a block placed below the form in Builder must render below
+  // it here too, not get hoisted above.
+  const resetPasswordFormIndex = useMemo(
+    () => resetPasswordDslSections.findIndex(isResetPasswordSection),
+    [resetPasswordDslSections]
+  );
+  const resetPasswordDecorBefore = useMemo(
+    () =>
+      (resetPasswordFormIndex < 0
+        ? resetPasswordDslSections
+        : resetPasswordDslSections.slice(0, resetPasswordFormIndex)
+      ).filter((section) => isAllowedAuthDecorSection(section)),
+    [resetPasswordDslSections, resetPasswordFormIndex]
+  );
+  const resetPasswordDecorAfter = useMemo(
+    () =>
+      (resetPasswordFormIndex < 0
+        ? []
+        : resetPasswordDslSections.slice(resetPasswordFormIndex + 1)
+      ).filter((section) => isAllowedAuthDecorSection(section)),
+    [resetPasswordDslSections, resetPasswordFormIndex]
+  );
+  const hasDynamicResetPasswordLayout = isForgotMode && resetPasswordDecorBefore.length > 0;
+  const activeResetPasswordDecorAfter = useMemo(
+    () => resetPasswordDecorAfter.map((section) => withAuthViewport(section, viewportHeight)),
+    [resetPasswordDecorAfter, viewportHeight]
+  );
   const activeDecorSections = useMemo(
     () =>
-      (mode === 'signup' ? signUpDecorSections : signInDecorSections).map((section) =>
-        withAuthViewport(section, viewportHeight)
-      ),
-    [mode, signInDecorSections, signUpDecorSections, viewportHeight]
+      (mode === 'signup'
+        ? signUpDecorSections
+        : mode === 'forgot'
+          ? resetPasswordDecorBefore
+          : signInDecorSections
+      ).map((section) => withAuthViewport(section, viewportHeight)),
+    [mode, signInDecorSections, signUpDecorSections, resetPasswordDecorBefore, viewportHeight]
   );
 
   if (!dslLoaded || authLayoutBlocking) return <AuthLayoutSkeleton />;
@@ -2719,7 +3050,7 @@ const AuthScreen = () => {
   const footerLinkMarginTop = resolveAuthVerticalSpace(t.footerLinkMarginTop, viewportHeight, 0.02);
   const formCardMarginBottom = resolveAuthVerticalSpace(t.formCardMarginBottom, viewportHeight, 0.04);
   const forgotLoginLinkMarginTop = resolveAuthVerticalSpace(forgotPasswordTokens.loginLinkMarginTop, viewportHeight, 0.08);
-  const hasDynamicDecor = hasDynamicSignInLayout || hasDynamicSignUpLayout;
+  const hasDynamicDecor = hasDynamicSignInLayout || hasDynamicSignUpLayout || hasDynamicResetPasswordLayout;
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: activePageBgColor }}>
@@ -2735,7 +3066,7 @@ const AuthScreen = () => {
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => loadAuthLayout(true)} />}
         >
           {/* ── Page title ─────────────────────────────────────────────── */}
-          {hasDynamicSignInLayout || hasDynamicSignUpLayout ? (
+          {hasDynamicSignInLayout || hasDynamicSignUpLayout || hasDynamicResetPasswordLayout ? (
             activeDecorSections.map((section, index) => (
               <DynamicRenderer key={`${mode}-dsl-${index}`} section={section as any} />
             ))
@@ -2756,15 +3087,20 @@ const AuthScreen = () => {
               </Text>
             ) : null}
 
-            {mode === 'signup' ? (
+            {mode === 'signup' && signUpTokens.authVisible ? (
               <Text
                 style={{
                   color: signUpTokens.headerTitleColor,
                   fontSize: signUpTokens.headerTitleFontSize,
                   fontWeight: signUpTokens.headerTitleFontWeight as any,
                   fontFamily: signUpTokens.headerTitleFontFamily !== 'System' ? signUpTokens.headerTitleFontFamily : undefined,
-                  fontStyle: signUpTokens.headerTitleFontStyle,
-                  textDecorationLine: signUpTokens.headerTitleTextDecoration,
+                  // headerTitleFontStyle/headerTitleTextDecoration are never
+                  // resolved from rawProps (permanently stuck at 'normal'/
+                  // 'none') — headlineFontStyle/headlineTextDecoration ARE
+                  // correctly computed from authTitleItalic/Underline/
+                  // Strikethrough, just never read here until now.
+                  fontStyle: signUpTokens.headlineFontStyle,
+                  textDecorationLine: signUpTokens.headlineTextDecoration,
                 }}
               >
                 {signUpTokens.headerTitle}
@@ -2814,7 +3150,7 @@ const AuthScreen = () => {
               />
             ) : null}
 
-            {mode === 'forgot' && resetPasswordTokens.headingText ? (
+            {mode === 'forgot' && resetPasswordTokens.headingVisible && resetPasswordTokens.headingText ? (
               <Text
                 style={{
                   color: resetPasswordTokens.descriptionColor,
@@ -2907,21 +3243,26 @@ const AuthScreen = () => {
 
             {/* Reset Password email field — Builder's reset_password component has exactly
                 one hardcoded email input (no dynamic field list, no label). */}
-            {mode === 'forgot' ? (
+            {mode === 'forgot' && resetPasswordTokens.inputVisible ? (
               <FormField
                 label=""
                 labelVisible={false}
                 labelColor={resetPasswordTokens.inputTextColor}
                 labelAlign="left"
-                placeholder={resetPasswordTokens.emailPlaceholder}
-                placeholderVisible
+                placeholder={resetPasswordTokens.inputPlaceholderVisible ? resetPasswordTokens.emailPlaceholder : ''}
+                placeholderVisible={resetPasswordTokens.inputPlaceholderVisible}
                 placeholderColor={resetPasswordTokens.emailPlaceholderColor}
+                placeholderFontSize={resetPasswordTokens.emailPlaceholderFontSize}
+                placeholderFontFamily={resetPasswordTokens.emailPlaceholderFontFamily}
+                placeholderFontWeight={resetPasswordTokens.emailPlaceholderFontWeight}
+                placeholderFontStyle={resetPasswordTokens.emailPlaceholderFontStyle}
+                placeholderTextDecoration={resetPasswordTokens.emailPlaceholderTextDecoration}
                 value={forgotFieldValues.email ?? email}
                 onChangeText={(value) => handleForgotFieldChange('email', value)}
                 inputColor={resetPasswordTokens.inputTextColor}
                 inputFontSize={resetPasswordTokens.inputFontSize}
                 inputFontFamily={resetPasswordTokens.inputFontFamily}
-                inputFontWeight="400"
+                inputFontWeight={resetPasswordTokens.inputFontWeight}
                 inputAlign="left"
                 inputBorderColor={resetPasswordTokens.inputBorderColor}
                 inputBorderRadius={resetPasswordTokens.inputBorderRadius}
@@ -2929,7 +3270,7 @@ const AuthScreen = () => {
                 fieldGap={fieldGap}
                 inputPaddingHorizontal={resetPasswordTokens.inputPaddingHorizontal}
                 inputPaddingVertical={resetPasswordTokens.inputPaddingVertical}
-                cardBgColor={activeCardBgColor}
+                cardBgColor={resetPasswordTokens.inputBgColor}
                 keyboardType="email-address"
                 autoCapitalize="none"
                 autoCorrect={false}
@@ -2937,7 +3278,8 @@ const AuthScreen = () => {
             ) : null}
 
             {/* Email */}
-            {mode !== 'forgot' && (mode !== 'signup' || signUpTokens.emailInputVisible) ? (
+            {mode !== 'forgot' &&
+            (mode === 'login' ? signInTokens.emailInputVisible : signUpTokens.emailInputVisible) ? (
               <FormField
                 label={mode !== 'signup' ? signInTokens.emailLabelText : signUpTokens.emailLabelText}
                 labelVisible={mode !== 'signup' ? signInTokens.emailLabelVisible : signUpTokens.emailLabelVisible}
@@ -2975,7 +3317,8 @@ const AuthScreen = () => {
             ) : null}
 
             {/* Password */}
-            {(mode === 'login' || (mode === 'signup' && signUpTokens.passwordInputVisible)) ? (
+            {mode !== 'forgot' &&
+            (mode === 'login' ? signInTokens.passwordInputVisible : signUpTokens.passwordInputVisible) ? (
               <FormField
                 label={mode === 'login' ? signInTokens.passwordLabelText : signUpTokens.passwordLabelText}
                 labelVisible={mode === 'login' ? signInTokens.passwordLabelVisible : signUpTokens.passwordLabelVisible}
@@ -3058,21 +3401,25 @@ const AuthScreen = () => {
             ) : null}
 
             {/* Submit button */}
-            {(mode !== 'signup' || signUpTokens.buttonVisible) ? (
+            {(isForgotMode ? resetPasswordTokens.buttonVisible : (mode === 'login' ? signInTokens.buttonVisible : signUpTokens.buttonVisible)) ? (
               <TouchableOpacity
                 onPress={isForgotMode ? handleForgotPasswordSubmit : handleSubmit}
                 disabled={loading || initializing}
                 style={[
                   {
-                    backgroundColor: !isForgotMode && t.buttonGradient ? 'transparent' : isForgotMode ? resetPasswordTokens.buttonFillColor : t.buttonFillColor,
-                    borderRadius: isForgotMode ? resetPasswordTokens.buttonRadius : t.buttonRadius,
-                    borderWidth: isForgotMode ? resetPasswordTokens.buttonBorderWidth : t.buttonBorderWidth,
+                    backgroundColor: !isForgotMode && t.buttonGradient ? 'transparent' : isForgotMode ? (resetPasswordTokens.buttonBgVisible ? resetPasswordTokens.buttonFillColor : 'transparent') : t.buttonFillColor,
+                    borderRadius: isForgotMode ? (resetPasswordTokens.buttonBgVisible ? resetPasswordTokens.buttonRadius : 0) : t.buttonRadius,
+                    borderWidth: isForgotMode ? (resetPasswordTokens.buttonBgVisible ? resetPasswordTokens.buttonBorderWidth : 0) : t.buttonBorderWidth,
                     borderColor: isForgotMode ? resetPasswordTokens.buttonBorderColor : t.buttonBorderColor,
-                    height: isForgotMode ? undefined : t.buttonHeight,
-                    paddingTop: isForgotMode ? resetPasswordTokens.buttonPaddingTop : undefined,
-                    paddingBottom: isForgotMode ? resetPasswordTokens.buttonPaddingBottom : undefined,
-                    paddingLeft: isForgotMode ? resetPasswordTokens.buttonPaddingLeft : undefined,
-                    paddingRight: isForgotMode ? resetPasswordTokens.buttonPaddingRight : undefined,
+                    // Preview applies Padding Top/Bottom as real padding on
+                    // top of a minHeight (not a fixed height) for
+                    // login/signup too — using a hard `height` here made
+                    // those sliders have zero visible effect on the APK.
+                    minHeight: isForgotMode ? undefined : t.buttonHeight,
+                    paddingTop: isForgotMode ? (resetPasswordTokens.buttonBgVisible ? resetPasswordTokens.buttonPaddingTop : 0) : t.buttonPaddingTop,
+                    paddingBottom: isForgotMode ? (resetPasswordTokens.buttonBgVisible ? resetPasswordTokens.buttonPaddingBottom : 0) : t.buttonPaddingBottom,
+                    paddingLeft: isForgotMode ? (resetPasswordTokens.buttonBgVisible ? resetPasswordTokens.buttonPaddingLeft : 0) : 16,
+                    paddingRight: isForgotMode ? (resetPasswordTokens.buttonBgVisible ? resetPasswordTokens.buttonPaddingRight : 0) : 16,
                     justifyContent: 'center',
                     alignItems: 'center',
                     marginTop: buttonMarginTop,
@@ -3130,7 +3477,7 @@ const AuthScreen = () => {
                 >
                   {mode === 'login' ? signInTokens.footerText : signUpTokens.footerText}
                 </Text>
-                {(mode === 'login' || signUpTokens.signInLinkVisible) ? (
+                {(mode === 'login' || (signUpTokens.signInLinkVisible && signUpTokens.signInLinkTextVisible)) ? (
                   <TouchableOpacity
                     onPress={toggleMode}
                     accessibilityRole="button"
@@ -3161,14 +3508,27 @@ const AuthScreen = () => {
               </View>
             ) : null}
 
-            {/* Forgot password link (login only) */}
-            {mode === 'login' && hasForgotPasswordSection ? (
+            {/* Forgot password link (login only) — Preview wraps this headline in a
+                styleable box (background/border/padding, PreviewLive.tsx:162-180);
+                that box was never rendered here at all. */}
+            {mode === 'login' && hasForgotPasswordSection && forgotPasswordTokens.headlineVisible ? (
               <TouchableOpacity
                 onPress={openForgotPasswordMode}
                 accessibilityRole="button"
                 style={{
                   marginTop: forgotLoginLinkMarginTop,
                   alignSelf: toFlexAlign(forgotPasswordTokens.headlineTextAlign, 'center'),
+                  ...(forgotPasswordTokens.bgPaddingVisible
+                    ? {
+                        backgroundColor: forgotPasswordTokens.bgColor,
+                        borderRadius: forgotPasswordTokens.cardBorderRadius,
+                        paddingTop: forgotPasswordTokens.cardPaddingTop,
+                        paddingBottom: forgotPasswordTokens.cardPaddingBottom,
+                        paddingLeft: forgotPasswordTokens.cardPaddingLeft,
+                        paddingRight: forgotPasswordTokens.cardPaddingRight,
+                        ...borderSideStyleWeb(forgotPasswordTokens.borderLine, forgotPasswordTokens.cardBorderWidth, forgotPasswordTokens.cardBorderColor),
+                      }
+                    : null),
                 }}
               >
                 <Text
@@ -3188,6 +3548,13 @@ const AuthScreen = () => {
               </TouchableOpacity>
             ) : null}
           </View>
+
+          {/* Reset Password page blocks placed AFTER the form in Builder
+              (by array order) render here, below the form card. */}
+          {isForgotMode &&
+            activeResetPasswordDecorAfter.map((section, index) => (
+              <DynamicRenderer key={`forgot-dsl-after-${index}`} section={section as any} />
+            ))}
         </ScrollView>
       </KeyboardAvoidingView>
     </SafeAreaView>

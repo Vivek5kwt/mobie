@@ -1271,7 +1271,16 @@ export default function HeroBanner({ section }) {
   }
 
   const minHeightProp = numericMinHeight ? { minHeight: numericMinHeight } : {};
-  const resolvedImageAspectRatio = imageAspectRatio || naturalImageAspectRatio;
+  // Builder Preview only lets the box follow the image's own natural ratio
+  // when ratio is Auto AND scale is Fit ("imageSizedBlock") — under Fill it
+  // uses a fixed DEFAULT_BANNER_HEIGHT box instead, so Fit vs Fill stay
+  // visually distinguishable (Fit = no crop, Fill = crops/covers the fixed
+  // box). Previously this fell back to the natural ratio unconditionally,
+  // regardless of scale, which made Fit and Fill render identically once the
+  // image loaded.
+  const isFitScale = imageScale === "fit" || imageScale === "contain";
+  const resolvedImageAspectRatio =
+    imageAspectRatio || (isFitScale ? naturalImageAspectRatio : undefined);
 
   const containerHeightStyle = numericContainerHeight
     ? { height: numericContainerHeight, ...minHeightProp }

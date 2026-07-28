@@ -347,11 +347,11 @@ export default function ProductGrid({ section, limit = 8, title = "Products" }) 
     ],
     resolvedFavMode === "always show"
   );
-  // Intentionally NOT gated on resolvedShowHeaderGroup — that flag is the
-  // master eye for the title specifically, and View All has its own
-  // independent eye toggle. Tying them together made turning off the title
-  // also silently hide View All, which has nothing to do with the title.
-  const resolvedViewAllActive = resolveVisibilitySetting(
+  // resolvedShowHeaderGroup is the master "Header" eye — off hides both the
+  // title AND View All. Its own sub-eye (viewAllActive) stays independent
+  // from the title's sub-eye, so either can be hidden alone while the
+  // master stays on.
+  const resolvedViewAllActive = resolvedShowHeaderGroup && resolveVisibilitySetting(
     [
       rawProps?.viewAllActive,
       rawProps?.viewAllVisible,
@@ -541,6 +541,10 @@ export default function ProductGrid({ section, limit = 8, title = "Products" }) 
     cardImageCss?.objectFit,
     cardImageCss?.resizeMode
   );
+  // No dedicated Inspector control writes any of these image-background
+  // keys today, so this always falls back to the "Background & Padding"
+  // section's own bgColor, so any letterbox space around a Fit-scaled image
+  // blends with the block instead of a mismatched hardcoded white.
   const resolvedImageBgColor = toString(
     rawProps?.imageBackgroundColor ??
       rawProps?.productImageBackgroundColor ??
@@ -549,7 +553,7 @@ export default function ProductGrid({ section, limit = 8, title = "Products" }) 
       rawProps?.imageBg ??
       cardImageCss?.backgroundColor ??
       cardImageCss?.background,
-    "#FFFFFF"
+    toString(rawProps?.bgColor ?? presentationCss?.container?.backgroundColor, "#FFFFFF")
   );
   const imagePad             = resolveFirstNumber([rawProps?.imagePad, rawProps?.imagePadding, rawProps?.imageWrapperPad], 0);
 
@@ -842,6 +846,7 @@ export default function ProductGrid({ section, limit = 8, title = "Products" }) 
           vendor:         product?.vendor || "",
           variant:        product?.variantTitle || "",
           currency:       product?.priceCurrency || "",
+          availableForSale: isProductAvailable(product),
           quantity:       1,
         },
       })
@@ -1008,11 +1013,16 @@ export default function ProductGrid({ section, limit = 8, title = "Products" }) 
             // center-align branch it would otherwise be the sole absolutely-
             // positioned child of a row with nothing to give it height,
             // collapsing the row to 0 and letting the button float outside
-            // it (now clipped by the section's overflow:hidden). In the
-            // left/right branches, space-between has nothing to space
-            // against and collapses the lone child to the start. Both cases:
-            // fall back to a normal (non-absolute) flex-end row.
-            !resolvedShowGridTitle ? { justifyContent: "flex-end" } : null,
+            // it (now clipped by the section's overflow:hidden) — fall back
+            // to a normal (non-absolute) flex-end row, pinning it right
+            // (where it's absolutely pinned when the title IS shown).
+            // For "right" title-align, JSX order is [ViewAll, Title], so
+            // when both show, ViewAll sits on the LEFT (space-between's
+            // first child) — keep it there (flex-start) rather than
+            // snapping it to the right once the title disappears.
+            !resolvedShowGridTitle
+              ? { justifyContent: resolvedTitleAlign === "right" ? "flex-start" : "flex-end" }
+              : null,
           ]}
         >
           {resolvedTitleAlign === "center" ? (

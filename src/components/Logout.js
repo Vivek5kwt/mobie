@@ -13,6 +13,7 @@ import { useAuth } from "../services/AuthContext";
 import { resolveFont } from "../services/typographyService";
 import { resolveFA4IconName } from "../utils/faIconAlias";
 import { resolveTextDecorationLine } from "../utils/textDecoration";
+import { resolveDslNavigationTarget } from "../utils/navigationTarget";
 
 const deepUnwrap = (value) => {
   if (value === undefined || value === null) return value;
@@ -141,6 +142,33 @@ export default function Logout({ section }) {
     ...(textFontFamily ? { fontFamily: textFontFamily } : {}),
   };
 
+  // Inspector's "Redirect" panel (NavigateToField) writes navigateType/
+  // navigateRef/linkTo, but this was never read here — logout always reset
+  // to the Sign In screen regardless of what the merchant configured.
+  const performPostLogoutRedirect = () => {
+    const resolved = resolveDslNavigationTarget({
+      navigateType: raw?.navigateType,
+      navigateRef: raw?.navigateRef,
+      linkTo: raw?.linkTo,
+      target: raw?.navigateRef || raw?.linkTo,
+      fallbackTitle: "Home",
+    });
+
+    if (resolved?.type === "external" && resolved.url) {
+      navigation.navigate("CheckoutWebView", { url: resolved.url, title: resolved.title || "Page" });
+      return;
+    }
+
+    if (resolved?.type === "stack" && resolved.name) {
+      navigation.reset({ index: 0, routes: [{ name: resolved.name, params: resolved.params }] });
+      return;
+    }
+
+    // No redirect configured (or an unsupported/"back" result) — keep the
+    // original default of landing on Sign In after logging out.
+    navigation.reset({ index: 0, routes: [{ name: "Auth", params: { initialMode: "login" } }] });
+  };
+
   const handleLogoutPress = () => {
     if (initializing) return;
     const popupTitle = str(raw?.popupTitle ?? raw?.confirmTitle, label);
@@ -158,7 +186,7 @@ export default function Logout({ section }) {
           style: "destructive",
           onPress: async () => {
             await logout();
-            navigation.reset({ index: 0, routes: [{ name: "Auth", params: { initialMode: "login" } }] });
+            performPostLogoutRedirect();
           },
         },
       ],

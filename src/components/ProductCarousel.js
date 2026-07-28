@@ -505,10 +505,11 @@ export default function ProductCarousel({ section }) {
   );
 
   // View All configuration
-  // Intentionally NOT gated on headerGroupActive — that's the title's own
-  // master eye; View All has its own independent eye and shouldn't disappear
-  // just because the title was turned off (matches ProductGrid.js's fix).
-  const viewAllActive = resolveVisibilitySetting(
+  // headerGroupActive is the master "Header" eye — off hides both the title
+  // AND View All. Its own sub-eye (viewAllActive) stays independent from the
+  // title's sub-eye (gridTitleActive), so either can be hidden alone while
+  // the master stays on.
+  const viewAllActive = headerGroupActive && resolveVisibilitySetting(
     [
       raw?.viewAllActive,
       raw?.viewAllVisible,
@@ -570,6 +571,11 @@ export default function ProductCarousel({ section }) {
     [raw?.imageHeight, raw?.productImageHeight, raw?.imageH, cardImageStyleFromCss?.height],
     undefined
   );
+  // No dedicated Inspector control writes any of these image-background
+  // keys today, so this always falls back to bgColor — matching the
+  // "Background & Padding" section's own color, so any letterbox space
+  // around a Fit-scaled image blends with the block instead of a
+  // mismatched hardcoded white.
   const imageBgColor = toString(
     raw?.imageBackgroundColor ??
       raw?.productImageBackgroundColor ??
@@ -577,7 +583,7 @@ export default function ProductCarousel({ section }) {
       raw?.productImageBgColor ??
       raw?.imageBg ??
       cardImageStyleFromCss?.backgroundColor,
-    "#FFFFFF"
+    bgColor
   );
 
   // Title configuration
@@ -1010,6 +1016,7 @@ export default function ProductCarousel({ section }) {
           price: parseMoneyAmount(product.priceAmount ?? product.price) || 0,
           variant: "",
           currency: product.priceCurrency || "USD",
+          availableForSale: isProductAvailable(product),
           quantity: 1,
         },
       })
@@ -1333,8 +1340,12 @@ export default function ProductCarousel({ section }) {
             { marginBottom: headerBottomGap },
             // With the title hidden, "View all" is the row's only child —
             // space-between has nothing to space it against and collapses it
-            // to the start. Force it to the end so it still lands on the right.
-            !headerTextVisible ? styles.headerContainerViewAllOnly : null,
+            // to the start. Pin it to whichever side it already sits on when
+            // the title IS shown (children are reordered for "right" align,
+            // where View All is rendered first and sits on the left).
+            !headerTextVisible
+              ? (headerAlign === "right" ? styles.headerContainerViewAllLeft : styles.headerContainerViewAllOnly)
+              : null,
           ]}
         >
           {headerAlign === "right" ? (
@@ -1574,6 +1585,9 @@ const styles = StyleSheet.create({
   },
   headerContainerViewAllOnly: {
     justifyContent: "flex-end",
+  },
+  headerContainerViewAllLeft: {
+    justifyContent: "flex-start",
   },
   headerTextWrapper: {
     flex: 1,

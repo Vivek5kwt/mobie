@@ -63,7 +63,8 @@ const starStyles = StyleSheet.create({
 
 // ─── Single Card ──────────────────────────────────────────────────────────────
 
-function TestimonialCard({ item, cardStyle, avatarSize, avatarRadius, nameStyle, designationStyle, ratingConfig, descStyle }) {
+function TestimonialCard({ item, cardStyle, avatarSize, avatarHeight, avatarRadius, avatarResizeMode, nameStyle, designationStyle, ratingConfig, descStyle }) {
+  const resolvedAvatarHeight = avatarHeight ?? avatarSize;
   return (
     <View style={[styles.card, cardStyle]}>
       {/* Avatar */}
@@ -72,15 +73,15 @@ function TestimonialCard({ item, cardStyle, avatarSize, avatarRadius, nameStyle,
           source={{ uri: item.userImage }}
           style={[
             styles.avatar,
-            { width: avatarSize, height: avatarSize, borderRadius: avatarRadius },
+            { width: avatarSize, height: resolvedAvatarHeight, borderRadius: avatarRadius },
           ]}
-          resizeMode="cover"
+          resizeMode={avatarResizeMode || "cover"}
         />
       ) : (
         <View
           style={[
             styles.avatarPlaceholder,
-            { width: avatarSize, height: avatarSize, borderRadius: avatarRadius },
+            { width: avatarSize, height: resolvedAvatarHeight, borderRadius: avatarRadius },
           ]}
         >
           <FontAwesome name="user" size={avatarSize * 0.45} color="#9CA3AF" />
@@ -155,9 +156,29 @@ export default function TestimonialCardNew({ section }) {
   const cardBorderColor = String(cardCss.border || "").match(/#[0-9a-fA-F]+/)?.[0] || "#E5E7EB";
 
   // ── Avatar ─────────────────────────────────────────────────────────────────
-  const avatarDsl = dslStyles.avatar || {};
-  const avatarSize = Math.min(toNum(avatarDsl.size, 56), 80);
-  const avatarRadius = toNum(avatarDsl.borderRadius, 12);
+  // dslStyles.avatar was never populated (the CSS snapshot key is
+  // "profileMedia", and it lives under layout.css, not raw.styles) — this
+  // silently always used the hardcoded 56/12 defaults regardless of the
+  // merchant's Image Ratio/Scale/Corner selection. Read the same flat DSL
+  // keys Builder Preview itself reads (imageRatio/ratio, imageScale/scale,
+  // imageCorner) instead.
+  const avatarWidth = 54;
+  const avatarImageRatio = toStr(raw?.imageRatio ?? raw?.ratio, "Auto");
+  const avatarAspect =
+    avatarImageRatio === "2:3"
+      ? 2 / 3
+      : avatarImageRatio === "4:5"
+      ? 4 / 5
+      : avatarImageRatio === "4:3"
+      ? 4 / 3
+      : avatarImageRatio === "16:9"
+      ? 16 / 9
+      : 1;
+  const avatarSize = avatarWidth;
+  const avatarHeight = Math.round(avatarWidth / avatarAspect);
+  const avatarRadius = toNum(raw?.imageCorner, 10);
+  const avatarImageScale = toStr(raw?.imageScale ?? raw?.scale, "Fill");
+  const avatarResizeMode = avatarImageScale === "Fit" ? "contain" : "cover";
 
   // ── Name ───────────────────────────────────────────────────────────────────
   const headerDsl = dslStyles.header || {};
@@ -227,7 +248,9 @@ export default function TestimonialCardNew({ section }) {
               item={item}
               cardStyle={cardStyle}
               avatarSize={avatarSize}
+              avatarHeight={avatarHeight}
               avatarRadius={avatarRadius}
+              avatarResizeMode={avatarResizeMode}
               nameStyle={nameStyle}
               designationStyle={designationStyle}
               ratingConfig={ratingConfig}

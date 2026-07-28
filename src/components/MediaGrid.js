@@ -359,10 +359,16 @@ export default function MediaGrid({ section }) {
     toNumber(rawProps?.columns ?? rawProps?.gridColumns ?? cssColumns, 2)
   );
   const gap = Math.max(0, toNumber(rawProps?.cardGap ?? rawProps?.gap ?? layoutCss?.grid?.gap, 8));
-  // null means "Auto" - MediaCard will call Image.getSize per item.
+  // "Auto" used to resolve to null, which made MediaCard call Image.getSize
+  // and size the box to match each image's own natural ratio exactly — that
+  // defeats the Fit/Fill (resizeMode contain/cover) toggle the same way
+  // `aspect-ratio: auto` did in Builder Preview's CSS. Falling back to 1
+  // (square) keeps Fit/Fill visually distinguishable, matching the fix on
+  // the Builder side.
   const cardAspectRatio =
     parseAspectRatio(rawProps?.cardAspectRatio ?? rawProps?.imageRatio ?? rawProps?.ratio) ??
-    extractMetricAspectRatio(layoutMetrics);
+    extractMetricAspectRatio(layoutMetrics) ??
+    1;
 
   const showHeader = toBoolean(rawProps?.showHeader, true);
   const headerText = unwrapValue(
@@ -699,7 +705,10 @@ export default function MediaGrid({ section }) {
       cardTitleWeight={cardTitleWeight}
       cardTitleAlign={cardTitleAlign}
       cardTitleFontFamily={cardTitleFontFamily}
-      cardStyle={cardStyle}
+      // Match the "Background And Padding" section's own color so any
+      // letterbox space around a Fit-scaled image blends with the block
+      // instead of a mismatched hardcoded gray.
+      cardStyle={{ backgroundColor: bgColor, ...cardStyle }}
       mediaStyle={mediaStyle}
       resizeMode={resizeMode}
       showMediaImage={showMediaImage}

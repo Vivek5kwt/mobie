@@ -20,6 +20,7 @@ import { resolveFont } from "../services/typographyService";
 import { formatMoney as formatSharedMoney, parseMoneyAmount } from "../utils/money";
 import { resolveProductImageResizeMode } from "../utils/productImageFit";
 import { usePageEmptyStateReporter } from "../services/PageEmptyStateContext";
+import { navigateToDslTarget } from "../utils/navigationTarget";
 
 const deepUnwrap = (value) => {
   if (value === undefined || value === null) return value;
@@ -198,16 +199,22 @@ export default function OrderHistory({ section }) {
   const stylesFromDsl = useMemo(() => {
     const fontFamily = cleanFontFamily(raw?.fontFamily);
     const cardBorderWidth = toNum(raw?.borderWidth ?? raw?.cardBorderWidth, 0);
+    // Resolve the container's own background first so the card and image
+    // can fall back to it (matching the "Background & Padding" section's
+    // color) instead of each independently hardcoding white — keeps any
+    // letterbox space around a Fit-scaled image blended with the card.
+    const containerBg = toStr(raw?.bgColor ?? raw?.backgroundColor, "#FFFFFF");
+    const cardBg = toStr(raw?.cardBgColor ?? raw?.cardBg ?? raw?.itemBgColor, containerBg);
     return {
       container: {
-        backgroundColor: toStr(raw?.bgColor ?? raw?.backgroundColor, "#FFFFFF"),
+        backgroundColor: containerBg,
         paddingTop: toNum(raw?.pt ?? raw?.paddingTop, 12),
         paddingBottom: toNum(raw?.pb ?? raw?.paddingBottom, 12),
         paddingLeft: toNum(raw?.pl ?? raw?.paddingLeft, 12),
         paddingRight: toNum(raw?.pr ?? raw?.paddingRight, 12),
       },
       card: {
-        backgroundColor: toStr(raw?.cardBgColor ?? raw?.cardBg ?? raw?.itemBgColor, "#FFFFFF"),
+        backgroundColor: cardBg,
         borderRadius: toNum(raw?.borderRadius ?? raw?.radius ?? raw?.cardRadius, 0),
         borderColor: toStr(raw?.borderColor ?? raw?.cardBorderColor, "#F3F4F6"),
         ...(cardBorderWidth > 0 ? { borderWidth: cardBorderWidth } : {}),
@@ -237,7 +244,7 @@ export default function OrderHistory({ section }) {
             raw?.imageBackgroundColor ??
             raw?.productImageBgColor ??
             raw?.productImageBackgroundColor,
-          "#FFFFFF"
+          cardBg
         ),
       },
       price: {
@@ -262,6 +269,22 @@ export default function OrderHistory({ section }) {
   }, [raw]);
 
   const imageSize = Math.max(34, toNum(raw?.imageSize ?? raw?.thumbnailSize, 44));
+  // Inspector/Preview use imageRatioOH ("Auto"→square/"1:1"/"2:3"/"4:5"),
+  // matching Builder's default "1:1" — this was never read here at all, so
+  // the thumbnail was always forced square regardless of the merchant's
+  // Ratio selection.
+  const imageAspectOH = (() => {
+    const r = toStr(raw?.imageRatioOH, "1:1");
+    if (r === "Auto") return 1;
+    const m = r.match(/^(\d+(?:\.\d+)?)\s*:\s*(\d+(?:\.\d+)?)$/);
+    if (m) {
+      const w = parseFloat(m[1]);
+      const h = parseFloat(m[2]);
+      if (w > 0 && h > 0) return w / h;
+    }
+    return 1;
+  })();
+  const imageHeightOH = Math.round(imageSize / imageAspectOH);
   const reorderText = toStr(raw?.reorderText ?? raw?.buttonText ?? raw?.buttonLabel, "Reorder");
   const emptyTitle = toStr(raw?.emptyTitle ?? raw?.noOrderTitle, "No orders yet");
   const emptySubtitle = toStr(
@@ -273,7 +296,27 @@ export default function OrderHistory({ section }) {
   const emptyBgColor = toStr(raw?.emptyBgColor ?? raw?.emptyBackgroundColor, "#FFFFFF");
   usePageEmptyStateReporter("order_history", !loading && orders.length === 0);
 
+  // Inspector's "Redirection Destination" (NavigateToField) writes
+  // navigateType/navigateRef/linkTo, but this was never read here — tapping
+  // an order always opened OrderDetail regardless of what was configured.
+  const redirectNavigateType = toStr(raw?.navigateType, "");
+  const redirectNavigateRef = toStr(raw?.navigateRef, "");
+  const redirectLinkTo = toStr(raw?.linkTo, "");
+  const hasRedirectOverride =
+    redirectNavigateType && redirectNavigateType.toLowerCase() !== "none";
+
   const openOrder = (order) => {
+    if (hasRedirectOverride) {
+      void navigateToDslTarget(navigation, {
+        target: redirectNavigateRef || redirectLinkTo,
+        navigateRef: redirectNavigateRef,
+        navigateType: redirectNavigateType,
+        linkTo: redirectLinkTo,
+        fallbackTitle: "Order Details",
+        extraParams: { order },
+      });
+      return;
+    }
     navigation.navigate("OrderDetail", { order, title: "Order Details" });
   };
 
@@ -376,15 +419,16 @@ export default function OrderHistory({ section }) {
               {imageUrl ? (
                 <Image
                   source={{ uri: imageUrl }}
-                  style={[styles.image, stylesFromDsl.image, { width: imageSize, height: imageSize }]}
+                  style={[styles.image, stylesFromDsl.image, { width: imageSize, height: imageHeightOH }]}
                   resizeMode={resolveProductImageResizeMode(
+                    raw?.imageScaleOH,
                     raw?.imageScale,
                     raw?.scale,
                     raw?.imageResizeMode
                   )}
                 />
               ) : (
-                <View style={[styles.image, stylesFromDsl.image, styles.imageFallback, { width: imageSize, height: imageSize }]}>
+                <View style={[styles.image, stylesFromDsl.image, styles.imageFallback, { width: imageSize, height: imageHeightOH }]}>
                   <FontAwesome name="image" size={Math.max(14, imageSize * 0.38)} color="#D1D5DB" />
                 </View>
               )}

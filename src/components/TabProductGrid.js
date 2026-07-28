@@ -200,7 +200,10 @@ const isProductAvailable = (product) => {
   return true;
 };
 const COL_GAP = 8;
-const DEFAULT_IMAGE_ASPECT_RATIO = 1.55;
+// Matches Builder Preview's ratioToAspect() default ("3 / 4") for "Auto" and
+// any unmapped ratio value — was 1.55 (landscape), which never matched the
+// Builder's portrait default.
+const DEFAULT_IMAGE_ASPECT_RATIO = 3 / 4;
 
 export default function TabProductGrid({ section }) {
   const dispatch = useDispatch();
@@ -620,6 +623,11 @@ export default function TabProductGrid({ section }) {
   const showPrice      = showProductCard && toBool(rawConfig?.showPrice ?? rawConfig?.cardPriceActive, true);
   const showTitleText  = showProductCard && toBool(rawConfig?.showTitle ?? rawConfig?.cardTitleActive, true);
   const showCardImage  = showProductCard;
+  // No dedicated Inspector control writes any of these image-background
+  // keys today, so this always falls back to containerBg — matching the
+  // "Background & Padding" section's own color, so any letterbox space
+  // around a Fit-scaled image blends with the block instead of a
+  // mismatched hardcoded white.
   const imageBgColor = toStr(
     rawConfig?.imageBg ??
       rawConfig?.imageBgColor ??
@@ -627,9 +635,14 @@ export default function TabProductGrid({ section }) {
       rawConfig?.productImageBgColor ??
       rawConfig?.productImageBackgroundColor ??
       layoutCardImageCss?.backgroundColor,
-    "#FFFFFF"
+    containerBg
   );
+  // Builder's Inspector (InspectorLive.tsx:1068-1069) writes cardImageRatio/
+  // cardImageScale — the keys below were never what the Inspector actually
+  // writes, so the merchant's Ratio/Scale choice was silently ignored here
+  // regardless of value, always falling back to a fixed 1.55 landscape box.
   const productImageResizeMode = resolveProductImageResizeMode(
+    rawConfig?.cardImageScale,
     rawConfig?.imageScale,
     rawConfig?.scale,
     rawConfig?.imageResizeMode,
@@ -646,7 +659,10 @@ export default function TabProductGrid({ section }) {
     ],
     undefined
   );
+  // "Auto" (and any unmapped value) falls back to 3/4 to match Builder
+  // Preview's own ratioToAspect() default for this block.
   const imageAspectRatio =
+    parseAspectRatio(rawConfig?.cardImageRatio) ||
     parseAspectRatio(rawConfig?.cardImageAspectRatio) ||
     parseAspectRatio(rawConfig?.productImageAspectRatio) ||
     parseAspectRatio(rawConfig?.imageAspectRatio) ||
@@ -844,6 +860,7 @@ export default function TabProductGrid({ section }) {
           price: parseMoneyAmount(product.priceAmount ?? product.price) || 0,
           variant: "",
           currency: product.currency || "",
+          availableForSale: isProductAvailable(product),
           quantity: 1,
         },
       })

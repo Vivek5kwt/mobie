@@ -482,8 +482,6 @@ export default function BannerSlider({ section }) {
   const buttonIconColor = rp?.iconColor || buttonTextColor;
   const buttonIconGap = asNumber(rp?.iconGap ?? rp?.buttonIconGap, 6);
   const [containerWidth, setContainerWidth] = useState(Math.max(windowWidth, 1));
-  // Actual pixel dimensions of each banner image, keyed by URL
-  const [imageSizes, setImageSizes] = useState({});
 
   const requestedBannerWidth = (() => {
     const rawWidth = rp?.bannerWidth ?? rp?.width ?? layoutCss?.slider?.width;
@@ -499,23 +497,6 @@ export default function BannerSlider({ section }) {
     Math.min(requestedBannerWidth || availableFrameWidth, availableFrameWidth)
   );
 
-  // Pre-load the natural pixel size of every slide image so we can size the
-  // banner to exactly fit the image (no cropping, no guesswork).
-  useEffect(() => {
-    slides.forEach((slide) => {
-      if (!slide.image || imageSizes[slide.image]) return;
-      Image.getSize(
-        slide.image,
-        (w, h) => {
-          if (w > 0 && h > 0) {
-            setImageSizes((prev) => ({ ...prev, [slide.image]: { width: w, height: h } }));
-          }
-        },
-        () => {} // silently ignore network / decode errors
-      );
-    });
-  }, [slides]);
-
   const bannerHeight = useMemo(() => {
     const availableWidth = Math.max(slideFrameWidth || containerWidth || windowWidth || 1, 1);
 
@@ -529,23 +510,17 @@ export default function BannerSlider({ section }) {
       return Math.round(availableWidth / bannerRatio);
     }
 
-    // 3. Derive height from the actual image pixel dimensions.
-    //    Use the FIRST slide that has loaded dimensions; all banner images
-    //    in a slider are typically the same size so this is consistent.
-    const firstWithSize = slides.find((s) => s.image && imageSizes[s.image]);
-    if (firstWithSize) {
-      const { width: iw, height: ih } = imageSizes[firstWithSize.image];
-      const naturalRatio = iw / ih;
-      return Math.round(availableWidth / naturalRatio);
-    }
-
-    // 4. Fallback while images are still loading: 16:9 is the most common
-    //    banner aspect ratio — much safer than 52 % which crops portrait images.
+    // 3. Fallback when no explicit height/ratio is set (including "Auto"):
+    //    16:9 is the most common banner aspect ratio. Previously this
+    //    derived the height from each image's own natural pixel ratio once
+    //    loaded, which made the box always match the image's ratio exactly —
+    //    defeating the Fit/Fill (resizeMode contain/cover) toggle the same
+    //    way Builder Preview's now-fixed literal "auto" CSS did. A fixed
+    //    fallback keeps Fit/Fill visually distinguishable.
     return Math.round(availableWidth * 0.5625);
   }, [
     bannerRatio,
     containerWidth,
-    imageSizes,
     requestedBannerHeight,
     slideFrameWidth,
     slides,

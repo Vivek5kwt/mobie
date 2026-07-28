@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { ActivityIndicator, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { ActivityIndicator, Image, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import FontAwesome from "react-native-vector-icons/FontAwesome";
 import { useNavigation } from "@react-navigation/native";
 import { useSelector } from "react-redux";
@@ -49,6 +49,19 @@ const toBool = (value, fallback = false) => {
 };
 
 const cleanFontFamily = (family) => resolveFont(family) || "";
+
+const CUSTOM_ICON_PREFIX = "custom-icon::";
+const getCustomIconUrlFromValue = (value) => {
+  const raw = String(value || "");
+  if (!raw.startsWith(CUSTOM_ICON_PREFIX)) return null;
+  const encoded = raw.slice(CUSTOM_ICON_PREFIX.length);
+  if (!encoded) return null;
+  try {
+    return decodeURIComponent(encoded);
+  } catch {
+    return null;
+  }
+};
 const CHECKOUT_BUTTON_LOG = "[CheckoutButton]";
 
 // First non-empty string wins
@@ -310,16 +323,30 @@ export default function CheckoutButton({ section }) {
     0
   );
   const showBorder  = !borderLineDisabled && (isOutlined || !!borderLine || borderWidthRaw > 0);
-  const borderWidth = showBorder ? (borderWidthRaw > 0 ? borderWidthRaw : 1) : 0;
+  const borderWidthValue = showBorder ? (borderWidthRaw > 0 ? borderWidthRaw : 1) : 0;
+  // Border Line control lets the merchant pick a single side; apply the width
+  // only to that side instead of forcing it uniformly on all four.
+  const borderSideStyle = (() => {
+    if (!showBorder) return { borderWidth: 0 };
+    const sideKeys = {
+      top: "borderTopWidth",
+      right: "borderRightWidth",
+      bottom: "borderBottomWidth",
+      left: "borderLeftWidth",
+    };
+    const sideKey = sideKeys[borderLine];
+    if (!sideKey) return { borderWidth: borderWidthValue };
+    return { [sideKey]: borderWidthValue };
+  })();
 
   // ── Dimensions & shape ────────────────────────────────────────────────────────
   // buttonRadius is the primary DSL field for corner radius
   const height = pickNum(
-    [raw?.height, raw?.btnHeight, raw?.buttonHeight, btnCss?.height],
+    [raw?.buttonSize, raw?.height, raw?.btnHeight, raw?.buttonHeight, btnCss?.height],
     52
   );
   const borderRadius = pickNum(
-    [raw?.buttonRadius, raw?.borderRadius, raw?.cornerRadius, raw?.corner, raw?.rounded, btnCss?.borderRadius],
+    [raw?.buttonBorderRadius, raw?.buttonRadius, raw?.borderRadius, raw?.cornerRadius, raw?.corner, raw?.rounded, btnCss?.borderRadius],
     10
   );
   const fullWidth = toBool(raw?.fullWidth ?? raw?.isFullWidth, true);
@@ -491,7 +518,15 @@ export default function CheckoutButton({ section }) {
     usableCustomerAccessToken,
   ]);
 
+  const buttonLinkHref = toStr(raw?.buttonLinkHref, "");
+
   const handleCheckout = async () => {
+    // A configured link overrides the checkout action entirely.
+    if (buttonLinkHref) {
+      const url = /^[a-z][a-z0-9+.-]*:\/\//i.test(buttonLinkHref) ? buttonLinkHref : `https://${buttonLinkHref}`;
+      navigation.navigate("CheckoutWebView", { url, title: "Checkout" });
+      return;
+    }
     if (!hasCartItems) { setEmptySnackbar(true); return; }
     if (loading) return;
 
@@ -568,7 +603,8 @@ export default function CheckoutButton({ section }) {
     ? "right"
     : "left";
   const buttonIconVisible = toBool(
-    raw?.buttonIconsVisible ??
+    raw?.buttonShowIcon ??
+      raw?.buttonIconsVisible ??
       raw?.buttonIconVisible ??
       raw?.showButtonIcon ??
       raw?.showIcon ??
@@ -578,16 +614,21 @@ export default function CheckoutButton({ section }) {
   const buttonIconSize = pickNum([raw?.buttonIconSize, raw?.iconSize], 14);
   const buttonIconColor = pickStr([raw?.buttonIconColor, raw?.iconColor], activeTextColor);
   const buttonIconGap = pickNum([raw?.buttonIconGap, raw?.iconGap], 6);
-  const showButtonIcon = buttonIconVisible && !!buttonIconName;
+  const customIconUrl = getCustomIconUrlFromValue(rawButtonIcon);
+  const showButtonIcon = buttonIconVisible && !!(buttonIconName || customIconUrl);
 
   const buttonStyle = {
     height,
     borderRadius,
     backgroundColor: activeBg,
     width:           fullWidth ? "100%" : undefined,
-    borderWidth,
+    ...borderSideStyle,
     borderColor:     showBorder ? activeBorderClr : undefined,
     minHeight:       height,
+    paddingTop:      showBgPadding ? padT : 0,
+    paddingBottom:   showBgPadding ? padB : 0,
+    paddingLeft:     showBgPadding ? padL : 0,
+    paddingRight:    showBgPadding ? padR : 0,
   };
 
   const baseTextStyle = {
@@ -641,30 +682,30 @@ export default function CheckoutButton({ section }) {
         ? { marginLeft: buttonIconGap }
         : { marginRight: buttonIconGap };
 
+    const icon = customIconUrl ? (
+      <Image
+        source={{ uri: customIconUrl }}
+        style={[{ width: buttonIconSize, height: buttonIconSize, resizeMode: "contain" }, iconStyle]}
+      />
+    ) : (
+      <FontAwesome name={buttonIconName} size={buttonIconSize} color={buttonIconColor} style={iconStyle} />
+    );
+
     return (
       <View style={styles.buttonContent}>
-        {showButtonIcon && buttonIconAlignment !== "right" ? (
-          <FontAwesome name={buttonIconName} size={buttonIconSize} color={buttonIconColor} style={iconStyle} />
-        ) : null}
+        {showButtonIcon && buttonIconAlignment !== "right" ? icon : null}
         {renderLabel()}
-        {showButtonIcon && buttonIconAlignment === "right" ? (
-          <FontAwesome name={buttonIconName} size={buttonIconSize} color={buttonIconColor} style={iconStyle} />
-        ) : null}
+        {showButtonIcon && buttonIconAlignment === "right" ? icon : null}
       </View>
     );
   };
 
-  // ── Outer container padding ───────────────────────────────────────────────────
-  const containerPadding = showBgPadding
-    ? { paddingTop: padT, paddingBottom: padB, paddingLeft: padL, paddingRight: padR }
-    : { paddingTop: 0,   paddingBottom: 0,    paddingLeft: 0,    paddingRight: 0 };
 
   return (
     <View
       style={[
         styles.container,
         { backgroundColor: containerBg, marginTop: gap },
-        containerPadding,
       ]}
     >
       <TouchableOpacity

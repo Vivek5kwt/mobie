@@ -241,8 +241,25 @@ export default function AccountProfile({ section }) {
     avatarSize,
     { fromBuilderScale: !hasRawAvatarCorner && hasResolvedValue(builderAvatarCorner) }
   );
-  const avatarScale = String(resolveValue(rawProps?.imageScale ?? avatarStyle?.scale, "fill")).toLowerCase();
-  const resizeMode = avatarScale === "fit" ? "contain" : "cover";
+  const avatarScale = String(resolveValue(rawProps?.imageScale ?? rawProps?.scale ?? avatarStyle?.scale, "fill")).toLowerCase();
+  const resizeMode = avatarScale === "fit" || avatarScale === "contain" ? "contain" : "cover";
+  // Builder Preview's ratioDims() (AccountProfile/PreviewLive.tsx) renders a
+  // non-square avatar for 2:3/4:5/4:3/16:9 — this was never read here at
+  // all, so the avatar was always a perfect square regardless of the
+  // merchant's Ratio selection.
+  const avatarRatio = String(
+    resolveValue(rawProps?.ratio ?? rawProps?.imageRatio, "Auto")
+  ).trim();
+  const avatarHeight =
+    avatarRatio === "2:3"
+      ? Math.round(avatarSize * (3 / 2))
+      : avatarRatio === "4:5"
+      ? Math.round(avatarSize * (5 / 4))
+      : avatarRatio === "4:3"
+      ? Math.round(avatarSize * (3 / 4))
+      : avatarRatio === "16:9"
+      ? Math.round(avatarSize * (9 / 16))
+      : avatarSize;
   const textGap = hasMetrics
     ? Math.max(0, toNumber(nameMetrics?.x, 0) - toNumber(avatarMetrics?.x, 0) - avatarSize)
     : 12;
@@ -256,7 +273,10 @@ export default function AccountProfile({ section }) {
   const placeholderIcon = parseIconName(placeholder?.iconClass);
   const placeholderIconSize = resolveValue(placeholder?.iconSize, 22);
   const placeholderColor = resolveValue(rawProps?.iconColor, resolveValue(placeholder?.iconColor, "#016D77"));
-  const placeholderBg = resolveValue(placeholder?.background, "#D9F0F2");
+  // Match the "Background & Padding" section's own color so any letterbox
+  // space around a Fit-scaled avatar blends with the block instead of a
+  // mismatched hardcoded teal.
+  const placeholderBg = resolveValue(placeholder?.background, bgColor);
 
   if (!showName && !showEmail && !showAvatar) {
     return null;
@@ -276,7 +296,7 @@ export default function AccountProfile({ section }) {
             styles.avatarWrap,
             {
               width: avatarSize,
-              height: avatarSize,
+              height: avatarHeight,
               borderRadius: avatarCorner,
               backgroundColor: placeholderBg,
             },
@@ -287,7 +307,7 @@ export default function AccountProfile({ section }) {
               source={{ uri: avatarUrl }}
               style={[
                 styles.avatarImage,
-                { width: avatarSize, height: avatarSize, borderRadius: avatarCorner },
+                { width: avatarSize, height: avatarHeight, borderRadius: avatarCorner },
               ]}
               resizeMode={resizeMode}
             />
@@ -297,7 +317,7 @@ export default function AccountProfile({ section }) {
                 styles.placeholder,
                 {
                   width: avatarSize,
-                  height: avatarSize,
+                  height: avatarHeight,
                   borderRadius: avatarCorner,
                   backgroundColor: placeholderBg,
                 },

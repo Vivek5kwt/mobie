@@ -18,8 +18,9 @@ const isSvgUrl = (url) => {
   return lower.endsWith(".svg") || lower.includes(".svg");
 };
 
-function CollectionImage({ uri, size, borderRadius, iconName, iconSize, iconColor }) {
+function CollectionImage({ uri, size, height, borderRadius, scale = 1, iconName, iconSize, iconColor }) {
   const [errored, setErrored] = useState(false);
+  const tileHeight = height ?? size;
 
   if (!uri || errored) {
     return (
@@ -28,11 +29,11 @@ function CollectionImage({ uri, size, borderRadius, iconName, iconSize, iconColo
   }
 
   if (isSvgUrl(uri)) {
-    const html = `<!DOCTYPE html><html><head><meta name="viewport" content="width=device-width,initial-scale=1"><style>*{margin:0;padding:0;box-sizing:border-box}body{background:transparent}img{width:100%;height:100%;object-fit:cover;display:block}</style></head><body><img src="${uri}" onerror="document.body.innerHTML=''" /></body></html>`;
+    const html = `<!DOCTYPE html><html><head><meta name="viewport" content="width=device-width,initial-scale=1"><style>*{margin:0;padding:0;box-sizing:border-box}body{background:transparent}img{width:100%;height:100%;object-fit:cover;display:block;transform:scale(${scale});transform-origin:center}</style></head><body><img src="${uri}" onerror="document.body.innerHTML=''" /></body></html>`;
     return (
       <WebView
         source={{ html }}
-        style={{ width: size, height: size, borderRadius, backgroundColor: "transparent" }}
+        style={{ width: size, height: tileHeight, borderRadius, backgroundColor: "transparent" }}
         scrollEnabled={false}
         pointerEvents="none"
         originWhitelist={["*"]}
@@ -46,7 +47,7 @@ function CollectionImage({ uri, size, borderRadius, iconName, iconSize, iconColo
       source={{ uri }}
       style={[
         styles.circleImage,
-        { width: size, height: size, borderRadius },
+        { width: size, height: tileHeight, borderRadius, transform: [{ scale }] },
       ]}
       resizeMode="cover"
       onError={() => setErrored(true)}
@@ -245,7 +246,33 @@ export default function TrendingCollections({ section }) {
 
   // Circle size: read from DSL or default 68px
   const circleSize = toNumber(rp("collectionCircleSize") ?? rp("circleSize") ?? rp("imageSize"), 68);
-  const circleBg = unwrapValue(rp("collectionCircleBgColor") ?? rp("circleBg") ?? rp("imageBg"), "#E5F3F4");
+  // Builder Preview (TrendingCollections/PreviewLive.tsx) renders a tile
+  // whose height varies by imageRatio (1:1→1x, 2:3→1.5x, 4:5→1.25x the
+  // width) and whose corner rounding comes from imageCorners (default 0 —
+  // a SQUARE tile, not a circle) rather than always being width/2. None of
+  // this was read here — the tile was always a fixed-size perfect circle
+  // regardless of the merchant's Ratio/Corner selection.
+  const imageRatioTC = String(unwrapValue(rp("imageRatio"), "1:1")).trim();
+  const circleHeight =
+    imageRatioTC === "2:3"
+      ? Math.round(circleSize * 1.5)
+      : imageRatioTC === "4:5"
+      ? Math.round(circleSize * 1.25)
+      : circleSize;
+  const imageCornersTC = toNumber(rp("imageCorners"), 0);
+  const circleRadius = (Math.max(0, Math.min(100, imageCornersTC)) / 100) * circleSize;
+  // Builder simulates Scale=Fill with a 1.2x CSS zoom transform on the image
+  // (not a resizeMode swap) — replicate the same zoom here so Fit vs Fill
+  // stay visually distinguishable the same way.
+  const imageScaleTC = String(unwrapValue(rp("imageScale"), "Fit")).trim();
+  const circleImageScale = imageScaleTC === "Fill" ? 1.2 : 1;
+  // Match the "Background & Padding" section's own color (bgColor, resolved
+  // below) so any letterbox space around a Fit-scaled image blends with the
+  // block instead of a mismatched hardcoded teal.
+  const circleBg = unwrapValue(
+    rp("collectionCircleBgColor") ?? rp("circleBg") ?? rp("imageBg"),
+    unwrapValue(rp("bgColor") ?? rp("backgroundColor") ?? rp("containerBgColor") ?? rp("sectionBgColor"), "#FFFFFF")
+  );
   const circleIconColor = unwrapValue(rp("collectionCircleIconColor") ?? rp("iconColor"), "#0D9488");
   const defaultPlaceholderIcon = normalizeIconName(
     unwrapValue(rp("collectionPlaceholderIcon") ?? rp("placeholderIcon"), "image")
@@ -331,16 +358,19 @@ export default function TrendingCollections({ section }) {
                 styles.circle,
                 {
                   width: circleSize,
-                  height: circleSize,
-                  borderRadius: circleSize / 2,
+                  height: circleHeight,
+                  borderRadius: circleRadius,
                   backgroundColor: circleBg,
+                  overflow: "hidden",
                 },
               ]}
             >
               <CollectionImage
                 uri={item.image}
                 size={circleSize}
-                borderRadius={circleSize / 2}
+                height={circleHeight}
+                borderRadius={circleRadius}
+                scale={circleImageScale}
                 iconName={item.iconName || defaultPlaceholderIcon}
                 iconSize={circleIconSize}
                 iconColor={circleIconColor}

@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
+  Linking,
   StyleSheet,
   Text,
   TextInput,
@@ -87,6 +88,23 @@ const borderWidthFromLine = (value, fallback = 0) => {
   return 1;
 };
 
+const normalizeUrl = (url) => {
+  const raw = String(url || "").trim();
+  if (!raw) return "";
+  if (/^[a-z][a-z0-9+.-]*:\/\//i.test(raw)) return raw;
+  return `https://${raw}`;
+};
+
+const LinkableText = ({ href, children }) => {
+  const url = normalizeUrl(href);
+  if (!url) return children;
+  return (
+    <TouchableOpacity activeOpacity={0.7} onPress={() => Linking.openURL(url).catch(() => {})}>
+      {children}
+    </TouchableOpacity>
+  );
+};
+
 export default function DiscountCode({ section }) {
   const dispatch = useDispatch();
   const { session } = useAuth();
@@ -125,7 +143,8 @@ export default function DiscountCode({ section }) {
   );
   const titleColor = toString(raw?.titleColor, "#111827");
   const titleSize = toNumber(raw?.titleSize ?? raw?.titleFontSize, 16);
-  const titleWeight = toFontWeight(raw?.titleWeight ?? raw?.titleFontWeight, "700");
+  const titleBold = toBoolean(raw?.titleBold, false);
+  const titleWeight = titleBold ? "700" : toFontWeight(raw?.titleWeight ?? raw?.titleFontWeight, "700");
   const titleItalic = toBoolean(raw?.titleItalic, false);
   const titleFontStyle = titleItalic ? "italic" : "normal";
   const titleUnderline = toBoolean(raw?.titleUnderline, false);
@@ -139,14 +158,17 @@ export default function DiscountCode({ section }) {
     : "none";
   const titleAlignRaw = toString(raw?.titleAlign, "left").trim().toLowerCase();
   const titleAlign = titleAlignRaw === "center" ? "center" : titleAlignRaw === "right" ? "right" : "left";
+  const titleLinkHref = toString(raw?.titleLinkHref, "");
 
   // Input Label (caption shown above the input field)
   const showInputField = toBoolean(raw?.inputFieldVisible, true);
   const showInputLabel = toBoolean(raw?.inputLabelVisible, true);
   const inputLabelText = toString(raw?.inputLabel, "");
+  const inputLabelLinkHref = toString(raw?.inputLabelLinkHref, "");
   const inputLabelColor = toString(raw?.inputLabelColor, "#111827");
   const inputLabelSize = toNumber(raw?.inputLabelSize, 13);
-  const inputLabelWeight = toFontWeight(raw?.inputLabelFontWeight, "400");
+  const inputLabelBold = toBoolean(raw?.inputLabelBold, false);
+  const inputLabelWeight = inputLabelBold ? "700" : toFontWeight(raw?.inputLabelFontWeight, "400");
   const inputLabelItalic = toBoolean(raw?.inputLabelItalic, false);
   const inputLabelFontStyle = inputLabelItalic ? "italic" : "normal";
   const inputLabelUnderline = toBoolean(raw?.inputLabelUnderline, false);
@@ -170,7 +192,8 @@ export default function DiscountCode({ section }) {
   const inputBorderRadius = inputBackgroundActive ? toNumber(raw?.inputBorderRadius, 8) : 0;
   const inputTextColor = toString(raw?.inputTextColor ?? raw?.inputColor, "#111827");
   const inputTextSize = toNumber(raw?.inputTextSize ?? raw?.inputFontSize, 14);
-  const inputTextWeight = toFontWeight(raw?.inputTextFontWeight, "400");
+  const inputTextBold = toBoolean(raw?.inputTextBold, false);
+  const inputTextWeight = inputTextBold ? "700" : toFontWeight(raw?.inputTextFontWeight, "400");
   const inputTextItalic = toBoolean(raw?.inputTextItalic, false);
   const inputTextFontStyle = inputTextItalic ? "italic" : "normal";
   const inputTextUnderline = toBoolean(raw?.inputTextUnderline, false);
@@ -208,8 +231,10 @@ export default function DiscountCode({ section }) {
   // Apply button
   const showApplyButton = toBoolean(raw?.applybuttonVisible, true);
   const showApplyButtonText = toBoolean(raw?.buttonVisible, true);
+  const applyBgPaddingActive = toBoolean(raw?.buttonBgPaddingVisible, true);
   const applyText = toString(raw?.applyButtonText ?? raw?.applyText ?? raw?.buttonText ?? raw?.btnText, "Apply");
-  const applyBg = toString(
+  const buttonTextLinkHref = toString(raw?.buttonTextLinkHref, "");
+  const applyBg = applyBgPaddingActive ? toString(
     firstDefined(
       raw?.applyBgColor,
       raw?.applyBackgroundColor,
@@ -221,7 +246,7 @@ export default function DiscountCode({ section }) {
       raw?.btnBg
     ),
     "#111111"
-  );
+  ) : "#000000";
   const applyTextColor = toString(
     firstDefined(raw?.applyTextColor, raw?.buttonTextColor, raw?.buttonColor),
     "#FFFFFF"
@@ -235,19 +260,20 @@ export default function DiscountCode({ section }) {
     raw?.buttonBorderLine,
     raw?.borderLine
   );
-  const applyBorderWidth = borderWidthFromLine(
+  const applyBorderWidth = applyBgPaddingActive ? borderWidthFromLine(
     applyBorderLine,
     toNumber(firstDefined(raw?.applyBorderWidth, raw?.buttonBorderWidth), 0)
-  );
-  const applyBorderRadius = toNumber(
+  ) : 0;
+  const applyBorderRadius = applyBgPaddingActive ? toNumber(
     firstDefined(raw?.applyBorderRadius, raw?.buttonBorderRadius, raw?.buttonRadius, raw?.btnRadius),
     8
-  );
+  ) : 0;
   const applyFontSize = toNumber(
     firstDefined(raw?.applyFontSize, raw?.buttonTextSize, raw?.buttonTextFontSize, raw?.buttonFontSize),
     14
   );
-  const applyFontWeight = toFontWeight(
+  const applyBold = toBoolean(raw?.buttonTextBold, false);
+  const applyFontWeight = applyBold ? "700" : toFontWeight(
     firstDefined(raw?.applyFontWeight, raw?.buttonTextFontWeight, raw?.buttonFontWeight),
     "600"
   );
@@ -263,22 +289,22 @@ export default function DiscountCode({ section }) {
     ? "line-through"
     : "none";
   const applyHeight = toNumber(raw?.buttonHeight ?? raw?.applyHeight, 44);
-  const applyPadL = toNumber(
+  const applyPadL = applyBgPaddingActive ? toNumber(
     firstDefined(raw?.applyPadL, raw?.applyPaddingLeft, raw?.buttonPl, raw?.buttonPaddingLeft, raw?.buttonPadL, raw?.buttonPaddingX, raw?.buttonPadX),
     Math.round(applyHeight * 0.4)
-  );
-  const applyPadR = toNumber(
+  ) : 0;
+  const applyPadR = applyBgPaddingActive ? toNumber(
     firstDefined(raw?.applyPadR, raw?.applyPaddingRight, raw?.buttonPr, raw?.buttonPaddingRight, raw?.buttonPadR, raw?.buttonPaddingX, raw?.buttonPadX),
     Math.round(applyHeight * 0.4)
-  );
-  const applyPadT = toNumber(
+  ) : 0;
+  const applyPadT = applyBgPaddingActive ? toNumber(
     firstDefined(raw?.applyPadT, raw?.applyPaddingTop, raw?.buttonPt, raw?.buttonPaddingTop, raw?.buttonPadT, raw?.buttonPaddingY, raw?.buttonPadY),
     0
-  );
-  const applyPadB = toNumber(
+  ) : 0;
+  const applyPadB = applyBgPaddingActive ? toNumber(
     firstDefined(raw?.applyPadB, raw?.applyPaddingBottom, raw?.buttonPb, raw?.buttonPaddingBottom, raw?.buttonPadB, raw?.buttonPaddingY, raw?.buttonPadY),
     0
-  );
+  ) : 0;
 
   // Apply button icon
   const showApplyIcon = toBoolean(raw?.buttonIconVisible, false);
@@ -299,7 +325,8 @@ export default function DiscountCode({ section }) {
   const chipBorderRadius = toNumber(raw?.savedCodesBorderRadius ?? raw?.chipBorderRadius, 6);
   const chipBorderWidth = chipBorderActive ? borderWidthFromLine(raw?.savedCodesBorderSide, 1) : 0;
   const chipFontSize = toNumber(raw?.savedCodesSize ?? raw?.chipFontSize, 13);
-  const chipFontWeight = toFontWeight(raw?.savedCodesFontWeight, "400");
+  const chipBold = toBoolean(raw?.savedCodesBold, false);
+  const chipFontWeight = chipBold ? "700" : toFontWeight(raw?.savedCodesFontWeight, "400");
   const chipItalic = toBoolean(raw?.savedCodesItalic, false);
   const chipFontStyle = chipItalic ? "italic" : "normal";
   const chipUnderline = toBoolean(raw?.savedCodesUnderline, false);
@@ -320,6 +347,7 @@ export default function DiscountCode({ section }) {
   const removeIconRaw = toString(raw?.savedCodesIcon, "");
   const removeIconName = removeIconRaw ? resolveFA4IconName(removeIconRaw) : "";
   const removeIconSize = toNumber(raw?.savedCodesIconSize, 16);
+  const savedCodesLinkHref = toString(raw?.savedCodesLinkHref, "");
 
   // Font families
   const titleFontFamily = cleanFontFamily(toString(raw?.titleFontFamily ?? raw?.fontFamily, ""));
@@ -432,41 +460,45 @@ export default function DiscountCode({ section }) {
       ]}
     >
       {showTitle && !!titleText && (
-        <Text
-          style={[
-            styles.title,
-            {
-              color: titleColor,
-              fontSize: titleSize,
-              fontWeight: titleWeight,
-              fontStyle: titleFontStyle,
-              textDecorationLine: titleTextDecoration,
-              textAlign: titleAlign,
-              ...(titleFontFamily ? { fontFamily: titleFontFamily } : {}),
-            },
-          ]}
-        >
-          {titleText}
-        </Text>
+        <LinkableText href={titleLinkHref}>
+          <Text
+            style={[
+              styles.title,
+              {
+                color: titleColor,
+                fontSize: titleSize,
+                fontWeight: titleWeight,
+                fontStyle: titleFontStyle,
+                textDecorationLine: titleTextDecoration,
+                textAlign: titleAlign,
+                ...(titleFontFamily ? { fontFamily: titleFontFamily } : {}),
+              },
+            ]}
+          >
+            {titleText}
+          </Text>
+        </LinkableText>
       )}
 
       {showInputField && showInputLabel && !!inputLabelText && (
-        <Text
-          style={[
-            styles.inputLabel,
-            {
-              color: inputLabelColor,
-              fontSize: inputLabelSize,
-              fontWeight: inputLabelWeight,
-              fontStyle: inputLabelFontStyle,
-              textDecorationLine: inputLabelTextDecoration,
-              textAlign: inputLabelAlign,
-              ...(inputLabelFontFamily ? { fontFamily: inputLabelFontFamily } : {}),
-            },
-          ]}
-        >
-          {inputLabelText}
-        </Text>
+        <LinkableText href={inputLabelLinkHref}>
+          <Text
+            style={[
+              styles.inputLabel,
+              {
+                color: inputLabelColor,
+                fontSize: inputLabelSize,
+                fontWeight: inputLabelWeight,
+                fontStyle: inputLabelFontStyle,
+                textDecorationLine: inputLabelTextDecoration,
+                textAlign: inputLabelAlign,
+                ...(inputLabelFontFamily ? { fontFamily: inputLabelFontFamily } : {}),
+              },
+            ]}
+          >
+            {inputLabelText}
+          </Text>
+        </LinkableText>
       )}
 
       {/* Input row */}
@@ -539,21 +571,23 @@ export default function DiscountCode({ section }) {
                   />
                 )}
                 {showApplyButtonText && (
-                  <Text
-                    style={[
-                      styles.applyText,
-                      {
-                        color: applyTextColor,
-                        fontSize: applyFontSize,
-                        fontWeight: applyFontWeight,
-                        fontStyle: applyFontStyle,
-                        textDecorationLine: applyTextDecoration,
-                        ...(applyFontFamily ? { fontFamily: applyFontFamily } : {}),
-                      },
-                    ]}
-                  >
-                    {applyText}
-                  </Text>
+                  <LinkableText href={buttonTextLinkHref}>
+                    <Text
+                      style={[
+                        styles.applyText,
+                        {
+                          color: applyTextColor,
+                          fontSize: applyFontSize,
+                          fontWeight: applyFontWeight,
+                          fontStyle: applyFontStyle,
+                          textDecorationLine: applyTextDecoration,
+                          ...(applyFontFamily ? { fontFamily: applyFontFamily } : {}),
+                        },
+                      ]}
+                    >
+                      {applyText}
+                    </Text>
+                  </LinkableText>
                 )}
               </>
             )}
@@ -595,21 +629,23 @@ export default function DiscountCode({ section }) {
                 },
               ]}
             >
-              <Text
-                style={[
-                  styles.chipText,
-                  {
-                    color: chipTextColor,
-                    fontSize: chipFontSize,
-                    fontWeight: chipFontWeight,
-                    fontStyle: chipFontStyle,
-                    textDecorationLine: chipTextDecoration,
-                    ...(chipFontFamily ? { fontFamily: chipFontFamily } : {}),
-                  },
-                ]}
-              >
-                {discount.code}
-              </Text>
+              <LinkableText href={savedCodesLinkHref}>
+                <Text
+                  style={[
+                    styles.chipText,
+                    {
+                      color: chipTextColor,
+                      fontSize: chipFontSize,
+                      fontWeight: chipFontWeight,
+                      fontStyle: chipFontStyle,
+                      textDecorationLine: chipTextDecoration,
+                      ...(chipFontFamily ? { fontFamily: chipFontFamily } : {}),
+                    },
+                  ]}
+                >
+                  {discount.code}
+                </Text>
+              </LinkableText>
               {showRemoveIcon && (
                 <TouchableOpacity
                   style={styles.chipRemove}

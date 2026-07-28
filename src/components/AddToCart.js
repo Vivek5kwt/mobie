@@ -426,6 +426,7 @@ export default function AddToCart({ section }) {
           vendor: productVendor,
           variant: productVariantText,
           currency: productCurrency,
+          availableForSale: productAvailable,
           quantity,
         },
       })
