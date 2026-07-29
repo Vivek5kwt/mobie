@@ -472,7 +472,14 @@ export default function HeroBanner({ section }) {
   // Image attributes and settings
   const imageAttributes =
     rawProps?.imageAttributes?.properties || rawProps?.imageAttributes || flatPropsNode?.imageAttributes || {};
-  const imageSettingsEnabled = toBoolean(rawProps?.imageSettingsEnabled, true);
+  // showHeadline/showSubtext/showButton below are read from flatPropsNode
+  // (the full flat-props snapshot) rather than rawProps's individually
+  // declared schema field — matching that same, proven-reliable source here
+  // too, since rawProps's own imageSettingsEnabled field was not reliably
+  // carrying the merchant's toggle through restore.
+  const imageSettingsEnabled = flatPropsNode?.imageSettingsEnabled !== undefined
+    ? toBoolean(flatPropsNode.imageSettingsEnabled, true)
+    : toBoolean(rawProps?.imageSettingsEnabled, true);
   // Read scale from imageAttributes first, then top-level DSL aliases
   const imageScale = toString(
     imageAttributes?.scale ??
@@ -957,7 +964,9 @@ export default function HeroBanner({ section }) {
   };
 
   // Content settings
-  const contentSettingsEnabled = toBoolean(rawProps?.contentSettingsEnabled, true);
+  const contentSettingsEnabled = flatPropsNode?.contentSettingsEnabled !== undefined
+    ? toBoolean(flatPropsNode.contentSettingsEnabled, true)
+    : toBoolean(rawProps?.contentSettingsEnabled, true);
   const contentProps = rawProps?.content?.properties || rawProps?.content || flatPropsNode?.content || {};
   
   // Image source - check multiple possible property names and nested structures
@@ -982,8 +991,11 @@ export default function HeroBanner({ section }) {
     unwrapValue(contentProps?.image, "") ||
     unwrapValue(contentProps?.imageUrl, "");
   
-  // Only use imageSrc if it's a non-empty string
-  const imageSrc = rawImageSrc && typeof rawImageSrc === "string" && rawImageSrc.trim() !== "" ? rawImageSrc.trim() : null;
+  // Only use imageSrc if it's a non-empty string. imageSettingsEnabled (the
+  // "Image Attributes" eye toggle) was resolved above but never actually
+  // read here — the banner image stayed visible in the APK even after the
+  // merchant turned this off in Builder (where hasImage correctly checks it).
+  const imageSrc = imageSettingsEnabled && rawImageSrc && typeof rawImageSrc === "string" && rawImageSrc.trim() !== "" ? rawImageSrc.trim() : null;
   const [naturalImageSize, setNaturalImageSize] = useState(null);
   useEffect(() => {
     if (!imageSrc) {
@@ -1030,7 +1042,6 @@ export default function HeroBanner({ section }) {
   );
 
   // Alignment and padding
-  const alignSettingsEnabled = toBoolean(rawProps?.alignSettingsEnabled, true);
   const alignmentAndPadding =
     rawProps?.alignmentAndPadding?.properties || rawProps?.alignmentAndPadding || flatPropsNode?.alignmentAndPadding || {};
   const textAlign = toString(alignmentAndPadding?.textAlign, "center").toLowerCase();
@@ -1102,7 +1113,15 @@ export default function HeroBanner({ section }) {
   const paddingLeft = toNumber(paddingRaw?.pl, paddingString ? parseFloat(paddingString.split(/\s+/)[3] || paddingString.split(/\s+/)[1] || paddingString.split(/\s+/)[0]) : 58);
 
   // Background settings
-  const bgSettingsEnabled = toBoolean(rawProps?.bgSettingsEnabled, true);
+  const bgSettingsEnabled = flatPropsNode?.bgSettingsEnabled !== undefined
+    ? toBoolean(flatPropsNode.bgSettingsEnabled, true)
+    : toBoolean(rawProps?.bgSettingsEnabled, true);
+  // The "Background and Padding" eye (Inspector's "align" panel key) only
+  // ever writes bgSettingsEnabled — alignSettingsEnabled was a separate prop
+  // nothing writes, so padding/alignment below never actually responded to
+  // this eye even though the panel is literally named "Background AND
+  // Padding" and Builder Preview has the same alias applied.
+  const alignSettingsEnabled = bgSettingsEnabled;
   const styleProps = rawProps?.style?.properties || rawProps?.style || flatPropsNode?.style || {};
   const backgroundColor = toString(styleProps?.backgroundColor || layoutCss?.container?.background, "#ebeef4");
   const backgroundOpacity =
@@ -1263,7 +1282,7 @@ export default function HeroBanner({ section }) {
       )
     : 0;
 
-  if (imageSrc && estimatedContentHeight > 0) {
+  if (estimatedContentHeight > 0) {
     numericMinHeight = Math.max(numericMinHeight || 0, estimatedContentHeight);
     if (numericContainerHeight && numericContainerHeight < estimatedContentHeight) {
       numericContainerHeight = estimatedContentHeight;
@@ -1282,13 +1301,18 @@ export default function HeroBanner({ section }) {
   const resolvedImageAspectRatio =
     imageAspectRatio || (isFitScale ? naturalImageAspectRatio : undefined);
 
+  // Builder Preview reserves the same fixed box height whenever there's no
+  // image-driven ratio, whether the image is missing, disabled (the "Image
+  // Attributes" eye), or was simply never set — it never shrinks to fit
+  // just the text/button. This used to only apply the fixed height when
+  // imageSrc was truthy and let the banner "grow with content" otherwise,
+  // so turning the image off (or a text-only banner) collapsed to a much
+  // shorter box in the APK than what Builder showed.
   const containerHeightStyle = numericContainerHeight
     ? { height: numericContainerHeight, ...minHeightProp }
     : resolvedImageAspectRatio
-    ? { ...minHeightProp }                              // aspectRatio drives height
-    : imageSrc
-    ? { height: DEFAULT_BANNER_HEIGHT, ...minHeightProp } // image present — needs explicit height
-    : { ...minHeightProp };                             // text-only — grows with content
+    ? { ...minHeightProp }                                // aspectRatio drives height
+    : { height: DEFAULT_BANNER_HEIGHT, ...minHeightProp }; // matches Preview's fixed fallback
 
   const innerContainerStyle = [
     styles.container,
@@ -1413,12 +1437,13 @@ export default function HeroBanner({ section }) {
         { backgroundColor: outerBgColor, borderRadius: outerBorderRadius, ...outerBorderStyle },
       ]}
     >
-      {containerBgGradientColor ? (
+      {containerBgGradientColor && bgSettingsEnabled && !imageSrc ? (
+        // Background color/gradient is only meant to show when there's no
+        // banner image — matches Builder Preview, and previously this
+        // gradient branch ignored imageSrc entirely, so it kept showing
+        // behind/around the image whenever a gradient end color was set.
         <LinearGradient
-          colors={[
-            bgSettingsEnabled ? withColorOpacity(backgroundColor, backgroundOpacity) : "transparent",
-            containerBgGradientColor,
-          ]}
+          colors={[withColorOpacity(backgroundColor, backgroundOpacity), containerBgGradientColor]}
           angle={180}
           useAngle={true}
           style={innerContainerStyle}
