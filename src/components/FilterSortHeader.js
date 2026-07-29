@@ -1,5 +1,5 @@
 // components/FilterSortHeader.js
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useState } from "react";
 import {
   Modal,
   ScrollView,
@@ -11,8 +11,28 @@ import {
 import Icon from "react-native-vector-icons/FontAwesome";
 import { resolveFont } from "../services/typographyService";
 import { resolveFA4IconName } from "../utils/faIconAlias";
+import {
+  getSortFilterSnapshot,
+  hydrateSortFilterFromStorage,
+  setSortFilterState,
+  subscribeSortFilter,
+} from "../utils/sortFilterStore";
 
-const SORT_OPTIONS = ["Popular", "Newest", "Price: Low", "Price: High"];
+// Builder's FilterAndSortHeader (PreviewLive.tsx) has no Inspector control for
+// the sort-option list or the filter category list — both are hardcoded there.
+// Mirrored verbatim here so DSL-driven pages behave the same as Builder.
+const SORT_OPTIONS = [
+  "Recommended",
+  "What's New",
+  "Best Selling",
+  "Price: Low to High",
+  "Price: High to Low",
+];
+const AVAILABILITY_FILTERS = [
+  { label: "In stock", count: 8, disabled: false },
+  { label: "Out of stock", count: 1, disabled: false },
+  { label: "Available soon", count: 0, disabled: true },
+];
 
 function resolveProp(obj, key, fallback) {
   if (!obj) return fallback;
@@ -52,10 +72,6 @@ function resolveWeight(value, fallback = "500") {
   return /^\d+$/.test(normalized) ? normalized : fallback;
 }
 
-function hasResolvedProp(obj, key) {
-  return resolveProp(obj, key, undefined) !== undefined;
-}
-
 function deepUnwrap(value) {
   if (value === undefined || value === null) return value;
   if (typeof value !== "object" || Array.isArray(value)) return value;
@@ -76,50 +92,29 @@ function getSectionProps(section) {
     : root;
 }
 
-function resolveIconName(raw, keys, fallback) {
-  for (const key of keys) {
-    const icon = resolveFA4IconName(resolveProp(raw, key, ""));
-    if (icon) return icon;
-  }
-  return resolveFA4IconName(fallback) || fallback;
+function cleanFontFamily(value, fallback) {
+  return resolveFont(value) || fallback;
 }
 
-function resolveSpacing(raw, shortKey, longKey, fallback) {
-  return resolveNumberProp(
-    raw,
-    shortKey,
-    resolveNumberProp(raw, longKey, fallback)
-  );
-}
-
-function resolveBorderStyle(sideValue, color, width = 1) {
+// Builder never exposes a configurable border WIDTH for this block — every
+// side is hardcoded to a 1px line, so the RN side matches that (no width field).
+function resolveBorderStyle(sideValue, color) {
   const side = String(sideValue || "none").trim().toLowerCase();
-  if (["", "none", "off", "false", "0"].includes(side)) {
-    return { borderWidth: 0 };
-  }
-
   const borderColor = color || "transparent";
-  if (["all", "solid", "full", "box"].includes(side)) {
-    return { borderWidth: width, borderColor };
+  if (side === "all" || side === "solid" || side === "full" || side === "box") {
+    return { borderWidth: 1, borderColor };
   }
-  if (side === "top") return { borderWidth: 0, borderTopWidth: width, borderTopColor: borderColor };
-  if (side === "bottom") return { borderWidth: 0, borderBottomWidth: width, borderBottomColor: borderColor };
-  if (side === "left") return { borderWidth: 0, borderLeftWidth: width, borderLeftColor: borderColor };
-  if (side === "right") return { borderWidth: 0, borderRightWidth: width, borderRightColor: borderColor };
-  return { borderWidth: 0 };
+  if (side === "top") return { borderTopWidth: 1, borderTopColor: borderColor };
+  if (side === "bottom") return { borderBottomWidth: 1, borderBottomColor: borderColor };
+  if (side === "left") return { borderLeftWidth: 1, borderLeftColor: borderColor };
+  if (side === "right") return { borderRightWidth: 1, borderRightColor: borderColor };
+  return null;
 }
 
-function normalizeSortOptions(value) {
-  if (!Array.isArray(value)) return [];
-  return value
-    .map((item) => {
-      if (typeof item === "string") return { label: item, value: item };
-      if (!item || typeof item !== "object") return null;
-      const label = item.label || item.title || item.name || item.value;
-      if (!label) return null;
-      return { ...item, label: String(label), value: item.value ?? label };
-    })
-    .filter(Boolean);
+function renderIconGlyph(iconType, size, color) {
+  const name = resolveFA4IconName(iconType);
+  if (!name) return null;
+  return <Icon name={name} size={size} color={color} />;
 }
 
 export default function FilterSortHeader({
@@ -131,532 +126,659 @@ export default function FilterSortHeader({
 }) {
   const raw = getSectionProps(section);
 
-  const bgColor      = resolveProp(raw, "bgColor", resolveProp(raw, "backgroundColor", "#ffffff"));
-  const pt           = resolveSpacing(raw, "pt", "paddingTop", 10);
-  const pb           = resolveSpacing(raw, "pb", "paddingBottom", 10);
-  const pl           = resolveSpacing(raw, "pl", "paddingLeft", 16);
-  const pr           = resolveSpacing(raw, "pr", "paddingRight", 16);
-  const showSortText = resolveBoolProp(raw, "sortButtonTextVisible", true);
+  // Screens that pass their own product-derived filter categories (e.g.
+  // CollectionProductsScreen, AllProductsScreen) get their existing richer,
+  // single-select category-filter behavior untouched. A pure DSL block usage
+  // (no filterItems passed) gets Builder's actual fixed "Availability" filter.
+  const legacyFilterMode = Array.isArray(filterItemsProp) && filterItemsProp.length > 0;
+
+  // ── Outer container ────────────────────────────────────────────────────
+  const contVisible = resolveBoolProp(raw, "contVisible", true);
+  const bgColor = resolveProp(raw, "bgColor", "#fff");
+  const borderColor = resolveProp(raw, "borderColor", "#ddd");
+  const borderSide = resolveProp(raw, "borderSide", "all");
+  const borderRadius = resolveNumberProp(raw, "borderRadius", 0);
+  const pt = resolveNumberProp(raw, "pt", 0);
+  const pr = resolveNumberProp(raw, "pr", 10);
+  const pb = resolveNumberProp(raw, "pb", 0);
+  const pl = resolveNumberProp(raw, "pl", 10);
+
+  // ── Filter button ──────────────────────────────────────────────────────
+  const cardTitleVisible = resolveBoolProp(raw, "cardTitleVisible", true);
+  const titleFontSize = resolveNumberProp(raw, "titleFontSize", 14);
+  const titleFontWeight = resolveWeight(resolveProp(raw, "titleFontWeight", undefined), "400");
+  const titleColor = resolveProp(raw, "titleColor", "#000");
+  const titleFontFamily = cleanFontFamily(resolveProp(raw, "titleFontFamily", "Inter"), "Inter");
+  const alignFilterIcon = String(resolveProp(raw, "alignFilterIcon", "Left"));
+  const imageVisible = resolveBoolProp(raw, "imageVisible", true);
+  const iconType = resolveProp(raw, "iconType", "");
+  const iconHeight = resolveNumberProp(raw, "iconHeight", 14);
+  const titleIconColor = resolveProp(raw, "titleIconColor", "#000");
+  const filterBgPaddingVisible = resolveBoolProp(raw, "filterVisible", true);
+  const filterBgColor = resolveProp(raw, "filterBgColor", "#E5E7EB");
+  const filterBorderColor = resolveProp(raw, "filterBorderColor", "#E5E7EB");
+  const filterBorderRadius = resolveNumberProp(raw, "filterBorderRadius", 8);
+  const filterBorderSide = resolveProp(raw, "filterBorderSide", "all");
+  const filterPt = resolveNumberProp(raw, "filterPt", 9);
+  const filterPr = resolveNumberProp(raw, "filterPr", 10);
+  const filterPb = resolveNumberProp(raw, "filterPb", 12);
+  const filterPl = resolveNumberProp(raw, "filterPl", 10);
+
+  // ── Sort button ────────────────────────────────────────────────────────
   const sortTitleVisible = resolveBoolProp(raw, "sortTitleVisible", true);
-  const hasCompactStyle = [
-    "sortBgColor",
-    "sortBorderColor",
-    "sortBorderRadius",
-    "filterBgColor",
-    "filterBorderColor",
-    "filterBorderRadius",
-  ].some((key) => hasResolvedProp(raw, key));
-  const compactControls =
-    resolveProp(raw, "compactSearchControls", false) === true ||
-    resolveProp(raw, "compactControls", false) === true ||
-    resolveProp(raw, "variant", "") === "searchResults" ||
-    hasCompactStyle;
-  const showColumnPicker = resolveBoolProp(raw, "columnPickerVisible", true) &&
-    resolveBoolProp(raw, "gridListToggleVisible", true) &&
-    resolveBoolProp(raw, "viewToggleVisible", true) &&
-    resolveBoolProp(raw, "showViewToggle", true);
-  const showSortButton = resolveBoolProp(raw, "sortVisible", true) &&
-    resolveBoolProp(raw, "sortButtonVisible", true) &&
-    resolveBoolProp(raw, "showSort", true);
-  const showFilterButton = resolveBoolProp(raw, "filterVisible", true) &&
-    resolveBoolProp(raw, "filterButtonVisible", true) &&
-    resolveBoolProp(raw, "showFilter", true);
-  const showFilterIcon = resolveBoolProp(raw, "filterIconVisible", true) &&
-    resolveBoolProp(raw, "showFilterIcon", true);
-  const filterIconAlignment = String(
-    resolveProp(raw, "alignFilterIcon", resolveProp(raw, "filterIconAlign", "Left"))
-  ).trim().toLowerCase();
-  const filterIconName = resolveIconName(
-    raw,
-    ["filterIcon", "filterIconType", "filtericonType"],
-    "sliders"
-  );
-  const filterIconSize = resolveNumberProp(raw, "filterIconSize", resolveNumberProp(raw, "iconSize", 16));
-  const filterIconColor = resolveProp(raw, "filterIconColor", resolveProp(raw, "iconColor", "#111827"));
-  const dropdownIconColor = resolveProp(
-    raw,
-    "dropdownIconColor",
-    resolveProp(raw, "arrowIconColor", resolveProp(raw, "titleIconColor", "#111827"))
-  );
-  const dropdownIconSize = Number(
-    resolveProp(raw, "dropdownIconSize", resolveProp(raw, "arrowIconSize", 12))
-  ) || 12;
-  const sortDropdownIcon = resolveIconName(
-    raw,
-    ["sortDropdownIcon", "sortArrowIcon", "dropdownIcon", "arrowIcon", "chevronIcon"],
-    "chevron-down"
-  );
-  const filterDropdownIcon = resolveIconName(
-    raw,
-    ["filterDropdownIcon", "filterArrowIcon", "dropdownIcon", "arrowIcon", "chevronIcon"],
-    "chevron-down"
-  );
-  const listIconName = resolveIconName(raw, ["listIcon", "listViewIcon", "listiconType"], "bars");
-  const gridIconName = resolveIconName(raw, ["gridIcon", "gridViewIcon", "gridiconType"], "th-large");
-  const toggleIconSize = resolveNumberProp(
-    raw,
-    "gridIconSize",
-    resolveNumberProp(raw, "listIconSize", resolveNumberProp(raw, "iconSize", 14))
-  );
-  const toggleActiveColor = resolveProp(raw, "columnActiveColor", "#111827");
-  const toggleInactiveColor = resolveProp(raw, "columnPrimaryColor", "#D1D5DB");
-  const columns = Math.max(1, Math.round(resolveNumberProp(raw, "columns", 2)));
-  const initialViewMode = columns <= 1 ? "list" : "grid";
-  const horizontalGap = resolveNumberProp(raw, "horizontalGap", 8);
-  const verticalGap = resolveNumberProp(raw, "verticalGap", 8);
-  const controlRadius = resolveNumberProp(raw, "buttonRadius", 8);
-  const controlHeight = resolveNumberProp(
-    raw,
-    "controlHeight",
-    Math.max(34, filterIconSize + 10, toggleIconSize + 10)
-  );
-  const columnButtonSize = resolveNumberProp(
-    raw,
-    "columnButtonSize",
-    Math.max(28, toggleIconSize + 10)
-  );
-  const columnBgColor = resolveProp(raw, "columnBgColor", "transparent");
-  const columnActiveBgColor = resolveProp(raw, "activeBgColor", columnBgColor);
-  const containerBorder = resolveBorderStyle(
-    resolveProp(raw, "borderSide", "none"),
-    resolveProp(raw, "borderColor", "transparent"),
-    resolveNumberProp(raw, "borderWidth", 1)
-  );
+  const sorttitleFontSize = resolveNumberProp(raw, "sorttitleFontSize", 14);
+  const sorttitleFontWeight = resolveWeight(resolveProp(raw, "sorttitleFontWeight", undefined), "400");
+  const sorttitleColor = resolveProp(raw, "sorttitleColor", "#000");
+  const sorttitleFontFamily = cleanFontFamily(resolveProp(raw, "sorttitleFontFamily", "Inter"), "Inter");
+  const sortimageVisible = resolveBoolProp(raw, "sortimageVisible", true);
+  const sorticonType = resolveProp(raw, "sorticonType", "");
+  const sorticonHeight = resolveNumberProp(raw, "sorticonHeight", 14);
+  const sorttitleIconColor = resolveProp(raw, "sorttitleIconColor", "#000");
+  const sortalignIcon = String(resolveProp(raw, "sortalignIcon", "Right"));
+  const sortBgPaddingVisible = resolveBoolProp(raw, "sortVisible", true);
+  const sortBgColor = resolveProp(raw, "sortBgColor", "#E5E7EB");
+  const sortBorderColor = resolveProp(raw, "sortBorderColor", "#E5E7EB");
+  const sortBorderRadius = resolveNumberProp(raw, "sortBorderRadius", 6);
+  const sortBorderSide = resolveProp(raw, "sortBorderSide", "all");
+  const sortPt = resolveNumberProp(raw, "sortPt", 9);
+  const sortPr = resolveNumberProp(raw, "sortPr", 10);
+  const sortPb = resolveNumberProp(raw, "sortPb", 12);
+  const sortPl = resolveNumberProp(raw, "sortPl", 10);
 
-  // Filter items from DSL (for the filter modal)
-  const rawItems    = resolveProp(raw, "items", []);
-  const filterItems = Array.isArray(filterItemsProp) && filterItemsProp.length > 0
-    ? filterItemsProp
-    : Array.isArray(rawItems) ? rawItems : [];
+  // ── Active filters (chip row) ──────────────────────────────────────────
+  const activeTitleVisible = resolveBoolProp(raw, "activeTitleVisible", true);
+  const activetitleFontSize = resolveNumberProp(raw, "activetitleFontSize", 12);
+  const activetitleFontWeight = resolveWeight(resolveProp(raw, "activetitleFontWeight", undefined), "400");
+  const activetitleColor = resolveProp(raw, "activetitleColor", "#fff");
+  const activetitleFontFamily = cleanFontFamily(resolveProp(raw, "activetitleFontFamily", "Inter"), "Inter");
+  const activeVisible = resolveBoolProp(raw, "activeVisible", true);
+  const activeBgColor = resolveProp(raw, "activeBgColor", "#000");
+  const activeBorderColor = resolveProp(raw, "activeBorderColor", "#000");
+  const activeBorderRadius = resolveNumberProp(raw, "activeBorderRadius", 20);
+  const activeBorderSide = resolveProp(raw, "activeBorderSide", "all");
+  const activePt = resolveNumberProp(raw, "activePt", 6);
+  const activePr = resolveNumberProp(raw, "activePr", 10);
+  const activePb = resolveNumberProp(raw, "activePb", 6);
+  const activePl = resolveNumberProp(raw, "activePl", 10);
+  const activealignIcon = String(resolveProp(raw, "activealignIcon", "Right"));
+  const activeimageVisible = resolveBoolProp(raw, "activeimageVisible", true);
+  const activeiconType = resolveProp(raw, "activeiconType", "");
+  const activeiconHeight = resolveNumberProp(raw, "activeiconHeight", 12);
+  const activetitleIconColor = resolveProp(raw, "activetitleIconColor", "#fff");
 
-  const sortOptions = useMemo(() => {
-    const configured = normalizeSortOptions(
-      resolveProp(raw, "sortOptions", resolveProp(raw, "sortItems", []))
-    );
-    return configured.length > 0
-      ? configured
-      : SORT_OPTIONS.map((label) => ({ label, value: label }));
-  }, [section]);
-  const defaultSort = String(
-    resolveProp(raw, "defaultSort", resolveProp(raw, "selectedSort", sortOptions[0]?.value || "Popular"))
-  );
+  // ── Column picker ──────────────────────────────────────────────────────
+  const columnPickerVisible = resolveBoolProp(raw, "columnPickerVisible", true);
+  const columnPrimaryColor = resolveProp(raw, "columnPrimaryColor", "#000000");
+  const listVisible = resolveBoolProp(raw, "listVisible", true);
+  const listIconSize = resolveNumberProp(raw, "listIconSize", 18);
+  const listiconType = resolveProp(raw, "listiconType", "");
+  // Old saved documents (pre-rename) stored this under the legacy key
+  // `columnActiveColor` — fall back to it only when the current key is absent,
+  // matching Builder's own restore logic (layout/centerLive.tsx).
+  const listActiveColor = resolveProp(raw, "listActiveColor", resolveProp(raw, "columnActiveColor", "#000"));
+  const gridVisible = resolveBoolProp(raw, "gridVisible", true);
+  const gridIconSize = resolveNumberProp(raw, "gridIconSize", 18);
+  const gridiconType = resolveProp(raw, "gridiconType", "");
+  const gridActiveColor = resolveProp(raw, "gridActiveColor", resolveProp(raw, "columnActiveColor", "#000"));
+  const columnBgVisible = resolveBoolProp(raw, "columnBgVisible", true);
+  const columnBgColor = resolveProp(raw, "columnBgColor", "#fff");
+  const columnBorderColor = resolveProp(raw, "columnBorderColor", "#E5E7EB");
+  const columnBorderRadius = resolveNumberProp(raw, "columnBorderRadius", 8);
+  const columnBorderSide = resolveProp(raw, "columnBorderSide", "all");
+  const columnPt = resolveNumberProp(raw, "columnPt", 1);
+  const columnPr = resolveNumberProp(raw, "columnPr", 1);
+  const columnPb = resolveNumberProp(raw, "columnPb", 1);
+  const columnPl = resolveNumberProp(raw, "columnPl", 1);
 
-  const [selectedSort, setSelectedSort]   = useState(defaultSort);
-  const [viewMode, setViewMode]           = useState(initialViewMode); // "grid" | "list"
-  const [filterVisible, setFilterVisible] = useState(false);
-  const [sortVisible, setSortVisible]     = useState(false);
-  const [activeFilter, setActiveFilter]   = useState(null);
+  // ── Drawer (sort bottom sheet + filter bottom sheet) ──────────────────
+  const drawerTextVisible = resolveBoolProp(raw, "drawerTextVisible", true);
+  const drawerFontSize = resolveNumberProp(raw, "drawerFontSize", 16);
+  const drawerFontWeight = resolveWeight(resolveProp(raw, "drawerFontWeight", undefined), "500");
+  const drawerFontFamily = cleanFontFamily(resolveProp(raw, "drawerFontFamily", "Inter"), "Inter");
+  const drawerTextColor = resolveProp(raw, "drawerTextColor", "#000000");
+  const drawerCounterColor = resolveProp(raw, "drawerCounterColor", "#6B7280");
+  const drawerCheckboxVisible = resolveBoolProp(raw, "drawerCheckboxVisible", true);
+  const drawerCheckedColor = resolveProp(raw, "drawerCheckedColor", "#000000");
+  const drawerUncheckedColor = resolveProp(raw, "drawerUncheckedColor", "#999999");
+  const drawerDisabledColor = resolveProp(raw, "drawerDisabledColor", "#E5E7EB");
+
+  // ── Local UI state ─────────────────────────────────────────────────────
+  const [showSort, setShowSort] = useState(false);
+  const [showFilter, setShowFilter] = useState(false);
+  const [openAvailability, setOpenAvailability] = useState(true);
+  const [tempFilters, setTempFilters] = useState([]);
+  const [selectedFilters, setSelectedFilters] = useState(() => getSortFilterSnapshot().selectedFilters);
+  const [selectedSort, setSelectedSort] = useState(() => getSortFilterSnapshot().sortOption);
+  const [viewType, setViewType] = useState("grid2"); // "list" | "grid2" — matches Builder's own default
+  const [activeFilter, setActiveFilter] = useState(null); // legacy single-select mode only
+
+  // Hydrate from + subscribe to the shared store (mirrors Builder's
+  // hydrateSortFilterFromLocalStorage + useSyncExternalStore pattern), so any
+  // sibling Filter/Sort header or Product Grid on the same page stays in sync.
+  useEffect(() => {
+    let mounted = true;
+    const applySnapshot = () => {
+      if (!mounted) return;
+      const snap = getSortFilterSnapshot();
+      setSelectedSort(snap.sortOption);
+      setSelectedFilters(snap.selectedFilters);
+      setTempFilters(snap.selectedFilters);
+    };
+    hydrateSortFilterFromStorage().then(applySnapshot);
+    const unsub = subscribeSortFilter(applySnapshot);
+    return () => {
+      mounted = false;
+      unsub();
+    };
+  }, []);
 
   useEffect(() => {
-    setViewMode(initialViewMode);
-    onViewModeChange && onViewModeChange(initialViewMode);
-  }, [initialViewMode]);
+    onViewModeChange && onViewModeChange(viewType === "list" ? "list" : "grid");
+  }, [viewType]);
 
-  useEffect(() => {
-    setSelectedSort(defaultSort);
-  }, [defaultSort]);
+  const sortButtonText = selectedSort === "Best Selling" ? "Popular" : selectedSort;
 
-  const handleSortSelect = (option) => {
-    const value = option?.value ?? option?.label ?? option;
+  const removeFilter = (value) => {
+    setSelectedFilters((prev) => {
+      const next = prev.filter((v) => v !== value);
+      setSortFilterState({ sortOption: selectedSort, selectedFilters: next });
+      onFilterChange && onFilterChange(next.length ? next : null);
+      return next;
+    });
+  };
+
+  const toggleFilter = (value) => {
+    setTempFilters((prev) => (prev.includes(value) ? prev.filter((v) => v !== value) : [...prev, value]));
+  };
+
+  const handleSortSelect = (value) => {
+    if (legacyFilterMode) {
+      setSelectedSort(value);
+      setShowSort(false);
+      onSortChange && onSortChange(value);
+      return;
+    }
     setSelectedSort(value);
-    setSortVisible(false);
+    setSortFilterState({ sortOption: value, selectedFilters });
     onSortChange && onSortChange(value);
+    // Builder keeps the drawer open on selection — only "Apply" closes it.
   };
 
-  const handleViewMode = (mode) => {
-    setViewMode(mode);
-    onViewModeChange && onViewModeChange(mode);
+  const handleOpenSort = () => {
+    if (!legacyFilterMode) {
+      // Matches Builder: opening the Sort drawer always resets to "Best Selling".
+      setSelectedSort("Best Selling");
+      setSortFilterState({ sortOption: "Best Selling", selectedFilters });
+      onSortChange && onSortChange("Best Selling");
+    }
+    setShowSort(true);
+    setShowFilter(false);
   };
 
-  const handleApplyFilter = () => {
-    setFilterVisible(false);
+  const handleApplyAvailabilityFilters = () => {
+    setSelectedFilters(tempFilters);
+    setSortFilterState({ sortOption: selectedSort, selectedFilters: tempFilters });
+    onFilterChange && onFilterChange(tempFilters.length ? tempFilters : null);
+    setShowFilter(false);
+  };
+
+  const handleApplyLegacyFilter = () => {
+    setShowFilter(false);
     onFilterChange && onFilterChange(activeFilter);
   };
 
-  const handleClearFilter = () => {
+  const handleClearLegacyFilter = () => {
     setActiveFilter(null);
-    setFilterVisible(false);
+    setShowFilter(false);
     onFilterChange && onFilterChange(null);
   };
 
-  const containerPad = {
+  const containerStyle = {
+    backgroundColor: contVisible ? bgColor : "transparent",
+    borderRadius: contVisible ? borderRadius : 0,
     paddingTop: pt,
+    paddingRight: pr,
     paddingBottom: pb,
     paddingLeft: pl,
-    paddingRight: pr,
-    backgroundColor: bgColor,
-    ...containerBorder,
+    ...(contVisible ? resolveBorderStyle(borderSide, borderColor) : null),
   };
 
-  const baseTitleColor  = resolveProp(raw, "titleColor", "#111827");
-  const baseTitleSize   = resolveNumberProp(raw, "titleFontSize", 14);
-  const baseTitleWeight = resolveWeight(resolveProp(raw, "titleFontWeight", undefined), "500");
-  const baseTitleFamily = resolveFont(
-    resolveProp(raw, "titleFontFamily", resolveProp(raw, "textFontFamily", resolveProp(raw, "fontFamily", undefined)))
-  );
-  const titleAlign = String(resolveProp(raw, "titleAlign", "left")).trim().toLowerCase();
+  const filterButtonStyle = {
+    backgroundColor: filterBgPaddingVisible ? filterBgColor : "transparent",
+    borderRadius: filterBgPaddingVisible ? filterBorderRadius : 0,
+    paddingTop: filterBgPaddingVisible ? filterPt : 0,
+    paddingRight: filterBgPaddingVisible ? filterPr : 0,
+    paddingBottom: filterBgPaddingVisible ? filterPb : 0,
+    paddingLeft: filterBgPaddingVisible ? filterPl : 0,
+    ...(filterBgPaddingVisible ? resolveBorderStyle(filterBorderSide, filterBorderColor) : null),
+  };
 
-  const sortPillStyle = {
-    backgroundColor: resolveProp(raw, "sortBgColor", "#ECECEC"),
-    borderColor: resolveProp(raw, "sortBorderColor", "transparent"),
-    ...resolveBorderStyle(
-      resolveProp(raw, "sortBorderSide", "none"),
-      resolveProp(raw, "sortBorderColor", "transparent"),
-      resolveNumberProp(raw, "sortBorderWidth", 1)
-    ),
-    borderRadius: resolveNumberProp(raw, "sortBorderRadius", controlRadius),
-    paddingTop: resolveNumberProp(raw, "sortPt", 8),
-    paddingBottom: resolveNumberProp(raw, "sortPb", 8),
-    paddingLeft: resolveNumberProp(raw, "sortPl", 14),
-    paddingRight: resolveNumberProp(raw, "sortPr", 14),
+  const sortButtonStyle = {
+    backgroundColor: sortBgPaddingVisible ? sortBgColor : "transparent",
+    borderRadius: sortBgPaddingVisible ? sortBorderRadius : 0,
+    paddingTop: sortBgPaddingVisible ? sortPt : 0,
+    paddingRight: sortBgPaddingVisible ? sortPr : 0,
+    paddingBottom: sortBgPaddingVisible ? sortPb : 0,
+    paddingLeft: sortBgPaddingVisible ? sortPl : 0,
+    ...(sortBgPaddingVisible ? resolveBorderStyle(sortBorderSide, sortBorderColor) : null),
   };
-  const sortPillTextStyle = {
-    color: resolveProp(raw, "sorttitleColor", baseTitleColor),
-    fontSize: resolveNumberProp(raw, "sorttitleFontSize", baseTitleSize),
-    fontWeight: resolveWeight(resolveProp(raw, "sorttitleFontWeight", undefined), baseTitleWeight),
-    textAlign: titleAlign,
-    ...(baseTitleFamily ? { fontFamily: baseTitleFamily } : {}),
-  };
-  const filterPillStyle = {
-    backgroundColor: resolveProp(raw, "filterBgColor", "#ECECEC"),
-    borderColor: resolveProp(raw, "filterBorderColor", "transparent"),
-    ...resolveBorderStyle(
-      resolveProp(raw, "filterBorderSide", "none"),
-      resolveProp(raw, "filterBorderColor", "transparent"),
-      resolveNumberProp(raw, "filterBorderWidth", 1)
-    ),
-    borderRadius: resolveNumberProp(raw, "filterBorderRadius", controlRadius),
-    paddingTop: resolveNumberProp(raw, "filterPt", 8),
-    paddingBottom: resolveNumberProp(raw, "filterPb", 8),
-    paddingLeft: resolveNumberProp(raw, "filterPl", 14),
-    paddingRight: resolveNumberProp(raw, "filterPr", 14),
-  };
-  const filterPillTextStyle = {
-    color: resolveProp(raw, "filtertitleColor", baseTitleColor),
-    fontSize: resolveNumberProp(raw, "filtertitleFontSize", baseTitleSize),
-    fontWeight: resolveWeight(resolveProp(raw, "filtertitleFontWeight", undefined), baseTitleWeight),
-    textAlign: titleAlign,
-    ...(baseTitleFamily ? { fontFamily: baseTitleFamily } : {}),
-  };
-  const drawerTextColor    = resolveProp(raw, "drawerTextColor", "#374151");
-  const drawerCheckedColor = resolveProp(raw, "drawerCheckedColor", "#0891B2");
-  const activeTitleColor   = resolveProp(raw, "activetitleColor", "#111827");
-  const selectedSortLabel =
-    sortOptions.find((option) => String(option.value) === String(selectedSort))?.label ||
-    String(selectedSort);
-  const filterLabel = String(resolveProp(raw, "filterTitle", resolveProp(raw, "filterText", "Filter")));
-  const sortSheetTitle = String(resolveProp(raw, "sortDrawerTitle", resolveProp(raw, "sortModalTitle", "Sort Products")));
-  const filterSheetTitle = String(resolveProp(raw, "filterDrawerTitle", resolveProp(raw, "filterModalTitle", "Filter by Category")));
-  const actionBgColor = resolveProp(raw, "buttonBgColor", activeTitleColor);
-  const actionTextColor = resolveProp(raw, "buttonTextColor", "#ffffff");
-  const actionFontFamily = resolveFont(resolveProp(raw, "buttonFontFamily", baseTitleFamily));
-  const actionFontSize = resolveNumberProp(raw, "buttonFontSize", baseTitleSize);
-  const actionFontWeight = resolveWeight(resolveProp(raw, "buttonFontWeight", undefined), "600");
 
-  if (!showSortButton && !showFilterButton && !showColumnPicker) return null;
+  const columnBoxStyle = {
+    backgroundColor: columnBgVisible ? columnBgColor : "transparent",
+    borderRadius: columnBgVisible ? columnBorderRadius : 0,
+    paddingTop: columnBgVisible ? columnPt : 0,
+    paddingRight: columnBgVisible ? columnPr : 0,
+    paddingBottom: columnBgVisible ? columnPb : 0,
+    paddingLeft: columnBgVisible ? columnPl : 0,
+    ...(columnBgVisible ? resolveBorderStyle(columnBorderSide, columnBorderColor) : null),
+  };
 
   return (
     <>
-      {/* ── Main bar ─────────────────────────────────────────────────── */}
-      <View
-        style={[
-          styles.bar,
-          compactControls && styles.compactBar,
-          containerPad,
-          { columnGap: horizontalGap, rowGap: verticalGap },
-        ]}
-      >
-        {/* Left: Filter + Sort tabs */}
-        {compactControls ? (
-          <View style={[styles.compactLeft, { gap: horizontalGap }]}>
-            {showFilterButton ? (
-              <TouchableOpacity
-                style={[styles.compactPill, { minHeight: controlHeight }, filterPillStyle]}
-                activeOpacity={0.75}
-                onPress={() => setFilterVisible(true)}
-              >
-                {showFilterIcon && filterIconAlignment !== "right" ? (
-                  <Icon name={filterIconName} size={filterIconSize} color={filterIconColor} />
-                ) : null}
-                {showSortText ? (
-                  <Text style={[styles.compactPillText, filterPillTextStyle]} numberOfLines={1}>
-                    {activeFilter?.label || filterLabel}
+      <View style={[styles.container, containerStyle]}>
+        <View style={styles.headerRow}>
+          {legacyFilterMode ? (
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.leftScroll}
+            >
+              {cardTitleVisible ? (
+                <TouchableOpacity
+                  style={[styles.pillButton, filterButtonStyle]}
+                  activeOpacity={0.75}
+                  onPress={() => {
+                    setShowFilter(true);
+                    setShowSort(false);
+                  }}
+                >
+                  {alignFilterIcon !== "Right" && imageVisible ? (
+                    <View style={styles.pillIconGap}>{renderIconGlyph(iconType, iconHeight, titleIconColor)}</View>
+                  ) : null}
+                  <Text
+                    style={{
+                      fontSize: titleFontSize,
+                      fontWeight: titleFontWeight,
+                      color: titleColor,
+                      fontFamily: titleFontFamily,
+                    }}
+                    numberOfLines={1}
+                  >
+                    {activeFilter?.label || "Filter"}
                   </Text>
-                ) : null}
-                {showFilterIcon && filterIconAlignment === "right" ? (
-                  <Icon name={filterIconName} size={filterIconSize} color={filterIconColor} />
-                ) : null}
-                <Icon name={filterDropdownIcon} size={dropdownIconSize} color={dropdownIconColor} />
-              </TouchableOpacity>
-            ) : null}
-            {showSortButton ? (
-              <TouchableOpacity
-                style={[styles.compactPill, { minHeight: controlHeight }, sortPillStyle]}
-                activeOpacity={0.75}
-                onPress={() => setSortVisible(true)}
-              >
-                {sortTitleVisible ? (
-                  <Text style={[styles.compactPillText, sortPillTextStyle]} numberOfLines={1}>
-                    {selectedSortLabel}
+                  {alignFilterIcon === "Right" && imageVisible ? (
+                    <View style={styles.pillIconGap}>{renderIconGlyph(iconType, iconHeight, titleIconColor)}</View>
+                  ) : null}
+                </TouchableOpacity>
+              ) : null}
+
+              {sortTitleVisible
+                ? SORT_OPTIONS.map((label) => {
+                    const active = selectedSort === label;
+                    return (
+                      <TouchableOpacity
+                        key={label}
+                        style={[
+                          styles.pillButton,
+                          sortButtonStyle,
+                          active ? { borderColor: sorttitleColor } : null,
+                        ]}
+                        activeOpacity={0.75}
+                        onPress={() => handleSortSelect(label)}
+                      >
+                        {sortalignIcon !== "Right" && sortimageVisible ? (
+                          <View style={styles.pillIconGap}>
+                            {renderIconGlyph(sorticonType, sorticonHeight, sorttitleIconColor)}
+                          </View>
+                        ) : null}
+                        <Text
+                          style={{
+                            fontSize: sorttitleFontSize,
+                            fontWeight: sorttitleFontWeight,
+                            color: sorttitleColor,
+                            fontFamily: sorttitleFontFamily,
+                          }}
+                        >
+                          {label}
+                        </Text>
+                        {sortalignIcon === "Right" && sortimageVisible ? (
+                          <View style={styles.pillIconGap}>
+                            {renderIconGlyph(sorticonType, sorticonHeight, sorttitleIconColor)}
+                          </View>
+                        ) : null}
+                      </TouchableOpacity>
+                    );
+                  })
+                : null}
+            </ScrollView>
+          ) : (
+            <View style={styles.leftGroup}>
+              {cardTitleVisible ? (
+                <TouchableOpacity
+                  style={[styles.pillButton, filterButtonStyle]}
+                  activeOpacity={0.75}
+                  onPress={() => {
+                    setShowFilter(true);
+                    setShowSort(false);
+                  }}
+                >
+                  {alignFilterIcon !== "Right" && imageVisible ? (
+                    <View style={styles.pillIconGap}>{renderIconGlyph(iconType, iconHeight, titleIconColor)}</View>
+                  ) : null}
+                  <Text
+                    style={{
+                      fontSize: titleFontSize,
+                      fontWeight: titleFontWeight,
+                      color: titleColor,
+                      fontFamily: titleFontFamily,
+                    }}
+                  >
+                    Filter
                   </Text>
+                  {alignFilterIcon === "Right" && imageVisible ? (
+                    <View style={styles.pillIconGap}>{renderIconGlyph(iconType, iconHeight, titleIconColor)}</View>
+                  ) : null}
+                </TouchableOpacity>
+              ) : null}
+
+              {sortTitleVisible ? (
+                <TouchableOpacity
+                  style={[styles.pillButton, sortButtonStyle]}
+                  activeOpacity={0.75}
+                  onPress={handleOpenSort}
+                >
+                  {sortalignIcon !== "Right" && sortimageVisible ? (
+                    <View style={styles.pillIconGap}>
+                      {renderIconGlyph(sorticonType, sorticonHeight, sorttitleIconColor)}
+                    </View>
+                  ) : null}
+                  <Text
+                    style={{
+                      fontSize: sorttitleFontSize,
+                      fontWeight: sorttitleFontWeight,
+                      color: sorttitleColor,
+                      fontFamily: sorttitleFontFamily,
+                    }}
+                    numberOfLines={1}
+                  >
+                    {sortButtonText}
+                  </Text>
+                  {sortalignIcon === "Right" && sortimageVisible ? (
+                    <View style={styles.pillIconGap}>
+                      {renderIconGlyph(sorticonType, sorticonHeight, sorttitleIconColor)}
+                    </View>
+                  ) : null}
+                </TouchableOpacity>
+              ) : null}
+            </View>
+          )}
+
+          <View style={[styles.columnBox, columnBoxStyle]}>
+            {columnPickerVisible ? (
+              <View style={styles.columnButtons}>
+                {listVisible ? (
+                  <TouchableOpacity style={styles.toggleBtn} activeOpacity={0.75} onPress={() => setViewType("list")}>
+                    {renderIconGlyph(listiconType, listIconSize, viewType === "list" ? listActiveColor : columnPrimaryColor)}
+                  </TouchableOpacity>
                 ) : null}
-                <Icon name={sortDropdownIcon} size={dropdownIconSize} color={dropdownIconColor} />
-              </TouchableOpacity>
+                {gridVisible ? (
+                  <TouchableOpacity style={styles.toggleBtn} activeOpacity={0.75} onPress={() => setViewType("grid2")}>
+                    {renderIconGlyph(gridiconType, gridIconSize, viewType === "grid2" ? gridActiveColor : columnPrimaryColor)}
+                  </TouchableOpacity>
+                ) : null}
+              </View>
             ) : null}
           </View>
-        ) : (
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={[styles.leftScroll, { gap: horizontalGap }]}
-          >
-            {/* Filter button */}
-            {showFilterButton ? (
-              <TouchableOpacity
-                style={[styles.pill, filterPillStyle]}
-                activeOpacity={0.75}
-                onPress={() => setFilterVisible(true)}
+        </View>
+
+        {!legacyFilterMode && activeTitleVisible && selectedFilters.length > 0 ? (
+          <View style={styles.activeRow}>
+            {selectedFilters.map((filter) => (
+              <View
+                key={filter}
+                style={[
+                  styles.activeChip,
+                  {
+                    backgroundColor: activeVisible ? activeBgColor : "transparent",
+                    borderRadius: activeVisible ? activeBorderRadius : 0,
+                    paddingTop: activeVisible ? activePt : 0,
+                    paddingRight: activeVisible ? activePr : 0,
+                    paddingBottom: activeVisible ? activePb : 0,
+                    paddingLeft: activeVisible ? activePl : 0,
+                    ...(activeVisible ? resolveBorderStyle(activeBorderSide, activeBorderColor) : null),
+                  },
+                ]}
               >
-                {showFilterIcon && filterIconAlignment !== "right" ? (
-                  <Icon name={filterIconName} size={filterIconSize} color={filterIconColor} style={styles.pillIcon} />
+                {activealignIcon !== "Right" && activeimageVisible && activeiconType ? (
+                  <TouchableOpacity onPress={() => removeFilter(filter)}>
+                    {renderIconGlyph(activeiconType, activeiconHeight, activetitleIconColor)}
+                  </TouchableOpacity>
                 ) : null}
-                {showSortText && (
-                  <Text style={[styles.pillText, filterPillTextStyle]} numberOfLines={1}>
-                    {activeFilter?.label || filterLabel}
-                  </Text>
-                )}
-                {showFilterIcon && filterIconAlignment === "right" ? (
-                  <Icon name={filterIconName} size={filterIconSize} color={filterIconColor} />
-                ) : null}
-              </TouchableOpacity>
-            ) : null}
-
-            {/* Sort option chips */}
-            {showSortButton ? sortOptions.map((option) => {
-              const active = String(selectedSort) === String(option.value);
-              return (
-                <TouchableOpacity
-                  key={String(option.value)}
-                  style={[
-                    styles.pill,
-                    sortPillStyle,
-                    active && styles.pillActive,
-                    active && { backgroundColor: columnActiveBgColor },
-                  ]}
-                  activeOpacity={0.75}
-                  onPress={() => handleSortSelect(option)}
+                <Text
+                  style={{
+                    fontSize: activetitleFontSize,
+                    fontWeight: activetitleFontWeight,
+                    color: activetitleColor,
+                    fontFamily: activetitleFontFamily,
+                  }}
                 >
-                  <Text
-                    style={[
-                      styles.pillText,
-                      sortPillTextStyle,
-                      active && styles.pillTextActive,
-                      active && { color: activeTitleColor },
-                    ]}
-                  >
-                    {option.label}
-                  </Text>
-                </TouchableOpacity>
-              );
-            }) : null}
-          </ScrollView>
-        )}
-
-        {/* Right: List / Grid toggle */}
-        {showColumnPicker ? (
-          <View
-            style={[
-              styles.viewToggle,
-              compactControls && styles.compactViewToggle,
-              { gap: horizontalGap, backgroundColor: columnBgColor, borderRadius: controlRadius },
-            ]}
-          >
-            <TouchableOpacity
-              style={[
-                styles.toggleBtn,
-                compactControls && styles.compactToggleBtn,
-                {
-                  width: columnButtonSize,
-                  height: controlHeight,
-                  borderRadius: controlRadius,
-                  backgroundColor: columnBgColor,
-                },
-                viewMode === "list" && styles.toggleBtnActive,
-                viewMode === "list" && { backgroundColor: columnActiveBgColor },
-              ]}
-              activeOpacity={0.75}
-              onPress={() => handleViewMode("list")}
-            >
-              <Icon name={listIconName} size={toggleIconSize} color={viewMode === "list" ? toggleActiveColor : toggleInactiveColor} />
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[
-                styles.toggleBtn,
-                compactControls && styles.compactToggleBtn,
-                {
-                  width: columnButtonSize,
-                  height: controlHeight,
-                  borderRadius: controlRadius,
-                  backgroundColor: columnBgColor,
-                },
-                viewMode === "grid" && styles.toggleBtnActive,
-                viewMode === "grid" && { backgroundColor: columnActiveBgColor },
-              ]}
-              activeOpacity={0.75}
-              onPress={() => handleViewMode("grid")}
-            >
-              <Icon name={gridIconName} size={toggleIconSize} color={viewMode === "grid" ? toggleActiveColor : toggleInactiveColor} />
-            </TouchableOpacity>
+                  {filter}
+                </Text>
+                {activealignIcon === "Right" && activeimageVisible && activeiconType ? (
+                  <TouchableOpacity onPress={() => removeFilter(filter)}>
+                    {renderIconGlyph(activeiconType, activeiconHeight, activetitleIconColor)}
+                  </TouchableOpacity>
+                ) : null}
+              </View>
+            ))}
           </View>
         ) : null}
       </View>
 
-      {/* ── Filter Modal ─────────────────────────────────────────────── */}
-      <Modal
-        visible={sortVisible}
-        transparent
-        animationType="slide"
-        onRequestClose={() => setSortVisible(false)}
-      >
+      {/* ── Sort bottom sheet ────────────────────────────────────────────── */}
+      <Modal visible={showSort} transparent animationType="slide" onRequestClose={() => setShowSort(false)}>
         <View style={styles.modalRoot}>
-          <TouchableOpacity
-            style={styles.backdrop}
-            activeOpacity={1}
-            onPress={() => setSortVisible(false)}
-          />
+          <TouchableOpacity style={styles.backdrop} activeOpacity={1} onPress={() => setShowSort(false)} />
           <View style={[styles.sheet, { backgroundColor: bgColor }]}>
             <View style={styles.sheetHandle} />
-            <Text style={[styles.sheetTitle, sortPillTextStyle]}>{sortSheetTitle}</Text>
-            <View style={[styles.sortOptions, { gap: verticalGap }]}>
-              {sortOptions.map((option) => {
-                const active = String(selectedSort) === String(option.value);
-                return (
-                  <TouchableOpacity
-                    key={String(option.value)}
-                    style={[
-                      styles.sortOption,
-                      { backgroundColor: sortPillStyle.backgroundColor, borderRadius: controlRadius },
-                      active && styles.sortOptionActive,
-                      active && { backgroundColor: columnActiveBgColor },
-                    ]}
-                    activeOpacity={0.75}
-                    onPress={() => handleSortSelect(option)}
-                  >
-                    <Text
+            <View style={styles.sheetHeaderRow}>
+              {drawerTextVisible ? (
+                <Text style={[styles.sheetTitle, { fontFamily: drawerFontFamily }]}>SORT</Text>
+              ) : (
+                <View />
+              )}
+              <TouchableOpacity onPress={() => setShowSort(false)}>
+                <Text style={styles.closeGlyph}>✕</Text>
+              </TouchableOpacity>
+            </View>
+
+            {SORT_OPTIONS.map((label) => {
+              const checked = selectedSort === label;
+              return (
+                <TouchableOpacity
+                  key={label}
+                  style={styles.sortRow}
+                  activeOpacity={0.7}
+                  onPress={() => handleSortSelect(label)}
+                >
+                  {drawerCheckboxVisible ? (
+                    <View
                       style={[
-                        styles.sortOptionText,
-                        sortPillTextStyle,
-                        active && styles.sortOptionTextActive,
-                        active && { color: activeTitleColor },
+                        styles.radioOuter,
+                        {
+                          borderColor: checked ? drawerCheckedColor : drawerUncheckedColor,
+                          backgroundColor: checked ? drawerCheckedColor : "transparent",
+                        },
                       ]}
                     >
-                      {option.label}
+                      {checked ? <View style={styles.radioInner} /> : null}
+                    </View>
+                  ) : null}
+                  {drawerTextVisible ? (
+                    <Text
+                      style={{
+                        fontSize: drawerFontSize,
+                        fontWeight: drawerFontWeight,
+                        fontFamily: drawerFontFamily,
+                        color: drawerTextColor,
+                      }}
+                    >
+                      {label}
                     </Text>
-                    {active ? <Icon name="check" size={13} color={activeTitleColor} /> : null}
-                  </TouchableOpacity>
-                );
-              })}
-            </View>
+                  ) : null}
+                </TouchableOpacity>
+              );
+            })}
+
+            <TouchableOpacity style={styles.applyBtn} activeOpacity={0.85} onPress={() => setShowSort(false)}>
+              <Text style={styles.applyBtnText}>Apply</Text>
+            </TouchableOpacity>
           </View>
         </View>
       </Modal>
 
-      <Modal
-        visible={filterVisible}
-        transparent
-        animationType="slide"
-        onRequestClose={() => setFilterVisible(false)}
-      >
+      {/* ── Filter bottom sheet ──────────────────────────────────────────── */}
+      <Modal visible={showFilter} transparent animationType="slide" onRequestClose={() => setShowFilter(false)}>
         <View style={styles.modalRoot}>
-          <TouchableOpacity
-            style={styles.backdrop}
-            activeOpacity={1}
-            onPress={() => setFilterVisible(false)}
-          />
+          <TouchableOpacity style={styles.backdrop} activeOpacity={1} onPress={() => setShowFilter(false)} />
           <View style={[styles.sheet, { backgroundColor: bgColor }]}>
             <View style={styles.sheetHandle} />
-            <Text style={[styles.sheetTitle, filterPillTextStyle]}>{filterSheetTitle}</Text>
+            <View style={styles.sheetHeaderRow}>
+              {drawerTextVisible ? <Text style={[styles.sheetTitle, { fontFamily: drawerFontFamily }]}>FILTER</Text> : <View />}
+              <TouchableOpacity onPress={() => setShowFilter(false)}>
+                <Text style={styles.closeGlyph}>✕</Text>
+              </TouchableOpacity>
+            </View>
 
-            <ScrollView
-              style={styles.filterScroll}
-              contentContainerStyle={[styles.filterChips, { gap: horizontalGap }]}
-              showsVerticalScrollIndicator={false}
-            >
-              {filterItems.length > 0 ? (
-                filterItems.map((item) => {
-                  const label = item?.label || item?.title || item?.name || String(item);
-                  const value = item?.value ?? label;
-                  const selected =
-                    activeFilter &&
-                    (activeFilter.id === item?.id ||
-                      `${activeFilter.type || ""}:${activeFilter.value ?? activeFilter.label}` === `${item?.type || ""}:${value}`);
-                  return (
-                    <TouchableOpacity
-                      key={item?.id || label}
-                      style={[
-                        styles.filterChip,
-                        { backgroundColor: filterPillStyle.backgroundColor, borderRadius: controlRadius },
-                        selected && styles.filterChipActive,
-                        selected && { borderColor: drawerCheckedColor, backgroundColor: columnActiveBgColor },
-                      ]}
-                      activeOpacity={0.75}
-                      onPress={() => setActiveFilter(selected ? null : { ...item, label, value })}
-                    >
-                      <Text
-                        style={[
-                          styles.filterChipText,
-                          {
-                            color: drawerTextColor,
-                            fontSize: baseTitleSize,
-                            fontWeight: baseTitleWeight,
-                            ...(baseTitleFamily ? { fontFamily: baseTitleFamily } : {}),
-                          },
-                          selected && styles.filterChipTextActive,
-                          selected && { color: drawerCheckedColor },
-                        ]}
+            {legacyFilterMode ? (
+              <>
+                <ScrollView style={styles.filterScroll} contentContainerStyle={styles.filterChips}>
+                  {filterItemsProp.map((item) => {
+                    const label = item?.label || item?.title || item?.name || String(item);
+                    const value = item?.value ?? label;
+                    const selected =
+                      activeFilter &&
+                      (activeFilter.id === item?.id ||
+                        `${activeFilter.type || ""}:${activeFilter.value ?? activeFilter.label}` ===
+                          `${item?.type || ""}:${value}`);
+                    return (
+                      <TouchableOpacity
+                        key={item?.id || label}
+                        style={[styles.filterChip, selected && styles.filterChipActive]}
+                        activeOpacity={0.75}
+                        onPress={() => setActiveFilter(selected ? null : { ...item, label, value })}
                       >
-                        {label}
+                        <Text
+                          style={[
+                            styles.filterChipText,
+                            {
+                              color: drawerTextColor,
+                              fontSize: drawerFontSize,
+                              fontFamily: drawerFontFamily,
+                            },
+                            selected && { color: drawerCheckedColor },
+                          ]}
+                        >
+                          {label}
+                        </Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </ScrollView>
+                <View style={styles.sheetActions}>
+                  <TouchableOpacity style={styles.applyBtn} activeOpacity={0.85} onPress={handleApplyLegacyFilter}>
+                    <Text style={styles.applyBtnText}>Apply</Text>
+                  </TouchableOpacity>
+                  {activeFilter ? (
+                    <TouchableOpacity style={styles.clearBtn} activeOpacity={0.85} onPress={handleClearLegacyFilter}>
+                      <Text style={{ color: drawerTextColor, fontWeight: drawerFontWeight, fontFamily: drawerFontFamily }}>
+                        Clear filter
                       </Text>
                     </TouchableOpacity>
-                  );
-                })
-              ) : (
-                <Text style={styles.noFilters}>No filter options available.</Text>
-              )}
-            </ScrollView>
-
-            <View style={styles.sheetActions}>
-              <TouchableOpacity
-                style={[styles.applyBtn, { backgroundColor: actionBgColor, borderRadius: controlRadius }]}
-                activeOpacity={0.85}
-                onPress={handleApplyFilter}
-              >
-                <Text
-                  style={[
-                    styles.applyBtnText,
-                    {
-                      color: actionTextColor,
-                      fontSize: actionFontSize,
-                      fontWeight: actionFontWeight,
-                      ...(actionFontFamily ? { fontFamily: actionFontFamily } : {}),
-                    },
-                  ]}
-                >
-                  {String(resolveProp(raw, "applyButtonText", "Apply"))}
-                </Text>
-              </TouchableOpacity>
-              {activeFilter ? (
+                  ) : null}
+                </View>
+              </>
+            ) : (
+              <>
                 <TouchableOpacity
-                  style={styles.clearBtn}
-                  activeOpacity={0.85}
-                  onPress={handleClearFilter}
+                  style={styles.accordionHeader}
+                  activeOpacity={0.75}
+                  onPress={() => setOpenAvailability((v) => !v)}
                 >
-                  <Text style={[styles.clearBtnText, { color: drawerTextColor }]}>
-                    {String(resolveProp(raw, "clearButtonText", "Clear filter"))}
+                  <Text style={{ fontWeight: drawerFontWeight, fontFamily: drawerFontFamily, color: drawerTextColor }}>
+                    Availability
                   </Text>
+                  <Icon name={openAvailability ? "chevron-down" : "chevron-left"} size={14} color={drawerTextColor} />
                 </TouchableOpacity>
-              ) : null}
-            </View>
+
+                {openAvailability ? (
+                  <View style={styles.accordionBody}>
+                    {AVAILABILITY_FILTERS.map((item) => {
+                      const checked = tempFilters.includes(item.label);
+                      return (
+                        <TouchableOpacity
+                          key={item.label}
+                          disabled={item.disabled}
+                          style={styles.filterRow}
+                          activeOpacity={0.7}
+                          onPress={() => !item.disabled && toggleFilter(item.label)}
+                        >
+                          {drawerCheckboxVisible ? (
+                            <View
+                              style={[
+                                styles.checkboxOuter,
+                                {
+                                  borderColor: item.disabled
+                                    ? drawerDisabledColor
+                                    : checked
+                                      ? drawerCheckedColor
+                                      : drawerUncheckedColor,
+                                  backgroundColor: checked && !item.disabled ? drawerCheckedColor : "transparent",
+                                },
+                              ]}
+                            >
+                              {checked && !item.disabled ? <Text style={styles.checkGlyph}>✓</Text> : null}
+                            </View>
+                          ) : null}
+                          {drawerTextVisible ? (
+                            <Text
+                              style={{
+                                flex: 1,
+                                fontSize: drawerFontSize,
+                                fontWeight: drawerFontWeight,
+                                fontFamily: drawerFontFamily,
+                                color: item.disabled ? drawerDisabledColor : drawerTextColor,
+                              }}
+                            >
+                              {item.label}
+                            </Text>
+                          ) : null}
+                          <Text
+                            style={{
+                              color: item.disabled ? drawerDisabledColor : drawerCounterColor,
+                              fontSize: drawerFontSize,
+                            }}
+                          >
+                            ({item.count})
+                          </Text>
+                        </TouchableOpacity>
+                      );
+                    })}
+                  </View>
+                ) : null}
+
+                <View style={styles.sheetActions}>
+                  <TouchableOpacity style={styles.clearBtn} activeOpacity={0.85} onPress={() => setTempFilters([])}>
+                    <Text style={{ color: drawerTextColor, fontWeight: drawerFontWeight, fontFamily: drawerFontFamily }}>
+                      Clear
+                    </Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity style={styles.applyBtn} activeOpacity={0.85} onPress={handleApplyAvailabilityFilters}>
+                    <Text style={styles.applyBtnText}>Apply Filters</Text>
+                  </TouchableOpacity>
+                </View>
+              </>
+            )}
           </View>
         </View>
       </Modal>
@@ -665,123 +787,64 @@ export default function FilterSortHeader({
 }
 
 const styles = StyleSheet.create({
-  bar: {
+  container: {},
+  headerRow: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#fff",
-    borderBottomWidth: 1,
-    borderBottomColor: "#F3F4F6",
-  },
-  compactBar: {
     justifyContent: "space-between",
-    borderBottomWidth: 0,
+    gap: 10,
   },
-  compactLeft: {
+  leftGroup: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 8,
-    flex: 1,
-    flexShrink: 1,
-    minWidth: 0,
-  },
-  compactPill: {
-    minHeight: 34,
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-    flexShrink: 1,
-    paddingHorizontal: 14,
-    borderRadius: 18,
-    backgroundColor: "#ECECEC",
-  },
-  compactPillText: {
-    fontSize: 14,
-    fontWeight: "500",
-    color: "#111827",
+    gap: 10,
     flexShrink: 1,
   },
-
-  // Scrollable left area
   leftScroll: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 8,
-    paddingRight: 8,
+    gap: 10,
+    paddingRight: 10,
   },
-
-  // Pill buttons (Filter + Sort options)
-  pill: {
+  pillButton: {
     flexDirection: "row",
     alignItems: "center",
-    paddingVertical: 5,
-    paddingHorizontal: 12,
-    borderRadius: 20,
-    borderWidth: 1,
-    borderColor: "#D1D5DB",
-    backgroundColor: "#fff",
+    gap: 6, // matches Builder's button style: display:inline-flex, gap:6
   },
-  pillActive: {
-    borderColor: "#0891B2",
-    backgroundColor: "#E0F2FE",
-  },
-  pillIcon: {
-    marginRight: 5,
-  },
-  pillText: {
-    fontSize: 13,
-    fontWeight: "500",
-    color: "#374151",
-  },
-  pillTextActive: {
-    color: "#0891B2",
-    fontWeight: "600",
-  },
-
-  // Grid/List toggle
-  viewToggle: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 4,
+  pillIconGap: {},
+  columnBox: {
     flexShrink: 0,
   },
-  compactViewToggle: {
-    gap: 8,
+  columnButtons: {
+    flexDirection: "row",
+    alignItems: "center",
   },
   toggleBtn: {
-    width: 32,
-    height: 32,
-    borderRadius: 6,
-    borderWidth: 1,
-    borderColor: "#E5E7EB",
+    width: 40,
+    height: 40,
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: "#fff",
   },
-  compactToggleBtn: {
-    width: 24,
-    height: 28,
-    borderWidth: 0,
-    backgroundColor: "transparent",
+  activeRow: {
+    marginTop: 8,
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
   },
-  toggleBtnActive: {
-    backgroundColor: "#F3F4F6",
-    borderColor: "#9CA3AF",
+  activeChip: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
   },
-
   modalRoot: {
     flex: 1,
     justifyContent: "flex-end",
   },
-
-  // Modal backdrop
   backdrop: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: "rgba(0,0,0,0.3)",
+    backgroundColor: "rgba(255,255,255,0.3)",
   },
-
-  // Bottom sheet
   sheet: {
-    backgroundColor: "#fff",
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
     paddingHorizontal: 20,
@@ -795,46 +858,77 @@ const styles = StyleSheet.create({
     borderRadius: 2,
     backgroundColor: "#D1D5DB",
     alignSelf: "center",
-    marginBottom: 16,
+    marginBottom: 12,
+  },
+  sheetHeaderRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 12,
   },
   sheetTitle: {
-    fontSize: 16,
+    fontSize: 20,
     fontWeight: "700",
-    color: "#111827",
-    marginBottom: 16,
+    color: "#000",
+  },
+  closeGlyph: {
+    fontSize: 18,
+  },
+  sortRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    marginVertical: 10,
+  },
+  radioOuter: {
+    width: 18,
+    height: 18,
+    borderRadius: 9,
+    borderWidth: 2,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  radioInner: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: "#fff",
+  },
+  accordionHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    paddingVertical: 10,
+  },
+  accordionBody: {
+    paddingLeft: 4,
+  },
+  filterRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    marginBottom: 10,
+  },
+  checkboxOuter: {
+    width: 18,
+    height: 18,
+    borderRadius: 4,
+    borderWidth: 2,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  checkGlyph: {
+    color: "#fff",
+    fontSize: 12,
   },
   filterScroll: {
     maxHeight: 360,
-  },
-  sortOptions: {
-    gap: 8,
-  },
-  sortOption: {
-    minHeight: 44,
-    borderRadius: 12,
-    paddingHorizontal: 14,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    backgroundColor: "#FFFFFF",
-  },
-  sortOptionActive: {
-    backgroundColor: "#F3F4F6",
-  },
-  sortOptionText: {
-    color: "#374151",
-    fontSize: 14,
-    fontWeight: "500",
-  },
-  sortOptionTextActive: {
-    color: "#111827",
-    fontWeight: "700",
   },
   filterChips: {
     flexDirection: "row",
     flexWrap: "wrap",
     gap: 10,
-    paddingBottom: 18,
+    paddingBottom: 12,
   },
   filterChip: {
     paddingVertical: 7,
@@ -851,24 +945,15 @@ const styles = StyleSheet.create({
   filterChipText: {
     fontSize: 13,
     fontWeight: "500",
-    color: "#374151",
-  },
-  filterChipTextActive: {
-    color: "#0891B2",
-    fontWeight: "600",
-  },
-  noFilters: {
-    fontSize: 13,
-    color: "#9CA3AF",
   },
   sheetActions: {
-    borderTopWidth: 1,
-    borderTopColor: "#F3F4F6",
-    paddingTop: 12,
-    backgroundColor: "#FFFFFF",
+    flexDirection: "row",
+    gap: 10,
+    marginTop: 20,
   },
   applyBtn: {
-    backgroundColor: "#111827",
+    flex: 1,
+    backgroundColor: "#000",
     borderRadius: 10,
     paddingVertical: 13,
     alignItems: "center",
@@ -879,13 +964,8 @@ const styles = StyleSheet.create({
     fontSize: 15,
   },
   clearBtn: {
-    marginTop: 10,
-    paddingVertical: 11,
+    flex: 1,
+    paddingVertical: 13,
     alignItems: "center",
-  },
-  clearBtnText: {
-    color: "#6B7280",
-    fontWeight: "600",
-    fontSize: 14,
   },
 });

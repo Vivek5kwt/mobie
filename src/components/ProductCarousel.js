@@ -29,7 +29,7 @@ import { resolveFont } from "../services/typographyService";
 import { formatMoney, parseMoneyAmount } from "../utils/money";
 import { convertStyles } from "../utils/convertStyles";
 import { getResponsiveColumns } from "../utils/responsiveLayout";
-import { ADD_TO_CART_SUCCESS_MESSAGE } from "../utils/cartFeedback";
+import { ADD_TO_CART_SUCCESS_MESSAGE, resolveCartNavigationParams } from "../utils/cartFeedback";
 import { navigateToDslTarget } from "../utils/navigationTarget";
 
 const unwrapValue = (value, fallback = undefined) => {
@@ -903,10 +903,15 @@ export default function ProductCarousel({ section }) {
     metricNumber(headerMetric, "height") !== undefined
       ? Math.max(0, Math.round((metricNumber(firstVisualMetric, "y", 0) - metricNumber(headerMetric, "y", 0) - metricNumber(headerMetric, "height", 0)) * metricScale))
       : undefined;
-  const contentPadT = resolveFirstNumber([raw?.contentPadT, raw?.cardPadT, cardContentStyleFromCss?.paddingTop, metricContentPadTop], 0);
-  const contentPadR = resolveFirstNumber([raw?.contentPadR, raw?.cardPadR, cardContentStyleFromCss?.paddingRight], 0);
-  const contentPadB = resolveFirstNumber([raw?.contentPadB, raw?.cardPadB, cardContentStyleFromCss?.paddingBottom], 0);
-  const contentPadL = resolveFirstNumber([raw?.contentPadL, raw?.cardPadL, cardContentStyleFromCss?.paddingLeft, metricContentPadLeft], 0);
+  // cardContentStyleFromCss?.paddingLeft/Right was a stale CSS-snapshot
+  // fallback — Builder's card content area (ab-cardFoot) has zero horizontal
+  // padding by design (no Inspector control for it), but old snapshots could
+  // carry a leftover non-zero value, making the title/price sit inset from
+  // the image and button edges instead of flush with them.
+  const contentPadT = resolveFirstNumber([raw?.contentPadT, raw?.cardPadT, metricContentPadTop], 0);
+  const contentPadR = resolveFirstNumber([raw?.contentPadR, raw?.cardPadR], 0);
+  const contentPadB = resolveFirstNumber([raw?.contentPadB, raw?.cardPadB], 0);
+  const contentPadL = resolveFirstNumber([raw?.contentPadL, raw?.cardPadL, metricContentPadLeft], 0);
   const contentGap = resolveFirstNumber([raw?.contentGap, raw?.cardContentGap, cardContentCss?.gap, metricTitlePriceGap], 0);
   const titleMarginBottom = resolveFirstNumber([raw?.titleMarginBottom, raw?.titleMb, metricTitlePriceGap], 0);
   const headerBottomGap = resolveFirstNumber(
@@ -1023,6 +1028,10 @@ export default function ProductCarousel({ section }) {
     );
     setSnackMessage(ADD_TO_CART_SUCCESS_MESSAGE);
     setSnackVisible(true);
+  };
+
+  const openCartScreen = () => {
+    navigation.navigate("BottomNavScreen", resolveCartNavigationParams(section));
   };
 
   const handleProductPress = (product) => {
@@ -1282,7 +1291,7 @@ export default function ProductCarousel({ section }) {
     const btnIconName = resolveFA4IconName(rawIconId);
 
     return (
-      <View style={{ flexDirection: "row", justifyContent: wrapJustify }}>
+      <View style={{ width: "100%", flexDirection: "row", justifyContent: wrapJustify }}>
         <TouchableOpacity
           style={[styles.addToCartButton, buttonStyle, isStretch ? { flex: 1 } : {}]}
           onPress={() => (isAvailable ? handleAddToCart(product) : null)}
@@ -1424,6 +1433,12 @@ export default function ProductCarousel({ section }) {
                   pressed && { opacity: 0.85 },
                   {
                     width: cardWidth,
+                    // Builder gives the first card its own leading gap
+                    // (marginLeft: bgPadL on idx===0) rather than padding the
+                    // whole scroll row — without it the first card sits
+                    // flush against the screen edge instead of lining up
+                    // with the section header above it.
+                    ...(index === 0 ? { marginLeft: bgPadL } : null),
                   },
                 ]}
                 onPress={() => {
@@ -1487,6 +1502,15 @@ export default function ProductCarousel({ section }) {
                       style={[
                         styles.title,
                         {
+                          // width:"100%" is required for textAlign to have any
+                          // visible effect in RN — without it the Text only
+                          // sizes to its own content, so Center/Right always
+                          // rendered identically to Left. The card content's
+                          // own CSS-derived alignItems (cardContentStyleFromCss)
+                          // could also collapse this to content-width, so this
+                          // must win regardless of that.
+                          width: "100%",
+                          alignSelf: "stretch",
                           fontSize: titleSize,
                           color: titleColor,
                           fontWeight: titleWeight,
@@ -1505,6 +1529,11 @@ export default function ProductCarousel({ section }) {
                       style={[
                         styles.priceContainer,
                         {
+                          // Same width requirement as the title above: this
+                          // row needs to actually span the full card width or
+                          // justifyContent has no room to move the price.
+                          width: "100%",
+                          alignSelf: "stretch",
                           // priceContainer is flexDirection:"row" — alignItems
                           // controls the cross-axis (vertical), not horizontal
                           // placement; justifyContent is what actually moves
@@ -1568,7 +1597,11 @@ export default function ProductCarousel({ section }) {
       <Snackbar
         visible={snackVisible}
         message={snackMessage}
+        actionLabel={snackMessage === ADD_TO_CART_SUCCESS_MESSAGE ? "View Cart" : undefined}
+        onAction={snackMessage === ADD_TO_CART_SUCCESS_MESSAGE ? openCartScreen : undefined}
         onDismiss={() => setSnackVisible(false)}
+        duration={2500}
+        type="success"
       />
     </View>
   );

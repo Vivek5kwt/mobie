@@ -21,7 +21,7 @@ import { resolveFirstFont } from "../services/typographyService";
 import FavoriteToggleButton, { buildFavoriteToggleConfig } from "./FavoriteToggleButton";
 import ProductImage from "./ProductImage";
 import { formatMoney, parseMoneyAmount } from "../utils/money";
-import { ADD_TO_CART_SUCCESS_MESSAGE } from "../utils/cartFeedback";
+import { ADD_TO_CART_SUCCESS_MESSAGE, resolveCartNavigationParams } from "../utils/cartFeedback";
 import Snackbar from "./Snackbar";
 
 // ─── DSL helpers ─────────────────────────────────────────────────────────────
@@ -649,9 +649,9 @@ export default function RecentProducts({ section }) {
         visible={cartSnackbarVisible}
         message={addedToCartMessage}
         actionLabel={snackbarActionText}
-        onAction={() => navigation.navigate("BottomNavScreen", { title: "Cart", pageName: "cart", link: "cart" })}
+        onAction={() => navigation.navigate("BottomNavScreen", resolveCartNavigationParams(section))}
         onDismiss={() => setCartSnackbarVisible(false)}
-        duration={2600}
+        duration={2500}
         type="success"
       />
     </View>

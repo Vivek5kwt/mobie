@@ -9,7 +9,7 @@ import {
   getShopifyDomain,
 } from "../services/shopify";
 import { resolveFirstFont } from "../services/typographyService";
-import { ADD_TO_CART_SUCCESS_MESSAGE } from "../utils/cartFeedback";
+import { ADD_TO_CART_SUCCESS_MESSAGE, resolveCartNavigationParams } from "../utils/cartFeedback";
 import { resolveFA4IconName } from "../utils/faIconAlias";
 import { parseMoneyAmount } from "../utils/money";
 
@@ -361,49 +361,8 @@ export default function AddToCart({ section }) {
     />
   ) : null;
 
-  const resolveBottomNavItems = (rawSection) => {
-    if (!rawSection) return [];
-    const rawProps =
-      rawSection?.props || rawSection?.properties?.props?.properties || rawSection?.properties?.props || {};
-    const rawValue = unwrapValue(rawProps?.raw, {});
-    let items = unwrapValue(rawValue?.items, undefined);
-    if (!items) {
-      items = unwrapValue(rawProps?.items, []);
-    }
-    if (items?.value && Array.isArray(items.value)) return items.value;
-    return Array.isArray(items) ? items : [];
-  };
-
-  const normalizeBottomNavTarget = (value) => String(value || "").trim().toLowerCase();
-
-  const resolveBottomNavIndex = (items, target) => {
-    const normalizedTarget = normalizeBottomNavTarget(target);
-    if (!normalizedTarget) return -1;
-    return items.findIndex((item) => {
-      const id = normalizeBottomNavTarget(item?.id);
-      const label = normalizeBottomNavTarget(
-        item?.label ?? item?.title ?? item?.name ?? item?.text ?? item?.value,
-      );
-      return id.includes(normalizedTarget) || label.includes(normalizedTarget);
-    });
-  };
-
   const openCartScreen = () => {
-    const navSection = section?.bottomNavSection || null;
-    const items = resolveBottomNavItems(navSection);
-    const resolvedIndex = resolveBottomNavIndex(items, "cart");
-    const activeIndex = resolvedIndex >= 0 ? resolvedIndex : 0;
-    const item = items[activeIndex];
-    const title = item?.label || item?.title || item?.name || "Cart";
-    const rawLink = item?.link ?? item?.href ?? item?.url ?? "";
-    const link = typeof rawLink === "string" ? rawLink.replace(/^\//, "") : "cart";
-    const params = {
-      title: title || "Cart",
-      link: link || "cart",
-      activeIndex,
-      ...(navSection ? { bottomNavSection: navSection } : {}),
-    };
-    navigation.navigate("BottomNavScreen", params);
+    navigation.navigate("BottomNavScreen", resolveCartNavigationParams(section));
   };
 
   const canAddLocally =

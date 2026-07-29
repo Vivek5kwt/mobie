@@ -1116,14 +1116,22 @@ export default function HeroBanner({ section }) {
   const bgSettingsEnabled = flatPropsNode?.bgSettingsEnabled !== undefined
     ? toBoolean(flatPropsNode.bgSettingsEnabled, true)
     : toBoolean(rawProps?.bgSettingsEnabled, true);
-  // The "Background and Padding" eye (Inspector's "align" panel key) only
-  // ever writes bgSettingsEnabled — alignSettingsEnabled was a separate prop
-  // nothing writes, so padding/alignment below never actually responded to
-  // this eye even though the panel is literally named "Background AND
-  // Padding" and Builder Preview has the same alias applied.
-  const alignSettingsEnabled = bgSettingsEnabled;
+  // Builder Preview reads alignSettingsEnabled as its own separate prop
+  // (nothing in the Inspector writes it, so it's always true there) —
+  // matching that exactly rather than aliasing it to bgSettingsEnabled.
+  const alignSettingsEnabled = flatPropsNode?.alignSettingsEnabled !== undefined
+    ? toBoolean(flatPropsNode.alignSettingsEnabled, true)
+    : toBoolean(rawProps?.alignSettingsEnabled, true);
   const styleProps = rawProps?.style?.properties || rawProps?.style || flatPropsNode?.style || {};
-  const backgroundColor = toString(styleProps?.backgroundColor || layoutCss?.container?.background, "#ebeef4");
+  // containerBgColor is the field the live "Background Color" picker under
+  // "Background and Padding" actually writes — style.backgroundColor comes
+  // from a separate, older `bgColor` prop nothing in the current Inspector
+  // writes anymore, so it was always stuck at its schema default and never
+  // reflected the merchant's real color choice.
+  const backgroundColor = toString(
+    rawProps?.containerBgColor ?? flatPropsNode?.containerBgColor ?? styleProps?.backgroundColor ?? layoutCss?.container?.background,
+    "#FFFFFF"
+  );
   const backgroundOpacity =
     toNumber(styleProps?.backgroundOpacity, undefined) ??
     toNumber(layoutCss?.container?.backgroundOpacityPct, 100);
@@ -1154,15 +1162,22 @@ export default function HeroBanner({ section }) {
     }
     return 0;
   })();
-  // Outer card container — transparent by default so no white box appears around the banner.
-  // outerBorderRadius must match containerBorderRadius so overflow:hidden clips correctly on both.
-  const outerBgColor = toString(rawProps?.containerBgColor, "transparent");
+  // Outer card container — this is the layer Builder Preview actually paints
+  // (containerBgColor on the root .ab-heroMini div). Matches Preview exactly:
+  // background/border/radius all gated only on bgSettingsEnabled, regardless
+  // of whether an image is present.
+  const outerBgColor = bgSettingsEnabled
+    ? toString(rawProps?.containerBgColor ?? flatPropsNode?.containerBgColor, "#FFFFFF")
+    : "transparent";
   const outerBorderColor = toString(rawProps?.containerBorderColor, "transparent");
-  const outerBorderSide = toString(rawProps?.containerBorderSide, "none").toLowerCase();
-  const outerBorderRadius =
-    explicitContainerBorderRadius !== undefined
-      ? explicitContainerBorderRadius
-      : containerBorderRadius;
+  const outerBorderSide = bgSettingsEnabled
+    ? toString(rawProps?.containerBorderSide, "none").toLowerCase()
+    : "none";
+  const outerBorderRadius = bgSettingsEnabled
+    ? (explicitContainerBorderRadius !== undefined
+        ? explicitContainerBorderRadius
+        : containerBorderRadius)
+    : 0;
 
   const outerBorderStyle =
     outerBorderSide === "none"
@@ -1270,7 +1285,7 @@ export default function HeroBanner({ section }) {
     toNumber(btnViewDynStyle?.paddingBottom, 0);
   const estimatedContentHeight = hasTextContent
     ? Math.ceil(
-        (alignSettingsEnabled ? paddingTop : imageSrc ? 40 : 24) +
+        (alignSettingsEnabled ? paddingTop : 0) +
         (showHeadline && headline ? readableLineHeight(headlineStyle, 24) * countTextLines(headline) : 0) +
         (showSubtext && subtext
           ? toNumber(subtextStyle?.marginTop, 8) + readableLineHeight(subtextStyle, 16) * countTextLines(subtext)
@@ -1278,7 +1293,7 @@ export default function HeroBanner({ section }) {
         (showButton && buttonLabel
           ? 12 + Math.max(buttonIconSize, Math.ceil(buttonTextSize * 1.25)) + buttonVerticalPadding
           : 0) +
-        (alignSettingsEnabled ? paddingBottom : imageSrc ? 50 : 24)
+        (alignSettingsEnabled ? paddingBottom : 0)
       )
     : 0;
 
@@ -1326,6 +1341,11 @@ export default function HeroBanner({ section }) {
 
   // Text content node — rendered outside the image container when an image is present
   // so overflow:hidden on the image container cannot clip the text.
+  // Padding/alignment must NOT depend on imageSrc — Builder Preview keeps
+  // these identical whether or not the image is shown; only the container's
+  // background and height are meant to change. imageSrc-dependent fallback
+  // numbers here previously made the headline/subtext/button visibly jump to
+  // a different position the instant "Image Attributes" was toggled off.
   const textContentNode = hasTextContent ? (
     <View
       style={[
@@ -1333,11 +1353,9 @@ export default function HeroBanner({ section }) {
         {
           alignItems: alignSettingsEnabled ? alignItems : "center",
           justifyContent: alignSettingsEnabled ? justifyContent : "center",
-          paddingTop: alignSettingsEnabled
-            ? paddingTop > 0 ? paddingTop : (imageSrc ? 0 : 24)
-            : imageSrc ? 40 : 24,
+          paddingTop:    alignSettingsEnabled ? paddingTop    : 0,
           paddingRight:  alignSettingsEnabled ? paddingRight  : 30,
-          paddingBottom: alignSettingsEnabled ? paddingBottom : (imageSrc ? 50 : 24),
+          paddingBottom: alignSettingsEnabled ? paddingBottom : 0,
           paddingLeft:   alignSettingsEnabled ? paddingLeft   : 30,
         },
       ]}
@@ -1437,11 +1455,9 @@ export default function HeroBanner({ section }) {
         { backgroundColor: outerBgColor, borderRadius: outerBorderRadius, ...outerBorderStyle },
       ]}
     >
-      {containerBgGradientColor && bgSettingsEnabled && !imageSrc ? (
-        // Background color/gradient is only meant to show when there's no
-        // banner image — matches Builder Preview, and previously this
-        // gradient branch ignored imageSrc entirely, so it kept showing
-        // behind/around the image whenever a gradient end color was set.
+      {containerBgGradientColor && bgSettingsEnabled ? (
+        // Matches Builder Preview exactly: background/gradient shows
+        // whenever bgSettingsEnabled is on, regardless of the image toggle.
         <LinearGradient
           colors={[withColorOpacity(backgroundColor, backgroundOpacity), containerBgGradientColor]}
           angle={180}
@@ -1455,11 +1471,9 @@ export default function HeroBanner({ section }) {
           style={[
             ...innerContainerStyle,
             {
-              backgroundColor: imageSrc
-                ? "transparent"
-                : bgSettingsEnabled
-                  ? withColorOpacity(backgroundColor, backgroundOpacity)
-                  : "transparent",
+              backgroundColor: bgSettingsEnabled
+                ? withColorOpacity(backgroundColor, backgroundOpacity)
+                : "transparent",
             },
           ]}
         >

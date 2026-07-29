@@ -16,7 +16,12 @@ import { resolveFont } from "../services/typographyService";
 import FavoriteToggleButton, { buildFavoriteToggleConfig } from "./FavoriteToggleButton";
 import { formatMoney, parseMoneyAmount } from "../utils/money";
 import { getResponsiveColumns } from "../utils/responsiveLayout";
-import { ADD_TO_CART_SUCCESS_MESSAGE } from "../utils/cartFeedback";
+import { ADD_TO_CART_SUCCESS_MESSAGE, resolveCartNavigationParams } from "../utils/cartFeedback";
+import {
+  getSortFilterSnapshot,
+  hydrateSortFilterFromStorage,
+  subscribeSortFilter,
+} from "../utils/sortFilterStore";
 
 // ── DSL helpers ───────────────────────────────────────────────────────────────
 
@@ -234,6 +239,9 @@ export default function ProductGrid({ section, limit = 8, title = "Products" }) 
   const [hasMore,      setHasMore]      = useState(false);
   const [snackVisible, setSnackVisible] = useState(false);
   const [snackMessage, setSnackMessage] = useState("");
+  // Filter & Sort Header writes here; Product Grid reads — mirrors Builder's
+  // sortFilterStore.ts producer/consumer wiring for the same DSL blocks.
+  const [selectedFilters, setSelectedFilters] = useState(() => getSortFilterSnapshot().selectedFilters);
   const isMountedRef = useRef(true);
   const didInitialLoadRef = useRef(false);
   const loadInFlightRef = useRef(false);
@@ -757,15 +765,30 @@ export default function ProductGrid({ section, limit = 8, title = "Products" }) 
     ? resolveFirstNumber([rawProps?.bgPadR, rawProps?.pr, rawProps?.paddingRight, presentationCss?.container?.paddingRight], 16)
     : 0;
 
+  // Outer grid container border — resolved before cardWidth below because,
+  // like the CSS border-box behavior Builder Preview gets automatically,
+  // this border eats into the space actually available to the cards. RN has
+  // no automatic box-sizing here (cardWidth is computed by hand), so this
+  // has to be subtracted explicitly or the grid overflows the bordered
+  // container by 2x the border width, unlike Builder where it self-adjusts.
+  const resolvedOuterBorderWidth = (() => {
+    const raw = toString(rawProps?.borderLine, "").trim().toLowerCase();
+    if (!raw || raw === "none" || raw === "0" || raw === "0px") return 0;
+    const numeric = parseFloat(raw);
+    if (Number.isFinite(numeric)) return numeric;
+    return resolveFirstNumber([rawProps?.borderSize], 1);
+  })();
+
   // ── Grid gaps + card width ────────────────────────────────────────────────
   const resolvedColGap = resolveFirstNumber([rawProps?.colGap, rawProps?.columnGap, rawProps?.gapX, rawProps?.gridGap, gridObj?.gap], 8);
   const resolvedRowGap = resolveFirstNumber([rawProps?.rowGap, rawProps?.gapY, gridObj?.rowGap], 8);
   const gridGap        = resolvedColGap;
   const viewportWidth   = Math.max(1, screenWidth);
+  const outerBorderSpace = resolvedOuterBorderWidth * 2;
   const resolvedColumns = getResponsiveColumns({
     screenWidth: viewportWidth,
     requestedColumns,
-    horizontalPadding: pl + pr,
+    horizontalPadding: pl + pr + outerBorderSpace,
     gap: gridGap,
     minCardWidth: 180,
     maxColumns: 6,
@@ -774,17 +797,28 @@ export default function ProductGrid({ section, limit = 8, title = "Products" }) 
   // Floor (not exact float division) so resolvedColumns * cardWidth + totalGap
   // never rounds up past the available width — an over-by-a-fraction-of-a-pixel
   // row causes the last card to silently wrap to a new line (worse with more columns).
-  const cardWidth      = Math.max(0, Math.floor((viewportWidth - pl - pr - totalGap) / resolvedColumns));
+  const cardWidth      = Math.max(0, Math.floor((viewportWidth - pl - pr - outerBorderSpace - totalGap) / resolvedColumns));
 
   // ── Image height: from ratio (w/h → height = cardWidth / ratio) or explicit ─
   const imageHeight = imageAspectRatio
     ? Math.round(cardWidth / imageAspectRatio)
     : resolvedImageHeight;
   const imageCorner = resolvedImageCorner ?? 0;
-  const visibleProducts = useMemo(
-    () => products.slice(0, resolvedLimit),
-    [products, resolvedLimit]
-  );
+  // Matches Builder's ProductGrid/PreviewLive.tsx availability-filter logic
+  // exactly: "In stock" and "Out of stock"/"Available soon" are mutually
+  // exclusive filters written by FilterSortHeader's Availability checkboxes.
+  const visibleProducts = useMemo(() => {
+    const wantsInStock = selectedFilters.includes("In stock");
+    const wantsOutOfStock =
+      selectedFilters.includes("Out of stock") || selectedFilters.includes("Available soon");
+    let filtered = products;
+    if (wantsInStock && !wantsOutOfStock) {
+      filtered = filtered.filter(isProductAvailable);
+    } else if (!wantsInStock && wantsOutOfStock) {
+      filtered = filtered.filter((p) => !isProductAvailable(p));
+    }
+    return filtered.slice(0, resolvedLimit);
+  }, [products, resolvedLimit, selectedFilters]);
 
   // ── Header row bottom margin ──────────────────────────────────────────────
   const headerMarginBottom = resolveFirstNumber([rawProps?.headerMarginBottom, rawProps?.titleMarginBottom, rawProps?.headerMb], 12);
@@ -803,13 +837,6 @@ export default function ProductGrid({ section, limit = 8, title = "Products" }) 
   // silently shifting every grid item's position as a side effect.
   const resolvedOuterCorners = resolveFirstNumber([rawProps?.outerCorners], 0);
   const resolvedOuterBorderColor = toString(rawProps?.borderColor, "transparent");
-  const resolvedOuterBorderWidth = (() => {
-    const raw = toString(rawProps?.borderLine, "").trim().toLowerCase();
-    if (!raw || raw === "none" || raw === "0" || raw === "0px") return 0;
-    const numeric = parseFloat(raw);
-    if (Number.isFinite(numeric)) return numeric;
-    return resolveFirstNumber([rawProps?.borderSize], 1);
-  })();
   const isSearchPage = useMemo(() => {
     const hints = [
       route?.params?.pageName,
@@ -855,6 +882,10 @@ export default function ProductGrid({ section, limit = 8, title = "Products" }) 
     setSnackVisible(true);
   }, [dispatch, navigation, session]);
 
+  const openCartScreen = useCallback(() => {
+    navigation.navigate("BottomNavScreen", resolveCartNavigationParams(section));
+  }, [navigation, section]);
+
   const detailSections = useMemo(() => {
     const candidates = [
       rawProps?.productDetailSections,
@@ -875,6 +906,19 @@ export default function ProductGrid({ section, limit = 8, title = "Products" }) 
   useEffect(() => {
     isMountedRef.current = true;
     return () => { isMountedRef.current = false; };
+  }, []);
+
+  useEffect(() => {
+    let mounted = true;
+    const applySnapshot = () => {
+      if (mounted) setSelectedFilters(getSortFilterSnapshot().selectedFilters);
+    };
+    hydrateSortFilterFromStorage().then(applySnapshot);
+    const unsub = subscribeSortFilter(applySnapshot);
+    return () => {
+      mounted = false;
+      unsub();
+    };
   }, []);
 
   useEffect(() => {
@@ -1570,6 +1614,8 @@ export default function ProductGrid({ section, limit = 8, title = "Products" }) 
       <Snackbar
         visible={snackVisible}
         message={snackMessage}
+        actionLabel={snackMessage === ADD_TO_CART_SUCCESS_MESSAGE ? "View Cart" : undefined}
+        onAction={snackMessage === ADD_TO_CART_SUCCESS_MESSAGE ? openCartScreen : undefined}
         onDismiss={() => setSnackVisible(false)}
         duration={2500}
         type="success"

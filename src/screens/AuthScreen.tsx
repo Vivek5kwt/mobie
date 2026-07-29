@@ -3466,6 +3466,7 @@ const AuthScreen = () => {
                 }}
               >
                 <Text
+                  allowFontScaling={false}
                   style={{
                     color: t.footerTextColor,
                     fontSize: t.footerTextFontSize,
@@ -3487,6 +3488,7 @@ const AuthScreen = () => {
                     }}
                   >
                     <Text
+                      allowFontScaling={false}
                       style={{
                         color: t.footerLinkColor,
                         fontSize: t.footerLinkFontSize,

@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import {
   ScrollView,
   StyleSheet,
@@ -255,11 +255,35 @@ export default function VariantSelector({ section }) {
     return [...colorGroups, ...otherGroups];
   }, [allGroups]);
 
+  // Default to the first value of every option group (first color, first
+  // size, ...) so a product page never opens with nothing selected and an
+  // ambiguous/unbuyable state — matches the common storefront convention of
+  // pre-selecting the first variant.
   const [selected, setSelected] = useState(() => {
     const init = {};
-    for (const g of groups) init[g.name] = null;
+    for (const g of groups) init[g.name] = g.values[0] ?? null;
     return init;
   });
+
+  // groups can arrive after mount (variantOptions is live per-product data,
+  // not static DSL config, so it may only be populated once the product
+  // fetch resolves) — re-apply the "first value" default for any group that
+  // shows up later without clobbering a value the shopper already picked.
+  const groupsKey = groups.map((g) => `${g.name}:${g.values[0] ?? ""}`).join("|");
+  useEffect(() => {
+    setSelected((prev) => {
+      let changed = false;
+      const next = { ...prev };
+      for (const g of groups) {
+        if (next[g.name] == null && g.values[0] != null) {
+          next[g.name] = g.values[0];
+          changed = true;
+        }
+      }
+      return changed ? next : prev;
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [groupsKey]);
 
   // ── Feature badges ─────────────────────────────────────────────────────────
   const dslFeatures = useMemo(
@@ -284,10 +308,14 @@ export default function VariantSelector({ section }) {
     ],
     "#FFFFFF"
   );
-  const padTop          = pickNum([raw?.paddingTop,    raw?.pt], 20);
-  const padLeft         = pickNum([raw?.paddingLeft,   raw?.pl], 20);
-  const padRight        = pickNum([raw?.paddingRight,  raw?.pr], 20);
-  const padBottom       = pickNum([raw?.paddingBottom, raw?.pb], 20);
+  // Builder's real (lowercase) field names are paddingleft/paddingright/
+  // paddingtop/paddingbottom, defaulting to 8 — raw?.paddingLeft etc. (camelCase)
+  // and the 20 default here never matched anything real, so the APK always
+  // rendered its own larger fallback padding instead of Builder's actual value.
+  const padTop          = pickNum([raw?.paddingtop,    raw?.paddingTop,    raw?.pt], 8);
+  const padLeft         = pickNum([raw?.paddingleft,   raw?.paddingLeft,   raw?.pl], 8);
+  const padRight        = pickNum([raw?.paddingright,  raw?.paddingRight,  raw?.pr], 8);
+  const padBottom       = pickNum([raw?.paddingbottom, raw?.paddingBottom, raw?.pb], 8);
 
   // Container border
   const containerRadius = pickNum([raw?.borderRadius, raw?.containerRadius], 0);

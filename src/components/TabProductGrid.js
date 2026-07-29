@@ -29,7 +29,7 @@ import ProductImage from "./ProductImage";
 import { formatMoney, parseMoneyAmount } from "../utils/money";
 import { resolveProductImageResizeMode } from "../utils/productImageFit";
 import { getResponsiveColumns } from "../utils/responsiveLayout";
-import { ADD_TO_CART_SUCCESS_MESSAGE } from "../utils/cartFeedback";
+import { ADD_TO_CART_SUCCESS_MESSAGE, resolveCartNavigationParams } from "../utils/cartFeedback";
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -869,6 +869,10 @@ export default function TabProductGrid({ section }) {
     setSnackVisible(true);
   }, [dispatch]);
 
+  const openCartScreen = useCallback(() => {
+    navigation.navigate("BottomNavScreen", resolveCartNavigationParams(section));
+  }, [navigation, section]);
+
   const handleToggleFavorite = useCallback(async (product, currentlyFav) => {
     const blocked = await requireLoginForAction({ session, navigation, initializing });
     if (blocked) return;
@@ -1370,6 +1374,8 @@ export default function TabProductGrid({ section }) {
       <Snackbar
         visible={snackVisible}
         message={snackMessage}
+        actionLabel={snackMessage === ADD_TO_CART_SUCCESS_MESSAGE ? "View Cart" : undefined}
+        onAction={snackMessage === ADD_TO_CART_SUCCESS_MESSAGE ? openCartScreen : undefined}
         onDismiss={() => setSnackVisible(false)}
         duration={2500}
         type="success"

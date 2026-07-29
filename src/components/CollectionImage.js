@@ -344,19 +344,27 @@ export default function CollectionImage({ section }) {
     ),
     Boolean(layoutCss?.header?.text)
   );
+  // rawProps?.headerText is where composeLayout-2.ts actually saves this (a
+  // flat top-level field) — headerCfg?.headerText/title/text never matched
+  // anything real. Worse, `section?.title` was in this chain too: every
+  // saved Collection Image section always HAS a `title` (it's the schema's
+  // own fixed doc title, "Collection Image Component Schema" — schema
+  // metadata, not merchant content), so that fallback always "succeeded"
+  // and the chain never reached its intended "Featured Collections"
+  // default, let alone the merchant's real heading.
   const headerText   = asString(
     unwrapValue(
+      rawProps?.headerText ??
       layoutCss?.header?.text ??
-      headerCfg?.headerText ?? headerCfg?.title ?? headerCfg?.text ??
-      section?.properties?.title ?? section?.title,
+      headerCfg?.headerText ?? headerCfg?.title ?? headerCfg?.text,
       "Featured Collections"
     )
   );
-  const headerSize        = asNumber(headerCfg?.headerSize ?? layoutCss?.header?.fontSize, 16);
-  const headerColor       = asString(unwrapValue(headerCfg?.headerColor ?? layoutCss?.header?.color, "#000000"));
+  const headerSize        = asNumber(headerCfg?.headerSize ?? rawProps?.headerSize ?? layoutCss?.header?.fontSize, 16);
+  const headerColor       = asString(unwrapValue(headerCfg?.headerColor ?? rawProps?.headerColor ?? layoutCss?.header?.color, "#000000"));
   const headerMarginBottom = asNumber(firstDefined(headerCfg?.marginBottom, headerCfg?.mb, rawSnapshot?.headerMarginBottom, layoutCss?.header?.marginBottom), 8);
   const headerBold        = asBoolean(headerCfg?.headerBold ?? rawProps?.headerBold, false);
-  const headerWeight      = headerBold ? "700" : deriveFontWeight(headerCfg?.headerWeight ?? layoutCss?.header?.fontWeight, "700");
+  const headerWeight      = headerBold ? "700" : deriveFontWeight(headerCfg?.headerWeight ?? rawProps?.headerWeight ?? layoutCss?.header?.fontWeight, "700");
   const headerItalic      = asBoolean(headerCfg?.headerItalic ?? rawProps?.headerItalic, false);
   const headerUnderline   = asBoolean(headerCfg?.headerUnderline ?? rawProps?.headerUnderline, false);
   const headerStrikethrough = asBoolean(headerCfg?.headerStrikethrough ?? rawProps?.headerStrikethrough, false);
