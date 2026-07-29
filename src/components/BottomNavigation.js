@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState, useRef } from "react";
-import { Linking, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { Image, Linking, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { SvgXml } from "react-native-svg";
 import { StackActions, useNavigation, useRoute } from "@react-navigation/native";
 import { useSelector } from "react-redux";
 import Icon from "react-native-vector-icons/FontAwesome6";
@@ -112,6 +113,79 @@ const resolveIconDescriptor = (name) => {
 };
 
 const normalizeIconName = (name) => resolveIconDescriptor(name).name;
+
+// "Your Upload" in the Builder's icon picker saves "custom-icon::<url>" —
+// resolveIconDescriptor() would otherwise treat that whole string as one FA
+// icon token and fall back to "circle", so the uploaded image never showed.
+const CUSTOM_ICON_PREFIX = "custom-icon::";
+const getCustomIconUrlFromValue = (value) => {
+  const raw = String(unwrapValue(value, "") || "");
+  if (!raw.startsWith(CUSTOM_ICON_PREFIX)) return null;
+  const encoded = raw.slice(CUSTOM_ICON_PREFIX.length);
+  if (!encoded) return null;
+  try {
+    return decodeURIComponent(encoded);
+  } catch (e) {
+    return null;
+  }
+};
+
+// RN's <Image> can only decode raster formats (PNG/JPEG/GIF/WebP/BMP) — a
+// remote SVG silently renders nothing at all (blank space, no error), which
+// is what "Your Upload" produces whenever the merchant picks an SVG icon.
+const isSvgUrl = (url) => {
+  if (!url || typeof url !== "string") return false;
+  const lower = url.toLowerCase().split("?")[0];
+  return lower.endsWith(".svg") || lower.includes(".svg");
+};
+
+// Renders a custom uploaded icon regardless of format: SVGs go through
+// react-native-svg (the only reliable way to render remote SVG in RN — the
+// stock Image component can't), every other format (PNG/JPEG/WebP/GIF/...)
+// uses the plain Image + tintColor path. Every fill/stroke in the fetched
+// SVG markup is forced to `color` so it tints the same way the FontAwesome
+// glyphs do, regardless of whatever color the uploaded file itself used.
+function NavIconGlyph({ url, color, size }) {
+  const [svgMarkup, setSvgMarkup] = useState(null);
+  const isSvg = isSvgUrl(url);
+
+  useEffect(() => {
+    if (!isSvg || !url) {
+      setSvgMarkup(null);
+      return;
+    }
+    let cancelled = false;
+    fetch(url)
+      .then((res) => res.text())
+      .then((text) => {
+        if (!cancelled) setSvgMarkup(text);
+      })
+      .catch(() => {
+        if (!cancelled) setSvgMarkup(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [url, isSvg]);
+
+  if (!url) return null;
+
+  if (isSvg) {
+    if (!svgMarkup) return null; // still fetching, or failed — blank rather than a broken image
+    const recolored = svgMarkup
+      .replace(/fill="(?!none")[^"]*"/gi, `fill="${color}"`)
+      .replace(/stroke="(?!none")[^"]*"/gi, `stroke="${color}"`);
+    return <SvgXml xml={recolored} width={size} height={size} />;
+  }
+
+  return (
+    <Image
+      source={{ uri: url }}
+      resizeMode="contain"
+      style={{ width: size, height: size, tintColor: color }}
+    />
+  );
+}
 
 const resolveItemIcon = (item = {}) => {
   if (!item) return "";
@@ -301,6 +375,10 @@ function BottomNavigation({ section, activeIndexOverride }) {
   // Memoize icon names to prevent unnecessary re-renders when clicking home
   const iconDescriptors = useMemo(() => {
     return items.map((item) => resolveIconDescriptor(resolveItemIcon(item)));
+  }, [items]);
+
+  const customIconUrls = useMemo(() => {
+    return items.map((item) => getCustomIconUrlFromValue(resolveItemIcon(item)));
   }, [items]);
 
   const visibilityNode = rawProps.visibility ?? raw?.visibility ?? {};
@@ -738,6 +816,7 @@ function BottomNavigation({ section, activeIndexOverride }) {
         {items.map((item, index) => {
           const isActive = index === displayActiveIndex;
           const iconDescriptor = iconDescriptors[index] || { name: "circle", styleProps: {} };
+          const customIconUrl = customIconUrls[index];
           const itemShowLabel = shouldShowItemLabel(item);
           // Active tab: always use active colors so the selected tab is visibly highlighted (dynamic from schema)
           const finalIconColor = isActive
@@ -774,23 +853,40 @@ function BottomNavigation({ section, activeIndexOverride }) {
                       : null,
                   ]}
                 >
-                  <Icon
-                    key={`icon-${index}-${iconDescriptor.name}`}
-                    {...iconDescriptor.styleProps}
-                    name={iconDescriptor.name || "circle"}
-                    size={iconSize}
-                    color={finalIconColor}
-                    style={[
-                      styles.icon,
-                      presentation.icon,
-                      {
-                        width: iconWidth,
-                        height: iconHeight,
-                        lineHeight: iconHeight,
-                        fontSize: iconSize,
-                      },
-                    ]}
-                  />
+                  {customIconUrl ? (
+                    <View
+                      key={`icon-${index}-custom`}
+                      style={[
+                        styles.icon,
+                        presentation.icon,
+                        { width: iconWidth, height: iconHeight, alignItems: "center", justifyContent: "center" },
+                      ]}
+                    >
+                      <NavIconGlyph
+                        url={customIconUrl}
+                        color={finalIconColor}
+                        size={Math.max(iconWidth, iconHeight)}
+                      />
+                    </View>
+                  ) : (
+                    <Icon
+                      key={`icon-${index}-${iconDescriptor.name}`}
+                      {...iconDescriptor.styleProps}
+                      name={iconDescriptor.name || "circle"}
+                      size={iconSize}
+                      color={finalIconColor}
+                      style={[
+                        styles.icon,
+                        presentation.icon,
+                        {
+                          width: iconWidth,
+                          height: iconHeight,
+                          lineHeight: iconHeight,
+                          fontSize: iconSize,
+                        },
+                      ]}
+                    />
+                  )}
                   {isCartItem(item) && cartCount > 0 && (
                     <View style={styles.cartBadge}>
                       <Text style={styles.cartBadgeText}>
