@@ -22,6 +22,23 @@ const FALLBACK_TOKEN   = "f19ea13e90fdadc0723f8a060f1d754b";
 const FALLBACK_STORE_ID = 40;
 const DEFAULT_CHECKOUT_COUNTRY_CODE = "US";
 const REQUEST_CACHE_TTL_MS = 30000;
+
+// The direct Shopify cart-URL fallback (createShopifyCartCheckout's Attempt
+// 3) builds `https://${shop}/cart/...` straight from the resolved shop
+// domain — if that value ever carries a protocol/path (e.g. saved as
+// "https://mystore.myshopify.com" instead of the bare host), the resulting
+// URL becomes malformed ("https://https://...") and the WebView can't
+// resolve it at all, surfacing as a generic "Failed to load checkout page"
+// with no indication why.
+const normalizeShopDomain = (value) => {
+  const raw = String(value || "").trim();
+  if (!raw) return "";
+  return raw
+    .replace(/^https?:\/\//i, "")
+    .split("/")[0]
+    .split("?")[0]
+    .trim();
+};
 const PASSWORD_RECOVERY_UNAVAILABLE_MESSAGE = "Password reset is temporarily unavailable. Please try again later.";
 const _requestCache = new Map();
 const _inflightRequests = new Map();
@@ -1041,6 +1058,7 @@ const buildResolvedCheckoutLines = async (items = [], context = {}) => {
   );
 
   return {
+    all: results,
     lines: results
       .filter((entry) => entry.merchandiseId)
       .map((entry) => ({
@@ -1051,6 +1069,56 @@ const buildResolvedCheckoutLines = async (items = [], context = {}) => {
     invalid: results.filter((entry) => !entry.merchandiseId),
   };
 };
+
+// Cart lines with a resolved variant can still be genuinely unorderable
+// (deleted, unpublished, or out of stock with no "continue selling"
+// override) — cartCreate/checkoutCreate happily accept such a line and
+// hand back a working-looking checkoutUrl; Shopify only discovers the
+// problem when the checkout page itself is loaded, surfacing as a
+// dead-end "Cart Error: One or more items are no longer available" page.
+// Checking availableForSale up front lets the caller drop the stale
+// item and retry instead of sending the user into that dead end.
+export async function checkVariantsAvailability(variantGids = [], context = {}) {
+  const ids = [...new Set((variantGids || []).filter(Boolean))];
+  if (!ids.length) return {};
+
+  const query = `
+    query CheckVariantsAvailability($ids: [ID!]!) {
+      nodes(ids: $ids) {
+        ... on ProductVariant {
+          id
+          availableForSale
+          title
+          product { title }
+        }
+      }
+    }
+  `;
+
+  try {
+    const json = await directStorefrontGraphQL({ ...context, query, variables: { ids } });
+    if (json?.errors?.length) {
+      console.warn(`${CHECKOUT_LOG} availability check GraphQL errors`, JSON.stringify(json.errors));
+      return {};
+    }
+    const nodes = json?.data?.nodes || [];
+    const result = {};
+    ids.forEach((id, index) => {
+      const node = nodes[index];
+      result[id] = {
+        exists: !!node,
+        availableForSale: node ? node.availableForSale !== false : false,
+        title: node ? [node.product?.title, node.title].filter(Boolean).join(" - ") : "",
+      };
+    });
+    return result;
+  } catch (error) {
+    console.warn(`${CHECKOUT_LOG} availability check failed`, {
+      message: error?.message || String(error),
+    });
+    return {};
+  }
+}
 
 const buildDirectCartLinesFromCheckoutLines = (lines = []) =>
   (lines || [])
@@ -2461,26 +2529,27 @@ export async function createShopifyCartCheckout({ items = [], discountCodes = []
     throw new Error("No valid cart items for checkout.");
   }
 
+  // Deliberately NOT wrapped in withRequestCache: cartCreate/checkoutCreate
+  // are mutations that mint a brand-new, ephemeral Shopify checkout session
+  // every time. Caching the returned URL for the (identical-cart-contents)
+  // request key meant a retry within the cache TTL replayed an OLD session
+  // token — if Shopify had already invalidated/consumed that cart between
+  // the first and second attempt, the WebView loads a URL that's now
+  // genuinely stale, and Shopify's own server correctly (from its side)
+  // responds "Link no longer exists". Always create a fresh session.
+  const creds = await getShopifyCredentials();
+  const shop = normalizeShopDomain(options.shop || creds.shop);
+  const token = options.token || creds.token;
+  const storeId = options.storeId || creds.storeId;
   const customerAccessToken = resolveCustomerAccessToken(options);
-  const checkoutCacheKey = buildCacheKey("cartCheckout", {
-    lines: initialLines,
-    directCartLines: initialDirectCartLines,
-    items: (items || []).map(checkoutItemSummary),
-    discountCodes: requestedDiscountCodes,
-    buyerIdentity: {
-      customerAccessToken,
-      email: options.email || "",
-      countryCode: resolveBuyerCountryCode(options),
-    },
-    shop: options.shop || "",
-    storeId: options.storeId || "",
-  });
-
-  return withRequestCache(checkoutCacheKey, async () => {
-    const creds = await getShopifyCredentials();
-    const shop = options.shop || creds.shop;
-    const token = options.token || creds.token;
-    const storeId = options.storeId || creds.storeId;
+  if (!shop) {
+    console.warn(`${CHECKOUT_LOG} missing shop domain — cannot build checkout URL`, {
+      hasOptionsShop: !!options.shop,
+      hasCredsShop: !!creds.shop,
+    });
+    throw new Error("Store is not configured for checkout. Please try again later.");
+  }
+  {
     const buyerIdentity = buildBuyerIdentity(options);
     const resolvedCheckout = await buildResolvedCheckoutLines(items, { shop, token, storeId });
     const lines = resolvedCheckout.lines.length ? resolvedCheckout.lines : initialLines;
@@ -2516,6 +2585,35 @@ export async function createShopifyCartCheckout({ items = [], discountCodes = []
         items: (items || []).map(checkoutItemSummary),
       });
       throw new Error("No valid cart items for checkout.");
+    }
+
+    const uniqueMerchandiseIds = [...new Set(
+      resolvedCheckout.all.map((entry) => entry.merchandiseId).filter(Boolean)
+    )];
+    const availabilityMap = uniqueMerchandiseIds.length
+      ? await checkVariantsAvailability(uniqueMerchandiseIds, { shop, token, storeId })
+      : {};
+    const unavailableEntries = resolvedCheckout.all.filter((entry) => {
+      const info = entry.merchandiseId ? availabilityMap[entry.merchandiseId] : null;
+      return info && (info.exists === false || info.availableForSale === false);
+    });
+    if (unavailableEntries.length) {
+      const unavailableItems = unavailableEntries.map((entry) => ({
+        id: entry.item?.id || entry.item?.variantId || "",
+        variantId: entry.item?.variantId || "",
+        title:
+          availabilityMap[entry.merchandiseId]?.title ||
+          entry.item?.title ||
+          entry.item?.name ||
+          "Item",
+      }));
+      console.warn(`${CHECKOUT_LOG} cart contains unavailable items`, unavailableItems);
+      const names = unavailableItems.map((entry) => entry.title).join(", ");
+      const error = new Error(
+        `${names} ${unavailableItems.length > 1 ? "are" : "is"} no longer available.`
+      );
+      error.unavailableItems = unavailableItems;
+      throw error;
     }
 
   // ── Attempt 1: cartCreate mutation (Storefront API 2021-07+) ──────────────
@@ -2656,7 +2754,7 @@ export async function createShopifyCartCheckout({ items = [], discountCodes = []
     directCartLines,
   });
   throw new Error("Checkout URL not returned. Please try again.");
-  });
+  }
 }
 
 // ----------------------

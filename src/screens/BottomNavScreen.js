@@ -323,18 +323,18 @@ export default function BottomNavScreen() {
           NAV_COMPONENTS.includes(getComponentName(s).toLowerCase())
         ) || null;
 
-      if (hasInitialBottomNav) {
-        // Tab navigation already passed a real nav section; keep it synced from Home.
-        const homeDslData = await fetchDSL(appId, "home");
-        if (homeDslData?.dsl) {
-          incomingBottomNav = findNav(homeDslData.dsl);
-        }
-      } else {
-        // Standalone pages should only show bottom nav when their own DSL defines it.
-        const currentPageDslData = await fetchDSL(appId, pageName);
-        if (currentPageDslData?.dsl) {
-          incomingBottomNav = findNav(currentPageDslData.dsl);
-        }
+      // Builder always sources bottom navigation from Home and shows it on
+      // every non-auth page via a client-side splice — it's never duplicated
+      // into other pages' own saved sections (composeLayout-2.ts only writes
+      // it into whichever page's own item list actually has the block,
+      // normally just Home). The previous "standalone pages only show bottom
+      // nav when their own DSL defines it" branch always resolved to nothing
+      // for pages reached other than by tapping the tab bar directly (e.g.
+      // via a deep link), silently hiding a bar Builder shows. Always pull
+      // from Home, matching every other generic DSL page screen.
+      const homeDslData = await fetchDSL(appId, "home");
+      if (homeDslData?.dsl) {
+        incomingBottomNav = findNav(homeDslData.dsl);
       }
 
       if (incomingBottomNav) {
@@ -355,7 +355,7 @@ export default function BottomNavScreen() {
     } catch (error) {
       console.log("❌ Error checking bottom nav update:", error);
     }
-  }, [appId, pageName, hasInitialBottomNav]);
+  }, [appId, pageName]);
   // Reuse Home's drawer DSL on child pages. Visible headers stay page-specific
   // through each page's own headerdefault config.
   const reusableChromeNames = useMemo(

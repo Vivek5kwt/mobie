@@ -104,9 +104,33 @@ export default function WishlistItem({ section }) {
     "Removed from Personal Collection"
   );
   const borderColor = toString(raw?.borderColor, "#E5E7EB");
-  const iconColor = toString(raw?.iconColor, "#EF4444");
+  const iconColor = toString(raw?.iconColor, "#FF4D4F");
   const iconSize = toNumber(raw?.iconSize, 18);
-  const favoriteToggleConfig = buildFavoriteToggleConfig({ favIconSize: iconSize, favoriteIconColor: iconColor });
+  // Builder's wishlist_item block has a single configurable "remove" icon
+  // (DSL field `iconName`, default "fa-xmark") — not a separate
+  // favorite/unfavorite pair like ProductGrid's toggle. Map it to both sides
+  // of buildFavoriteToggleConfig so it's used regardless of state; without
+  // this it silently fell back to that helper's own generic default
+  // ("fa-heart"), ignoring whatever icon was actually picked in Builder.
+  const iconName = toString(raw?.iconName, "fa-xmark");
+  // Builder's 4-way position enum (top-right/top-left/bottom-right/
+  // bottom-left), each hardcoded to an 8px offset from the card edge — no
+  // configurable inset field exists there.
+  const iconPosition = toString(raw?.iconPosition, "top-right");
+  const iconVisible = raw?.visibility?.icon !== false;
+  const favoriteToggleConfig = buildFavoriteToggleConfig({
+    favIconSize: iconSize,
+    favoriteIconColor: iconColor,
+    favoriteIconId: iconName,
+    unfavoriteIconId: iconName,
+    favPosition: iconPosition,
+    favBubbleInset: 8,
+    // Builder renders a bare icon glyph directly on the image — no circular
+    // background behind it. FavoriteToggleButton always draws a bubble
+    // shape, so make it fully transparent to match instead of the visible
+    // white circle it showed by default.
+    favBubbleBgColor: "transparent",
+  });
   const imageRadius = toNumber(raw?.imageRadius, 8);
   // Match the card's own background (bgColor) so any letterbox space
   // around a Fit-scaled image blends with the card instead of a
@@ -275,18 +299,20 @@ export default function WishlistItem({ section }) {
                   </View>
                 )}
 
-                {/* Heart icon overlay */}
-                <FavoriteToggleButton
-                  isFavorite
-                  config={favoriteToggleConfig}
-                  onPress={(e) => {
-                    e?.stopPropagation?.();
-                    e?.preventDefault?.();
-                    dispatch(toggleWishlist({ product }));
-                    setSnackVisible(true);
-                  }}
-                  accessibilityLabel="Remove from wishlist"
-                />
+                {/* Remove icon overlay — matches Builder's visibility.icon toggle */}
+                {iconVisible && (
+                  <FavoriteToggleButton
+                    isFavorite
+                    config={favoriteToggleConfig}
+                    onPress={(e) => {
+                      e?.stopPropagation?.();
+                      e?.preventDefault?.();
+                      dispatch(toggleWishlist({ product }));
+                      setSnackVisible(true);
+                    }}
+                    accessibilityLabel="Remove from wishlist"
+                  />
+                )}
               </View>
 
               {/* Product info */}

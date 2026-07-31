@@ -2,8 +2,9 @@ import React, { useEffect, useMemo, useState } from "react";
 import { ActivityIndicator, Image, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import FontAwesome from "react-native-vector-icons/FontAwesome";
 import { useNavigation } from "@react-navigation/native";
-import { useSelector } from "react-redux";
+import { useDispatch, useSelector } from "react-redux";
 import { createShopifyCartCheckout } from "../services/shopify";
+import { removeItem } from "../store/slices/cartSlice";
 import Snackbar from "./Snackbar";
 import { resolveFA4IconName } from "../utils/faIconAlias";
 import { useAuth } from "../services/AuthContext";
@@ -189,6 +190,7 @@ const interpolateGradientColor = (colors, ratio) => {
 
 export default function CheckoutButton({ section }) {
   const navigation = useNavigation();
+  const dispatch = useDispatch();
   const { session, initializing } = useAuth();
   const isLoggedIn = isAuthenticatedSession(session);
   const cartItems  = useSelector((state) => state?.cart?.items || []);
@@ -437,9 +439,10 @@ export default function CheckoutButton({ section }) {
   );
   const guestCheckoutAllowed = !requireLoginForCheckout;
 
-  const [emptySnackbar, setEmptySnackbar] = useState(false);
-  const [errorSnackbar, setErrorSnackbar] = useState(false);
-  const [loading,       setLoading]       = useState(false);
+  const [emptySnackbar,   setEmptySnackbar]   = useState(false);
+  const [errorSnackbar,   setErrorSnackbar]   = useState(false);
+  const [removedMessage,  setRemovedMessage]  = useState("");
+  const [loading,         setLoading]         = useState(false);
 
   const customerAccessToken = useMemo(
     () => pickSessionCustomerAccessToken(session),
@@ -544,6 +547,20 @@ export default function CheckoutButton({ section }) {
       return;
     }
 
+    const openCheckoutWebView = (url) => {
+      console.log(`${CHECKOUT_BUTTON_LOG} opening checkout`, { url });
+      navigation.navigate("CheckoutWebView", {
+        url,
+        title: "Checkout",
+        isLoggedIn,
+        customerName,
+        customerEmail: prefillCheckoutEmail ? customerEmail : "",
+        hideCheckoutLogo: !checkoutLogoVisible,
+        prefillCheckoutEmail,
+        hasCustomerAccessToken: !!usableCustomerAccessToken,
+      });
+    };
+
     setLoading(true);
     try {
       console.log(`${CHECKOUT_BUTTON_LOG} checkout pressed`, {
@@ -559,17 +576,7 @@ export default function CheckoutButton({ section }) {
       }, { session }).catch(() => {});
       const checkoutUrl = await createShopifyCartCheckout(checkoutRequest);
       if (checkoutUrl && navigation?.navigate) {
-        console.log(`${CHECKOUT_BUTTON_LOG} opening checkout`, { checkoutUrl });
-        navigation.navigate("CheckoutWebView", {
-          url: checkoutUrl,
-          title: "Checkout",
-          isLoggedIn,
-          customerName,
-          customerEmail: prefillCheckoutEmail ? customerEmail : "",
-          hideCheckoutLogo: !checkoutLogoVisible,
-          prefillCheckoutEmail,
-          hasCustomerAccessToken: !!usableCustomerAccessToken,
-        });
+        openCheckoutWebView(checkoutUrl);
       } else {
         console.warn(`${CHECKOUT_BUTTON_LOG} checkout URL missing from service`);
         setErrorSnackbar(true);
@@ -579,7 +586,46 @@ export default function CheckoutButton({ section }) {
         message: error?.message || String(error),
         itemCount: checkoutLines.length,
       });
-      setErrorSnackbar(true);
+
+      // Some cart lines resolve to a variant that Shopify itself no longer
+      // considers orderable (deleted/unpublished/out of stock) — the service
+      // layer detects this up front and attaches the offending items instead
+      // of letting the WebView hit Shopify's own dead-end "Cart Error" page.
+      // Drop them from the cart and retry once with whatever's left.
+      const unavailableItems = Array.isArray(error?.unavailableItems) ? error.unavailableItems : [];
+      if (unavailableItems.length) {
+        const removedIds = new Set(
+          unavailableItems.map((entry) => entry.id || entry.variantId).filter(Boolean)
+        );
+        removedIds.forEach((id) => dispatch(removeItem({ id })));
+
+        const names = unavailableItems.map((entry) => entry.title).filter(Boolean).join(", ");
+        const plural = unavailableItems.length > 1;
+        const remainingLines = checkoutLines.filter(
+          (line) => !removedIds.has(line.id || line.variantId)
+        );
+
+        if (remainingLines.length) {
+          setRemovedMessage(`${names} ${plural ? "were" : "was"} no longer available and ${plural ? "were" : "was"} removed. Continuing checkout with the rest of your cart.`);
+          try {
+            const retryUrl = await createShopifyCartCheckout({ ...checkoutRequest, items: remainingLines });
+            if (retryUrl && navigation?.navigate) {
+              openCheckoutWebView(retryUrl);
+            } else {
+              setErrorSnackbar(true);
+            }
+          } catch (retryError) {
+            console.warn(`${CHECKOUT_BUTTON_LOG} retry checkout failed`, {
+              message: retryError?.message || String(retryError),
+            });
+            setErrorSnackbar(true);
+          }
+        } else {
+          setRemovedMessage(`${names} ${plural ? "were" : "was"} no longer available and ${plural ? "were" : "was"} removed. Your cart is now empty.`);
+        }
+      } else {
+        setErrorSnackbar(true);
+      }
     } finally {
       setLoading(false);
     }
@@ -735,6 +781,15 @@ export default function CheckoutButton({ section }) {
         onDismiss={() => setErrorSnackbar(false)}
         duration={4000}
         type="error"
+      />
+      <Snackbar
+        visible={!!removedMessage}
+        message={removedMessage}
+        actionLabel="Dismiss"
+        onAction={() => setRemovedMessage("")}
+        onDismiss={() => setRemovedMessage("")}
+        duration={5000}
+        type="info"
       />
     </View>
   );

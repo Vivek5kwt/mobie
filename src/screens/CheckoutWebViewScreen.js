@@ -1145,12 +1145,18 @@ export default function CheckoutWebViewScreen() {
     setLoadError(true);
   }, []);
 
+  // Deliberately does NOT set loadError: Android WebView fires onHttpError
+  // for sub-resource requests too (analytics beacons, tracking pixels, 3rd-party
+  // scripts Shopify's checkout page loads) — not just the main document. Treating
+  // every 4xx/5xx as a fatal load failure meant a single blocked tracker request
+  // (or Shopify's own hosted error pages, like "Link no longer exists", which are
+  // served with a non-2xx status) blanked out the real page and showed our own
+  // generic screen instead of letting the actual content — often more informative
+  // than ours — render. Only onError (DNS/timeout/SSL/no-connectivity) is fatal.
   const handleHttpError = useCallback((event) => {
     const summary = summarizeWebViewEvent(event);
     lastWebViewErrorRef.current = summary;
     console.warn(`${CHECKOUT_WEBVIEW_LOG} HTTP error`, summary);
-    setIsLoading(false);
-    setLoadError(true);
   }, []);
 
   const handleRetry = useCallback(() => {
@@ -1230,6 +1236,18 @@ export default function CheckoutWebViewScreen() {
           <View style={styles.centreWrap}>
             <FontAwesome name="wifi" size={40} color="#9CA3AF" />
             <Text style={styles.errorText}>Failed to load checkout page.</Text>
+            {!!lastWebViewErrorRef.current && (
+              <Text style={styles.errorDetailText} selectable>
+                {[
+                  lastWebViewErrorRef.current.domain,
+                  lastWebViewErrorRef.current.code != null ? `code ${lastWebViewErrorRef.current.code}` : "",
+                  lastWebViewErrorRef.current.statusCode != null ? `HTTP ${lastWebViewErrorRef.current.statusCode}` : "",
+                  lastWebViewErrorRef.current.description,
+                ].filter(Boolean).join(" — ") || "Unknown error"}
+                {"\n"}
+                {lastWebViewErrorRef.current.url || checkoutUrl}
+              </Text>
+            )}
             <TouchableOpacity style={styles.retryBtn} onPress={handleRetry}>
               <Text style={styles.retryBtnText}>Retry</Text>
             </TouchableOpacity>
@@ -1331,6 +1349,11 @@ const styles = StyleSheet.create({
   errorText: {
     color:     "#374151",
     fontSize:  15,
+    textAlign: "center",
+  },
+  errorDetailText: {
+    color:     "#9CA3AF",
+    fontSize:  12,
     textAlign: "center",
   },
   retryBtn: {
