@@ -11,8 +11,13 @@ import {
 } from '../utils/cartDiscounts';
 
 const STOREFRONT_VERSION = "2024-10";
-// Backend proxy — handles Shopify auth server-side so the mobile app
-// never needs a valid storefront token on-device.
+// Backend proxy — handles Shopify auth server-side using the store's Admin
+// API access token, which every installed store has from OAuth install.
+// The app deliberately never uses a Storefront Access Token anywhere:
+// Shopify now requires an app to be a registered Sales Channel to mint one,
+// so it can never be reliably available here. Cart/checkout goes through
+// draftOrderCreate (Admin API) instead of the Storefront-only
+// cartCreate/checkoutCreate mutations for the same reason.
 const PROXY_ENDPOINT = "https://app.mobidrag.com/api/shopify/preview-graphql";
 const ADMIN_API_VERSION = STOREFRONT_VERSION;
 
@@ -144,8 +149,8 @@ export const getShopifyToken = () =>
 // ─── GraphQL query constants ───────────────────────────────────────────────
 
 export const QUERY_RECENT_PRODUCTS = `
-  query RecentProductsFallback($first: Int!) {
-    products(first: $first, sortKey: UPDATED_AT, reverse: true) {
+  query RecentProductsFallback($first: Int!, $query: String) {
+    products(first: $first, sortKey: UPDATED_AT, reverse: true, query: $query) {
       edges {
         node {
           id
@@ -187,7 +192,7 @@ export const QUERY_COLLECTIONS = `
 
 export const QUERY_TRENDING_SEARCH_TERMS = `
   query TrendingSearchTerms($productsFirst: Int!, $collectionsFirst: Int!) {
-    products(first: $productsFirst, sortKey: UPDATED_AT, reverse: true) {
+    products(first: $productsFirst, sortKey: UPDATED_AT, reverse: true, query: "status:active") {
       edges {
         node {
           id
@@ -212,70 +217,39 @@ export const QUERY_TRENDING_SEARCH_TERMS = `
 `;
 
 // ─── Base GraphQL call ─────────────────────────────────────────────────────
-// Routes through the backend proxy so the server supplies valid Shopify
-// credentials. Falls back to a direct Storefront API call if the proxy
-// is unreachable (offline / dev environment).
-export async function directStorefrontGraphQL({ shop, token, storeId, query, variables, adminToken, accessToken }) {
+// Routes through the backend's Admin-API proxy so the server supplies valid
+// Shopify credentials from the store's OAuth access token — the app never
+// needs a Storefront Access Token on-device at all. There used to be a
+// direct-Storefront-API fallback here; removed deliberately: Shopify now
+// requires an app to be a registered Sales Channel to mint Storefront
+// tokens, so this app can never reliably have one, and silently falling
+// back to it just produced confusing cross-store auth failures.
+export async function directStorefrontGraphQL({ shop, storeId, query, variables, adminToken, accessToken }) {
   const resolvedStoreId = storeId || FALLBACK_STORE_ID;
   const resolvedAdminToken = adminToken || accessToken || "";
 
-  // ── 1. Try backend proxy (preferred) ──────────────────────────────────────
-  try {
-    console.log(`🔌 Proxy request: storeId=${resolvedStoreId} shop=${shop}`);
-    const proxyRes = await fetch(PROXY_ENDPOINT, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        storeId: resolvedStoreId,
-        shop,
-        query,
-        variables,
-        token,
-        storefrontAccessToken: token,
-        accessToken: resolvedAdminToken,
-        adminAccessToken: resolvedAdminToken,
-      }),
-    });
-
-    if (proxyRes.ok) {
-      const json = await proxyRes.json();
-      if (!json?.errors) {
-        console.log("✅ Proxy success");
-        return json;
-      }
-      console.warn("⚠️ Proxy GraphQL errors:", JSON.stringify(json.errors));
-      // Fall through to direct call
-    } else {
-      const text = await proxyRes.text().catch(() => "");
-      console.warn(`⚠️ Proxy HTTP ${proxyRes.status}: ${text}`);
-    }
-  } catch (proxyErr) {
-    console.warn("⚠️ Proxy unreachable:", proxyErr.message);
-  }
-
-  // ── 2. Direct Storefront API fallback ──────────────────────────────────────
-  if (!token) throw new Error("No storefront token and proxy unavailable");
-
-  console.log(`🔌 Direct Storefront call: ${shop}`);
-  const endpoint = `https://${shop}/api/${STOREFRONT_VERSION}/graphql.json`;
-  const res = await fetch(endpoint, {
+  const proxyRes = await fetch(PROXY_ENDPOINT, {
     method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "X-Shopify-Storefront-Access-Token": token,
-    },
-    body: JSON.stringify({ query, variables }),
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      storeId: resolvedStoreId,
+      shop,
+      query,
+      variables,
+      accessToken: resolvedAdminToken,
+      adminAccessToken: resolvedAdminToken,
+    }),
   });
 
-  let json;
-  try { json = await res.json(); } catch (e) { throw e; }
-
-  if (!res.ok) {
-    console.warn("Direct Storefront HTTP Error:", res.status, json);
-    throw new Error(`Storefront HTTP Error ${res.status}`);
+  if (!proxyRes.ok) {
+    const text = await proxyRes.text().catch(() => "");
+    throw new Error(`Shopify proxy HTTP ${proxyRes.status}: ${text}`);
   }
 
-  console.log("✅ Direct Storefront success");
+  const json = await proxyRes.json();
+  if (json?.errors?.length) {
+    console.warn("⚠️ Proxy GraphQL errors:", JSON.stringify(json.errors));
+  }
   return json;
 }
 
@@ -307,7 +281,7 @@ export async function fetchShopifyRecentProducts(limit = 10, options = {}) {
     const json = await directStorefrontGraphQL({
       shop, token, storeId,
       query: QUERY_RECENT_PRODUCTS,
-      variables: { first: Math.max(1, limit) },
+      variables: { first: Math.max(1, limit), query: "status:active" },
     });
 
     if (json.errors) {
@@ -535,8 +509,8 @@ export async function fetchShopifyProductsPage({
   const storeId = options.storeId || creds.storeId;
 
   const query = `
-    query Products($first: Int!, $after: String) {
-      products(first: $first, after: $after) {
+    query Products($first: Int!, $after: String, $query: String) {
+      products(first: $first, after: $after, query: $query) {
         pageInfo {
           hasNextPage
           endCursor
@@ -578,7 +552,7 @@ export async function fetchShopifyProductsPage({
       token,
       storeId,
       query,
-      variables: { first, after },
+      variables: { first, after, query: "status:active" },
     });
 
     if (json.errors) {
@@ -1508,83 +1482,10 @@ export async function validateShopifyCartDiscounts({ items = [], discountCodes =
     };
   }
 
-  const creds = await getShopifyCredentials();
-  const shop = options.shop || creds.shop;
-  const token = options.token || creds.token;
-  const storeId = options.storeId || creds.storeId;
-  const buyerIdentity = buildBuyerIdentity(options);
-
-  const mutation = `
-    mutation ValidateCartDiscounts($input: CartInput!) {
-      cartCreate(input: $input) {
-        cart {
-          checkoutUrl
-          discountCodes { code applicable }
-          discountAllocations {
-            discountedAmount { amount currencyCode }
-            ... on CartCodeDiscountAllocation { code }
-          }
-          cost {
-            subtotalAmount { amount currencyCode }
-            totalAmount { amount currencyCode }
-          }
-          lines(first: 250) {
-            edges {
-              node {
-                discountAllocations {
-                  discountedAmount { amount currencyCode }
-                  ... on CartCodeDiscountAllocation { code }
-                }
-              }
-            }
-          }
-        }
-        userErrors { field message }
-      }
-    }
-  `;
-
-  let json;
-  try {
-    json = await directStorefrontGraphQL({
-      shop,
-      token,
-      storeId,
-      query: mutation,
-      variables: {
-        input: {
-          lines,
-          discountCodes: codes,
-          buyerIdentity,
-        },
-      },
-    });
-  } catch (error) {
-    console.warn("Cart discount preview failed, using Admin discount lookup:", error?.message || error);
-    return validateShopifyAdminDiscounts({ items, discountCodes: codes, cartFingerprint });
-  }
-
-  if (json?.errors?.length) {
-    console.warn("Cart discount preview returned errors, using Admin discount lookup:", JSON.stringify(json.errors));
-    return validateShopifyAdminDiscounts({ items, discountCodes: codes, cartFingerprint });
-  }
-
-  const payload = json?.data?.cartCreate;
-  const errors = payload?.userErrors || [];
-  if (errors.length) {
-    console.warn("Cart discount preview user errors, using Admin discount lookup:", JSON.stringify(errors));
-    return validateShopifyAdminDiscounts({ items, discountCodes: codes, cartFingerprint });
-  }
-
-  if (!payload?.cart) {
-    return validateShopifyAdminDiscounts({ items, discountCodes: codes, cartFingerprint });
-  }
-
-  return buildDiscountPreviewResult({
-    cart: payload.cart,
-    requestedCodes: codes,
-    cartFingerprint,
-  });
+  // Discount validation only needs the Admin API (access token) — no
+  // Storefront cartCreate preview needed at all, so no Storefront token is
+  // ever involved here.
+  return validateShopifyAdminDiscounts({ items, discountCodes: codes, cartFingerprint });
 }
 
 const formatOrderStatus = (fulfillmentStatus, financialStatus) => {
@@ -2416,10 +2317,8 @@ export async function createShopifyCheckout({ variantId, quantity = 1, options =
 
   const creds = await getShopifyCredentials();
   const shop = options.shop || creds.shop;
-  const token = options.token || creds.token;
   const storeId = options.storeId || creds.storeId;
   let merchandiseId = ensureVariantGid(variantId);
-  const buyerIdentity = buildBuyerIdentity(options);
 
   if (!merchandiseId) {
     const resolved = await resolveCheckoutVariantForItem(
@@ -2429,7 +2328,7 @@ export async function createShopifyCheckout({ variantId, quantity = 1, options =
         handle: options.handle,
         quantity,
       },
-      { shop, token, storeId }
+      { shop, storeId }
     );
     merchandiseId = resolved.merchandiseId;
     if (merchandiseId) {
@@ -2459,59 +2358,104 @@ export async function createShopifyCheckout({ variantId, quantity = 1, options =
     throw new Error("Invalid variant ID for checkout.");
   }
 
+  // "Buy Now" used to skip straight to a raw, unchecked cart permalink —
+  // if the product had since been deleted/unpublished, Shopify's own cart
+  // page rejected it with a dead-end "Cart Error" the caller had no way to
+  // recover from. Re-validate right before checkout, same as the cart flow.
+  const availabilityMap = await checkVariantsAvailability([merchandiseId], { shop, storeId });
+  const availability = availabilityMap[merchandiseId];
+  if (availability && (availability.exists === false || availability.availableForSale === false)) {
+    const title = availability.title || "This item";
+    console.warn(`${CHECKOUT_LOG} single checkout item unavailable`, { merchandiseId, title });
+    const error = new Error(`${title} is no longer available.`);
+    error.unavailableItems = [{ id: variantId, variantId, title }];
+    throw error;
+  }
+
+  const singleLine = [{ merchandiseId, quantity: Math.max(1, quantity) }];
+
+  try {
+    const draftOrderUrl = await createDraftOrderCheckoutUrl({
+      shop,
+      storeId,
+      lines: singleLine,
+      options,
+    });
+    if (draftOrderUrl) {
+      console.log(`${CHECKOUT_LOG} single checkout via draftOrderCreate`, { draftOrderUrl });
+      return draftOrderUrl;
+    }
+  } catch (error) {
+    console.warn(`${CHECKOUT_LOG} single checkout draftOrderCreate error:`, error?.message || error);
+  }
+
+  const directMatch = String(merchandiseId).match(/ProductVariant\/(\d+)/);
+  if (directMatch) {
+    const url = `https://${shop}/cart/${directMatch[1]}:${Math.max(1, quantity)}`;
+    console.log(`${CHECKOUT_LOG} single checkout via direct cart URL`, { url });
+    return url;
+  }
+
+  console.warn(`${CHECKOUT_LOG} single checkout missing URL`, { merchandiseId });
+  throw new Error("Checkout URL not returned.");
+}
+
+// Checkout via the Admin API access token — every installed store already has
+// one from OAuth install, unlike a Storefront Access Token (which Shopify now
+// restricts to apps registered as a Sales Channel). draftOrderCreate produces
+// a real, payable invoiceUrl the customer can complete in a WebView, same as
+// a normal checkout link. Requires the app to have Shopify's "Protected
+// Customer Data" access approved (Partner Dashboard → API access) — without
+// it, Shopify returns an ACCESS_DENIED error and the caller falls back to the
+// Storefront-token-based attempts.
+async function createDraftOrderCheckoutUrl({ shop, storeId, lines = [], options = {} }) {
+  const lineItems = (lines || [])
+    .map((line) => ({
+      variantId: line?.merchandiseId,
+      quantity: Math.max(1, Number(line?.quantity) || 1),
+    }))
+    .filter((line) => line.variantId);
+  if (!lineItems.length) return "";
+
+  const email = options?.email ? String(options.email).trim() : "";
+
   const mutation = `
-    mutation CreateCart($input: CartInput!) {
-      cartCreate(input: $input) {
-        cart {
-          checkoutUrl
+    mutation CreateDraftOrderCheckout($input: DraftOrderInput!) {
+      draftOrderCreate(input: $input) {
+        draftOrder {
+          id
+          invoiceUrl
         }
-        userErrors {
-          field
-          message
-        }
+        userErrors { field message }
       }
     }
   `;
 
   const json = await directStorefrontGraphQL({
     shop,
-    token,
     storeId,
     query: mutation,
     variables: {
       input: {
-        lines: [
-          {
-            merchandiseId,
-            quantity: Math.max(1, quantity),
-          },
-        ],
-        buyerIdentity,
+        lineItems,
+        ...(email ? { email } : {}),
+        useCustomerDefaultAddress: false,
       },
     },
   });
 
   if (json?.errors?.length) {
-    console.warn(`${CHECKOUT_LOG} single checkout GraphQL errors`, JSON.stringify(json.errors));
-    throw new Error(json.errors.map((error) => error.message).join(" "));
+    console.warn(`${CHECKOUT_LOG} draftOrderCreate GraphQL errors`, JSON.stringify(json.errors));
+    return "";
   }
 
-  const payload = json?.data?.cartCreate;
-  const errors = payload?.userErrors || [];
-
-  if (errors.length) {
-    console.warn(`${CHECKOUT_LOG} single checkout user errors`, JSON.stringify(errors));
-    throw new Error(errors.map((error) => error.message).join(" "));
+  const payload = json?.data?.draftOrderCreate;
+  if (payload?.userErrors?.length) {
+    console.warn(`${CHECKOUT_LOG} draftOrderCreate user errors`, JSON.stringify(payload.userErrors));
+    return "";
   }
 
-  const checkoutUrl = payload?.cart?.checkoutUrl ?? payload?.cart?.checckoutUrl;
-  if (!checkoutUrl) {
-    console.warn(`${CHECKOUT_LOG} single checkout missing URL`, { merchandiseId });
-    throw new Error("Checkout URL not returned.");
-  }
-
-  console.log(`${CHECKOUT_LOG} single checkout URL created`, { checkoutUrl });
-  return checkoutUrl;
+  return payload?.draftOrder?.invoiceUrl || "";
 }
 
 export async function createShopifyCartCheckout({ items = [], discountCodes = [], options = {} }) {
@@ -2616,123 +2560,37 @@ export async function createShopifyCartCheckout({ items = [], discountCodes = []
       throw error;
     }
 
-  // ── Attempt 1: cartCreate mutation (Storefront API 2021-07+) ──────────────
-  let directCartFallbackAllowed = true;
-  let checkoutFailureReason = "";
-
-  if (lines.length) {
-    const cartCreateMutation = `
-      mutation CreateCart($input: CartInput!) {
-        cartCreate(input: $input) {
-          cart {
-            checkoutUrl
-            discountCodes { code applicable }
-          }
-          userErrors { field message }
-        }
-      }
-    `;
+  // ── Attempt 0: draftOrderCreate (Admin API access token — no Storefront
+  // token needed at all). Shopify gates DraftOrder/Order/Customer objects
+  // behind "Protected Customer Data" approval in the Partner Dashboard; until
+  // that's granted this returns an ACCESS_DENIED error and we fall through to
+  // the Storefront-based attempts below exactly as before.
+  const draftOrderLines = lines.length ? lines : initialLines;
+  if (draftOrderLines.length) {
     try {
-      const json = await directStorefrontGraphQL({
-        shop, token, storeId,
-        query: cartCreateMutation,
-        variables: {
-          input: {
-            lines,
-            buyerIdentity,
-            ...(requestedDiscountCodes.length ? { discountCodes: requestedDiscountCodes } : {}),
-          },
-        },
+      const draftOrderUrl = await createDraftOrderCheckoutUrl({
+        shop,
+        storeId,
+        lines: draftOrderLines,
+        options,
       });
-      if (json?.errors?.length) {
-        console.warn(`${CHECKOUT_LOG} cartCreate GraphQL errors`, JSON.stringify(json.errors));
+      if (draftOrderUrl) {
+        console.log("✅ Checkout via draftOrderCreate:", draftOrderUrl);
+        return draftOrderUrl;
       }
-      if (!json?.errors?.length) {
-        const payload = json?.data?.cartCreate;
-        if (payload?.userErrors?.length) {
-          console.warn(`${CHECKOUT_LOG} cartCreate user errors`, JSON.stringify(payload.userErrors));
-          directCartFallbackAllowed = false;
-          checkoutFailureReason = payload.userErrors.map((error) => error?.message).filter(Boolean).join(" ");
-        }
-        if (!payload?.userErrors?.length) {
-          if (requestedDiscountCodes.length) {
-            const returnedCodes = payload?.cart?.discountCodes || [];
-            const invalidCode = requestedDiscountCodes.find((code) => {
-              const match = returnedCodes.find(
-                (entry) => normalizeDiscountCode(entry?.code) === code
-              );
-              return !match || match.applicable !== true;
-            });
-            if (invalidCode) {
-              const error = new Error(`Discount code ${invalidCode} is not valid for this cart.`);
-              error.discountValidationFailed = true;
-              throw error;
-            }
-          }
-          const url = payload?.cart?.checkoutUrl;
-          if (url) {
-            console.log("✅ Checkout via cartCreate:", url);
-            return url;
-          }
-        }
-      }
-      console.warn("⚠️ cartCreate failed, trying checkoutCreate...");
     } catch (e) {
-      if (e?.discountValidationFailed) throw e;
-      console.warn("⚠️ cartCreate error:", e.message);
-    }
-
-    // ── Attempt 2: checkoutCreate mutation (older Storefront API) ────────────
-    const checkoutCreateMutation = `
-      mutation CheckoutCreate($input: CheckoutCreateInput!) {
-        checkoutCreate(input: $input) {
-          checkout { webUrl }
-          checkoutUserErrors { field message }
-        }
-      }
-    `;
-    try {
-      const lineItems = lines.map((line) => ({
-        variantId: line.merchandiseId,
-        quantity: line.quantity,
-      }));
-      const json = await directStorefrontGraphQL({
-        shop, token, storeId,
-        query: checkoutCreateMutation,
-        variables: {
-          input: {
-            lineItems,
-            ...(options.email ? { email: String(options.email).trim() } : {}),
-            ...(requestedDiscountCodes.length ? { discountCodes: requestedDiscountCodes } : {}),
-          },
-        },
-      });
-      if (json?.errors?.length) {
-        console.warn(`${CHECKOUT_LOG} checkoutCreate GraphQL errors`, JSON.stringify(json.errors));
-      }
-      if (!json?.errors?.length) {
-        const payload = json?.data?.checkoutCreate;
-        if (payload?.checkoutUserErrors?.length) {
-          console.warn(`${CHECKOUT_LOG} checkoutCreate user errors`, JSON.stringify(payload.checkoutUserErrors));
-          directCartFallbackAllowed = false;
-          checkoutFailureReason = payload.checkoutUserErrors.map((error) => error?.message).filter(Boolean).join(" ");
-        }
-        if (!payload?.checkoutUserErrors?.length) {
-          const url = payload?.checkout?.webUrl;
-          if (url) {
-            console.log("✅ Checkout via checkoutCreate:", url);
-            return url;
-          }
-        }
-      }
-      console.warn("⚠️ checkoutCreate failed, falling back to direct cart URL...");
-    } catch (e) {
-      console.warn("⚠️ checkoutCreate error:", e.message);
+      console.warn(`${CHECKOUT_LOG} draftOrderCreate error:`, e?.message || e);
     }
   }
 
-  // ── Attempt 3: direct Shopify cart URL (no API call needed) ─────────────
-  if (directCartFallbackAllowed && directCartLines.length) {
+  // ── Attempt 1: direct Shopify cart URL (no API call needed at all) ───────
+  // cartCreate/checkoutCreate (Storefront API) are deliberately not used —
+  // they require a Storefront Access Token, which this app can never
+  // reliably have (see the note on directStorefrontGraphQL above). The
+  // availability pre-check above already caught genuinely invalid items,
+  // so any remaining lines are safe to send straight to Shopify's plain
+  // cart permalink.
+  if (directCartLines.length) {
     const queryString = buildCheckoutQueryString({
       discountCodes: requestedDiscountCodes,
       email: options.email,
@@ -2743,10 +2601,6 @@ export async function createShopifyCartCheckout({ items = [], discountCodes = []
       lines: directCartLines,
     });
     return url;
-  }
-
-  if (!directCartFallbackAllowed) {
-    throw new Error(checkoutFailureReason || "Some cart items cannot be checked out.");
   }
 
   console.warn(`${CHECKOUT_LOG} checkout URL not returned`, {
@@ -2834,7 +2688,14 @@ export async function searchShopifyProducts(searchTerm, limit = 10, options = {}
     queryParts.push(`title:*${token}*`, `handle:*${token}*`, `tag:*${token}*`);
   });
 
-  const searchQuery = queryParts.length ? queryParts.join(" OR ") : safeTerm;
+  // Wrap the OR-joined field matches in parens before ANDing with
+  // status:active — Shopify's search grammar has AND bind tighter than OR,
+  // so without the parens only the first OR-branch would actually be
+  // restricted to active products.
+  const activeTermQuery = safeTerm ? `status:active AND ${safeTerm}` : "status:active";
+  const searchQuery = queryParts.length
+    ? `status:active AND (${queryParts.join(" OR ")})`
+    : activeTermQuery;
 
   const mapProductEdges = (edges = []) =>
     edges.map(({ node }) => {
@@ -2873,13 +2734,13 @@ export async function searchShopifyProducts(searchTerm, limit = 10, options = {}
       variables: { first: limit, query: searchQuery },
     });
 
-    if (json.errors && searchQuery !== safeTerm) {
+    if (json.errors && queryParts.length > 0) {
       const fallbackJson = await directStorefrontGraphQL({
         shop,
         token,
         storeId,
         query,
-        variables: { first: limit, query: safeTerm },
+        variables: { first: limit, query: activeTermQuery },
       });
       if (fallbackJson.errors) {
         console.error("Shopify GraphQL search fallback errors:", fallbackJson.errors);
@@ -2894,7 +2755,7 @@ export async function searchShopifyProducts(searchTerm, limit = 10, options = {}
     }
 
     const edges = json?.data?.products?.edges || [];
-    if (edges.length > 0 || searchQuery === safeTerm) {
+    if (edges.length > 0 || queryParts.length === 0) {
       return mapProductEdges(edges);
     }
 
@@ -2903,7 +2764,7 @@ export async function searchShopifyProducts(searchTerm, limit = 10, options = {}
       token,
       storeId,
       query,
-      variables: { first: limit, query: safeTerm },
+      variables: { first: limit, query: activeTermQuery },
     });
 
     if (fallbackJson.errors) {
@@ -2958,11 +2819,11 @@ export async function fetchShopifyCollectionProducts({
   const storeId = options.storeId || creds.storeId;
 
   const query = `
-    query CollectionProducts($query: String!, $firstCollections: Int!, $first: Int!, $after: String) {
+    query CollectionProducts($query: String!, $firstCollections: Int!, $first: Int!, $after: String, $productsQuery: String) {
       collections(first: $firstCollections, query: $query) {
         edges {
           node {
-            products(first: $first, after: $after) {
+            products(first: $first, after: $after, query: $productsQuery) {
               pageInfo {
                 hasNextPage
                 endCursor
@@ -3012,6 +2873,7 @@ export async function fetchShopifyCollectionProducts({
         firstCollections: 1,
         first: safeFirst,
         after,
+        productsQuery: "status:active",
       },
     });
 

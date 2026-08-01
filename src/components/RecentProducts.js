@@ -20,7 +20,12 @@ import { getResponsiveColumns } from "../utils/responsiveLayout";
 import { resolveFirstFont } from "../services/typographyService";
 import FavoriteToggleButton, { buildFavoriteToggleConfig } from "./FavoriteToggleButton";
 import ProductImage from "./ProductImage";
-import { formatMoney, parseMoneyAmount } from "../utils/money";
+import { parseMoneyAmount } from "../utils/money";
+import {
+  formatPrice as formatCurrencyPrice,
+  hydrateCurrencyFromStorage,
+  subscribeCurrency,
+} from "../utils/currencyStore";
 import { ADD_TO_CART_SUCCESS_MESSAGE, resolveCartNavigationParams } from "../utils/cartFeedback";
 import Snackbar from "./Snackbar";
 
@@ -175,6 +180,22 @@ export default function RecentProducts({ section }) {
   const dispatch   = useDispatch();
   const { session, initializing } = useAuth();
   const wishlistItems = useSelector((state) => state.wishlist?.items || []);
+
+  // Currency Switcher writes here; re-render prices when the shopper
+  // changes the selected currency.
+  const [, setCurrencyVersion] = useState(0);
+  useEffect(() => {
+    let mounted = true;
+    const bump = () => {
+      if (mounted) setCurrencyVersion((v) => v + 1);
+    };
+    hydrateCurrencyFromStorage().then(bump);
+    const unsub = subscribeCurrency(bump);
+    return () => {
+      mounted = false;
+      unsub();
+    };
+  }, []);
 
   // ── DSL extraction ─────────────────────────────────────────────────────────
   const propsNode =
@@ -581,7 +602,7 @@ export default function RecentProducts({ section }) {
                           ...(priceFamily ? { fontFamily: priceFamily } : {}),
                         }}
                       >
-                        {formatMoney(price, currency)}
+                        {formatCurrencyPrice(price, currency)}
                       </Text>
                       {showStrike && (
                         <Text
@@ -592,7 +613,7 @@ export default function RecentProducts({ section }) {
                             marginLeft:         4,
                           }}
                         >
-                          {formatMoney(compareAt, currency)}
+                          {formatCurrencyPrice(compareAt, currency)}
                         </Text>
                       )}
                     </View>

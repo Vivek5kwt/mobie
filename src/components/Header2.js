@@ -23,7 +23,11 @@ import { resolveTextDecorationLine } from "../utils/textDecoration";
 import { resolveFA4IconName } from "../utils/faIconAlias";
 import { resolveProductImageResizeMode } from "../utils/productImageFit";
 import { getTypography, resolveFirstFont } from "../services/typographyService";
-import { formatMoney } from "../utils/money";
+import {
+  formatPrice as formatCurrencyPrice,
+  hydrateCurrencyFromStorage,
+  subscribeCurrency,
+} from "../utils/currencyStore";
 
 const unwrapValue = (value, fallback = undefined) => {
   if (value === undefined || value === null) return fallback;
@@ -175,6 +179,22 @@ export default function Header2({ section }) {
   const navigation = useNavigation();
   const bottomNavSection = section?.bottomNavSection || bottomNavigationStyle1Section;
   const typography = getTypography() || {};
+
+  // Currency Switcher writes here; re-render prices when the shopper
+  // changes the selected currency.
+  const [, setCurrencyVersion] = useState(0);
+  useEffect(() => {
+    let mounted = true;
+    const bump = () => {
+      if (mounted) setCurrencyVersion((v) => v + 1);
+    };
+    hydrateCurrencyFromStorage().then(bump);
+    const unsub = subscribeCurrency(bump);
+    return () => {
+      mounted = false;
+      unsub();
+    };
+  }, []);
   const cartCount = useSelector((state) =>
     (state?.cart?.items || []).reduce((sum, item) => {
       const quantity = Number(item?.quantity);
@@ -1417,7 +1437,7 @@ export default function Header2({ section }) {
                     {product.title}
                   </Text>
                   <Text style={styles.resultPrice}>
-                    {formatMoney(
+                    {formatCurrencyPrice(
                       product.priceAmount ?? product.price,
                       product.priceCurrency || product.currency || product.currencySymbol
                     )}

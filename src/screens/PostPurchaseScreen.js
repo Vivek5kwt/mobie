@@ -269,14 +269,14 @@ const injectOrderData = (sections = [], capturedItems = [], orderNumber = "", or
         );
       if (orderNumber && !hasRenderedOrderNumber) {
         rawValue.subtext = `Your order ${orderNumber} is confirmed.`;
-        rawValue.showSubtext = true;
+        rawValue.showSubTitle = true;
       } else if (!touchedRaw && !touchedProps) {
         rawValue.subtext = orderNumber
           ? `Your order ${orderNumber} is confirmed.`
           : orderState.syncing
             ? "Your order is confirmed. Syncing order details..."
             : "Your order is confirmed.";
-        rawValue.showSubtext = true;
+        rawValue.showSubTitle = true;
       }
 
       if (propsNode?.raw?.value !== undefined) {

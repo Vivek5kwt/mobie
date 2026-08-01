@@ -16,6 +16,11 @@ import { resolveTextDecorationLine } from "../utils/textDecoration";
 import { resolveFont } from "../services/typographyService";
 import { fetchShopifyProductsPage } from "../services/shopify";
 import { formatMoney } from "../utils/money";
+import {
+  formatPrice as formatCurrencyPrice,
+  hydrateCurrencyFromStorage,
+  subscribeCurrency,
+} from "../utils/currencyStore";
 import { navigateToDslTarget } from "../utils/navigationTarget";
 
 const unwrapValue = (value, fallback = undefined) => {
@@ -274,7 +279,9 @@ function MediaCard({
 
       {!!item.subtitle && (
         <Text style={[styles.subtitle, { textAlign: cardTitleAlign, paddingHorizontal: 8 }]}>
-          {item.subtitle}
+          {item.priceCurrencyRaw
+            ? formatCurrencyPrice(item.priceAmountRaw, item.priceCurrencyRaw)
+            : item.subtitle}
         </Text>
       )}
     </TouchableOpacity>
@@ -341,6 +348,22 @@ export default function MediaGrid({ section }) {
   const navigation = useNavigation();
   const { width: screenWidth } = useWindowDimensions();
   const [measuredWidth, setMeasuredWidth] = useState(0);
+
+  // Currency Switcher writes here; re-render prices when the shopper
+  // changes the selected currency.
+  const [, setCurrencyVersion] = useState(0);
+  useEffect(() => {
+    let mounted = true;
+    const bump = () => {
+      if (mounted) setCurrencyVersion((v) => v + 1);
+    };
+    hydrateCurrencyFromStorage().then(bump);
+    const unsub = subscribeCurrency(bump);
+    return () => {
+      mounted = false;
+      unsub();
+    };
+  }, []);
   const rawProps = useMemo(() => getSectionProps(section), [section]);
 
   const layoutNode = unwrapValue(rawProps?.layout, {}) || {};
@@ -499,6 +522,11 @@ export default function MediaGrid({ section }) {
             product.priceAmount ?? product.price,
             product.priceCurrency || product.currency || product.currencySymbol
           ),
+          // Kept alongside the pre-formatted subtitle above so the render
+          // side can re-convert live when the shopper changes currency
+          // instead of being frozen at fetch time.
+          priceAmountRaw: product.priceAmount ?? product.price,
+          priceCurrencyRaw: product.priceCurrency || product.currency || product.currencySymbol,
           badge: "",
           src: product.imageUrl || "",
           mediaType: "image",

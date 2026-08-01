@@ -26,7 +26,12 @@ import Snackbar from "./Snackbar";
 import { resolveFont } from "../services/typographyService";
 import FavoriteToggleButton, { buildFavoriteToggleConfig } from "./FavoriteToggleButton";
 import ProductImage from "./ProductImage";
-import { formatMoney, parseMoneyAmount } from "../utils/money";
+import { parseMoneyAmount } from "../utils/money";
+import {
+  formatPrice as formatCurrencyPrice,
+  hydrateCurrencyFromStorage,
+  subscribeCurrency,
+} from "../utils/currencyStore";
 import { resolveProductImageResizeMode } from "../utils/productImageFit";
 import { getResponsiveColumns } from "../utils/responsiveLayout";
 import { ADD_TO_CART_SUCCESS_MESSAGE, resolveCartNavigationParams } from "../utils/cartFeedback";
@@ -211,6 +216,22 @@ export default function TabProductGrid({ section }) {
   const { width: screenWidth } = useWindowDimensions();
   const { session, initializing } = useAuth();
   const wishlistItems = useSelector((state) => state?.wishlist?.items || []);
+
+  // Currency Switcher writes here; re-render prices when the shopper
+  // changes the selected currency.
+  const [, setCurrencyVersion] = useState(0);
+  useEffect(() => {
+    let mounted = true;
+    const bump = () => {
+      if (mounted) setCurrencyVersion((v) => v + 1);
+    };
+    hydrateCurrencyFromStorage().then(bump);
+    const unsub = subscribeCurrency(bump);
+    return () => {
+      mounted = false;
+      unsub();
+    };
+  }, []);
   const favoriteTapRef = useRef(false);
 
   // ── Parse DSL ──────────────────────────────────────────────────────────────
@@ -1212,7 +1233,7 @@ export default function TabProductGrid({ section }) {
                         },
                       ]}
                     >
-                      {formatMoney(product.price, product.currency || product.priceCurrency)}
+                      {formatCurrencyPrice(product.price, product.currency || product.priceCurrency)}
                     </Text>
                   )}
                   {(showAddToCart || !inStock) && atcPosition === "below" && renderAddToCart(product, inStock)}
@@ -1349,7 +1370,7 @@ export default function TabProductGrid({ section }) {
                             },
                           ]}
                         >
-                          {formatMoney(product.price, product.currency || product.priceCurrency)}
+                          {formatCurrencyPrice(product.price, product.currency || product.priceCurrency)}
                         </Text>
                       )}
 

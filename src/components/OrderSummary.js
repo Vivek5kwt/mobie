@@ -1,10 +1,15 @@
-import React, { useMemo } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { Image, StyleSheet, Text, View } from "react-native";
 import Icon6 from "react-native-vector-icons/FontAwesome6";
 import FA6GlyphMap from "react-native-vector-icons/glyphmaps/FontAwesome6Free.json";
 import { useSelector } from "react-redux";
 import { resolveFont } from "../services/typographyService";
-import { formatMoney, parseMoneyAmount } from "../utils/money";
+import { parseMoneyAmount } from "../utils/money";
+import {
+  formatPrice as formatCurrencyPrice,
+  hydrateCurrencyFromStorage,
+  subscribeCurrency,
+} from "../utils/currencyStore";
 import {
   activeDiscountRecords,
   cartDiscountFingerprint,
@@ -120,7 +125,7 @@ const firstDefined = (...values) => {
 };
 
 const fmt = (amount, currency) =>
-  formatMoney(Math.abs(amount), currency);
+  formatCurrencyPrice(Math.abs(amount), currency);
 
 const resolveLinePrice = (item = {}) => {
   const candidates = [
@@ -178,6 +183,22 @@ const resolveLineTax = (item = {}) => {
 };
 
 export default function OrderSummary({ section }) {
+  // Currency Switcher writes here; re-render totals when the shopper
+  // changes the selected currency (matches Builder's OrderSummary block).
+  const [, setCurrencyVersion] = useState(0);
+  useEffect(() => {
+    let mounted = true;
+    const bump = () => {
+      if (mounted) setCurrencyVersion((v) => v + 1);
+    };
+    hydrateCurrencyFromStorage().then(bump);
+    const unsub = subscribeCurrency(bump);
+    return () => {
+      mounted = false;
+      unsub();
+    };
+  }, []);
+
   const propsNode =
     section?.properties?.props?.properties ||
     section?.properties?.props ||
@@ -222,7 +243,14 @@ export default function OrderSummary({ section }) {
   // div, gated by the same `backgroundPaddingActive` toggle) — not a
   // conditionally-shown container. Writes cardBgColor/cardBorderRadius/
   // cardColor(border)/cardSide/cardPt-Pb-Pl-Pr.
-  const backgroundPaddingActive = toBoolean(raw?.backgroundPaddingActive, true);
+  // order_summary's own Inspector (OrderSummary/inspectorLive.tsx) calls this
+  // same master toggle `bgPadVisible` rather than price_line's
+  // `backgroundPaddingActive` — accept either since this component renders
+  // both DSL component types.
+  const backgroundPaddingActive = toBoolean(raw?.backgroundPaddingActive ?? raw?.bgPadVisible, true);
+  // order_summary's "Pricing & Summary" master toggle — price_line has no
+  // equivalent single switch, so this only ever goes false for order_summary.
+  const pricingVisible = toBoolean(raw?.pricingVisible, true);
   // `cardColor` is the Inspector's BORDER color field, not a background
   // fallback — using it for cardBgColor would paint the whole card in the
   // border color whenever only the border had been customized.
@@ -273,7 +301,7 @@ export default function OrderSummary({ section }) {
   const showProductName = toBoolean(raw?.productNameVisible, true);
   const productNameStyle = {
     fontSize: toNumber(raw?.productNameSize, 14),
-    fontWeight: toFontWeight(raw?.productNameFontWeight, "600"),
+    fontWeight: toBoolean(raw?.productNameBold, false) ? "700" : toFontWeight(raw?.productNameFontWeight, "600"),
     color: toString(raw?.productNameColor, "#111827"),
     ...(cleanFontFamily(toString(raw?.productNameFontFamily, "")) ? { fontFamily: cleanFontFamily(toString(raw?.productNameFontFamily, "")) } : {}),
   };
@@ -663,6 +691,8 @@ export default function OrderSummary({ section }) {
         );
       })}
 
+      {pricingVisible && (
+      <>
       {/* Cart Total */}
       {showCartTotalRow && (
         <SummaryRow
@@ -843,6 +873,8 @@ export default function OrderSummary({ section }) {
             )}
           </View>
         </View>
+      )}
+      </>
       )}
       </View>
     </View>

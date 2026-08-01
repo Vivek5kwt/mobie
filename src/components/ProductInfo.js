@@ -1,8 +1,12 @@
-import React from "react";
+import React, { useEffect, useState } from "react";
 import { Share, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import FontAwesome from "react-native-vector-icons/FontAwesome";
 import { resolveFirstFont } from "../services/typographyService";
-import { formatMoney } from "../utils/money";
+import {
+  formatPrice as formatCurrencyPrice,
+  hydrateCurrencyFromStorage,
+  subscribeCurrency,
+} from "../utils/currencyStore";
 
 const unwrapValue = (value, fallback = undefined) => {
   if (value === undefined || value === null) return fallback;
@@ -43,6 +47,22 @@ const firstDefined = (...values) =>
   values.find((value) => value !== undefined && value !== null && value !== "");
 
 export default function ProductInfo({ section }) {
+  // Currency Switcher writes here; re-render the price when the shopper
+  // changes the selected currency.
+  const [, setCurrencyVersion] = useState(0);
+  useEffect(() => {
+    let mounted = true;
+    const bump = () => {
+      if (mounted) setCurrencyVersion((v) => v + 1);
+    };
+    hydrateCurrencyFromStorage().then(bump);
+    const unsub = subscribeCurrency(bump);
+    return () => {
+      mounted = false;
+      unsub();
+    };
+  }, []);
+
   const propsNode =
     section?.properties?.props?.properties ||
     section?.properties?.props ||
@@ -333,7 +353,7 @@ export default function ProductInfo({ section }) {
                   },
                 ]}
               >
-                {formatMoney(salePrice, currencyLabel)}
+                {formatCurrencyPrice(salePrice, currencyLabel)}
               </Text>
             )}
             {showStandard && standardPrice !== undefined && (
@@ -348,7 +368,7 @@ export default function ProductInfo({ section }) {
                   },
                 ]}
               >
-                {formatMoney(standardPrice, currencyLabel)}
+                {formatCurrencyPrice(standardPrice, currencyLabel)}
               </Text>
             )}
             {showStrikethrough && standardPrice !== undefined && (
@@ -364,7 +384,7 @@ export default function ProductInfo({ section }) {
                   },
                 ]}
               >
-                {formatMoney(standardPrice, currencyLabel)}
+                {formatCurrencyPrice(standardPrice, currencyLabel)}
               </Text>
             )}
           </View>

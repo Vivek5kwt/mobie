@@ -1,4 +1,4 @@
-import React, { useMemo } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import {
   Image,
   StyleSheet,
@@ -13,7 +13,12 @@ import FontAwesome from "react-native-vector-icons/FontAwesome";
 import { updateQuantity, removeItem } from "../store/slices/cartSlice";
 import { resolveFA4IconName } from "../utils/faIconAlias";
 import { resolveFont } from "../services/typographyService";
-import { formatMoney, parseMoneyAmount } from "../utils/money";
+import { parseMoneyAmount } from "../utils/money";
+import {
+  formatPrice as formatCurrencyPrice,
+  hydrateCurrencyFromStorage,
+  subscribeCurrency,
+} from "../utils/currencyStore";
 import { resolveProductImageResizeMode } from "../utils/productImageFit";
 import { activeDiscountRecords, cartDiscountFingerprint } from "../utils/cartDiscounts";
 
@@ -135,7 +140,7 @@ const resolveCurrencyLabel = (...values) => {
 };
 
 const fmtPrice = (amount, currency) =>
-  formatMoney(Math.abs(toNumber(amount, 0)), currency);
+  formatCurrencyPrice(Math.abs(toNumber(amount, 0)), currency);
 
 const responsiveSize = (screenWidth, ratio, min, max) => {
   const value = Math.round(Math.max(1, screenWidth) * ratio);
@@ -147,6 +152,22 @@ export default function CartLineItems({ section }) {
   const navigation = useNavigation();
   const { width: screenWidth, height: screenHeight } = useWindowDimensions();
   const cartItems = useSelector((state) => state?.cart?.items || []);
+
+  // Currency Switcher writes here; re-render prices when the shopper
+  // changes the selected currency.
+  const [, setCurrencyVersion] = useState(0);
+  useEffect(() => {
+    let mounted = true;
+    const bump = () => {
+      if (mounted) setCurrencyVersion((v) => v + 1);
+    };
+    hydrateCurrencyFromStorage().then(bump);
+    const unsub = subscribeCurrency(bump);
+    return () => {
+      mounted = false;
+      unsub();
+    };
+  }, []);
   const appliedDiscounts = useSelector((state) => state?.cart?.discounts || []);
 
   const propsNode =

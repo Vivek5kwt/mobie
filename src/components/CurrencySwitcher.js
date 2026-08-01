@@ -12,12 +12,14 @@ import { resolveFont } from "../services/typographyService";
 import { useAuth } from "../services/AuthContext";
 import { useStore } from "../services/StoreContext";
 import {
+  fetchExchangeRates,
   fetchShopifyCurrencies,
   loadSelectedCurrency,
   normalizeCurrencyCode,
   normalizeCurrencyList,
   saveSelectedCurrency,
 } from "../services/currencyService";
+import { setActiveCurrency } from "../utils/currencyStore";
 
 const deepUnwrap = (value) => {
   if (value === undefined || value === null) return value;
@@ -137,14 +139,24 @@ export default function CurrencySwitcher({ section }) {
       setErrorMessage("");
 
       try {
-        const [savedCurrency, fetchedCurrencies] = await Promise.all([
+        const [savedCurrency, fetchedCurrencies, rates] = await Promise.all([
           loadSelectedCurrency({ session, store }),
           fetchShopifyCurrencies({ session, store }),
+          fetchExchangeRates(),
         ]);
 
         if (!active) return;
         setPersistedSelected(savedCurrency);
         setApiCurrencies(fetchedCurrencies);
+        // Push the active currency + rate table into the shared store so
+        // ProductGrid/ProductCarousel prices convert immediately, even
+        // before the user manually reopens this picker.
+        const activeCode =
+          savedCurrency ||
+          normalizeCurrencyCode(str(session?.user?.currency, "")) ||
+          normalizeCurrencyCode(store?.currency) ||
+          normalizeCurrencyCode(fetchedCurrencies?.[0]?.code || fetchedCurrencies?.[0]?.currency);
+        setActiveCurrency({ code: activeCode, rates });
       } catch (error) {
         if (!active) return;
         setApiCurrencies([]);
@@ -219,6 +231,7 @@ export default function CurrencySwitcher({ section }) {
     try {
       const saved = await saveSelectedCurrency({ session, store, currency: nextCurrency });
       setPersistedSelected(saved);
+      setActiveCurrency({ code: saved || nextCurrency });
     } catch (error) {
       setErrorMessage(error?.message || "Unable to save selected currency.");
     } finally {

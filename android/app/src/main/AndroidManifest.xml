@@ -7,6 +7,20 @@
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
 
+    <!-- Android 11+ (API 30+) restricts package visibility by default —
+         without this, the app can't see the device's speech recognition
+         service/activity, so @react-native-voice/voice's isAvailable()/
+         start() calls can silently fail on real devices even though
+         RECORD_AUDIO is granted and the native module is linked. -->
+    <queries>
+        <intent>
+            <action android:name="android.speech.RecognitionService" />
+        </intent>
+        <intent>
+            <action android:name="android.speech.action.RECOGNIZE_SPEECH" />
+        </intent>
+    </queries>
+
     <supports-screens
         android:smallScreens="true"
         android:normalScreens="true"
@@ -34,7 +48,7 @@
         <meta-data
             android:name="com.google.firebase.messaging.default_notification_icon"
             android:resource="@drawable/ic_notification"
-            tools:replace="android:resource" />
+            tools:replace="android:resource" />
 
         <activity
             android:name=".MainActivity"

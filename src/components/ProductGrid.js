@@ -14,7 +14,12 @@ import { requireLoginForAction } from "../utils/authGate";
 import { resolveProductImageResizeMode } from "../utils/productImageFit";
 import { resolveFont } from "../services/typographyService";
 import FavoriteToggleButton, { buildFavoriteToggleConfig } from "./FavoriteToggleButton";
-import { formatMoney, parseMoneyAmount } from "../utils/money";
+import { parseMoneyAmount } from "../utils/money";
+import {
+  formatPrice as formatCurrencyPrice,
+  hydrateCurrencyFromStorage,
+  subscribeCurrency,
+} from "../utils/currencyStore";
 import { getResponsiveColumns } from "../utils/responsiveLayout";
 import { ADD_TO_CART_SUCCESS_MESSAGE, resolveCartNavigationParams } from "../utils/cartFeedback";
 import {
@@ -242,6 +247,10 @@ export default function ProductGrid({ section, limit = 8, title = "Products" }) 
   // Filter & Sort Header writes here; Product Grid reads — mirrors Builder's
   // sortFilterStore.ts producer/consumer wiring for the same DSL blocks.
   const [selectedFilters, setSelectedFilters] = useState(() => getSortFilterSnapshot().selectedFilters);
+  const [selectedSort, setSelectedSort] = useState(() => getSortFilterSnapshot().sortOption);
+  // Currency Switcher writes here; re-render prices when the shopper changes
+  // the selected currency, mirroring the Filter/Sort store wiring above.
+  const [currencyVersion, setCurrencyVersion] = useState(0);
   const isMountedRef = useRef(true);
   const didInitialLoadRef = useRef(false);
   const loadInFlightRef = useRef(false);
@@ -807,6 +816,12 @@ export default function ProductGrid({ section, limit = 8, title = "Products" }) 
   // Matches Builder's ProductGrid/PreviewLive.tsx availability-filter logic
   // exactly: "In stock" and "Out of stock"/"Available soon" are mutually
   // exclusive filters written by FilterSortHeader's Availability checkboxes.
+  //
+  // Sort: Builder's own sortOption is wired up to re-trigger a fetch but
+  // never actually reorders the result (dead in Builder itself) — "Best
+  // Selling"/"Recommended"/"What's New" have no real signal to sort by
+  // client-side, so those stay as fetched order here too. Price sorting IS
+  // real data we have, so it's actually applied.
   const visibleProducts = useMemo(() => {
     const wantsInStock = selectedFilters.includes("In stock");
     const wantsOutOfStock =
@@ -817,8 +832,16 @@ export default function ProductGrid({ section, limit = 8, title = "Products" }) 
     } else if (!wantsInStock && wantsOutOfStock) {
       filtered = filtered.filter((p) => !isProductAvailable(p));
     }
+
+    if (selectedSort === "Price: Low to High" || selectedSort === "Price: High to Low") {
+      const priceOf = (p) => parseMoneyAmount(p?.priceAmount ?? p?.price) || 0;
+      filtered = filtered.slice().sort((a, b) =>
+        selectedSort === "Price: Low to High" ? priceOf(a) - priceOf(b) : priceOf(b) - priceOf(a)
+      );
+    }
+
     return filtered.slice(0, resolvedLimit);
-  }, [products, resolvedLimit, selectedFilters]);
+  }, [products, resolvedLimit, selectedFilters, selectedSort]);
 
   // ── Header row bottom margin ──────────────────────────────────────────────
   const headerMarginBottom = resolveFirstNumber([rawProps?.headerMarginBottom, rawProps?.titleMarginBottom, rawProps?.headerMb], 12);
@@ -911,10 +934,26 @@ export default function ProductGrid({ section, limit = 8, title = "Products" }) 
   useEffect(() => {
     let mounted = true;
     const applySnapshot = () => {
-      if (mounted) setSelectedFilters(getSortFilterSnapshot().selectedFilters);
+      if (!mounted) return;
+      const snap = getSortFilterSnapshot();
+      setSelectedFilters(snap.selectedFilters);
+      setSelectedSort(snap.sortOption);
     };
     hydrateSortFilterFromStorage().then(applySnapshot);
     const unsub = subscribeSortFilter(applySnapshot);
+    return () => {
+      mounted = false;
+      unsub();
+    };
+  }, []);
+
+  useEffect(() => {
+    let mounted = true;
+    const bump = () => {
+      if (mounted) setCurrencyVersion((v) => v + 1);
+    };
+    hydrateCurrencyFromStorage().then(bump);
+    const unsub = subscribeCurrency(bump);
     return () => {
       mounted = false;
       unsub();
@@ -1526,7 +1565,7 @@ export default function ProductGrid({ section, limit = 8, title = "Products" }) 
                         },
                       ]}
                     >
-                      {formatMoney(
+                      {formatCurrencyPrice(
                         product.priceAmount ?? product.price,
                         product.priceCurrency || product.currency || product.currencySymbol
                       )}

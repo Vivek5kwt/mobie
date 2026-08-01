@@ -7,6 +7,7 @@ import { addItem } from "../store/slices/cartSlice";
 import Snackbar from "./Snackbar";
 import {
   getShopifyDomain,
+  createShopifyCheckout,
 } from "../services/shopify";
 import { resolveFirstFont } from "../services/typographyService";
 import { ADD_TO_CART_SUCCESS_MESSAGE, resolveCartNavigationParams } from "../utils/cartFeedback";
@@ -241,6 +242,8 @@ export default function AddToCart({ section }) {
 
   const [quantity, setQuantity] = useState(1);
   const [snackbarVisible, setSnackbarVisible] = useState(false);
+  const [buyNowLoading, setBuyNowLoading] = useState(false);
+  const [buyNowError, setBuyNowError] = useState("");
 
   const addToCartButtonStyle = useMemo(
     () => ({
@@ -394,12 +397,36 @@ export default function AddToCart({ section }) {
     setSnackbarVisible(true);
   };
 
-  // Buy Now skips the local cart entirely and goes straight to a Shopify
-  // checkout permalink for just this variant/quantity — addToCartUrl was
-  // already being computed above for exactly this purpose but had no caller.
-  const handleBuyNow = () => {
-    if (!productAvailable || !addToCartUrl) return;
-    navigation.navigate("CheckoutWebView", { url: addToCartUrl });
+  // Buy Now skips the local cart and goes straight to checkout for just this
+  // variant/quantity. This used to navigate straight to a raw, unchecked
+  // cart permalink (addToCartUrl) — if the product had since been deleted
+  // or unpublished (the DSL's embedded availableForSale can go stale), the
+  // user landed on Shopify's own dead-end "Cart Error" page with no way to
+  // recover. Routes through createShopifyCheckout instead, which
+  // re-validates availability right before checkout and uses
+  // draftOrderCreate (falling back to the same permalink) instead.
+  const handleBuyNow = async () => {
+    if (!productAvailable || buyNowLoading) return;
+    if (!productVariantGid && !addToCartUrl) return;
+    setBuyNowError("");
+    setBuyNowLoading(true);
+    try {
+      const checkoutUrl = await createShopifyCheckout({
+        variantId: productVariantGid || productVariantNumericId,
+        quantity,
+        options: { handle: productHandle },
+      });
+      navigation.navigate("CheckoutWebView", { url: checkoutUrl });
+    } catch (error) {
+      console.warn("[AddToCart] Buy Now failed:", error?.message || error);
+      if (addToCartUrl && !error?.unavailableItems) {
+        navigation.navigate("CheckoutWebView", { url: addToCartUrl });
+      } else {
+        setBuyNowError(error?.message || "This item is no longer available.");
+      }
+    } finally {
+      setBuyNowLoading(false);
+    }
   };
 
   const containerBg = toString(
@@ -504,13 +531,13 @@ export default function AddToCart({ section }) {
       {/* ── Buy Now button (full-width) ── */}
       {showBuyNow && productAvailable && (
         <TouchableOpacity
-          style={[styles.fullButton, styles.buyNowButton, buyNowButtonStyle]}
+          style={[styles.fullButton, styles.buyNowButton, buyNowButtonStyle, buyNowLoading && styles.buttonDisabled]}
           onPress={handleBuyNow}
-          disabled={!addToCartUrl}
+          disabled={(!addToCartUrl && !productVariantGid) || buyNowLoading}
           activeOpacity={0.8}
         >
           {!buyNowIconOnRight && buyNowIcon}
-          {showBuyNowText && <Text style={buyNowTextStyle}>Buy Now</Text>}
+          {showBuyNowText && <Text style={buyNowTextStyle}>{buyNowLoading ? "Please wait…" : "Buy Now"}</Text>}
           {buyNowIconOnRight && buyNowIcon}
         </TouchableOpacity>
       )}
@@ -524,6 +551,17 @@ export default function AddToCart({ section }) {
         onDismiss={() => setSnackbarVisible(false)}
         duration={2500}
         type="success"
+      />
+
+      {/* ── Buy Now error snackbar ── */}
+      <Snackbar
+        visible={!!buyNowError}
+        message={buyNowError}
+        actionLabel="Dismiss"
+        onAction={() => setBuyNowError("")}
+        onDismiss={() => setBuyNowError("")}
+        duration={4000}
+        type="error"
       />
     </View>
   );
@@ -576,5 +614,8 @@ const styles = StyleSheet.create({
   },
   buyNowButton: {
     marginTop: 10,
+  },
+  buttonDisabled: {
+    opacity: 0.6,
   },
 });

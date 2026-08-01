@@ -5,6 +5,13 @@ const GET_SHOPIFY_CURRENCIES = gql`
     getShopifyCurrencies(shop: $shop, accessToken: $accessToken) {
       success
       currencies
+      markets {
+        currencyCode
+        countryCode
+        countryName
+        marketName
+        primary
+      }
     }
   }
 `;

@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import {
   Image,
   StyleSheet,
@@ -14,7 +14,11 @@ import { dedupeWishlistProducts, toggleWishlist } from "../store/slices/wishlist
 import Snackbar from "./Snackbar";
 import { resolveFont } from "../services/typographyService";
 import FavoriteToggleButton, { buildFavoriteToggleConfig } from "./FavoriteToggleButton";
-import { formatMoney } from "../utils/money";
+import {
+  formatPrice as formatCurrencyPrice,
+  hydrateCurrencyFromStorage,
+  subscribeCurrency,
+} from "../utils/currencyStore";
 import { resolveProductImageResizeMode } from "../utils/productImageFit";
 import { usePageEmptyStateReporter } from "../services/PageEmptyStateContext";
 
@@ -67,6 +71,22 @@ export default function WishlistItem({ section }) {
   const navigation = useNavigation();
   const dispatch = useDispatch();
   const { width: screenWidth } = useWindowDimensions();
+
+  // Currency Switcher writes here; re-render the price when the shopper
+  // changes the selected currency.
+  const [, setCurrencyVersion] = useState(0);
+  useEffect(() => {
+    let mounted = true;
+    const bump = () => {
+      if (mounted) setCurrencyVersion((v) => v + 1);
+    };
+    hydrateCurrencyFromStorage().then(bump);
+    const unsub = subscribeCurrency(bump);
+    return () => {
+      mounted = false;
+      unsub();
+    };
+  }, []);
   const wishlistItems = useSelector((state) => dedupeWishlistProducts(state.wishlist?.items || []));
   const [snackVisible, setSnackVisible] = useState(false);
 
@@ -346,7 +366,7 @@ export default function WishlistItem({ section }) {
                       },
                     ]}
                   >
-                    {formatMoney(
+                    {formatCurrencyPrice(
                       product.price,
                       product.currency || product.priceCurrency || product.currencySymbol
                     ) || "—"}
@@ -362,7 +382,7 @@ export default function WishlistItem({ section }) {
                         },
                       ]}
                     >
-                      {formatMoney(
+                      {formatCurrencyPrice(
                         product.compareAtPrice,
                         product.currency || product.priceCurrency || product.currencySymbol
                       )}

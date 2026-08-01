@@ -22,7 +22,11 @@ import { resolveFont } from "../services/typographyService";
 import { convertStyles } from "../utils/convertStyles";
 import { searchShopifyProducts } from "../services/shopify";
 import { recordUserSearchTerm } from "../services/searchHistoryService";
-import { formatMoney } from "../utils/money";
+import {
+  formatPrice as formatCurrencyPrice,
+  hydrateCurrencyFromStorage,
+  subscribeCurrency,
+} from "../utils/currencyStore";
 import { resolveProductImageResizeMode } from "../utils/productImageFit";
 
 const unwrapValue = (value, fallback) => {
@@ -84,7 +88,7 @@ const extractDetailSections = (rawProps) => {
 const formatProductPrice = (product = {}) => {
   const amount = product?.priceAmount ?? product?.price;
   const currency = product?.priceCurrency || product?.currency || product?.currencySymbol || "";
-  return formatMoney(amount, currency);
+  return formatCurrencyPrice(amount, currency);
 };
 
 const toNumber = (value, fallback) => {
@@ -141,6 +145,22 @@ try {
 export default function SearchBar({ section }) {
   const navigation = useNavigation();
   const route = useRoute();
+
+  // Currency Switcher writes here; re-render prices when the shopper
+  // changes the selected currency.
+  const [, setCurrencyVersion] = useState(0);
+  useEffect(() => {
+    let mounted = true;
+    const bump = () => {
+      if (mounted) setCurrencyVersion((v) => v + 1);
+    };
+    hydrateCurrencyFromStorage().then(bump);
+    const unsub = subscribeCurrency(bump);
+    return () => {
+      mounted = false;
+      unsub();
+    };
+  }, []);
 
   // Read DSL: most-specific first (properties.props.properties → properties.props → props)
   const rawProps = useMemo(

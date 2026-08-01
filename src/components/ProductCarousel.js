@@ -26,7 +26,12 @@ import { useAuth } from "../services/AuthContext";
 import { requireLoginForAction } from "../utils/authGate";
 import { resolveProductImageResizeMode } from "../utils/productImageFit";
 import { resolveFont } from "../services/typographyService";
-import { formatMoney, parseMoneyAmount } from "../utils/money";
+import { parseMoneyAmount } from "../utils/money";
+import {
+  formatPrice as formatCurrencyPrice,
+  hydrateCurrencyFromStorage,
+  subscribeCurrency,
+} from "../utils/currencyStore";
 import { convertStyles } from "../utils/convertStyles";
 import { getResponsiveColumns } from "../utils/responsiveLayout";
 import { ADD_TO_CART_SUCCESS_MESSAGE, resolveCartNavigationParams } from "../utils/cartFeedback";
@@ -295,7 +300,23 @@ export default function ProductCarousel({ section }) {
   const [error, setError] = useState("");
   const [snackVisible, setSnackVisible] = useState(false);
   const [snackMessage, setSnackMessage] = useState("");
+  const [currencyVersion, setCurrencyVersion] = useState(0);
   const favoriteTapRef = useRef(false);
+
+  // Currency Switcher writes here; re-render prices when the shopper changes
+  // the selected currency.
+  useEffect(() => {
+    let mounted = true;
+    const bump = () => {
+      if (mounted) setCurrencyVersion((v) => v + 1);
+    };
+    hydrateCurrencyFromStorage().then(bump);
+    const unsub = subscribeCurrency(bump);
+    return () => {
+      mounted = false;
+      unsub();
+    };
+  }, []);
 
   const rawProps =
     section?.properties?.props?.properties || section?.properties?.props || section?.props || {};
@@ -1561,7 +1582,7 @@ export default function ProductCarousel({ section }) {
                             },
                           ]}
                         >
-                          {formatMoney(
+                          {formatCurrencyPrice(
                             product.priceAmount ?? product.price,
                             product.priceCurrency || product.currency || product.currencySymbol
                           )}
@@ -1578,7 +1599,7 @@ export default function ProductCarousel({ section }) {
                           },
                         ]}
                       >
-                        {formatMoney(
+                        {formatCurrencyPrice(
                           product.priceAmount ?? product.price,
                           product.priceCurrency || product.currency || product.currencySymbol
                         )}

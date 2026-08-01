@@ -196,77 +196,147 @@ export default function OrderHistory({ section }) {
     }, [allowPreviewOrders, appId, customerAccessToken, email, isLoggedIn, raw, userId])
   );
 
+  // Mirrors Builder's actual OrderHistory Inspector/PreviewLive field names
+  // exactly (titleStyle/orderDateStyle/orderStatusStyle/orderStatusPrice/
+  // orderStatusButton, plus the cont*/button*/outer-badge prop groups) —
+  // this used to read a completely different, invented flat schema
+  // (orderNumberColor, dateSize, buttonBgColor, ...) that Builder never
+  // wrote, so none of these settings ever reached the app at all.
+  const borderStyleFor = (line, color) => {
+    const c = toStr(color, "#E5E7EB");
+    switch (toStr(line, "none")) {
+      case "all": return { borderWidth: 1, borderColor: c };
+      case "top": return { borderTopWidth: 1, borderTopColor: c };
+      case "bottom": return { borderBottomWidth: 1, borderBottomColor: c };
+      case "left": return { borderLeftWidth: 1, borderLeftColor: c };
+      case "right": return { borderRightWidth: 1, borderRightColor: c };
+      default: return {};
+    }
+  };
+  const textTransformFor = (isUppercase) => (isUppercase ? "uppercase" : "none");
+  const fontFamilyStyle = (value) => {
+    const family = cleanFontFamily(value);
+    return family ? { fontFamily: family } : {};
+  };
+
   const stylesFromDsl = useMemo(() => {
-    const fontFamily = cleanFontFamily(raw?.fontFamily);
-    const cardBorderWidth = toNum(raw?.borderWidth ?? raw?.cardBorderWidth, 0);
-    // Resolve the container's own background first so the card and image
-    // can fall back to it (matching the "Background & Padding" section's
-    // color) instead of each independently hardcoding white — keeps any
-    // letterbox space around a Fit-scaled image blended with the card.
-    const containerBg = toStr(raw?.bgColor ?? raw?.backgroundColor, "#FFFFFF");
-    const cardBg = toStr(raw?.cardBgColor ?? raw?.cardBg ?? raw?.itemBgColor, containerBg);
+    const titleStyle = raw?.titleStyle ?? {};
+    const orderDateStyle = raw?.orderDateStyle ?? {};
+    const orderStatusStyle = raw?.orderStatusStyle ?? {};
+    const orderStatusPrice = raw?.orderStatusPrice ?? {};
+    const orderStatusButton = raw?.orderStatusButton ?? {};
+    const buttonFormat = raw?.buttonFormat ?? {};
+
+    const titleFontSize = toNum(titleStyle?.fontSizeOH, 16);
+    const dateFontSize = toNum(orderDateStyle?.fontSizeOD, 13);
+    const statusFontSize = toNum(orderStatusStyle?.fontSizeOS, 12);
+
     return {
-      container: {
-        backgroundColor: containerBg,
-        paddingTop: toNum(raw?.pt ?? raw?.paddingTop, 12),
-        paddingBottom: toNum(raw?.pb ?? raw?.paddingBottom, 12),
-        paddingLeft: toNum(raw?.pl ?? raw?.paddingLeft, 12),
-        paddingRight: toNum(raw?.pr ?? raw?.paddingRight, 12),
-      },
+      // Card container — Builder's "cont*" prop group (per-card, not the
+      // whole list — Builder has no configurable outer-list-wrapper prop)
       card: {
-        backgroundColor: cardBg,
-        borderRadius: toNum(raw?.borderRadius ?? raw?.radius ?? raw?.cardRadius, 0),
-        borderColor: toStr(raw?.borderColor ?? raw?.cardBorderColor, "#F3F4F6"),
-        ...(cardBorderWidth > 0 ? { borderWidth: cardBorderWidth } : {}),
+        backgroundColor: toStr(raw?.contBackgroundColor, "#FFFFFF"),
+        paddingTop: toNum(raw?.contPT, 10),
+        paddingBottom: toNum(raw?.contPB, 10),
+        paddingLeft: toNum(raw?.contPL, 22),
+        paddingRight: toNum(raw?.contPR, 22),
+        borderRadius: toNum(raw?.contCorners, 0),
+        ...borderStyleFor(raw?.contBorderLine, raw?.contBorderColor),
       },
+      // Order ID — titleStyle (OH suffix)
       orderNumber: {
-        color: toStr(raw?.orderNumberColor ?? raw?.titleColor ?? raw?.textColor, "#111111"),
-        fontSize: toNum(raw?.orderNumberSize ?? raw?.titleSize ?? raw?.fontSize, 12),
-        fontWeight: toFontWeight(raw?.orderNumberWeight ?? raw?.titleWeight, "700"),
-        ...(fontFamily ? { fontFamily } : {}),
+        color: toStr(titleStyle?.colorOH, "#3F2A2A"),
+        fontSize: titleFontSize,
+        fontWeight: toFontWeight(titleStyle?.fontWeightOH, "600"),
+        letterSpacing: toNum(titleStyle?.letterSpacingOH, 0),
+        lineHeight: titleFontSize * toNum(titleStyle?.lineHeightOH, 1.2),
+        textTransform: textTransformFor(toBool(raw?.isUppercaseOH, false)),
+        ...fontFamilyStyle(titleStyle?.fontFamilyOH),
       },
+      // Order Date — orderDateStyle (OD suffix)
       date: {
-        color: toStr(raw?.dateColor ?? raw?.subtextColor, "#6B7280"),
-        fontSize: toNum(raw?.dateSize ?? raw?.subtextSize ?? raw?.fontSize, 10),
-        fontWeight: toFontWeight(raw?.dateWeight ?? raw?.fontWeight, "400"),
-        ...(fontFamily ? { fontFamily } : {}),
+        color: toStr(orderDateStyle?.colorOD, "#8B5E5E"),
+        fontSize: dateFontSize,
+        fontWeight: toFontWeight(orderDateStyle?.fontWeightOD, "400"),
+        letterSpacing: toNum(orderDateStyle?.letterSpacingOD, 0),
+        lineHeight: dateFontSize * toNum(orderDateStyle?.lineHeightOD, 1.2),
+        textTransform: textTransformFor(toBool(raw?.isUppercaseOD, false)),
+        ...fontFamilyStyle(orderDateStyle?.fontFamilyOD),
       },
+      // Order Status badge TEXT — orderStatusStyle (OS suffix)
       status: {
-        color: toStr(raw?.statusColor ?? raw?.deliveredColor ?? raw?.successColor, "#008060"),
-        fontSize: toNum(raw?.statusSize ?? raw?.fontSize, 9),
-        fontWeight: toFontWeight(raw?.statusWeight, "700"),
-        ...(fontFamily ? { fontFamily } : {}),
+        color: toStr(orderStatusStyle?.colorOS, "#065F46"),
+        fontSize: statusFontSize,
+        fontWeight: toFontWeight(orderStatusStyle?.fontWeightOS, "600"),
+        letterSpacing: toNum(orderStatusStyle?.letterSpacingOS, 0),
+        lineHeight: statusFontSize * toNum(orderStatusStyle?.lineHeightOS, 1.2),
+        textTransform: textTransformFor(toBool(raw?.isUppercaseOS, false)),
+        ...fontFamilyStyle(orderStatusStyle?.fontFamilyOS),
+      },
+      // Order Status badge BACKGROUND — Builder confusingly reuses the
+      // top-level "outer" background/padding/border/corner props for this
+      // badge (not the card container) — PreviewLive.tsx does the same.
+      statusBadge: {
+        backgroundColor: toStr(raw?.backgroundColor, "#FFFFFF"),
+        paddingTop: toNum(raw?.paddingTop, 4),
+        paddingBottom: toNum(raw?.paddingBottom, 4),
+        paddingLeft: toNum(raw?.paddingLeft, 8),
+        paddingRight: toNum(raw?.paddingRight, 8),
+        borderRadius: toNum(raw?.outerCorners, 0),
+        ...borderStyleFor(raw?.borderLine, raw?.borderColor),
       },
       image: {
-        backgroundColor: toStr(
-          raw?.imageBg ??
-            raw?.imageBgColor ??
-            raw?.imageBackgroundColor ??
-            raw?.productImageBgColor ??
-            raw?.productImageBackgroundColor,
-          cardBg
-        ),
+        backgroundColor: toStr(raw?.contBackgroundColor, "#FFFFFF"),
+        borderRadius: toNum(raw?.imageCornersOH, 0),
       },
+      // Order Price — orderStatusPrice (Pr suffix)
       price: {
-        color: toStr(raw?.priceColor ?? raw?.totalColor, "#B42318"),
-        fontSize: toNum(raw?.priceSize ?? raw?.totalSize ?? raw?.headlineSize, 16),
-        fontWeight: toFontWeight(raw?.priceWeight ?? raw?.headlineWeight, "700"),
-        ...(fontFamily ? { fontFamily } : {}),
+        color: toStr(orderStatusPrice?.colorPr, "#B42318"),
+        fontSize: toNum(orderStatusPrice?.fontSizePr, 22),
+        fontWeight: toFontWeight(orderStatusPrice?.fontWeightPr, "600"),
+        letterSpacing: toNum(orderStatusPrice?.letterSpacingPr, 0),
+        textTransform: textTransformFor(toBool(raw?.isUppercasePr, false)),
+        ...fontFamilyStyle(orderStatusPrice?.fontFamilyPr),
       },
+      // Button — background/corners/border/padding are top-level "button*",
+      // text style is orderStatusButton (Bt suffix)
       button: {
-        backgroundColor: toStr(raw?.buttonBgColor ?? raw?.reorderBgColor, "#B42318"),
-        borderRadius: toNum(raw?.buttonRadius ?? raw?.reorderRadius, 8),
-        minHeight: toNum(raw?.buttonHeight ?? raw?.reorderHeight, 30),
-        paddingHorizontal: toNum(raw?.buttonPaddingLeft ?? raw?.buttonPaddingX, 14),
+        backgroundColor: toStr(raw?.buttonBackgroundColor, "#B42318"),
+        borderRadius: toNum(raw?.buttonCorners, 10),
+        paddingTop: toNum(raw?.buttonPT, 10),
+        paddingBottom: toNum(raw?.buttonPB, 10),
+        paddingLeft: toNum(raw?.buttonPL, 22),
+        paddingRight: toNum(raw?.buttonPR, 22),
+        ...borderStyleFor(raw?.buttonBorderLine, raw?.buttonBorderColor),
       },
       buttonText: {
-        color: toStr(raw?.buttonTextColor ?? raw?.reorderTextColor, "#FFFFFF"),
-        fontSize: toNum(raw?.buttonFontSize ?? raw?.fontSize, 11),
-        fontWeight: toFontWeight(raw?.buttonFontWeight, "700"),
-        ...(fontFamily ? { fontFamily } : {}),
+        color: toStr(orderStatusButton?.colorBt, "#FFFFFF"),
+        fontSize: toNum(orderStatusButton?.fontSizeBt, 14),
+        fontWeight: toBool(buttonFormat?.bold, false)
+          ? "700"
+          : toFontWeight(orderStatusButton?.fontWeightBt, "600"),
+        letterSpacing: toNum(orderStatusButton?.letterSpacingBt, 0),
+        fontStyle: toBool(buttonFormat?.italic, false) ? "italic" : "normal",
+        textDecorationLine:
+          toBool(buttonFormat?.underline, false) && toBool(buttonFormat?.strikethrough, false)
+            ? "underline line-through"
+            : toBool(buttonFormat?.underline, false)
+            ? "underline"
+            : toBool(buttonFormat?.strikethrough, false)
+            ? "line-through"
+            : "none",
+        textTransform: textTransformFor(toBool(raw?.isUppercaseBt, false)),
+        ...fontFamilyStyle(orderStatusButton?.fontFamilyBt),
       },
     };
   }, [raw]);
+
+  const showTitle = toBool(raw?.showTitle, true);
+  const showOrderDate = toBool(raw?.showOrderDate, true);
+  const showOrderStatus = toBool(raw?.showOrderStatus, true);
+  const showOrderPriceSetting = toBool(raw?.showOrderPrice, true);
+  const showProductImageSetting = toBool(raw?.showProductImage, true);
+  const showRedirect = toBool(raw?.showRedirect, true);
 
   const imageSize = Math.max(34, toNum(raw?.imageSize ?? raw?.thumbnailSize, 44));
   // Inspector/Preview use imageRatioOH ("Auto"→square/"1:1"/"2:3"/"4:5"),
@@ -355,7 +425,7 @@ export default function OrderHistory({ section }) {
 
   if (loading) {
     return (
-      <View style={[styles.container, stylesFromDsl.container, styles.center]}>
+      <View style={[styles.container, styles.center]}>
         <ActivityIndicator size="small" color={toStr(raw?.loaderColor, "#0D9488")} />
       </View>
     );
@@ -363,7 +433,7 @@ export default function OrderHistory({ section }) {
 
   if (!orders.length) {
     return (
-      <View style={[styles.container, stylesFromDsl.container, styles.emptyWrap, { backgroundColor: emptyBgColor }]}>
+      <View style={[styles.container, styles.emptyWrap, { backgroundColor: emptyBgColor }]}>
         <FontAwesome
           name={toStr(raw?.emptyIcon, "shopping-bag")}
           size={toNum(raw?.emptyIconSize, 42)}
@@ -380,7 +450,7 @@ export default function OrderHistory({ section }) {
   }
 
   return (
-    <View style={[styles.container, stylesFromDsl.container]}>
+    <View style={styles.container}>
       {orders.map((order, index) => {
         const items = getOrderItems(order);
         const firstItem = items[0] || {};
@@ -399,52 +469,60 @@ export default function OrderHistory({ section }) {
           >
             <View style={styles.topRow}>
               <View style={styles.titleBlock}>
-                <Text style={stylesFromDsl.orderNumber} numberOfLines={1}>
-                  {orderNumberText(order)}
-                </Text>
-                {!!date && (
+                {showTitle && (
+                  <Text style={stylesFromDsl.orderNumber} numberOfLines={1}>
+                    {orderNumberText(order)}
+                  </Text>
+                )}
+                {showOrderDate && !!date && (
                   <Text style={stylesFromDsl.date} numberOfLines={1}>
                     {toStr(raw?.datePrefix, "Placed on")} {date}
                   </Text>
                 )}
               </View>
-              {!!status && (
-                <Text style={stylesFromDsl.status} numberOfLines={1}>
+              {showOrderStatus && !!status && (
+                <Text style={[stylesFromDsl.status, stylesFromDsl.statusBadge]} numberOfLines={1}>
                   {status}
                 </Text>
               )}
             </View>
 
-            <View style={styles.middleRow}>
-              {imageUrl ? (
-                <Image
-                  source={{ uri: imageUrl }}
-                  style={[styles.image, stylesFromDsl.image, { width: imageSize, height: imageHeightOH }]}
-                  resizeMode={resolveProductImageResizeMode(
-                    raw?.imageScaleOH,
-                    raw?.imageScale,
-                    raw?.scale,
-                    raw?.imageResizeMode
-                  )}
-                />
-              ) : (
-                <View style={[styles.image, stylesFromDsl.image, styles.imageFallback, { width: imageSize, height: imageHeightOH }]}>
-                  <FontAwesome name="image" size={Math.max(14, imageSize * 0.38)} color="#D1D5DB" />
-                </View>
-              )}
-            </View>
+            {showProductImageSetting && (
+              <View style={styles.middleRow}>
+                {imageUrl ? (
+                  <Image
+                    source={{ uri: imageUrl }}
+                    style={[styles.image, stylesFromDsl.image, { width: imageSize, height: imageHeightOH }]}
+                    resizeMode={resolveProductImageResizeMode(
+                      raw?.imageScaleOH,
+                      raw?.imageScale,
+                      raw?.scale,
+                      raw?.imageResizeMode
+                    )}
+                  />
+                ) : (
+                  <View style={[styles.image, stylesFromDsl.image, styles.imageFallback, { width: imageSize, height: imageHeightOH }]}>
+                    <FontAwesome name="image" size={Math.max(14, imageSize * 0.38)} color="#D1D5DB" />
+                  </View>
+                )}
+              </View>
+            )}
 
             <View style={styles.bottomRow}>
-              <Text style={stylesFromDsl.price} numberOfLines={1}>
-                {total}
-              </Text>
-              <TouchableOpacity
-                style={[styles.reorderButton, stylesFromDsl.button]}
-                activeOpacity={0.86}
-                onPress={() => handleReorder(order)}
-              >
-                <Text style={stylesFromDsl.buttonText}>{reorderText}</Text>
-              </TouchableOpacity>
+              {showOrderPriceSetting && (
+                <Text style={stylesFromDsl.price} numberOfLines={1}>
+                  {total}
+                </Text>
+              )}
+              {showRedirect && (
+                <TouchableOpacity
+                  style={[styles.reorderButton, stylesFromDsl.button]}
+                  activeOpacity={0.86}
+                  onPress={() => handleReorder(order)}
+                >
+                  <Text style={stylesFromDsl.buttonText}>{reorderText}</Text>
+                </TouchableOpacity>
+              )}
             </View>
           </TouchableOpacity>
         );
@@ -481,12 +559,7 @@ const styles = StyleSheet.create({
   },
   card: {
     width: "100%",
-    paddingTop: 14,
-    paddingBottom: 14,
-    paddingLeft: 0,
-    paddingRight: 0,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: "#E5E7EB",
+    marginBottom: 12,
   },
   topRow: {
     flexDirection: "row",

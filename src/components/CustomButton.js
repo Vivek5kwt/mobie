@@ -1,9 +1,11 @@
 import React, { useMemo } from "react";
-import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { Image, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { useNavigation } from "@react-navigation/native";
 import Icon from "react-native-vector-icons/FontAwesome6";
 import { resolveFont } from "../services/typographyService";
 import { navigateToDslTarget } from "../utils/navigationTarget";
+
+const CUSTOM_ICON_PREFIX = "custom-icon::";
 
 const isObject = (value) => value !== null && typeof value === "object" && !Array.isArray(value);
 
@@ -57,7 +59,7 @@ const bool = (value, fallback = true) => {
   return fallback;
 };
 
-const fontWeight = (value, fallback = "600") => {
+const fontWeight = (value, fallback = "500") => {
   const resolved = unwrapDeep(value);
   if (typeof resolved === "number") return String(resolved);
   const lowered = String(resolved || "").trim().toLowerCase();
@@ -75,6 +77,18 @@ const normalizeIconName = (value = "") =>
     .replace(/^fa[srldb]?[-_]?/i, "")
     .replace(/^fa-/, "");
 
+const getCustomIconUrlFromValue = (value) => {
+  const raw = String(value || "");
+  if (!raw.startsWith(CUSTOM_ICON_PREFIX)) return null;
+  const encoded = raw.slice(CUSTOM_ICON_PREFIX.length);
+  if (!encoded) return null;
+  try {
+    return decodeURIComponent(encoded);
+  } catch {
+    return null;
+  }
+};
+
 const alignToFlex = (value, fallback = "center") => {
   const normalized = String(value || fallback).trim().toLowerCase();
   if (["left", "start", "flex-start"].includes(normalized)) return "flex-start";
@@ -82,15 +96,47 @@ const alignToFlex = (value, fallback = "center") => {
   return "center";
 };
 
+// Mirrors Builder's blocks/CustomButton/Preview.tsx getBorderStyles().
+const buildBorderStyle = (line, color) => {
+  const normalized = String(line || "none").toLowerCase();
+  if (!normalized || normalized === "none") return { borderWidth: 0 };
+  if (normalized === "all") return { borderWidth: 1, borderColor: color };
+  return {
+    borderTopWidth: normalized === "top" ? 1 : 0,
+    borderBottomWidth: normalized === "bottom" ? 1 : 0,
+    borderLeftWidth: normalized === "left" ? 1 : 0,
+    borderRightWidth: normalized === "right" ? 1 : 0,
+    borderColor: color,
+  };
+};
+
 export default function CustomButton({ section }) {
   const navigation = useNavigation();
   const raw = useMemo(() => getProps(section), [section]);
-  const visibility = raw.visibility || {};
+  const visibility = isObject(raw.visibility) ? raw.visibility : {};
+  const secured = isObject(raw.secured) ? raw.secured : {};
 
-  const label = str(raw.title ?? raw.label ?? raw.buttonText ?? raw.text, "Button");
-  const iconName = normalizeIconName(str(raw.icon ?? raw.iconName ?? raw.buttonIcon, ""));
-  const showIcon = bool(visibility.icon ?? raw.showIcon, Boolean(iconName));
-  const gap = num(raw.gap, 6);
+  // Builder's Inspector (blocks/CustomButton/Inspector.tsx) writes 4
+  // independent "hide from canvas" toggles under `visibility`; PreviewLive
+  // gates the text block, icon block, and the inner/outer background+padding
+  // blocks on these — none of that was previously read here.
+  const showText = bool(visibility.customText, true);
+  const showIconPanel = bool(visibility.icon, true);
+  const showInnerBgPadding = bool(visibility.bgPadding, true);
+  const showOuterBgPadding = bool(visibility.bgPadding2, true);
+
+  const label = str(raw.title ?? raw.label ?? raw.buttonText ?? raw.text, "Custom Button");
+
+  // Icon fields live under `secured.*` in Builder's DSL, not top-level.
+  const iconName = normalizeIconName(
+    str(secured.icon ?? raw.icon ?? raw.iconName ?? raw.buttonIcon, "shield-halved")
+  );
+  const iconColor = str(secured.color ?? raw.iconColor, "#FFFFFF");
+  const iconSize = num(secured.size ?? raw.iconSize, 14);
+  const customIconUrl = getCustomIconUrlFromValue(secured.icon ?? raw.icon);
+  const showIcon = showIconPanel && !!(iconName || customIconUrl);
+  const iconOnRight = str(raw.iconAlign, "Left").toLowerCase() === "right";
+
   const pageObjectRef = str(
     raw.customPage?.handle ??
       raw.customPage?.slug ??
@@ -109,70 +155,88 @@ export default function CustomButton({ section }) {
     ""
   );
 
-  const navigateType = str(raw.destinationType ?? raw.navigateType ?? raw.buttonNavigateType ?? raw.linkType, "");
+  const navigateType = str(raw.navigateType ?? raw.destinationType ?? raw.buttonNavigateType ?? raw.linkType, "");
   const navigateRef = str(
-    raw.destination ||
+    raw.navigateRef ||
+      raw.linkTo ||
+      raw.destination ||
       raw.destinationRef ||
       raw.pageId ||
       raw.page_id ||
       raw.customPageId ||
       raw.custom_page_id ||
       pageObjectRef ||
-      raw.navigateRef ||
       raw.buttonNavigateRef ||
       raw.selectScreen ||
       raw.screen ||
       raw.pageName ||
-      raw.linkTo ||
       raw.href ||
       raw.url ||
       raw.link,
     ""
   );
 
-  const containerPadding = {
-    paddingTop: num(raw.paddingTop2 ?? raw.containerPaddingTop ?? raw.paddingTop ?? raw.pt, 0),
-    paddingRight: num(raw.paddingRight2 ?? raw.containerPaddingRight ?? raw.paddingRight ?? raw.pr, 16),
-    paddingBottom: num(raw.paddingBottom2 ?? raw.containerPaddingBottom ?? raw.paddingBottom ?? raw.pb, 0),
-    paddingLeft: num(raw.paddingLeft2 ?? raw.containerPaddingLeft ?? raw.paddingLeft ?? raw.pl, 16),
-  };
+  // Outer container — backgroundColor2 / borderLine2 / borderColor2 /
+  // borderRadius2 / padding*2, gated by visibility.bgPadding2.
+  const outerBg = showOuterBgPadding ? str(raw.backgroundColor2, "transparent") : "transparent";
+  const outerBorderColor = str(raw.borderColor2, "#000000");
+  const outerBorderRadius = showOuterBgPadding ? num(raw.borderRadius2, 6) : 0;
+  const outerBorderStyle = showOuterBgPadding
+    ? buildBorderStyle(raw.borderLine2, outerBorderColor)
+    : { borderWidth: 0 };
+  const containerPadding = showOuterBgPadding
+    ? {
+        paddingTop: num(raw.paddingTop2, 10),
+        paddingRight: num(raw.paddingRight2, 16),
+        paddingBottom: num(raw.paddingBottom2, 10),
+        paddingLeft: num(raw.paddingLeft2, 16),
+      }
+    : { paddingTop: 0, paddingRight: 0, paddingBottom: 0, paddingLeft: 0 };
 
-  const buttonPadding = {
-    paddingVertical: num(raw.paddingY, 10),
-    paddingHorizontal: num(raw.paddingX, 16),
-  };
+  // Inner button — backgroundColor / borderLine / borderColor / borderRadius
+  // / padding (4 independent sides), gated by visibility.bgPadding.
+  const innerBg = showInnerBgPadding ? str(raw.backgroundColor, "transparent") : "transparent";
+  const innerBorderColor = str(raw.borderColor, "#000000");
+  const innerBorderRadius = showInnerBgPadding ? num(raw.borderRadius, 0) : 0;
+  const innerBorderStyle = showInnerBgPadding
+    ? buildBorderStyle(raw.borderLine, innerBorderColor)
+    : { borderWidth: 0 };
+  const buttonPadding = showInnerBgPadding
+    ? {
+        paddingLeft: num(raw.paddingLeft, 60),
+        paddingRight: num(raw.paddingRight, 60),
+        paddingTop: num(raw.paddingTop, 10),
+        paddingBottom: num(raw.paddingBottom, 10),
+      }
+    : { paddingLeft: 0, paddingRight: 0, paddingTop: 0, paddingBottom: 0 };
 
-  const borderLine = str(raw.borderLine ?? raw.borderLine2, "").toLowerCase();
-  const borderWidth = borderLine && borderLine !== "none" ? num(raw.borderWidth, 1) : 0;
   const buttonWidth = num(raw.buttonWidth ?? raw.width, undefined);
   const buttonAlign = alignToFlex(raw.align ?? raw.buttonAlign ?? raw.textAlign);
-  const containerBg = str(
-    raw.backgroundColor2 ??
-      raw.containerBgColor ??
-      raw.containerBackgroundColor ??
-      raw.contBackgroundColor ??
-      raw.bgColor,
-    "transparent"
-  );
+
   const buttonStyle = {
-    backgroundColor: str(
-      raw.buttonBgColor ?? raw.buttonBackgroundColor ?? raw.backgroundColor ?? raw.bgColor,
-      "#111111"
-    ),
-    borderRadius: num(raw.borderRadius ?? raw.buttonRadius, 0),
-    borderWidth,
-    borderColor: str(raw.borderColor, "transparent"),
+    backgroundColor: innerBg,
+    borderRadius: innerBorderRadius,
+    ...innerBorderStyle,
     ...buttonPadding,
     ...(buttonWidth ? { width: buttonWidth } : { alignSelf: buttonAlign }),
   };
 
-  const fontFamily = resolveFont(str(raw.headerFontFamily ?? raw.fontFamily, ""));
+  const fontFamily = resolveFont(str(raw.headerFontFamily, ""));
+  const textDecorationLine = [
+    bool(raw.headerUnderline, false) ? "underline" : "",
+    bool(raw.headerStrikethrough, false) ? "line-through" : "",
+  ].filter(Boolean).join(" ") || "none";
+  const headerFontSize = num(raw.headerFontSize, 14);
   const textStyle = {
     color: str(raw.headerColor ?? raw.buttonTextColor ?? raw.textColor, "#FFFFFF"),
-    fontSize: num(raw.headerFontSize ?? raw.fontSize, 14),
-    fontWeight: fontWeight(raw.headerFontWeight ?? raw.fontWeight, "600"),
-    ...(fontFamily ? { fontFamily } : {}),
+    fontSize: headerFontSize,
+    fontWeight: bool(raw.headerBold, false) ? "700" : fontWeight(raw.headerFontWeight, "500"),
+    fontStyle: bool(raw.headerItalic, false) ? "italic" : "normal",
+    textTransform: bool(raw.autoUppercase, false) ? "uppercase" : "none",
+    textDecorationLine,
+    lineHeight: num(raw.headerLineHeight, 1.2) * headerFontSize,
     letterSpacing: num(raw.headerLetterSpacing, 0),
+    ...(fontFamily ? { fontFamily } : {}),
   };
 
   const handlePress = () => {
@@ -186,18 +250,38 @@ export default function CustomButton({ section }) {
     });
   };
 
-  if (!label) return null;
+  if (!showText && !showIcon) return null;
 
   return (
-    <View style={[styles.container, containerPadding, { alignItems: buttonAlign, backgroundColor: containerBg }]}>
+    <View
+      style={[
+        styles.container,
+        containerPadding,
+        {
+          alignItems: buttonAlign,
+          backgroundColor: outerBg,
+          borderRadius: outerBorderRadius,
+        },
+        outerBorderStyle,
+      ]}
+    >
       <TouchableOpacity activeOpacity={0.82} style={[styles.button, buttonStyle]} onPress={handlePress}>
-        <View style={[styles.content, { gap }]}>
-          {showIcon && iconName ? (
-            <Icon name={iconName} size={num(raw.iconSize, 16)} color={str(raw.iconColor, textStyle.color)} />
+        <View style={[styles.content, { gap: 6, flexDirection: iconOnRight ? "row-reverse" : "row" }]}>
+          {showIcon ? (
+            customIconUrl ? (
+              <Image
+                source={{ uri: customIconUrl }}
+                style={{ width: iconSize, height: iconSize, resizeMode: "contain" }}
+              />
+            ) : (
+              <Icon name={iconName} size={iconSize} color={iconColor} />
+            )
           ) : null}
-          <Text allowFontScaling={false} style={[styles.label, textStyle]}>
-            {label}
-          </Text>
+          {showText && !!label ? (
+            <Text allowFontScaling={false} style={[styles.label, textStyle]}>
+              {label}
+            </Text>
+          ) : null}
         </View>
       </TouchableOpacity>
     </View>

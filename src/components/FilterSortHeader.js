@@ -237,6 +237,7 @@ export default function FilterSortHeader({
   const drawerFontFamily = cleanFontFamily(resolveProp(raw, "drawerFontFamily", "Inter"), "Inter");
   const drawerTextColor = resolveProp(raw, "drawerTextColor", "#000000");
   const drawerCounterColor = resolveProp(raw, "drawerCounterColor", "#6B7280");
+  const drawerVisible = resolveBoolProp(raw, "drawerVisible", true);
   const drawerCheckboxVisible = resolveBoolProp(raw, "drawerCheckboxVisible", true);
   const drawerCheckedColor = resolveProp(raw, "drawerCheckedColor", "#000000");
   const drawerUncheckedColor = resolveProp(raw, "drawerUncheckedColor", "#999999");
@@ -576,7 +577,7 @@ export default function FilterSortHeader({
       </View>
 
       {/* ── Sort bottom sheet ────────────────────────────────────────────── */}
-      <Modal visible={showSort} transparent animationType="slide" onRequestClose={() => setShowSort(false)}>
+      <Modal visible={showSort && drawerVisible} transparent animationType="slide" onRequestClose={() => setShowSort(false)}>
         <View style={styles.modalRoot}>
           <TouchableOpacity style={styles.backdrop} activeOpacity={1} onPress={() => setShowSort(false)} />
           <View style={[styles.sheet, { backgroundColor: bgColor }]}>
@@ -630,15 +631,17 @@ export default function FilterSortHeader({
               );
             })}
 
-            <TouchableOpacity style={styles.applyBtn} activeOpacity={0.85} onPress={() => setShowSort(false)}>
-              <Text style={styles.applyBtnText}>Apply</Text>
-            </TouchableOpacity>
+            <View style={styles.sheetActions}>
+              <TouchableOpacity style={styles.applyBtn} activeOpacity={0.85} onPress={() => setShowSort(false)}>
+                <Text style={styles.applyBtnText}>Apply</Text>
+              </TouchableOpacity>
+            </View>
           </View>
         </View>
       </Modal>
 
       {/* ── Filter bottom sheet ──────────────────────────────────────────── */}
-      <Modal visible={showFilter} transparent animationType="slide" onRequestClose={() => setShowFilter(false)}>
+      <Modal visible={showFilter && drawerVisible} transparent animationType="slide" onRequestClose={() => setShowFilter(false)}>
         <View style={styles.modalRoot}>
           <TouchableOpacity style={styles.backdrop} activeOpacity={1} onPress={() => setShowFilter(false)} />
           <View style={[styles.sheet, { backgroundColor: bgColor }]}>
