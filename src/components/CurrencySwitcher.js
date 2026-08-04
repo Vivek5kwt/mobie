@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
+  Image,
   StyleSheet,
   Text,
   TouchableOpacity,
@@ -16,10 +17,10 @@ import {
   fetchShopifyCurrencies,
   loadSelectedCurrency,
   normalizeCurrencyCode,
-  normalizeCurrencyList,
   saveSelectedCurrency,
 } from "../services/currencyService";
 import { setActiveCurrency } from "../utils/currencyStore";
+import { currencySymbolForCode } from "../utils/money";
 
 const deepUnwrap = (value) => {
   if (value === undefined || value === null) return value;
@@ -67,6 +68,14 @@ const omitStyleKeys = (style = {}, keys = []) => {
   return next;
 };
 
+// getCurrencyMeta()/the live Shopify Markets fetch both return a flagcdn.com
+// URL, not an emoji — rendering that as plain <Text> just shows the raw URL
+// string (visibly clipped down to its first character, "h", by
+// numberOfLines={1}). Builder's own render (blocks/currencySwitcher/
+// Preview.tsx) already treats `flag` as an image src; do the same here,
+// keeping <Text> only as a fallback for a legacy emoji flag value.
+const isImageFlagUrl = (value) => /^(https?:|data:)/i.test(String(value || ""));
+
 const getProps = (section) => {
   const propsRoot =
     section?.props ||
@@ -82,7 +91,10 @@ const currencyLabel = (item = {}) => {
   const resolved = deepUnwrap(item);
   if (typeof resolved === "string") return resolved;
   const country = str(item?.country ?? item?.countryName ?? item?.name, "");
-  const currency = str(item?.currency ?? item?.label ?? item?.code ?? item?.symbol, "");
+  // Prefer the display symbol ("₹") over the bare ISO code ("INR") —
+  // matches Builder's own render (blocks/currencySwitcher/Preview.tsx),
+  // which shows ".symbol" next to the country name, not ".currency"/".code".
+  const currency = str(item?.symbol ?? item?.currency ?? item?.label ?? item?.code, "");
   if (country && currency) return `${country} - ${currency}`;
   return country || currency || "Currency";
 };
@@ -98,7 +110,6 @@ export default function CurrencySwitcher({ section }) {
   const { store, loading: storeLoading } = useStore();
   const { normalized, raw } = useMemo(() => getProps(section), [section]);
   const css = normalized?.presentation?.css || {};
-  const dslCurrencies = useMemo(() => normalizeCurrencyList(raw?.currencies), [raw?.currencies]);
   const initialSelected = str(raw?.selectedCurrency ?? raw?.currency ?? raw?.value, "");
   const [apiCurrencies, setApiCurrencies] = useState([]);
   const [persistedSelected, setPersistedSelected] = useState("");
@@ -113,14 +124,26 @@ export default function CurrencySwitcher({ section }) {
     initialSelected ||
     str(session?.user?.currency, "") ||
     str(store?.currency, "");
-  const currencies = apiCurrencies.length ? apiCurrencies : dslCurrencies;
+  // Builder's live currency_switcher never falls back to the block's saved
+  // DSL sample data (blocks/currencySwitcher/Preview.tsx shows "No
+  // currencies found" instead) — this used to fall back to `dslCurrencies`
+  // (the page's static defaultProps countries) whenever the live Shopify
+  // Markets fetch was empty for any reason, which is exactly the "static
+  // countries" the switcher should never show.
+  const currencies = apiCurrencies;
   const selectedCode = normalizeCurrencyCode(selectedValue);
 
   const selected =
     currencies.find((item) => currencyValue(item) === selectedCode) ||
     currencies.find((item) => currencyLabel(item).toLowerCase().includes(String(selectedValue).toLowerCase())) ||
     currencies[0] ||
-    (selectedValue ? { currency: selectedCode || selectedValue, code: selectedCode || selectedValue } : null);
+    (selectedValue
+      ? {
+          currency: selectedCode || selectedValue,
+          code: selectedCode || selectedValue,
+          symbol: currencySymbolForCode(selectedCode || selectedValue) || selectedCode || selectedValue,
+        }
+      : null);
 
   const canLoadFromSession =
     !!(session?.user?.shopifyDomain && session?.user?.storeAccessToken) ||
@@ -195,6 +218,10 @@ export default function CurrencySwitcher({ section }) {
   ]);
   const leftWrapCss = omitStyleKeys(convertStyles(css?.leftWrap || {}), ["gap"]);
   const flagCss = omitStyleKeys(convertStyles(css?.flag || {}), ["display", "objectFit"]);
+  // Matches Builder's own flag <img> sizing (blocks/currencySwitcher/
+  // Preview.tsx: width/height = iconSSize ?? 24, borderRadius = iconRadius%).
+  const flagSize = num(raw?.iconSSize, 24);
+  const flagRadius = (num(raw?.iconRadius, 50) / 100) * flagSize;
   const iconCss = convertStyles(css?.icon || {});
   const countryCss = omitStyleKeys(convertStyles(css?.countryName || {}), ["display"]);
   const currencyCss = omitStyleKeys(convertStyles(css?.currencySymbol || {}), ["display"]);
@@ -213,7 +240,9 @@ export default function CurrencySwitcher({ section }) {
 
   const flag = str(selected?.flag, "");
   const country = str(selected?.country ?? selected?.countryName ?? selected?.name, "");
-  const currency = str(selected?.currency ?? selected?.label ?? selected?.code ?? selected?.symbol, "");
+  // Prefer the display symbol ("₹") over the bare ISO code ("INR") — see
+  // currencyLabel() above for why.
+  const currency = str(selected?.symbol ?? selected?.currency ?? selected?.label ?? selected?.code, "");
 
   const openCurrencyPicker = useCallback(() => {
     if (loadingCurrencies || saving || currencies.length < 1) return;
@@ -289,7 +318,16 @@ export default function CurrencySwitcher({ section }) {
         ) : (
           <>
             <View style={[styles.leftWrap, leftWrapCss, { gap: rowGap }]}>
-              {!!flag && <Text style={[styles.flag, flagCss]}>{flag}</Text>}
+              {!!flag && (
+                isImageFlagUrl(flag) ? (
+                  <Image
+                    source={{ uri: flag }}
+                    style={[{ width: flagSize, height: flagSize, borderRadius: flagRadius }, flagCss]}
+                  />
+                ) : (
+                  <Text style={[styles.flag, flagCss]}>{flag}</Text>
+                )
+              )}
               <View style={styles.textWrap}>
                 {!!country && (
                   <Text
@@ -366,7 +404,16 @@ export default function CurrencySwitcher({ section }) {
                 },
               ]}
             >
-              {!!str(item?.flag, "") && <Text style={[styles.flag, flagCss]}>{str(item?.flag, "")}</Text>}
+              {!!str(item?.flag, "") && (
+                isImageFlagUrl(item?.flag) ? (
+                  <Image
+                    source={{ uri: str(item?.flag, "") }}
+                    style={[{ width: flagSize, height: flagSize, borderRadius: flagRadius }, flagCss]}
+                  />
+                ) : (
+                  <Text style={[styles.flag, flagCss]}>{str(item?.flag, "")}</Text>
+                )
+              )}
               <Text
                 numberOfLines={1}
                 style={[

@@ -375,10 +375,10 @@ export default function OrderDetailScreen() {
   const pagePb             = toNum(pageProps?.pb ?? pageProps?.paddingBottom, 16);
   const pageGap            = toNum(pageProps?.sectionGap ?? pageProps?.componentGap ?? pageProps?.gap, 0);
   const emptyProps         = emptyStateSection ? getRawProps(emptyStateSection) : {};
-  const emptyTitleText     = toStr(emptyProps?.emptyTitle ?? emptyProps?.noOrderTitle, "No orders yet");
+  const emptyTitleText     = toStr(emptyProps?.emptyTitle ?? emptyProps?.noOrderTitle, "You haven't placed any orders yet");
   const emptySubtitleText  = toStr(
     emptyProps?.emptySubtitle ?? emptyProps?.noOrderSubtitle,
-    "When you place an order it will\nappear here."
+    "Start exploring our collection and place your first order!"
   );
   const emptyIconColor     = toStr(emptyProps?.emptyIconColor, "#4A90E2");
   const emptyTagColor      = toStr(emptyProps?.emptyTagColor, "#F59E0B");

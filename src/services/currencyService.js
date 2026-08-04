@@ -3,6 +3,7 @@ import client from "../apollo/client";
 import GET_SHOPIFY_CURRENCIES from "../graphql/queries/getShopifyCurrenciesQuery";
 import { fetchStoreConfig } from "./storeService";
 import { getCurrencyMeta } from "../utils/currencyMeta";
+import { currencySymbolForCode } from "../utils/money";
 
 const SELECTED_CURRENCY_PREFIX = "@mobidrag_selected_currency";
 const EXCHANGE_RATES_CACHE_KEY = "@mobidrag_currency_rates";
@@ -120,7 +121,7 @@ export const normalizeCurrencyList = (currencies) => {
 
 const resolveStore = async (store) => store || await fetchStoreConfig();
 
-export async function fetchShopifyCurrencies({ session, store } = {}) {
+const resolveShopCredentials = async (session, store) => {
   const resolvedStore = await resolveStore(store);
   const user = session?.user || {};
 
@@ -142,12 +143,31 @@ export async function fetchShopifyCurrencies({ session, store } = {}) {
     resolvedStore?.access_token
   );
 
-  if (!shop) {
-    throw new Error("Shop domain missing.");
+  return shop && accessToken ? { shop, accessToken } : null;
+};
+
+// store/session can still be mid-flight the first time this runs (e.g. a
+// screen mounts before StoreContext's own fetchStoreConfig() call resolves)
+// — retry a few times instead of throwing on the very first empty read, so
+// a slow load doesn't permanently collapse the caller's currency list down
+// to its static DSL fallback.
+const waitForShopCredentials = async (session, store, maxAttempts = 8, delayMs = 300) => {
+  for (let attempt = 0; attempt < maxAttempts; attempt++) {
+    const creds = await resolveShopCredentials(session, store);
+    if (creds) return creds;
+    if (attempt < maxAttempts - 1) {
+      await new Promise((resolve) => setTimeout(resolve, delayMs));
+    }
   }
-  if (!accessToken) {
-    throw new Error("Store access token missing.");
+  return null;
+};
+
+export async function fetchShopifyCurrencies({ session, store } = {}) {
+  const creds = await waitForShopCredentials(session, store);
+  if (!creds) {
+    throw new Error("Shop domain or access token missing.");
   }
+  const { shop, accessToken } = creds;
 
   const { data, errors } = await client.query({
     query: GET_SHOPIFY_CURRENCIES,
@@ -182,9 +202,17 @@ export async function fetchShopifyCurrencies({ session, store } = {}) {
 
       const countryCode = String(market?.countryCode || "").toLowerCase();
       const meta = getCurrencyMeta(code, countryCode);
+      // `currency` must stay the ISO code — CurrencySwitcher.js's
+      // currencyValue() reads it to match the selection and to persist/set
+      // the active currency for rate lookups (formatMoney/convertPrice key
+      // rates by ISO code, not by symbol). `symbol` is added purely for
+      // display, matching Builder's own render (blocks/currencySwitcher/
+      // Preview.tsx), which shows ".symbol" next to the country name
+      // ("India - ₹"), not the bare code.
       mapped.push({
         ...meta,
         currency: code,
+        symbol: currencySymbolForCode(code) || code,
         label: market?.countryName || meta.country,
         country: market?.countryName || meta.country,
         countryCode: countryCode || meta.countryCode,
@@ -196,7 +224,33 @@ export async function fetchShopifyCurrencies({ session, store } = {}) {
     if (mapped.length > 0) return mapped;
   }
 
-  return normalizeCurrencyList(result?.currencies);
+  // No Markets configured — fall back to the store's generic currency-code
+  // list, same as blocks/currencySwitcher/Preview.tsx's own else-branch. That
+  // branch still enriches every code through getCurrencyMeta() for a
+  // country name + flag; this used to return normalizeCurrencyList()'s bare
+  // {code, currency, label} entries with neither, which is why the switcher
+  // showed a plain currency code with no flag/country here but a full
+  // "India - ₹" row in Builder for the exact same store.
+  const parsedCurrencies = normalizeCurrencyList(result?.currencies);
+  const storeCurrencyCode = normalizeCurrencyCode(store?.currency);
+  const seenCodes = new Set();
+  const enriched = [];
+  const withSymbol = (code) => ({
+    ...getCurrencyMeta(code),
+    currency: code,
+    symbol: currencySymbolForCode(code) || code,
+  });
+  if (storeCurrencyCode) {
+    seenCodes.add(storeCurrencyCode);
+    enriched.push(withSymbol(storeCurrencyCode));
+  }
+  for (const entry of parsedCurrencies) {
+    const code = normalizeCurrencyCode(entry.currency || entry.code || entry.label);
+    if (!code || seenCodes.has(code)) continue;
+    seenCodes.add(code);
+    enriched.push(withSymbol(code));
+  }
+  return enriched;
 }
 
 // USD-relative exchange rates for converting product prices to the selected

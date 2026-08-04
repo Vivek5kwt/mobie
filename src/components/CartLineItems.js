@@ -238,20 +238,19 @@ export default function CartLineItems({ section }) {
 
   // Image
   const showImage = toBoolean(raw?.showImage, true);
-  // Preview's own default image box is 96-120px wide (fixed, by imageRatio)
-  // — the previous 58-72px default here was roughly half that, making the
-  // product thumbnail look noticeably smaller in the APK by default.
+  // Preview's image box is a fixed 96px-wide thumbnail with the height
+  // derived from a real CSS aspectRatio (not a separate hand-picked
+  // width+height per ratio choice — see blocks/Cart/Preview/
+  // CartLineItemsPreview.tsx), so match that fixed base width here too.
   const imageSize = toNumber(
     raw?.imageSize ?? raw?.imageWidth ?? raw?.productImageSize,
-    responsiveSize(screenWidth, 0.26, 90, 120)
+    96
   );
   const imageRatioRaw = toString(raw?.imageRatio, "Auto");
-  // Preview's own default/"Auto" box (96x140) is a tall rectangle, not a
-  // square (aspect ≈ 0.686, not 1) — RN previously treated "Auto" as square,
-  // giving the thumbnail a different shape than Preview whenever Ratio is
-  // left unset (the default state).
+  // Preview's "Auto" is a 1:1 square (same as its own default ratio
+  // fallback), not the old 96x140 tall rectangle.
   const imageAspect =
-    imageRatioRaw === "1:1" ? 1 : imageRatioRaw === "2:3" ? 2 / 3 : imageRatioRaw === "4:5" ? 4 / 5 : 96 / 140;
+    imageRatioRaw === "2:3" ? 2 / 3 : imageRatioRaw === "4:5" ? 4 / 5 : 1;
   const imageHeight = Math.round(imageSize / imageAspect);
   const imageRadius = toNumber(raw?.imageRadius ?? raw?.imageCorner ?? raw?.cardImageCorner, 0);
   // No dedicated Inspector control writes any of these image-background

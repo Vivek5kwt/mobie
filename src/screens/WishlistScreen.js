@@ -56,7 +56,7 @@ export default function WishlistScreen() {
         navigation.dispatch(StackActions.replace("Auth", {
           initialMode: "login",
           requireAuth: true,
-          postLoginTarget: { name: "Wishlist" },
+          postLoginTarget: { name: "Wishlist", params: { title: "Wishlist", pageName: "wishlist" } },
         }));
       }
     }, [initializing, isLoggedIn, navigation])

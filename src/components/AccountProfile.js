@@ -243,10 +243,9 @@ export default function AccountProfile({ section }) {
   );
   const avatarScale = String(resolveValue(rawProps?.imageScale ?? rawProps?.scale ?? avatarStyle?.scale, "fill")).toLowerCase();
   const resizeMode = avatarScale === "fit" || avatarScale === "contain" ? "contain" : "cover";
-  // Builder Preview's ratioDims() (AccountProfile/PreviewLive.tsx) renders a
-  // non-square avatar for 2:3/4:5/4:3/16:9 — this was never read here at
-  // all, so the avatar was always a perfect square regardless of the
-  // merchant's Ratio selection.
+  // Builder Preview's ratioToAspect() (AccountProfile/PreviewLive.tsx)
+  // renders a non-square avatar for 2:3/4:5/4:3/16:9 via CSS aspectRatio —
+  // this mirrors that math in fixed pixel form for RN.
   const avatarRatio = String(
     resolveValue(rawProps?.ratio ?? rawProps?.imageRatio, "Auto")
   ).trim();

@@ -210,7 +210,12 @@ export const resolveDslNavigationTarget = ({
   }
 
   if (wishlistSlugs.has(pageSlug)) {
-    return { type: "stack", name: "Wishlist", params: { title: displayTitle || "Wishlist" } };
+    // Missing pageName (unlike the "Settings" case just above, which
+    // includes one) meant BottomNavigation.js's active-tab detection —
+    // which is otherwise fully generic/slug-driven from route.params.pageName
+    // — had nothing to match against while on this dedicated screen, so the
+    // Wishlist tab never highlighted as active.
+    return { type: "stack", name: "Wishlist", params: { title: displayTitle || "Wishlist", pageName: "wishlist" } };
   }
 
   const resolvedPageName =

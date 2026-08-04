@@ -484,13 +484,43 @@ export default function PostPurchaseScreen() {
     };
   }, [navigation, goHome]);
 
+  // fetchShopifyOrderDetails (above) fetches the *real* Shopify order into
+  // syncedOrder.lineItems — the actual charged price/quantity/title, which
+  // can differ from what was captured locally before checkout (discounts,
+  // tax-inclusive pricing, etc.) — but injectOrderData was always called
+  // with the raw pre-checkout `capturedItems` instead, so that real fetch
+  // was never actually used for what order_summary displays. Shopify's
+  // Admin REST line_items have no image field, so images still come from
+  // the locally-captured items, matched by variant/product/line id.
+  const effectiveLineItems = useMemo(() => {
+    const realItems = Array.isArray(syncedOrder?.lineItems) ? syncedOrder.lineItems : [];
+    if (!realItems.length) return capturedItems;
+    return realItems.map((line) => {
+      const localMatch = capturedItems.find(
+        (ci) =>
+          (line.variantId && ci.variantId === line.variantId) ||
+          (line.productId && ci.productId === line.productId) ||
+          (line.id && ci.id === line.id)
+      );
+      return {
+        id: line.id || localMatch?.id,
+        title: line.title || localMatch?.title || "Product",
+        variant: line.variant || localMatch?.variant || "",
+        quantity: line.quantity ?? localMatch?.quantity ?? 1,
+        price: line.priceAmount ?? localMatch?.price ?? 0,
+        currency: line.priceCurrency || localMatch?.currency || "",
+        image: localMatch?.image || "",
+      };
+    });
+  }, [syncedOrder?.lineItems, capturedItems]);
+
   // Merge DSL layout with real order data before rendering
   const resolvedSections = useMemo(
-    () => injectOrderData(sections, capturedItems, orderNumber, orderTotal, {
+    () => injectOrderData(sections, effectiveLineItems, orderNumber, orderTotal, {
       syncing: orderSyncing,
       error: orderSyncError,
     }),
-    [sections, capturedItems, orderNumber, orderTotal, orderSyncError, orderSyncing]
+    [sections, effectiveLineItems, orderNumber, orderTotal, orderSyncError, orderSyncing]
   );
 
   // ── Loading state ─────────────────────────────────────────────────────────

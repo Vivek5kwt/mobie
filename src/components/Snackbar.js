@@ -1,7 +1,6 @@
 import React, { useEffect, useRef, useState } from "react";
 import {
   Animated,
-  Modal,
   StyleSheet,
   Text,
   TouchableOpacity,
@@ -30,7 +29,7 @@ export default function Snackbar({
   duration = 2500,
   type = "success",
 }) {
-  // Internal show state drives Modal visibility so it stays mounted during animation
+  // Internal show state keeps the snackbar mounted during its dismiss animation
   const [modalVisible, setModalVisible] = useState(false);
   const translateY = useRef(new Animated.Value(120)).current;
   const opacity = useRef(new Animated.Value(0)).current;
@@ -97,57 +96,66 @@ export default function Snackbar({
   const iconName =
     type === "error" ? "times-circle" : type === "info" ? "info-circle" : "check-circle";
 
+  if (!modalVisible) return null;
+
+  // Plain absolutely-positioned overlay instead of RN's native <Modal> — a
+  // transparent Modal renders in its own native window, which on Android
+  // captures touch input for the whole screen for as long as it's mounted
+  // no matter what pointerEvents is set on the JS-side content inside it.
+  // That made the entire screen unresponsive to touch for the full ~2.5s
+  // the snackbar was up (visible + its dismiss animation), not just where
+  // the snackbar itself is drawn. A plain View honors pointerEvents
+  // "box-none" correctly, letting touches pass through everywhere except
+  // the snackbar/action button.
   return (
-    <Modal
-      transparent
-      visible={modalVisible}
-      animationType="none"
-      onRequestClose={() => runDismiss(onDismiss)}
-    >
-      {/* Overlay: touch outside snackbar has no effect */}
-      <View style={styles.overlay} pointerEvents="box-none">
-        <Animated.View
-          style={[
-            styles.snackbar,
-            {
-              backgroundColor: bgColor,
-              opacity,
-              transform: [{ translateY }],
-            },
-          ]}
-        >
-          {/* Icon */}
-          <FontAwesome name={iconName} size={22} color="#fff" style={styles.icon} />
+    <View style={styles.overlay} pointerEvents="box-none">
+      <Animated.View
+        style={[
+          styles.snackbar,
+          {
+            backgroundColor: bgColor,
+            opacity,
+            transform: [{ translateY }],
+          },
+        ]}
+      >
+        {/* Icon */}
+        <FontAwesome name={iconName} size={22} color="#fff" style={styles.icon} />
 
-          {/* Message */}
-          <Text style={styles.message} numberOfLines={2}>
-            {message}
-          </Text>
+        {/* Message */}
+        <Text style={styles.message} numberOfLines={2}>
+          {message}
+        </Text>
 
-          {/* Action button */}
-          {!!actionLabel && (
-            <TouchableOpacity
-              onPress={() => runDismiss(() => { onDismiss?.(); onAction?.(); })}
-              style={styles.actionBtn}
-              activeOpacity={0.75}
-              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-            >
-              <Text style={styles.actionText}>{actionLabel}</Text>
-            </TouchableOpacity>
-          )}
-        </Animated.View>
-      </View>
-    </Modal>
+        {/* Action button */}
+        {!!actionLabel && (
+          <TouchableOpacity
+            onPress={() => runDismiss(() => { onDismiss?.(); onAction?.(); })}
+            style={styles.actionBtn}
+            activeOpacity={0.75}
+            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+          >
+            <Text style={styles.actionText}>{actionLabel}</Text>
+          </TouchableOpacity>
+        )}
+      </Animated.View>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
   overlay: {
-    flex: 1,
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
     justifyContent: "flex-end",
     alignItems: "stretch",
     paddingHorizontal: 12,
     paddingBottom: 28,
+    zIndex: 999,
+    elevation: 999,
   },
   snackbar: {
     flexDirection: "row",

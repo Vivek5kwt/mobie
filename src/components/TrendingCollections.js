@@ -18,9 +18,14 @@ const isSvgUrl = (url) => {
   return lower.endsWith(".svg") || lower.includes(".svg");
 };
 
-function CollectionImage({ uri, size, height, borderRadius, scale = 1, iconName, iconSize, iconColor }) {
+function CollectionImage({ uri, size, height, borderRadius, imageScale = "Fit", iconName, iconSize, iconColor }) {
   const [errored, setErrored] = useState(false);
   const tileHeight = height ?? size;
+  // Matches Builder Preview's objectFit (blocks/TrendingCollections/PreviewLive.tsx)
+  // — Fill crops to cover, Fit letterboxes to contain. Previously this
+  // always used resizeMode="cover" and faked "Fill" with a 1.2x CSS zoom
+  // transform instead of actually swapping the fit mode.
+  const objectFit = imageScale === "Fill" ? "cover" : "contain";
 
   if (!uri || errored) {
     return (
@@ -29,7 +34,7 @@ function CollectionImage({ uri, size, height, borderRadius, scale = 1, iconName,
   }
 
   if (isSvgUrl(uri)) {
-    const html = `<!DOCTYPE html><html><head><meta name="viewport" content="width=device-width,initial-scale=1"><style>*{margin:0;padding:0;box-sizing:border-box}body{background:transparent}img{width:100%;height:100%;object-fit:cover;display:block;transform:scale(${scale});transform-origin:center}</style></head><body><img src="${uri}" onerror="document.body.innerHTML=''" /></body></html>`;
+    const html = `<!DOCTYPE html><html><head><meta name="viewport" content="width=device-width,initial-scale=1"><style>*{margin:0;padding:0;box-sizing:border-box}body{background:transparent}img{width:100%;height:100%;object-fit:${objectFit};display:block}</style></head><body><img src="${uri}" onerror="document.body.innerHTML=''" /></body></html>`;
     return (
       <WebView
         source={{ html }}
@@ -47,9 +52,9 @@ function CollectionImage({ uri, size, height, borderRadius, scale = 1, iconName,
       source={{ uri }}
       style={[
         styles.circleImage,
-        { width: size, height: tileHeight, borderRadius, transform: [{ scale }] },
+        { width: size, height: tileHeight, borderRadius },
       ]}
-      resizeMode="cover"
+      resizeMode={objectFit}
       onError={() => setErrored(true)}
     />
   );
@@ -261,11 +266,7 @@ export default function TrendingCollections({ section }) {
       : circleSize;
   const imageCornersTC = toNumber(rp("imageCorners"), 0);
   const circleRadius = (Math.max(0, Math.min(100, imageCornersTC)) / 100) * circleSize;
-  // Builder simulates Scale=Fill with a 1.2x CSS zoom transform on the image
-  // (not a resizeMode swap) — replicate the same zoom here so Fit vs Fill
-  // stay visually distinguishable the same way.
   const imageScaleTC = String(unwrapValue(rp("imageScale"), "Fit")).trim();
-  const circleImageScale = imageScaleTC === "Fill" ? 1.2 : 1;
   // Match the "Background & Padding" section's own color (bgColor, resolved
   // below) so any letterbox space around a Fit-scaled image blends with the
   // block instead of a mismatched hardcoded teal.
@@ -370,7 +371,7 @@ export default function TrendingCollections({ section }) {
                 size={circleSize}
                 height={circleHeight}
                 borderRadius={circleRadius}
-                scale={circleImageScale}
+                imageScale={imageScaleTC}
                 iconName={item.iconName || defaultPlaceholderIcon}
                 iconSize={circleIconSize}
                 iconColor={circleIconColor}

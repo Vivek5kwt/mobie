@@ -356,11 +356,14 @@ export default function OrderHistory({ section }) {
   })();
   const imageHeightOH = Math.round(imageSize / imageAspectOH);
   const reorderText = toStr(raw?.reorderText ?? raw?.buttonText ?? raw?.buttonLabel, "Reorder");
-  const emptyTitle = toStr(raw?.emptyTitle ?? raw?.noOrderTitle, "No orders yet");
+  const emptyTitle = toStr(
+    raw?.emptyTitle ?? raw?.noOrderTitle,
+    customerAccessToken ? "You haven't placed any orders yet" : "No orders yet"
+  );
   const emptySubtitle = toStr(
     raw?.emptySubtitle ?? raw?.noOrderSubtitle,
     customerAccessToken
-      ? "When your store orders are available, they will appear here."
+      ? "Start exploring our collection and place your first order!"
       : "Please sign in again to sync your store orders."
   );
   const emptyBgColor = toStr(raw?.emptyBgColor ?? raw?.emptyBackgroundColor, "#FFFFFF");

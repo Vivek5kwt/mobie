@@ -520,6 +520,16 @@ function BottomNavigation({ section, activeIndexOverride }) {
     if (hasActiveIndexOverride) {
       return clampIndex(parsedActiveIndexOverride, items.length);
     }
+    // Prefer the route-derived index (matches the screen actually on
+    // screen, e.g. via route.params.pageName) over the DSL's static
+    // "which item is marked active" heuristic (resolveActiveIndex), which
+    // silently defaults to 0/Home whenever no item has an explicit active
+    // flag set — that always won here on any screen that doesn't pass an
+    // activeIndexOverride (e.g. the dedicated Wishlist screen), permanently
+    // showing Home as active regardless of which tab was actually opened.
+    if (activeIndexFromState >= 0 && activeIndexFromState < items.length) {
+      return activeIndexFromState;
+    }
     return clampIndex(resolveActiveIndex(items, rawProps, raw, null), items.length);
   });
 

@@ -771,7 +771,13 @@ export default function CollectionImage({ section }) {
         getItemLayout={!isGrid && isScrollable ? getItemLayout : undefined}
         onMomentumScrollEnd={!isGrid && isScrollable ? onMomentumScrollEnd : undefined}
         scrollEventThrottle={32}
-        columnWrapperStyle={isGrid ? { columnGap: hGap, marginBottom: vGap } : undefined}
+        // FlatList throws "columnWrapperStyle not supported for single
+        // column lists" whenever numColumns resolves to 1 — isGrid alone
+        // isn't enough to gate this, since a merchant can legitimately
+        // configure a 1-column grid (gridColumns=1), which still passes
+        // isGrid=true. Match the numColumns condition exactly, same as
+        // AllProductsScreen.js/CollectionProductsScreen.js/MediaGrid.js.
+        columnWrapperStyle={isGrid && columns > 1 ? { columnGap: hGap, marginBottom: vGap } : undefined}
         contentContainerStyle={
           isGrid
             ? undefined

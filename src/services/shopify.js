@@ -2819,11 +2819,11 @@ export async function fetchShopifyCollectionProducts({
   const storeId = options.storeId || creds.storeId;
 
   const query = `
-    query CollectionProducts($query: String!, $firstCollections: Int!, $first: Int!, $after: String, $productsQuery: String) {
+    query CollectionProducts($query: String!, $firstCollections: Int!, $first: Int!, $after: String) {
       collections(first: $firstCollections, query: $query) {
         edges {
           node {
-            products(first: $first, after: $after, query: $productsQuery) {
+            products(first: $first, after: $after) {
               pageInfo {
                 hasNextPage
                 endCursor
@@ -2833,6 +2833,7 @@ export async function fetchShopifyCollectionProducts({
                   id
                   title
                   handle
+                  status
                   vendor
                   productType
                   tags
@@ -2873,7 +2874,6 @@ export async function fetchShopifyCollectionProducts({
         firstCollections: 1,
         first: safeFirst,
         after,
-        productsQuery: "status:active",
       },
     });
 
@@ -2889,30 +2889,36 @@ export async function fetchShopifyCollectionProducts({
       endCursor: null,
     };
 
-    const products = edges.map(({ node }) => {
-      const priceNode = node?.priceRangeV2?.minVariantPrice;
-      const variants = variantNodesFromEdges(node?.variants?.edges);
-      const variant = pickAvailableVariant(variants);
-      return {
-        id: node?.id,
-        title: node?.title,
-        handle: node?.handle,
-        vendor: node?.vendor || "",
-        productType: node?.productType || "",
-        tags: node?.tags || [],
-        options: node?.options || [],
-        availableForSale: productAvailableFromVariants(variants),
-        variants,
-        variantId: variant?.id || null,
-        imageUrl:
-          node?.featuredImage?.url ||
-          node?.images?.edges?.[0]?.node?.url ||
-          null,
-        priceAmount: priceNode?.amount || null,
-        priceCurrency: priceNode?.currencyCode || null,
-        compareAtPrice: variant?.compareAtPrice || null,
-      };
-    });
+    // Collection.products (unlike the root-level products field) doesn't
+    // accept a "query" filter argument in Shopify's Admin API schema — that
+    // was crashing this whole query with a GraphQL "doesn't accept argument
+    // 'query'" error. Filter out non-active products client-side instead.
+    const products = edges
+      .filter(({ node }) => !node?.status || node.status === "ACTIVE")
+      .map(({ node }) => {
+        const priceNode = node?.priceRangeV2?.minVariantPrice;
+        const variants = variantNodesFromEdges(node?.variants?.edges);
+        const variant = pickAvailableVariant(variants);
+        return {
+          id: node?.id,
+          title: node?.title,
+          handle: node?.handle,
+          vendor: node?.vendor || "",
+          productType: node?.productType || "",
+          tags: node?.tags || [],
+          options: node?.options || [],
+          availableForSale: productAvailableFromVariants(variants),
+          variants,
+          variantId: variant?.id || null,
+          imageUrl:
+            node?.featuredImage?.url ||
+            node?.images?.edges?.[0]?.node?.url ||
+            null,
+          priceAmount: priceNode?.amount || null,
+          priceCurrency: priceNode?.currencyCode || null,
+          compareAtPrice: variant?.compareAtPrice || null,
+        };
+      });
 
     return { products, pageInfo };
   } catch (error) {
