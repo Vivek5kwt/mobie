@@ -385,13 +385,14 @@ export default function MediaGrid({ section }) {
   // "Auto" used to resolve to null, which made MediaCard call Image.getSize
   // and size the box to match each image's own natural ratio exactly — that
   // defeats the Fit/Fill (resizeMode contain/cover) toggle the same way
-  // `aspect-ratio: auto` did in Builder Preview's CSS. Falling back to 1
-  // (square) keeps Fit/Fill visually distinguishable, matching the fix on
-  // the Builder side.
+  // `aspect-ratio: auto` did in Builder Preview's CSS. Falling back to the
+  // canonical 16/5 (see utils/imageAspect.js / Builder's MediaGrid/
+  // PreviewLive.tsx) keeps Fit/Fill visually distinguishable while matching
+  // Builder's own Auto shape instead of collapsing to a square.
   const cardAspectRatio =
     parseAspectRatio(rawProps?.cardAspectRatio ?? rawProps?.imageRatio ?? rawProps?.ratio) ??
     extractMetricAspectRatio(layoutMetrics) ??
-    1;
+    16 / 5;
 
   const showHeader = toBoolean(rawProps?.showHeader, true);
   const headerText = unwrapValue(

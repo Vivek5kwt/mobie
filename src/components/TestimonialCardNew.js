@@ -164,8 +164,15 @@ export default function TestimonialCardNew({ section }) {
   // imageCorner) instead.
   const avatarWidth = 54;
   const avatarImageRatio = toStr(raw?.imageRatio ?? raw?.ratio, "Auto");
+  // "Auto" used to fall into this same default-1 (square) branch as "1:1",
+  // making Auto render pixel-identical to "1:1" instead of its own distinct
+  // shape. "1:1" is handled explicitly now; everything else unrecognized
+  // (including "Auto") matches Builder's TestimonialCardNew/PreviewLive.tsx
+  // "3 / 4" Auto default.
   const avatarAspect =
-    avatarImageRatio === "2:3"
+    avatarImageRatio === "1:1"
+      ? 1
+      : avatarImageRatio === "2:3"
       ? 2 / 3
       : avatarImageRatio === "4:5"
       ? 4 / 5
@@ -173,7 +180,7 @@ export default function TestimonialCardNew({ section }) {
       ? 4 / 3
       : avatarImageRatio === "16:9"
       ? 16 / 9
-      : 1;
+      : 3 / 4;
   const avatarSize = avatarWidth;
   const avatarHeight = Math.round(avatarWidth / avatarAspect);
   const avatarRadius = toNum(raw?.imageCorner, 10);

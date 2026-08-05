@@ -303,19 +303,20 @@ export default function RecentProducts({ section }) {
   const imageWrapCss  = unwrap(css?.imageWrap, {});
   const imageCss      = unwrap(css?.image, {});
   // Inspector's Image Ratio control writes `ratio` ("Auto"/"1:1"/"2:3"/"4:5"),
-  // matching Builder Preview's formatRatio() ("Auto" → square 1/1). This was
-  // never read here at all — the image was always forced square regardless
-  // of the merchant's Ratio selection.
+  // matching Builder Preview's formatRatio(), which now maps "Auto" to the
+  // canonical "16 / 5" (see utils/imageAspect.js) instead of a hardcoded
+  // square — this was never read here at all, so the image was always
+  // forced square regardless of the merchant's Ratio selection.
   const imageAspect = (() => {
     const r = str(raw?.ratio, "Auto");
-    if (r === "Auto") return 1;
+    if (r === "Auto") return 16 / 5;
     const m = r.match(/^(\d+(?:\.\d+)?)\s*:\s*(\d+(?:\.\d+)?)$/);
     if (m) {
       const w = parseFloat(m[1]);
       const h = parseFloat(m[2]);
       if (w > 0 && h > 0) return w / h;
     }
-    return 1;
+    return 16 / 5;
   })();
   const imageHeight   = parsePx(raw?.imageHeight ?? imageWrapCss?.height, cardWidth / imageAspect);
   // No dedicated Inspector control writes any of these image-background

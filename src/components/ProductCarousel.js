@@ -897,7 +897,10 @@ export default function ProductCarousel({ section }) {
       : undefined;
   const imageHeight = resolveFirstNumber(
     [explicitImageHeight, metricImageHeight],
-    imageAspectRatio ? Math.round(cardWidth / imageAspectRatio) : cardWidth
+    // "Auto" (imageAspectRatio null) used to fall back to cardWidth — i.e. a
+    // hardcoded 1:1 square — regardless of Fit/Fill. Match Builder's
+    // ProductCarousel/PreviewLive.tsx "3 / 4" Auto default instead.
+    imageAspectRatio ? Math.round(cardWidth / imageAspectRatio) : Math.round(cardWidth / (3 / 4))
   );
   const useImageAspectRatio = explicitImageHeight === undefined && metricImageHeight === undefined && !!imageAspectRatio;
   const metricContentPadTop =

@@ -444,7 +444,12 @@ export default function CollectionImage({ section }) {
   const placeholderTextColor = asString(unwrapValue(firstDefined(rawSnapshot?.placeholderTextColor, cardCfg?.placeholderTextColor, imageNode?.placeholderTextColor), "#096D70"));
   const imageShape          = asString(unwrapValue(cardCfg?.imageShape ?? layoutCardImage?.shape, rawSnapshot?.imageRadius != null ? "rounded" : "circle")).toLowerCase();
   const imageScale          = asString(unwrapValue(imageNode?.scale ?? rawSnapshot?.imageScale, "cover")).toLowerCase();
-  const imageAspectRatio    = parseAspectRatio(firstDefined(imageNode?.ratio, rawSnapshot?.imageRatio, cardCfg?.imageRatio), 1);
+  // "Auto" (from the "collection" block's ratio dropdown — the "collection_image"
+  // block never exposes this control) doesn't match the W:H/number parse below,
+  // so it always fell through to this fallback — which used to be 1 (square),
+  // making Auto render identically to "1:1" instead of its own distinct shape.
+  // Matches the Builder's Collection/PreviewLive.tsx "16 / 5" Auto default.
+  const imageAspectRatio    = parseAspectRatio(firstDefined(imageNode?.ratio, rawSnapshot?.imageRatio, cardCfg?.imageRatio), 16 / 5);
   const defaultImageWidth   = isGrid
     ? Math.max(0, gridCardW - cardPaddingLeft - cardPaddingRight)
     : cardImageSize;
