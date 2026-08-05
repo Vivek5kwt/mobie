@@ -13,7 +13,7 @@ import { useDispatch } from "react-redux";
 import { SafeArea } from "../utils/SafeAreaHandler";
 import DynamicRenderer from "../engine/DynamicRenderer";
 import Header from "../components/Topheader";
-import Snackbar from "../components/Snackbar";
+import { useToast } from "../components/ToastProvider";
 import { fetchDSL } from "../engine/dslHandler";
 import { resolveAppId } from "../utils/appId";
 import { useAuth } from "../services/AuthContext";
@@ -295,6 +295,7 @@ export default function PostPurchaseScreen() {
   const navigation = useNavigation();
   const route      = useRoute();
   const dispatch   = useDispatch();
+  const showToast = useToast();
   const { session } = useAuth();
 
   const capturedItems = useMemo(
@@ -327,23 +328,18 @@ export default function PostPurchaseScreen() {
   const [error,    setError]    = useState(false);
   const [orderSyncing, setOrderSyncing] = useState(false);
   const [orderSyncError, setOrderSyncError] = useState("");
-  const [snackbarVisible, setSnackbarVisible] = useState(true);
   const fingerprintRef = useRef(null);
   const timerRef       = useRef(null);
   const isNavigatingHomeRef = useRef(false);
   const syncedOrderKeyRef = useRef("");
 
-  const snackbarMessage = "Your order has been placed successfully.";
-
-  const snackbarNode = (
-    <Snackbar
-      visible={snackbarVisible}
-      message={snackbarMessage}
-      onDismiss={() => setSnackbarVisible(false)}
-      duration={3000}
-      type="success"
-    />
-  );
+  useEffect(() => {
+    showToast({
+      message: "Your order has been placed successfully.",
+      duration: 3000,
+      type: "success",
+    });
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const goHome = useCallback(() => {
     isNavigatingHomeRef.current = true;
@@ -534,7 +530,6 @@ export default function PostPurchaseScreen() {
             <Text style={styles.loadingText}>Loading your order…</Text>
           </View>
         </View>
-        {snackbarNode}
       </SafeArea>
     );
   }
@@ -571,7 +566,6 @@ export default function PostPurchaseScreen() {
             </TouchableOpacity>
           </View>
         </View>
-        {snackbarNode}
       </SafeArea>
     );
   }
@@ -599,7 +593,6 @@ export default function PostPurchaseScreen() {
           </TouchableOpacity>
         </View>
         </View>
-        {snackbarNode}
       </SafeArea>
     );
   }

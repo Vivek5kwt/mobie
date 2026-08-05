@@ -4,6 +4,7 @@ import {
   formatMoney as formatSharedMoney,
   parseMoneyAmount,
 } from '../utils/money';
+import { getCurrencySnapshot } from '../utils/currencyStore';
 import {
   cartDiscountFingerprint,
   normalizeDiscountCode,
@@ -639,6 +640,10 @@ export async function fetchShopifyProductDetails({ handle, id, options = {} }) {
               id
               title
               availableForSale
+              selectedOptions { name value }
+              price
+              compareAtPrice
+              image { url }
             }
           }
         }
@@ -678,6 +683,10 @@ export async function fetchShopifyProductDetails({ handle, id, options = {} }) {
               id
               title
               availableForSale
+              selectedOptions { name value }
+              price
+              compareAtPrice
+              image { url }
             }
           }
         }
@@ -2391,8 +2400,12 @@ export async function createShopifyCheckout({ variantId, quantity = 1, options =
 
   const directMatch = String(merchandiseId).match(/ProductVariant\/(\d+)/);
   if (directMatch) {
-    const url = `https://${shop}/cart/${directMatch[1]}:${Math.max(1, quantity)}`;
-    console.log(`${CHECKOUT_LOG} single checkout via direct cart URL`, { url });
+    // Same fix as createShopifyCartCheckout's direct-cart-URL fallback below:
+    // this permalink adds to the storefront's existing cookie-based cart
+    // rather than replacing it, so clear it server-side first.
+    const permalinkUrl = `https://${shop}/cart/${directMatch[1]}:${Math.max(1, quantity)}`;
+    const url = `https://${shop}/cart/clear?return_to=${encodeURIComponent(permalinkUrl)}`;
+    console.log(`${CHECKOUT_LOG} single checkout via direct cart URL (cleared first)`, { url, permalinkUrl });
     return url;
   }
 
@@ -2418,6 +2431,16 @@ async function createDraftOrderCheckoutUrl({ shop, storeId, lines = [], options 
   if (!lineItems.length) return "";
 
   const email = options?.email ? String(options.email).trim() : "";
+  // draftOrderCreate is an Admin API mutation — it has no buyerIdentity
+  // concept (that's Storefront-only), so the currency shown at checkout has
+  // to be set explicitly here via presentmentCurrencyCode instead. Without
+  // this, checkout always invoiced in the shop's own default currency
+  // regardless of what the shopper picked in the Currency Switcher. Only
+  // sent when a currency has actually been explicitly selected — Shopify
+  // rejects a presentmentCurrencyCode that isn't one of the shop's enabled
+  // markets, and an empty/omitted value correctly falls back to the shop
+  // default, matching "same as default → show as-is".
+  const presentmentCurrencyCode = getCurrencySnapshot().code || "";
 
   const mutation = `
     mutation CreateDraftOrderCheckout($input: DraftOrderInput!) {
@@ -2439,6 +2462,7 @@ async function createDraftOrderCheckoutUrl({ shop, storeId, lines = [], options 
       input: {
         lineItems,
         ...(email ? { email } : {}),
+        ...(presentmentCurrencyCode ? { presentmentCurrencyCode } : {}),
         useCustomerDefaultAddress: false,
       },
     },
@@ -2595,9 +2619,23 @@ export async function createShopifyCartCheckout({ items = [], discountCodes = []
       discountCodes: requestedDiscountCodes,
       email: options.email,
     });
-    const url = `https://${shop}/cart/${directCartLines.join(",")}${queryString}`;
-    console.log(`${CHECKOUT_LOG} checkout via direct cart URL`, {
+    const permalinkUrl = `https://${shop}/cart/${directCartLines.join(",")}${queryString}`;
+    // This permalink ADDS to whatever's already in Shopify's own storefront
+    // cart (tracked via the checkout WebView's shared/persistent cookies) —
+    // it does not replace it. A previous checkout attempt that was opened
+    // but abandoned before completing payment left its items in that same
+    // cookie-based cart, so the next checkout (even with fewer/different
+    // items after removing something from the app's own cart) silently
+    // merged the current items on top of the stale ones — the customer saw
+    // products they'd already removed reappear at checkout. Routing through
+    // Shopify's own /cart/clear first (a standard storefront endpoint) wipes
+    // that stale cart server-side before adding back exactly the current
+    // set, via the same `return_to` redirect convention Shopify's storefront
+    // already uses elsewhere (cart/add, account/login, ...).
+    const url = `https://${shop}/cart/clear?return_to=${encodeURIComponent(permalinkUrl)}`;
+    console.log(`${CHECKOUT_LOG} checkout via direct cart URL (cleared first)`, {
       url,
+      permalinkUrl,
       lines: directCartLines,
     });
     return url;
@@ -2972,7 +3010,7 @@ export async function fetchCustomerOrders({ customerAccessToken, first = 10 } = 
                     variant {
                     title
                     image { url }
-                    price { amount currencyCode }
+                    price
                     product {
                       handle
                       title

@@ -8,7 +8,7 @@ import { useDispatch, useSelector } from "react-redux";
 import { addItem } from "../store/slices/cartSlice";
 import { isWishlistProduct, toggleWishlist } from "../store/slices/wishlistSlice";
 import { fetchShopifyProductsPage, fetchShopifyCollectionProducts, searchShopifyProducts } from "../services/shopify";
-import Snackbar from "./Snackbar";
+import { useToast } from "./ToastProvider";
 import { useAuth } from "../services/AuthContext";
 import { requireLoginForAction } from "../utils/authGate";
 import { resolveProductImageResizeMode } from "../utils/productImageFit";
@@ -235,6 +235,7 @@ export default function ProductGrid({ section, limit = 8, title = "Products" }) 
   const navigation = useNavigation();
   const route = useRoute();
   const dispatch   = useDispatch();
+  const showToast = useToast();
   const { width: screenWidth } = useWindowDimensions();
   const { session, initializing } = useAuth();
   const wishlistItems = useSelector((state) => state.wishlist?.items || []);
@@ -242,8 +243,6 @@ export default function ProductGrid({ section, limit = 8, title = "Products" }) 
   const [loading,      setLoading]      = useState(false);
   const [error,        setError]        = useState("");
   const [hasMore,      setHasMore]      = useState(false);
-  const [snackVisible, setSnackVisible] = useState(false);
-  const [snackMessage, setSnackMessage] = useState("");
   // Filter & Sort Header writes here; Product Grid reads — mirrors Builder's
   // sortFilterStore.ts producer/consumer wiring for the same DSL blocks.
   const [selectedFilters, setSelectedFilters] = useState(() => getSortFilterSnapshot().selectedFilters);
@@ -872,6 +871,10 @@ export default function ProductGrid({ section, limit = 8, title = "Products" }) 
   }, [route?.params?.link, route?.params?.pageName, route?.params?.title]);
 
   // ── Handlers ─────────────────────────────────────────────────────────────
+  const openCartScreen = useCallback(() => {
+    navigation.navigate("BottomNavScreen", resolveCartNavigationParams(section));
+  }, [navigation, section]);
+
   const handleAddToCart = useCallback(async (product, e) => {
     if (e?.stopPropagation) e.stopPropagation();
     const availableVariant =
@@ -901,13 +904,14 @@ export default function ProductGrid({ section, limit = 8, title = "Products" }) 
         },
       })
     );
-    setSnackMessage(ADD_TO_CART_SUCCESS_MESSAGE);
-    setSnackVisible(true);
-  }, [dispatch, navigation, session]);
-
-  const openCartScreen = useCallback(() => {
-    navigation.navigate("BottomNavScreen", resolveCartNavigationParams(section));
-  }, [navigation, section]);
+    showToast({
+      message: ADD_TO_CART_SUCCESS_MESSAGE,
+      actionLabel: "View Cart",
+      onAction: openCartScreen,
+      type: "success",
+      duration: 2500,
+    });
+  }, [dispatch, openCartScreen]);
 
   const detailSections = useMemo(() => {
     const candidates = [
@@ -1452,8 +1456,11 @@ export default function ProductGrid({ section, limit = 8, title = "Products" }) 
                             vendor:         product?.vendor || "",
                           },
                         }));
-                        setSnackMessage(adding ? "Product added to wishlist successfully." : "Product removed from wishlist successfully.");
-                        setSnackVisible(true);
+                        showToast({
+                          message: adding ? "Product added to wishlist successfully." : "Product removed from wishlist successfully.",
+                          type: "success",
+                          duration: 2500,
+                        });
                       }}
                     />
                   )}
@@ -1649,16 +1656,6 @@ export default function ProductGrid({ section, limit = 8, title = "Products" }) 
           })}
         </View>
       )}
-
-      <Snackbar
-        visible={snackVisible}
-        message={snackMessage}
-        actionLabel={snackMessage === ADD_TO_CART_SUCCESS_MESSAGE ? "View Cart" : undefined}
-        onAction={snackMessage === ADD_TO_CART_SUCCESS_MESSAGE ? openCartScreen : undefined}
-        onDismiss={() => setSnackVisible(false)}
-        duration={2500}
-        type="success"
-      />
     </View>
   );
 }

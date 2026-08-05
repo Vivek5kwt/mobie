@@ -29,6 +29,7 @@ import WishlistScreen from './src/screens/WishlistScreen';
 import SplashScreen from './src/screens/saplash';
 import AuthScreen from './src/screens/AuthScreen';
 import AuthProvider from './src/services/AuthContext';
+import { ToastProvider } from './src/components/ToastProvider';
 import { persistor, store } from './src/store';
 import { getSplashBackgroundSync } from './src/services/brandKitService';
 import { trackAppOpen, trackScreenView } from './src/services/analyticsService';
@@ -238,6 +239,10 @@ export default function App() {
 
   return (
     <GestureRootView style={{ flex: 1, backgroundColor: startupBackground }}>
+      {/* Mounted once at the app root so every screen/block's toast shares
+          the same overlay, sized to the actual device screen rather than
+          whichever block happens to render it — see ToastProvider.js. */}
+      <ToastProvider>
       <Provider store={store}>
         <PersistGate loading={null} persistor={persistor}>
           <SafeAreaProvider>
@@ -369,6 +374,7 @@ export default function App() {
           </SafeAreaProvider>
         </PersistGate>
       </Provider>
+      </ToastProvider>
     </GestureRootView>
   );
 }

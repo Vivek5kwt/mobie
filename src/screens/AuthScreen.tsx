@@ -916,7 +916,12 @@ const defaultSignInTokens: SignInTokens = {
   footerLinkFontSize: 16,
   footerLinkFontFamily: 'Inter',
   footerLinkFontWeight: '600',
-  footerLinkAlignment: 'Left',
+  // Builder's SignIn/PreviewLive.tsx defaults footerLinkAlignment to "Center"
+  // when unset (PreviewLive.tsx:327) — this must match, or every Sign In
+  // screen where the merchant never touches the "Create an Account" link's
+  // Alignment control renders left-aligned in the app while Builder shows it
+  // centered.
+  footerLinkAlignment: 'Center',
   footerVisible: true,
   forgotPasswordVisible: false,
   authVisible: true,
@@ -1477,16 +1482,30 @@ const buildSignInTokens = (rawProps: Record<string, unknown>): SignInTokens => (
   footerTextColor: (rawProps?.footerTextColor as string) ?? defaultSignInTokens.footerTextColor,
   footerLinkColor: (rawProps?.footerLinkColor as string) ?? defaultSignInTokens.footerLinkColor,
   ...buildButtonStyleTokens(rawProps, defaultSignInTokens),
-  // SignIn's Inspector also writes buttonborderColor (lowercase "b"), the same
-  // drift confirmed in SignUp — must be the first candidate ahead of the
-  // registry-seeded capitalized spelling.
-  buttonBorderColor: (pick(rawProps, ['buttonborderColor', 'buttonBorderColor']) as string) ?? defaultSignInTokens.buttonBorderColor,
+  // SignIn's Inspector reads/writes ONLY buttonborderColor (lowercase "b") —
+  // liveRegistry.ts's signin.defaultProps ALSO seeds a capitalized
+  // `buttonBorderColor: "#0c9297"` on every new block as boilerplate, but
+  // that capitalized key is never read by the Inspector or by
+  // PreviewLive.tsx (which defaults buttonborderColor to "#ffffff" when
+  // unset) — it's dead seed data from Builder's own rendering perspective.
+  // Falling back to it here (as a previous pass did, treating it as "the
+  // same drift confirmed in SignUp") made the button render a visible teal
+  // border in the app whenever the merchant had never touched the color
+  // picker, even though Builder itself shows its own white default in that
+  // exact case. Only the lowercase key reflects what Builder actually
+  // renders; fall back to Builder's own literal default ("#ffffff") instead
+  // of the unrelated seeded value or the app's own default token.
+  buttonBorderColor: (rawProps?.buttonborderColor as string) || '#ffffff',
   // Sign In's Inspector has no line-side control for the button border (only
   // a Border Color picker) — Preview always draws a fixed 1px border
-  // whenever that color is set (PreviewLive.tsx:820). Routing this through
-  // resolveBorderWidth (which needs a real "line" value) always fell into
-  // its "no line, return 0" branch, so the button border never rendered.
-  buttonBorderWidth: pick(rawProps, ['buttonborderColor', 'buttonBorderColor']) ? 1 : defaultSignInTokens.buttonBorderWidth,
+  // whenever that color is set (PreviewLive.tsx:820). When the merchant
+  // clears/never sets a color, `buttonborderColor` is an empty string —
+  // Preview's `border: 1px solid ${buttonborderColor}` becomes invalid CSS
+  // with an empty color and the browser silently drops it (no border shown).
+  // Always fall back to 0 width when no real (lowercase-key) color is set,
+  // so "no border in Builder" means "no border in the app" instead of an
+  // unrelated default color/width.
+  buttonBorderWidth: rawProps?.buttonborderColor ? 1 : 0,
   buttonPaddingTop: toNumber(rawProps?.buttonPaddingTop, defaultSignInTokens.buttonPaddingTop),
   buttonPaddingBottom: toNumber(rawProps?.buttonPaddingBottom, defaultSignInTokens.buttonPaddingBottom),
   buttonAutoUppercase: (rawProps?.buttonAutoUppercase as boolean) ?? defaultSignInTokens.buttonAutoUppercase,
@@ -2058,10 +2077,20 @@ const buildSignUpTokens = (rawProps: Record<string, unknown>): SignUpTokens => (
   // (lowercase "font") — this must be the first candidate; liveRegistry.ts seeds
   // the capitalized spelling on every signup block, which would otherwise always
   // shadow the Inspector's real value.
-  emailPlaceholderFontWeight: toFontWeight(pick(rawProps, ['emailPlaceholderfontWeight', 'emailPlaceholderFontWeight', 'placeholderFontWeight', 'fontWeight']), defaultSignUpTokens.emailPlaceholderFontWeight, rawProps?.emailPlaceholderbold as boolean | undefined),
-  firstNamePlaceholderFontWeight: toFontWeight(pick(rawProps, ['firstNamePlaceholderfontWeight', 'firstNamePlaceholderFontWeight', 'placeholderFontWeight', 'fontWeight']), defaultSignUpTokens.firstNamePlaceholderFontWeight, rawProps?.firstNamePlaceholderbold as boolean | undefined),
-  lastNamePlaceholderFontWeight: toFontWeight(pick(rawProps, ['lastNamePlaceholderfontWeight', 'lastNamePlaceholderFontWeight', 'placeholderFontWeight', 'fontWeight']), defaultSignUpTokens.lastNamePlaceholderFontWeight, rawProps?.lastNamePlaceholderbold as boolean | undefined),
-  passwordPlaceholderFontWeight: toFontWeight(pick(rawProps, ['passwordPlaceholderfontWeight', 'passwordPlaceholderFontWeight', 'placeholderFontWeight', 'fontWeight']), defaultSignUpTokens.passwordPlaceholderFontWeight, rawProps?.passwordPlaceholderbold as boolean | undefined),
+  // Builder's placeholder Format toolbar (Bold/Italic/Underline/Strike) writes
+  // BOTH `{field}Placeholderbold` and `{field}PlaceholderfontWeight` together
+  // (bold ? 700 : 500) on every click, but the separate Weight slider next to
+  // it only ever writes `{field}PlaceholderfontWeight` — so a merchant who
+  // drags the slider after toggling Bold ends up with a stale `bold: true`
+  // alongside a non-700 weight. Builder's own PreviewLive.tsx renders
+  // `--ph-weight` from the raw fontWeight number only and never reads the
+  // bold flag, so passing `isBold` here (forcing 700 whenever the stale flag
+  // is true) could show a different weight per field than Builder actually
+  // renders. Trust the resolved fontWeight value only, like Preview does.
+  emailPlaceholderFontWeight: toFontWeight(pick(rawProps, ['emailPlaceholderfontWeight', 'emailPlaceholderFontWeight', 'placeholderFontWeight', 'fontWeight']), defaultSignUpTokens.emailPlaceholderFontWeight),
+  firstNamePlaceholderFontWeight: toFontWeight(pick(rawProps, ['firstNamePlaceholderfontWeight', 'firstNamePlaceholderFontWeight', 'placeholderFontWeight', 'fontWeight']), defaultSignUpTokens.firstNamePlaceholderFontWeight),
+  lastNamePlaceholderFontWeight: toFontWeight(pick(rawProps, ['lastNamePlaceholderfontWeight', 'lastNamePlaceholderFontWeight', 'placeholderFontWeight', 'fontWeight']), defaultSignUpTokens.lastNamePlaceholderFontWeight),
+  passwordPlaceholderFontWeight: toFontWeight(pick(rawProps, ['passwordPlaceholderfontWeight', 'passwordPlaceholderFontWeight', 'placeholderFontWeight', 'fontWeight']), defaultSignUpTokens.passwordPlaceholderFontWeight),
   ...buildButtonStyleTokens(rawProps, defaultSignUpTokens),
   // Builder's Button section writes buttonborderColor (lowercase "b") — must be
   // the first candidate; liveRegistry.ts seeds buttonBorderColor on every signup

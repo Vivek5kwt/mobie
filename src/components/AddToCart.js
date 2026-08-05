@@ -1,10 +1,10 @@
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import FontAwesome from "react-native-vector-icons/FontAwesome";
 import { useNavigation } from "@react-navigation/native";
 import { useDispatch } from "react-redux";
 import { addItem } from "../store/slices/cartSlice";
-import Snackbar from "./Snackbar";
+import { useToast } from "./ToastProvider";
 import {
   getShopifyDomain,
   createShopifyCheckout,
@@ -13,6 +13,7 @@ import { resolveFirstFont } from "../services/typographyService";
 import { ADD_TO_CART_SUCCESS_MESSAGE, resolveCartNavigationParams } from "../utils/cartFeedback";
 import { resolveFA4IconName } from "../utils/faIconAlias";
 import { parseMoneyAmount } from "../utils/money";
+import { getVariantSelection, subscribeVariantSelection } from "../utils/variantSelectionStore";
 
 const unwrapValue = (value, fallback = undefined) => {
   if (value === undefined || value === null) return fallback;
@@ -164,6 +165,7 @@ const buildCheckoutUrl = ({ shopifyDomain, variantNumericId, quantity, handle })
 export default function AddToCart({ section }) {
   const navigation = useNavigation();
   const dispatch = useDispatch();
+  const showToast = useToast();
   const propsNode =
     section?.properties?.props?.properties || section?.properties?.props || section?.props || {};
 
@@ -208,22 +210,49 @@ export default function AddToCart({ section }) {
   const shopifyDomain = toString(raw?.shopifyDomain, getShopifyDomain());
   const productHandle = toString(raw?.handle, "");
   const productTitle = toString(raw?.title, "Product Name");
-  const productImage = toString(raw?.imageUrl, "");
-  const productPrice = toNumber(raw?.salePrice ?? raw?.standardPrice, 0);
-  const productCompareAtPrice = toNumber(raw?.compareAtPrice ?? raw?.originalPrice ?? raw?.regularPrice, 0);
   const productVendor = toString(raw?.vendor ?? raw?.vendorName, "");
-  const productVariantText = toString(raw?.variantText, "");
-  const productCurrency = toString(raw?.currency || raw?.priceCurrency || raw?.currencySymbol, "").trim();
   const productVariants = normalizeVariants(raw?.variants);
+
+  // Live variant resolved by the (sibling, prop-disconnected) VariantSelector
+  // block — see utils/variantSelectionStore.js. Falls back to the DSL-baked
+  // defaults below when no VariantSelector is on this screen, or before its
+  // first publish.
+  const productKey = toString(raw?.id) || productHandle;
+  const [variantVersion, setVariantVersion] = useState(0);
+  useEffect(() => {
+    if (!productKey) return undefined;
+    return subscribeVariantSelection((changedKey) => {
+      if (!changedKey || changedKey === productKey) setVariantVersion((v) => v + 1);
+    });
+  }, [productKey]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const selectedVariant = useMemo(() => getVariantSelection(productKey), [productKey, variantVersion]);
+
+  const productImage = selectedVariant?.image?.url || toString(raw?.imageUrl, "");
+  const productPrice = selectedVariant?.price != null
+    ? toNumber(selectedVariant.price, 0)
+    : toNumber(raw?.salePrice ?? raw?.standardPrice, 0);
+  const productCompareAtPrice = selectedVariant?.compareAtPrice != null
+    ? toNumber(selectedVariant.compareAtPrice, 0)
+    : toNumber(raw?.compareAtPrice ?? raw?.originalPrice ?? raw?.regularPrice, 0);
+  const productVariantText = selectedVariant?.title && selectedVariant.title !== "Default Title"
+    ? selectedVariant.title
+    : toString(raw?.variantText, "");
+  const productCurrency = toString(
+    selectedVariant?.price?.currencyCode || raw?.currency || raw?.priceCurrency || raw?.currencySymbol,
+    ""
+  ).trim();
   const rawAvailableForSale = unwrapValue(raw?.availableForSale, undefined);
   const productExplicitlyUnavailable =
     rawAvailableForSale === false ||
     String(rawAvailableForSale).trim().toLowerCase() === "false";
   const productAvailable = productExplicitlyUnavailable
     ? false
-    : productVariants.length
-      ? productVariants.some(isVariantAvailable)
-      : true;
+    : selectedVariant
+      ? isVariantAvailable(selectedVariant)
+      : productVariants.length
+        ? productVariants.some(isVariantAvailable)
+        : true;
   const unavailableText = toString(
     addToCartConfig?.unavailableText ?? raw?.unavailableText ?? raw?.soldOutText,
     "Item Not Available"
@@ -237,13 +266,11 @@ export default function AddToCart({ section }) {
     "#FFFFFF"
   );
   const { gid: productVariantGid, numeric: productVariantNumericId } = extractVariantIdentifiers(
-    toString(raw?.variantId || raw?.defaultVariantId, "")
+    toString(selectedVariant?.id || raw?.variantId || raw?.defaultVariantId, "")
   );
 
   const [quantity, setQuantity] = useState(1);
-  const [snackbarVisible, setSnackbarVisible] = useState(false);
   const [buyNowLoading, setBuyNowLoading] = useState(false);
-  const [buyNowError, setBuyNowError] = useState("");
 
   const addToCartButtonStyle = useMemo(
     () => ({
@@ -394,7 +421,13 @@ export default function AddToCart({ section }) {
       })
     );
 
-    setSnackbarVisible(true);
+    showToast({
+      message: ADD_TO_CART_SUCCESS_MESSAGE,
+      actionLabel: "View Cart",
+      onAction: openCartScreen,
+      type: "success",
+      duration: 2500,
+    });
   };
 
   // Buy Now skips the local cart and goes straight to checkout for just this
@@ -408,7 +441,6 @@ export default function AddToCart({ section }) {
   const handleBuyNow = async () => {
     if (!productAvailable || buyNowLoading) return;
     if (!productVariantGid && !addToCartUrl) return;
-    setBuyNowError("");
     setBuyNowLoading(true);
     try {
       const checkoutUrl = await createShopifyCheckout({
@@ -422,7 +454,12 @@ export default function AddToCart({ section }) {
       if (addToCartUrl && !error?.unavailableItems) {
         navigation.navigate("CheckoutWebView", { url: addToCartUrl });
       } else {
-        setBuyNowError(error?.message || "This item is no longer available.");
+        showToast({
+          message: error?.message || "This item is no longer available.",
+          actionLabel: "Dismiss",
+          type: "error",
+          duration: 4000,
+        });
       }
     } finally {
       setBuyNowLoading(false);
@@ -541,28 +578,6 @@ export default function AddToCart({ section }) {
           {buyNowIconOnRight && buyNowIcon}
         </TouchableOpacity>
       )}
-
-      {/* ── Add to Cart snackbar ── */}
-      <Snackbar
-        visible={snackbarVisible}
-        message={ADD_TO_CART_SUCCESS_MESSAGE}
-        actionLabel="View Cart"
-        onAction={openCartScreen}
-        onDismiss={() => setSnackbarVisible(false)}
-        duration={2500}
-        type="success"
-      />
-
-      {/* ── Buy Now error snackbar ── */}
-      <Snackbar
-        visible={!!buyNowError}
-        message={buyNowError}
-        actionLabel="Dismiss"
-        onAction={() => setBuyNowError("")}
-        onDismiss={() => setBuyNowError("")}
-        duration={4000}
-        type="error"
-      />
     </View>
   );
 }

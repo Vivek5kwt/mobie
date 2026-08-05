@@ -5,13 +5,14 @@ import { useNavigation } from "@react-navigation/native";
 import { useDispatch, useSelector } from "react-redux";
 import { createShopifyCartCheckout } from "../services/shopify";
 import { removeItem } from "../store/slices/cartSlice";
-import Snackbar from "./Snackbar";
+import { useToast } from "./ToastProvider";
 import { resolveFA4IconName } from "../utils/faIconAlias";
 import { useAuth } from "../services/AuthContext";
 import { isAuthenticatedSession } from "../utils/authGate";
 import { resolveFont } from "../services/typographyService";
 import { activeDiscountCodes, cartDiscountFingerprint } from "../utils/cartDiscounts";
 import { trackBeginCheckout } from "../services/analyticsService";
+import { getCurrencySnapshot, hydrateCurrencyFromStorage, subscribeCurrency } from "../utils/currencyStore";
 
 // ── DSL helpers ────────────────────────────────────────────────────────────────
 
@@ -191,6 +192,7 @@ const interpolateGradientColor = (colors, ratio) => {
 export default function CheckoutButton({ section }) {
   const navigation = useNavigation();
   const dispatch = useDispatch();
+  const showToast = useToast();
   const { session, initializing } = useAuth();
   const isLoggedIn = isAuthenticatedSession(session);
   const cartItems  = useSelector((state) => state?.cart?.items || []);
@@ -439,10 +441,24 @@ export default function CheckoutButton({ section }) {
   );
   const guestCheckoutAllowed = !requireLoginForCheckout;
 
-  const [emptySnackbar,   setEmptySnackbar]   = useState(false);
-  const [errorSnackbar,   setErrorSnackbar]   = useState(false);
-  const [removedMessage,  setRemovedMessage]  = useState("");
   const [loading,         setLoading]         = useState(false);
+  const [currencyVersion, setCurrencyVersion] = useState(0);
+
+  // Re-render when the selected currency/market changes (same pattern as
+  // ProductGrid/ProductCarousel) so checkoutOptions below picks up the
+  // latest countryCode without needing the screen to remount.
+  useEffect(() => {
+    let mounted = true;
+    const bump = () => {
+      if (mounted) setCurrencyVersion((v) => v + 1);
+    };
+    hydrateCurrencyFromStorage().then(bump);
+    const unsub = subscribeCurrency(bump);
+    return () => {
+      mounted = false;
+      unsub();
+    };
+  }, []);
 
   const customerAccessToken = useMemo(
     () => pickSessionCustomerAccessToken(session),
@@ -482,9 +498,16 @@ export default function CheckoutButton({ section }) {
     () => ({
       customerAccessToken: usableCustomerAccessToken,
       email: prefillCheckoutEmail ? customerEmail : "",
-      countryCode: session?.user?.country || undefined,
+      // Prefer the market the shopper explicitly picked in the Currency
+      // Switcher — checkout's presentment currency is driven by this
+      // country code, so leaving it on the account's static country meant
+      // checkout could silently ignore whatever currency was shown while
+      // browsing. Falls back to the account country when no currency has
+      // ever been explicitly selected (i.e. still on the store default).
+      countryCode: getCurrencySnapshot().countryCode || session?.user?.country || undefined,
     }),
-    [customerEmail, prefillCheckoutEmail, session?.user?.country, usableCustomerAccessToken]
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [customerEmail, prefillCheckoutEmail, session?.user?.country, usableCustomerAccessToken, currencyVersion]
   );
   const checkoutRequest = useMemo(
     () => ({
@@ -530,7 +553,16 @@ export default function CheckoutButton({ section }) {
       navigation.navigate("CheckoutWebView", { url, title: "Checkout" });
       return;
     }
-    if (!hasCartItems) { setEmptySnackbar(true); return; }
+    if (!hasCartItems) {
+      showToast({
+        message: "Your cart is empty. Add items to continue.",
+        actionLabel: "Browse",
+        onAction: () => navigation.navigate("LayoutScreen"),
+        type: "info",
+        duration: 3000,
+      });
+      return;
+    }
     if (loading) return;
 
     // Require login if store owner disabled guest checkout
@@ -579,7 +611,12 @@ export default function CheckoutButton({ section }) {
         openCheckoutWebView(checkoutUrl);
       } else {
         console.warn(`${CHECKOUT_BUTTON_LOG} checkout URL missing from service`);
-        setErrorSnackbar(true);
+        showToast({
+          message: "Checkout failed. Please try again.",
+          actionLabel: "Dismiss",
+          type: "error",
+          duration: 4000,
+        });
       }
     } catch (error) {
       console.warn(`${CHECKOUT_BUTTON_LOG} checkout failed`, {
@@ -606,25 +643,50 @@ export default function CheckoutButton({ section }) {
         );
 
         if (remainingLines.length) {
-          setRemovedMessage(`${names} ${plural ? "were" : "was"} no longer available and ${plural ? "were" : "was"} removed. Continuing checkout with the rest of your cart.`);
+          showToast({
+            message: `${names} ${plural ? "were" : "was"} no longer available and ${plural ? "were" : "was"} removed. Continuing checkout with the rest of your cart.`,
+            actionLabel: "Dismiss",
+            type: "info",
+            duration: 5000,
+          });
           try {
             const retryUrl = await createShopifyCartCheckout({ ...checkoutRequest, items: remainingLines });
             if (retryUrl && navigation?.navigate) {
               openCheckoutWebView(retryUrl);
             } else {
-              setErrorSnackbar(true);
+              showToast({
+                message: "Checkout failed. Please try again.",
+                actionLabel: "Dismiss",
+                type: "error",
+                duration: 4000,
+              });
             }
           } catch (retryError) {
             console.warn(`${CHECKOUT_BUTTON_LOG} retry checkout failed`, {
               message: retryError?.message || String(retryError),
             });
-            setErrorSnackbar(true);
+            showToast({
+              message: "Checkout failed. Please try again.",
+              actionLabel: "Dismiss",
+              type: "error",
+              duration: 4000,
+            });
           }
         } else {
-          setRemovedMessage(`${names} ${plural ? "were" : "was"} no longer available and ${plural ? "were" : "was"} removed. Your cart is now empty.`);
+          showToast({
+            message: `${names} ${plural ? "were" : "was"} no longer available and ${plural ? "were" : "was"} removed. Your cart is now empty.`,
+            actionLabel: "Dismiss",
+            type: "info",
+            duration: 5000,
+          });
         }
       } else {
-        setErrorSnackbar(true);
+        showToast({
+          message: "Checkout failed. Please try again.",
+          actionLabel: "Dismiss",
+          type: "error",
+          duration: 4000,
+        });
       }
     } finally {
       setLoading(false);
@@ -763,34 +825,6 @@ export default function CheckoutButton({ section }) {
       >
         {renderButtonContent()}
       </TouchableOpacity>
-
-      <Snackbar
-        visible={emptySnackbar}
-        message="Your cart is empty. Add items to continue."
-        actionLabel="Browse"
-        onAction={() => navigation.navigate("LayoutScreen")}
-        onDismiss={() => setEmptySnackbar(false)}
-        duration={3000}
-        type="info"
-      />
-      <Snackbar
-        visible={errorSnackbar}
-        message="Checkout failed. Please try again."
-        actionLabel="Dismiss"
-        onAction={() => setErrorSnackbar(false)}
-        onDismiss={() => setErrorSnackbar(false)}
-        duration={4000}
-        type="error"
-      />
-      <Snackbar
-        visible={!!removedMessage}
-        message={removedMessage}
-        actionLabel="Dismiss"
-        onAction={() => setRemovedMessage("")}
-        onDismiss={() => setRemovedMessage("")}
-        duration={5000}
-        type="info"
-      />
     </View>
   );
 }

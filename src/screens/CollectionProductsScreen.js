@@ -17,7 +17,7 @@ import { isWishlistProduct, toggleWishlist } from "../store/slices/wishlistSlice
 import HeaderDefault from "../components/HeaderDefault";
 import FilterSortHeader from "../components/FilterSortHeader";
 import BottomNavigation, { BOTTOM_NAV_RESERVED_HEIGHT } from "../components/BottomNavigation";
-import Snackbar from "../components/Snackbar";
+import { useToast } from "../components/ToastProvider";
 import { fetchDSL } from "../engine/dslHandler";
 import { resolveAppId } from "../utils/appId";
 import { buildProductFilterOptions, productMatchesFilter } from "../utils/productFilters";
@@ -308,6 +308,7 @@ export default function CollectionProductsScreen() {
   const navigation = useNavigation();
   const route = useRoute();
   const dispatch = useDispatch();
+  const showToast = useToast();
   const { width: screenWidth } = useWindowDimensions();
   const { session, initializing } = useAuth();
   const wishlistItems = useSelector((state) => state.wishlist?.items || []);
@@ -337,8 +338,6 @@ export default function CollectionProductsScreen() {
   const [collectionTitleVisible, setCollectionTitleVisible] = useState(false);
   const [productCardConfig, setProductCardConfig] = useState(DEFAULT_PRODUCT_CARD_CONFIG);
   const [filterOptions, setFilterOptions] = useState([]);
-  const [cartSnackbarVisible, setCartSnackbarVisible] = useState(false);
-  const [cartSnackbarMessage, setCartSnackbarMessage] = useState("");
   const favoriteTapRef = useRef(false);
   const cartSnackbarTimerRef = useRef(null);
 
@@ -457,9 +456,9 @@ export default function CollectionProductsScreen() {
       })
     );
     if (cartSnackbarTimerRef.current) clearTimeout(cartSnackbarTimerRef.current);
-    setCartSnackbarVisible(false);
-    setCartSnackbarMessage(ADD_TO_CART_SUCCESS_MESSAGE);
-    cartSnackbarTimerRef.current = setTimeout(() => setCartSnackbarVisible(true), 0);
+    cartSnackbarTimerRef.current = setTimeout(() => {
+      showToast({ message: ADD_TO_CART_SUCCESS_MESSAGE, type: "success", duration: 2500 });
+    }, 0);
   };
 
   // Apply sort + optional filter
@@ -750,14 +749,6 @@ export default function CollectionProductsScreen() {
             <BottomNavigation section={bottomNavSection} />
           </View>
         )}
-
-        <Snackbar
-          visible={cartSnackbarVisible}
-          message={cartSnackbarMessage}
-          onDismiss={() => setCartSnackbarVisible(false)}
-          duration={2500}
-          type="success"
-        />
       </View>
     </SafeArea>
   );

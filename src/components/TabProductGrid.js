@@ -22,7 +22,7 @@ import { resolveFA4IconName } from "../utils/faIconAlias";
 import { resolveTextDecorationLine } from "../utils/textDecoration";
 import { useAuth } from "../services/AuthContext";
 import { requireLoginForAction } from "../utils/authGate";
-import Snackbar from "./Snackbar";
+import { useToast } from "./ToastProvider";
 import { resolveFont } from "../services/typographyService";
 import FavoriteToggleButton, { buildFavoriteToggleConfig } from "./FavoriteToggleButton";
 import ProductImage from "./ProductImage";
@@ -213,6 +213,7 @@ const DEFAULT_IMAGE_ASPECT_RATIO = 3 / 4;
 export default function TabProductGrid({ section }) {
   const dispatch = useDispatch();
   const navigation = useNavigation();
+  const showToast = useToast();
   const { width: screenWidth } = useWindowDimensions();
   const { session, initializing } = useAuth();
   const wishlistItems = useSelector((state) => state?.wishlist?.items || []);
@@ -349,8 +350,6 @@ export default function TabProductGrid({ section }) {
   const [activeTabId, setActiveTabId] = useState(initialTabId);
   const [productsByTab, setProductsByTab] = useState({});
   const [loadingTabId, setLoadingTabId] = useState(null);
-  const [snackVisible, setSnackVisible] = useState(false);
-  const [snackMessage, setSnackMessage] = useState("");
   const activeTab = useMemo(
     () => tabs.find((t) => t.id === activeTabId) || tabs[0],
     [tabs, activeTabId]
@@ -865,6 +864,10 @@ export default function TabProductGrid({ section }) {
     });
   }, [navigation]);
 
+  const openCartScreen = useCallback(() => {
+    navigation.navigate("BottomNavScreen", resolveCartNavigationParams(section));
+  }, [navigation, section]);
+
   const handleAddToCart = useCallback(async (product) => {
     const availableVariant =
       product?.variants?.find(isVariantAvailable) ||
@@ -886,13 +889,14 @@ export default function TabProductGrid({ section }) {
         },
       })
     );
-    setSnackMessage(ADD_TO_CART_SUCCESS_MESSAGE);
-    setSnackVisible(true);
-  }, [dispatch]);
-
-  const openCartScreen = useCallback(() => {
-    navigation.navigate("BottomNavScreen", resolveCartNavigationParams(section));
-  }, [navigation, section]);
+    showToast({
+      message: ADD_TO_CART_SUCCESS_MESSAGE,
+      actionLabel: "View Cart",
+      onAction: openCartScreen,
+      type: "success",
+      duration: 2500,
+    });
+  }, [dispatch, openCartScreen]);
 
   const handleToggleFavorite = useCallback(async (product, currentlyFav) => {
     const blocked = await requireLoginForAction({ session, navigation, initializing });
@@ -916,12 +920,13 @@ export default function TabProductGrid({ section }) {
         },
       })
     );
-    setSnackMessage(
-      currentlyFav
+    showToast({
+      message: currentlyFav
         ? "Product removed from wishlist successfully."
-        : "Product added to wishlist successfully."
-    );
-    setSnackVisible(true);
+        : "Product added to wishlist successfully.",
+      type: "success",
+      duration: 2500,
+    });
   }, [dispatch, navigation, session]);
 
   // ── Render ─────────────────────────────────────────────────────────────────
@@ -1391,16 +1396,6 @@ export default function TabProductGrid({ section }) {
       )}
       </View>
       )}
-
-      <Snackbar
-        visible={snackVisible}
-        message={snackMessage}
-        actionLabel={snackMessage === ADD_TO_CART_SUCCESS_MESSAGE ? "View Cart" : undefined}
-        onAction={snackMessage === ADD_TO_CART_SUCCESS_MESSAGE ? openCartScreen : undefined}
-        onDismiss={() => setSnackVisible(false)}
-        duration={2500}
-        type="success"
-      />
     </View>
   );
 }

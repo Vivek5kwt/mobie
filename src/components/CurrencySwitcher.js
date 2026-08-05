@@ -179,7 +179,13 @@ export default function CurrencySwitcher({ section }) {
           normalizeCurrencyCode(str(session?.user?.currency, "")) ||
           normalizeCurrencyCode(store?.currency) ||
           normalizeCurrencyCode(fetchedCurrencies?.[0]?.code || fetchedCurrencies?.[0]?.currency);
-        setActiveCurrency({ code: activeCode, rates });
+        // Seed the matching market's real countryCode too, so checkout's
+        // buyerIdentity reflects a resumed selection right from app start,
+        // not just after the user reopens this picker.
+        const activeMarket = fetchedCurrencies?.find(
+          (entry) => normalizeCurrencyCode(entry?.currency || entry?.code) === activeCode
+        );
+        setActiveCurrency({ code: activeCode, countryCode: activeMarket?.countryCode, rates });
       } catch (error) {
         if (!active) return;
         setApiCurrencies([]);
@@ -260,7 +266,10 @@ export default function CurrencySwitcher({ section }) {
     try {
       const saved = await saveSelectedCurrency({ session, store, currency: nextCurrency });
       setPersistedSelected(saved);
-      setActiveCurrency({ code: saved || nextCurrency });
+      // item.countryCode is the selected market's real ISO country code
+      // from Shopify's own Markets list — checkout uses this so its
+      // presentment currency matches what was just picked here.
+      setActiveCurrency({ code: saved || nextCurrency, countryCode: item?.countryCode });
     } catch (error) {
       setErrorMessage(error?.message || "Unable to save selected currency.");
     } finally {

@@ -9,6 +9,7 @@ import {
 import FontAwesome from "react-native-vector-icons/FontAwesome";
 import { resolveFirstFont } from "../services/typographyService";
 import { resolveFA4IconName } from "../utils/faIconAlias";
+import { setVariantSelection } from "../utils/variantSelectionStore";
 
 // ─── DSL helpers ──────────────────────────────────────────────────────────────
 
@@ -169,6 +170,29 @@ const groupVariantOptions = (variantOptions) => {
     .map(([name, values]) => ({ name, values }));
 };
 
+// ─── Resolve a tapped option combination to a real Shopify variant ────────────
+// Each variant node carries its OWN selectedOptions ([{name, value}]) — this
+// is the only reliable way to map e.g. Color=Blue + Size=Large to a specific
+// variant id, since the aggregate `options` list has no per-combination info.
+const resolveVariantForSelection = (variants, selected) => {
+  if (!Array.isArray(variants) || variants.length === 0) return null;
+  const wanted = Object.entries(selected || {}).filter(([, v]) => v != null && v !== "");
+  if (wanted.length === 0) return variants[0] || null;
+
+  const match = variants.find((variant) => {
+    const opts = Array.isArray(variant?.selectedOptions) ? variant.selectedOptions : [];
+    if (opts.length === 0) return false;
+    return wanted.every(([name, value]) =>
+      opts.some(
+        (opt) =>
+          toStr(opt?.name).toLowerCase() === String(name).toLowerCase() &&
+          toStr(opt?.value).toLowerCase() === String(value).toLowerCase()
+      )
+    );
+  });
+  return match || variants[0] || null;
+};
+
 // ─── Feature badges ───────────────────────────────────────────────────────────
 const normalizeFeatures = (src) => {
   if (!src) return [];
@@ -284,6 +308,22 @@ export default function VariantSelector({ section }) {
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [groupsKey]);
+
+  // ── Resolve + publish the selected variant ─────────────────────────────────
+  // AddToCart (a sibling DSL block, no direct prop link) needs to know exactly
+  // which Shopify variant the shopper's taps resolve to, so the right
+  // color/size — not a stale DSL-baked default — goes into checkout.
+  const productKey = toStr(raw?.id) || toStr(raw?.handle);
+  const variants = raw?.variants;
+  const selectedKey = Object.entries(selected)
+    .map(([k, v]) => `${k}:${v ?? ""}`)
+    .join("|");
+  useEffect(() => {
+    if (!productKey) return;
+    const resolved = resolveVariantForSelection(variants, selected);
+    setVariantSelection(productKey, resolved);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [productKey, variants, selectedKey]);
 
   // ── Feature badges ─────────────────────────────────────────────────────────
   const dslFeatures = useMemo(

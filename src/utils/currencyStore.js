@@ -10,7 +10,7 @@ import { formatMoney, parseMoneyAmount } from "./money";
 const EVENT = "mobidrag:currencyChanged";
 const STORAGE_KEY = "@mobidrag_active_currency";
 
-let snapshot = { code: "", rates: {} };
+let snapshot = { code: "", countryCode: "", rates: {} };
 let hydrated = false;
 
 // Old currency_switcher blocks stored each option's "currency" as a display
@@ -38,6 +38,16 @@ function sanitizeCode(value) {
   return match ? match[0] : "";
 }
 
+// Shopify's Storefront API buyerIdentity.countryCode only accepts real
+// ISO-3166 alpha-2 country codes (e.g. "GB", "IN") — not a currency code and
+// not a region shorthand like "EU". Only ever accept a genuine 2-letter code
+// here (see CurrencySwitcher.js, which passes the selected market's own
+// countryCode straight from Shopify's Markets list).
+function sanitizeCountryCode(value) {
+  const raw = String(value || "").trim().toUpperCase();
+  return /^[A-Z]{2}$/.test(raw) ? raw : "";
+}
+
 export function getCurrencySnapshot() {
   return snapshot;
 }
@@ -56,6 +66,7 @@ export async function hydrateCurrencyFromStorage() {
       const parsed = JSON.parse(raw);
       snapshot = {
         code: sanitizeCode(parsed?.code),
+        countryCode: sanitizeCountryCode(parsed?.countryCode),
         rates: parsed?.rates && typeof parsed.rates === "object" ? parsed.rates : {},
       };
     }
@@ -67,10 +78,15 @@ export async function hydrateCurrencyFromStorage() {
 
 // `code` is the newly selected currency; `rates` (optional) refreshes the
 // USD-relative rate table at the same time (Currency Switcher fetches these
-// alongside the market/currency list).
-export async function setActiveCurrency({ code, rates } = {}) {
+// alongside the market/currency list). `countryCode` (optional) is the
+// selected market's real ISO country code from Shopify — checkout uses it
+// as buyerIdentity.countryCode so the presentment currency at checkout
+// matches what was shown while browsing (see services/shopify.js's
+// resolveBuyerCountryCode).
+export async function setActiveCurrency({ code, countryCode, rates } = {}) {
   snapshot = {
     code: sanitizeCode(code) || snapshot.code,
+    countryCode: countryCode !== undefined ? sanitizeCountryCode(countryCode) : snapshot.countryCode,
     rates: rates && typeof rates === "object" ? rates : snapshot.rates,
   };
   try {

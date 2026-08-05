@@ -11,7 +11,7 @@ import { useNavigation } from "@react-navigation/native";
 import { useDispatch, useSelector } from "react-redux";
 import FontAwesome from "react-native-vector-icons/FontAwesome";
 import { dedupeWishlistProducts, toggleWishlist } from "../store/slices/wishlistSlice";
-import Snackbar from "./Snackbar";
+import { useToast } from "./ToastProvider";
 import { resolveFont } from "../services/typographyService";
 import FavoriteToggleButton, { buildFavoriteToggleConfig } from "./FavoriteToggleButton";
 import {
@@ -70,6 +70,7 @@ const buildRawProps = (rawProps = {}) => {
 export default function WishlistItem({ section }) {
   const navigation = useNavigation();
   const dispatch = useDispatch();
+  const showToast = useToast();
   const { width: screenWidth } = useWindowDimensions();
 
   // Currency Switcher writes here; re-render the price when the shopper
@@ -88,7 +89,6 @@ export default function WishlistItem({ section }) {
     };
   }, []);
   const wishlistItems = useSelector((state) => dedupeWishlistProducts(state.wishlist?.items || []));
-  const [snackVisible, setSnackVisible] = useState(false);
 
   const rawProps =
     section?.props ||
@@ -328,7 +328,11 @@ export default function WishlistItem({ section }) {
                       e?.stopPropagation?.();
                       e?.preventDefault?.();
                       dispatch(toggleWishlist({ product }));
-                      setSnackVisible(true);
+                      showToast({
+                        message: removeSnackbarMessage,
+                        type: "info",
+                        duration: 2500,
+                      });
                     }}
                     accessibilityLabel="Remove from wishlist"
                   />
@@ -394,13 +398,6 @@ export default function WishlistItem({ section }) {
           );
         })}
       </View>
-      <Snackbar
-        visible={snackVisible}
-        message={removeSnackbarMessage}
-        onDismiss={() => setSnackVisible(false)}
-        duration={2500}
-        type="info"
-      />
     </View>
   );
 }

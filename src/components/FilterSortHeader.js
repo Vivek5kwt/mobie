@@ -292,26 +292,22 @@ export default function FilterSortHeader({
     setTempFilters((prev) => (prev.includes(value) ? prev.filter((v) => v !== value) : [...prev, value]));
   };
 
+  // The Sort header row is now always the single Builder/DSL-matching
+  // button (see render below) — the old per-option inline pills that used
+  // to call this with legacyFilterMode true (immediate apply + close, no
+  // explicit "Apply" step) are gone, so this always uses Builder's actual
+  // behavior: selecting a row keeps the drawer open until "Apply" is tapped.
   const handleSortSelect = (value) => {
-    if (legacyFilterMode) {
-      setSelectedSort(value);
-      setShowSort(false);
-      onSortChange && onSortChange(value);
-      return;
-    }
     setSelectedSort(value);
     setSortFilterState({ sortOption: value, selectedFilters });
     onSortChange && onSortChange(value);
-    // Builder keeps the drawer open on selection — only "Apply" closes it.
   };
 
   const handleOpenSort = () => {
-    if (!legacyFilterMode) {
-      // Matches Builder: opening the Sort drawer always resets to "Best Selling".
-      setSelectedSort("Best Selling");
-      setSortFilterState({ sortOption: "Best Selling", selectedFilters });
-      onSortChange && onSortChange("Best Selling");
-    }
+    // Matches Builder: opening the Sort drawer always resets to "Best Selling".
+    setSelectedSort("Best Selling");
+    setSortFilterState({ sortOption: "Best Selling", selectedFilters });
+    onSortChange && onSortChange("Best Selling");
     setShowSort(true);
     setShowFilter(false);
   };
@@ -378,141 +374,65 @@ export default function FilterSortHeader({
     <>
       <View style={[styles.container, containerStyle]}>
         <View style={styles.headerRow}>
-          {legacyFilterMode ? (
-            <ScrollView
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              contentContainerStyle={styles.leftScroll}
-            >
-              {cardTitleVisible ? (
-                <TouchableOpacity
-                  style={[styles.pillButton, filterButtonStyle]}
-                  activeOpacity={0.75}
-                  onPress={() => {
-                    setShowFilter(true);
-                    setShowSort(false);
+          <View style={styles.leftGroup}>
+            {cardTitleVisible ? (
+              <TouchableOpacity
+                style={[styles.pillButton, filterButtonStyle]}
+                activeOpacity={0.75}
+                onPress={() => {
+                  setShowFilter(true);
+                  setShowSort(false);
+                }}
+              >
+                {alignFilterIcon !== "Right" && imageVisible ? (
+                  <View style={styles.pillIconGap}>{renderIconGlyph(iconType, iconHeight, titleIconColor)}</View>
+                ) : null}
+                <Text
+                  style={{
+                    fontSize: titleFontSize,
+                    fontWeight: titleFontWeight,
+                    color: titleColor,
+                    fontFamily: titleFontFamily,
                   }}
                 >
-                  {alignFilterIcon !== "Right" && imageVisible ? (
-                    <View style={styles.pillIconGap}>{renderIconGlyph(iconType, iconHeight, titleIconColor)}</View>
-                  ) : null}
-                  <Text
-                    style={{
-                      fontSize: titleFontSize,
-                      fontWeight: titleFontWeight,
-                      color: titleColor,
-                      fontFamily: titleFontFamily,
-                    }}
-                    numberOfLines={1}
-                  >
-                    {activeFilter?.label || "Filter"}
-                  </Text>
-                  {alignFilterIcon === "Right" && imageVisible ? (
-                    <View style={styles.pillIconGap}>{renderIconGlyph(iconType, iconHeight, titleIconColor)}</View>
-                  ) : null}
-                </TouchableOpacity>
-              ) : null}
+                  Filter
+                </Text>
+                {alignFilterIcon === "Right" && imageVisible ? (
+                  <View style={styles.pillIconGap}>{renderIconGlyph(iconType, iconHeight, titleIconColor)}</View>
+                ) : null}
+              </TouchableOpacity>
+            ) : null}
 
-              {sortTitleVisible
-                ? SORT_OPTIONS.map((label) => {
-                    const active = selectedSort === label;
-                    return (
-                      <TouchableOpacity
-                        key={label}
-                        style={[
-                          styles.pillButton,
-                          sortButtonStyle,
-                          active ? { borderColor: sorttitleColor } : null,
-                        ]}
-                        activeOpacity={0.75}
-                        onPress={() => handleSortSelect(label)}
-                      >
-                        {sortalignIcon !== "Right" && sortimageVisible ? (
-                          <View style={styles.pillIconGap}>
-                            {renderIconGlyph(sorticonType, sorticonHeight, sorttitleIconColor)}
-                          </View>
-                        ) : null}
-                        <Text
-                          style={{
-                            fontSize: sorttitleFontSize,
-                            fontWeight: sorttitleFontWeight,
-                            color: sorttitleColor,
-                            fontFamily: sorttitleFontFamily,
-                          }}
-                        >
-                          {label}
-                        </Text>
-                        {sortalignIcon === "Right" && sortimageVisible ? (
-                          <View style={styles.pillIconGap}>
-                            {renderIconGlyph(sorticonType, sorticonHeight, sorttitleIconColor)}
-                          </View>
-                        ) : null}
-                      </TouchableOpacity>
-                    );
-                  })
-                : null}
-            </ScrollView>
-          ) : (
-            <View style={styles.leftGroup}>
-              {cardTitleVisible ? (
-                <TouchableOpacity
-                  style={[styles.pillButton, filterButtonStyle]}
-                  activeOpacity={0.75}
-                  onPress={() => {
-                    setShowFilter(true);
-                    setShowSort(false);
+            {sortTitleVisible ? (
+              <TouchableOpacity
+                style={[styles.pillButton, sortButtonStyle]}
+                activeOpacity={0.75}
+                onPress={handleOpenSort}
+              >
+                {sortalignIcon !== "Right" && sortimageVisible ? (
+                  <View style={styles.pillIconGap}>
+                    {renderIconGlyph(sorticonType, sorticonHeight, sorttitleIconColor)}
+                  </View>
+                ) : null}
+                <Text
+                  style={{
+                    fontSize: sorttitleFontSize,
+                    fontWeight: sorttitleFontWeight,
+                    color: sorttitleColor,
+                    fontFamily: sorttitleFontFamily,
                   }}
+                  numberOfLines={1}
                 >
-                  {alignFilterIcon !== "Right" && imageVisible ? (
-                    <View style={styles.pillIconGap}>{renderIconGlyph(iconType, iconHeight, titleIconColor)}</View>
-                  ) : null}
-                  <Text
-                    style={{
-                      fontSize: titleFontSize,
-                      fontWeight: titleFontWeight,
-                      color: titleColor,
-                      fontFamily: titleFontFamily,
-                    }}
-                  >
-                    Filter
-                  </Text>
-                  {alignFilterIcon === "Right" && imageVisible ? (
-                    <View style={styles.pillIconGap}>{renderIconGlyph(iconType, iconHeight, titleIconColor)}</View>
-                  ) : null}
-                </TouchableOpacity>
-              ) : null}
-
-              {sortTitleVisible ? (
-                <TouchableOpacity
-                  style={[styles.pillButton, sortButtonStyle]}
-                  activeOpacity={0.75}
-                  onPress={handleOpenSort}
-                >
-                  {sortalignIcon !== "Right" && sortimageVisible ? (
-                    <View style={styles.pillIconGap}>
-                      {renderIconGlyph(sorticonType, sorticonHeight, sorttitleIconColor)}
-                    </View>
-                  ) : null}
-                  <Text
-                    style={{
-                      fontSize: sorttitleFontSize,
-                      fontWeight: sorttitleFontWeight,
-                      color: sorttitleColor,
-                      fontFamily: sorttitleFontFamily,
-                    }}
-                    numberOfLines={1}
-                  >
-                    {sortButtonText}
-                  </Text>
-                  {sortalignIcon === "Right" && sortimageVisible ? (
-                    <View style={styles.pillIconGap}>
-                      {renderIconGlyph(sorticonType, sorticonHeight, sorttitleIconColor)}
-                    </View>
-                  ) : null}
-                </TouchableOpacity>
-              ) : null}
-            </View>
-          )}
+                  {sortButtonText}
+                </Text>
+                {sortalignIcon === "Right" && sortimageVisible ? (
+                  <View style={styles.pillIconGap}>
+                    {renderIconGlyph(sorticonType, sorticonHeight, sorttitleIconColor)}
+                  </View>
+                ) : null}
+              </TouchableOpacity>
+            ) : null}
+          </View>
 
           <View style={[styles.columnBox, columnBoxStyle]}>
             {columnPickerVisible ? (

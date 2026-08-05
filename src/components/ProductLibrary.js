@@ -17,7 +17,7 @@ import { useDispatch, useSelector } from "react-redux";
 import { PinchGestureHandler, State } from "react-native-gesture-handler";
 import FontAwesome from "react-native-vector-icons/FontAwesome";
 import { getWishlistKeys, isWishlistProduct, toggleWishlist } from "../store/slices/wishlistSlice";
-import Snackbar from "./Snackbar";
+import { useToast } from "./ToastProvider";
 import { useAuth } from "../services/AuthContext";
 import { requireLoginForAction } from "../utils/authGate";
 import { resolveProductImageResizeMode } from "../utils/productImageFit";
@@ -119,12 +119,11 @@ export default function ProductLibrary({ section }) {
   const navigation = useNavigation();
   const route = useRoute();
   const dispatch = useDispatch();
+  const showToast = useToast();
   const { session, initializing } = useAuth();
   const wishlistItems = useSelector((state) => state.wishlist?.items || []);
   const [isFullscreenVisible, setIsFullscreenVisible] = useState(false);
   const [currentIdx,          setCurrentIdx]          = useState(0);
-  const [snackVisible,        setSnackVisible]        = useState(false);
-  const [snackMessage,        setSnackMessage]        = useState("");
   const [galleryWidth,        setGalleryWidth]        = useState(Dimensions.get("window").width);
   const galleryRef = useRef(null);
 
@@ -229,6 +228,27 @@ export default function ProductLibrary({ section }) {
       autoplayIntervalSeconds * 1000
     )
   );
+  // Thumbnail strip border — mirrors Builder's ProductLibrary/PreviewLive.tsx
+  // exactly (sliderBorderColor/sliderActiveBorderColor/sliderImageCorner):
+  // unselected thumbs get a 1px border in sliderBorderColor, the active
+  // thumb gets a 2px border in sliderActiveBorderColor. These were previously
+  // hardcoded in this file's StyleSheet (transparent / #0D9488), ignoring
+  // the Inspector's Slider > Border Color / Active Border Color fields.
+  const thumbBorderColor = toString(
+    firstDefined(raw?.sliderBorderColor, sliderConfig?.borderColor),
+    "#ffffff"
+  );
+  const thumbActiveBorderColor = toString(
+    firstDefined(raw?.sliderActiveBorderColor, sliderConfig?.activeBorderColor),
+    "#ffffff"
+  );
+  const thumbCorner = Math.max(
+    0,
+    Math.min(
+      30,
+      toNumber(firstDefined(raw?.sliderImageCorner, sliderConfig?.imageCorner), 20)
+    )
+  );
 
   // ── Visibility toggles ────────────────────────────────────────────────────
   const showRating = toBoolean(raw?.showRating, true);
@@ -274,8 +294,11 @@ export default function ProductLibrary({ section }) {
         },
       })
     );
-    setSnackMessage(adding ? "Product added to wishlist successfully." : "Product removed from wishlist successfully.");
-    setSnackVisible(true);
+    showToast({
+      message: adding ? "Product added to wishlist successfully." : "Product removed from wishlist successfully.",
+      type: "success",
+      duration: 2500,
+    });
   };
 
   useEffect(() => {
@@ -671,23 +694,30 @@ export default function ProductLibrary({ section }) {
           showsHorizontalScrollIndicator={false}
           contentContainerStyle={styles.thumbRow}
         >
-          {images.map((uri, idx) => (
-            <TouchableOpacity
-              key={`thumb-${idx}`}
-              onPress={() => scrollToImage(idx)}
-              activeOpacity={0.8}
-            >
-              <Image
-                source={{ uri }}
-                style={[
-                  styles.thumb,
-                  { backgroundColor: imageBgColor },
-                  idx === currentIdx && styles.thumbActive,
-                ]}
-                resizeMode={resizeMode}
-              />
-            </TouchableOpacity>
-          ))}
+          {images.map((uri, idx) => {
+            const isActiveThumb = idx === currentIdx;
+            return (
+              <TouchableOpacity
+                key={`thumb-${idx}`}
+                onPress={() => scrollToImage(idx)}
+                activeOpacity={0.8}
+              >
+                <Image
+                  source={{ uri }}
+                  style={[
+                    styles.thumb,
+                    {
+                      backgroundColor: imageBgColor,
+                      borderRadius: thumbCorner,
+                      borderWidth: isActiveThumb ? 2 : 1,
+                      borderColor: isActiveThumb ? thumbActiveBorderColor : thumbBorderColor,
+                    },
+                  ]}
+                  resizeMode={resizeMode}
+                />
+              </TouchableOpacity>
+            );
+          })}
         </ScrollView>
       )}
 
@@ -744,14 +774,6 @@ export default function ProductLibrary({ section }) {
           </Pressable>
         </Pressable>
       </Modal>
-
-      <Snackbar
-        visible={snackVisible}
-        message={snackMessage}
-        onDismiss={() => setSnackVisible(false)}
-        duration={2500}
-        type="success"
-      />
     </View>
   );
 }
@@ -803,15 +825,9 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   thumb: {
-    width: 54,
-    height: 54,
-    borderRadius: 10,
+    width: 60,
+    height: 60,
     backgroundColor: "#FFFFFF",
-    borderWidth: 2,
-    borderColor: "transparent",
-  },
-  thumbActive: {
-    borderColor: "#0D9488",
   },
   // ── Pagination dots ───────────────────────────────────────────────────────
   dotsRow: {

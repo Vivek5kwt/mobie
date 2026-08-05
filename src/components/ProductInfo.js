@@ -7,6 +7,7 @@ import {
   hydrateCurrencyFromStorage,
   subscribeCurrency,
 } from "../utils/currencyStore";
+import { getVariantSelection, subscribeVariantSelection } from "../utils/variantSelectionStore";
 
 const unwrapValue = (value, fallback = undefined) => {
   if (value === undefined || value === null) return fallback;
@@ -63,6 +64,15 @@ export default function ProductInfo({ section }) {
     };
   }, []);
 
+  // Re-render when the (sibling, prop-disconnected) VariantSelector block
+  // resolves a new color/size pick, so the displayed price always matches
+  // the variant that will actually be added to cart — see
+  // utils/variantSelectionStore.js.
+  const [, setVariantVersion] = useState(0);
+  useEffect(() => {
+    return subscribeVariantSelection(() => setVariantVersion((v) => v + 1));
+  }, []);
+
   const propsNode =
     section?.properties?.props?.properties ||
     section?.properties?.props ||
@@ -96,8 +106,13 @@ export default function ProductInfo({ section }) {
   // ── Product data ────────────────────────────────────────────────────────────
   const titleText      = toString(raw?.titleText ?? raw?.title, toString(titleCss?.text, ""));
   const vendorText     = toString(raw?.vendorText ?? raw?.shop, toString(vendorCss?.text, ""));
+
+  const productKey = toString(raw?.id) || toString(raw?.handle);
+  const selectedVariant = productKey ? getVariantSelection(productKey) : null;
+
   const currencyLabel  = toString(
-    raw?.priceCurrency ??
+    selectedVariant?.price?.currencyCode ??
+      raw?.priceCurrency ??
       raw?.currencyCode ??
       raw?.currency ??
       raw?.currencySymbol ??
@@ -106,8 +121,10 @@ export default function ProductInfo({ section }) {
       priceCss?.currencySymbol,
     "$"
   );
-  const salePrice      = raw?.salePrice ?? priceCss?.salePrice;
-  const standardPrice  = raw?.standardPrice ?? priceCss?.standardPrice;
+  const salePrice      = selectedVariant?.price != null ? selectedVariant.price : (raw?.salePrice ?? priceCss?.salePrice);
+  const standardPrice  = selectedVariant?.compareAtPrice != null
+    ? selectedVariant.compareAtPrice
+    : (raw?.standardPrice ?? priceCss?.standardPrice);
 
   // ── Rating ──────────────────────────────────────────────────────────────────
   const ratingValue     = toString(raw?.ratingText ?? raw?.rating, toString(ratingCss?.value, ""));

@@ -27,7 +27,7 @@ import {
   subscribeCurrency,
 } from "../utils/currencyStore";
 import { ADD_TO_CART_SUCCESS_MESSAGE, resolveCartNavigationParams } from "../utils/cartFeedback";
-import Snackbar from "./Snackbar";
+import { useToast } from "./ToastProvider";
 
 // ─── DSL helpers ─────────────────────────────────────────────────────────────
 
@@ -178,6 +178,7 @@ const normalizeProducts = (value) => {
 export default function RecentProducts({ section }) {
   const navigation = useNavigation();
   const dispatch   = useDispatch();
+  const showToast = useToast();
   const { session, initializing } = useAuth();
   const wishlistItems = useSelector((state) => state.wishlist?.items || []);
 
@@ -410,7 +411,6 @@ export default function RecentProducts({ section }) {
   // ── Data fetch ─────────────────────────────────────────────────────────────
   const [products, setProducts] = useState(() => manualProducts);
   const [loading,  setLoading]  = useState(false);
-  const [cartSnackbarVisible, setCartSnackbarVisible] = useState(false);
 
   const loadProducts = useCallback(async () => {
     if (hasManualProducts) {
@@ -456,7 +456,13 @@ export default function RecentProducts({ section }) {
         quantity:       1,
       },
     }));
-    setCartSnackbarVisible(true);
+    showToast({
+      message: addedToCartMessage,
+      actionLabel: snackbarActionText,
+      onAction: () => navigation.navigate("BottomNavScreen", resolveCartNavigationParams(section)),
+      type: "success",
+      duration: 2500,
+    });
   };
 
   const handleProductPress = (product) => {
@@ -667,15 +673,6 @@ export default function RecentProducts({ section }) {
           })}
         </View>
       )}
-      <Snackbar
-        visible={cartSnackbarVisible}
-        message={addedToCartMessage}
-        actionLabel={snackbarActionText}
-        onAction={() => navigation.navigate("BottomNavScreen", resolveCartNavigationParams(section))}
-        onDismiss={() => setCartSnackbarVisible(false)}
-        duration={2500}
-        type="success"
-      />
     </View>
   );
 }

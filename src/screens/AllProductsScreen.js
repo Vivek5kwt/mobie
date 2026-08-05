@@ -19,7 +19,7 @@ import { SafeArea } from "../utils/SafeAreaHandler";
 import HeaderDefault from "../components/HeaderDefault";
 import FilterSortHeader from "../components/FilterSortHeader";
 import BottomNavigation, { BOTTOM_NAV_RESERVED_HEIGHT } from "../components/BottomNavigation";
-import Snackbar from "../components/Snackbar";
+import { useToast } from "../components/ToastProvider";
 import { fetchDSL } from "../engine/dslHandler";
 import DynamicRenderer from "../engine/DynamicRenderer";
 import { resolveAppId } from "../utils/appId";
@@ -251,6 +251,7 @@ export default function AllProductsScreen() {
   const navigation = useNavigation();
   const route = useRoute();
   const dispatch = useDispatch();
+  const showToast = useToast();
   const { width: screenWidth } = useWindowDimensions();
   const { session, initializing } = useAuth();
   const { title, detailSections } = route?.params || {};
@@ -281,8 +282,6 @@ export default function AllProductsScreen() {
   const [productListGridSection, setProductListGridSection] = useState(null);
   const [productListFilterSortSection, setProductListFilterSortSection] = useState(null);
   const [productListDslReady, setProductListDslReady] = useState(false);
-  const [cartSnackbarVisible, setCartSnackbarVisible] = useState(false);
-  const [cartSnackbarMessage, setCartSnackbarMessage] = useState("");
   const favoriteToggleConfig = useMemo(() => buildFavoriteToggleConfig(), []);
   const cartSnackbarTimerRef = useRef(null);
 
@@ -629,9 +628,9 @@ export default function AllProductsScreen() {
       })
     );
     if (cartSnackbarTimerRef.current) clearTimeout(cartSnackbarTimerRef.current);
-    setCartSnackbarVisible(false);
-    setCartSnackbarMessage(ADD_TO_CART_SUCCESS_MESSAGE);
-    cartSnackbarTimerRef.current = setTimeout(() => setCartSnackbarVisible(true), 0);
+    cartSnackbarTimerRef.current = setTimeout(() => {
+      showToast({ message: ADD_TO_CART_SUCCESS_MESSAGE, type: "success", duration: 2500 });
+    }, 0);
   };
 
   const resultHeaderConfig = productListHeaderConfig || homeHeaderConfig;
@@ -1023,14 +1022,6 @@ export default function AllProductsScreen() {
             <BottomNavigation section={bottomNavSection} />
           </View>
         )}
-
-        <Snackbar
-          visible={cartSnackbarVisible}
-          message={cartSnackbarMessage}
-          onDismiss={() => setCartSnackbarVisible(false)}
-          duration={2500}
-          type="success"
-        />
       </View>
     </SafeArea>
   );

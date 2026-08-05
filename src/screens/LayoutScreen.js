@@ -14,7 +14,7 @@ import { useFocusEffect } from "@react-navigation/native";
 import DynamicRenderer from "../engine/DynamicRenderer";
 import SkeletonLoader from "../components/SkeletonLoader";
 import HeaderDefault from "../components/HeaderDefault";
-import Snackbar from "../components/Snackbar";
+import { useToast } from "../components/ToastProvider";
 import { fetchDSL } from "../engine/dslHandler";
 import { shouldRenderSectionOnMobile } from "../engine/visibility";
 import { SafeArea } from "../utils/SafeAreaHandler";
@@ -44,6 +44,7 @@ function _cacheKey(appId, pageName) {
 
 export default function LayoutScreen({ route, navigation }) {
   const { session } = useAuth();
+  const showToast = useToast();
   const pageName = route?.params?.pageName || "home";
   const normalizedPageName =
     typeof pageName === "string"
@@ -73,7 +74,6 @@ export default function LayoutScreen({ route, navigation }) {
   const [err, setErr] = useState(null);
   const [refreshing, setRefreshing] = useState(false);
   const [homeHeaderSections, setHomeHeaderSections] = useState([]);
-  const [snackbar, setSnackbar] = useState({ visible: false, message: "", type: "info" });
   const [isSideMenuOpen, setIsSideMenuOpen] = useState(false);
   const [bottomNavHeight, setBottomNavHeight] = useState(BOTTOM_NAV_RESERVED_HEIGHT);
   const versionRef = useRef(null);
@@ -319,7 +319,7 @@ export default function LayoutScreen({ route, navigation }) {
   );
 
   const showSnackbar = (message, type = "info") => {
-    setSnackbar({ visible: true, message, type });
+    showToast({ message, type, actionLabel: "Dismiss" });
   };
 
   useEffect(() => {
@@ -774,15 +774,6 @@ export default function LayoutScreen({ route, navigation }) {
               />
             </View>
           )}
-
-          <Snackbar
-            visible={snackbar.visible}
-            message={snackbar.message}
-            type={snackbar.type}
-            actionLabel="Dismiss"
-            onAction={() => setSnackbar((prev) => ({ ...prev, visible: false }))}
-            onDismiss={() => setSnackbar((prev) => ({ ...prev, visible: false }))}
-          />
         </View>
       </SideMenuProvider>
     </SafeArea>

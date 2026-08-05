@@ -21,7 +21,7 @@ import {
 import { addItem } from "../store/slices/cartSlice";
 import { getWishlistUserKey, isWishlistProduct, toggleWishlist } from "../store/slices/wishlistSlice";
 import { resolveTextDecorationLine } from "../utils/textDecoration";
-import Snackbar from "./Snackbar";
+import { useToast } from "./ToastProvider";
 import { useAuth } from "../services/AuthContext";
 import { requireLoginForAction } from "../utils/authGate";
 import { resolveProductImageResizeMode } from "../utils/productImageFit";
@@ -290,6 +290,7 @@ const parseAspectRatio = (ratio) => {
 export default function ProductCarousel({ section }) {
   const navigation = useNavigation();
   const dispatch = useDispatch();
+  const showToast = useToast();
   const { width: screenWidth } = useWindowDimensions();
   const [measuredWidth, setMeasuredWidth] = useState(0);
   const { session, initializing } = useAuth();
@@ -298,8 +299,6 @@ export default function ProductCarousel({ section }) {
   const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
-  const [snackVisible, setSnackVisible] = useState(false);
-  const [snackMessage, setSnackMessage] = useState("");
   const [currencyVersion, setCurrencyVersion] = useState(0);
   const favoriteTapRef = useRef(false);
 
@@ -411,7 +410,6 @@ export default function ProductCarousel({ section }) {
   // DSL nests grid sub-props under grid.properties; fall back to grid itself for flat schemas
   const gridNode = raw?.grid || {};
   const grid = gridNode?.properties || gridNode;
-  const columns = Math.max(1, toNumber(grid?.columns, 2));
   const itemsShown = toNumber(grid?.itemsShown, 3);
 
   const containerStyleFromCss = stripNonStyleObjects(convertStyles(containerCss));
@@ -806,78 +804,47 @@ export default function ProductCarousel({ section }) {
       ? Math.max(0, metricNumber(secondCardMetric, "x", 0) - metricNumber(firstCardMetric, "x", 0) - metricCardWidth)
       : undefined;
   const effectiveColGap = resolveFirstNumber([raw?.colGap, raw?.horizontalGap, metricGap !== undefined ? metricGap * metricScale : undefined, colGap], colGap);
-  const explicitVisibleCards = [
-    raw?.visibleItems,
-    raw?.visibleCards,
-    raw?.itemsPerView,
-    raw?.cardsPerView,
-    raw?.slidesPerView,
-    raw?.perView,
-    grid?.visibleItems,
-    grid?.visibleCards,
-    grid?.itemsPerView,
-    grid?.cardsPerView,
-  ].some(hasExplicitValue);
-  const explicitCardWidth = [
-    raw?.cardWidth,
-    raw?.productCardWidth,
-    raw?.itemWidth,
-    cardStyleFromCss?.width,
-    metricCardWidth,
-  ].some(hasExplicitValue);
-  const requestedVisibleCards = Math.max(
-    1,
-    resolveFirstNumber(
-      [
-        raw?.visibleItems,
-        raw?.visibleCards,
-        raw?.itemsPerView,
-        raw?.cardsPerView,
-        raw?.slidesPerView,
-        raw?.perView,
-        grid?.visibleItems,
-        grid?.visibleCards,
-        grid?.itemsPerView,
-        grid?.cardsPerView,
-        grid?.columns,
-        columns,
-      ],
-      columns || 2
-    )
-  );
-  const configuredPeekFraction = resolveFirstNumber(
-    [
-      raw?.peekFraction,
-      raw?.nextItemPeekFraction,
-      raw?.previewFraction,
-      raw?.carouselPeekFraction,
-      grid?.peekFraction,
-    ],
-    undefined
-  );
-  const peekEnabled = toBoolean(
-    raw?.showPeek ?? raw?.peekEnabled ?? raw?.showNextPreview ?? grid?.showPeek,
-    true
-  );
+  // Card width/visible-slot count mirrors the Builder's own
+  // ProductCarousel/PreviewLive.tsx exactly (its `cardBasis`): Items Shown
+  // only controls how many *scrollable* items exist (see products.slice
+  // below) — visual density is a separate, simpler rule the Builder uses
+  // for every carousel: fewer than 3 items shown → exactly 2 cards fill the
+  // row; 3 or more → always 2 full cards + a half-width peek of the 3rd,
+  // regardless of the exact Items Shown value beyond that (not "N full +
+  // a peek of N+1" scaling with the count — that doesn't match what the
+  // Builder's own preview shows, which is what this needs to mirror).
+  // Both of the Builder's cases subtract exactly one gap's worth from the
+  // available width before dividing by the slot count.
+  const baseVisibleSlots = itemsShown >= 3 ? 2.5 : 2;
+  const requestedVisibleCards = Math.max(1, Math.round(baseVisibleSlots));
   const visibleCards = getResponsiveColumns({
     screenWidth: viewportWidth,
     requestedColumns: requestedVisibleCards,
     horizontalPadding,
     gap: effectiveColGap,
-    minCardWidth: requestedVisibleCards >= 3 ? 80 : 140,
+    minCardWidth: itemsShown >= 3 ? 80 : 140,
     maxColumns: 6,
   });
-  const carouselVisibleSlots =
-    !explicitVisibleCards && !explicitCardWidth && peekEnabled
-      ? visibleCards + Math.max(0, configuredPeekFraction ?? 0.5)
-      : visibleCards;
-  const carouselGapCount = Math.max(
-    0,
-    Math.ceil(carouselVisibleSlots) - 1
-  );
+  // getResponsiveColumns only ever changes `requested` on tablet-width
+  // screens (it returns it unchanged on phones) — when it does, an integer
+  // column count sized for the wider screen is more useful than the
+  // Builder's fixed phone-oriented 2/2.5 slots.
+  const isPhoneWidth = visibleCards === requestedVisibleCards;
+  const carouselVisibleSlots = isPhoneWidth ? baseVisibleSlots : visibleCards;
+  const carouselGapCount = isPhoneWidth ? 1 : Math.max(0, carouselVisibleSlots - 1);
   const fallbackCardWidth = Math.floor(
     (availableWidth - effectiveColGap * carouselGapCount) / carouselVisibleSlots
   );
+  // cardStyleFromCss?.width and metricCardWidth are a CSS/DOM snapshot
+  // frozen at whatever Items Shown was set to in the Builder at save time —
+  // trusting them here meant changing Items Shown in the Inspector had no
+  // effect on the actual card width shown in the app, since the saved
+  // snapshot always won over fallbackCardWidth (which is the one value
+  // above that's actually computed from the live itemsShown). The Builder
+  // also had no Inspector control for raw.cardWidth/productCardWidth/
+  // itemWidth (confirmed: not written anywhere in ProductCarousel's DSL
+  // save path), so they're kept only as a no-op forward-compat hook, not a
+  // real merchant override today.
   const cardWidth = Math.max(
     0,
     Math.floor(resolveFirstNumber(
@@ -885,8 +852,6 @@ export default function ProductCarousel({ section }) {
         raw?.cardWidth,
         raw?.productCardWidth,
         raw?.itemWidth,
-        cardStyleFromCss?.width,
-        metricCardWidth !== undefined ? metricCardWidth * metricScale : undefined,
       ],
       fallbackCardWidth
     ))
@@ -960,7 +925,15 @@ export default function ProductCarousel({ section }) {
     loadInFlightRef.current = true;
     lastLoadAtRef.current = now;
 
-    const safeFirst = Math.max(1, Number(itemsShown) || 4);
+    // Matches the Builder's ProductCarousel/PreviewLive.tsx exactly: it
+    // always fetches a fixed 100-product buffer regardless of Items Shown,
+    // then slices down to itemsShown for display (see products.slice below)
+    // — this used to fetch exactly `itemsShown` up front instead, so any
+    // inactive/draft product within that narrow window (filtered out
+    // client-side just below) silently reduced the final count by one.
+    // Only happened in collections that had such a product near the front,
+    // which is why it looked collection-specific rather than a flat bug.
+    const safeFirst = 100;
     const shopOptions = { shop: shopifyDomain || undefined, token: shopifyToken || undefined };
 
     setLoading(true);
@@ -1005,7 +978,7 @@ export default function ProductCarousel({ section }) {
         setLoading(false);
       }
     }
-  }, [useCollectionFetch, collectionHandle, itemsShown, shopifyDomain, shopifyToken]);
+  }, [useCollectionFetch, collectionHandle, shopifyDomain, shopifyToken]);
 
   // Initial load and reload whenever data-source params change
   useEffect(() => {
@@ -1050,8 +1023,13 @@ export default function ProductCarousel({ section }) {
         },
       })
     );
-    setSnackMessage(ADD_TO_CART_SUCCESS_MESSAGE);
-    setSnackVisible(true);
+    showToast({
+      message: ADD_TO_CART_SUCCESS_MESSAGE,
+      actionLabel: "View Cart",
+      onAction: openCartScreen,
+      type: "success",
+      duration: 2500,
+    });
   };
 
   const openCartScreen = () => {
@@ -1244,8 +1222,11 @@ export default function ProductCarousel({ section }) {
               },
             })
           );
-          setSnackMessage(adding ? "Product added to wishlist successfully." : "Product removed from wishlist successfully.");
-          setSnackVisible(true);
+          showToast({
+            message: adding ? "Product added to wishlist successfully." : "Product removed from wishlist successfully.",
+            type: "success",
+            duration: 2500,
+          });
         }}
         onPressIn={(e) => {
           e?.stopPropagation?.();
@@ -1618,15 +1599,6 @@ export default function ProductCarousel({ section }) {
           })}
         </ScrollView>
       )}
-      <Snackbar
-        visible={snackVisible}
-        message={snackMessage}
-        actionLabel={snackMessage === ADD_TO_CART_SUCCESS_MESSAGE ? "View Cart" : undefined}
-        onAction={snackMessage === ADD_TO_CART_SUCCESS_MESSAGE ? openCartScreen : undefined}
-        onDismiss={() => setSnackVisible(false)}
-        duration={2500}
-        type="success"
-      />
     </View>
   );
 }
