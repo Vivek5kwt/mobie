@@ -10,6 +10,7 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import tokenLogger from './src/utils/tokenLogger';
 import { resolveAppId } from './src/utils/appId';
 import { getFirebaseMessaging } from './src/utils/firebaseMessaging';
+import { navigateToDslTarget } from './src/utils/navigationTarget';
 
 import client from './src/apollo/client';
 import { StoreProvider } from './src/services/StoreContext';
@@ -52,6 +53,19 @@ const ORDER_NOTIFICATION_TYPES = new Set([
   'order_canceled',
 ]);
 
+/** Campaign deep-link paths (Automation flows' "Call to action" field) that
+ *  route to a specific screen rather than the generic navigateToDslTarget
+ *  fallback — matches the paths the Builder UI's CTA field currently offers. */
+const KNOWN_CAMPAIGN_DEEP_LINK_PATHS = new Set(['cart', 'orders', 'account']);
+
+const normalizeDeepLinkPath = (value: string) =>
+  String(value || '')
+    .trim()
+    .toLowerCase()
+    .replace(/^\/+/, '')
+    .split(/[?#]/)[0]
+    .split('/')[0];
+
 export default function App() {
   const navigationRef = useNavigationContainerRef();
   const routeNameRef = useRef<string | undefined>(undefined);
@@ -68,25 +82,47 @@ export default function App() {
     }
   }, []);
 
-  // ── Navigate to OrderDetail when user taps a notification ─────────────────
+  // ── Navigate when user taps a notification ─────────────────────────────────
+  // Campaign pushes (Automation flows) carry campaign_id/target/deep_link and
+  // no `type` at all, so they used to be silently ignored here — only the 3
+  // hardcoded order types ever navigated anywhere. Order notifications keep
+  // their exact previous behavior; deep_link handling is additive.
   const handleNotificationNavigation = useCallback(
     (remoteMessage: any) => {
       if (!remoteMessage) return;
       const data = remoteMessage?.data || {};
       const type: string = data?.type || '';
+      const deepLink: string = data?.deep_link || '';
 
-      if (!ORDER_NOTIFICATION_TYPES.has(type)) return;
+      if (deepLink && KNOWN_CAMPAIGN_DEEP_LINK_PATHS.has(normalizeDeepLinkPath(deepLink))) {
+        void navigateToDslTarget(navigationRef, { target: deepLink, fallbackTitle: 'Home' });
+        return;
+      }
 
-      // Build a minimal order object from the notification data payload
-      const order = {
-        orderNumber: data.orderId ? `#${data.orderId}` : data.orderNumber || '',
-        status: type === 'order_canceled' ? 'Canceled' : 'Order Placed',
-      };
+      if (ORDER_NOTIFICATION_TYPES.has(type)) {
+        // Build a minimal order object from the notification data payload
+        const order = {
+          orderNumber: data.orderId ? `#${data.orderId}` : data.orderNumber || '',
+          status: type === 'order_canceled' ? 'Canceled' : 'Order Placed',
+        };
 
-      // Navigate — works in background; for killed state use onReady callback below
-      try {
-        navigationRef.navigate('OrderDetail' as never, { order } as never);
-      } catch (_) {}
+        // Navigate — works in background; for killed state use onReady callback below
+        try {
+          navigationRef.navigate('OrderDetail' as never, { order } as never);
+        } catch (_) {}
+        return;
+      }
+
+      // Had a deep_link (this was a campaign push) but it didn't match a
+      // known path, and no recognized order type either — default to Home
+      // rather than leaving the tap with no effect. Notifications with
+      // neither field (unrelated to this app's push types) keep doing
+      // nothing, exactly as before.
+      if (deepLink) {
+        try {
+          navigationRef.navigate('LayoutScreen' as never, { pageName: 'home' } as never);
+        } catch (_) {}
+      }
     },
     [navigationRef],
   );

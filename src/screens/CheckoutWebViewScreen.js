@@ -16,7 +16,7 @@ import { SafeArea } from "../utils/SafeAreaHandler";
 import { useAuth } from "../services/AuthContext";
 import { isAuthenticatedSession } from "../utils/authGate";
 import { resolveAppId } from "../utils/appId";
-import { triggerOrderNotification, ORDER_EVENTS } from "../services/notificationService";
+import { triggerCampaign } from "../services/notificationService";
 import { saveCompletedOrder } from "../services/orderHistoryService";
 import { getStoreConfigSync } from "../services/storeService";
 import { fetchShopifyOrderDetails } from "../services/shopify";
@@ -974,13 +974,16 @@ export default function CheckoutWebViewScreen() {
       });
       const orderNumber = normalizeOrderNumber(order.orderNumber || order.name);
 
-      triggerOrderNotification({
-        type:        ORDER_EVENTS.ORDER_PLACED,
-        orderNumber,
-        orderId:     order.adminOrderId || order.adminGraphqlApiId || order.id || order.checkoutOrderReference || null,
-        appId:       resolvedAppId,
+      // Fires Builder's "Post Purchase" automation flow for this user.
+      // Covers both cart checkout and Buy Now — both land here, since
+      // AddToCart.js's handleBuyNow navigates to this same CheckoutWebView
+      // screen rather than having its own separate completion point.
+      void triggerCampaign({
+        storeId:  getStoreConfigSync()?.id,
         userId,
-      }).catch(() => {});
+        autoType: "postpurchase",
+        appId:    resolvedAppId,
+      });
 
       saveCompletedOrder({
         appId: resolvedAppId,

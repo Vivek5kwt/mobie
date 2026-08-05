@@ -7,6 +7,7 @@ import { fetchStoreConfig } from './storeService';
 import { loginCustomer } from './customerService';
 import { registerCustomer } from './customerService';
 import { createShopifyCustomerAccessToken, recoverShopifyCustomerPassword } from './shopify';
+import { triggerCampaign } from './notificationService';
 
 type UserProfile = {
   id?: number;
@@ -443,6 +444,16 @@ export const signup = async (
     console.log(
       `✅ User created — id: ${session.user.id}, email: ${session.user.email}, appId: ${session.user.appId}`,
     );
+
+    // Fires Builder's "Welcome" automation flow — signup only, never login,
+    // since this lives in signup() specifically. Never throws, so a
+    // notification failure can't turn a successful signup into an error.
+    void triggerCampaign({
+      storeId:  session.user.storeId,
+      userId:   session.user.id,
+      autoType: 'welcome',
+      appId:    session.user.appId,
+    });
 
     return session;
   } catch (error) {
