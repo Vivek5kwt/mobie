@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useRef } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   FlatList,
   Image,
@@ -13,6 +13,7 @@ import { WebView } from "react-native-webview";
 import { convertStyles } from "../utils/convertStyles";
 import { resolveFont } from "../services/typographyService";
 import { navigateToDslTarget } from "../utils/navigationTarget";
+import { fetchShopifyCollectionsList } from "../services/shopify";
 
 // ─── helpers ──────────────────────────────────────────────────────────────────
 
@@ -144,15 +145,30 @@ const buildCollections = (block = {}) => {
       const navigateType = asString(unwrapValue(p?.navigateType, ""));
       const navigateRef  = asString(unwrapValue(p?.navigateRef,  ""));
       const linkTo       = asString(unwrapValue(p?.linkTo,       ""));
-      const children = toArray(
-        p?.children ??
-        p?.items ??
-        p?.subCategories ??
-        p?.sub_categories ??
-        p?.subCollections ??
-        p?.sub_collections
+      // Sub-category items are saved in the exact same {properties:{title,
+      // image, handle, navigateType, ...}} shape as top-level items (see
+      // Builder's Collection/InspectorLive.tsx item editor) — run them
+      // through this same normalizer instead of leaving them as raw,
+      // still-wrapped DSL nodes the renderer can't read directly.
+      const children = buildCollections(
+        toArray(
+          p?.children ??
+          p?.items ??
+          p?.subCategories ??
+          p?.sub_categories ??
+          p?.subCollections ??
+          p?.sub_collections
+        )
       );
-      if (!title && !image) return null;
+      // A sub-category can be configured with only a "Navigate To" collection
+      // assignment and no custom title/image typed in (Builder's own
+      // rendering doesn't require either — it reads subCategories.length
+      // directly, with no title/image filter at all). Requiring title OR
+      // image here silently dropped exactly those sub-categories, leaving
+      // `children` empty and making every collection fall through to this
+      // component's "no sub-categories configured" sibling fallback instead
+      // of the real, assigned-collection sub-categories.
+      if (!title && !image && !handle && !navigateRef && !linkTo) return null;
       return { id, title, image, link, handle, children, navigateType, navigateRef, linkTo };
     })
     .filter(Boolean);
@@ -380,9 +396,19 @@ export default function CollectionImage({ section }) {
   })();
 
   // ── Card ─────────────────────────────────────────────────────────────────────
-  const showCardImage       = asBoolean(rawProps?.showCardImage, true);
+  // Builder's Collection/InspectorLive.tsx eye-toggles write flat
+  // `imageSettingsEnabled`/`cardTitleSettingsEnabled` (see PreviewLive.tsx's
+  // own prop destructuring) — neither was in this candidate list, so turning
+  // either off in Builder never reached the APK and the title/image always
+  // rendered regardless of the merchant's setting.
+  const showCardImage       = asBoolean(
+    firstDefined(rawProps?.imageSettingsEnabled, rawSnapshot?.imageSettingsEnabled, rawProps?.showCardImage),
+    true
+  );
   const showCardText        = asBoolean(
     firstDefined(
+      rawProps?.cardTitleSettingsEnabled,
+      rawSnapshot?.cardTitleSettingsEnabled,
       visibilityCfg?.collectionTitle,
       visibilityCfg?.cardTitle,
       visibilityCfg?.title,
@@ -462,6 +488,28 @@ export default function CollectionImage({ section }) {
     : imageShape === "circle" ? imageCircleRadius
     : Math.max(8, Math.round(Math.min(cardImageWidth, cardImageHeight) * 0.2));
 
+  // ── Sub-category card (matches Builder's Collection/PreviewLive.tsx SC-prefixed
+  // props exactly — a separate style set for the in-place sub-category grid
+  // shown after tapping a top-level collection card) ───────────────────────────
+  const scColumns          = Math.max(1, asNumber(firstDefined(rawProps?.SCcolumns, rawSnapshot?.SCcolumns), 2));
+  const scHGap             = asNumber(firstDefined(rawProps?.SChGap, rawSnapshot?.SChGap), 16);
+  const scVGap             = asNumber(firstDefined(rawProps?.SCvGap, rawSnapshot?.SCvGap), 24);
+  const subShowCardImage   = asBoolean(firstDefined(rawProps?.imageSettingsSubCEnabled, rawSnapshot?.imageSettingsSubCEnabled), true);
+  const subShowCardText    = asBoolean(firstDefined(rawProps?.cardTitleSettingsSubCEnabled, rawSnapshot?.cardTitleSettingsSubCEnabled), true);
+  const subCardTextSize    = asNumber(firstDefined(rawProps?.titleSubCFontSize, rawSnapshot?.titleSubCFontSize), 14);
+  const subCardTextColor   = asString(unwrapValue(firstDefined(rawProps?.titleSubCColor, rawSnapshot?.titleSubCColor), "#000000"));
+  const subCardTextWeight  = deriveFontWeight(firstDefined(rawProps?.titleSubCFontWeight, rawSnapshot?.titleSubCFontWeight), "500");
+  const subCardFontFamily  = cleanFontFamily(asString(unwrapValue(firstDefined(rawProps?.titleSubCFontFamily, rawSnapshot?.titleSubCFontFamily), "")));
+  const subCardTextAlign   = asString(unwrapValue(firstDefined(rawProps?.titleSubCAlign, rawSnapshot?.titleSubCAlign), "center")).toLowerCase();
+  const subTitlePosition   = asString(unwrapValue(firstDefined(rawProps?.titleSubCPosition, rawSnapshot?.titleSubCPosition), "inside")).toLowerCase();
+  const subImageScale      = asString(unwrapValue(firstDefined(rawProps?.imageSubCScale, rawSnapshot?.imageSubCScale), "cover")).toLowerCase();
+  const subImageAspectRatio = parseAspectRatio(firstDefined(rawProps?.imageSubCRatio, rawSnapshot?.imageSubCRatio), 16 / 5);
+  const scAvailableW        = screenW - containerPl - containerPr;
+  const subGridCardW        = (scAvailableW - scHGap * (scColumns - 1)) / scColumns;
+  const subImageWidth       = Math.max(0, subGridCardW - cardPaddingLeft - cardPaddingRight);
+  const subImageHeight      = subImageWidth / subImageAspectRatio;
+  const subImageRadius      = asNumber(firstDefined(rawProps?.imageSubCRadius, rawSnapshot?.imageSubCRadius), 16);
+
   // ── Behavior ─────────────────────────────────────────────────────────────────
   // behavior props use "default" keys in the DSL schema — unwrapValue now handles this
   const showArrows        = asBoolean(behavior?.showArrows ?? layoutCss?.slider?.showArrows, false);
@@ -473,34 +521,6 @@ export default function CollectionImage({ section }) {
     route?.name ||
     ""
   );
-  const isHomeContext =
-    route?.name === "LayoutScreen" ||
-    routePageSlug === "home" ||
-    routePageSlug === "layoutscreen" ||
-    !routePageSlug;
-  const flowValue = asString(
-    unwrapValue(
-      behavior?.navigationFlow ??
-      behavior?.collectionFlow ??
-      rawSnapshot?.navigationFlow ??
-      rawSnapshot?.collectionFlow ??
-      rawProps?.navigationFlow,
-      ""
-    )
-  ).toLowerCase();
-  const explicitSubCollectionFlow = asBoolean(
-    behavior?.openSubCollections ??
-    behavior?.enableSubCollections ??
-    behavior?.subCollectionFlow ??
-    rawSnapshot?.openSubCollections ??
-    rawSnapshot?.enableSubCollections ??
-    rawProps?.openSubCollections,
-    false
-  );
-  const useSubCollectionFlow =
-    !isHomeContext &&
-    (explicitSubCollectionFlow || flowValue.includes("sub"));
-
   // Grid columns: explicit DSL column count, or derived from layoutMode
   const columns = isGrid
     ? gridColumns
@@ -532,6 +552,54 @@ export default function CollectionImage({ section }) {
     indexRef.current = newIndex;
   }, []);
 
+  // Which top-level collection's sub-categories are currently showing —
+  // null means the main grid. Matches Builder's Collection/PreviewLive.tsx
+  // activeCategory state exactly: sub-categories are shown IN PLACE within
+  // this same block, never by navigating to a separate screen.
+  const [activeCategory, setActiveCategory] = useState(null);
+
+  // Reset to the main grid whenever the underlying collection list actually
+  // changes content (e.g. the shopper navigates to a different page using
+  // this block), so a stale index from a previous page's data never points
+  // at the wrong item. Keyed on content, not the `items` array reference —
+  // `items` (dslCollections) is rebuilt fresh on every render regardless of
+  // whether the underlying DSL data changed (rawSnapshot above isn't
+  // memoized), so depending on the array itself fired this effect on every
+  // render — including the one right after a tap set activeCategory, which
+  // immediately reset it back to null before the sub-grid could ever show.
+  const itemsKey = items.map((it) => it.id || it.handle || it.title).join("|");
+  useEffect(() => {
+    setActiveCategory(null);
+  }, [itemsKey]);
+
+  // Backfills a missing image on a top-level item or sub-category from the
+  // real Shopify collection it's assigned to (handle/navigateRef) — items
+  // and sub-categories are frequently saved with no custom image at all
+  // (just a "Navigate To → Collection" assignment), which previously fell
+  // back to a static placeholder box instead of the collection's own real
+  // image. Matches Builder's Collection/PreviewLive.tsx fetchCollectionImageMap.
+  const [collectionImageByHandle, setCollectionImageByHandle] = useState({});
+  useEffect(() => {
+    let alive = true;
+    fetchShopifyCollectionsList(100)
+      .then((list) => {
+        if (!alive) return;
+        const map = {};
+        (list || []).forEach((c) => {
+          if (c?.handle && c?.imageUrl) map[c.handle] = c.imageUrl;
+        });
+        setCollectionImageByHandle(map);
+      })
+      .catch(() => {});
+    return () => { alive = false; };
+  }, []);
+
+  const resolveCardImage = useCallback((cardItem) => {
+    if (isRenderableImageUrl(cardItem?.image)) return cardItem.image;
+    const handle = cardItem?.handle || cardItem?.navigateRef;
+    return (handle && collectionImageByHandle[handle]) || "";
+  }, [collectionImageByHandle]);
+
   // ── Callbacks ─────────────────────────────────────────────────────────────────
   const getItemLayout = useCallback(
     (_, index) => ({ length: stepSize, offset: stepSize * index, index }),
@@ -544,11 +612,38 @@ export default function CollectionImage({ section }) {
     if (newIndex !== indexRef.current) updateIndex(newIndex);
   }, [stepSize, items.length, updateIndex]);
 
-  const onItemPress = useCallback((item) => {
-    // An explicit Product/URL/Screen/etc. choice overrides the block's
-    // default "open this collection" behavior — only a truly empty/"None"/
-    // "Collection" choice falls through to the existing collection flow, so
-    // pages saved before this field existed keep behaving exactly as before.
+  // Navigates to the product list for a collection handle — shared by the
+  // sub-category tap handler below and the top-level "no subs, no explicit
+  // link" fallback case.
+  const openCollectionProducts = useCallback((item) => {
+    const handle = deriveHandle(item);
+    if (!handle) return;
+    navigation.navigate("CollectionProducts", {
+      collectionHandle: handle,
+      collectionTitle: item?.title || "Collection",
+      parentCollection: {
+        handle,
+        title: item?.title || "Collection",
+        image: item?.image || "",
+        link: item?.link || "",
+      },
+      sourcePageName: routePageSlug,
+    });
+  }, [navigation, routePageSlug]);
+
+  // Tapping a top-level collection card:
+  //  - Has real (post-normalization) sub-categories → show them in place
+  //    first (Back button + sub-grid); the shopper drills into a product
+  //    list from there.
+  //  - No sub-categories configured → skip straight to that collection's
+  //    own product list (or an explicit Product/URL/Screen link, if set) —
+  //    never a fallback grid of sibling collections.
+  const onItemPress = useCallback((item, index) => {
+    const hasSubs = Array.isArray(item?.children) && item.children.length > 0;
+    if (hasSubs) {
+      setActiveCategory(index);
+      return;
+    }
     const navType = String(item?.navigateType || "").trim().toLowerCase();
     if (navType && navType !== "none" && navType !== "collection" && navType !== "collections") {
       void navigateToDslTarget(navigation, {
@@ -560,36 +655,44 @@ export default function CollectionImage({ section }) {
       });
       return;
     }
+    openCollectionProducts(item);
+  }, [navigation, openCollectionProducts]);
 
-    const handle = deriveHandle(item);
-    if (!handle) return;
-    const params = {
-      collectionHandle: handle,
-      collectionTitle: item?.title || "Collection",
-      parentCollection: {
-        handle,
-        title: item?.title || "Collection",
-        image: item?.image || "",
-        link: item?.link || "",
-        subCollections: item?.children || [],
-      },
-      sourcePageName: routePageSlug,
-    };
-
-    if (useSubCollectionFlow) {
-      navigation.navigate("SubCollections", params);
+  // Tapping a sub-category card — matches Builder's handleSubCardClick: an
+  // explicit Product/URL/Screen choice overrides the default "open this
+  // collection's products" behavior.
+  const onSubItemPress = useCallback((sub) => {
+    const navType = String(sub?.navigateType || "").trim().toLowerCase();
+    if (navType && navType !== "none") {
+      if (navType === "collection" || navType === "collections") {
+        openCollectionProducts(sub);
+        return;
+      }
+      void navigateToDslTarget(navigation, {
+        target: sub?.navigateRef || sub?.linkTo,
+        navigateRef: sub?.navigateRef,
+        navigateType: sub?.navigateType,
+        linkTo: sub?.linkTo,
+        fallbackTitle: sub?.title || "Collection",
+      });
       return;
     }
+    openCollectionProducts(sub);
+  }, [navigation, openCollectionProducts]);
 
-    navigation.navigate("CollectionProducts", params);
-  }, [navigation, routePageSlug, useSubCollectionFlow]);
+  // onItemPress above only ever sets activeCategory for an item that already
+  // has real children, so no sibling-fallback is needed here.
+  const activeSubItems = useMemo(() => {
+    if (activeCategory == null || !items[activeCategory]) return [];
+    return items[activeCategory].children;
+  }, [items, activeCategory]);
 
   // ── Render item ───────────────────────────────────────────────────────────────
   // Image inner size excludes the border width on each side
   const imageInnerWidth = Math.max(0, cardImageWidth - cardImageBorder * 2);
   const imageInnerHeight = Math.max(0, cardImageHeight - cardImageBorder * 2);
 
-  const renderItem = useCallback(({ item }) => (
+  const renderItem = useCallback(({ item, index }) => (
     <TouchableOpacity
       style={[
         styles.card,
@@ -605,8 +708,7 @@ export default function CollectionImage({ section }) {
         },
       ]}
       activeOpacity={0.82}
-      onPress={() => onItemPress(item)}
-      disabled={!deriveHandle(item)}
+      onPress={() => onItemPress(item, index)}
     >
       {showCardImage && (
         <View
@@ -622,11 +724,11 @@ export default function CollectionImage({ section }) {
             backgroundColor: cardImageBgColor,
           }}
         >
-          {isRenderableImageUrl(item.image) ? (
-            isSvgUrl(item.image) ? (
+          {(() => { const resolvedImage = resolveCardImage(item); return isRenderableImageUrl(resolvedImage) ? (
+            isSvgUrl(resolvedImage) ? (
               <WebView
                 source={{
-                  html: `<!DOCTYPE html><html><head><meta name="viewport" content="width=device-width,initial-scale=1"><style>*{margin:0;padding:0;box-sizing:border-box}body{background:transparent}img{width:100%;height:100%;object-fit:contain;display:block}</style></head><body><img src="${item.image}" /></body></html>`,
+                  html: `<!DOCTYPE html><html><head><meta name="viewport" content="width=device-width,initial-scale=1"><style>*{margin:0;padding:0;box-sizing:border-box}body{background:transparent}img{width:100%;height:100%;object-fit:contain;display:block}</style></head><body><img src="${resolvedImage}" /></body></html>`,
                 }}
                 style={{
                   width: imageInnerWidth,
@@ -640,7 +742,7 @@ export default function CollectionImage({ section }) {
               />
             ) : (
               <Image
-                source={{ uri: item.image }}
+                source={{ uri: resolvedImage }}
                 style={{
                   width: imageInnerWidth,
                   height: imageInnerHeight,
@@ -664,7 +766,7 @@ export default function CollectionImage({ section }) {
                 {(item.title || "?").charAt(0).toUpperCase()}
               </Text>
             </View>
-          )}
+          ); })()}
           {showCardText && titlePosition === "inside" && (
             <View style={styles.insideTitleWrap}>
               <Text
@@ -719,6 +821,86 @@ export default function CollectionImage({ section }) {
     cardTextAlign, cardTitleLineHeight, cardTitleMarginTop, cardFontFamily,
   ]);
 
+  // ── Render sub-category item ─────────────────────────────────────────────────
+  // Same card shape as renderItem above, styled from the SC-prefixed props
+  // instead — matches Builder's Collection/PreviewLive.tsx sub-category grid.
+  const renderSubItem = useCallback(({ item: sub }) => (
+    <TouchableOpacity
+      style={[styles.card, { width: subGridCardW }]}
+      activeOpacity={0.82}
+      onPress={() => onSubItemPress(sub)}
+    >
+      {subShowCardImage && (
+        <View
+          style={{
+            width: subImageWidth,
+            height: subImageHeight,
+            borderRadius: subImageRadius,
+            overflow: "hidden",
+            alignItems: "center",
+            justifyContent: "center",
+            backgroundColor: placeholderBgColor,
+          }}
+        >
+          {isRenderableImageUrl(sub.image) ? (
+            <Image
+              source={{ uri: sub.image }}
+              style={{ width: subImageWidth, height: subImageHeight, borderRadius: subImageRadius }}
+              resizeMode={["contain", "fit"].includes(subImageScale) ? "contain" : "cover"}
+            />
+          ) : (
+            <Text style={{ color: placeholderTextColor, fontSize: subImageWidth * 0.3, fontWeight: "700" }}>
+              {(sub.title || "?").charAt(0).toUpperCase()}
+            </Text>
+          )}
+          {subShowCardText && subTitlePosition === "inside" && (
+            <View style={styles.insideTitleWrap}>
+              <Text
+                numberOfLines={2}
+                style={[
+                  styles.cardTitle,
+                  styles.insideTitle,
+                  {
+                    color: subCardTextColor,
+                    fontSize: subCardTextSize,
+                    fontWeight: subCardTextWeight,
+                    textAlign: subCardTextAlign,
+                    ...(subCardFontFamily ? { fontFamily: subCardFontFamily } : {}),
+                  },
+                ]}
+              >
+                {sub.title}
+              </Text>
+            </View>
+          )}
+        </View>
+      )}
+
+      {subShowCardText && subTitlePosition !== "inside" && (
+        <Text
+          numberOfLines={2}
+          style={[
+            styles.cardTitle,
+            {
+              color: subCardTextColor,
+              fontSize: subCardTextSize,
+              fontWeight: subCardTextWeight,
+              textAlign: subCardTextAlign,
+              maxWidth: subGridCardW,
+              ...(subCardFontFamily ? { fontFamily: subCardFontFamily } : {}),
+            },
+          ]}
+        >
+          {sub.title}
+        </Text>
+      )}
+    </TouchableOpacity>
+  ), [
+    subGridCardW, onSubItemPress, subShowCardImage, subImageWidth, subImageHeight, subImageRadius,
+    placeholderBgColor, placeholderTextColor, subImageScale, subShowCardText, subTitlePosition,
+    subCardTextColor, subCardTextSize, subCardTextWeight, subCardTextAlign, subCardFontFamily,
+  ]);
+
   const containerStyle = [
     styles.container,
     {
@@ -734,6 +916,36 @@ export default function CollectionImage({ section }) {
 
   if (!items.length) {
     return null;
+  }
+
+  if (activeCategory !== null) {
+    return (
+      <View style={containerStyle}>
+        {/* Back button — matches Builder's plain, non-DSL-configurable pill exactly */}
+        <TouchableOpacity
+          style={styles.backButton}
+          activeOpacity={0.8}
+          onPress={() => setActiveCategory(null)}
+        >
+          <Text style={styles.backButtonText}>{"←"} Back</Text>
+        </TouchableOpacity>
+
+        <FlatList
+          data={activeSubItems}
+          keyExtractor={(sub, idx) => String(sub.id || sub.handle || `${sub.title}-${idx}`)}
+          renderItem={renderSubItem}
+          numColumns={scColumns}
+          // This block renders inside the page's own outer ScrollView (same
+          // as the main grid's FlatList above, see its scrollEnabled
+          // comment) — a scrollable vertical FlatList nested in a vertical
+          // ScrollView is exactly what React Native's VirtualizedList
+          // warning/error is about. Let the outer ScrollView own all
+          // scrolling here too.
+          scrollEnabled={false}
+          columnWrapperStyle={scColumns > 1 ? { columnGap: scHGap, marginBottom: scVGap } : undefined}
+        />
+      </View>
+    );
   }
 
   return (
@@ -828,5 +1040,23 @@ const styles = StyleSheet.create({
     textShadowColor: "rgba(255,255,255,0.65)",
     textShadowRadius: 2,
     textShadowOffset: { width: 0, height: 1 },
+  },
+  // Matches Builder's Collection/PreviewLive.tsx back button exactly — a
+  // plain, non-DSL-configurable pill, same on both sides by design.
+  backButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    alignSelf: "flex-start",
+    marginBottom: 12,
+    marginLeft: 4,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 8,
+    backgroundColor: "#F0F0F0",
+  },
+  backButtonText: {
+    fontSize: 13,
+    fontWeight: "500",
+    color: "#111827",
   },
 });

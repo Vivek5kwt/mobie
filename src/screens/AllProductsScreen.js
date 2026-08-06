@@ -271,6 +271,15 @@ export default function AllProductsScreen() {
   const [sortKey, setSortKey]         = useState("Popular");
   const [viewMode, setViewMode]       = useState("grid");
   const [activeFilter, setActiveFilter] = useState(null);
+  // Filtering happens client-side over whatever raw pages we've fetched so
+  // far (PAGE_SIZE per page) — a selective filter can easily leave only a
+  // couple of matches per fetched page. minVisibleTarget is how many
+  // MATCHING products we want visible; the effect below keeps fetching
+  // additional raw pages (while any exist) until that target is met, so a
+  // filtered view always shows at least PAGE_SIZE results (and +PAGE_SIZE
+  // more each time "Load more" is pressed) instead of whatever tiny count
+  // happened to match the single page already in memory.
+  const [minVisibleTarget, setMinVisibleTarget] = useState(PAGE_SIZE);
   const [searchInput, setSearchInput] = useState(searchTerm);
   const [filterOptions, setFilterOptions] = useState([]);
   const [bottomNavSection, setBottomNavSection] = useState(null);
@@ -567,10 +576,10 @@ export default function AllProductsScreen() {
     return () => { mounted = false; };
   }, [isSearchMode, searchTerm, route?.params?.collectionHandle, route?.params?.handle, route?.params?.title]);
 
-  const handleLoadMore = () => {
-    if (loadingMore || !pageInfo?.hasNextPage) return;
-    loadProducts({ after: pageInfo?.endCursor, append: true });
-  };
+  // A new filter selection starts a fresh "page" of matches.
+  useEffect(() => {
+    setMinVisibleTarget(PAGE_SIZE);
+  }, [activeFilter]);
 
   const displayProducts = useMemo(() => {
     const filtered = activeFilter
@@ -578,6 +587,49 @@ export default function AllProductsScreen() {
       : products;
     return sortProducts(filtered, sortKey);
   }, [products, sortKey, activeFilter]);
+
+  // Keep pulling additional raw pages while a filter is active (and we're
+  // not in search mode, which already fetches up to 250 results in one go)
+  // and it has left us short of minVisibleTarget matches — reruns
+  // automatically as `products` grows from each fetch, until the target is
+  // met or Shopify has no more pages.
+  // Safety cap: a filter that matches rarely (or never) shouldn't walk the
+  // entire catalog trying to satisfy minVisibleTarget — give up expanding
+  // once we've pulled a generous multiple of the CURRENT target in raw
+  // products. Scaled to minVisibleTarget (not a flat number) so each
+  // "Load more" press — which raises the target — gets its own fresh
+  // search budget instead of being permanently capped by the first press.
+  useEffect(() => {
+    if (isSearchMode || !activeFilter) return;
+    if (loading || loadingMore) return;
+    if (!pageInfo?.hasNextPage) return;
+    if (displayProducts.length >= minVisibleTarget) return;
+    if (products.length >= minVisibleTarget * 15) return;
+    loadProducts({ after: pageInfo.endCursor, append: true });
+  }, [
+    isSearchMode,
+    activeFilter,
+    products.length,
+    displayProducts.length,
+    minVisibleTarget,
+    loading,
+    loadingMore,
+    pageInfo?.hasNextPage,
+    pageInfo?.endCursor,
+    loadProducts,
+  ]);
+
+  const handleLoadMore = () => {
+    if (loadingMore) return;
+    if (activeFilter && !isSearchMode) {
+      // Raise the bar by one more page's worth of matches — the effect
+      // above does the actual fetching to reach it.
+      setMinVisibleTarget((prev) => prev + PAGE_SIZE);
+      return;
+    }
+    if (!pageInfo?.hasNextPage) return;
+    loadProducts({ after: pageInfo?.endCursor, append: true });
+  };
 
   const openCart = () => {
     navigation.navigate("BottomNavScreen", {

@@ -171,7 +171,6 @@ Main routes:
 | `BottomNavScreen` | `BottomNavScreen.js` | DSL page rendering with bottom navigation context |
 | `ProductDetail` | `ProductDetailScreen.js` | Product details, variants, add to cart |
 | `CollectionProducts` | `CollectionProductsScreen.js` | Products inside a collection |
-| `SubCollections` | `SubCollectionScreen.js` | Child collections |
 | `AllProducts` | `AllProductsScreen.js` | Product listing/search-style page |
 | `CheckoutWebView` | `CheckoutWebViewScreen.js` | Shopify checkout webview |
 | `PostPurchase` | `PostPurchaseScreen.js` | Thank you/order confirmation |
@@ -361,7 +360,6 @@ flowchart TD
 | `BottomNavScreen` | Dynamic page renderer for bottom nav pages | `fetchDSL`, notification service, auth context | Bottom nav, protected page logic, notifications |
 | `ProductDetailScreen` | Product details and add to cart | Shopify services, route product data | Product images, info, variants, ATC, related products |
 | `CollectionProductsScreen` | Products for selected collection | Shopify collection/product APIs | Product grid/list, filters/sort |
-| `SubCollectionScreen` | Nested collections | Shopify collection APIs | Collection cards |
 | `AllProductsScreen` | All/search product listing | Shopify product/search APIs | Product list, filter/sort header |
 | `CheckoutWebViewScreen` | Web checkout flow | Shopify checkout URL/order data | WebView, logged-in email prefill where supported |
 | `PostPurchaseScreen` | Thank you/order completed page | Route order response, analytics purchase | Order number, summary, continue shopping |

@@ -2707,6 +2707,12 @@ const AuthScreen = () => {
         const signInRawProps = signInSection ? getSectionRawProps(signInSection) : {};
         const forgotRawProps = forgotSection ? getSectionRawProps(forgotSection) : {};
         const nextSignInTokens = signInSection ? buildSignInTokens(signInRawProps) : defaultSignInTokens;
+        console.log('[AuthScreen] footerLinkAlignment debug', {
+          hasSignInSection: !!signInSection,
+          rawFooterLinkAlignment: signInRawProps?.footerLinkAlignment,
+          rawKeys: signInSection ? Object.keys(signInRawProps || {}).filter((k) => k.toLowerCase().includes('footer')) : [],
+          resolvedFooterLinkAlignment: nextSignInTokens.footerLinkAlignment,
+        });
         const hasEnabledForgotPasswordSection =
           Boolean(forgotSection) && hasLiveSignInPage && isForgotPasswordEnabled(forgotRawProps);
         setSignInDslSections(signInSections as Record<string, unknown>[]);

@@ -837,6 +837,17 @@ const buildCheckoutQueryString = ({ discountCodes = [], email = "" } = {}) => {
   if (normalizedEmail) {
     params.push(`checkout%5Bemail%5D=${encodeURIComponent(normalizedEmail)}`);
   }
+  // Without this, the permalink adds the item(s) to cart and then follows
+  // Shopify's own default redirect to the plain /cart page — which
+  // CheckoutWebViewScreen's onShouldStartLoadWithRequest deliberately BLOCKS
+  // navigating to (isCheckoutCartPageUrl guard, meant to stop the shopper
+  // from getting bounced out of checkout back to the cart) since it's a
+  // different URL than the one this screen was opened with. With no
+  // permitted destination to fall through to, the WebView is left showing
+  // nothing — a blank white screen instead of checkout. return_to=/checkout
+  // is Shopify's own documented permalink convention for skipping straight
+  // to checkout instead of the cart page, avoiding that blocked hop entirely.
+  params.push("return_to=/checkout");
   return params.length ? `?${params.join("&")}` : "";
 };
 
@@ -2402,9 +2413,19 @@ export async function createShopifyCheckout({ variantId, quantity = 1, options =
   if (directMatch) {
     // Same fix as createShopifyCartCheckout's direct-cart-URL fallback below:
     // this permalink adds to the storefront's existing cookie-based cart
-    // rather than replacing it, so clear it server-side first.
-    const permalinkUrl = `https://${shop}/cart/${directMatch[1]}:${Math.max(1, quantity)}`;
-    const url = `https://${shop}/cart/clear?return_to=${encodeURIComponent(permalinkUrl)}`;
+    // rather than replacing it, so clear it server-side first. Also send it
+    // straight to /checkout (Shopify's own return_to convention) instead of
+    // letting it fall through to its default /cart landing — CheckoutWebViewScreen
+    // deliberately blocks navigating to a bare /cart page mid-checkout, which
+    // otherwise leaves the WebView showing nothing after the add-to-cart hop.
+    // /cart/clear's own return_to must be a relative path, not a full
+    // absolute URL — Shopify's open-redirect protection silently ignores (no
+    // redirect at all, leaving the WebView on a blank "cart cleared" page)
+    // a return_to value that looks like a different/external origin, even
+    // when it's actually the same shop domain.
+    const permalinkPath = `/cart/${directMatch[1]}:${Math.max(1, quantity)}?return_to=/checkout`;
+    const permalinkUrl = `https://${shop}${permalinkPath}`;
+    const url = `https://${shop}/cart/clear?return_to=${encodeURIComponent(permalinkPath)}`;
     console.log(`${CHECKOUT_LOG} single checkout via direct cart URL (cleared first)`, { url, permalinkUrl });
     return url;
   }
@@ -2619,7 +2640,8 @@ export async function createShopifyCartCheckout({ items = [], discountCodes = []
       discountCodes: requestedDiscountCodes,
       email: options.email,
     });
-    const permalinkUrl = `https://${shop}/cart/${directCartLines.join(",")}${queryString}`;
+    const permalinkPath = `/cart/${directCartLines.join(",")}${queryString}`;
+    const permalinkUrl = `https://${shop}${permalinkPath}`;
     // This permalink ADDS to whatever's already in Shopify's own storefront
     // cart (tracked via the checkout WebView's shared/persistent cookies) —
     // it does not replace it. A previous checkout attempt that was opened
@@ -2632,7 +2654,12 @@ export async function createShopifyCartCheckout({ items = [], discountCodes = []
     // that stale cart server-side before adding back exactly the current
     // set, via the same `return_to` redirect convention Shopify's storefront
     // already uses elsewhere (cart/add, account/login, ...).
-    const url = `https://${shop}/cart/clear?return_to=${encodeURIComponent(permalinkUrl)}`;
+    // /cart/clear's own return_to must be a relative path, not a full
+    // absolute URL — Shopify's open-redirect protection silently ignores (no
+    // redirect at all, leaving the WebView on a blank "cart cleared" page) a
+    // return_to value that looks like a different/external origin, even when
+    // it's actually the same shop domain.
+    const url = `https://${shop}/cart/clear?return_to=${encodeURIComponent(permalinkPath)}`;
     console.log(`${CHECKOUT_LOG} checkout via direct cart URL (cleared first)`, {
       url,
       permalinkUrl,

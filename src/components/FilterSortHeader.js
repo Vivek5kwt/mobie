@@ -304,10 +304,11 @@ export default function FilterSortHeader({
   };
 
   const handleOpenSort = () => {
-    // Matches Builder: opening the Sort drawer always resets to "Best Selling".
-    setSelectedSort("Best Selling");
-    setSortFilterState({ sortOption: "Best Selling", selectedFilters });
-    onSortChange && onSortChange("Best Selling");
+    // Just open the drawer on the currently active sort (selectedSort already
+    // drives which row shows as checked, see SORT_OPTIONS.map below) — this
+    // used to force a reset to "Best Selling" on every open, which silently
+    // discarded whatever sort the shopper had actually picked and re-applied
+    // "Best Selling" as if they'd chosen it themselves.
     setShowSort(true);
     setShowFilter(false);
   };
