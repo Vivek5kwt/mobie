@@ -653,10 +653,19 @@ const getButtonFontFamilyValue = (rawProps: Record<string, unknown>): unknown =>
     rawProps?.fontFamily
   );
 
-const getButtonFontWeightValue = (rawProps: Record<string, unknown>): unknown =>
+// SignIn's Inspector writes the button weight under the capitalized
+// `buttonFontWeight` (its Preview reads that key directly, no lowercase
+// variant exists there) — but SignUp's Inspector writes only the lowercase
+// `buttonfontWeight`, and liveRegistry.ts seeds `buttonFontWeight: "700"` on
+// every signup block regardless of what the merchant sets, so honoring the
+// capitalized key for SignUp shows that stale seed instead of the real value.
+// This helper is shared by both blocks, so the caller must say whether the
+// capitalized key is trustworthy for its block (true for SignIn, false for
+// SignUp).
+const getButtonFontWeightValue = (rawProps: Record<string, unknown>, trustCapitalized: boolean): unknown =>
   firstDefined(
     rawProps?.buttonfontWeight,
-    rawProps?.buttonFontWeight,
+    trustCapitalized ? rawProps?.buttonFontWeight : undefined,
     rawProps?.buttonTextFontWeight,
     rawProps?.fontWeight
   );
@@ -794,7 +803,8 @@ const buildButtonStyleTokens = (
   defaults: Pick<
     SignInTokens,
     'buttonTextColor' | 'buttonFillColor' | 'buttonFontSize' | 'buttonFontFamily' | 'buttonFontWeight'
-  >
+  >,
+  trustCapitalizedFontWeight: boolean = true
 ) => {
   const bgValue = getButtonBgValue(rawProps);
   return {
@@ -803,7 +813,7 @@ const buildButtonStyleTokens = (
     buttonGradient: resolveButtonGradient(bgValue),
     buttonFontSize: toNumber(getButtonFontSizeValue(rawProps), defaults.buttonFontSize),
     buttonFontFamily: toFontFamily(getButtonFontFamilyValue(rawProps), defaults.buttonFontFamily),
-    buttonFontWeight: toFontWeight(getButtonFontWeightValue(rawProps), defaults.buttonFontWeight, rawProps?.buttonTextBold as boolean | undefined),
+    buttonFontWeight: toFontWeight(getButtonFontWeightValue(rawProps, trustCapitalizedFontWeight), defaults.buttonFontWeight, rawProps?.buttonTextBold as boolean | undefined),
   };
 };
 
@@ -1545,8 +1555,15 @@ const buildSignInTokens = (rawProps: Record<string, unknown>): SignInTokens => (
   passwordPlaceholderFontSize: toNumber(rawProps?.passwordPlaceholderFontSize ?? rawProps?.placeholderFontSize ?? rawProps?.fontSize, defaultSignInTokens.passwordPlaceholderFontSize),
   emailPlaceholderFontFamily: toFontFamily(rawProps?.emailPlaceholderFontFamily ?? rawProps?.placeholderFontFamily ?? rawProps?.fontFamily, defaultSignInTokens.emailPlaceholderFontFamily),
   passwordPlaceholderFontFamily: toFontFamily(rawProps?.passwordPlaceholderFontFamily ?? rawProps?.placeholderFontFamily ?? rawProps?.fontFamily, defaultSignInTokens.passwordPlaceholderFontFamily),
-  emailPlaceholderFontWeight: toFontWeight(rawProps?.emailPlaceholderFontWeight ?? rawProps?.placeholderFontWeight ?? rawProps?.fontWeight, defaultSignInTokens.emailPlaceholderFontWeight, rawProps?.emailPlaceholderBold as boolean | undefined),
-  passwordPlaceholderFontWeight: toFontWeight(rawProps?.passwordPlaceholderFontWeight ?? rawProps?.placeholderFontWeight ?? rawProps?.fontWeight, defaultSignInTokens.passwordPlaceholderFontWeight, rawProps?.passwordPlaceholderBold as boolean | undefined),
+  // Builder's Format toolbar (Bold/Italic/Underline/Strike) and its separate
+  // Weight slider both write independently — clicking Bold once and later only
+  // ever touching the slider leaves a stale emailPlaceholderBold/
+  // passwordPlaceholderBold flag sitting true alongside a non-700 numeric
+  // weight. Forcing 700 whenever that stale flag is true made the weight look
+  // hard-coded/stuck instead of tracking the slider. Trust the resolved
+  // numeric weight only — no bold override.
+  emailPlaceholderFontWeight: toFontWeight(rawProps?.emailPlaceholderFontWeight ?? rawProps?.placeholderFontWeight ?? rawProps?.fontWeight, defaultSignInTokens.emailPlaceholderFontWeight),
+  passwordPlaceholderFontWeight: toFontWeight(rawProps?.passwordPlaceholderFontWeight ?? rawProps?.placeholderFontWeight ?? rawProps?.fontWeight, defaultSignInTokens.passwordPlaceholderFontWeight),
   buttonHeight: toNumber(rawProps?.buttonHeight, defaultSignInTokens.buttonHeight),
   buttonWidth: toNumber(rawProps?.buttonWidth, defaultSignInTokens.buttonWidth),
   footerTextFontSize: toNumber(rawProps?.footerTextFontSize ?? rawProps?.subtextSize ?? rawProps?.fontSize, defaultSignInTokens.footerTextFontSize),
@@ -2057,10 +2074,18 @@ const buildSignUpTokens = (rawProps: Record<string, unknown>): SignUpTokens => (
   firstNameInputTextFontFamily: toFontFamily(rawProps?.firstNameInputTextFontFamily ?? rawProps?.fontFamily, defaultSignUpTokens.firstNameInputTextFontFamily),
   lastNameInputTextFontFamily: toFontFamily(rawProps?.lastNameInputTextFontFamily ?? rawProps?.fontFamily, defaultSignUpTokens.lastNameInputTextFontFamily),
   passwordInputTextFontFamily: toFontFamily(rawProps?.passwordInputTextFontFamily ?? rawProps?.fontFamily, defaultSignUpTokens.passwordInputTextFontFamily),
-  emailInputTextFontWeight: toFontWeight(pick(rawProps, ['emailInputTextfontWeight', 'emailInputTextFontWeight', 'fontWeight']), defaultSignUpTokens.emailInputTextFontWeight),
-  firstNameInputTextFontWeight: toFontWeight(pick(rawProps, ['firstNameInputTextfontWeight', 'firstNameInputTextFontWeight']), defaultSignUpTokens.firstNameInputTextFontWeight),
-  lastNameInputTextFontWeight: toFontWeight(pick(rawProps, ['lastNameInputTextfontWeight', 'lastNameInputTextFontWeight']), defaultSignUpTokens.lastNameInputTextFontWeight),
-  passwordInputTextFontWeight: toFontWeight(pick(rawProps, ['passwordInputTextfontWeight', 'passwordInputTextFontWeight', 'fontWeight']), defaultSignUpTokens.passwordInputTextFontWeight),
+  // Unlike FontSize/FontFamily above, the capitalized "{field}InputTextFontWeight"
+  // is NOT a legitimate alias here — PreviewLive.tsx never reads it under any
+  // name; only the lowercase "{field}InputTextfontWeight" ever reaches render.
+  // liveRegistry.ts seeds the capitalized key to "700" on every signup block
+  // regardless of what the merchant configures, so treating it as a fallback
+  // made every untouched field render bold in the APK while Builder showed its
+  // real (unbolded) default. Must fall straight to the hardcoded default once
+  // the lowercase key is absent, matching Preview's own behavior.
+  emailInputTextFontWeight: toFontWeight(rawProps?.emailInputTextfontWeight, defaultSignUpTokens.emailInputTextFontWeight),
+  firstNameInputTextFontWeight: toFontWeight(rawProps?.firstNameInputTextfontWeight, defaultSignUpTokens.firstNameInputTextFontWeight),
+  lastNameInputTextFontWeight: toFontWeight(rawProps?.lastNameInputTextfontWeight, defaultSignUpTokens.lastNameInputTextFontWeight),
+  passwordInputTextFontWeight: toFontWeight(rawProps?.passwordInputTextfontWeight, defaultSignUpTokens.passwordInputTextFontWeight),
   emailPlaceholderColor: (rawProps?.emailPlaceholderColor as string) ?? defaultSignUpTokens.emailPlaceholderColor,
   firstNamePlaceholderColor: (rawProps?.firstNamePlaceholderColor as string) ?? defaultSignUpTokens.firstNamePlaceholderColor,
   lastNamePlaceholderColor: (rawProps?.lastNamePlaceholderColor as string) ?? defaultSignUpTokens.lastNamePlaceholderColor,
@@ -2074,9 +2099,14 @@ const buildSignUpTokens = (rawProps: Record<string, unknown>): SignUpTokens => (
   lastNamePlaceholderFontFamily: toFontFamily(rawProps?.lastNamePlaceholderFontFamily ?? rawProps?.placeholderFontFamily ?? rawProps?.fontFamily, defaultSignUpTokens.lastNamePlaceholderFontFamily),
   passwordPlaceholderFontFamily: toFontFamily(rawProps?.passwordPlaceholderFontFamily ?? rawProps?.placeholderFontFamily ?? rawProps?.fontFamily, defaultSignUpTokens.passwordPlaceholderFontFamily),
   // Builder's per-field placeholder subsection writes {field}PlaceholderfontWeight
-  // (lowercase "font") — this must be the first candidate; liveRegistry.ts seeds
-  // the capitalized spelling on every signup block, which would otherwise always
-  // shadow the Inspector's real value.
+  // (lowercase "font") and PreviewLive.tsx only ever reads that lowercase key —
+  // the capitalized "{field}PlaceholderFontWeight" is never read by Preview under
+  // any circumstance. liveRegistry.ts nonetheless seeds it to "700" on every
+  // signup block, so including it as a fallback candidate made every field the
+  // merchant hadn't touched via the weight slider render bold in the APK while
+  // Builder showed its real default. Must go straight from the lowercase key to
+  // the hardcoded default (matching Preview's own destructuring default) if the
+  // lowercase key is absent — never fall back to the capitalized seed.
   // Builder's placeholder Format toolbar (Bold/Italic/Underline/Strike) writes
   // BOTH `{field}Placeholderbold` and `{field}PlaceholderfontWeight` together
   // (bold ? 700 : 500) on every click, but the separate Weight slider next to
@@ -2087,11 +2117,11 @@ const buildSignUpTokens = (rawProps: Record<string, unknown>): SignUpTokens => (
   // bold flag, so passing `isBold` here (forcing 700 whenever the stale flag
   // is true) could show a different weight per field than Builder actually
   // renders. Trust the resolved fontWeight value only, like Preview does.
-  emailPlaceholderFontWeight: toFontWeight(pick(rawProps, ['emailPlaceholderfontWeight', 'emailPlaceholderFontWeight', 'placeholderFontWeight', 'fontWeight']), defaultSignUpTokens.emailPlaceholderFontWeight),
-  firstNamePlaceholderFontWeight: toFontWeight(pick(rawProps, ['firstNamePlaceholderfontWeight', 'firstNamePlaceholderFontWeight', 'placeholderFontWeight', 'fontWeight']), defaultSignUpTokens.firstNamePlaceholderFontWeight),
-  lastNamePlaceholderFontWeight: toFontWeight(pick(rawProps, ['lastNamePlaceholderfontWeight', 'lastNamePlaceholderFontWeight', 'placeholderFontWeight', 'fontWeight']), defaultSignUpTokens.lastNamePlaceholderFontWeight),
-  passwordPlaceholderFontWeight: toFontWeight(pick(rawProps, ['passwordPlaceholderfontWeight', 'passwordPlaceholderFontWeight', 'placeholderFontWeight', 'fontWeight']), defaultSignUpTokens.passwordPlaceholderFontWeight),
-  ...buildButtonStyleTokens(rawProps, defaultSignUpTokens),
+  emailPlaceholderFontWeight: toFontWeight(rawProps?.emailPlaceholderfontWeight, defaultSignUpTokens.emailPlaceholderFontWeight),
+  firstNamePlaceholderFontWeight: toFontWeight(rawProps?.firstNamePlaceholderfontWeight, defaultSignUpTokens.firstNamePlaceholderFontWeight),
+  lastNamePlaceholderFontWeight: toFontWeight(rawProps?.lastNamePlaceholderfontWeight, defaultSignUpTokens.lastNamePlaceholderFontWeight),
+  passwordPlaceholderFontWeight: toFontWeight(rawProps?.passwordPlaceholderfontWeight, defaultSignUpTokens.passwordPlaceholderFontWeight),
+  ...buildButtonStyleTokens(rawProps, defaultSignUpTokens, false),
   // Builder's Button section writes buttonborderColor (lowercase "b") — must be
   // the first candidate; liveRegistry.ts seeds buttonBorderColor on every signup
   // block, which would otherwise always shadow the Inspector's real value.
@@ -2115,8 +2145,15 @@ const buildSignUpTokens = (rawProps: Record<string, unknown>): SignUpTokens => (
   footerTextFontWeight: toFontWeight(rawProps?.footerTextFontWeight ?? rawProps?.subtextWeight ?? rawProps?.fontWeight, defaultSignUpTokens.footerTextFontWeight, rawProps?.footerTextBold as boolean | undefined),
   footerLinkFontSize: toNumber(pick(rawProps, ['footerLinkfontSize', 'footerLinkFontSize']), defaultSignUpTokens.footerLinkFontSize),
   footerLinkFontFamily: toFontFamily(rawProps?.footerLinkFontFamily ?? rawProps?.fontFamily, defaultSignUpTokens.footerLinkFontFamily),
-  footerLinkFontWeight: toFontWeight(pick(rawProps, ['footerLinkfontWeight', 'footerLinkFontWeight']), defaultSignUpTokens.footerLinkFontWeight, rawProps?.footerLinkTextBold as boolean | undefined),
-  footerLinkAlignment: (rawProps?.footerLinkAlignment as string) ?? defaultSignUpTokens.footerLinkAlignment,
+  // Capitalized footerLinkFontWeight is seed-only here too (liveRegistry.ts
+  // writes "700" on every signup block; Preview never reads it) — only the
+  // lowercase key is real.
+  footerLinkFontWeight: toFontWeight(rawProps?.footerLinkfontWeight, defaultSignUpTokens.footerLinkFontWeight, rawProps?.footerLinkTextBold as boolean | undefined),
+  // Builder's live Alignment control for this section writes
+  // footerTextAlignmenT (the odd capital "T" is intentional, matches the DSL
+  // key) — its footerLinkAlignment control is dead/commented out in
+  // InspectorLive.tsx, so that key is kept only as a legacy fallback.
+  footerLinkAlignment: (rawProps?.footerTextAlignmenT as string) ?? (rawProps?.footerLinkAlignment as string) ?? defaultSignUpTokens.footerLinkAlignment,
   footerLinkAutoUppercase: (rawProps?.footerLinkAutoUppercase as boolean) ?? defaultSignUpTokens.footerLinkAutoUppercase,
   footerVisible: (rawProps?.footerVisible as boolean) ?? defaultSignUpTokens.footerVisible,
   signInLinkVisible: (rawProps?.signInLinkVisible as boolean) ?? defaultSignUpTokens.signInLinkVisible,
@@ -2707,12 +2744,6 @@ const AuthScreen = () => {
         const signInRawProps = signInSection ? getSectionRawProps(signInSection) : {};
         const forgotRawProps = forgotSection ? getSectionRawProps(forgotSection) : {};
         const nextSignInTokens = signInSection ? buildSignInTokens(signInRawProps) : defaultSignInTokens;
-        console.log('[AuthScreen] footerLinkAlignment debug', {
-          hasSignInSection: !!signInSection,
-          rawFooterLinkAlignment: signInRawProps?.footerLinkAlignment,
-          rawKeys: signInSection ? Object.keys(signInRawProps || {}).filter((k) => k.toLowerCase().includes('footer')) : [],
-          resolvedFooterLinkAlignment: nextSignInTokens.footerLinkAlignment,
-        });
         const hasEnabledForgotPasswordSection =
           Boolean(forgotSection) && hasLiveSignInPage && isForgotPasswordEnabled(forgotRawProps);
         setSignInDslSections(signInSections as Record<string, unknown>[]);
@@ -3486,18 +3517,20 @@ const AuthScreen = () => {
 
             {/* Footer switcher — Builder's reset_password component has no back-to-login
                 control at all, so forgot mode intentionally renders nothing here. */}
+            {/* Builder (PreviewLive.tsx) renders this as a single <p> containing two
+                <span>s — one plain, one clickable — so footerLinkAlignment's
+                text-align applies to the whole flowed line as one unit. Mirrored
+                here with a block Text containing nested inline Text runs (RN's
+                equivalent of inline spans) instead of separate flex siblings,
+                which used to get positioned independently and could end up
+                stacked/misaligned relative to each other. */}
             {mode === 'forgot' ? null : t.footerVisible ? (
-              <View
+              <Text
+                allowFontScaling={false}
                 style={{
                   marginTop: footerMarginTop,
-                  alignItems: toFlexAlign(t.footerLinkAlignment, 'center'),
-                  flexDirection: t.footerInline ? 'row' : 'column',
-                  justifyContent: toFlexAlign(t.footerLinkAlignment, 'center') === 'flex-start'
-                    ? 'flex-start'
-                    : toFlexAlign(t.footerLinkAlignment, 'center') === 'flex-end'
-                      ? 'flex-end'
-                      : 'center',
-                  flexWrap: 'wrap',
+                  width: '100%',
+                  textAlign: toTextAlign(t.footerLinkAlignment, 'center'),
                 }}
               >
                 <Text
@@ -3511,38 +3544,29 @@ const AuthScreen = () => {
                     textDecorationLine: t.footerTextTextDecoration,
                   }}
                 >
-                  {mode === 'login' ? signInTokens.footerText : signUpTokens.footerText}
+                  {(mode === 'login' ? signInTokens.footerText : signUpTokens.footerText)}{' '}
                 </Text>
                 {(mode === 'login' || (signUpTokens.signInLinkVisible && signUpTokens.signInLinkTextVisible)) ? (
-                  <TouchableOpacity
+                  <Text
+                    allowFontScaling={false}
                     onPress={toggleMode}
-                    accessibilityRole="button"
                     style={{
-                      marginTop: t.footerInline ? 0 : footerLinkMarginTop,
-                      marginLeft: t.footerInline ? 4 : 0,
+                      color: t.footerLinkColor,
+                      fontSize: t.footerLinkFontSize,
+                      fontWeight: t.footerLinkFontWeight as any,
+                      fontFamily: t.footerLinkFontFamily !== 'System' ? t.footerLinkFontFamily : undefined,
+                      fontStyle: t.footerLinkFontStyle,
+                      textDecorationLine: t.footerLinkTextDecoration,
                     }}
                   >
-                    <Text
-                      allowFontScaling={false}
-                      style={{
-                        color: t.footerLinkColor,
-                        fontSize: t.footerLinkFontSize,
-                        fontWeight: t.footerLinkFontWeight as any,
-                        fontFamily: t.footerLinkFontFamily !== 'System' ? t.footerLinkFontFamily : undefined,
-                        fontStyle: t.footerLinkFontStyle,
-                        textDecorationLine: t.footerLinkTextDecoration,
-                        textAlign: toTextAlign(t.footerLinkAlignment, 'center'),
-                      }}
-                    >
-                      {mode === 'login'
-                        ? signInTokens.footerLinkText
-                        : signUpTokens.footerLinkAutoUppercase
-                          ? signUpTokens.footerLinkText.toUpperCase()
-                          : signUpTokens.footerLinkText}
-                    </Text>
-                  </TouchableOpacity>
+                    {mode === 'login'
+                      ? signInTokens.footerLinkText
+                      : signUpTokens.footerLinkAutoUppercase
+                        ? signUpTokens.footerLinkText.toUpperCase()
+                        : signUpTokens.footerLinkText}
+                  </Text>
                 ) : null}
-              </View>
+              </Text>
             ) : null}
 
             {/* Forgot password link (login only) — Preview wraps this headline in a

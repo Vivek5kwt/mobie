@@ -135,6 +135,8 @@ const DEFAULT_PRODUCT_CARD_CONFIG = {
   buttonTextWeight: "700",
   unavailableBgColor: "#7A7A7A",
   unavailableTextColor: "#FFFFFF",
+  showAddToCart: true,
+  showFavorite: false,
 };
 
 const resolveProductCardConfig = (...dsls) => {
@@ -165,7 +167,55 @@ const resolveProductCardConfig = (...dsls) => {
     // of an independent hardcoded white — keeps any letterbox space around
     // a Fit-scaled image blended with the card.
     const cardBgColorResolved = toStringOr(firstDefinedDsl(raw?.cardBackgroundColor, raw?.cardBgColor, css.card?.backgroundColor), DEFAULT_PRODUCT_CARD_CONFIG.cardBgColor);
+    // Matches ProductGrid.js/AllProductsScreen.js's own Add to Cart
+    // visibility candidates exactly — this screen previously read none of
+    // them at all, so the button always showed regardless of the merchant
+    // turning it off in Builder.
+    const cardVisibility = {
+      ...(unwrapDslValue(raw?.visibility) || {}),
+      ...(unwrapDslValue(props?.visibility) || {}),
+    };
+    let showAddToCart = DEFAULT_PRODUCT_CARD_CONFIG.showAddToCart;
+    for (const candidate of [
+      raw?.atcActive,
+      raw?.addToCartActive,
+      raw?.showAddToCart,
+      raw?.showCartButton,
+      raw?.addToCartVisible,
+      raw?.addToCartEnabled,
+      cardVisibility?.addToCart,
+      cardVisibility?.atc,
+      cardVisibility?.button,
+    ]) {
+      const explicit = toExplicitBoolean(candidate);
+      if (explicit !== undefined) {
+        showAddToCart = explicit;
+        break;
+      }
+    }
+    // Matches AllProductsScreen.js's own favorite/wishlist visibility
+    // candidates exactly — defaults to HIDDEN unless explicitly enabled,
+    // same as there. This screen was rendering the heart unconditionally.
+    let showFavorite = DEFAULT_PRODUCT_CARD_CONFIG.showFavorite;
+    for (const candidate of [
+      raw?.favoriteIconEnabled,
+      raw?.showFavorite,
+      raw?.showWishlist,
+      raw?.addToFavorite,
+      raw?.addToFavoriteActive,
+      cardVisibility?.favorite,
+      cardVisibility?.addToFavorite,
+      cardVisibility?.wishlist,
+    ]) {
+      const explicit = toExplicitBoolean(candidate);
+      if (explicit !== undefined) {
+        showFavorite = explicit;
+        break;
+      }
+    }
     return {
+      showAddToCart,
+      showFavorite,
       cardBgColor: cardBgColorResolved,
       cardBorderColor: toStringOr(firstDefinedDsl(raw?.cardBorderColor, css.card?.borderColor), DEFAULT_PRODUCT_CARD_CONFIG.cardBorderColor),
       cardBorderWidth: toNumberOr(firstDefinedDsl(raw?.cardBorderWidth, css.card?.borderWidth), DEFAULT_PRODUCT_CARD_CONFIG.cardBorderWidth),
@@ -569,21 +619,23 @@ export default function CollectionProductsScreen() {
             placeholderBg={productCardConfig.imageBgColor}
           />
           {/* Favourite toggle */}
-          <FavoriteToggleButton
-            isFavorite={isFav}
-            config={favoriteToggleConfig}
-            onPress={async (e) => {
-              e?.stopPropagation?.();
-              e?.preventDefault?.();
-              const blocked = await requireLoginForAction({ session, navigation, initializing });
-              if (blocked) return;
-              favoriteTapRef.current = true;
-              setTimeout(() => {
-                favoriteTapRef.current = false;
-              }, 0);
-              dispatch(toggleWishlist({ product: item }));
-            }}
-          />
+          {productCardConfig.showFavorite && (
+            <FavoriteToggleButton
+              isFavorite={isFav}
+              config={favoriteToggleConfig}
+              onPress={async (e) => {
+                e?.stopPropagation?.();
+                e?.preventDefault?.();
+                const blocked = await requireLoginForAction({ session, navigation, initializing });
+                if (blocked) return;
+                favoriteTapRef.current = true;
+                setTimeout(() => {
+                  favoriteTapRef.current = false;
+                }, 0);
+                dispatch(toggleWishlist({ product: item }));
+              }}
+            />
+          )}
         </View>
 
         {/* Card body */}
@@ -617,35 +669,37 @@ export default function CollectionProductsScreen() {
               productCurrency(item)
             )}
           </Text>
-          <TouchableOpacity
-            style={[
-              inStock ? styles.cartBtnActive : styles.cartBtnSoldOut,
-              {
-                backgroundColor: inStock ? productCardConfig.buttonBgColor : productCardConfig.unavailableBgColor,
-                borderRadius: productCardConfig.buttonRadius,
-              },
-            ]}
-            activeOpacity={inStock ? 0.8 : 1}
-            disabled={!inStock}
-            onPress={(e) => {
-              e?.stopPropagation?.();
-              e?.preventDefault?.();
-              if (inStock) handleAddToCart(item);
-            }}
-          >
-            <Text
+          {(productCardConfig.showAddToCart || !inStock) && (
+            <TouchableOpacity
               style={[
-                inStock ? styles.cartBtnTextActive : styles.cartBtnTextSoldOut,
+                inStock ? styles.cartBtnActive : styles.cartBtnSoldOut,
                 {
-                  color: inStock ? productCardConfig.buttonTextColor : productCardConfig.unavailableTextColor,
-                  fontSize: productCardConfig.buttonTextSize,
-                  fontWeight: String(productCardConfig.buttonTextWeight),
+                  backgroundColor: inStock ? productCardConfig.buttonBgColor : productCardConfig.unavailableBgColor,
+                  borderRadius: productCardConfig.buttonRadius,
                 },
               ]}
+              activeOpacity={inStock ? 0.8 : 1}
+              disabled={!inStock}
+              onPress={(e) => {
+                e?.stopPropagation?.();
+                e?.preventDefault?.();
+                if (inStock) handleAddToCart(item);
+              }}
             >
-              {inStock ? "Add To Cart" : "Item Not Available"}
-            </Text>
-          </TouchableOpacity>
+              <Text
+                style={[
+                  inStock ? styles.cartBtnTextActive : styles.cartBtnTextSoldOut,
+                  {
+                    color: inStock ? productCardConfig.buttonTextColor : productCardConfig.unavailableTextColor,
+                    fontSize: productCardConfig.buttonTextSize,
+                    fontWeight: String(productCardConfig.buttonTextWeight),
+                  },
+                ]}
+              >
+                {inStock ? "Add To Cart" : "Item Not Available"}
+              </Text>
+            </TouchableOpacity>
+          )}
         </View>
       </TouchableOpacity>
     );

@@ -816,7 +816,7 @@ export default function CollectionImage({ section }) {
     cardW, hGap, isGrid, onItemPress,
     cardPaddingTop, cardPaddingBottom, cardPaddingLeft, cardPaddingRight, cardBackgroundColor, cardBorderRadius,
     showCardImage, cardImageWidth, cardImageHeight, imageRadius, cardImageBorder, cardImageBorderColor, cardImageBgColor,
-    imageInnerWidth, imageInnerHeight, placeholderBgColor, placeholderTextColor,
+    imageInnerWidth, imageInnerHeight, placeholderBgColor, placeholderTextColor, resolveCardImage,
     showCardText, titlePosition, imageScale, cardTextColor, cardTextSize, cardTextWeight,
     cardTextAlign, cardTitleLineHeight, cardTitleMarginTop, cardFontFamily,
   ]);
@@ -842,9 +842,9 @@ export default function CollectionImage({ section }) {
             backgroundColor: placeholderBgColor,
           }}
         >
-          {isRenderableImageUrl(sub.image) ? (
+          {(() => { const resolvedSubImage = resolveCardImage(sub); return isRenderableImageUrl(resolvedSubImage) ? (
             <Image
-              source={{ uri: sub.image }}
+              source={{ uri: resolvedSubImage }}
               style={{ width: subImageWidth, height: subImageHeight, borderRadius: subImageRadius }}
               resizeMode={["contain", "fit"].includes(subImageScale) ? "contain" : "cover"}
             />
@@ -852,7 +852,7 @@ export default function CollectionImage({ section }) {
             <Text style={{ color: placeholderTextColor, fontSize: subImageWidth * 0.3, fontWeight: "700" }}>
               {(sub.title || "?").charAt(0).toUpperCase()}
             </Text>
-          )}
+          ); })()}
           {subShowCardText && subTitlePosition === "inside" && (
             <View style={styles.insideTitleWrap}>
               <Text
@@ -898,7 +898,7 @@ export default function CollectionImage({ section }) {
   ), [
     subGridCardW, onSubItemPress, subShowCardImage, subImageWidth, subImageHeight, subImageRadius,
     placeholderBgColor, placeholderTextColor, subImageScale, subShowCardText, subTitlePosition,
-    subCardTextColor, subCardTextSize, subCardTextWeight, subCardTextAlign, subCardFontFamily,
+    subCardTextColor, subCardTextSize, subCardTextWeight, subCardTextAlign, subCardFontFamily, resolveCardImage,
   ]);
 
   const containerStyle = [
