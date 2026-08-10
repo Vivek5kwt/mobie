@@ -1,4 +1,5 @@
 import { Linking } from "react-native";
+import { goToPreviousScreen } from "./screenHistory";
 
 const firstNonEmpty = (...values) => {
   for (const value of values) {
@@ -246,8 +247,7 @@ export const navigateToDslTarget = async (navigation, options = {}) => {
   if (!resolved || !navigation?.navigate) return false;
 
   if (resolved.type === "back") {
-    if (navigation.canGoBack?.()) navigation.goBack();
-    else navigation.navigate("LayoutScreen", { pageName: "home" });
+    goToPreviousScreen(navigation);
     return true;
   }
 

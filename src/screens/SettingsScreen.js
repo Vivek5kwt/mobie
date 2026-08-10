@@ -18,6 +18,7 @@ import DynamicRenderer from "../engine/DynamicRenderer";
 import HeaderDefault from "../components/HeaderDefault";
 import SkeletonLoader from "../components/SkeletonLoader";
 import BottomNavigation, { BOTTOM_NAV_RESERVED_HEIGHT } from "../components/BottomNavigation";
+import { goToPreviousScreen } from "../utils/screenHistory";
 
 const normalizeSlug = (value = "") =>
   String(value || "")
@@ -199,7 +200,7 @@ export default function SettingsScreen() {
             ) : (
               <View style={styles.fallbackHeader}>
                 <TouchableOpacity
-                  onPress={() => (navigation.canGoBack() ? navigation.goBack() : navigation.navigate("BottomNavScreen", { pageName: "my-account", title: "My Account" }))}
+                  onPress={() => goToPreviousScreen(navigation, "BottomNavScreen", { pageName: "my-account", title: "My Account" })}
                   style={styles.fallbackBack}
                   activeOpacity={0.7}
                   hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}

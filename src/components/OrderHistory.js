@@ -98,6 +98,25 @@ const pickCustomerAccessToken = (session) => {
   return "";
 };
 
+// The real Shopify customer GID (captured at login/registration, see
+// authService.ts) — fetchCustomerOrders needs this for the Admin API's
+// customer(id:) lookup. customerAccessToken is kept only for the
+// "is this shopper logged in at all" checks below; it was never a usable
+// Shopify Storefront token (this app has no reliable Storefront Access
+// Token — see the PROXY_ENDPOINT comment in services/shopify.js), so it
+// can't stand in as the query argument itself.
+const pickShopifyCustomerId = (session) => {
+  const candidates = [
+    session?.user?.shopifyCustomerId,
+    session?.shopifyCustomerId,
+  ];
+  for (const candidate of candidates) {
+    const value = toStr(candidate, "");
+    if (value) return value;
+  }
+  return "";
+};
+
 const formatOrderMoney = (amount, order = {}, fallbackSymbol = "") => {
   const storeCurrencyCode = getStoreConfigSync()?.currency || "";
   const resolvedCode = order.currencyCode || order.priceCurrency || storeCurrencyCode;
@@ -139,6 +158,7 @@ export default function OrderHistory({ section }) {
   const userId = session?.user?.id || session?.user?.userId || "";
   const email = session?.user?.email || "";
   const customerAccessToken = pickCustomerAccessToken(session);
+  const shopifyCustomerId = pickShopifyCustomerId(session);
   const allowPreviewOrders = toBool(
     raw?.usePreviewOrders ?? raw?.previewOrders ?? raw?.demoOrders,
     false
@@ -160,9 +180,10 @@ export default function OrderHistory({ section }) {
         const storedOrders = await getStoredOrders({ appId, userId, email });
         let liveOrders = [];
 
-        if (customerAccessToken) {
+        if (shopifyCustomerId || email) {
           const result = await fetchCustomerOrders({
-            customerAccessToken,
+            customerId: shopifyCustomerId,
+            email,
             first: Math.max(1, toNum(raw?.limit ?? raw?.itemsShown, 20)),
           });
           liveOrders = result?.orders || [];
@@ -193,7 +214,7 @@ export default function OrderHistory({ section }) {
       return () => {
         active = false;
       };
-    }, [allowPreviewOrders, appId, customerAccessToken, email, isLoggedIn, raw, userId])
+    }, [allowPreviewOrders, appId, customerAccessToken, shopifyCustomerId, email, isLoggedIn, raw, userId])
   );
 
   // Mirrors Builder's actual OrderHistory Inspector/PreviewLive field names

@@ -418,8 +418,18 @@ export default function Header2({ section }) {
       searchAndIconsNode.notificationIconColor,
       "#FFFFFF"
     ),
-    notificationIconWidth: resolveValue(searchAndIconsNode.notificationIconWidth, 16),
-    notificationIconHeight: resolveValue(searchAndIconsNode.notificationIconHeight, 16),
+    // Builder used to save separate width/height fields, with the actual
+    // icon glyph rendered at a fixed 60% of whichever was smaller — so
+    // widening the icon alone (without also raising height) visibly did
+    // nothing to the icon itself, only to empty space around it. Builder now
+    // saves a single notificationIconSize; the width/height fallbacks are
+    // kept only for pages saved before this change.
+    notificationIconSize: resolveValue(
+      searchAndIconsNode.notificationIconSize ??
+        searchAndIconsNode.notificationIconWidth ??
+        searchAndIconsNode.notificationIconHeight,
+      24
+    ),
     notificationIconVariant: resolveValue(
       searchAndIconsNode.notificationIconVariant,
       "solid"
@@ -575,9 +585,8 @@ export default function Header2({ section }) {
     ),
     size:
       parseSize(resolveValue(notificationNode.width, undefined)) ||
-      parseSize(searchAndIcons.notificationIconWidth) ||
-      parseSize(searchAndIcons.notificationIconHeight) ||
-      32,
+      parseSize(searchAndIcons.notificationIconSize) ||
+      24,
     color:
       resolveValue(notificationNode.color, searchAndIcons.notificationIconColor) || "#FFFFFF",
     showBadge: resolveBooleanSetting(

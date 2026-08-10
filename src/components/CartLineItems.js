@@ -415,28 +415,32 @@ export default function CartLineItems({ section }) {
       ? "center"
       : "flex-start";
 
-  // Quantity — Text sub-panel
+  // Quantity — Text sub-panel. Quantitypicker.tsx's Inspector actually writes
+  // these UNPREFIXED (textColor/textFontSize/...) — the qp*/qty* candidates
+  // below are dead legacy names nothing ever wrote, kept only as harmless
+  // fallbacks; this used to check them FIRST, so no Quantity Picker style
+  // edit ever reached this render.
   const showQtyText = toBoolean(raw?.showText, true);
-  const qtyTextColor = toString(raw?.qpTextColor ?? raw?.qtyTextColor, "#111827");
-  const qtyTextSize = toNumber(raw?.qpTextFontSize ?? raw?.qtyTextSize, 12);
-  const qtyTextWeight = toFontWeight(raw?.qpTextFontWeight, "600");
-  const qtyTextFontFamily = cleanFontFamily(toString(raw?.qpTextFontFamily ?? raw?.qtyFontFamily, ""));
+  const qtyTextColor = toString(raw?.textColor ?? raw?.qpTextColor ?? raw?.qtyTextColor, "#111827");
+  const qtyTextSize = toNumber(raw?.textFontSize ?? raw?.qpTextFontSize ?? raw?.qtyTextSize, 12);
+  const qtyTextWeight = toFontWeight(raw?.textFontWeight ?? raw?.qpTextFontWeight, "600");
+  const qtyTextFontFamily = cleanFontFamily(toString(raw?.textFontFamily ?? raw?.qpTextFontFamily ?? raw?.qtyFontFamily, ""));
 
   // Quantity — Increase / Decrease sub-panels (independent icon/color/size each)
   const showIncrease = toBoolean(raw?.showIncrease, true);
-  const increaseIconName = resolveFA4IconName(toString(raw?.qpIncreaseIcon, "")) || "plus";
-  const increaseIconColor = toString(raw?.qpIncreaseColor ?? raw?.qtyIconColor, "#111827");
-  const increaseIconSize = toNumber(raw?.qpIncreaseSize ?? raw?.qtyIconSize, 10);
+  const increaseIconName = resolveFA4IconName(toString(raw?.increaseIcon ?? raw?.qpIncreaseIcon, "")) || "plus";
+  const increaseIconColor = toString(raw?.increaseColor ?? raw?.qpIncreaseColor ?? raw?.qtyIconColor, "#111827");
+  const increaseIconSize = toNumber(raw?.increaseSize ?? raw?.qpIncreaseSize ?? raw?.qtyIconSize, 10);
 
   const showDecrease = toBoolean(raw?.showDecrease, true);
-  const decreaseIconName = resolveFA4IconName(toString(raw?.qpDecreaseIcon, "")) || "minus";
-  const decreaseIconColor = toString(raw?.qpDecreaseColor ?? raw?.qtyIconColor, "#111827");
-  const decreaseIconSize = toNumber(raw?.qpDecreaseSize ?? raw?.qtyIconSize, 10);
+  const decreaseIconName = resolveFA4IconName(toString(raw?.decreaseIcon ?? raw?.qpDecreaseIcon, "")) || "minus";
+  const decreaseIconColor = toString(raw?.decreaseColor ?? raw?.qpDecreaseColor ?? raw?.qtyIconColor, "#111827");
+  const decreaseIconSize = toNumber(raw?.decreaseSize ?? raw?.qpDecreaseSize ?? raw?.qtyIconSize, 10);
 
   // Delete button
   const showDelete = toBoolean(raw?.showDelete ?? raw?.showDeleteButton, true);
-  const deleteIconColor = toString(raw?.qpDeleteColor ?? raw?.deleteIconColor, "#9CA3AF");
-  const deleteIconSize = toNumber(raw?.qpDeleteSize ?? raw?.deleteIconSize, 14);
+  const deleteIconColor = toString(raw?.deleteColor ?? raw?.qpDeleteColor ?? raw?.deleteIconColor, "#9CA3AF");
+  const deleteIconSize = toNumber(raw?.deleteSize ?? raw?.qpDeleteSize ?? raw?.deleteIconSize, 14);
 
   // Item icon (e.g. vendor/profile icon from DSR brandKit — shown top-right of each card)
   // Icon.tsx's real key is "showIcon"; the show* aliases below are legacy/unused.

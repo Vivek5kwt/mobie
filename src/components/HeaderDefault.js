@@ -10,6 +10,7 @@ import { getTypography, resolveFirstFont } from "../services/typographyService";
 import { dedupeWishlistProducts } from "../store/slices/wishlistSlice";
 import { requireLoginForAction } from "../utils/authGate";
 import { navigateToDslTarget } from "../utils/navigationTarget";
+import { goToPreviousScreen } from "../utils/screenHistory";
 
 const normalizeIconName = (name) => {
   if (!name) return "";
@@ -409,8 +410,7 @@ export default function HeaderDefault({
     const ref  = String(navRef  || "").trim();
     if (type === "none") return;
     if (isBackNavigationTarget(ref, type)) {
-      if (navigation.canGoBack()) navigation.goBack();
-      else navigation.navigate("LayoutScreen");
+      goToPreviousScreen(navigation);
       return;
     }
     const key = normalizeNavKey(ref);
@@ -695,8 +695,7 @@ export default function HeaderDefault({
           hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
           onPress={() => {
             if (isBackIcon) {
-              if (navigation.canGoBack()) navigation.goBack();
-              else navigation.navigate("LayoutScreen");
+              goToPreviousScreen(navigation);
             } else if (hasCustomNav) executeNavigation(effectiveNavRef, effectiveNavType);
             else if (isCart)        openNavTarget("cart");
             else if (isBell)        openNavTarget("notification");

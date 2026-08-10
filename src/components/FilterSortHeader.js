@@ -1,5 +1,5 @@
 // components/FilterSortHeader.js
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import {
   Modal,
   ScrollView,
@@ -11,6 +11,7 @@ import {
 import Icon from "react-native-vector-icons/FontAwesome";
 import { resolveFont } from "../services/typographyService";
 import { resolveFA4IconName } from "../utils/faIconAlias";
+import { fetchShopifyProductsPage } from "../services/shopify";
 import {
   getSortFilterSnapshot,
   hydrateSortFilterFromStorage,
@@ -19,8 +20,8 @@ import {
 } from "../utils/sortFilterStore";
 
 // Builder's FilterAndSortHeader (PreviewLive.tsx) has no Inspector control for
-// the sort-option list or the filter category list — both are hardcoded there.
-// Mirrored verbatim here so DSL-driven pages behave the same as Builder.
+// the sort-option list — it's hardcoded there. Mirrored verbatim here so
+// DSL-driven pages behave the same as Builder.
 const SORT_OPTIONS = [
   "Recommended",
   "What's New",
@@ -28,11 +29,51 @@ const SORT_OPTIONS = [
   "Price: Low to High",
   "Price: High to Low",
 ];
-const AVAILABILITY_FILTERS = [
-  { label: "In stock", count: 8, disabled: false },
-  { label: "Out of stock", count: 1, disabled: false },
-  { label: "Available soon", count: 0, disabled: true },
+// Fallback only for when this block is rendered with no `products` context at
+// all (a bare DSL placement via DynamicRenderer, no product-list screen
+// behind it) — real usage always computes real counts, see
+// resolveAvailabilityFilters below.
+const STATIC_AVAILABILITY_FILTERS = [
+  { label: "In stock", count: 0, disabled: false },
+  { label: "Out of stock", count: 0, disabled: false },
+  { label: "Available soon", count: 0, disabled: false },
 ];
+
+function isProductInStock(product) {
+  if (!product || typeof product !== "object") return true;
+  if (product.availableForSale === false || String(product.availableForSale).trim().toLowerCase() === "false") return false;
+  const inventory =
+    product.inventoryQuantity ??
+    product.totalInventory ??
+    product.stockQuantity ??
+    product.quantityAvailable;
+  if (typeof inventory === "number" && inventory <= 0) return false;
+  if (Array.isArray(product.variants) && product.variants.length > 0) {
+    const anyVariantAvailable = product.variants.some(
+      (variant) =>
+        variant?.availableForSale !== false &&
+        String(variant?.availableForSale).trim().toLowerCase() !== "false"
+    );
+    if (!anyVariantAvailable) return false;
+  }
+  return true;
+}
+
+// Real counts from the product list actually being viewed, instead of
+// Builder's hardcoded mockup numbers (8 / 1 / 0). ProductGrid.js's own
+// availability-filter matching treats "Available soon" as a synonym for
+// "Out of stock" (no separate Shopify signal exists for it), so it shows the
+// same real count rather than a fake, always-zero one.
+function resolveAvailabilityFilters(products) {
+  if (!Array.isArray(products) || !products.length) return STATIC_AVAILABILITY_FILTERS;
+  const inStock = products.filter(isProductInStock).length;
+  const outOfStock = products.length - inStock;
+  return [
+    { label: "In stock", count: inStock, disabled: false },
+    { label: "Out of stock", count: outOfStock, disabled: false },
+    { label: "Available soon", count: outOfStock, disabled: false },
+  ];
+}
 
 function resolveProp(obj, key, fallback) {
   if (!obj) return fallback;
@@ -120,11 +161,36 @@ function renderIconGlyph(iconType, size, color) {
 export default function FilterSortHeader({
   section,
   filterItems: filterItemsProp,
+  products,
   onSortChange,
   onViewModeChange,
   onFilterChange,
 }) {
   const raw = getSectionProps(section);
+
+  // When this block is placed directly on a DSL page with no product-list
+  // screen behind it (e.g. via DynamicRenderer on Home, alongside a sibling
+  // Product Grid that fetches its own data independently), no `products`
+  // prop is passed at all — fetch a real sample ourselves so the
+  // Availability filter still shows real counts instead of always zero.
+  const [selfFetchedProducts, setSelfFetchedProducts] = useState(null);
+  useEffect(() => {
+    if (Array.isArray(products)) return;
+    let mounted = true;
+    fetchShopifyProductsPage({ first: 100 })
+      .then((payload) => {
+        if (mounted) setSelfFetchedProducts(payload?.products || []);
+      })
+      .catch(() => {
+        if (mounted) setSelfFetchedProducts([]);
+      });
+    return () => { mounted = false; };
+  }, [products]);
+
+  const availabilityFilters = useMemo(
+    () => resolveAvailabilityFilters(Array.isArray(products) ? products : selfFetchedProducts),
+    [products, selfFetchedProducts]
+  );
 
   // Screens that pass their own product-derived filter categories (e.g.
   // CollectionProductsScreen, AllProductsScreen) get their existing richer,
@@ -637,7 +703,7 @@ export default function FilterSortHeader({
 
                 {openAvailability ? (
                   <View style={styles.accordionBody}>
-                    {AVAILABILITY_FILTERS.map((item) => {
+                    {availabilityFilters.map((item) => {
                       const checked = tempFilters.includes(item.label);
                       return (
                         <TouchableOpacity

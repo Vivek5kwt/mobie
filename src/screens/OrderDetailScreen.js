@@ -237,6 +237,17 @@ export default function OrderDetailScreen() {
     session?.accessToken ||
     session?.token ||
     "";
+  // The real Shopify customer GID (captured at login/registration, see
+  // authService.ts) — fetchCustomerOrders/findAdminOrderWithCustomerFallback
+  // need this for the Admin API's customer(id:) lookup; customerAccessToken
+  // was never a usable Shopify Storefront token (this app has no reliable
+  // Storefront Access Token — see the PROXY_ENDPOINT comment in
+  // services/shopify.js).
+  const shopifyCustomerId =
+    session?.user?.shopifyCustomerId ||
+    session?.shopifyCustomerId ||
+    "";
+  const customerEmail = session?.user?.email || "";
 
   // ── Load DSL ──────────────────────────────────────────────────────────────
   const loadDsl = useCallback(async () => {
@@ -276,9 +287,8 @@ export default function OrderDetailScreen() {
   // ── Fetch orders from Shopify if no order was passed ─────────────────────
   useEffect(() => {
     if (routeOrder) return;           // already have data — skip Shopify fetch
-    const token = customerAccessToken || null;
 
-    if (!token) {
+    if (!shopifyCustomerId && !customerEmail) {
       setFetchingOrders(false);
       setNoOrders(true);
       return;
@@ -287,7 +297,7 @@ export default function OrderDetailScreen() {
     let mounted = true;
     (async () => {
       try {
-        const { orders } = await fetchCustomerOrders({ customerAccessToken: token, first: 1 });
+        const { orders } = await fetchCustomerOrders({ customerId: shopifyCustomerId, email: customerEmail, first: 1 });
         if (!mounted) return;
         if (orders.length > 0) {
           setOrder(orders[0]);
@@ -302,7 +312,7 @@ export default function OrderDetailScreen() {
       }
     })();
     return () => { mounted = false; };
-  }, [customerAccessToken, routeOrder]);
+  }, [shopifyCustomerId, customerEmail, routeOrder]);
 
   useEffect(() => {
     if (!order) return;
@@ -323,7 +333,7 @@ export default function OrderDetailScreen() {
 
     (async () => {
       try {
-        const latest = await fetchShopifyOrderDetails({ order, customerAccessToken });
+        const latest = await fetchShopifyOrderDetails({ order, customerId: shopifyCustomerId, customerAccessToken });
         if (!mounted || !latest) return;
         setOrder((current) => ({ ...(current || {}), ...latest }));
       } catch (_) {
@@ -336,7 +346,7 @@ export default function OrderDetailScreen() {
     })();
 
     return () => { mounted = false; };
-  }, [customerAccessToken, order]);
+  }, [customerAccessToken, shopifyCustomerId, order]);
 
   // ── Bottom nav from home DSL ───────────────────────────────────────────────
   useEffect(() => {
@@ -411,6 +421,7 @@ export default function OrderDetailScreen() {
           userId={session?.user?.id ?? null}
           email={session?.user?.email || ""}
           customerAccessToken={customerAccessToken}
+          customerId={shopifyCustomerId}
           onCanceled={(updatedOrder) => {
             setOrder((current) => ({ ...(current || {}), ...(updatedOrder || {}) }));
             setDetailsError("");
@@ -722,7 +733,7 @@ function PriceInfoSection({ section, order }) {
 
 // ─── Cancel Order Section ─────────────────────────────────────────────────────
 
-function CancelOrderSection({ section, order, appId, userId, email, customerAccessToken, onCanceled }) {
+function CancelOrderSection({ section, order, appId, userId, email, customerAccessToken, customerId, onCanceled }) {
   const propsNode = getProps(section);
   const raw       = unwrap(propsNode?.raw, {}) || {};
   const [submitting, setSubmitting] = useState(false);
@@ -787,6 +798,7 @@ function CancelOrderSection({ section, order, appId, userId, email, customerAcce
         order,
         reason: cancelReason,
         notifyCustomer: toBool(raw.notifyCustomer, true),
+        customerId,
         customerAccessToken,
       });
       const updatedOrder = {

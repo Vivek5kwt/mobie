@@ -2087,14 +2087,15 @@ const findMatchingCustomerOrder = (target = {}, orders = []) => {
   return null;
 };
 
-const findAdminOrderWithCustomerFallback = async ({ order, customerAccessToken } = {}) => {
+const findAdminOrderWithCustomerFallback = async ({ order, customerId, customerAccessToken } = {}) => {
   let lookupOrder = order || {};
   let adminOrder = await findAdminOrderForCustomerOrder(lookupOrder);
-  if (adminOrder || !customerAccessToken) {
+  const resolvedCustomerId = customerId || customerAccessToken;
+  if (adminOrder || !resolvedCustomerId) {
     return { adminOrder, lookupOrder };
   }
 
-  const { orders } = await fetchCustomerOrders({ customerAccessToken, first: 10 });
+  const { orders } = await fetchCustomerOrders({ customerId: resolvedCustomerId, first: 10 });
   const customerOrder = findMatchingCustomerOrder(lookupOrder, orders);
   if (!customerOrder) {
     return { adminOrder: null, lookupOrder };
@@ -2105,16 +2106,17 @@ const findAdminOrderWithCustomerFallback = async ({ order, customerAccessToken }
   return { adminOrder, lookupOrder };
 };
 
-export async function fetchShopifyOrderDetails({ order, customerAccessToken } = {}) {
+export async function fetchShopifyOrderDetails({ order, customerId, customerAccessToken } = {}) {
   if (!order) return null;
   const { adminOrder, lookupOrder } = await findAdminOrderWithCustomerFallback({
     order,
+    customerId,
     customerAccessToken,
   });
   return adminOrder ? mapAdminOrder(adminOrder, lookupOrder) : lookupOrder;
 }
 
-export async function cancelShopifyOrder({ order, reason = "customer", notifyCustomer = true, customerAccessToken } = {}) {
+export async function cancelShopifyOrder({ order, reason = "customer", notifyCustomer = true, customerId, customerAccessToken } = {}) {
   if (!order) {
     throw createOrderCancellationError({
       code: "ORDER_REQUIRED",
@@ -2123,6 +2125,7 @@ export async function cancelShopifyOrder({ order, reason = "customer", notifyCus
   }
   const { adminOrder, lookupOrder } = await findAdminOrderWithCustomerFallback({
     order,
+    customerId,
     customerAccessToken,
   });
   const adminOrderId = adminOrder?.id || extractShopifyNumericId(lookupOrder?.adminOrderId || lookupOrder?.id);
@@ -2996,69 +2999,175 @@ export async function fetchShopifyCollectionProducts({
 // ----------------------
 // FETCH CUSTOMER ORDERS
 // ----------------------
-export async function fetchCustomerOrders({ customerAccessToken, first = 10 } = {}) {
-  if (!customerAccessToken) return { orders: [] };
-
-  const creds = await getShopifyCredentials();
-  const { shop, token, storeId } = creds;
-
-  const query = `
-    query CustomerOrders($customerAccessToken: String!, $first: Int!) {
-      customer(customerAccessToken: $customerAccessToken) {
-        orders(first: $first, reverse: true) {
-          edges {
-            node {
-              id
-              name
-              orderNumber
-              processedAt
-              financialStatus
-              fulfillmentStatus
-              statusUrl
-              totalPriceV2 { amount currencyCode }
-              subtotalPriceV2 { amount currencyCode }
-              totalShippingPriceV2 { amount currencyCode }
-              totalTaxV2 { amount currencyCode }
-              shippingAddress {
-                name
-                address1
-                address2
-                city
-                province
-                country
-                zip
-                phone
-              }
-              lineItems(first: 20) {
-                edges {
-                  node {
-                    title
-                    quantity
-                    variant {
-                    title
-                    image { url }
-                    price
-                    product {
-                      handle
-                      title
-                      vendor
-                    }
-                  }
-                }
-              }
-              }
-            }
+// Builder/APK never has a reliable Shopify Storefront Access Token (see the
+// PROXY_ENDPOINT comment above — a store must be a registered Sales Channel
+// to mint one), so this can't use the Storefront API's
+// `customer(customerAccessToken: ...)` lookup the way a Storefront-only app
+// would. It used to anyway, sent through directStorefrontGraphQL (which is
+// actually the Admin API proxy) — the Admin schema has no such argument on
+// `customer` at all, which is exactly the "missing required arguments: id"
+// error this was producing. Rewritten to use the Admin API's real
+// `customer(id: ID!)` lookup with the Shopify customer GID captured at
+// login/registration (session.user.shopifyCustomerId in authService.ts).
+const CUSTOMER_ORDER_NODE_FIELDS = `
+  id
+  name
+  processedAt
+  displayFinancialStatus
+  displayFulfillmentStatus
+  statusPageUrl
+  totalPriceSet { shopMoney { amount currencyCode } }
+  subtotalPriceSet { shopMoney { amount currencyCode } }
+  totalShippingPriceSet { shopMoney { amount currencyCode } }
+  totalTaxSet { shopMoney { amount currencyCode } }
+  shippingAddress {
+    name
+    address1
+    address2
+    city
+    province
+    country
+    zip
+    phone
+  }
+  lineItems(first: 20) {
+    edges {
+      node {
+        title
+        quantity
+        vendor
+        image { url }
+        originalUnitPriceSet { shopMoney { amount currencyCode } }
+        variant {
+          id
+          title
+          product {
+            handle
+            title
           }
         }
       }
     }
-  `;
+  }
+`;
+
+const mapCustomerOrderNode = (node, creds) => {
+  const addr = node.shippingAddress;
+  const addressText = formatAddressLines(addr);
+  const totalMoney = node.totalPriceSet?.shopMoney || {};
+  const subtotalMoney = node.subtotalPriceSet?.shopMoney || totalMoney;
+  const shippingMoney = node.totalShippingPriceSet?.shopMoney || {};
+  const taxMoney = node.totalTaxSet?.shopMoney || {};
+  const currency = totalMoney?.currencyCode || subtotalMoney?.currencyCode || creds?.currency || "";
+  const currencySymbol = sharedCurrencySymbolForCode(currency);
+  const financialStatus = node.displayFinancialStatus || "";
+  const fulfillmentStatus = node.displayFulfillmentStatus || "";
+  return {
+    id:             node.id,
+    name:           node.name || "",
+    orderNumber:    node.name || "",
+    orderDate:      formatOrderDate(node.processedAt),
+    placedAt:       node.processedAt || "",
+    placedOn:       formatOrderDate(node.processedAt, "short"),
+    status:         formatOrderStatus(fulfillmentStatus, financialStatus),
+    fulfillmentStatus,
+    financialStatus,
+    statusUrl:      node.statusPageUrl || "",
+    deliveryMethod: "",
+    shippingAddress: addr || null,
+    address:        addressText,
+    arrival:        "",
+    billingAddress: null,
+    billing:        "",
+    paymentMethod:  "",
+    paymentGatewayNames: [],
+    payment:        "",
+    delivery:       parseFloat(shippingMoney?.amount || 0),
+    tax:            parseFloat(taxMoney?.amount || 0),
+    subtotal:       parseFloat(subtotalMoney?.amount || totalMoney?.amount || 0),
+    total:          parseFloat(totalMoney?.amount || 0),
+    currencyCode:   currency,
+    currencySymbol,
+    cancellable:    !["REFUNDED", "VOIDED"].includes(String(financialStatus).toUpperCase()),
+    lineItems: (node.lineItems?.edges || []).map(({ node: li }) => {
+      const unitMoney = li.originalUnitPriceSet?.shopMoney;
+      return {
+        id:            li.variant?.id || li.title,
+        variantId:     li.variant?.id || "",
+        handle:        li.variant?.product?.handle || "",
+        title:         li.title || li.variant?.product?.title || "Product",
+        vendor:        li.vendor || "",
+        variant:       li.variant?.title || "",
+        imageUrl:      li.image?.url || null,
+        image:         li.image?.url || "",
+        priceAmount:   parseFloat(unitMoney?.amount || 0),
+        priceCurrency: unitMoney?.currencyCode || currency,
+        price:         unitMoney
+          ? formatSharedMoney(unitMoney.amount || 0, unitMoney.currencyCode || currency)
+          : "",
+        quantity:      li.quantity,
+      };
+    }),
+  };
+};
+
+export async function fetchCustomerOrders({ customerId, customerAccessToken, email, first = 10 } = {}) {
+  const creds = await getShopifyCredentials();
+  const { shop, token, storeId } = creds;
+
+  const resolvedCustomerId = customerId || customerAccessToken;
+  let customerGid = resolvedCustomerId
+    ? (String(resolvedCustomerId).startsWith("gid://")
+        ? String(resolvedCustomerId)
+        : `gid://shopify/Customer/${resolvedCustomerId}`)
+    : null;
+
+  // Only `customer(id:).orders` is reachable without Shopify's "Protected
+  // customer data" approval — a root-level `orders(query: "email:...")` (or
+  // `customers(query: "email:...")` search that RETURNS protected fields)
+  // is a shop-wide search and gets ACCESS_DENIED ("not approved to access
+  // the Order object") on any store that hasn't been granted that access
+  // level. Requesting only `id` back from a `customers` search stays within
+  // what's allowed (id isn't protected data) and is how accounts logged in
+  // before shopifyCustomerId was captured (see authService.ts) still get a
+  // usable GID to feed into the one query that's actually permitted.
+  if (!customerGid && email) {
+    try {
+      const lookupJson = await directStorefrontGraphQL({
+        shop, token, storeId,
+        query: `
+          query CustomerByEmail($query: String!) {
+            customers(first: 1, query: $query) {
+              edges { node { id } }
+            }
+          }
+        `,
+        variables: { query: `email:"${email}"` },
+      });
+      if (lookupJson?.errors) {
+        console.error("❌ fetchCustomerOrders email lookup GraphQL errors:", lookupJson.errors);
+      }
+      customerGid = lookupJson?.data?.customers?.edges?.[0]?.node?.id || null;
+    } catch (err) {
+      console.error("❌ fetchCustomerOrders email lookup error:", err);
+    }
+  }
+
+  if (!customerGid) return { orders: [] };
 
   try {
     const json = await directStorefrontGraphQL({
       shop, token, storeId,
-      query,
-      variables: { customerAccessToken, first },
+      query: `
+        query CustomerOrders($customerId: ID!, $first: Int!) {
+          customer(id: $customerId) {
+            orders(first: $first, reverse: true) {
+              edges { node { ${CUSTOMER_ORDER_NODE_FIELDS} } }
+            }
+          }
+        }
+      `,
+      variables: { customerId: customerGid, first },
     });
 
     if (json?.errors) {
@@ -3066,61 +3175,8 @@ export async function fetchCustomerOrders({ customerAccessToken, first = 10 } = 
       return { orders: [] };
     }
 
-    const edges = json?.data?.customer?.orders?.edges || [];
-    const orders = edges.map(({ node }) => {
-      const addr = node.shippingAddress;
-      const addressText = formatAddressLines(addr);
-      const totalMoney = node.totalPriceV2 || {};
-      const subtotalMoney = node.subtotalPriceV2 || totalMoney;
-      const shippingMoney = node.totalShippingPriceV2 || {};
-      const taxMoney = node.totalTaxV2 || {};
-      const currency = totalMoney?.currencyCode || subtotalMoney?.currencyCode || creds.currency || "";
-      const currencySymbol = sharedCurrencySymbolForCode(currency);
-      return {
-        id:             node.id,
-        name:           node.name || (node.orderNumber ? `#${node.orderNumber}` : ""),
-        orderNumber:    node.name || (node.orderNumber ? `#${node.orderNumber}` : ""),
-        orderDate:      formatOrderDate(node.processedAt),
-        placedAt:       node.processedAt || "",
-        placedOn:       formatOrderDate(node.processedAt, "short"),
-        status:         formatOrderStatus(node.fulfillmentStatus, node.financialStatus),
-        fulfillmentStatus: node.fulfillmentStatus || "",
-        financialStatus: node.financialStatus || "",
-        statusUrl:      node.statusUrl || "",
-        deliveryMethod: "",
-        shippingAddress: addr || null,
-        address:        addressText,
-        arrival:        "",
-        billingAddress: null,
-        billing:        "",
-        paymentMethod:  "",
-        paymentGatewayNames: [],
-        payment:        "",
-        delivery:       parseFloat(shippingMoney?.amount || 0),
-        tax:            parseFloat(taxMoney?.amount || 0),
-        subtotal:       parseFloat(subtotalMoney?.amount || totalMoney?.amount || 0),
-        total:          parseFloat(totalMoney?.amount || 0),
-        currencyCode:   currency,
-        currencySymbol,
-        cancellable:    !["REFUNDED", "VOIDED"].includes(String(node.financialStatus || "").toUpperCase()),
-        lineItems: (node.lineItems?.edges || []).map(({ node: li }) => ({
-          id:            li.variant?.id || li.title,
-          variantId:     li.variant?.id || "",
-          handle:        li.variant?.product?.handle || "",
-          title:         li.title || li.variant?.product?.title || "Product",
-          vendor:        li.variant?.product?.vendor || "",
-          variant:       li.variant?.title || "",
-          imageUrl:      li.variant?.image?.url || null,
-          image:         li.variant?.image?.url || "",
-          priceAmount:   parseFloat(li.variant?.price?.amount || 0),
-          priceCurrency: li.variant?.price?.currencyCode || currency,
-          price:         li.variant?.price
-            ? formatSharedMoney(li.variant.price.amount || 0, li.variant.price.currencyCode || currency)
-            : "",
-          quantity:      li.quantity,
-        })),
-      };
-    });
+    const orders = (json?.data?.customer?.orders?.edges || [])
+      .map(({ node }) => mapCustomerOrderNode(node, creds));
 
     return { orders };
   } catch (err) {

@@ -23,7 +23,11 @@ import { useToast } from "../components/ToastProvider";
 import { fetchDSL } from "../engine/dslHandler";
 import DynamicRenderer from "../engine/DynamicRenderer";
 import { resolveAppId } from "../utils/appId";
-import { buildProductFilterOptions, productMatchesFilter } from "../utils/productFilters";
+import {
+  getSortFilterSnapshot,
+  hydrateSortFilterFromStorage,
+  subscribeSortFilter,
+} from "../utils/sortFilterStore";
 import { formatMoney, parseMoneyAmount } from "../utils/money";
 import { resolveProductImageResizeMode } from "../utils/productImageFit";
 import { resolveFont } from "../services/typographyService";
@@ -194,14 +198,19 @@ const normalizeHeaderIconName = (value, fallback = "") => {
   return cleaned || fallback;
 };
 
+// Sort keys must match FilterSortHeader's actual SORT_OPTIONS labels verbatim
+// ("Recommended", "What's New", "Best Selling", "Price: Low to High",
+// "Price: High to Low") — this used to switch on shorthand labels ("Price:
+// Low", "Newest") that onSortChange never actually sends, so every sort
+// selection silently fell through to the no-op default.
 function sortProducts(products, sortKey) {
   const copy = [...products];
   switch (sortKey) {
-    case "Price: Low":
+    case "Price: Low to High":
       return copy.sort((a, b) => parseMoneyAmount(a.priceAmount ?? a.price) - parseMoneyAmount(b.priceAmount ?? b.price));
-    case "Price: High":
+    case "Price: High to Low":
       return copy.sort((a, b) => parseMoneyAmount(b.priceAmount ?? b.price) - parseMoneyAmount(a.priceAmount ?? a.price));
-    case "Newest":
+    case "What's New":
       return copy.reverse();
     default:
       return copy;
@@ -245,6 +254,22 @@ function isVariantAvailable(variant) {
   );
 }
 
+// FilterSortHeader's non-legacy filter drawer is Builder's actual, fixed
+// "Availability" list (In stock / Out of stock / Available soon — see
+// AVAILABILITY_FILTERS in FilterSortHeader.js) — the only filter Builder
+// itself has. selectedFilters is an array of those labels, OR'd together.
+function productMatchesAvailabilityFilter(product, selectedLabels) {
+  if (!Array.isArray(selectedLabels) || !selectedLabels.length) return true;
+  const inStock = isProductAvailable(product);
+  if (selectedLabels.includes("In stock") && inStock) return true;
+  // Matches ProductGrid.js's own logic: "Available soon" has no distinct
+  // Shopify signal, so it's treated as a synonym for "Out of stock" here too
+  // (this was missing entirely before, so selecting only "Available soon"
+  // matched nothing despite its count showing real out-of-stock products).
+  if ((selectedLabels.includes("Out of stock") || selectedLabels.includes("Available soon")) && !inStock) return true;
+  return false;
+}
+
 const PAGE_SIZE = 20;
 
 export default function AllProductsScreen() {
@@ -268,20 +293,22 @@ export default function AllProductsScreen() {
   const [loading, setLoading]         = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError]             = useState("");
-  const [sortKey, setSortKey]         = useState("Popular");
+  // Initialized from the shared sortFilterStore (not a hardcoded default) so
+  // a sort/filter already selected on another product-list page actually
+  // applies here too, instead of just showing as "selected" in the header
+  // while the list itself stays unsorted/unfiltered.
+  const [sortKey, setSortKey]         = useState(() => getSortFilterSnapshot().sortOption);
   const [viewMode, setViewMode]       = useState("grid");
-  const [activeFilter, setActiveFilter] = useState(null);
-  // Filtering happens client-side over whatever raw pages we've fetched so
-  // far (PAGE_SIZE per page) — a selective filter can easily leave only a
-  // couple of matches per fetched page. minVisibleTarget is how many
-  // MATCHING products we want visible; the effect below keeps fetching
-  // additional raw pages (while any exist) until that target is met, so a
-  // filtered view always shows at least PAGE_SIZE results (and +PAGE_SIZE
-  // more each time "Load more" is pressed) instead of whatever tiny count
-  // happened to match the single page already in memory.
-  const [minVisibleTarget, setMinVisibleTarget] = useState(PAGE_SIZE);
+  const [activeFilter, setActiveFilter] = useState(() => getSortFilterSnapshot().selectedFilters);
+  // A separate, larger one-time fetch (independent of the small PAGE_SIZE
+  // pages the grid paginates through) used only for (a) the Availability
+  // filter's real in-stock/out-of-stock counts and (b) as the source list
+  // once a filter is actually applied in browse mode — so both are correct
+  // immediately on arrival and applying a filter shows its full (capped)
+  // result in one shot instead of trickling in page-by-page. Not needed in
+  // search mode, which already fetches up to 250 results in one go.
+  const [filterSourceProducts, setFilterSourceProducts] = useState([]);
   const [searchInput, setSearchInput] = useState(searchTerm);
-  const [filterOptions, setFilterOptions] = useState([]);
   const [bottomNavSection, setBottomNavSection] = useState(null);
   const [bottomNavHeight, setBottomNavHeight]   = useState(BOTTOM_NAV_RESERVED_HEIGHT);
   const [homeHeaderConfig, setHomeHeaderConfig] = useState(null);
@@ -504,7 +531,6 @@ export default function AllProductsScreen() {
       }
 
       setProducts((prev) => (append ? [...prev, ...nextProducts] : nextProducts));
-      if (!append) setFilterOptions(buildProductFilterOptions(nextProducts));
       setPageInfo(nextPageInfo);
     } catch (err) {
       setError(
@@ -522,20 +548,44 @@ export default function AllProductsScreen() {
     loadProducts({ after: null, append: false });
   }, [loadProducts]);
 
+  // Fetches once immediately on arrival (not reactively when a filter is
+  // applied) so the Availability filter shows correct in-stock/out-of-stock
+  // counts right away, and so applying a filter can show its full result
+  // instantly instead of paginating page by page while the filter is active.
+  // Search mode skips this — searchShopifyProducts already returns its full
+  // (up to 250) result set in one go via `products`.
   useEffect(() => {
+    if (isSearchMode) return;
     let mounted = true;
-    if (isSearchMode) {
-      return () => { mounted = false; };
-    }
     fetchShopifyProductsPage({ first: 100 })
       .then((payload) => {
-        if (!mounted) return;
-        const nextOptions = buildProductFilterOptions(payload?.products || []);
-        if (nextOptions.length) setFilterOptions(nextOptions);
+        if (mounted) setFilterSourceProducts(payload?.products || []);
       })
-      .catch(() => {});
+      .catch(() => {
+        if (mounted) setFilterSourceProducts([]);
+      });
     return () => { mounted = false; };
   }, [isSearchMode]);
+
+  // Keep sortKey/activeFilter in sync with the shared store (same store
+  // FilterSortHeader itself hydrates from/writes to) so a sort or filter
+  // picked on another product-list page is actually applied here on mount,
+  // not just shown as "selected" in the header.
+  useEffect(() => {
+    let mounted = true;
+    const applySnapshot = () => {
+      if (!mounted) return;
+      const snap = getSortFilterSnapshot();
+      setSortKey(snap.sortOption);
+      setActiveFilter(snap.selectedFilters);
+    };
+    hydrateSortFilterFromStorage().then(applySnapshot);
+    const unsub = subscribeSortFilter(applySnapshot);
+    return () => {
+      mounted = false;
+      unsub();
+    };
+  }, []);
 
   useEffect(() => {
     const appId = resolveAppId();
@@ -576,58 +626,31 @@ export default function AllProductsScreen() {
     return () => { mounted = false; };
   }, [isSearchMode, searchTerm, route?.params?.collectionHandle, route?.params?.handle, route?.params?.title]);
 
-  // A new filter selection starts a fresh "page" of matches.
-  useEffect(() => {
-    setMinVisibleTarget(PAGE_SIZE);
-  }, [activeFilter]);
-
+  // Apply sort + optional filter. In browse mode, an active filter switches
+  // the source from the incrementally-paginated `products` to
+  // `filterSourceProducts` — a larger batch already fully loaded before the
+  // user ever opened the filter drawer — so the filtered result appears
+  // complete in one shot instead of trickling in page-by-page as more raw
+  // pages are fetched to catch up. Search mode's `products` is already the
+  // full result set, so it's used directly either way.
   const displayProducts = useMemo(() => {
-    const filtered = activeFilter
-      ? products.filter((product) => productMatchesFilter(product, activeFilter))
-      : products;
+    const source = isSearchMode
+      ? products
+      : (activeFilter?.length ? filterSourceProducts : products);
+    const filtered = activeFilter?.length
+      ? source.filter((product) => productMatchesAvailabilityFilter(product, activeFilter))
+      : source;
     return sortProducts(filtered, sortKey);
-  }, [products, sortKey, activeFilter]);
+  }, [products, filterSourceProducts, sortKey, activeFilter, isSearchMode]);
 
-  // Keep pulling additional raw pages while a filter is active (and we're
-  // not in search mode, which already fetches up to 250 results in one go)
-  // and it has left us short of minVisibleTarget matches — reruns
-  // automatically as `products` grows from each fetch, until the target is
-  // met or Shopify has no more pages.
-  // Safety cap: a filter that matches rarely (or never) shouldn't walk the
-  // entire catalog trying to satisfy minVisibleTarget — give up expanding
-  // once we've pulled a generous multiple of the CURRENT target in raw
-  // products. Scaled to minVisibleTarget (not a flat number) so each
-  // "Load more" press — which raises the target — gets its own fresh
-  // search budget instead of being permanently capped by the first press.
-  useEffect(() => {
-    if (isSearchMode || !activeFilter) return;
-    if (loading || loadingMore) return;
-    if (!pageInfo?.hasNextPage) return;
-    if (displayProducts.length >= minVisibleTarget) return;
-    if (products.length >= minVisibleTarget * 15) return;
-    loadProducts({ after: pageInfo.endCursor, append: true });
-  }, [
-    isSearchMode,
-    activeFilter,
-    products.length,
-    displayProducts.length,
-    minVisibleTarget,
-    loading,
-    loadingMore,
-    pageInfo?.hasNextPage,
-    pageInfo?.endCursor,
-    loadProducts,
-  ]);
+  // "Load more" only paginates the unfiltered browse view — the filtered
+  // view already shows its full (capped-at-100) result immediately, and
+  // search mode already fetched everything up front.
+  const hasNextProductPage = !activeFilter?.length && Boolean(pageInfo?.hasNextPage);
 
   const handleLoadMore = () => {
     if (loadingMore) return;
-    if (activeFilter && !isSearchMode) {
-      // Raise the bar by one more page's worth of matches — the effect
-      // above does the actual fetching to reach it.
-      setMinVisibleTarget((prev) => prev + PAGE_SIZE);
-      return;
-    }
-    if (!pageInfo?.hasNextPage) return;
+    if (!hasNextProductPage) return;
     loadProducts({ after: pageInfo?.endCursor, append: true });
   };
 
@@ -1007,11 +1030,15 @@ export default function AllProductsScreen() {
           </View>
         ) : null}
 
-        {/* Filter + Sort bar */}
+        {/* Filter + Sort bar — no filterItems passed, so this always shows
+            Builder's actual static "Availability" filter labels (In stock /
+            Out of stock / Available soon) instead of categories derived from
+            the fetched products; `products` feeds it real counts for those
+            labels instead of Builder's hardcoded mockup numbers. */}
         {productListDslReady && productListFilterSortSection ? (
           <FilterSortHeader
             section={productListFilterSortSection}
-            filterItems={filterOptions}
+            products={isSearchMode ? products : filterSourceProducts}
             onSortChange={(opt) => setSortKey(opt)}
             onViewModeChange={(mode) => setViewMode(mode)}
             onFilterChange={(filter) => setActiveFilter(filter)}
@@ -1049,7 +1076,7 @@ export default function AllProductsScreen() {
                 )
               }
               ListFooterComponent={
-                pageInfo?.hasNextPage ? (
+                hasNextProductPage ? (
                   <TouchableOpacity
                     style={styles.loadMoreButton}
                     onPress={handleLoadMore}

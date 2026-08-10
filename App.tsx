@@ -11,6 +11,7 @@ import tokenLogger from './src/utils/tokenLogger';
 import { resolveAppId } from './src/utils/appId';
 import { getFirebaseMessaging } from './src/utils/firebaseMessaging';
 import { navigateToDslTarget } from './src/utils/navigationTarget';
+import { recordScreenVisit } from './src/utils/screenHistory';
 
 import client from './src/apollo/client';
 import { StoreProvider } from './src/services/StoreContext';
@@ -253,6 +254,7 @@ export default function App() {
                   onReady={() => {
                     const currentRouteName = navigationRef.getCurrentRoute()?.name;
                     routeNameRef.current = currentRouteName;
+                    recordScreenVisit(navigationRef);
                     trackAppOpen().catch(() => {});
                     if (currentRouteName && !DYNAMIC_DSL_ROUTE_NAMES.has(currentRouteName)) {
                       trackScreenView(currentRouteName).catch(() => {});
@@ -273,6 +275,7 @@ export default function App() {
                   onStateChange={() => {
                     const previousRouteName = routeNameRef.current;
                     const currentRouteName = navigationRef.getCurrentRoute()?.name;
+                    recordScreenVisit(navigationRef);
 
                     if (
                       currentRouteName &&
