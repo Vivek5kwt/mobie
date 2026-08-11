@@ -568,23 +568,36 @@ export default function CollectionProductsScreen() {
     }, 0);
   };
 
-  // Apply sort + optional filter. An active filter switches the source from
-  // the incrementally-paginated `products` to `filterSourceProducts` — a
-  // larger batch already fully loaded before the user ever opened the filter
-  // drawer — so the filtered result appears complete in one shot instead of
-  // trickling in page-by-page as more raw pages are fetched to catch up.
+  // A price/newest sort needs the same full batch a filter does — sorting
+  // just the incrementally-paginated `products` only ever reorders whatever
+  // page has loaded so far, so the true lowest-priced product doesn't show
+  // on top until pagination happens to reach the page it's on. Without a
+  // filter active this fell back to `products`, so the sort silently went
+  // back to being partial — it only looked correct because a filter being
+  // active also happened to force the same fix.
+  const sortNeedsFullCatalog =
+    sortKey === "Price: Low to High" || sortKey === "Price: High to Low" || sortKey === "What's New";
+
+  // Apply sort + optional filter. An active filter (or a sort that needs the
+  // full catalog) switches the source from the incrementally-paginated
+  // `products` to `filterSourceProducts` — a larger batch already fully
+  // loaded before the user ever opened the filter drawer — so the result
+  // appears complete and correctly ordered in one shot instead of trickling
+  // in page-by-page as more raw pages are fetched to catch up.
   const displayProducts = React.useMemo(() => {
-    const source = activeFilter?.length ? filterSourceProducts : products;
+    const source = (activeFilter?.length || sortNeedsFullCatalog) ? filterSourceProducts : products;
     let list = sortProducts(source, sortKey);
     if (activeFilter?.length) {
       list = list.filter((p) => productMatchesAvailabilityFilter(p, activeFilter));
     }
     return list;
-  }, [products, filterSourceProducts, sortKey, activeFilter]);
+  }, [products, filterSourceProducts, sortKey, sortNeedsFullCatalog, activeFilter]);
 
-  // "Load more" only paginates the unfiltered browse view — the filtered
-  // view already shows its full (capped-at-100) result immediately.
-  const hasNextProductPage = !activeFilter?.length && Boolean(pageInfo?.hasNextPage && pageInfo?.endCursor);
+  // "Load more" only paginates the unfiltered, unsorted browse view — the
+  // filtered/sorted view already shows its full (capped-at-100) result
+  // immediately.
+  const hasNextProductPage =
+    !activeFilter?.length && !sortNeedsFullCatalog && Boolean(pageInfo?.hasNextPage && pageInfo?.endCursor);
 
   const handleLoadMore = useCallback(() => {
     if (loading || loadingMore) return;

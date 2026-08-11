@@ -626,27 +626,39 @@ export default function AllProductsScreen() {
     return () => { mounted = false; };
   }, [isSearchMode, searchTerm, route?.params?.collectionHandle, route?.params?.handle, route?.params?.title]);
 
-  // Apply sort + optional filter. In browse mode, an active filter switches
-  // the source from the incrementally-paginated `products` to
-  // `filterSourceProducts` — a larger batch already fully loaded before the
-  // user ever opened the filter drawer — so the filtered result appears
-  // complete in one shot instead of trickling in page-by-page as more raw
-  // pages are fetched to catch up. Search mode's `products` is already the
-  // full result set, so it's used directly either way.
+  // A price/newest sort needs the same full batch a filter does — sorting
+  // just the incrementally-paginated `products` only ever reorders whatever
+  // page has loaded so far, so the true lowest-priced product doesn't show
+  // on top until pagination happens to reach the page it's on. Once the
+  // filter was removed this fell back to `products`, and the client-side
+  // sort silently went back to being partial — this was working "by
+  // accident" only because a filter was also active, forcing the same fix.
+  const sortNeedsFullCatalog =
+    sortKey === "Price: Low to High" || sortKey === "Price: High to Low" || sortKey === "What's New";
+
+  // Apply sort + optional filter. In browse mode, an active filter (or a
+  // sort that needs the full catalog) switches the source from the
+  // incrementally-paginated `products` to `filterSourceProducts` — a larger
+  // batch already fully loaded before the user ever opened the filter
+  // drawer — so the result appears complete and correctly ordered in one
+  // shot instead of trickling in page-by-page as more raw pages are fetched
+  // to catch up. Search mode's `products` is already the full result set,
+  // so it's used directly either way.
   const displayProducts = useMemo(() => {
     const source = isSearchMode
       ? products
-      : (activeFilter?.length ? filterSourceProducts : products);
+      : ((activeFilter?.length || sortNeedsFullCatalog) ? filterSourceProducts : products);
     const filtered = activeFilter?.length
       ? source.filter((product) => productMatchesAvailabilityFilter(product, activeFilter))
       : source;
     return sortProducts(filtered, sortKey);
-  }, [products, filterSourceProducts, sortKey, activeFilter, isSearchMode]);
+  }, [products, filterSourceProducts, sortKey, sortNeedsFullCatalog, activeFilter, isSearchMode]);
 
   // "Load more" only paginates the unfiltered browse view — the filtered
   // view already shows its full (capped-at-100) result immediately, and
   // search mode already fetched everything up front.
-  const hasNextProductPage = !activeFilter?.length && Boolean(pageInfo?.hasNextPage);
+  const hasNextProductPage =
+    !activeFilter?.length && !sortNeedsFullCatalog && Boolean(pageInfo?.hasNextPage);
 
   const handleLoadMore = () => {
     if (loadingMore) return;

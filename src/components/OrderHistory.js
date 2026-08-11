@@ -131,8 +131,19 @@ const formatOrderMoney = (amount, order = {}, fallbackSymbol = "") => {
   return formatSharedMoney(value, currency);
 };
 
+// order.id falls back to the completed checkout URL (buildOrderFromCart in
+// CheckoutWebViewScreen.js) when no real order number could be detected yet
+// — never a value fit to show as "the order number", so it's excluded here
+// even though orderNumber/name are genuine, usable identifiers.
 const orderNumberText = (order = {}) => {
-  const raw = toStr(order.orderNumber || order.name || order.id, "");
+  const candidates = [order.orderNumber, order.name, order.id];
+  const raw = toStr(
+    candidates.find((value) => {
+      const text = toStr(value, "");
+      return text && !/^[a-z][a-z0-9+.-]*:\/\//i.test(text);
+    }),
+    ""
+  );
   if (!raw) return "";
   return raw.startsWith("#") ? raw : `#${raw}`;
 };

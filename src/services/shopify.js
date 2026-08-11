@@ -1571,6 +1571,20 @@ const nearlySameMoney = (a, b) => {
   return Math.abs(first - second) < 0.01;
 };
 
+// DraftOrderStatus enum values — distinct from Order's fulfillment/financial
+// status, since a draft order (this app's checkout goes through
+// draftOrderCreate — see createDraftOrderCheckoutUrl) hasn't been paid yet.
+const formatDraftOrderStatus = (status) => {
+  const normalized = String(status || "").trim().toUpperCase();
+  const labels = {
+    OPEN: "Awaiting payment",
+    INVOICE_SENT: "Invoice sent",
+    COMPLETED: "Paid",
+    CANCELLED: "Cancelled",
+  };
+  return labels[normalized] || "";
+};
+
 const formatAddressLines = (address = {}) => {
   if (!address || typeof address !== "object") return "";
   if (Array.isArray(address.formatted) && address.formatted.length) {
@@ -3150,6 +3164,123 @@ const mapCustomerOrderNode = (node, creds) => {
   };
 };
 
+const DRAFT_ORDER_NODE_FIELDS = `
+  id
+  name
+  status
+  invoiceUrl
+  createdAt
+  updatedAt
+  totalPriceSet { shopMoney { amount currencyCode } }
+  subtotalPriceSet { shopMoney { amount currencyCode } }
+  lineItems(first: 20) {
+    edges {
+      node {
+        title
+        quantity
+        image { url }
+        variant {
+          id
+          title
+          product {
+            handle
+            title
+          }
+        }
+      }
+    }
+  }
+`;
+
+// This app's own checkout goes through draftOrderCreate (see
+// createDraftOrderCheckoutUrl) rather than a Storefront cart checkout — a
+// shopper who never finishes Shopify's own invoice/payment step for that
+// draft never gets a real Order at all, so customer(id:).orders (which only
+// ever returns completed Order objects) can't see it. Mapped into the same
+// shape fetchCustomerOrders already returns for real orders, so OrderHistory/
+// OrderDetail render it identically — cancellable is always false (draft
+// orders aren't cancelled through the order-cancel REST endpoint; they'd need
+// draftOrderDelete, which isn't wired up here).
+const mapDraftOrderNode = (node, creds) => {
+  const totalMoney = node.totalPriceSet?.shopMoney || {};
+  const subtotalMoney = node.subtotalPriceSet?.shopMoney || totalMoney;
+  const currency = totalMoney?.currencyCode || subtotalMoney?.currencyCode || creds?.currency || "";
+  const currencySymbol = sharedCurrencySymbolForCode(currency);
+  return {
+    id:             node.id,
+    name:           node.name || "",
+    orderNumber:    node.name || "",
+    orderDate:      formatOrderDate(node.createdAt),
+    placedAt:       node.createdAt || "",
+    placedOn:       formatOrderDate(node.createdAt, "short"),
+    status:         formatDraftOrderStatus(node.status),
+    isDraftOrder:   true,
+    statusUrl:      node.invoiceUrl || "",
+    deliveryMethod: "",
+    shippingAddress: null,
+    address:        "",
+    arrival:        "",
+    billingAddress: null,
+    billing:        "",
+    paymentMethod:  "",
+    paymentGatewayNames: [],
+    payment:        "",
+    delivery:       0,
+    tax:            0,
+    subtotal:       parseFloat(subtotalMoney?.amount || 0),
+    total:          parseFloat(totalMoney?.amount || 0),
+    currencyCode:   currency,
+    currencySymbol,
+    cancellable:    false,
+    lineItems: (node.lineItems?.edges || []).map(({ node: li }) => ({
+      id:            li.variant?.id || li.title,
+      variantId:     li.variant?.id || "",
+      handle:        li.variant?.product?.handle || "",
+      title:         li.title || li.variant?.product?.title || "Product",
+      vendor:        "",
+      variant:       li.variant?.title || "",
+      imageUrl:      li.image?.url || null,
+      image:         li.image?.url || "",
+      priceAmount:   0,
+      priceCurrency: currency,
+      price:         "",
+      quantity:      li.quantity,
+    })),
+  };
+};
+
+async function fetchCustomerDraftOrders({ shop, token, storeId, customerGid, first, creds }) {
+  const numericCustomerId = extractShopifyNumericId(customerGid);
+  if (!numericCustomerId) return [];
+  try {
+    const json = await directStorefrontGraphQL({
+      shop, token, storeId,
+      query: `
+        query CustomerDraftOrders($searchQuery: String!, $first: Int!) {
+          draftOrders(first: $first, query: $searchQuery, reverse: true) {
+            edges { node { ${DRAFT_ORDER_NODE_FIELDS} } }
+          }
+        }
+      `,
+      variables: { searchQuery: `customer_id:${numericCustomerId}`, first },
+    });
+    if (json?.errors) {
+      console.error("❌ Customer Draft Orders GraphQL errors:", json.errors);
+      return [];
+    }
+    return (json?.data?.draftOrders?.edges || [])
+      .map(({ node }) => node)
+      // COMPLETED drafts have already become a real Order (returned by the
+      // customer(id:).orders query above) — showing both would duplicate the
+      // same purchase. CANCELLED ones were abandoned, not worth surfacing.
+      .filter((node) => !["COMPLETED", "CANCELLED"].includes(String(node.status || "").toUpperCase()))
+      .map((node) => mapDraftOrderNode(node, creds));
+  } catch (err) {
+    console.error("❌ fetchCustomerDraftOrders error:", err);
+    return [];
+  }
+}
+
 export async function fetchCustomerOrders({ customerId, customerAccessToken, email, first = 10 } = {}) {
   const creds = await getShopifyCredentials();
   const { shop, token, storeId } = creds;
@@ -3194,6 +3325,7 @@ export async function fetchCustomerOrders({ customerId, customerAccessToken, ema
 
   if (!customerGid) return { orders: [] };
 
+  let orders = [];
   try {
     const json = await directStorefrontGraphQL({
       shop, token, storeId,
@@ -3211,15 +3343,19 @@ export async function fetchCustomerOrders({ customerId, customerAccessToken, ema
 
     if (json?.errors) {
       console.error("❌ Customer Orders GraphQL errors:", json.errors);
-      return { orders: [] };
+    } else {
+      orders = (json?.data?.customer?.orders?.edges || [])
+        .map(({ node }) => mapCustomerOrderNode(node, creds));
     }
-
-    const orders = (json?.data?.customer?.orders?.edges || [])
-      .map(({ node }) => mapCustomerOrderNode(node, creds));
-
-    return { orders };
   } catch (err) {
     console.error("❌ fetchCustomerOrders error:", err);
-    return { orders: [] };
   }
+
+  const draftOrders = await fetchCustomerDraftOrders({ shop, token, storeId, customerGid, first, creds });
+
+  const merged = [...orders, ...draftOrders].sort(
+    (a, b) => new Date(b.placedAt || 0) - new Date(a.placedAt || 0)
+  );
+
+  return { orders: merged };
 }
