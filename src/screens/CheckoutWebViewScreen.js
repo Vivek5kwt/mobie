@@ -222,6 +222,16 @@ const buildOrderFromCart = (capturedItems, url, storeCurrencyCode = "", explicit
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
+// 401/403 (missing admin token, or Shopify's Protected Customer Data
+// approval blocking shipping_address/billing_address) is a permanent
+// configuration/approval state, not a transient failure — retrying it with
+// backoff just makes the shopper wait out the whole cycle (up to ~9s of
+// sleep alone, times however long each attempt's own network calls take)
+// for something that was never going to succeed. Fail fast for those so
+// checkout completion doesn't feel like it's hung.
+const isFatalSyncError = (error) =>
+  error?.code === "SHOPIFY_ADMIN_TOKEN_MISSING" || error?.status === 401 || error?.status === 403;
+
 const syncShopifyOrderWithRetry = async ({ order, customerAccessToken, attempts = 4 } = {}) => {
   let latest = null;
   for (let attempt = 0; attempt < attempts; attempt += 1) {
@@ -242,8 +252,9 @@ const syncShopifyOrderWithRetry = async ({ order, customerAccessToken, attempts 
         attempt: attempt + 1,
         message: error?.message || String(error),
       });
+      if (isFatalSyncError(error)) break;
     }
-    await sleep(900 * (attempt + 1));
+    if (attempt < attempts - 1) await sleep(900 * (attempt + 1));
   }
   return {
     ...order,
