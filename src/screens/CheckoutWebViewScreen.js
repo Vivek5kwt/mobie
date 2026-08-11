@@ -1,7 +1,10 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
+  Alert,
   BackHandler,
+  Linking,
+  Platform,
   StyleSheet,
   Text,
   TouchableOpacity,
@@ -31,6 +34,23 @@ import {
 
 const CHECKOUT_WEBVIEW_LOG = "[CheckoutWebView]";
 const PENDING_ORDER_NUMBER_DELAY_MS = 3600;
+
+// Android's default WebView user-agent literally contains " wv)" (e.g.
+// "...Android 13; Pixel 7 Build/...; wv) AppleWebKit/537.36...") to mark
+// itself as an embedded WebView rather than the real Chrome browser.
+// Shopify's checkout security layer and payment-gateway fraud/bot checks
+// (Cashfree/Razorpay/PayU 3D-Secure pages included) commonly sniff for that
+// marker and respond with a degraded page — a perpetual spinner, a blank
+// screen, or "please open this in a browser" — instead of the real payment
+// UI. Overriding to a plain mobile Chrome/Safari UA (no "wv") makes those
+// checks see a normal mobile browser.
+const CHECKOUT_WEBVIEW_USER_AGENT = Platform.select({
+  android:
+    "Mozilla/5.0 (Linux; Android 13; Pixel 7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Mobile Safari/537.36",
+  ios:
+    "Mozilla/5.0 (iPhone; CPU iPhone OS 17_4 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.4 Mobile/15E148 Safari/604.1",
+  default: undefined,
+});
 
 const normalizeCheckoutUrl = (url) => {
   const raw = String(url || "").trim();
@@ -425,6 +445,51 @@ const DETECT_ORDER_JS = `
   true; // Required return value for RN injectedJavaScript
 })();
 `;
+
+// UPI apps (GPay/PhonePe/Paytm/BHIM) and similar Indian payment intents hand
+// the payment step off via a custom URL scheme (upi://, tez://, phonepe://,
+// paytmmp://, or Android's intent:// wrapper) rather than an http(s) redirect.
+// A WebView can never navigate to one of these itself — it just silently
+// fails (ERR_UNKNOWN_URL_SCHEME) and leaves the page waiting on a payment
+// confirmation that can now never arrive: exactly a "tap Pay, loading never
+// ends" hang. These need to be hooked out to the OS via Linking so the
+// actual UPI app opens.
+const isExternalAppUrl = (url = "") => {
+  const raw = String(url || "").trim();
+  if (!raw) return false;
+  if (/^(https?:|about:|data:|blob:|file:|javascript:)/i.test(raw)) return false;
+  return /^[a-z][a-z0-9+.-]*:/i.test(raw);
+};
+
+// Android's Chrome-style intent:// wrapper (used by some UPI apps' web SDKs)
+// isn't a real scheme Linking.openURL can hand to ACTION_VIEW as-is — pull
+// the real target out of its `S.browser_fallback_url` param, or rebuild
+// `scheme://host/path` from the `scheme=` param, so there's still a URL to
+// open instead of silently giving up.
+const resolveIntentFallbackUrl = (intentUrl = "") => {
+  try {
+    const withoutScheme = String(intentUrl || "").replace(/^intent:\/\//i, "");
+    const hashIndex = withoutScheme.indexOf("#Intent;");
+    if (hashIndex === -1) return "";
+    const hostAndPath = withoutScheme.slice(0, hashIndex);
+    const params = {};
+    withoutScheme
+      .slice(hashIndex + "#Intent;".length)
+      .split(";")
+      .forEach((pair) => {
+        const eq = pair.indexOf("=");
+        if (eq === -1) return;
+        const key = pair.slice(0, eq);
+        const value = pair.slice(eq + 1);
+        if (key) params[key] = decodeURIComponent(value || "");
+      });
+    if (params["S.browser_fallback_url"]) return params["S.browser_fallback_url"];
+    if (params.scheme) return `${params.scheme}://${hostAndPath}`;
+    return "";
+  } catch (_) {
+    return "";
+  }
+};
 
 const isCheckoutAccountLoginUrl = (url = "") => {
   const lower = String(url || "").toLowerCase();
@@ -875,6 +940,7 @@ export default function CheckoutWebViewScreen() {
   const capturedItemsRef     = useRef(cartItems);
   const lastWebViewUrlRef    = useRef("");
   const lastWebViewErrorRef  = useRef(null);
+  const loadingSafetyTimerRef = useRef(null);
 
   const resolvedAppId = useMemo(
     () => resolveAppId(route?.params?.appId ?? session?.user?.appId ?? session?.user?.app_id),
@@ -1062,6 +1128,10 @@ export default function CheckoutWebViewScreen() {
       clearTimeout(completionTimerRef.current);
       completionTimerRef.current = null;
     }
+    if (loadingSafetyTimerRef.current) {
+      clearTimeout(loadingSafetyTimerRef.current);
+      loadingSafetyTimerRef.current = null;
+    }
   }, []);
 
   // ── Back handling ─────────────────────────────────────────────────────────
@@ -1104,6 +1174,24 @@ export default function CheckoutWebViewScreen() {
     [handleOrderComplete]
   );
 
+  // ── Payment-gateway popup windows (OTP / 3D-Secure) ───────────────────────
+  // Indian payment aggregators (this store uses Cashfree — see the checkout
+  // URL logged in draftOrderCreate's fallback) commonly verify a card via
+  // window.open() into a popup rather than an inline redirect. react-native-
+  // webview renders no such popup by default: the call silently no-ops, the
+  // shopper never sees the OTP/3DS screen, and the main checkout page is left
+  // waiting on a verification step that can now never complete — exactly a
+  // "tap Pay, loading never ends" hang. Android needs setSupportMultipleWindows
+  // + this handler to redirect the popup's target into the same WebView
+  // instead; iOS's WKWebView already navigates window.open() calls inline.
+  const handleOpenWindow = useCallback((event) => {
+    const targetUrl = event?.nativeEvent?.targetUrl;
+    if (!targetUrl) return;
+    webViewRef.current?.injectJavaScript(
+      `window.location.href = ${JSON.stringify(targetUrl)}; true;`
+    );
+  }, []);
+
   // ── DOM-based order detection (message from injected JS) ─────────────────
   const handleWebViewMessage = useCallback(
     (event) => {
@@ -1135,26 +1223,52 @@ export default function CheckoutWebViewScreen() {
   );
 
   // ── WebView loading states ────────────────────────────────────────────────
+  const clearLoadingSafetyTimer = useCallback(() => {
+    if (loadingSafetyTimerRef.current) {
+      clearTimeout(loadingSafetyTimerRef.current);
+      loadingSafetyTimerRef.current = null;
+    }
+  }, []);
+
   const handleLoadStart = useCallback((event) => {
     const summary = summarizeWebViewEvent(event);
     if (summary.url) lastWebViewUrlRef.current = summary.url;
     console.log(`${CHECKOUT_WEBVIEW_LOG} load start`, summary);
     setIsLoading(true);
     setLoadError(false);
-  }, []);
+    clearLoadingSafetyTimer();
+    // Payment-gateway pages (Cashfree's UPI collect step, seen live via
+    // logcat: WebRTC/STUN ICE gathering to a fraud-check server that DNS
+    // never resolves) can leave a background request open indefinitely.
+    // Android's native onPageFinished/onLoadEnd then simply never fires,
+    // even though the actual visible page finished rendering ages ago — so
+    // without this, our own "Loading…" overlay is left permanently covering
+    // a fully working, interactive payment page. That's indistinguishable
+    // from "checkout is stuck" to the shopper even though nothing on the
+    // page itself is broken. Force the overlay to clear after a few seconds
+    // so it can never outlive the page it's supposed to be covering; a
+    // genuine subsequent load still calls handleLoadStart again and puts it
+    // right back up.
+    loadingSafetyTimerRef.current = setTimeout(() => {
+      loadingSafetyTimerRef.current = null;
+      setIsLoading(false);
+    }, 8000);
+  }, [clearLoadingSafetyTimer]);
 
   const handleLoadEnd = useCallback((event) => {
     console.log(`${CHECKOUT_WEBVIEW_LOG} load end`, summarizeWebViewEvent(event));
+    clearLoadingSafetyTimer();
     setIsLoading(false);
-  }, []);
+  }, [clearLoadingSafetyTimer]);
 
   const handleError = useCallback((event) => {
     const summary = summarizeWebViewEvent(event);
     lastWebViewErrorRef.current = summary;
     console.warn(`${CHECKOUT_WEBVIEW_LOG} load error`, summary);
+    clearLoadingSafetyTimer();
     setIsLoading(false);
     setLoadError(true);
-  }, []);
+  }, [clearLoadingSafetyTimer]);
 
   // Deliberately does NOT set loadError: Android WebView fires onHttpError
   // for sub-resource requests too (analytics beacons, tracking pixels, 3rd-party
@@ -1182,6 +1296,25 @@ export default function CheckoutWebViewScreen() {
 
   const handleShouldStartLoadWithRequest = useCallback(
     (request) => {
+      const rawRequestUrl = request?.url || "";
+      if (isExternalAppUrl(rawRequestUrl)) {
+        const target = /^intent:/i.test(rawRequestUrl)
+          ? resolveIntentFallbackUrl(rawRequestUrl) || rawRequestUrl
+          : rawRequestUrl;
+        console.log(`${CHECKOUT_WEBVIEW_LOG} handing off external app URL`, { url: target });
+        Linking.openURL(target).catch((err) => {
+          console.warn(`${CHECKOUT_WEBVIEW_LOG} failed to open external app URL`, {
+            url: target,
+            message: err?.message || String(err),
+          });
+          Alert.alert(
+            "App not found",
+            "We couldn't open the app needed to complete this payment step. Please make sure it's installed, or choose a different payment method."
+          );
+        });
+        return false;
+      }
+
       const requestedUrl = normalizeCheckoutUrl(request?.url);
       if (isCheckoutCartPageUrl(requestedUrl) && requestedUrl !== checkoutUrl) {
         console.log(`${CHECKOUT_WEBVIEW_LOG} blocked checkout cart navigation`, {
@@ -1275,6 +1408,8 @@ export default function CheckoutWebViewScreen() {
               onNavigationStateChange={handleNavigationStateChange}
               onMessage={handleWebViewMessage}
               onShouldStartLoadWithRequest={handleShouldStartLoadWithRequest}
+              onOpenWindow={handleOpenWindow}
+              setSupportMultipleWindows
               injectedJavaScriptBeforeContentLoaded={checkoutBeforeContentJs}
               injectedJavaScript={injectedCheckoutJs}
               startInLoadingState={false}
@@ -1283,6 +1418,8 @@ export default function CheckoutWebViewScreen() {
               thirdPartyCookiesEnabled
               sharedCookiesEnabled
               allowsBackForwardNavigationGestures
+              userAgent={CHECKOUT_WEBVIEW_USER_AGENT}
+              mixedContentMode="always"
               style={styles.webView}
             />
 

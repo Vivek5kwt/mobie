@@ -125,20 +125,6 @@ const borderSideStyle = (line, width) => {
 
 const lineHeightFor = (size, ratio = 1.35) => Math.ceil(toNumber(size, 14) * ratio);
 
-const normalizeCurrencyLabel = (value, fallback = "") => {
-  const label = toString(value, fallback).trim();
-  if (!label) return "";
-  return /^[A-Za-z0-9]{2,}$/.test(label) ? `${label} ` : label;
-};
-
-const resolveCurrencyLabel = (...values) => {
-  for (const value of values) {
-    const label = normalizeCurrencyLabel(value);
-    if (label) return label;
-  }
-  return "";
-};
-
 const fmtPrice = (amount, currency) =>
   formatCurrencyPrice(Math.abs(toNumber(amount, 0)), currency);
 
@@ -313,14 +299,26 @@ export default function CartLineItems({ section }) {
   const priceColor = toString(raw?.priceColor, "#111827");
   const priceSize = toNumber(raw?.priceSize ?? raw?.priceFontSize, 14);
   const priceWeight = toFontWeight(raw?.priceWeight ?? raw?.priceFontWeight, "700");
-  const currencyLabel = resolveCurrencyLabel(
-    sourceItems[0]?.currency,
-    sourceItems[0]?.priceCurrency,
-    sourceItems[0]?.currencySymbol,
-    raw?.currency,
-    raw?.priceCurrency,
-    raw?.currencySymbol,
-    raw?.symbol
+  // Passed straight through to currencyStore's formatPrice as the "convert
+  // from" code — must stay a clean ISO code/symbol (e.g. "INR", "$"), not a
+  // display label. ProductGrid/RecentProducts/TabProductGrid etc. all pass
+  // this same kind of raw value; this previously ran it through a label
+  // formatter that appended a trailing space to any code-shaped value
+  // ("INR" -> "INR "), which then failed the exact-match rate lookup in
+  // currencyStore's convertPrice and silently fell back to a rate of 1 —
+  // i.e. the price got "converted" as if it were already in the target
+  // currency, producing a wrong amount that only this component showed.
+  const currencyLabel = toString(
+    firstDefined(
+      sourceItems[0]?.currency,
+      sourceItems[0]?.priceCurrency,
+      sourceItems[0]?.currencySymbol,
+      raw?.currency,
+      raw?.priceCurrency,
+      raw?.currencySymbol,
+      raw?.symbol
+    ),
+    ""
   );
 
   // Compare-at (original / strikethrough) price — Price.tsx's "Strikethrough" group
@@ -635,11 +633,9 @@ export default function CartLineItems({ section }) {
         const displayPrice = showTotal ? price * quantity : price;
         const displayCompareAt = showTotal ? compareAt * quantity : compareAt;
         const savings = compareAt > price ? (compareAt - price) * quantity : 0;
-        const itemCurrency = resolveCurrencyLabel(
-          item?.currency,
-          item?.priceCurrency,
-          item?.currencySymbol,
-          currencyLabel
+        const itemCurrency = toString(
+          firstDefined(item?.currency, item?.priceCurrency, item?.currencySymbol, currencyLabel),
+          ""
         );
 
         // Parse variant string into parts for "Size: M | Color: Blue" display

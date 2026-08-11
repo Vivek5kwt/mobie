@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState, useRef } from "react";
-import { Image, Linking, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { Image, Linking, StyleSheet, Text, TouchableOpacity, useWindowDimensions, View } from "react-native";
 import { SvgXml } from "react-native-svg";
 import { StackActions, useNavigation, useRoute } from "@react-navigation/native";
 import { useSelector } from "react-redux";
@@ -291,6 +291,17 @@ const resolveActiveIndex = (items = [], rawProps = {}, raw = {}, currentActiveIn
   return 0;
 };
 
+// Only used as the FALLBACK when the DSL leaves a size unset (all call sites
+// below use `Number(dslValue) || responsiveNavSize(...)`) — a merchant's own
+// explicit icon/font/row-height value always wins. Without this, every
+// device rendered the exact same pixel sizes: a 5-item bar on a ~320px-wide
+// phone got cramped/truncated labels, while a tablet's bar looked tiny and
+// left the icons looking lost in a stretched-out row.
+const responsiveNavSize = (screenWidth, ratio, min, max) => {
+  const value = Math.round(Math.max(1, screenWidth || 0) * ratio);
+  return Math.max(min, Math.min(max, value || min));
+};
+
 const clampIndex = (index, count) => {
   if (!count || Number.isNaN(index)) return 0;
   return Math.max(0, Math.min(index, count - 1));
@@ -324,6 +335,7 @@ function BottomNavigation({ section, activeIndexOverride }) {
   const navigation = useNavigation();
   const route = useRoute();
   const insets = useSafeAreaInsets();
+  const { width: screenWidth } = useWindowDimensions();
   const { session, initializing } = useAuth();
   const isLoggedIn = isAuthenticatedSession(session);
   const { closeSideMenu, isOpen: isSideMenuOpen } = useSideMenu();
@@ -451,20 +463,21 @@ function BottomNavigation({ section, activeIndexOverride }) {
     getSchemaValue(textNode?.primaryColor) ??
     "#6B7280";
 
+  const responsiveIconSize = responsiveNavSize(screenWidth, 0.055, 18, 26);
   const iconWidth =
     Number(getSchemaValue(iconsNode?.width)) ||
     Number(raw?.iconWidth ?? raw?.iconHeight ?? raw?.iconFontSize) ||
-    20;
+    responsiveIconSize;
   const iconHeight =
     Number(getSchemaValue(iconsNode?.height)) ||
     Number(raw?.iconHeight ?? raw?.iconWidth ?? raw?.iconFontSize) ||
-    20;
+    responsiveIconSize;
   const iconSize = Math.max(iconWidth, iconHeight);
 
   const fontSize =
     Number(getSchemaValue(textNode?.fontSize)) ||
     Number(raw?.textFontSize) ||
-    12;
+    responsiveNavSize(screenWidth, 0.032, 10, 14);
   const fontFamily = resolveFont(
     getSchemaValue(textNode?.fontFamily) ?? raw?.textFontFamily ?? raw?.fontFamily
   );
@@ -477,7 +490,7 @@ function BottomNavigation({ section, activeIndexOverride }) {
   const itemWidth = itemWidthRaw > 0 ? itemWidthRaw : undefined;
   const itemHeight =
     Number(getSchemaValue(textNode?.itemHeight) ?? raw?.itemHeight ?? raw?.layout?.css?.item?.height) ||
-    60;
+    responsiveNavSize(screenWidth, 0.155, 54, 72);
 
   const paddingRaw = bgPaddingNode?.paddingRaw?.properties ?? bgPaddingNode?.paddingRaw ?? raw;
   const paddingStyles = convertStyles({
@@ -494,6 +507,16 @@ function BottomNavigation({ section, activeIndexOverride }) {
         8
     ) || 0;
   const safeBottomPadding = baseBottomPadding + Math.max(insets.bottom, 0);
+  // In landscape, a notch/rounded corner sits to the side rather than the
+  // bottom — insets.left/right cover that. Only insets.bottom was ever
+  // applied, so a landscape phone with a side notch could clip or overlap
+  // the first/last tab under the cutout.
+  const baseLeftPadding =
+    Number(paddingStyles?.paddingLeft ?? presentation.container?.paddingLeft ?? styles.container.paddingHorizontal ?? 0) || 0;
+  const baseRightPadding =
+    Number(paddingStyles?.paddingRight ?? presentation.container?.paddingRight ?? styles.container.paddingHorizontal ?? 0) || 0;
+  const safeLeftPadding = baseLeftPadding + Math.max(insets.left, 0);
+  const safeRightPadding = baseRightPadding + Math.max(insets.right, 0);
 
   const backgroundColor =
     raw?.bgColor ??
@@ -815,7 +838,7 @@ function BottomNavigation({ section, activeIndexOverride }) {
         styles.container,
         presentation.container,
         paddingStyles,
-        { paddingBottom: safeBottomPadding },
+        { paddingBottom: safeBottomPadding, paddingLeft: safeLeftPadding, paddingRight: safeRightPadding },
         showBg ? { backgroundColor } : { backgroundColor: "transparent" },
         containerBorderRadius != null && containerBorderRadius >= 0
           ? { borderRadius: containerBorderRadius }
