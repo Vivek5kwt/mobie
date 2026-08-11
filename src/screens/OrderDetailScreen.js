@@ -174,8 +174,16 @@ const formatAddressForDisplay = (address) => {
 
 // ─── Main Screen ──────────────────────────────────────────────────────────────
 
-const getOrderDisplayName = (order = {}) =>
-  toStr(order?.orderNumber || order?.name || order?.adminOrderId || order?.id, "");
+// order.id falls back to the completed checkout URL (buildOrderFromCart in
+// CheckoutWebViewScreen.js) when no real order number could be detected yet
+// — never a value fit to show a shopper as "their order number", so it's
+// excluded here even though the other candidates are genuinely usable IDs.
+const getOrderDisplayName = (order = {}) => {
+  const candidates = [order?.orderNumber, order?.name, order?.adminOrderId, order?.id];
+  return candidates
+    .map((value) => toStr(value, ""))
+    .find((value) => value && !/^[a-z][a-z0-9+.-]*:\/\//i.test(value)) || "";
+};
 
 const fillOrderCopy = (template, order = {}, fallback = "") => {
   const orderNumber = getOrderDisplayName(order);
@@ -881,6 +889,13 @@ function CancelOrderSection({ section, order, appId, userId, email, customerAcce
       { cancelable: true }
     );
   };
+
+  // Only show the button while Shopify's own rules actually allow canceling
+  // this order (not already canceled, not blocked by fulfillment/payment
+  // status) — a disabled button with a "why not" caption invites a tap that
+  // was always going to fail, so once ineligibility is confirmed the whole
+  // section disappears instead of just graying out.
+  if (!canCancel && !submitting) return null;
 
   return (
     <View style={[styles.cancelContainer, { backgroundColor: outerBgColor, borderRadius: outerRadius, paddingTop: outerPt, paddingBottom: outerPb, paddingLeft: outerPl, paddingRight: outerPr }]}>

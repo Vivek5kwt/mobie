@@ -116,6 +116,14 @@ const nativeScreenMap = {
 const signinSlugs = new Set(["signin", "sign-in", "login", "log-in", "auth"]);
 const profileSlugs = new Set(["profile", "account", "my-account", "myaccount"]);
 const orderSlugs = new Set(["orders", "order", "my-orders", "myorders", "order-history", "orderhistory", "my-order"]);
+// "Order Details" is a reserved system page (Builder's order_detail_page /
+// order_info / price_info / cancel_order blocks) rendered exclusively by
+// OrderDetailScreen.js, which knows how to merge in the actual order data
+// those blocks need. Any generic "Screen" link pointing at it must land
+// there too — otherwise it falls into BottomNavScreen's generic per-section
+// DynamicRenderer loop, which has no handler for those four component types
+// and just prints "Unknown DSL component" for each one.
+const orderDetailSlugs = new Set(["order-details", "orderdetails", "order-detail", "orderdetail"]);
 const wishlistSlugs = new Set(["wishlist", "my-wishlist", "mywishlist", "saved", "favorites", "favourites", "favourite", "favorite"]);
 
 export const resolveDslNavigationTarget = ({
@@ -217,6 +225,13 @@ export const resolveDslNavigationTarget = ({
     // — had nothing to match against while on this dedicated screen, so the
     // Wishlist tab never highlighted as active.
     return { type: "stack", name: "Wishlist", params: { title: displayTitle || "Wishlist", pageName: "wishlist" } };
+  }
+
+  if (orderDetailSlugs.has(pageSlug)) {
+    // No specific order is selected from a generic link — OrderDetailScreen
+    // already handles that case on its own (falls back to fetching the
+    // customer's most recent order when route.params.order is absent).
+    return { type: "stack", name: "OrderDetail", params: { title: displayTitle || "Order Details" } };
   }
 
   const resolvedPageName =

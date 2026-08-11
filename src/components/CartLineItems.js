@@ -442,7 +442,8 @@ export default function CartLineItems({ section }) {
   const deleteIconColor = toString(raw?.deleteColor ?? raw?.qpDeleteColor ?? raw?.deleteIconColor, "#9CA3AF");
   const deleteIconSize = toNumber(raw?.deleteSize ?? raw?.qpDeleteSize ?? raw?.deleteIconSize, 14);
 
-  // Item icon (e.g. vendor/profile icon from DSR brandKit — shown top-right of each card)
+  // Item icon (e.g. vendor/profile icon from DSR brandKit — shown inside the
+  // discount-applied badge, next to "N DISCOUNTS APPLIED")
   // Icon.tsx's real key is "showIcon"; the show* aliases below are legacy/unused.
   const showItemIcon   = toBoolean(raw?.showIcon ?? raw?.showItemIcon ?? raw?.showVendorIcon ?? raw?.showCardIcon, true);
   const rawItemIcon    = toString(
@@ -458,8 +459,6 @@ export default function CartLineItems({ section }) {
   const itemIconName   = showItemIcon && rawItemIcon && !itemIconUrl ? resolveFA4IconName(rawItemIcon) : "";
   const itemIconSize   = toNumber(raw?.itemIconSize ?? raw?.cardIconSize ?? raw?.iconSize, 18);
   const itemIconColor  = toString(raw?.itemIconColor ?? raw?.cardIconColor ?? raw?.iconColor, "#9CA3AF");
-  const itemIconBg     = toString(raw?.itemIconBg ?? raw?.cardIconBg ?? raw?.iconBg, "transparent");
-  const itemIconRadius = toNumber(raw?.itemIconRadius ?? raw?.cardIconRadius, 20);
 
   // Divider between items
   const showDivider = toBoolean(raw?.showDivider, false);
@@ -710,27 +709,6 @@ export default function CartLineItems({ section }) {
               </View>
               )}
 
-              {/* Item icon — top-right of card, only when DSR provides it */}
-              {showItemIcon && (itemIconUrl || !!itemIconName) && (
-                <View
-                  style={[
-                    styles.itemIconWrap,
-                    { backgroundColor: itemIconBg, borderRadius: itemIconRadius },
-                  ]}
-                  pointerEvents="none"
-                >
-                  {itemIconUrl ? (
-                    <Image
-                      source={{ uri: itemIconUrl }}
-                      style={{ width: itemIconSize, height: itemIconSize }}
-                      resizeMode="contain"
-                    />
-                  ) : (
-                    <FontAwesome name={itemIconName} size={itemIconSize} color={itemIconColor} />
-                  )}
-                </View>
-              )}
-
               {/* Right content */}
               <View style={[styles.info, { minHeight: showImage ? imageHeight : 0, gap: contentGap }]}>
 
@@ -827,6 +805,22 @@ export default function CartLineItems({ section }) {
                       },
                     ]}
                   >
+                    {showItemIcon && (itemIconUrl || !!itemIconName) && (
+                      itemIconUrl ? (
+                        <Image
+                          source={{ uri: itemIconUrl }}
+                          style={{ width: itemIconSize, height: itemIconSize, marginRight: 4 }}
+                          resizeMode="contain"
+                        />
+                      ) : (
+                        <FontAwesome
+                          name={itemIconName}
+                          size={itemIconSize}
+                          color={itemIconColor}
+                          style={{ marginRight: 4 }}
+                        />
+                      )
+                    )}
                     <Text
                       style={[
                         styles.badgeText,
@@ -961,16 +955,6 @@ const styles = StyleSheet.create({
     overflow: "hidden",
     position: "relative",
   },
-  itemIconWrap: {
-    position: "absolute",
-    top: 10,
-    right: 10,
-    width: 32,
-    height: 32,
-    alignItems: "center",
-    justifyContent: "center",
-    zIndex: 2,
-  },
   imageWrap: {
     overflow: "hidden",
     flexShrink: 0,
@@ -1015,6 +999,8 @@ const styles = StyleSheet.create({
   },
   discountBadge: {
     alignSelf: "flex-start",
+    flexDirection: "row",
+    alignItems: "center",
     paddingHorizontal: 10,
     paddingVertical: 4,
   },

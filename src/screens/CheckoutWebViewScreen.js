@@ -993,23 +993,20 @@ export default function CheckoutWebViewScreen() {
       }).catch(() => {});
       trackPurchase(order, capturedItems, { session }).catch(() => {});
 
-      // Small delay so the WebView finishes its last render before we leave
-      setTimeout(() => {
-        navigation.reset({
-          index:  0,
-          routes: [{
-            name:   "PostPurchase",
-            params: {
-              capturedItems: capturedItemsRef.current || [],
-              appId:         resolvedAppId,
-              order,
-              orderNumber,
-              orderTotal:    order.total,
-              authenticatedCheckout: true,
-            },
-          }],
-        });
-      }, 600);
+      navigation.reset({
+        index:  0,
+        routes: [{
+          name:   "PostPurchase",
+          params: {
+            capturedItems: capturedItemsRef.current || [],
+            appId:         resolvedAppId,
+            order,
+            orderNumber,
+            orderTotal:    order.total,
+            authenticatedCheckout: true,
+          },
+        }],
+      });
     },
     [hasAuthenticatedSession, navigation, resolvedAppId, session, userId]
   );

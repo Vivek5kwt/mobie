@@ -214,7 +214,7 @@ const componentAliases = {
   "notification-list": "notification_list",
 };
 
-export default function DynamicRenderer({ section }) {
+export default function DynamicRenderer({ section, ...extraProps }) {
   try {
     // extract DSL component name
     let compName =
@@ -248,7 +248,7 @@ export default function DynamicRenderer({ section }) {
       return null;
     }
 
-    return <Component section={section} />;
+    return <Component section={section} {...extraProps} />;
 
   } catch (err) {
     // Same visibility problem as above, but for a component that IS registered

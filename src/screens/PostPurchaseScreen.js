@@ -12,7 +12,7 @@ import { useNavigation, useRoute } from "@react-navigation/native";
 import { useDispatch } from "react-redux";
 import { SafeArea } from "../utils/SafeAreaHandler";
 import DynamicRenderer from "../engine/DynamicRenderer";
-import Header from "../components/Topheader";
+import HeaderDefault from "../components/HeaderDefault";
 import { useToast } from "../components/ToastProvider";
 import { fetchDSL } from "../engine/dslHandler";
 import { resolveAppId } from "../utils/appId";
@@ -324,6 +324,7 @@ export default function PostPurchaseScreen() {
   );
 
   const [sections, setSections] = useState([]);
+  const [headerConfig, setHeaderConfig] = useState(null);
   const [loading,  setLoading]  = useState(true);
   const [error,    setError]    = useState(false);
   const [orderSyncing, setOrderSyncing] = useState(false);
@@ -446,6 +447,7 @@ export default function PostPurchaseScreen() {
       if (fp !== fingerprintRef.current) {
         fingerprintRef.current = fp;
         setSections(incoming);
+        setHeaderConfig(incomingDsl?.headerdefault ?? null);
       }
     } catch (_) {
       if (!silent) setError(true);
@@ -520,14 +522,26 @@ export default function PostPurchaseScreen() {
   );
 
   // ── Loading state ─────────────────────────────────────────────────────────
+  // The order already succeeded by the time this screen mounts — the only
+  // thing "loading" is the Builder-designed page layout, which can take a
+  // few seconds on a slow connection. Don't make the shopper stare at a bare
+  // spinner for that whole time; show the confirmation immediately and let
+  // the real DSL content replace it the moment it's ready.
   if (loading) {
     return (
       <SafeArea>
         <View style={styles.container}>
-          <Header showBack={false} onTitlePress={goHome} />
+          {headerConfig ? <HeaderDefault config={headerConfig} /> : null}
           <View style={styles.centreWrap}>
-            <ActivityIndicator size="large" color="#0D9488" />
-            <Text style={styles.loadingText}>Loading your order…</Text>
+            <Text style={styles.successIcon}>✓</Text>
+            <Text style={styles.successTitle}>Order Placed Successfully!</Text>
+            {!!orderNumber && (
+              <Text style={styles.successSubtext}>Order {orderNumber}</Text>
+            )}
+            <Text style={styles.successSubtext}>
+              Thank you for your purchase. You will receive a confirmation shortly.
+            </Text>
+            <ActivityIndicator size="small" color="#0D9488" style={{ marginTop: 8 }} />
           </View>
         </View>
       </SafeArea>
@@ -539,7 +553,7 @@ export default function PostPurchaseScreen() {
     return (
       <SafeArea>
         <View style={styles.container}>
-          <Header showBack={false} onTitlePress={goHome} />
+          {headerConfig ? <HeaderDefault config={headerConfig} /> : null}
           <View style={styles.centreWrap}>
             <Text style={styles.successIcon}>✓</Text>
             <Text style={styles.successTitle}>Order Placed Successfully!</Text>
@@ -571,27 +585,26 @@ export default function PostPurchaseScreen() {
   }
 
   // ── Normal DSL-driven render ──────────────────────────────────────────────
+  // Buttons are whatever the Builder page actually defines (custom_button
+  // sections) — no extra hardcoded "Continue Shopping" button on top of
+  // those; each custom_button gets the real just-placed order forwarded so
+  // a button pointed at "Order Details" shows this order, not a generic one.
   return (
     <SafeArea>
       <View style={styles.container}>
-        <Header showBack={false} onTitlePress={goHome} />
+        {headerConfig ? <HeaderDefault config={headerConfig} /> : null}
         <ScrollView
           contentContainerStyle={styles.scroll}
           showsVerticalScrollIndicator={false}
         >
           {resolvedSections.map((section, idx) => (
-            <DynamicRenderer key={idx} section={section} />
+            <DynamicRenderer
+              key={idx}
+              section={section}
+              extraNavParams={syncedOrder ? { order: syncedOrder } : undefined}
+            />
           ))}
         </ScrollView>
-        <View style={styles.footer}>
-          <TouchableOpacity
-            style={styles.shopBtn}
-            activeOpacity={0.85}
-            onPress={goHome}
-          >
-            <Text style={styles.shopBtnText}>Continue Shopping</Text>
-          </TouchableOpacity>
-        </View>
         </View>
       </SafeArea>
     );
@@ -619,11 +632,6 @@ const styles = StyleSheet.create({
     justifyContent:    "center",
     paddingHorizontal: 32,
     gap:               16,
-  },
-  loadingText: {
-    color:     "#374151",
-    fontSize:  15,
-    textAlign: "center",
   },
   successIcon: {
     fontSize:   56,

@@ -1818,8 +1818,15 @@ const normalizeCancelReason = (reason) => {
     : "other";
 };
 
-const getOrderReference = (order = {}) =>
-  compact(order?.name || order?.orderNumber || order?.order_number || order?.adminOrderId || order?.id);
+// order.id falls back to the completed checkout URL (buildOrderFromCart in
+// CheckoutWebViewScreen.js) when no real order number could be detected yet
+// — a reasonable unique-ish placeholder for local matching, but never a
+// value that should be shown to a shopper as "their order number", so it's
+// excluded here even though the other candidates are genuinely usable IDs.
+const getOrderReference = (order = {}) => {
+  const candidates = [order?.name, order?.orderNumber, order?.order_number, order?.adminOrderId, order?.id];
+  return candidates.map(compact).find((value) => value && !/^[a-z][a-z0-9+.-]*:\/\//i.test(value)) || "";
+};
 
 const hasCompletedFulfillment = (order = {}) => {
   const fulfillments = Array.isArray(order?.fulfillments) ? order.fulfillments : [];
@@ -3020,6 +3027,10 @@ const CUSTOMER_ORDER_NODE_FIELDS = `
   subtotalPriceSet { shopMoney { amount currencyCode } }
   totalShippingPriceSet { shopMoney { amount currencyCode } }
   totalTaxSet { shopMoney { amount currencyCode } }
+  paymentGatewayNames
+  shippingLines(first: 5) {
+    edges { node { title } }
+  }
   shippingAddress {
     name
     address1
@@ -3029,6 +3040,25 @@ const CUSTOMER_ORDER_NODE_FIELDS = `
     country
     zip
     phone
+  }
+  billingAddress {
+    name
+    address1
+    address2
+    city
+    province
+    country
+    zip
+    phone
+  }
+  fulfillments(first: 5) {
+    displayStatus
+    estimatedDeliveryAt
+    trackingInfo(first: 3) {
+      company
+      number
+      url
+    }
   }
   lineItems(first: 20) {
     edges {
@@ -3054,6 +3084,8 @@ const CUSTOMER_ORDER_NODE_FIELDS = `
 const mapCustomerOrderNode = (node, creds) => {
   const addr = node.shippingAddress;
   const addressText = formatAddressLines(addr);
+  const billingAddr = node.billingAddress;
+  const billingText = formatAddressLines(billingAddr);
   const totalMoney = node.totalPriceSet?.shopMoney || {};
   const subtotalMoney = node.subtotalPriceSet?.shopMoney || totalMoney;
   const shippingMoney = node.totalShippingPriceSet?.shopMoney || {};
@@ -3062,6 +3094,10 @@ const mapCustomerOrderNode = (node, creds) => {
   const currencySymbol = sharedCurrencySymbolForCode(currency);
   const financialStatus = node.displayFinancialStatus || "";
   const fulfillmentStatus = node.displayFulfillmentStatus || "";
+  const paymentGatewayNames = Array.isArray(node.paymentGatewayNames) ? node.paymentGatewayNames.filter(Boolean) : [];
+  const deliveryMethod = node.shippingLines?.edges?.find(({ node: line }) => line?.title)?.node?.title || "";
+  const fulfillment = Array.isArray(node.fulfillments) ? node.fulfillments.find((f) => f?.estimatedDeliveryAt) || node.fulfillments[0] : null;
+  const tracking = fulfillment?.trackingInfo?.find((t) => t?.number || t?.url) || null;
   return {
     id:             node.id,
     name:           node.name || "",
@@ -3073,15 +3109,18 @@ const mapCustomerOrderNode = (node, creds) => {
     fulfillmentStatus,
     financialStatus,
     statusUrl:      node.statusPageUrl || "",
-    deliveryMethod: "",
+    deliveryMethod,
     shippingAddress: addr || null,
     address:        addressText,
-    arrival:        "",
-    billingAddress: null,
-    billing:        "",
-    paymentMethod:  "",
-    paymentGatewayNames: [],
-    payment:        "",
+    arrival:        fulfillment?.estimatedDeliveryAt ? formatOrderDate(fulfillment.estimatedDeliveryAt) : "",
+    billingAddress: billingAddr || null,
+    billing:        billingText || (addr ? "Same as delivery address" : ""),
+    paymentMethod:  paymentGatewayNames.join(", "),
+    paymentGatewayNames,
+    payment:        paymentGatewayNames.join(", "),
+    trackingNumber: tracking?.number || "",
+    trackingUrl:    tracking?.url || "",
+    trackingCompany: tracking?.company || "",
     delivery:       parseFloat(shippingMoney?.amount || 0),
     tax:            parseFloat(taxMoney?.amount || 0),
     subtotal:       parseFloat(subtotalMoney?.amount || totalMoney?.amount || 0),

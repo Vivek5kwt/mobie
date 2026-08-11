@@ -110,7 +110,7 @@ const buildBorderStyle = (line, color) => {
   };
 };
 
-export default function CustomButton({ section }) {
+export default function CustomButton({ section, extraNavParams }) {
   const navigation = useNavigation();
   const raw = useMemo(() => getProps(section), [section]);
   const visibility = isObject(raw.visibility) ? raw.visibility : {};
@@ -247,6 +247,7 @@ export default function CustomButton({ section }) {
       navigateType,
       label,
       fallbackTitle: label,
+      extraParams: extraNavParams,
     });
   };
 

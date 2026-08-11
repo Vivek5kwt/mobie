@@ -5,10 +5,7 @@ import { useNavigation } from "@react-navigation/native";
 import { useDispatch } from "react-redux";
 import { addItem } from "../store/slices/cartSlice";
 import { useToast } from "./ToastProvider";
-import {
-  getShopifyDomain,
-  createShopifyCheckout,
-} from "../services/shopify";
+import { getShopifyDomain } from "../services/shopify";
 import { resolveFirstFont } from "../services/typographyService";
 import { ADD_TO_CART_SUCCESS_MESSAGE, resolveCartNavigationParams } from "../utils/cartFeedback";
 import { resolveFA4IconName } from "../utils/faIconAlias";
@@ -178,7 +175,6 @@ export default function AddToCart({ section }) {
 
   const addToCartConfig = mergeConfig(css?.addToCart, raw?.addToCart);
   const quantityConfig  = mergeConfig(css?.quantityPicker, raw?.quantityPicker);
-  const buyNowConfig    = mergeConfig(css?.buyNow, raw?.buyNow);
 
   // Visibility
   const rawWrappedVis = (rawWrapped && typeof rawWrapped === "object") ? rawWrapped : {};
@@ -199,8 +195,6 @@ export default function AddToCart({ section }) {
   const showQuantityPicker = toBoolean(deepUnwrap(visibility?.quantityPicker),      true);
   const showQuantityText   = toBoolean(deepUnwrap(visibility?.quantityPickerText),  true);
   const showQuantityIcons  = toBoolean(deepUnwrap(visibility?.quantityPickerIcons), true);
-  const showBuyNow         = toBoolean(deepUnwrap(visibility?.buyNow),              true);
-  const showBuyNowText     = toBoolean(deepUnwrap(visibility?.buyNowText),         true);
 
   const addToCartText = toString(
     addToCartConfig?.text ?? addToCartConfig?.label ?? raw?.buttonText ?? raw?.addToCartText,
@@ -270,7 +264,6 @@ export default function AddToCart({ section }) {
   );
 
   const [quantity, setQuantity] = useState(1);
-  const [buyNowLoading, setBuyNowLoading] = useState(false);
 
   const addToCartButtonStyle = useMemo(
     () => ({
@@ -359,38 +352,6 @@ export default function AddToCart({ section }) {
     />
   ) : null;
 
-  // ── Buy Now button — fully configured/saved by the Builder (buyNow.* + the
-  // buyNow/buyNowText/buyNowIcon/buyNowBgPadding visibility flags) but never
-  // rendered here until now.
-  const buyNowButtonStyle = buildButtonStyles(buyNowConfig, "#FFFFFF");
-  const buyNowTextAlign = resolveTextAlign(buyNowConfig, raw);
-  const buyNowTextStyle = {
-    color: toString(buyNowConfig?.textColor, "#FFFFFF"),
-    fontSize: toNumber(buyNowConfig?.textSize, 12),
-    fontWeight: toString(buyNowConfig?.textWeight, "700"),
-    fontFamily: resolveFirstFont(buyNowConfig?.textFamily, buyNowConfig?.fontFamily) || undefined,
-    textAlign: buyNowTextAlign,
-  };
-  const buyNowIconRaw = firstDefined(
-    buyNowConfig?.icon?.value,
-    buyNowConfig?.icon,
-    buyNowConfig?.iconName,
-    buyNowConfig?.iconId
-  );
-  const buyNowIconName = resolveIconName(buyNowIconRaw);
-  const showBuyNowIconSetting = deepUnwrap(visibility?.buyNowIcon);
-  const showBuyNowIcon = toBoolean(showBuyNowIconSetting, !!buyNowIconRaw);
-  const buyNowIconAlign = toString(buyNowConfig?.iconAlign ?? buyNowConfig?.align, "right").toLowerCase();
-  const buyNowIconOnRight = buyNowIconAlign === "right" || buyNowIconAlign === "end";
-  const buyNowIcon = showBuyNowIcon && !!buyNowIconName ? (
-    <FontAwesome
-      name={buyNowIconName}
-      size={toNumber(buyNowConfig?.iconSize, 14)}
-      color={toString(buyNowConfig?.iconColor, buyNowTextStyle.color)}
-      style={buyNowIconOnRight ? { marginLeft: 6 } : { marginRight: 6 }}
-    />
-  ) : null;
-
   const openCartScreen = () => {
     navigation.navigate("BottomNavScreen", resolveCartNavigationParams(section));
   };
@@ -428,42 +389,6 @@ export default function AddToCart({ section }) {
       type: "success",
       duration: 2500,
     });
-  };
-
-  // Buy Now skips the local cart and goes straight to checkout for just this
-  // variant/quantity. This used to navigate straight to a raw, unchecked
-  // cart permalink (addToCartUrl) — if the product had since been deleted
-  // or unpublished (the DSL's embedded availableForSale can go stale), the
-  // user landed on Shopify's own dead-end "Cart Error" page with no way to
-  // recover. Routes through createShopifyCheckout instead, which
-  // re-validates availability right before checkout and uses
-  // draftOrderCreate (falling back to the same permalink) instead.
-  const handleBuyNow = async () => {
-    if (!productAvailable || buyNowLoading) return;
-    if (!productVariantGid && !addToCartUrl) return;
-    setBuyNowLoading(true);
-    try {
-      const checkoutUrl = await createShopifyCheckout({
-        variantId: productVariantGid || productVariantNumericId,
-        quantity,
-        options: { handle: productHandle },
-      });
-      navigation.navigate("CheckoutWebView", { url: checkoutUrl });
-    } catch (error) {
-      console.warn("[AddToCart] Buy Now failed:", error?.message || error);
-      if (addToCartUrl && !error?.unavailableItems) {
-        navigation.navigate("CheckoutWebView", { url: addToCartUrl });
-      } else {
-        showToast({
-          message: error?.message || "This item is no longer available.",
-          actionLabel: "Dismiss",
-          type: "error",
-          duration: 4000,
-        });
-      }
-    } finally {
-      setBuyNowLoading(false);
-    }
   };
 
   const containerBg = toString(
@@ -565,19 +490,6 @@ export default function AddToCart({ section }) {
         </TouchableOpacity>
       )}
 
-      {/* ── Buy Now button (full-width) ── */}
-      {showBuyNow && productAvailable && (
-        <TouchableOpacity
-          style={[styles.fullButton, styles.buyNowButton, buyNowButtonStyle, buyNowLoading && styles.buttonDisabled]}
-          onPress={handleBuyNow}
-          disabled={(!addToCartUrl && !productVariantGid) || buyNowLoading}
-          activeOpacity={0.8}
-        >
-          {!buyNowIconOnRight && buyNowIcon}
-          {showBuyNowText && <Text style={buyNowTextStyle}>{buyNowLoading ? "Please wait…" : "Buy Now"}</Text>}
-          {buyNowIconOnRight && buyNowIcon}
-        </TouchableOpacity>
-      )}
     </View>
   );
 }
@@ -626,11 +538,5 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     borderRadius: 8,
     overflow: "hidden",
-  },
-  buyNowButton: {
-    marginTop: 10,
-  },
-  buttonDisabled: {
-    opacity: 0.6,
   },
 });
