@@ -128,6 +128,23 @@ const dslBorder = (propsNode, defaultWidth = 1) => {
   return { borderWidth: width, borderColor: color };
 };
 
+// Mirrors Builder's OrderInfoPreview.tsx/PriceInfoPreview.tsx border-side
+// logic for the new unified "order_details" block (see below) — its
+// background/padding shape differs from the legacy blocks' `dslBorder`.
+const borderSideStyleFromLine = (line, color, width) => {
+  const w = Math.max(0, toNum(width, 0));
+  const normalized = String(line || "").trim().toLowerCase();
+  if (!normalized || normalized === "none" || w <= 0) return {};
+  if (normalized === "all" || normalized === "center") return { borderWidth: w, borderColor: color };
+  return {
+    borderTopWidth: normalized === "top" ? w : 0,
+    borderBottomWidth: normalized === "bottom" ? w : 0,
+    borderLeftWidth: normalized === "left" ? w : 0,
+    borderRightWidth: normalized === "right" ? w : 0,
+    borderColor: color,
+  };
+};
+
 const getComponent = (section) => {
   const c =
     section?.component?.const ||
@@ -422,6 +439,29 @@ export default function OrderDetailScreen() {
     if (component === "cancel_order") {
       return (
         <CancelOrderSection
+          key={key}
+          section={section}
+          order={order}
+          appId={appId}
+          userId={session?.user?.id ?? null}
+          email={session?.user?.email || ""}
+          customerAccessToken={customerAccessToken}
+          customerId={shopifyCustomerId}
+          onCanceled={(updatedOrder) => {
+            setOrder((current) => ({ ...(current || {}), ...(updatedOrder || {}) }));
+            setDetailsError("");
+          }}
+        />
+      );
+    }
+
+    // Builder's newer "Order Details" block (Order_details/ folder) bundles
+    // product/order/price/cancel into one section instead of 4 separate
+    // ones — order_info/order_detail_page/price_info/cancel_order above
+    // only ever fire for the older, still-supported separate blocks.
+    if (component === "order_details") {
+      return (
+        <OrderDetailsUnifiedSection
           key={key}
           section={section}
           order={order}
@@ -739,11 +779,309 @@ function PriceInfoSection({ section, order }) {
   );
 }
 
+// ─── Unified Order Details block (Builder's newer Order_details/ folder) ──────
+// Bundles what used to be 4 separate blocks (order_info/order_detail_page/
+// price_info/cancel_order) into one section with nested productInfo/
+// orderInfo/priceInfo/cancelOrder objects. Builder's own
+// Order_details/defaultProps.ts ships pure sample text for canvas design
+// only ("April 3, 2023", "FlexFit Pro Jacket", order "46578295", etc.) —
+// each card below follows the same rule as every section above: DSL only
+// drives styling, real `order` data drives content.
+
+function ProductInfoCard({ data, order }) {
+  if (!data) return null;
+  const item = Array.isArray(order?.lineItems) ? order.lineItems[0] : null;
+  if (!item) return null;
+
+  const headingStyle = data.headingStyle || {};
+  const variantsStyle = data.variantsStyle || {};
+  const imageStyle = data.imageStyle || {};
+
+  const title = toStr(item?.title, "Product");
+  const variantText = toStr(item?.variant, "");
+  const lineTotal = toNum(item?.priceAmount ?? item?.price, 0) * toNum(item?.quantity, 1);
+  const currency = toStr(item?.priceCurrency ?? item?.currency, order?.currencyCode || "");
+  const image = toStr(item?.image ?? item?.imageUrl, "");
+
+  const ratio = toStr(imageStyle?.ratio, "auto").toLowerCase();
+  const aspectRatio = ratio === "2:3" ? 2 / 3 : ratio === "4:5" ? 4 / 5 : 1;
+  const imageWidth = 72;
+  const imageHeight = Math.round(imageWidth / aspectRatio);
+  const scaleFill = toStr(imageStyle?.scale, "fill").toLowerCase() === "fill";
+
+  const border = dslBorder(data) || {};
+  const cardRadius = toNum(data?.borderRadius, 8);
+
+  return (
+    <View
+      style={[
+        styles.card,
+        {
+          backgroundColor: "#FFFFFF",
+          borderRadius: cardRadius,
+          flexDirection: "row",
+          alignItems: "center",
+          gap: 12,
+          padding: 16,
+        },
+        Object.keys(border).length ? border : { borderWidth: 1, borderColor: toStr(data?.borderColor, "#E5E7EB") },
+      ]}
+    >
+      <View
+        style={{
+          width: imageWidth,
+          height: imageHeight,
+          borderRadius: toNum(imageStyle?.corners, 8),
+          overflow: "hidden",
+          backgroundColor: "#EAFBFC",
+          flexShrink: 0,
+        }}
+      >
+        {!!image && (
+          <Image
+            source={{ uri: image }}
+            style={{ width: "100%", height: "100%" }}
+            resizeMode={scaleFill ? "cover" : "contain"}
+          />
+        )}
+      </View>
+      <View style={{ flex: 1 }}>
+        <Text
+          numberOfLines={2}
+          style={{
+            fontSize: toNum(headingStyle?.fontSize, 14),
+            fontWeight: toFontWeight(headingStyle?.fontWeight, "700"),
+            color: toStr(headingStyle?.color, "#111827"),
+            textTransform: toBool(headingStyle?.uppercase, false) ? "uppercase" : "none",
+            marginBottom: 4,
+            ...(cleanFontFamily(toStr(headingStyle?.fontFamily, "")) ? { fontFamily: cleanFontFamily(toStr(headingStyle?.fontFamily, "")) } : {}),
+          }}
+        >
+          {title}
+        </Text>
+        {!!variantText && (
+          <Text
+            numberOfLines={1}
+            style={{
+              fontSize: toNum(variantsStyle?.fontSize, 13),
+              fontWeight: toFontWeight(variantsStyle?.fontWeight, "400"),
+              color: toStr(variantsStyle?.color, "#6B7280"),
+              textTransform: toBool(variantsStyle?.uppercase, false) ? "uppercase" : "none",
+              marginBottom: 6,
+              ...(cleanFontFamily(toStr(variantsStyle?.fontFamily, "")) ? { fontFamily: cleanFontFamily(toStr(variantsStyle?.fontFamily, "")) } : {}),
+            }}
+          >
+            {variantText}
+          </Text>
+        )}
+        <Text style={{ fontSize: 14, fontWeight: "700", color: "#111827" }}>
+          {fmt(lineTotal, currency)}
+        </Text>
+      </View>
+    </View>
+  );
+}
+
+function OrderInfoCardUnified({ data, order }) {
+  if (!data) return null;
+  const labelStyle = data.labelStyle || {};
+  const valuesStyle = data.valuesStyle || {};
+  const visibility = valuesStyle?.visibility || {};
+
+  const backgroundActive = toBool(data?.backgroundActive, true);
+  const bgColor = backgroundActive ? toStr(data?.orderInfoBgColor || data?.bgColor, "transparent") : "transparent";
+  const border = backgroundActive
+    ? borderSideStyleFromLine(data?.borderLine, toStr(data?.borderColor, "#000000"), toNum(data?.borderSize, 2))
+    : {};
+  const outerCorners = backgroundActive ? toNum(data?.outerCorners, 0) : 0;
+  const padL = backgroundActive ? toNum(data?.bgPadLL, 16) : 0;
+  const padR = backgroundActive ? toNum(data?.bgPadRR, 16) : 0;
+  const padT = backgroundActive ? toNum(data?.bgPadTT, 0) : 0;
+  const padB = backgroundActive ? toNum(data?.bgPadBB, 0) : 0;
+
+  const info = {
+    orderDate: firstValue(order?.orderDate, order?.placedOn, order?.processedAt),
+    orderNumber: firstValue(order?.orderNumber, order?.name),
+    status: firstValue(order?.status, order?.fulfillmentStatus, order?.financialStatus),
+    deliveryMethod: firstValue(order?.deliveryMethod, order?.shippingMethod),
+    deliveryAddress: firstValue(order?.address, formatAddressForDisplay(order?.shippingAddress)),
+    estimatedArrival: firstValue(order?.arrival, order?.estimatedDelivery),
+    billingDetails: firstValue(order?.billing, formatAddressForDisplay(order?.billingAddress)),
+    paymentMethod: firstValue(
+      order?.payment,
+      order?.paymentMethod,
+      Array.isArray(order?.paymentGatewayNames) ? order.paymentGatewayNames.join(", ") : ""
+    ),
+  };
+
+  const rowDefs = [
+    { key: "orderDate", label: "Order date", always: true },
+    { key: "orderNumber", label: "Order number", visKey: "orderNumber" },
+    { key: "status", label: "Status", visKey: "status" },
+    { key: "deliveryMethod", label: "Delivery method", visKey: "deliveryMethod" },
+    { key: "deliveryAddress", label: "Delivery address", visKey: "deliveryAddress" },
+    { key: "estimatedArrival", label: "Estimated arrival", visKey: "estimatedArrival" },
+    { key: "billingDetails", label: "Billing details", visKey: "billingDetail" },
+    { key: "paymentMethod", label: "Payment method", visKey: "paymentMethod" },
+  ];
+
+  const rows = rowDefs
+    .filter((row) => row.always || toBool(visibility?.[row.visKey], true))
+    .map((row) => ({ label: row.label, value: info[row.key] }))
+    .filter((row) => hasOrderValue(row.value));
+
+  if (!rows.length) return null;
+
+  const labelSx = {
+    fontSize: toNum(labelStyle?.fontSize, 13),
+    fontWeight: toFontWeight(labelStyle?.fontWeight, "400"),
+    color: toStr(labelStyle?.color, "#6B7280"),
+    textTransform: toBool(labelStyle?.uppercase, false) ? "uppercase" : "none",
+    ...(cleanFontFamily(toStr(labelStyle?.fontFamily, "")) ? { fontFamily: cleanFontFamily(toStr(labelStyle?.fontFamily, "")) } : {}),
+  };
+  const valueSx = {
+    fontWeight: toFontWeight(valuesStyle?.fontWeight, "600"),
+    color: toStr(valuesStyle?.color, "#111111"),
+    fontSize: toNum(valuesStyle?.fontSize, 13),
+    textTransform: toBool(valuesStyle?.uppercase, false) ? "uppercase" : "none",
+    ...(cleanFontFamily(toStr(valuesStyle?.fontFamily, "")) ? { fontFamily: cleanFontFamily(toStr(valuesStyle?.fontFamily, "")) } : {}),
+  };
+
+  return (
+    <View
+      style={[
+        styles.card,
+        { backgroundColor: bgColor, borderRadius: outerCorners, paddingLeft: padL, paddingRight: padR, paddingTop: padT, paddingBottom: padB },
+        border,
+      ]}
+    >
+      {rows.map((row, i) => (
+        <View
+          key={i}
+          style={[styles.infoRow, i < rows.length - 1 && { borderBottomWidth: 1, borderBottomColor: "#F3F4F6" }]}
+        >
+          <Text style={[styles.infoLabel, labelSx]}>{row.label}</Text>
+          <Text style={[styles.infoValue, valueSx]}>{row.value}</Text>
+        </View>
+      ))}
+    </View>
+  );
+}
+
+function PriceInfoCardUnified({ data, order }) {
+  if (!data) return null;
+  const labelStyle = data.labelStyle || {};
+  const numberStyle = data.numberStyle || {};
+  const visibility = numberStyle?.visibility || {};
+
+  const bgColor = toStr(data?.bgColor, "#FFFFFF");
+  const border = borderSideStyleFromLine(
+    toStr(data?.borderLine, "all"),
+    toStr(data?.borderColor, "#E5E7EB"),
+    toNum(data?.borderSize, 1)
+  );
+  const outerCorners = toNum(data?.outerCorners, 0);
+  const padL = toNum(data?.bgPadL, 16);
+  const padR = toNum(data?.bgPadR, 16);
+  const padT = toNum(data?.bgPadT, 16);
+  const padB = toNum(data?.bgPadB, 16);
+
+  const orderCurrencyCode = toStr(order?.currencyCode ?? order?.priceCurrency, "");
+  const orderCurrencySymbol = toStr(order?.currencySymbol, "");
+  const normalizedOrderSymbol = orderCurrencySymbol === "$" && orderCurrencyCode ? "" : orderCurrencySymbol;
+  const currLabel = orderCurrencyCode || normalizedOrderSymbol || sharedCurrencySymbolForCode(orderCurrencyCode);
+
+  const delivery = firstValue(order?.delivery, order?.shippingPrice, order?.shippingAmount);
+  const tax = firstValue(order?.tax, order?.totalTax);
+  const total = firstValue(order?.total, order?.totalPrice, order?.currentTotalPrice);
+
+  const showDelivery = toBool(visibility?.delivery, true) && hasOrderValue(delivery);
+  const showTax = toBool(visibility?.tax, true) && hasOrderValue(tax);
+  const showTotal = toBool(visibility?.total, true) && hasOrderValue(total);
+
+  if (!showDelivery && !showTax && !showTotal) return null;
+
+  const labelSx = {
+    fontSize: toNum(labelStyle?.fontSize, 12),
+    fontWeight: toFontWeight(labelStyle?.fontWeight, "400"),
+    color: toStr(labelStyle?.color, "#6B7280"),
+    textTransform: toBool(labelStyle?.uppercase, false) ? "uppercase" : "none",
+    ...(cleanFontFamily(toStr(labelStyle?.fontFamily, "")) ? { fontFamily: cleanFontFamily(toStr(labelStyle?.fontFamily, "")) } : {}),
+  };
+  const numberSx = {
+    fontSize: toNum(numberStyle?.fontSize, 14),
+    fontWeight: toFontWeight(numberStyle?.fontWeight, "700"),
+    color: toStr(numberStyle?.color, "#111827"),
+    ...(cleanFontFamily(toStr(numberStyle?.fontFamily, "")) ? { fontFamily: cleanFontFamily(toStr(numberStyle?.fontFamily, "")) } : {}),
+  };
+
+  const rows = [
+    showDelivery ? { label: "Delivery", value: fmt(delivery, currLabel) } : null,
+    showTax ? { label: "Tax", value: fmt(tax, currLabel) } : null,
+  ].filter(Boolean);
+
+  return (
+    <View
+      style={[
+        styles.card,
+        { backgroundColor: bgColor, borderRadius: outerCorners, paddingLeft: padL, paddingRight: padR, paddingTop: padT, paddingBottom: padB },
+        border,
+      ]}
+    >
+      {rows.map((row, i) => (
+        <View key={i} style={styles.priceRow}>
+          <Text style={[styles.priceLabel, labelSx]}>{row.label}</Text>
+          <Text style={[styles.priceValue, numberSx, { textAlign: "right" }]}>{row.value}</Text>
+        </View>
+      ))}
+      {showTotal && (
+        <View style={[styles.priceRow, rows.length ? { borderTopWidth: 1, borderTopColor: "#F3F4F6" } : null]}>
+          <Text style={[styles.priceLabel, labelSx]}>Total</Text>
+          <Text style={[styles.priceValue, numberSx, { textAlign: "right" }]}>{fmt(total, currLabel)}</Text>
+        </View>
+      )}
+    </View>
+  );
+}
+
+function OrderDetailsUnifiedSection({ section, order, appId, userId, email, customerAccessToken, customerId, onCanceled }) {
+  const raw = getRawProps(section);
+  const productInfo = raw?.productInfo;
+  const orderInfo = raw?.orderInfo;
+  const priceInfo = raw?.priceInfo;
+  const cancelOrder = raw?.cancelOrder;
+
+  return (
+    <>
+      <ProductInfoCard data={productInfo} order={order} />
+      <OrderInfoCardUnified data={orderInfo} order={order} />
+      <PriceInfoCardUnified data={priceInfo} order={order} />
+      {cancelOrder ? (
+        <CancelOrderSection
+          rawOverride={cancelOrder}
+          order={order}
+          appId={appId}
+          userId={userId}
+          email={email}
+          customerAccessToken={customerAccessToken}
+          customerId={customerId}
+          onCanceled={onCanceled}
+        />
+      ) : null}
+    </>
+  );
+}
+
 // ─── Cancel Order Section ─────────────────────────────────────────────────────
 
-function CancelOrderSection({ section, order, appId, userId, email, customerAccessToken, customerId, onCanceled }) {
-  const propsNode = getProps(section);
-  const raw       = unwrap(propsNode?.raw, {}) || {};
+function CancelOrderSection({ section, order, appId, userId, email, customerAccessToken, customerId, onCanceled, rawOverride }) {
+  // rawOverride: used by OrderDetailsUnifiedSection to reuse this same
+  // cancel-eligibility + cancel-action logic for the new unified
+  // "order_details" block's nested `cancelOrder` object, which already
+  // uses this exact same field shape (label/textStyle/backgroundPadding/
+  // boxBackgroundPadding/visibility) — no section/getProps lookup needed.
+  const propsNode = rawOverride ? null : getProps(section);
+  const raw       = rawOverride || unwrap(propsNode?.raw, {}) || {};
   const [submitting, setSubmitting] = useState(false);
   const [errorText, setErrorText] = useState("");
 

@@ -19,7 +19,6 @@ type UserProfile = {
   userType?: string;
   shopifyDomain?: string;
   storefrontAccessToken?: string;
-  storeAccessToken?: string;
   shopName?: string;
   currency?: string;
   country?: string;
@@ -262,7 +261,6 @@ export const login = async (email: string, password: string): Promise<AuthSessio
         timezone: user.timezone ?? liveStore?.timezone,
         shopifyDomain: user.shopify_domain ?? liveStore?.shopify_domain,
         storefrontAccessToken: liveStore?.storefront_access_token,
-        storeAccessToken: liveStore?.access_token,
         shopName: liveStore?.shop_name,
         currency: liveStore?.currency,
         country: liveStore?.country,
@@ -312,7 +310,6 @@ export const login = async (email: string, password: string): Promise<AuthSessio
             timezone: liveStore?.timezone,
             shopifyDomain: customerPayload?.store?.shopify_domain ?? liveStore?.shopify_domain,
             storefrontAccessToken: liveStore?.storefront_access_token,
-            storeAccessToken: liveStore?.access_token,
             shopName: customerPayload?.store?.shop_name ?? liveStore?.shop_name,
             currency: liveStore?.currency,
             country: liveStore?.country,
@@ -420,7 +417,6 @@ export const signup = async (
         userType:       returnedUser.user_type,
         shopifyDomain:  returnedUser.shopify_domain || resolvedShopifyDomain,
         storefrontAccessToken: liveStore?.storefront_access_token,
-        storeAccessToken: liveStore?.access_token,
         shopName:       liveStore?.shop_name,
         currency:       liveStore?.currency,
         country:        liveStore?.country,

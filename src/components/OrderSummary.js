@@ -102,20 +102,6 @@ const borderWidthFromLine = (value, fallback = 0) => {
   return Number.isFinite(parsed) ? parsed : 1;
 };
 
-const normalizeCurrencyLabel = (value, fallback = "") => {
-  const label = toString(value, fallback).trim();
-  if (!label) return "";
-  return /^[A-Za-z0-9]{2,}$/.test(label) ? `${label} ` : label;
-};
-
-const resolveCurrencyLabel = (...values) => {
-  for (const value of values) {
-    const label = normalizeCurrencyLabel(value);
-    if (label) return label;
-  }
-  return "";
-};
-
 const firstDefined = (...values) => {
   for (const value of values) {
     const resolved = unwrapValue(value, undefined);
@@ -383,16 +369,28 @@ export default function OrderSummary({ section }) {
   const titleAlignRaw = toString(raw?.headlineAlign ?? raw?.titleAlign, "left").trim().toLowerCase();
   const titleAlign = titleAlignRaw === "center" ? "center" : titleAlignRaw === "right" ? "right" : "left";
 
-  // Currency
-  const currencyLabel = resolveCurrencyLabel(
-    sourceItems[0]?.currency,
-    sourceItems[0]?.priceCurrency,
-    sourceItems[0]?.currencySymbol,
-    activeDiscounts[0]?.currencyCode,
-    raw?.currency,
-    raw?.priceCurrency,
-    raw?.currencySymbol,
-    raw?.symbol
+  // Currency — passed straight through to currencyStore's formatPrice as the
+  // "convert from" code, so it must stay a clean ISO code/symbol (e.g.
+  // "INR", "$"), never a display label. This previously ran the value
+  // through a label formatter that appended a trailing space to any
+  // code-shaped value ("INR" -> "INR "), which then failed the exact-match
+  // rate lookup in currencyStore's convertPrice and silently fell back to a
+  // rate of 1 — i.e. the price got "converted" as if it were already in the
+  // target currency, producing a wrong amount (same bug fixed in
+  // CartLineItems.js — product blocks never had it since they pass the raw
+  // code directly).
+  const currencyLabel = toString(
+    firstDefined(
+      sourceItems[0]?.currency,
+      sourceItems[0]?.priceCurrency,
+      sourceItems[0]?.currencySymbol,
+      activeDiscounts[0]?.currencyCode,
+      raw?.currency,
+      raw?.priceCurrency,
+      raw?.currencySymbol,
+      raw?.symbol
+    ),
+    ""
   );
 
   // Row label style
@@ -627,11 +625,9 @@ export default function OrderSummary({ section }) {
         const itemQty = toNumber(item?.qty ?? item?.quantity, 1);
         const itemPrice = toNumber(item?.price, 0);
         const lineTotal = itemQty * itemPrice;
-        const itemCurrency = resolveCurrencyLabel(
-          item?.currency,
-          item?.priceCurrency,
-          item?.currencySymbol,
-          currencyLabel
+        const itemCurrency = toString(
+          firstDefined(item?.currency, item?.priceCurrency, item?.currencySymbol, currencyLabel),
+          ""
         );
         return (
           <View

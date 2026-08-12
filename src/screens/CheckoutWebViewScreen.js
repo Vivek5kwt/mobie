@@ -1070,19 +1070,31 @@ export default function CheckoutWebViewScreen() {
       }).catch(() => {});
       trackPurchase(order, capturedItems, { session }).catch(() => {});
 
+      // Index 1 (not 0!): making PostPurchase the sole/root route left it
+      // permanently stuck as the stack's index-0 "root" — any screen pushed
+      // afterward (e.g. "Return to Collection") just landed on top of it, so
+      // the bottom nav's Home tab (which does StackActions.popToTop() when
+      // the stack has more than one route) popped back to PostPurchase
+      // instead of the real Home screen. Keeping LayoutScreen underneath
+      // means popToTop() — and PostPurchaseScreen's own back-button
+      // handling, which already treats "leave this screen" as "go home" —
+      // both land on the actual Home screen.
       navigation.reset({
-        index:  0,
-        routes: [{
-          name:   "PostPurchase",
-          params: {
-            capturedItems: capturedItemsRef.current || [],
-            appId:         resolvedAppId,
-            order,
-            orderNumber,
-            orderTotal:    order.total,
-            authenticatedCheckout: true,
+        index:  1,
+        routes: [
+          { name: "LayoutScreen", params: { pageName: "home", activeIndex: 0 } },
+          {
+            name:   "PostPurchase",
+            params: {
+              capturedItems: capturedItemsRef.current || [],
+              appId:         resolvedAppId,
+              order,
+              orderNumber,
+              orderTotal:    order.total,
+              authenticatedCheckout: true,
+            },
           },
-        }],
+        ],
       });
     },
     [hasAuthenticatedSession, navigation, resolvedAppId, session, userId]

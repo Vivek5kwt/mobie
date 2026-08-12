@@ -121,6 +121,13 @@ export const normalizeCurrencyList = (currencies) => {
 
 const resolveStore = async (store) => store || await fetchStoreConfig();
 
+// The Shopify Admin token is resolved server-side by getShopifyCurrencies's
+// resolver now (see appmobidrag/server/graphql/resolvers.js) — it's no
+// longer fetched to, or held on, the device at all, so only `shop` is
+// actually required here. `accessToken` is kept in the returned shape only
+// because fetchShopifyCurrencies below still passes it as a query variable
+// for backward compatibility with any stale deployed backend; the current
+// resolver ignores it.
 const resolveShopCredentials = async (session, store) => {
   const resolvedStore = await resolveStore(store);
   const user = session?.user || {};
@@ -134,16 +141,8 @@ const resolveShopCredentials = async (session, store) => {
       resolvedStore?.shop
     )
   );
-  const accessToken = firstNonEmpty(
-    user.storeAccessToken,
-    user.accessToken,
-    user.access_token,
-    resolvedStore?.storeAccessToken,
-    resolvedStore?.accessToken,
-    resolvedStore?.access_token
-  );
 
-  return shop && accessToken ? { shop, accessToken } : null;
+  return shop ? { shop } : null;
 };
 
 // store/session can still be mid-flight the first time this runs (e.g. a
@@ -165,13 +164,13 @@ const waitForShopCredentials = async (session, store, maxAttempts = 8, delayMs =
 export async function fetchShopifyCurrencies({ session, store } = {}) {
   const creds = await waitForShopCredentials(session, store);
   if (!creds) {
-    throw new Error("Shop domain or access token missing.");
+    throw new Error("Shop domain missing.");
   }
-  const { shop, accessToken } = creds;
+  const { shop } = creds;
 
   const { data, errors } = await client.query({
     query: GET_SHOPIFY_CURRENCIES,
-    variables: { shop, accessToken },
+    variables: { shop },
     fetchPolicy: "network-only",
     errorPolicy: "all",
   });

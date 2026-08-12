@@ -145,9 +145,11 @@ export default function CurrencySwitcher({ section }) {
         }
       : null);
 
+  // fetchShopifyCurrencies resolves the Shopify Admin token server-side now
+  // (see appmobidrag's getShopifyCurrencies resolver) — only the shop domain
+  // is actually needed to fire early, before StoreContext's own fetch resolves.
   const canLoadFromSession =
-    !!(session?.user?.shopifyDomain && session?.user?.storeAccessToken) ||
-    !!(session?.user?.shopify_domain && session?.user?.access_token);
+    !!(session?.user?.shopifyDomain || session?.user?.shopify_domain);
 
   useEffect(() => {
     let active = true;
@@ -209,11 +211,8 @@ export default function CurrencySwitcher({ section }) {
     session?.user?.storeId,
     session?.user?.shopifyDomain,
     session?.user?.shopify_domain,
-    session?.user?.storeAccessToken,
-    session?.user?.access_token,
     store?.id,
     store?.shopify_domain,
-    store?.access_token,
     storeLoading,
   ]);
 

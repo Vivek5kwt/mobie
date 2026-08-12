@@ -209,10 +209,20 @@ const injectOrderData = (sections = [], capturedItems = [], orderNumber = "", or
       );
       const resolvedOrderTotal = Number(orderTotal) > 0 ? Number(orderTotal) : computedTotal;
 
+      // OrderSummary.js only renders these injected `items` when
+      // useDslItemsFallback (aka allowDslItemsFallback/showSampleItems) is
+      // true — that gate exists so a plain product-page "Order Summary"
+      // block never shows Builder's placeholder sample items to a real
+      // shopper. Here it's the opposite problem: the live Redux cart is
+      // already empty (this screen clears it on mount) and `mapped` IS the
+      // real just-placed order, not sample data, so without this flag
+      // OrderSummary.js fell through to the empty cart and rendered nothing
+      // at all — no error, just a blank gap where the order summary should be.
       if (propsNode?.raw?.value !== undefined) {
         propsNode.raw.value = {
           ...(propsNode.raw.value || {}),
           items: mapped,
+          useDslItemsFallback: true,
           currency: propsNode.raw.value?.currency || derivedCurrency,
           cartTotal: resolvedOrderTotal,
           subTotal: resolvedOrderTotal,
@@ -226,6 +236,7 @@ const injectOrderData = (sections = [], capturedItems = [], orderNumber = "", or
         propsNode.raw = {
           ...(propsNode.raw || {}),
           items: mapped,
+          useDslItemsFallback: true,
           currency: propsNode.raw?.currency || derivedCurrency,
           cartTotal: resolvedOrderTotal,
           subTotal: resolvedOrderTotal,

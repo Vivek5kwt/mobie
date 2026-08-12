@@ -225,7 +225,9 @@ export const QUERY_TRENDING_SEARCH_TERMS = `
 // requires an app to be a registered Sales Channel to mint Storefront
 // tokens, so this app can never reliably have one, and silently falling
 // back to it just produced confusing cross-store auth failures.
-export async function directStorefrontGraphQL({ shop, storeId, query, variables, adminToken, accessToken }) {
+export async function directStorefrontGraphQL({
+  shop, storeId, query, variables, adminToken, accessToken, accessType, accessFields,
+}) {
   const resolvedStoreId = storeId || FALLBACK_STORE_ID;
   const resolvedAdminToken = adminToken || accessToken || "";
 
@@ -239,6 +241,8 @@ export async function directStorefrontGraphQL({ shop, storeId, query, variables,
       variables,
       accessToken: resolvedAdminToken,
       adminAccessToken: resolvedAdminToken,
+      accessType,
+      accessFields,
     }),
   });
 
@@ -1604,14 +1608,6 @@ const formatAddressLines = (address = {}) => {
     .join("\n");
 };
 
-const getShopifyAdminCredentials = async () => {
-  const config = await fetchStoreConfig();
-  const shop = config?.shopify_domain || FALLBACK_SHOP;
-  const accessToken = config?.access_token || config?.admin_access_token || "";
-  const storeId = config?.id ? Number(config.id) : FALLBACK_STORE_ID;
-  return { shop, accessToken, storeId, currency: config?.currency || "" };
-};
-
 const compact = (value) => String(value || "").trim();
 
 const humanizeErrorField = (value = "") =>
@@ -1656,26 +1652,30 @@ const createShopifyAdminError = ({ status, json = {}, text = "", path = "", meth
   return error;
 };
 
-const shopifyAdminRequest = async ({ path, method = "GET", body }) => {
-  const { shop, accessToken } = await getShopifyAdminCredentials();
-  if (!accessToken) {
-    const error = new Error("This store is missing the Shopify Admin access token required for order management.");
-    error.name = "ShopifyAdminConfigError";
-    error.code = "SHOPIFY_ADMIN_TOKEN_MISSING";
-    error.userMessage = error.message;
-    throw error;
-  }
+// Both functions below route through the backend's Admin-API proxy instead
+// of calling Shopify directly from the device. Previously they fetched a raw
+// Shopify Admin API token (full read/write access to every customer on the
+// store, not just one) via getShopifyAdminCredentials(), which read it off a
+// client-facing `getStore` query with no caller-identity check, then cached
+// it in the device's AsyncStorage — a real, live security gap (tracked as
+// C-1 in audit/audit-mobile.md) that meant every install effectively carried
+// a copy of the merchant's full Admin credential. The token now never leaves
+// the backend; the device only ever sends `shop` + what it wants to fetch,
+// and the server resolves the real token itself (see shopifyProxy.controller.js
+// :: adminRestProxy / previewGraphQL).
+const ADMIN_REST_PROXY_ENDPOINT = "https://app.mobidrag.com/api/shopify/admin-rest-proxy";
 
-  const response = await fetch(`https://${shop}/admin/api/${ADMIN_API_VERSION}${path}`, {
-    method,
-    headers: {
-      "Content-Type": "application/json",
-      "X-Shopify-Access-Token": accessToken,
-    },
-    body: body ? JSON.stringify(body) : undefined,
+const shopifyAdminRequest = async ({ path, method = "GET", body, accessType, accessFields }) => {
+  const config = await fetchStoreConfig();
+  const shop = config?.shopify_domain || FALLBACK_SHOP;
+
+  const proxyRes = await fetch(ADMIN_REST_PROXY_ENDPOINT, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ shop, path, method, body, accessType, accessFields }),
   });
 
-  const text = await response.text();
+  const text = await proxyRes.text();
   let json = {};
   try {
     json = text ? JSON.parse(text) : {};
@@ -1683,55 +1683,32 @@ const shopifyAdminRequest = async ({ path, method = "GET", body }) => {
     json = {};
   }
 
-  if (!response.ok) {
-    throw createShopifyAdminError({ status: response.status, json, text, path, method });
+  if (!proxyRes.ok) {
+    throw createShopifyAdminError({ status: proxyRes.status, json, text, path, method });
   }
 
   return json;
 };
 
-async function shopifyAdminGraphQL({ query, variables = {} }) {
-  const { shop, accessToken } = await getShopifyAdminCredentials();
-  if (!accessToken) {
-    const error = new Error("This store is missing the Shopify Admin access token required for order management.");
-    error.name = "ShopifyAdminConfigError";
-    error.code = "SHOPIFY_ADMIN_TOKEN_MISSING";
-    error.userMessage = error.message;
-    throw error;
-  }
+async function shopifyAdminGraphQL({ query, variables = {}, accessType, accessFields }) {
+  const config = await fetchStoreConfig();
+  const shop = config?.shopify_domain || FALLBACK_SHOP;
+  const storeId = config?.id ? Number(config.id) : FALLBACK_STORE_ID;
 
-  const response = await fetch(`https://${shop}/admin/api/${ADMIN_API_VERSION}/graphql.json`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "X-Shopify-Access-Token": accessToken,
-    },
-    body: JSON.stringify({ query, variables }),
+  const json = await directStorefrontGraphQL({
+    shop,
+    storeId,
+    query,
+    variables,
+    accessType,
+    accessFields,
   });
-
-  const text = await response.text();
-  let json = {};
-  try {
-    json = text ? JSON.parse(text) : {};
-  } catch (_) {
-    json = {};
-  }
-
-  if (!response.ok) {
-    throw createShopifyAdminError({
-      status: response.status,
-      json,
-      text,
-      path: "/graphql.json",
-      method: "POST",
-    });
-  }
 
   if (json?.errors?.length) {
     throw createShopifyAdminError({
-      status: response.status,
+      status: 200,
       json,
-      text,
+      text: "",
       path: "/graphql.json",
       method: "POST",
     });
@@ -2005,6 +1982,8 @@ const findAdminOrderForCustomerOrder = async (order = {}) => {
     try {
       const json = await shopifyAdminRequest({
         path: `/orders/${numericId}.json?fields=${encodeURIComponent(fields)}`,
+        accessType: "order_lookup",
+        accessFields: "name,email,phone,address",
       });
       if (json?.order) return json.order;
     } catch (error) {
@@ -2027,6 +2006,8 @@ const findAdminOrderForCustomerOrder = async (order = {}) => {
     try {
       const json = await shopifyAdminRequest({
         path: `/orders.json?status=any&limit=1&name=${encodeURIComponent(name)}&fields=${encodeURIComponent(fields)}`,
+        accessType: "order_lookup",
+        accessFields: "name,email,phone,address",
       });
       if (Array.isArray(json?.orders) && json.orders[0]) return json.orders[0];
     } catch (error) {
@@ -2041,6 +2022,8 @@ const findAdminOrderForCustomerOrder = async (order = {}) => {
     try {
       const json = await shopifyAdminRequest({
         path: `/orders.json?status=any&limit=5&order_number=${encodeURIComponent(orderNumber)}&fields=${encodeURIComponent(fields)}`,
+        accessType: "order_lookup",
+        accessFields: "name,email,phone,address",
       });
       if (Array.isArray(json?.orders) && json.orders[0]) return json.orders[0];
     } catch (error) {
@@ -2051,6 +2034,8 @@ const findAdminOrderForCustomerOrder = async (order = {}) => {
   try {
     const json = await shopifyAdminRequest({
       path: `/orders.json?status=any&limit=50&fields=${encodeURIComponent(fields)}`,
+      accessType: "order_lookup",
+      accessFields: "name,email,phone,address",
     });
     const orders = Array.isArray(json?.orders) ? json.orders : [];
     const orderIdentities = rawNameCandidates.map(normalizeOrderIdentity).filter(Boolean);
@@ -2192,6 +2177,8 @@ export async function cancelShopifyOrder({ order, reason = "customer", notifyCus
         reason: normalizeCancelReason(reason),
         email: !!notifyCustomer,
       },
+      accessType: "order_cancel",
+      accessFields: "name,email,phone,address",
     });
   } catch (error) {
     const serverMessage = error?.userMessage || error?.message || "";
@@ -3263,6 +3250,8 @@ async function fetchCustomerDraftOrders({ shop, token, storeId, customerGid, fir
         }
       `,
       variables: { searchQuery: `customer_id:${numericCustomerId}`, first },
+      accessType: "draft_orders",
+      accessFields: "name,email,phone,address",
     });
     if (json?.errors) {
       console.error("❌ Customer Draft Orders GraphQL errors:", json.errors);
@@ -3313,6 +3302,8 @@ export async function fetchCustomerOrders({ customerId, customerAccessToken, ema
           }
         `,
         variables: { query: `email:"${email}"` },
+        accessType: "customer_lookup",
+        accessFields: "email",
       });
       if (lookupJson?.errors) {
         console.error("❌ fetchCustomerOrders email lookup GraphQL errors:", lookupJson.errors);
@@ -3339,6 +3330,8 @@ export async function fetchCustomerOrders({ customerId, customerAccessToken, ema
         }
       `,
       variables: { customerId: customerGid, first },
+      accessType: "customer_orders",
+      accessFields: "name,email,phone,address",
     });
 
     if (json?.errors) {

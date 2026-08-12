@@ -17,13 +17,19 @@ const LAYOUTS_STORE_ID_QUERY = `
 `;
 
 // Step 2: fetch full store config using the resolved storeId
+// Deliberately does NOT request `access_token` (the Shopify Admin API
+// token) — that field used to be returned here with no caller-identity
+// check and cached on-device, which meant every install effectively
+// carried a copy of the merchant's full Admin credential (full read/write
+// access to every customer, not just one). Admin API calls now proxy
+// through the backend instead (see shopify.js's shopifyAdminRequest/
+// shopifyAdminGraphQL), which resolves the real token server-side.
 const GET_STORE_QUERY = `
   query GetStore($storeId: Int!) {
     getStore(store_id: $storeId) {
       id
       user_id
       shopify_domain
-      access_token
       storefront_access_token
       shop_name
       shop_owner
