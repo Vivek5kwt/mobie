@@ -13,6 +13,7 @@ import { clearCart } from '../store/slices/cartSlice';
 import { setWishlistUser } from '../store/slices/wishlistSlice';
 import tokenLogger from '../utils/tokenLogger';
 import { setAnalyticsUser, trackAnalyticsEvent } from './analyticsService';
+import { triggerCampaign } from './campaignTriggerService';
 
 export type AuthContextValue = {
   session: AuthSession | null;
@@ -80,9 +81,23 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         method: 'email',
         user_type: newSession?.user?.userType || '',
       }, { session: newSession }).catch(() => {});
-      // Associate FCM token with the newly registered user
+      // Associate FCM token with the newly registered user, then fire the
+      // store's "welcome" automated campaign for them if one is active.
+      // Must wait for the FCM association to land server-side first —
+      // triggerCampaign looks up saved tokens by this same user id, so
+      // firing it in parallel would race an empty token list.
       if (newSession?.user?.id) {
-        tokenLogger.updateTokenForUser(newSession.user.id, newSession.user.appId).catch(() => {});
+        await tokenLogger
+          .updateTokenForUser(newSession.user.id, newSession.user.appId)
+          .catch(() => {});
+        if (newSession?.user?.storeId) {
+          triggerCampaign({
+            storeId: newSession.user.storeId,
+            userId: newSession.user.id,
+            autoType: 'welcome',
+            appId: newSession.user.appId,
+          }).catch(() => {});
+        }
       }
     },
     [dispatch]

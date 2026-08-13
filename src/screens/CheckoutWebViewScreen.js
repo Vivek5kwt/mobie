@@ -383,11 +383,20 @@ const DETECT_ORDER_JS = `
   function postComplete(url) {
     try {
       var orderNumber = extractOrderName();
+      var shopifyCheckoutGlobalDebug = null;
+      try {
+        shopifyCheckoutGlobalDebug = window.Shopify && window.Shopify.checkout
+          ? JSON.parse(JSON.stringify(window.Shopify.checkout))
+          : { present: false, hasShopify: !!window.Shopify };
+      } catch (dbgErr) {
+        shopifyCheckoutGlobalDebug = { error: String(dbgErr) };
+      }
       window.ReactNativeWebView && window.ReactNativeWebView.postMessage(
         JSON.stringify({
           type: 'SHOPIFY_ORDER_COMPLETE',
           url: url || window.location.href,
-          orderNumber: orderNumber
+          orderNumber: orderNumber,
+          shopifyCheckoutGlobalDebug: shopifyCheckoutGlobalDebug
         })
       );
     } catch(e) {}
@@ -1227,6 +1236,8 @@ export default function CheckoutWebViewScreen() {
           return;
         }
         if (data?.type === "SHOPIFY_ORDER_COMPLETE") {
+          console.log(`[GID DEBUG] shopifyCheckoutGlobalDebug`, JSON.stringify(data.shopifyCheckoutGlobalDebug));
+          console.log(`[GID DEBUG] url`, data.url, `orderNumber`, data.orderNumber);
           handleOrderComplete(data.url || checkoutUrl || "", data.orderNumber || "");
         }
       } catch (_) {}
