@@ -956,6 +956,9 @@ export default function CheckoutWebViewScreen() {
     [route?.params?.appId, session?.user?.appId, session?.user?.app_id]
   );
   const userId = session?.user?.id ?? session?.user?.userId ?? null;
+  // customers.id, not users.id — the campaign trigger below keys on this,
+  // not the `userId` above (see UserProfile.customerId in authService.ts).
+  const campaignCustomerId = session?.user?.customerId ?? null;
   const checkoutSessionJs = useMemo(
     () => buildCheckoutSessionJs({
       isLoggedIn: checkoutIsLoggedIn,
@@ -1066,7 +1069,7 @@ export default function CheckoutWebViewScreen() {
       // screen rather than having its own separate completion point.
       void triggerCampaign({
         storeId:  getStoreConfigSync()?.id,
-        userId,
+        userId:   campaignCustomerId,
         autoType: "postpurchase",
         appId:    resolvedAppId,
       });

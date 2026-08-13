@@ -230,6 +230,14 @@ export default function BottomNavScreen() {
   const [bottomNavHeight, setBottomNavHeight] = useState(BOTTOM_NAV_RESERVED_HEIGHT);
   const [pageEmptyState, setPageEmptyState] = useState({});
   const trackedPageRef = useRef("");
+  // Multi-tab header: which tab's blocks are currently shown. This screen
+  // instance is reused across multiple pages (navigation.setParams swaps
+  // pageName rather than remounting), so an explicit reset on page change is
+  // required — otherwise a tab selected on one page would leak into another.
+  const [activeTabIndex, setActiveTabIndex] = useState(0);
+  useEffect(() => {
+    setActiveTabIndex(0);
+  }, [normalizedPageName]);
   // Side menu state (same pattern as LayoutScreen)
   const DEFAULT_SIDE_MENU_WIDTH = 280;
   const [isSideMenuOpen, setIsSideMenuOpen] = useState(false);
@@ -545,6 +553,12 @@ export default function BottomNavScreen() {
     navigation.navigate("BottomNavScreen", standaloneBackFallback);
   }, [navigation, standaloneBackFallback]);
 
+  const isMultiTabEnabled = useMemo(() => {
+    const raw = headerDefaultConfig?.multiTab;
+    const v = raw && typeof raw === "object" ? (raw.value ?? raw.const ?? raw) : raw;
+    return v === true || v === "true" || v === 1;
+  }, [headerDefaultConfig]);
+
   const visibleSections = useMemo(
     () =>
       sortedSections.filter((section) => {
@@ -552,9 +566,17 @@ export default function BottomNavScreen() {
         if (["bottom_navigation", "bottom_navigation_style_1", "bottom_navigation_style_2"].includes(component)) return false;
         // When HeaderDefault is active, suppress injected header sections to avoid double header
         if (isHeaderDefaultEnabled && (component === "header" || component === "header_mobile")) return false;
+        // Multi-tab: sections without a tabIndex belong to tab 1 (the
+        // page's original design); only show the section matching the
+        // currently selected tab. Mirrors the Builder canvas's own filter
+        // (PhoneMock.tsx) so the app matches what the merchant designed.
+        if (isMultiTabEnabled) {
+          const sectionTab = section?.tabIndex == null ? 0 : Number(section.tabIndex);
+          if (sectionTab !== activeTabIndex) return false;
+        }
         return true;
       }),
-    [sortedSections, isHeaderDefaultEnabled]
+    [sortedSections, isHeaderDefaultEnabled, isMultiTabEnabled, activeTabIndex]
   );
 
   const notificationInboxSection = useMemo(
@@ -971,6 +993,8 @@ export default function BottomNavScreen() {
                 bottomNavSection={resolvedBottomNavSection}
                 hideTabs={isProfilePage || isNotificationPage || isSearchPage || isCartPage}
                 showBack={hideBottomNav}
+                activeTabIndex={activeTabIndex}
+                onTabPress={setActiveTabIndex}
               />
             )}
             {err ? (

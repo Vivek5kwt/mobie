@@ -15,6 +15,7 @@ const LOGIN_USER_MUTATION = gql`
         created_at
         updated_at
       }
+      matched_customer_id
     }
   }
 `;

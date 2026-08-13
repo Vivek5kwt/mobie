@@ -108,12 +108,15 @@ class TokenLogger {
     this.token = firebaseToken;
     await this._save(STORAGE_FCM_TOKEN_KEY, firebaseToken);
     console.log(`✅ FCM token captured locally (last 12): ...${firebaseToken.slice(-12)}`);
-    console.log('FCM backend registration will run now; userid will be attached after login if needed');
 
     if (!this.recordId) this.recordId = await this._load(STORAGE_FCM_RECORD_ID_KEY);
     const resolvedAppId = resolveAppId(appid);
 
     if (this.recordId) {
+      // An existing record means we do have a userid already (it's only
+      // ever saved after a successful create/update with one attached) —
+      // safe to refresh the token on it without violating the NOT NULL
+      // constraint below.
       try {
         const result = await updateFcmToken({
           id: this.recordId,
@@ -131,23 +134,28 @@ class TokenLogger {
       }
     }
 
-    if (!this.recordId) {
-      try {
-        const result = await createFcmToken({
-          token: firebaseToken,
-          userid: null,
-          appid: resolvedAppId,
-        });
-        if (result?.id) {
-          await this._saveRecord(result, resolvedAppId);
-          console.log(`FCM token registered on first app open (id: ${result.id})`);
-        }
-      } catch (err) {
-        console.log('captureToken: backend registration failed:', err?.message);
-      }
-    }
+    // No record yet: the token stays cached locally only (this.token /
+    // AsyncStorage above) — NOT sent to the backend here. fcmtoken.userid
+    // is a NOT NULL column, so creating a record before a real userid
+    // exists (i.e. before login/signup) always fails; updateTokenForUser
+    // creates it correctly once one is available.
+    console.log('FCM token cached locally; backend record will be created once a userid is available (login/signup)');
 
     return firebaseToken;
+  }
+
+  /**
+   * Returns the currently cached FCM token string (in-memory if captureToken
+   * already ran this session, else falls back to AsyncStorage), or null if
+   * none is available yet. Read-only — does not touch the backend. Used by
+   * signup() to fill customers.device_token at registration time, alongside
+   * (not instead of) the fcmtoken table association done separately below.
+   */
+  async getCachedToken() {
+    await this._init();
+    if (this.token) return this.token;
+    this.token = await this._load(STORAGE_FCM_TOKEN_KEY);
+    return this.token;
   }
 
   /**

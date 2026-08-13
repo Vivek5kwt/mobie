@@ -7,9 +7,16 @@ import { fetchStoreConfig } from './storeService';
 import { loginCustomer } from './customerService';
 import { registerCustomer } from './customerService';
 import { createShopifyCustomerAccessToken, fetchShopifyCustomerDetails, recoverShopifyCustomerPassword } from './shopify';
+import tokenLogger from '../utils/tokenLogger';
 
 type UserProfile = {
   id?: number;
+  // Local `customers.id` (Postgres) — NOT Shopify's customer id (that's
+  // shopifyCustomerId below). This is what fcmtoken.userid and the
+  // triggerCampaign mutation actually key on, since every FCM token is
+  // saved by this app's shopper signup/login flow, which is a customer,
+  // not the separate `users` (staff/merchant) identity `id` above.
+  customerId?: number;
   email: string;
   name?: string;
   appId?: number;
@@ -95,6 +102,7 @@ type LoginUserResponse = {
       created_at?: string;
       updated_at?: string;
     };
+    matched_customer_id?: number;
   };
 };
 
@@ -277,6 +285,7 @@ export const login = async (email: string, password: string): Promise<AuthSessio
       token: sessionToken,
       user: {
         id: user.id,
+        customerId: payload?.matched_customer_id ?? undefined,
         email: user.email,
         name: user.name,
         appId: user.app_id ?? resolveAppId(),
@@ -331,6 +340,11 @@ export const login = async (email: string, password: string): Promise<AuthSessio
           token: fallbackToken,
           user: {
             id: customer?.id ? Number(customer.id) : undefined,
+            // This fallback path logs in directly against `customers` (no
+            // matching `users` row), so id above is already a customers.id
+            // — same value here for consistency with the primary path,
+            // where id and customerId point at different tables.
+            customerId: customer?.id ? Number(customer.id) : undefined,
             email: customer?.email || email,
             name: `${firstName} ${lastName}`.trim() || customer?.email || email,
             appId: customer?.app_id ?? resolveAppId(),
@@ -392,6 +406,9 @@ export const signup = async (
       const parts = name.split(/\s+/).filter(Boolean);
       const firstName = parts[0] || name;
       const lastName = parts.slice(1).join(' ') || '.';
+      // Best-effort — a token might not be cached yet (e.g. Firebase still
+      // initializing), and registration must not be blocked waiting on it.
+      const deviceToken = await tokenLogger.getCachedToken().catch(() => null);
       try {
         registeredCustomer = await registerCustomer({
           first_name: firstName,
@@ -400,6 +417,7 @@ export const signup = async (
           password,
           store_id: resolvedStoreId,
           app_id: resolvedAppId,
+          device_token: deviceToken || undefined,
         });
       } catch (_customerRegisterError) {
         // Keep app signup path resilient even if customer registration is already present.
@@ -443,6 +461,7 @@ export const signup = async (
       token: generateToken(),
       user: {
         id:             Number(returnedUser.id),
+        customerId:     registeredCustomer?.id ? Number(registeredCustomer.id) : undefined,
         email:          returnedUser.email  || email,
         name:           returnedUser.name   || name,
         appId:          returnedUser.app_id ?? resolvedAppId,

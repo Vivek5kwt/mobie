@@ -39,9 +39,11 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           setSession(storedSession);
           dispatch(setWishlistUser({ session: storedSession }));
           setAnalyticsUser(storedSession).catch(() => {});
-          if (storedSession?.user?.id) {
+          // customers.id, not users.id — see UserProfile.customerId in
+          // authService.ts for why these are different tables.
+          if (storedSession?.user?.customerId) {
             tokenLogger
-              .updateTokenForUser(storedSession.user.id, storedSession.user.appId)
+              .updateTokenForUser(storedSession.user.customerId, storedSession.user.appId)
               .catch(() => {});
           }
         } else {
@@ -65,9 +67,10 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       method: 'email',
       user_type: newSession?.user?.userType || '',
     }, { session: newSession }).catch(() => {});
-    // Associate FCM token with the logged-in user
-    if (newSession?.user?.id) {
-      tokenLogger.updateTokenForUser(newSession.user.id, newSession.user.appId).catch(() => {});
+    // Associate FCM token with the logged-in customer (customers.id, not
+    // users.id — see UserProfile.customerId in authService.ts).
+    if (newSession?.user?.customerId) {
+      tokenLogger.updateTokenForUser(newSession.user.customerId, newSession.user.appId).catch(() => {});
     }
   }, [dispatch, session]);
 
@@ -81,19 +84,20 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         method: 'email',
         user_type: newSession?.user?.userType || '',
       }, { session: newSession }).catch(() => {});
-      // Associate FCM token with the newly registered user, then fire the
-      // store's "welcome" automated campaign for them if one is active.
-      // Must wait for the FCM association to land server-side first —
-      // triggerCampaign looks up saved tokens by this same user id, so
-      // firing it in parallel would race an empty token list.
-      if (newSession?.user?.id) {
+      // Associate FCM token with the newly registered customer (customers.id,
+      // not users.id — see UserProfile.customerId in authService.ts), then
+      // fire the store's "welcome" automated campaign for them if one is
+      // active. Must wait for the FCM association to land server-side first
+      // — triggerCampaign looks up saved tokens by this same customer id,
+      // so firing it in parallel would race an empty token list.
+      if (newSession?.user?.customerId) {
         await tokenLogger
-          .updateTokenForUser(newSession.user.id, newSession.user.appId)
+          .updateTokenForUser(newSession.user.customerId, newSession.user.appId)
           .catch(() => {});
         if (newSession?.user?.storeId) {
           triggerCampaign({
             storeId: newSession.user.storeId,
-            userId: newSession.user.id,
+            userId: newSession.user.customerId,
             autoType: 'welcome',
             appId: newSession.user.appId,
           }).catch(() => {});

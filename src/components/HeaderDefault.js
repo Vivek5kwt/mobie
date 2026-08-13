@@ -137,6 +137,12 @@ export default function HeaderDefault({
   bottomNavSection,
   hideTabs = false,
   showBack = false,
+  // Screens that render a filterable body-sections list (LayoutScreen,
+  // BottomNavScreen) pass these so tab taps actually swap body content, not
+  // just the tab bar's own highlight. Screens that don't pass them keep the
+  // previous local-only behavior (tab bar recolors, no body filtering).
+  activeTabIndex: activeTabIndexProp,
+  onTabPress,
 }) {
   const navigation = useNavigation();
   const { openSideMenu, toggleSideMenu } = useSideMenu();
@@ -153,10 +159,16 @@ export default function HeaderDefault({
 
   const wishlistCount = useSelector((state) => dedupeWishlistProducts(state?.wishlist?.items || []).length);
 
-  // Tabs active index — must be a hook (called before any early returns)
-  const [activeTabIdx, setActiveTabIdx] = useState(
+  // Tabs active index — must be a hook (called before any early returns).
+  // Only used as a fallback when the parent screen doesn't own tab state
+  // (i.e. doesn't pass activeTabIndexProp/onTabPress).
+  const [localActiveTabIdx, setLocalActiveTabIdx] = useState(
     Number.isFinite(Number(config?.activeTabIndex)) ? Number(config.activeTabIndex) : 0
   );
+  const activeTabIdx = Number.isFinite(Number(activeTabIndexProp))
+    ? Number(activeTabIndexProp)
+    : localActiveTabIdx;
+  const handleTabPress = onTabPress ?? setLocalActiveTabIdx;
 
   if (!config) return null;
 
@@ -378,7 +390,7 @@ export default function HeaderDefault({
               borderBottomColor: isActive ? activeIndicatorColor : "transparent",
             }}
             activeOpacity={0.75}
-            onPress={() => setActiveTabIdx(idx)}
+            onPress={() => handleTabPress(idx)}
           >
             <Text
               style={{

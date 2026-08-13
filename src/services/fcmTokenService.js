@@ -56,11 +56,16 @@ export const updateFcmToken = async ({ id, token, userid, appid }) => {
     throw new Error('[updateFcmToken] record id is required');
   }
 
+  // userid/appid are NOT NULL columns on fcmtoken — omitting them here (vs.
+  // sending an explicit null) is what makes this a true partial update.
+  // Callers that only want to refresh the token string (e.g. captureToken's
+  // "record already exists" branch) must not clobber a userid/appid that
+  // was already correctly set on this record.
   const variables = {
     updateFcmTokenId: String(id),
     token:  token  || undefined,
-    userid: userid ? Number(userid) : null,
-    appid:  appid  ? Number(appid)  : null,
+    userid: userid ? Number(userid) : undefined,
+    appid:  appid  ? Number(appid)  : undefined,
   };
 
   console.log('[FCM] ▶ updateFcmToken variables:', JSON.stringify(variables));

@@ -90,6 +90,12 @@ export default function LayoutScreen({ route, navigation }) {
   const [stableBottomNavSection, setStableBottomNavSection] = useState(() => cached?.bottomNavSection ?? null);
   const [heavySectionsReady, setHeavySectionsReady] = useState(() => !isHomePage);
   const trackedPageRef = useRef("");
+  // Multi-tab header: which tab's blocks are currently shown. Reset on page
+  // change so a tab selected on one page never carries over to another.
+  const [activeTabIndex, setActiveTabIndex] = useState(0);
+  useEffect(() => {
+    setActiveTabIndex(0);
+  }, [cacheKey]);
 
   useEffect(() => {
     const analyticsPageName = String(dsl?.page?.name || dsl?.page?.handle || pageName || "").trim();
@@ -298,6 +304,12 @@ export default function LayoutScreen({ route, navigation }) {
     return v === true || v === "true" || v === 1;
   }, [headerDefaultConfig]);
 
+  const isMultiTabEnabled = useMemo(() => {
+    const raw = headerDefaultConfig?.multiTab;
+    const v = (raw && typeof raw === "object") ? (raw.value ?? raw.const ?? raw) : raw;
+    return v === true || v === "true" || v === 1;
+  }, [headerDefaultConfig]);
+
   const visibleSections = useMemo(
     () =>
       sortedSections.filter(
@@ -312,10 +324,18 @@ export default function LayoutScreen({ route, navigation }) {
           // When HeaderDefault is active on home page, suppress plain DSL header to avoid double bar
           // header_2 is a different widget (greeting + search + profile) — keep it visible
           if (isHomePage && isHeaderDefaultEnabled && ["header", "header_mobile"].includes(component)) return false;
+          // Multi-tab: sections without a tabIndex belong to tab 1 (the
+          // page's original design); only show the section matching the
+          // currently selected tab. Mirrors the Builder canvas's own filter
+          // (PhoneMock.tsx) so the app matches what the merchant designed.
+          if (isHomePage && isMultiTabEnabled) {
+            const sectionTab = section?.tabIndex == null ? 0 : Number(section.tabIndex);
+            if (sectionTab !== activeTabIndex) return false;
+          }
           return true;
         }
       ),
-    [sortedSections, isHomePage, isHeaderDefaultEnabled]
+    [sortedSections, isHomePage, isHeaderDefaultEnabled, isMultiTabEnabled, activeTabIndex]
   );
 
   const showSnackbar = (message, type = "info") => {
@@ -644,6 +664,8 @@ export default function LayoutScreen({ route, navigation }) {
           <HeaderDefault
             config={headerDefaultConfig}
             bottomNavSection={stableBottomNavSection}
+            activeTabIndex={activeTabIndex}
+            onTabPress={setActiveTabIndex}
           />
         )}
 
