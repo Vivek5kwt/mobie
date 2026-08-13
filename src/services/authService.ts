@@ -6,8 +6,7 @@ import { resolveAppId } from '../utils/appId';
 import { fetchStoreConfig } from './storeService';
 import { loginCustomer } from './customerService';
 import { registerCustomer } from './customerService';
-import { createShopifyCustomerAccessToken, recoverShopifyCustomerPassword } from './shopify';
-import { triggerCampaign } from './notificationService';
+import { createShopifyCustomerAccessToken, fetchShopifyCustomerDetails, recoverShopifyCustomerPassword } from './shopify';
 
 type UserProfile = {
   id?: number;
@@ -213,12 +212,34 @@ const extractCustomerAccessToken = (payload: any) => {
 
 const resolveShopifyCustomerToken = async (email: string, password: string, backendPayload?: any) => {
   const extracted = extractCustomerAccessToken(backendPayload);
-  if (extracted.accessToken) return extracted;
 
-  const created = await createShopifyCustomerAccessToken({ email, password });
+  let accessToken = extracted.accessToken;
+  let expiresAt = extracted.expiresAt;
+
+  if (!accessToken) {
+    const created = await createShopifyCustomerAccessToken({ email, password });
+    accessToken = created?.accessToken || '';
+    expiresAt = created?.expiresAt || undefined;
+  }
+
+  // Real Shopify customer id/name behind that token — this is what lets the
+  // session carry a genuine shopifyCustomerId instead of only the
+  // Postgres-local one, and (for order history etc.) a customer querying
+  // their *own* data via their own access token, rather than the app
+  // querying arbitrary customers via the Admin API, is the one path that
+  // isn't blocked by Protected Customer Data review status.
+  let customerDetails: Awaited<ReturnType<typeof fetchShopifyCustomerDetails>> = null;
+  if (accessToken) {
+    customerDetails = await fetchShopifyCustomerDetails({ accessToken }).catch(() => null);
+  }
+
   return {
-    accessToken: created?.accessToken || '',
-    expiresAt: created?.expiresAt || undefined,
+    accessToken,
+    expiresAt,
+    shopifyCustomerId: customerDetails?.shopifyCustomerId,
+    shopifyFirstName: customerDetails?.firstName,
+    shopifyLastName: customerDetails?.lastName,
+    shopifyPhone: customerDetails?.phone,
   };
 };
 
@@ -246,6 +267,10 @@ export const login = async (email: string, password: string): Promise<AuthSessio
     const customerToken = await resolveShopifyCustomerToken(email, password, payload).catch(() => ({
       accessToken: '',
       expiresAt: undefined,
+      shopifyCustomerId: undefined,
+      shopifyFirstName: undefined,
+      shopifyLastName: undefined,
+      shopifyPhone: undefined,
     }));
 
     const session: AuthSession = {
@@ -275,6 +300,7 @@ export const login = async (email: string, password: string): Promise<AuthSessio
         customer_access_token: customerToken.accessToken || undefined,
         customerAccessTokenExpiresAt: customerToken.expiresAt,
         customer_access_token_expires_at: customerToken.expiresAt,
+        shopifyCustomerId: customerToken.shopifyCustomerId,
       },
     };
 
@@ -294,6 +320,10 @@ export const login = async (email: string, password: string): Promise<AuthSessio
         const customerToken = await resolveShopifyCustomerToken(email, password, customerPayload).catch(() => ({
           accessToken: '',
           expiresAt: undefined,
+          shopifyCustomerId: undefined,
+          shopifyFirstName: undefined,
+          shopifyLastName: undefined,
+          shopifyPhone: undefined,
         }));
         const firstName = customer?.first_name || '';
         const lastName = customer?.last_name || '';
@@ -322,7 +352,7 @@ export const login = async (email: string, password: string): Promise<AuthSessio
             customer_access_token: customerToken.accessToken || undefined,
             customerAccessTokenExpiresAt: customerToken.expiresAt,
             customer_access_token_expires_at: customerToken.expiresAt,
-            shopifyCustomerId: customer?.shopify_customer_id,
+            shopifyCustomerId: customerToken.shopifyCustomerId || customer?.shopify_customer_id,
           },
         };
         await saveSession(session);
@@ -403,6 +433,10 @@ export const signup = async (
     const customerToken = await resolveShopifyCustomerToken(email, password, registeredCustomer).catch(() => ({
       accessToken: '',
       expiresAt: undefined,
+      shopifyCustomerId: undefined,
+      shopifyFirstName: undefined,
+      shopifyLastName: undefined,
+      shopifyPhone: undefined,
     }));
 
     const session: AuthSession = {
@@ -431,7 +465,7 @@ export const signup = async (
         customer_access_token: customerToken.accessToken || undefined,
         customerAccessTokenExpiresAt: customerToken.expiresAt,
         customer_access_token_expires_at: customerToken.expiresAt,
-        shopifyCustomerId: registeredCustomer?.shopify_customer_id,
+        shopifyCustomerId: customerToken.shopifyCustomerId || registeredCustomer?.shopify_customer_id,
       },
     };
 
@@ -441,15 +475,12 @@ export const signup = async (
       `✅ User created — id: ${session.user.id}, email: ${session.user.email}, appId: ${session.user.appId}`,
     );
 
-    // Fires Builder's "Welcome" automation flow — signup only, never login,
-    // since this lives in signup() specifically. Never throws, so a
-    // notification failure can't turn a successful signup into an error.
-    void triggerCampaign({
-      storeId:  session.user.storeId,
-      userId:   session.user.id,
-      autoType: 'welcome',
-      appId:    session.user.appId,
-    });
+    // The "Welcome" automation flow fires from AuthContext.tsx's
+    // handleSignup instead of here — it has to happen *after* the FCM
+    // token is associated with this new user id (a separate mutation that
+    // runs once the caller has the session back), since triggerCampaign
+    // looks up saved tokens by that same id. Firing it here would always
+    // find zero tokens.
 
     return session;
   } catch (error) {

@@ -89,9 +89,9 @@ export const triggerCampaign = async ({ storeId, userId, autoType, appId }) => {
     const { data, errors } = await client.mutate({
       mutation: TRIGGER_CAMPAIGN_MUTATION,
       variables: {
-        storeId: Number(storeId),
+        store_id: Number(storeId),
         userid: Number(userId),
-        autoType,
+        auto_type: autoType,
         appid: Number(appId),
       },
       errorPolicy: 'all',

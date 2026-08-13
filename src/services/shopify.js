@@ -258,6 +258,45 @@ export async function directStorefrontGraphQL({
   return json;
 }
 
+// Real Shopify Storefront API proxy — unlike directStorefrontGraphQL above
+// (which, despite its name, actually calls the backend's Admin API proxy),
+// this hits /api/shopify/storefront-graphql, which resolves the store's
+// real storefront_access_token server-side and posts to Shopify's actual
+// /api/{version}/graphql.json endpoint. Needed for the handful of things
+// only the real Storefront schema exposes — customerCreate (the only
+// Shopify API that can set a password) and customerAccessTokenCreate
+// (verifying it). The "never reliably available" caveat on
+// directStorefrontGraphQL was about an app-level Storefront token minted
+// via the GraphQL Admin API; utils/shopifyAuth.js's
+// ensureStorefrontAccessToken instead uses the REST
+// storefront_access_tokens.json endpoint, which doesn't have that
+// restriction — so this path is expected to work.
+const REAL_STOREFRONT_PROXY_ENDPOINT = "https://app.mobidrag.com/api/shopify/storefront-graphql";
+
+async function realStorefrontGraphQL({ shop, query, variables }) {
+  const proxyRes = await fetch(REAL_STOREFRONT_PROXY_ENDPOINT, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ shop, query, variables }),
+  });
+
+  const text = await proxyRes.text();
+  let json = {};
+  try {
+    json = text ? JSON.parse(text) : {};
+  } catch (_) {
+    json = {};
+  }
+
+  if (!proxyRes.ok) {
+    throw new Error(`Storefront proxy HTTP ${proxyRes.status}: ${text}`);
+  }
+  if (json?.errors?.length) {
+    console.warn("⚠️ Real Storefront GraphQL errors:", JSON.stringify(json.errors));
+  }
+  return json;
+}
+
 // ----------------------
 // FETCH PRODUCTS
 // ----------------------
@@ -2213,8 +2252,6 @@ export async function createShopifyCustomerAccessToken({ email, password, option
 
   const creds = await getShopifyCredentials();
   const shop = options.shop || creds.shop;
-  const token = options.token || creds.token;
-  const storeId = options.storeId || creds.storeId;
 
   const mutation = `
     mutation CustomerAccessTokenCreate($input: CustomerAccessTokenCreateInput!) {
@@ -2233,10 +2270,8 @@ export async function createShopifyCustomerAccessToken({ email, password, option
   `;
 
   try {
-    const json = await directStorefrontGraphQL({
+    const json = await realStorefrontGraphQL({
       shop,
-      token,
-      storeId,
       query: mutation,
       variables: {
         input: {
@@ -2267,6 +2302,57 @@ export async function createShopifyCustomerAccessToken({ email, password, option
     };
   } catch (error) {
     console.warn("⚠️ createShopifyCustomerAccessToken failed:", error?.message || error);
+    return null;
+  }
+}
+
+// Fetches the real Shopify customer record (id, name, email, phone) behind
+// a customerAccessToken from createShopifyCustomerAccessToken above — this
+// is what gives the session a real shopifyCustomerId instead of only a
+// Postgres-local one, and doubles as confirmation the token is actually
+// live before the caller trusts it.
+export async function fetchShopifyCustomerDetails({ accessToken, options = {} } = {}) {
+  if (!accessToken) return null;
+
+  const creds = await getShopifyCredentials();
+  const shop = options.shop || creds.shop;
+
+  const query = `
+    query CustomerDetails($customerAccessToken: String!) {
+      customer(customerAccessToken: $customerAccessToken) {
+        id
+        firstName
+        lastName
+        email
+        phone
+      }
+    }
+  `;
+
+  try {
+    const json = await realStorefrontGraphQL({
+      shop,
+      query,
+      variables: { customerAccessToken: accessToken },
+    });
+
+    if (json?.errors?.length) {
+      console.warn("⚠️ Customer details GraphQL errors:", JSON.stringify(json.errors));
+      return null;
+    }
+
+    const customer = json?.data?.customer;
+    if (!customer?.id) return null;
+
+    return {
+      shopifyCustomerId: String(customer.id).replace("gid://shopify/Customer/", ""),
+      firstName: customer.firstName || "",
+      lastName: customer.lastName || "",
+      email: customer.email || "",
+      phone: customer.phone || "",
+    };
+  } catch (error) {
+    console.warn("⚠️ fetchShopifyCustomerDetails failed:", error?.message || error);
     return null;
   }
 }

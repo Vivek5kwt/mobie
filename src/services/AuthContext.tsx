@@ -13,7 +13,7 @@ import { clearCart } from '../store/slices/cartSlice';
 import { setWishlistUser } from '../store/slices/wishlistSlice';
 import tokenLogger from '../utils/tokenLogger';
 import { setAnalyticsUser, trackAnalyticsEvent } from './analyticsService';
-import { triggerCampaign } from './campaignTriggerService';
+import { triggerCampaign } from './notificationService';
 
 export type AuthContextValue = {
   session: AuthSession | null;
