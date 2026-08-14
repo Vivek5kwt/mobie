@@ -124,10 +124,7 @@ const resolveStore = async (store) => store || await fetchStoreConfig();
 // The Shopify Admin token is resolved server-side by getShopifyCurrencies's
 // resolver now (see appmobidrag/server/graphql/resolvers.js) — it's no
 // longer fetched to, or held on, the device at all, so only `shop` is
-// actually required here. `accessToken` is kept in the returned shape only
-// because fetchShopifyCurrencies below still passes it as a query variable
-// for backward compatibility with any stale deployed backend; the current
-// resolver ignores it.
+// actually required here.
 const resolveShopCredentials = async (session, store) => {
   const resolvedStore = await resolveStore(store);
   const user = session?.user || {};
@@ -168,15 +165,22 @@ export async function fetchShopifyCurrencies({ session, store } = {}) {
   }
   const { shop } = creds;
 
-  const { data, errors } = await client.query({
+  // @apollo/client v4's client.query() resolves { data, error } (a single
+  // ErrorLike, possibly wrapping several GraphQL errors) — not v3's
+  // { data, errors } array. Destructuring `errors` here always read as
+  // undefined, so `errors?.length` never fired and the real error (e.g. the
+  // stale required $accessToken variable this query used to declare) was
+  // silently swallowed, falling through to the generic "did not return a
+  // successful response" below with no indication of the actual cause.
+  const { data, error } = await client.query({
     query: GET_SHOPIFY_CURRENCIES,
     variables: { shop },
     fetchPolicy: "network-only",
     errorPolicy: "all",
   });
 
-  if (errors?.length) {
-    throw errors[0];
+  if (error) {
+    throw error;
   }
 
   const result = data?.getShopifyCurrencies;
