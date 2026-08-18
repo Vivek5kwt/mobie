@@ -12,7 +12,7 @@ import { useNavigation } from "@react-navigation/native";
 import FontAwesome from "react-native-vector-icons/FontAwesome";
 import { updateQuantity, removeItem } from "../store/slices/cartSlice";
 import { resolveFA4IconName } from "../utils/faIconAlias";
-import { resolveFont } from "../services/typographyService";
+import { resolveFont, resolveFontFace } from "../services/typographyService";
 import { parseMoneyAmount } from "../utils/money";
 import {
   formatPrice as formatCurrencyPrice,
@@ -464,6 +464,18 @@ export default function CartLineItems({ section }) {
 
   // Font families
   const titleFontFamily    = cleanFontFamily(toString(raw?.titleFontFamily    ?? raw?.fontFamily, ""));
+  // Android only renders non-regular weights for a custom font when the
+  // specific registered variant file exists (see ANDROID_FONT_FACE_VARIANTS
+  // in typographyService.js) — plain fontWeight is otherwise silently
+  // ignored for a custom fontFamily, unlike the web builder canvas, which is
+  // why the product name showed bold in the builder but not on Android.
+  // Swaps in the correct variant's family (e.g. "Lato" + 600 → "Lato-Bold")
+  // when one is registered for the configured font.
+  const titleFace = titleFontFamily
+    ? resolveFontFace(titleFontFamily, { fontWeight: titleWeight })
+    : null;
+  const titleFontFamilyResolved = titleFace?.fontFamily || titleFontFamily;
+  const titleWeightResolved = !titleFace || titleFace.preserveWeightStyle ? titleWeight : undefined;
   const vendorFontFamily   = cleanFontFamily(toString(raw?.vendorFontFamily   ?? raw?.fontFamily, ""));
   const variantFontFamily  = cleanFontFamily(toString(raw?.variantFontFamily  ?? raw?.fontFamily, ""));
   const priceFontFamily    = cleanFontFamily(toString(raw?.priceFontFamily    ?? raw?.fontFamily, ""));
@@ -711,7 +723,7 @@ export default function CartLineItems({ section }) {
                 {/* Title */}
                 {showTitle && !!itemTitle && (
                   <Text
-                    style={[styles.title, { color: titleColor, fontSize: titleSize, fontWeight: titleWeight, lineHeight: titleLineHeight, ...(titleFontFamily ? { fontFamily: titleFontFamily } : {}) }]}
+                    style={[styles.title, { color: titleColor, fontSize: titleSize, fontWeight: titleWeightResolved, lineHeight: titleLineHeight, ...(titleFontFamilyResolved ? { fontFamily: titleFontFamilyResolved } : {}) }]}
                     numberOfLines={2}
                   >
                     {itemTitle}

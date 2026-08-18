@@ -49,6 +49,7 @@ import CurrencySwitcher from "../components/CurrencySwitcher";
 import Logout from "../components/Logout";
 import NotificationList from "../components/NotificationList";
 import CustomButton from "../components/CustomButton";
+import VideoPlayer from "../components/VideoPlayer";
 
 const normalizeComponentName = (value) =>
   String(value || "")
@@ -156,6 +157,7 @@ const componentMap = {
   notifications: NotificationList,
   custom_button: CustomButton,
   button: CustomButton,
+  video_player: VideoPlayer,
 };
 
 const componentAliases = {
@@ -212,6 +214,10 @@ const componentAliases = {
   "notification inbox": "notification_inbox",
   notificationlist: "notification_list",
   "notification-list": "notification_list",
+  videoplayer: "video_player",
+  "video-player": "video_player",
+  "video player": "video_player",
+  video: "video_player",
 };
 
 export default function DynamicRenderer({ section, ...extraProps }) {

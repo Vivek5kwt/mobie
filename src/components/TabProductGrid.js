@@ -882,7 +882,13 @@ export default function TabProductGrid({ section }) {
           title: product.name || product.title || "",
           image: product.image || "",
           price: parseMoneyAmount(product.priceAmount ?? product.price) || 0,
-          variant: "",
+          // Matches AddToCart.js's productVariantText convention — Shopify's
+          // placeholder title for products with no real variant options.
+          variant:
+            availableVariant?.title && availableVariant.title !== "Default Title"
+              ? availableVariant.title
+              : "",
+          vendor: product.vendor || "",
           currency: product.currency || "",
           availableForSale: isProductAvailable(product),
           quantity: 1,

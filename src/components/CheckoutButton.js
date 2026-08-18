@@ -518,31 +518,17 @@ export default function CheckoutButton({ section }) {
     [checkoutDiscountCodes, checkoutLines, checkoutOptions]
   );
 
-  useEffect(() => {
-    if (!hasCartItems || initializing) return;
-    if (!isLoggedIn && !guestCheckoutAllowed) return;
-    console.log(`${CHECKOUT_BUTTON_LOG} prewarm checkout`, {
-      itemCount: checkoutLines.length,
-      discountCodes: checkoutDiscountCodes,
-      isLoggedIn,
-      hasCustomerAccessToken: !!usableCustomerAccessToken,
-    });
-    createShopifyCartCheckout(checkoutRequest).catch((error) => {
-      console.warn(`${CHECKOUT_BUTTON_LOG} prewarm checkout failed`, {
-        message: error?.message || String(error),
-        itemCount: checkoutLines.length,
-      });
-    });
-  }, [
-    checkoutDiscountCodes,
-    checkoutLines.length,
-    checkoutRequest,
-    guestCheckoutAllowed,
-    hasCartItems,
-    initializing,
-    isLoggedIn,
-    usableCustomerAccessToken,
-  ]);
+  // NOTE: there used to be a "prewarm checkout" useEffect here that called
+  // createShopifyCartCheckout(checkoutRequest) on every cart change, before
+  // the shopper ever tapped Checkout. It was removed — createShopifyCartCheckout
+  // is deliberately never cached (see the "Always create a fresh session"
+  // comment in shopify.js) and its result here was discarded (only .catch(),
+  // no .then()), so the call had no effect on the real checkout below beyond
+  // its side effects. Its primary path is an Admin API `draftOrderCreate`
+  // mutation, which creates a real, persisted Shopify Draft Order — so
+  // simply adding an item to the cart was silently creating a live draft
+  // order that then showed up in the customer's own Order History as a
+  // phantom "Awaiting payment" order with every cart change.
 
   const buttonLinkHref = toStr(raw?.buttonLinkHref, "");
 

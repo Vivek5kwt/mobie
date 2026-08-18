@@ -11,7 +11,7 @@ import { useNavigation } from "@react-navigation/native";
 import { convertStyles } from "../utils/convertStyles";
 import { useAuth } from "../services/AuthContext";
 import { isAuthenticatedSession, requireLoginForAction } from "../utils/authGate";
-import { resolveFont } from "../services/typographyService";
+import { resolveFont, resolveFontFace } from "../services/typographyService";
 import { navigateToDslTarget } from "../utils/navigationTarget";
 import { resolveFA4IconName } from "../utils/faIconAlias";
 
@@ -199,15 +199,19 @@ export default function AccountMenu({ section }) {
   // ── label ─────────────────────────────────────────────────────────────────
   const labelColor  = str(rawProps?.textColor   ?? rawProps?.labelColor,   cssLabel?.color       || "#111827");
   const labelSize   = num(rawProps?.textFontSize ?? rawProps?.labelFontSize ?? rawProps?.fontSize, parsePx(css?.label?.fontSize, 15));
+  // Matches AccountMenu/PreviewLive.tsx's own formula exactly: `textBold`
+  // (labelBold below) is the sole authority on whether the label is bold —
+  // textFontWeight is treated purely as a numeric override, non-numeric
+  // strings (including the DSL's "Bold" default literal) fall through to
+  // 400. This used to keyword-match "bold"/"semibold"/etc. here, which
+  // disagreed with the builder whenever a merchant un-bolded via the rich
+  // text toggle (that only flips textBold to false, leaving the
+  // textFontWeight string at "Bold") — the builder canvas correctly showed
+  // normal weight, RN kept forcing 700 regardless.
   const labelWeight = (() => {
-    const raw = str(rawProps?.textFontWeight ?? rawProps?.labelFontWeight ?? rawProps?.fontWeight, "");
-    if (!raw) return String(cssLabel?.fontWeight || "600");
-    const l = raw.toLowerCase();
-    if (l === "bold") return "700";
-    if (l === "semibold") return "600";
-    if (l === "medium") return "500";
-    if (l === "regular" || l === "normal") return "400";
-    return raw;
+    const raw = rawProps?.textFontWeight ?? rawProps?.labelFontWeight ?? rawProps?.fontWeight;
+    const n = Number(raw);
+    return Number.isFinite(n) && n > 0 ? String(n) : String(cssLabel?.fontWeight || "400");
   })();
   const labelBold   = bool(rawProps?.textBold, false);
   const labelItalic = bool(rawProps?.textItalic, false);
@@ -215,6 +219,17 @@ export default function AccountMenu({ section }) {
   const labelStrikethrough = bool(rawProps?.textStrikethrough, false);
   const labelUppercase = bool(rawProps?.textUppercase, false);
   const labelFontFamily = resolveFont(str(rawProps?.textFontFamily ?? rawProps?.fontFamily, ""));
+  // Android only renders non-regular weights/italic for a custom font when
+  // the specific registered variant file exists (see
+  // ANDROID_FONT_FACE_VARIANTS in typographyService.js) — plain fontWeight/
+  // fontStyle are otherwise silently ignored for a custom fontFamily, unlike
+  // the web builder canvas. Swaps in the correct variant's family (e.g.
+  // "Lato" + bold → "Lato-Bold") when one is registered for this font.
+  const labelResolvedWeight = labelBold ? "700" : labelWeight;
+  const labelResolvedStyle = labelItalic ? "italic" : "normal";
+  const labelFace = labelFontFamily
+    ? resolveFontFace(labelFontFamily, { fontWeight: labelResolvedWeight, fontStyle: labelResolvedStyle })
+    : null;
   const labelLineHeight = num(
     rawProps?.textLineHeight ?? rawProps?.labelLineHeight ?? rawProps?.lineHeight,
     parsePx(css?.label?.lineHeight, Math.ceil(labelSize * 1.25))
@@ -466,8 +481,9 @@ export default function AccountMenu({ section }) {
                     color:      labelColor,
                     fontSize:   labelSize,
                     lineHeight: labelLineHeight,
-                    fontWeight: labelBold ? "700" : labelWeight,
-                    fontStyle: labelItalic ? "italic" : "normal",
+                    ...(!labelFace || labelFace.preserveWeightStyle
+                      ? { fontWeight: labelResolvedWeight, fontStyle: labelResolvedStyle }
+                      : {}),
                     includeFontPadding: true,
                     textAlignVertical: "center",
                     textTransform: labelUppercase ? "uppercase" : "none",
@@ -479,7 +495,9 @@ export default function AccountMenu({ section }) {
                           : labelStrikethrough
                             ? "line-through"
                             : "none",
-                    ...(labelFontFamily ? { fontFamily: labelFontFamily } : {}),
+                    ...(labelFace?.fontFamily || labelFontFamily
+                      ? { fontFamily: labelFace?.fontFamily || labelFontFamily }
+                      : {}),
                   },
                 ]}
               >

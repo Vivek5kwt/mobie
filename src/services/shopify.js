@@ -157,6 +157,7 @@ export const QUERY_RECENT_PRODUCTS = `
           id
           title
           handle
+          vendor
           featuredImage { url altText }
           images(first: 1) { edges { node { url altText } } }
           priceRangeV2 { minVariantPrice { amount currencyCode } }
@@ -343,6 +344,7 @@ export async function fetchShopifyRecentProducts(limit = 10, options = {}) {
         name: node?.title,
         title: node?.title,
         handle: node?.handle,
+        vendor: node?.vendor || "",
         availableForSale: productAvailableFromVariants(variants),
         variants,
         image: node?.featuredImage?.url || node?.images?.edges?.[0]?.node?.url || null,

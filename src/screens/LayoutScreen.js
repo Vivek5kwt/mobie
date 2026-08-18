@@ -28,6 +28,7 @@ import { useAuth } from "../services/AuthContext";
 import { setHeaderDefault } from "../services/headerDefaultService";
 import { getHomeSectionMarginBottom } from "../utils/sectionSpacing";
 import { trackScreenView } from "../services/analyticsService";
+import { getLastActiveTabIndex, setLastActiveTabIndex } from "../utils/headerTabStore";
 
 // ── Module-level cache ────────────────────────────────────────────────────────
 // Survives re-mounts within the same JS session.
@@ -90,12 +91,21 @@ export default function LayoutScreen({ route, navigation }) {
   const [stableBottomNavSection, setStableBottomNavSection] = useState(() => cached?.bottomNavSection ?? null);
   const [heavySectionsReady, setHeavySectionsReady] = useState(() => !isHomePage);
   const trackedPageRef = useRef("");
-  // Multi-tab header: which tab's blocks are currently shown. Reset on page
-  // change so a tab selected on one page never carries over to another.
-  const [activeTabIndex, setActiveTabIndex] = useState(0);
+  // Multi-tab header: which tab's blocks are currently shown. Reset when the
+  // PAGE changes (a tab selected on one page must never carry over to
+  // another) but restored from headerTabStore on every remount of the same
+  // page, so navigating away (e.g. to a product) and back doesn't lose it.
+  const [activeTabIndex, setActiveTabIndexState] = useState(() => getLastActiveTabIndex(normalizedPageName));
   useEffect(() => {
-    setActiveTabIndex(0);
-  }, [cacheKey]);
+    setActiveTabIndexState(getLastActiveTabIndex(normalizedPageName));
+  }, [cacheKey, normalizedPageName]);
+  const setActiveTabIndex = useCallback(
+    (index) => {
+      setActiveTabIndexState(index);
+      setLastActiveTabIndex(normalizedPageName, index);
+    },
+    [normalizedPageName]
+  );
 
   useEffect(() => {
     const analyticsPageName = String(dsl?.page?.name || dsl?.page?.handle || pageName || "").trim();
@@ -212,6 +222,11 @@ export default function LayoutScreen({ route, navigation }) {
     return sectionsCopy;
 
   }, [hasPrimaryHeader, isHomePage, mobileSections]);
+
+  // Brand Kit's "Page Background" (colors.pageBg) — the screen wrapper below
+  // hardcoded white regardless of Brand Kit, unlike the builder canvas
+  // (PhoneMock.tsx) which already applies it.
+  const pageBgColor = dsl?.brandKit?.colors?.pageBg || "#FFFFFF";
 
   const sideNavSection = useMemo(
     () =>
@@ -672,11 +687,11 @@ export default function LayoutScreen({ route, navigation }) {
         {/* RENDER SORTED DSL COMPONENTS */}
         <ScrollView
           contentInsetAdjustmentBehavior="automatic"
-          style={styles.scrollView}
+          style={[styles.scrollView, { backgroundColor: pageBgColor }]}
           showsVerticalScrollIndicator
           contentContainerStyle={[
             styles.scrollContent,
-            { paddingBottom: stableBottomNavSection ? bottomNavHeight : 0 },
+            { paddingBottom: stableBottomNavSection ? bottomNavHeight : 0, backgroundColor: pageBgColor },
           ]}
           keyboardShouldPersistTaps="handled"
           refreshControl={
@@ -782,7 +797,7 @@ export default function LayoutScreen({ route, navigation }) {
           closeSideMenu,
         }}
       >
-        <View style={styles.screen}>
+        <View style={[styles.screen, { backgroundColor: pageBgColor }]}>
           {mainContent}
 
           {fallbackBottomNavSection && (

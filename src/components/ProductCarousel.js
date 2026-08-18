@@ -1016,7 +1016,13 @@ export default function ProductCarousel({ section }) {
           title: product.title || "Product Name",
           image: product.imageUrl || "",
           price: parseMoneyAmount(product.priceAmount ?? product.price) || 0,
-          variant: "",
+          // Matches AddToCart.js's productVariantText convention — Shopify's
+          // placeholder title for products with no real variant options.
+          variant:
+            availableVariant?.title && availableVariant.title !== "Default Title"
+              ? availableVariant.title
+              : "",
+          vendor: product.vendor || "",
           currency: product.priceCurrency || "USD",
           availableForSale: isProductAvailable(product),
           quantity: 1,

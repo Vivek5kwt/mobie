@@ -30,6 +30,7 @@ import { fetchNotifications } from "../services/notificationFetchService";
 import { getHomeSectionMarginBottom } from "../utils/sectionSpacing";
 import { PageEmptyStateProvider } from "../services/PageEmptyStateContext";
 import { trackScreenView } from "../services/analyticsService";
+import { getLastActiveTabIndex, setLastActiveTabIndex } from "../utils/headerTabStore";
 
 // Slugs that should redirect to the Auth screen instead of rendering empty DSL content
 const SIGNIN_SLUGS = new Set(["signin", "sign-in", "login", "log-in", "auth"]);
@@ -233,11 +234,22 @@ export default function BottomNavScreen() {
   // Multi-tab header: which tab's blocks are currently shown. This screen
   // instance is reused across multiple pages (navigation.setParams swaps
   // pageName rather than remounting), so an explicit reset on page change is
-  // required — otherwise a tab selected on one page would leak into another.
-  const [activeTabIndex, setActiveTabIndex] = useState(0);
+  // still required — otherwise a tab selected on one page would leak into
+  // another — but the per-page selection itself is restored from
+  // headerTabStore instead of always starting at 0, so switching to another
+  // tab (Cart, Wishlist, etc. within this same reused screen) and back
+  // doesn't lose it.
+  const [activeTabIndex, setActiveTabIndexState] = useState(() => getLastActiveTabIndex(normalizedPageName));
   useEffect(() => {
-    setActiveTabIndex(0);
+    setActiveTabIndexState(getLastActiveTabIndex(normalizedPageName));
   }, [normalizedPageName]);
+  const setActiveTabIndex = useCallback(
+    (index) => {
+      setActiveTabIndexState(index);
+      setLastActiveTabIndex(normalizedPageName, index);
+    },
+    [normalizedPageName]
+  );
   // Side menu state (same pattern as LayoutScreen)
   const DEFAULT_SIDE_MENU_WIDTH = 280;
   const [isSideMenuOpen, setIsSideMenuOpen] = useState(false);

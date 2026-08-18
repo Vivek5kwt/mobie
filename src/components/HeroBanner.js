@@ -6,7 +6,7 @@ import { useNavigation } from "@react-navigation/native";
 import { applyMetricsPositioning, convertStyles } from "../utils/convertStyles";
 import { resolveTextDecorationLine } from "../utils/textDecoration";
 import { resolveFA4IconName } from "../utils/faIconAlias";
-import { resolveFont } from "../services/typographyService";
+import { resolveFont, resolveFontFace } from "../services/typographyService";
 import { navigateToDslTarget } from "../utils/navigationTarget";
 
 const unwrapValue = (value, fallback = undefined) => {
@@ -183,12 +183,24 @@ const buildTextAttributesStyle = (attributes, decorationOverrides = {}) => {
         : rawLineHeight
       : undefined;
 
+  const fontStyle = isItalic ? "italic" : "normal";
+
+  // On Android, a custom bundled font only renders non-regular weights/italic
+  // when the specific registered variant file exists (see
+  // ANDROID_FONT_FACE_VARIANTS in typographyService.js) — plain fontWeight/
+  // fontStyle style props are silently ignored otherwise (no faux-bold/italic
+  // synthesis for custom fonts, unlike CSS on the web canvas). resolveFontFace
+  // swaps in the correct variant's font family when one is registered (e.g.
+  // "Lato" + italic → "Lato-Italic") and signals whether fontWeight/fontStyle
+  // should still be applied on top (preserveWeightStyle) or dropped because
+  // the returned family already bakes them in.
+  const face = fontFamily ? resolveFontFace(fontFamily, { fontWeight, fontStyle }) : null;
+
   return {
     color,
-    fontFamily,
+    fontFamily: face?.fontFamily || fontFamily,
     fontSize,
-    fontWeight,
-    fontStyle: isItalic ? "italic" : "normal",
+    ...(!face || face.preserveWeightStyle ? { fontWeight, fontStyle } : {}),
     // Only include textDecorationLine when a source is present — omitting it (rather than
     // setting it to undefined) prevents this spread from wiping a CSS-snapshot value.
     ...(underlineSource !== undefined || strikethroughSource !== undefined

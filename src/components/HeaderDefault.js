@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { Image, Platform, Text, TouchableOpacity, View } from "react-native";
+import { Image, Platform, ScrollView, Text, TouchableOpacity, View } from "react-native";
 import { useNavigation } from "@react-navigation/native";
 import Icon from "react-native-vector-icons/FontAwesome6";
 import { useSelector } from "react-redux";
@@ -374,39 +374,56 @@ export default function HeaderDefault({
   ) || "";
   const activeTabWeight = normalizeFontWeight(resolveVal(config.activeTabFontWeight), "700");
   const inactiveTabWeight = normalizeFontWeight(resolveVal(config.inactiveTabFontWeight), "500");
+  // Matches PhoneMockDefaultPreview.tsx's shouldUseTabCarousel: up to 4 tabs
+  // share the row equally; beyond that they'd get squeezed unreadably, so
+  // the builder switches to fixed-width tabs inside a horizontal scroller —
+  // mirror both the breakpoint and the 90px tab width here.
+  const shouldScrollTabs = tabs.length > 4;
+  const tabBarBg = { backgroundColor: bgColor, borderBottomWidth: 1, borderBottomColor: _isLightBg ? "rgba(0,0,0,0.08)" : "rgba(255,255,255,0.12)" };
+  const tabItems = tabs.map((tab, idx) => {
+    const isActive = idx === activeTabIdx;
+    const label = resolveVal(tab.label) || resolveVal(tab.title) || resolveVal(tab.text) || `Tab ${idx + 1}`;
+    return (
+      <TouchableOpacity
+        key={tab.id || String(idx)}
+        style={{
+          ...(shouldScrollTabs ? { width: 90 } : { flex: 1 }),
+          alignItems: "center",
+          paddingVertical: 10,
+          borderBottomWidth: 3,
+          borderBottomColor: isActive ? activeIndicatorColor : "transparent",
+        }}
+        activeOpacity={0.75}
+        onPress={() => handleTabPress(idx)}
+      >
+        <Text
+          numberOfLines={1}
+          style={{
+            fontSize: 14,
+            fontWeight: isActive ? activeTabWeight : inactiveTabWeight,
+            color: isActive ? activeTabColor : inactiveTabColor,
+            letterSpacing: 0.2,
+            ...(tabFontFamily ? { fontFamily: tabFontFamily } : {}),
+          }}
+        >
+          {label}
+        </Text>
+      </TouchableOpacity>
+    );
+  });
   const tabBar = showTabs ? (
-    <View style={{ flexDirection: "row", backgroundColor: bgColor, borderBottomWidth: 1, borderBottomColor: _isLightBg ? "rgba(0,0,0,0.08)" : "rgba(255,255,255,0.12)" }}>
-      {tabs.map((tab, idx) => {
-        const isActive = idx === activeTabIdx;
-        const label = resolveVal(tab.label) || resolveVal(tab.title) || resolveVal(tab.text) || `Tab ${idx + 1}`;
-        return (
-          <TouchableOpacity
-            key={tab.id || String(idx)}
-            style={{
-              flex: 1,
-              alignItems: "center",
-              paddingVertical: 10,
-              borderBottomWidth: 3,
-              borderBottomColor: isActive ? activeIndicatorColor : "transparent",
-            }}
-            activeOpacity={0.75}
-            onPress={() => handleTabPress(idx)}
-          >
-            <Text
-              style={{
-                fontSize: 14,
-                fontWeight: isActive ? activeTabWeight : inactiveTabWeight,
-                color: isActive ? activeTabColor : inactiveTabColor,
-                letterSpacing: 0.2,
-                ...(tabFontFamily ? { fontFamily: tabFontFamily } : {}),
-              }}
-            >
-              {label}
-            </Text>
-          </TouchableOpacity>
-        );
-      })}
-    </View>
+    shouldScrollTabs ? (
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        style={tabBarBg}
+        contentContainerStyle={{ flexDirection: "row" }}
+      >
+        {tabItems}
+      </ScrollView>
+    ) : (
+      <View style={{ flexDirection: "row", ...tabBarBg }}>{tabItems}</View>
+    )
   ) : null;
 
   // ── DSL structure is always { left: [...], center: [...], right: [...] }.

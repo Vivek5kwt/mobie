@@ -450,7 +450,12 @@ export default function RecentProducts({ section }) {
         price:          parseMoneyAmount(product.priceAmount ?? product.price) || 0,
         compareAtPrice: parseMoneyAmount(product.compareAtPrice ?? product.originalPrice) || 0,
         vendor:         product.vendor || "",
-        variant:        "",
+        // Matches AddToCart.js's productVariantText convention — Shopify's
+        // placeholder title for products with no real variant options.
+        variant:
+          availableVariant?.title && availableVariant.title !== "Default Title"
+            ? availableVariant.title
+            : "",
         currency:       product.priceCurrency || product.currency || "",
         availableForSale: isProductAvailable(product),
         quantity:       1,
