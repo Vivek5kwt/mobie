@@ -3111,6 +3111,8 @@ const CUSTOMER_ORDER_NODE_FIELDS = `
   processedAt
   displayFinancialStatus
   displayFulfillmentStatus
+  cancelledAt
+  cancelReason
   statusPageUrl
   totalPriceSet { shopMoney { amount currencyCode } }
   subtotalPriceSet { shopMoney { amount currencyCode } }
@@ -3183,6 +3185,14 @@ const mapCustomerOrderNode = (node, creds) => {
   const currencySymbol = sharedCurrencySymbolForCode(currency);
   const financialStatus = node.displayFinancialStatus || "";
   const fulfillmentStatus = node.displayFulfillmentStatus || "";
+  // Shopify's cancellation state is its own top-level `cancelledAt` field —
+  // it isn't folded into displayFinancialStatus/displayFulfillmentStatus,
+  // so a cancelled order can still read e.g. "PAID"/"UNFULFILLED" there.
+  // This used to never be fetched at all, which is why an order Shopify
+  // itself already shows as cancelled kept reporting cancellable:true here
+  // and the app kept offering a "Cancel Order" button for it.
+  const cancelledAt = node.cancelledAt || "";
+  const isCancelled = !!cancelledAt;
   const paymentGatewayNames = Array.isArray(node.paymentGatewayNames) ? node.paymentGatewayNames.filter(Boolean) : [];
   const deliveryMethod = node.shippingLines?.edges?.find(({ node: line }) => line?.title)?.node?.title || "";
   const fulfillment = Array.isArray(node.fulfillments) ? node.fulfillments.find((f) => f?.estimatedDeliveryAt) || node.fulfillments[0] : null;
@@ -3194,9 +3204,11 @@ const mapCustomerOrderNode = (node, creds) => {
     orderDate:      formatOrderDate(node.processedAt),
     placedAt:       node.processedAt || "",
     placedOn:       formatOrderDate(node.processedAt, "short"),
-    status:         formatOrderStatus(fulfillmentStatus, financialStatus),
+    status:         isCancelled ? "Cancelled" : formatOrderStatus(fulfillmentStatus, financialStatus),
     fulfillmentStatus,
     financialStatus,
+    cancelledAt,
+    cancelReason:   node.cancelReason || "",
     statusUrl:      node.statusPageUrl || "",
     deliveryMethod,
     shippingAddress: addr || null,
@@ -3216,7 +3228,7 @@ const mapCustomerOrderNode = (node, creds) => {
     total:          parseFloat(totalMoney?.amount || 0),
     currencyCode:   currency,
     currencySymbol,
-    cancellable:    !["REFUNDED", "VOIDED"].includes(String(financialStatus).toUpperCase()),
+    cancellable:    !isCancelled && !["REFUNDED", "VOIDED"].includes(String(financialStatus).toUpperCase()),
     lineItems: (node.lineItems?.edges || []).map(({ node: li }) => {
       const unitMoney = li.originalUnitPriceSet?.shopMoney;
       return {

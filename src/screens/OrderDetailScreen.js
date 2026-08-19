@@ -10,6 +10,7 @@ import {
   View,
 } from "react-native";
 import { useNavigation, useRoute } from "@react-navigation/native";
+import { useDispatch } from "react-redux";
 import { SafeArea } from "../utils/SafeAreaHandler";
 import { fetchDSL } from "../engine/dslHandler";
 import { resolveAppId } from "../utils/appId";
@@ -19,11 +20,13 @@ import { useAuth } from "../services/AuthContext";
 import { cancelShopifyOrder, fetchCustomerOrders, fetchShopifyOrderDetails } from "../services/shopify";
 import { triggerOrderNotification, ORDER_EVENTS } from "../services/notificationService";
 import { saveCompletedOrder } from "../services/orderHistoryService";
+import { addItem } from "../store/slices/cartSlice";
 import BottomNavigation, { BOTTOM_NAV_RESERVED_HEIGHT } from "../components/BottomNavigation";
 import { resolveFont } from "../services/typographyService";
 import {
   currencySymbolForCode as sharedCurrencySymbolForCode,
   formatMoney as formatSharedMoney,
+  parseMoneyAmount,
 } from "../utils/money";
 import { resolveProductImageResizeMode } from "../utils/productImageFit";
 
@@ -1075,6 +1078,8 @@ function OrderDetailsUnifiedSection({ section, order, appId, userId, email, cust
 // ─── Cancel Order Section ─────────────────────────────────────────────────────
 
 function CancelOrderSection({ section, order, appId, userId, email, customerAccessToken, customerId, onCanceled, rawOverride }) {
+  const navigation = useNavigation();
+  const dispatch = useDispatch();
   // rawOverride: used by OrderDetailsUnifiedSection to reuse this same
   // cancel-eligibility + cancel-action logic for the new unified
   // "order_details" block's nested `cancelOrder` object, which already
@@ -1130,11 +1135,6 @@ function CancelOrderSection({ section, order, appId, userId, email, customerAcce
   );
   const keepOrderLabel = fillOrderCopy(raw.keepOrderLabel ?? raw.cancelDismissLabel, order, "Keep order");
   const confirmActionLabel = fillOrderCopy(raw.confirmActionLabel ?? raw.cancelActionLabel, order, label);
-  const alreadyCanceledLabel = fillOrderCopy(
-    raw.alreadyCanceledLabel ?? raw.canceledLabel,
-    order,
-    orderName ? `${orderName} canceled` : "Order canceled"
-  );
 
   const performCancel = async () => {
     setSubmitting(true);
@@ -1228,12 +1228,38 @@ function CancelOrderSection({ section, order, appId, userId, email, customerAcce
     );
   };
 
-  // Only show the button while Shopify's own rules actually allow canceling
-  // this order (not already canceled, not blocked by fulfillment/payment
-  // status) — a disabled button with a "why not" caption invites a tap that
-  // was always going to fail, so once ineligibility is confirmed the whole
-  // section disappears instead of just graying out.
-  if (!canCancel && !submitting) return null;
+  // Once an order is canceled there's nothing left to cancel — swap the
+  // button for Reorder (same add-everything-to-cart-and-go-to-Cart action
+  // OrderHistory.js's list uses) instead of leaving a dead "Order canceled"
+  // button in place.
+  const handleReorder = () => {
+    const items = Array.isArray(order?.lineItems) ? order.lineItems : [];
+    items.forEach((item) => {
+      dispatch(
+        addItem({
+          item: {
+            id: item.variantId || item.id || item.handle || item.title,
+            variantId: item.variantId || item.id || "",
+            handle: item.handle || "",
+            title: item.title || "Product",
+            image: item.image || item.imageUrl || "",
+            price: parseMoneyAmount(item.priceAmount ?? item.price) || 0,
+            vendor: item.vendor || "",
+            variant: item.variant || "",
+            currency: item.priceCurrency || order?.currencyCode || order?.currencySymbol || "",
+            quantity: Math.max(1, Number(item.quantity) || 1),
+          },
+        })
+      );
+    });
+    navigation.navigate("BottomNavScreen", { title: "Cart", pageName: "cart", link: "cart" });
+  };
+
+  // Only hide the section for OTHER cancel-ineligibility reasons (voided,
+  // refunded, Shopify-blocked) — a disabled button with a "why not" caption
+  // there invites a tap that was always going to fail. An already-canceled
+  // order instead falls through to the Reorder button below.
+  if (!alreadyCanceled && !canCancel && !submitting) return null;
 
   return (
     <View style={[styles.cancelContainer, { backgroundColor: outerBgColor, borderRadius: outerRadius, paddingTop: outerPt, paddingBottom: outerPb, paddingLeft: outerPl, paddingRight: outerPr }]}>
@@ -1241,21 +1267,21 @@ function CancelOrderSection({ section, order, appId, userId, email, customerAcce
         style={[
           styles.cancelButton,
           {
-            backgroundColor: disabled ? disabledBgColor : bgColor,
+            backgroundColor: disabled && !alreadyCanceled ? disabledBgColor : bgColor,
             borderRadius,
             ...(borderColor ? { borderColor, borderWidth: 1 } : { borderWidth: 0 }),
-            opacity: disabled ? toNum(raw?.disabledOpacity, 0.55) : 1,
+            opacity: disabled && !alreadyCanceled ? toNum(raw?.disabledOpacity, 0.55) : 1,
           },
         ]}
-        onPress={handleCancel}
-        disabled={disabled}
+        onPress={alreadyCanceled ? handleReorder : handleCancel}
+        disabled={alreadyCanceled ? false : disabled}
         activeOpacity={0.85}
       >
         {submitting ? (
           <ActivityIndicator size="small" color={textColor} />
         ) : (
-          <Text style={{ color: disabled ? disabledTextColor : textColor, fontSize, fontWeight, ...(fontFamily ? { fontFamily } : {}) }}>
-            {alreadyCanceled ? alreadyCanceledLabel : label}
+          <Text style={{ color: disabled && !alreadyCanceled ? disabledTextColor : textColor, fontSize, fontWeight, ...(fontFamily ? { fontFamily } : {}) }}>
+            {alreadyCanceled ? "Reorder" : label}
           </Text>
         )}
       </TouchableOpacity>

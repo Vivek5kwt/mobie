@@ -380,15 +380,65 @@ export default function HeaderDefault({
   // mirror both the breakpoint and the 90px tab width here.
   const shouldScrollTabs = tabs.length > 4;
   const tabBarBg = { backgroundColor: bgColor, borderBottomWidth: 1, borderBottomColor: _isLightBg ? "rgba(0,0,0,0.08)" : "rgba(255,255,255,0.12)" };
+  // Matches PhoneMockDefaultPreview.tsx's tab rendering — tabStyle "image_text"
+  // shows each tab's own uploaded image (falling back to the block-level
+  // imageShape/imageSize/imagePosition when a tab doesn't override them),
+  // "text" shows the label only. This was never read here at all before —
+  // every tab rendered as plain text regardless of what was configured.
+  const tabStyle = resolveVal(config.tabStyle) || "image_text";
+  const blockImageShape = resolveVal(config.imageShape) || "square";
+  const blockImageSize = Number(resolveVal(config.imageSize)) || 20;
+  const blockImagePosition = resolveVal(config.imagePosition) || "top";
   const tabItems = tabs.map((tab, idx) => {
     const isActive = idx === activeTabIdx;
     const label = resolveVal(tab.label) || resolveVal(tab.title) || resolveVal(tab.text) || `Tab ${idx + 1}`;
+    const tabImage = resolveVal(tab.image);
+    const showTabImage = tabStyle === "image_text" && !!tabImage;
+    const tabImageShape = resolveVal(tab.imageShape) || blockImageShape;
+    const tabImageSize = Number(resolveVal(tab.imageSize)) || blockImageSize;
+    const tabImagePosition = resolveVal(tab.imagePosition) || blockImagePosition;
+    const tabImageEl = showTabImage ? (
+      <Image
+        source={{ uri: tabImage }}
+        style={{
+          width: tabImageSize,
+          height: tabImageSize,
+          borderRadius: tabImageShape === "circle" ? tabImageSize / 2 : 2,
+          marginBottom: tabImagePosition === "top" ? 4 : 0,
+          marginTop: tabImagePosition === "bottom" ? 4 : 0,
+        }}
+        resizeMode="cover"
+      />
+    ) : null;
+    const labelEl = (
+      <Text
+        numberOfLines={1}
+        style={{
+          fontSize: 14,
+          fontWeight: isActive ? activeTabWeight : inactiveTabWeight,
+          color: isActive ? activeTabColor : inactiveTabColor,
+          letterSpacing: 0.2,
+          ...(tabFontFamily ? { fontFamily: tabFontFamily } : {}),
+        }}
+      >
+        {label}
+      </Text>
+    );
     return (
       <TouchableOpacity
         key={tab.id || String(idx)}
         style={{
           ...(shouldScrollTabs ? { width: 90 } : { flex: 1 }),
           alignItems: "center",
+          // Matches PhoneMockDefaultPreview.tsx's tab container exactly
+          // (justifyContent: flex-end + minHeight: 40) — without it, a tab
+          // with no image (its content is just the Text) sat at the default
+          // flex-start position near the top of the row, while tabs WITH an
+          // image got pushed lower by the image's own height above it, so
+          // every tab's label landed at a different vertical position
+          // instead of a shared bottom baseline.
+          justifyContent: "flex-end",
+          minHeight: 40,
           paddingVertical: 10,
           borderBottomWidth: 3,
           borderBottomColor: isActive ? activeIndicatorColor : "transparent",
@@ -396,18 +446,9 @@ export default function HeaderDefault({
         activeOpacity={0.75}
         onPress={() => handleTabPress(idx)}
       >
-        <Text
-          numberOfLines={1}
-          style={{
-            fontSize: 14,
-            fontWeight: isActive ? activeTabWeight : inactiveTabWeight,
-            color: isActive ? activeTabColor : inactiveTabColor,
-            letterSpacing: 0.2,
-            ...(tabFontFamily ? { fontFamily: tabFontFamily } : {}),
-          }}
-        >
-          {label}
-        </Text>
+        {showTabImage && tabImagePosition === "top" && tabImageEl}
+        {labelEl}
+        {showTabImage && tabImagePosition === "bottom" && tabImageEl}
       </TouchableOpacity>
     );
   });

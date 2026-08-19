@@ -1,6 +1,7 @@
 import React, { useCallback, useMemo, useState } from "react";
 import {
   ActivityIndicator,
+  Alert,
   Image,
   StyleSheet,
   Text,
@@ -11,8 +12,9 @@ import { useFocusEffect, useNavigation } from "@react-navigation/native";
 import { useDispatch } from "react-redux";
 import FontAwesome from "react-native-vector-icons/FontAwesome";
 import { useAuth } from "../services/AuthContext";
-import { fetchCustomerOrders } from "../services/shopify";
-import { getStoredOrders, mergeOrdersByIdentity } from "../services/orderHistoryService";
+import { cancelShopifyOrder, fetchCustomerOrders } from "../services/shopify";
+import { getStoredOrders, mergeOrdersByIdentity, saveCompletedOrder } from "../services/orderHistoryService";
+import { triggerOrderNotification, ORDER_EVENTS } from "../services/notificationService";
 import { isAuthenticatedSession } from "../utils/authGate";
 import { getStoreConfigSync } from "../services/storeService";
 import { addItem } from "../store/slices/cartSlice";
@@ -156,6 +158,25 @@ const getOrderItems = (order = {}) => {
   return Array.isArray(items) ? items : [];
 };
 
+// Mirrors OrderDetailScreen.js's resolveLocalCancelBlockReason exactly — an
+// order is eligible to cancel here under the same rules as the Order Detail
+// screen (not already canceled, not voided/refunded, and Shopify itself
+// hasn't marked it non-cancellable via order.cancellable).
+const resolveLocalCancelBlockReason = (order = {}) => {
+  if (order?.cancellationBlockReason) return toStr(order.cancellationBlockReason, "");
+  const status = String(order?.status || order?.financialStatus || "").trim().toLowerCase();
+  if (order?.cancelledAt || status === "canceled" || status === "cancelled") {
+    return "already canceled";
+  }
+  if (status === "voided" || status === "refunded") {
+    return `payment status is ${status}`;
+  }
+  return "";
+};
+
+const isOrderCancelable = (order = {}) =>
+  order?.cancellable !== false && !resolveLocalCancelBlockReason(order);
+
 export default function OrderHistory({ section }) {
   const navigation = useNavigation();
   const dispatch = useDispatch();
@@ -164,6 +185,7 @@ export default function OrderHistory({ section }) {
   const raw = useMemo(() => getRawProps(section), [section]);
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [cancelingId, setCancelingId] = useState(null);
 
   const appId = session?.user?.appId || session?.user?.app_id || raw?.appId || raw?.app_id || "";
   const userId = session?.user?.id || session?.user?.userId || "";
@@ -197,7 +219,18 @@ export default function OrderHistory({ section }) {
             email,
             first: Math.max(1, toNum(raw?.limit ?? raw?.itemsShown, 20)),
           });
-          liveOrders = result?.orders || [];
+          // fetchCustomerOrders merges in draft orders (this app's own
+          // checkout goes through draftOrderCreate — see
+          // createDraftOrderCheckoutUrl in shopify.js) so a shopper who
+          // hadn't finished paying could still find their way back to an
+          // in-progress checkout. But every draft it returns is, by
+          // definition, still unpaid (fetchCustomerDraftOrders already
+          // excludes COMPLETED/CANCELLED ones) — Order History should only
+          // list orders that actually went through, not ones still
+          // "Awaiting payment". mapDraftOrderNode is the only place that
+          // sets isDraftOrder, so this drops drafts without touching real
+          // orders regardless of their own financial/fulfillment status.
+          liveOrders = (result?.orders || []).filter((order) => !order?.isDraftOrder);
         }
 
         const previewOrders = allowPreviewOrders
@@ -387,7 +420,6 @@ export default function OrderHistory({ section }) {
     return 1;
   })();
   const imageHeightOH = Math.round(imageSize / imageAspectOH);
-  const reorderText = toStr(raw?.reorderText ?? raw?.buttonText ?? raw?.buttonLabel, "Reorder");
   const emptyTitle = toStr(
     raw?.emptyTitle ?? raw?.noOrderTitle,
     customerAccessToken ? "You haven't placed any orders yet" : "No orders yet"
@@ -456,6 +488,76 @@ export default function OrderHistory({ section }) {
       pageName: "cart",
       link: "cart",
     });
+  };
+
+  const performCancelOrder = async (order) => {
+    setCancelingId(order.id || order.orderNumber);
+    try {
+      const result = await cancelShopifyOrder({
+        order,
+        reason: "customer",
+        notifyCustomer: true,
+        customerId: shopifyCustomerId,
+        customerAccessToken,
+      });
+      const updatedOrder = {
+        ...order,
+        ...(result?.order || {}),
+        status: result?.order?.status || "Canceled",
+        cancellable: false,
+      };
+      setOrders((prev) =>
+        prev.map((o) => (o === order ? updatedOrder : o))
+      );
+      saveCompletedOrder({ appId, userId, email, order: updatedOrder }).catch(() => {});
+      triggerOrderNotification({
+        type: ORDER_EVENTS.ORDER_CANCELED,
+        orderNumber: updatedOrder?.orderNumber || "",
+        orderId: updatedOrder?.id ? String(updatedOrder.id) : null,
+        appId,
+        userId,
+      }).catch(() => {});
+      if (!result?.alreadyCanceled) {
+        Alert.alert(
+          orderNumberText(updatedOrder) ? `${orderNumberText(updatedOrder)} canceled` : "Order canceled",
+          result?.message ||
+            (orderNumberText(updatedOrder)
+              ? `Order ${orderNumberText(updatedOrder)} has been canceled in Shopify.`
+              : "This order has been canceled in Shopify.")
+        );
+      }
+    } catch (error) {
+      Alert.alert(
+        orderNumberText(order) ? `Could not cancel ${orderNumberText(order)}` : "Could not cancel order",
+        error?.userMessage || error?.message || "This order could not be canceled."
+      );
+    } finally {
+      setCancelingId(null);
+    }
+  };
+
+  // The list's single per-row action button used to always run reorder
+  // logic (add every line item to cart, then navigate to the Cart screen)
+  // regardless of what its label said — a merchant who typed "Cancel Order"
+  // into the Button Text field (there's no separate action-type setting,
+  // only free text) got a button that LOOKED like cancel but actually added
+  // the order back to cart. Now it calls the real Shopify cancel API
+  // (same appmobidrag services/shopify.js:cancelShopifyOrder used by the
+  // Order Detail screen's Cancel Order block) whenever the order is still
+  // cancelable, and only falls back to reorder once it no longer is.
+  const handleCancelOrder = (order) => {
+    if (cancelingId) return;
+    Alert.alert(
+      orderNumberText(order) ? `Cancel ${orderNumberText(order)}` : "Cancel order",
+      orderNumberText(order)
+        ? `Please confirm that you want to cancel order ${orderNumberText(order)}.`
+        : "Please confirm that you want to cancel this order.",
+      [
+        { text: "Keep order", style: "cancel" },
+        { text: "Cancel order", style: "destructive", onPress: () => performCancelOrder(order) },
+      ],
+      { cancelable: true }
+    );
   };
 
   if (loading) {
@@ -549,15 +651,37 @@ export default function OrderHistory({ section }) {
                   {total}
                 </Text>
               )}
-              {showRedirect && (
-                <TouchableOpacity
-                  style={[styles.reorderButton, stylesFromDsl.button]}
-                  activeOpacity={0.86}
-                  onPress={() => handleReorder(order)}
-                >
-                  <Text style={stylesFromDsl.buttonText}>{reorderText}</Text>
-                </TouchableOpacity>
-              )}
+              {showRedirect && (() => {
+                const orderIsCancelable = isOrderCancelable(order);
+                const isCanceling = cancelingId === (order.id || order.orderNumber);
+                return (
+                  <TouchableOpacity
+                    style={[styles.reorderButton, stylesFromDsl.button, isCanceling ? { opacity: 0.6 } : null]}
+                    activeOpacity={0.86}
+                    disabled={isCanceling}
+                    onPress={() =>
+                      orderIsCancelable ? handleCancelOrder(order) : handleReorder(order)
+                    }
+                  >
+                    {isCanceling ? (
+                      <ActivityIndicator size="small" color={stylesFromDsl.buttonText?.color || "#FFFFFF"} />
+                    ) : (
+                      <Text style={stylesFromDsl.buttonText}>
+                        {/* Fixed labels on both branches — deliberately NOT
+                            reorderText (the merchant's "Button Text"
+                            setting) on the reorder branch either. That field
+                            is the exact one that was misconfigured as
+                            "Cancel order" text in the first place (the bug
+                            this whole feature started from), so trusting it
+                            here would keep showing "Cancel order" on an
+                            already-canceled order even though the tap now
+                            correctly triggers handleReorder underneath. */}
+                        {orderIsCancelable ? "Cancel Order" : "Reorder"}
+                      </Text>
+                    )}
+                  </TouchableOpacity>
+                );
+              })()}
             </View>
           </TouchableOpacity>
         );
