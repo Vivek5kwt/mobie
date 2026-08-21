@@ -414,6 +414,12 @@ const TRENDING_TERM_STOP_WORDS = new Set([
   "products",
   "collection",
   "collections",
+  // Shopify's default catalog-all collection ("All Products"/"All product",
+  // often titled "Home page" too) isn't a real search term — every store has
+  // one, so it was showing up as a trending chip on every install.
+  "all products",
+  "all product",
+  "home page",
 ]);
 
 const cleanTrendingTerm = (value) => {

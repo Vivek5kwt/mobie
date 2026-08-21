@@ -31,6 +31,7 @@ import CheckoutButton from "../components/CheckoutButton";
 import FaqNew from "../components/FaqNew";
 import ProductCarousel from "../components/ProductCarousel";
 import SignUp from "../components/SignUp";
+import ResetPassword from "../components/ResetPassword";
 import VariantSelector from "../components/VariantSelector";
 import TrustBadges from "../components/TrustBadges";
 import CustomerReviews from "../components/CustomerReviews";
@@ -123,6 +124,9 @@ const componentMap = {
   signup: SignUp,
   sign_up: SignUp,
   "sign-up": SignUp,
+  reset_password: ResetPassword,
+  "reset-password": ResetPassword,
+  resetpassword: ResetPassword,
   testimonial_card_new: TestimonialCardNew,
   testimonial_card: TestimonialCardNew,
   testimonials: TestimonialCardNew,

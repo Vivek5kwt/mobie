@@ -342,7 +342,7 @@ type ForgotPasswordTokens = {
 // separate "Reset Password" page (component id `reset_password`) — distinct from
 // ForgotPasswordTokens above, which only covers the small "Forgot Password?" link
 // shown on the SignIn page (component id `forgot_password`).
-type ResetPasswordTokens = {
+export type ResetPasswordTokens = {
   headingVisible: boolean;
   inputVisible: boolean;
   inputPlaceholderVisible: boolean;
@@ -1051,7 +1051,7 @@ const defaultForgotPasswordTokens: ForgotPasswordTokens = {
 // page is the description paragraph (headingText/description*); the input and
 // button are entirely hardcoded there too (no live Inspector binding reaches the
 // canvas), so these defaults ARE the real spec and are never overridden from DSL.
-const defaultResetPasswordTokens: ResetPasswordTokens = {
+export const defaultResetPasswordTokens: ResetPasswordTokens = {
   headingVisible: true,
   inputVisible: true,
   inputPlaceholderVisible: true,
@@ -1801,7 +1801,7 @@ const buildEmbeddedForgotPasswordTokens = (signInRawProps: Record<string, unknow
 // Strikethrough/FontSize/FontFamily/Color) is now read from rawProps too —
 // Builder's own canvas used to ignore those Inspector fields and render a
 // static button, but that was fixed on the builder side, so the app must match.
-const buildResetPasswordTokens = (rawProps: Record<string, unknown>): ResetPasswordTokens => {
+export const buildResetPasswordTokens = (rawProps: Record<string, unknown>): ResetPasswordTokens => {
   const buyNow = toRecord(rawProps?.buyNow);
   const addToCart = toRecord(rawProps?.addToCart);
   const visibility = toRecord(rawProps?.visibility);

@@ -199,10 +199,13 @@ export default function TrendingSearches({ section }) {
     rp("activeHeadingText") ?? rp("popularHeadingText") ?? rp("typingHeadingText"),
     "Popular Searches"
   );
-  const headingColor = unwrapValue(rp("headingColor"), "#111827");
+  const headingColor = unwrapValue(rp("headingColor"), "#000000");
   const headingSize = toNumber(rp("headingFontSize") ?? rp("titleFontSize"), 16);
   const headingFontFamily = cleanFontFamily(rp("headingFontFamily"));
-  const headingBold = toBoolean(rp("headingBold"), true);
+  // Matches the Builder Inspector's own default (Boolean(props.headingBold),
+  // i.e. false when unset) — this previously defaulted to bold, so a fresh
+  // block looked bold in the app but not in the Builder canvas.
+  const headingBold = toBoolean(rp("headingBold"), false);
   const headingItalic = toBoolean(rp("headingItalic"), false);
   const headingUnderline = toBoolean(rp("headingUnderline"), false);
   const headingStrikethrough = toBoolean(rp("headingStrikethrough"), false);
@@ -214,10 +217,18 @@ export default function TrendingSearches({ section }) {
   const headingPadding = {
     paddingTop: toNumber(rp("headingPaddingTop"), 0),
     paddingRight: toNumber(rp("headingPaddingRight"), 0),
-    paddingBottom: toNumber(rp("headingPaddingBottom"), 0),
+    // Matches the Builder's Inspector default (headingPaddingBottom: 5).
+    paddingBottom: toNumber(rp("headingPaddingBottom"), 5),
     paddingLeft: toNumber(rp("headingPaddingLeft"), 0),
   };
 
+  // Chip color/size/padding defaults below match the Builder's
+  // InspectorLive.tsx exactly (chipColor #017176, chipbgColor #e3e3e3,
+  // chipborderRadius 5, chip padding 5 on every side, chipborderColor
+  // #D1D5DB) — this file previously used its own unrelated defaults
+  // (#F3F4F6/#111827/999px pill radius/0 padding/transparent border), so a
+  // freshly-added block looked completely different in the app than in the
+  // Builder canvas until every one of these settings was explicitly touched.
   const chipBgColor = unwrapValue(
     firstDefined(
       rp("chipbgColor"),
@@ -226,7 +237,7 @@ export default function TrendingSearches({ section }) {
       rp("tagBgColor"),
       rp("trendingPillBgColor")
     ),
-    "#F3F4F6"
+    "#e3e3e3"
   );
   const chipTextColor = unwrapValue(
     firstDefined(
@@ -235,39 +246,42 @@ export default function TrendingSearches({ section }) {
       rp("tagTextColor"),
       rp("trendingPillTextColor")
     ),
-    "#111827"
+    "#017176"
   );
   const chipFontSize = toNumber(rp("chipFontSize") ?? rp("tagFontSize"), 13);
-  const chipFontWeight = deriveWeight(rp("chipFontWeight") ?? rp("tagFontWeight"), "500");
+  const chipFontWeight = deriveWeight(rp("chipFontWeight") ?? rp("tagFontWeight"), "400");
   const chipFontFamily = cleanFontFamily(rp("chipFontFamily"));
-  const chipBorderRadius = toNumber(rp("chipborderRadius") ?? rp("chipBorderRadius") ?? rp("tagBorderRadius"), 999);
+  const chipBorderRadius = toNumber(rp("chipborderRadius") ?? rp("chipBorderRadius") ?? rp("tagBorderRadius"), 5);
   const chipPadding = {
-    paddingTop: toNumber(rp("t") ?? rp("chipPaddingTop") ?? rp("tagPaddingTop"), 0),
-    paddingRight: toNumber(rp("r") ?? rp("chipPaddingRight") ?? rp("tagPaddingRight"), 0),
-    paddingBottom: toNumber(rp("b") ?? rp("chipPaddingBottom") ?? rp("tagPaddingBottom"), 0),
-    paddingLeft: toNumber(rp("l") ?? rp("chipPaddingLeft") ?? rp("tagPaddingLeft"), 0),
+    paddingTop: toNumber(rp("t") ?? rp("chipPaddingTop") ?? rp("tagPaddingTop"), 5),
+    paddingRight: toNumber(rp("r") ?? rp("chipPaddingRight") ?? rp("tagPaddingRight"), 5),
+    paddingBottom: toNumber(rp("b") ?? rp("chipPaddingBottom") ?? rp("tagPaddingBottom"), 5),
+    paddingLeft: toNumber(rp("l") ?? rp("chipPaddingLeft") ?? rp("tagPaddingLeft"), 5),
   };
-  const chipBorderColor = unwrapValue(rp("chipborderColor") ?? rp("chipBorderColor"), "transparent");
+  const chipBorderColor = unwrapValue(rp("chipborderColor") ?? rp("chipBorderColor"), "#D1D5DB");
   const chipBorderWidth = toNumber(rp("chipBorderWidth"), 0);
   const chipBorderSide = unwrapValue(rp("chipborderSide") ?? rp("chipBorderSide"), "");
   const chipGap = toNumber(rp("chipGap") ?? rp("gap"), 8);
   const chipLineHeight = toNumber(rp("chipLineHeight"), Math.ceil(chipFontSize * 1.35));
   const chipVisible = toBoolean(rp("chipVisible"), true);
-  const maxChipCount = toNumber(rp("maxChipCount"), 6);
+  const maxChipCount = toNumber(rp("maxChipCount"), 5);
   const chipLayout = String(unwrapValue(rp("chipLayout"), "Wrap") || "Wrap").toLowerCase();
   const emptyText = unwrapValue(rp("emptyText") ?? rp("emptyTitle"), "No trending searches yet");
   const errorText = unwrapValue(rp("errorText"), "Unable to load trending searches");
   const showEmptyState = toBoolean(rp("emptyStateVisible"), true);
 
+  // Container background/border/padding defaults matching the Builder's
+  // "Background & Padding" section exactly (bgColor #FFFFFF, borderRadius 0,
+  // borderColor #D1D5DB, padding 20/20/26/26).
   const bgColor = unwrapValue(rp("bgColor"), "#FFFFFF");
   const containerBorderRadius = toNumber(rp("borderRadius"), 0);
-  const borderColor = unwrapValue(rp("borderColor"), "#E5E7EB");
+  const borderColor = unwrapValue(rp("borderColor"), "#D1D5DB");
   const borderSide = unwrapValue(rp("borderSide"), "");
   const padding = {
-    paddingTop: toNumber(rp("pt"), 0),
-    paddingRight: toNumber(rp("pr"), 0),
-    paddingBottom: toNumber(rp("pb"), 0),
-    paddingLeft: toNumber(rp("pl"), 0),
+    paddingTop: toNumber(rp("pt"), 20),
+    paddingRight: toNumber(rp("pr"), 26),
+    paddingBottom: toNumber(rp("pb"), 20),
+    paddingLeft: toNumber(rp("pl"), 26),
   };
 
   const requestLimit = Math.max(1, Math.min(12, Number(maxChipCount) || 6));

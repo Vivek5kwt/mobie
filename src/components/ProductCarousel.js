@@ -1135,11 +1135,28 @@ export default function ProductCarousel({ section }) {
     );
 
     const handleViewAllPress = () => {
-      void navigateToDslTarget(navigation, {
-        target: viewAllLinkHref || "AllProducts",
-        href: viewAllLinkHref,
-        navigateType: viewAllLinkHref ? toString(raw?.viewAllNavigateType, "") : "allproducts",
-        fallbackTitle: headerText || viewAllTextStr,
+      // With no custom link configured, View All used to always go to the
+      // generic "AllProducts" screen regardless of which collection this
+      // carousel itself is scoped to. Matches the Builder's own
+      // handleViewAllClick (ProductCarousel/PreviewLive.tsx): go to the
+      // merchant's own "Product List" DSL page (so its header/other blocks
+      // still show — same fix as CollectionImage.js's collection taps) and
+      // pass this carousel's collection through so its ProductGrid shows the
+      // same products, only when no explicit link overrides that behavior.
+      if (viewAllLinkHref) {
+        void navigateToDslTarget(navigation, {
+          target: viewAllLinkHref,
+          href: viewAllLinkHref,
+          navigateType: toString(raw?.viewAllNavigateType, ""),
+          fallbackTitle: headerText || viewAllTextStr,
+        });
+        return;
+      }
+      navigation.navigate("BottomNavScreen", {
+        pageName: "Product List",
+        title: "Product List",
+        link: "Product List",
+        ...(collectionHandle ? { collectionHandle } : {}),
       });
     };
 

@@ -8,7 +8,16 @@ import React, {
   useState,
 } from 'react';
 import { useDispatch } from 'react-redux';
-import { AuthSession, clearSession, login, recoverPassword, restoreSession, signup } from './authService';
+import {
+  AuthSession,
+  clearSession,
+  login,
+  recoverPassword,
+  requestPasswordOtp,
+  resetPasswordWithOtp,
+  restoreSession,
+  signup,
+} from './authService';
 import { clearCart } from '../store/slices/cartSlice';
 import { setWishlistUser } from '../store/slices/wishlistSlice';
 import tokenLogger from '../utils/tokenLogger';
@@ -21,6 +30,12 @@ export type AuthContextValue = {
   login: (email: string, password: string) => Promise<void>;
   signup: (email: string, password: string, fullName?: string) => Promise<void>;
   recoverPassword: (email: string) => Promise<void>;
+  requestPasswordOtp: (email: string) => Promise<{ success: boolean; message: string }>;
+  resetPasswordWithOtp: (
+    email: string,
+    otp: string,
+    newPassword: string
+  ) => Promise<{ success: boolean; message: string }>;
   logout: () => Promise<void>;
 };
 
@@ -111,6 +126,17 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     await recoverPassword(email);
   }, []);
 
+  const handleRequestPasswordOtp = useCallback(async (email: string) => {
+    return requestPasswordOtp(email);
+  }, []);
+
+  const handleResetPasswordWithOtp = useCallback(
+    async (email: string, otp: string, newPassword: string) => {
+      return resetPasswordWithOtp(email, otp, newPassword);
+    },
+    []
+  );
+
   const handleLogout = useCallback(async () => {
     dispatch(clearCart());
     await clearSession();
@@ -129,9 +155,20 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       login: handleLogin,
       signup: handleSignup,
       recoverPassword: handleRecoverPassword,
+      requestPasswordOtp: handleRequestPasswordOtp,
+      resetPasswordWithOtp: handleResetPasswordWithOtp,
       logout: handleLogout,
     }),
-    [session, initializing, handleLogin, handleSignup, handleRecoverPassword, handleLogout]
+    [
+      session,
+      initializing,
+      handleLogin,
+      handleSignup,
+      handleRecoverPassword,
+      handleRequestPasswordOtp,
+      handleResetPasswordWithOtp,
+      handleLogout,
+    ]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

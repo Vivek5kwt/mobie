@@ -434,11 +434,40 @@ export default function ProductGrid({ section, limit = 8, title = "Products" }) 
       }
     }
 
+    // ── 3. Route param — set when the shopper arrived here via a collection
+    // tap (CollectionImage.js/Collection.js "openCollectionProducts") that
+    // redirected to this page's own DSL instead of the dedicated
+    // CollectionProducts screen, so the merchant's header/other blocks on
+    // this page still render. Mirrors the Builder's own
+    // "ab:selectedCollectionHandle" localStorage fallback in
+    // ProductGrid/PreviewLive.tsx. Only used when the block itself is set to
+    // "All" — a block explicitly scoped to its own collection is untouched.
+    const fromRoute = _slug(toString(route?.params?.collectionHandle, ""));
+    if (fromRoute) {
+      console.log("[ProductGrid] collectionHandle from route.params =", fromRoute);
+      return fromRoute;
+    }
+
     console.log("[ProductGrid] no collectionHandle found → all products");
     return "";
   })();
 
   const useCollectionFetch = !!collectionHandle;
+
+  // View All used to always go to the generic "AllProducts" screen
+  // regardless of which collection this grid is itself scoped to. Matches
+  // the Builder's own handleViewAllClick (ProductGrid/PreviewLive.tsx): go
+  // to the merchant's own "Product List" DSL page (so its header/other
+  // blocks still show — same fix as CollectionImage.js's collection taps)
+  // and pass this grid's collection through so the same products show there.
+  const handleViewAllPress = () => {
+    navigation.navigate("BottomNavScreen", {
+      pageName: "Product List",
+      title: "Product List",
+      link: "Product List",
+      ...(collectionHandle ? { collectionHandle } : {}),
+    });
+  };
 
   // ── Section header typography ─────────────────────────────────────────────
   const resolvedTitle         = toString(rawProps?.header ?? rawProps?.title, title);
@@ -1140,7 +1169,7 @@ export default function ProductGrid({ section, limit = 8, title = "Products" }) 
                     resolvedShowGridTitle ? styles.viewAllInlineAbsoluteRight : null,
                   ]}
                   activeOpacity={0.8}
-                  onPress={() => navigation.navigate("AllProducts", { title: resolvedTitle, detailSections })}
+                  onPress={handleViewAllPress}
                 >
                   <View style={styles.viewAllInlineContent}>
                     {!!resolvedViewAllIconName && resolvedViewAllIconPosition !== "right" && (
@@ -1184,7 +1213,7 @@ export default function ProductGrid({ section, limit = 8, title = "Products" }) 
                 <TouchableOpacity
                   style={styles.viewAllInline}
                   activeOpacity={0.8}
-                  onPress={() => navigation.navigate("AllProducts", { title: resolvedTitle, detailSections })}
+                  onPress={handleViewAllPress}
                 >
                   <View style={styles.viewAllInlineContent}>
                     {!!resolvedViewAllIconName && resolvedViewAllIconPosition !== "right" && (
@@ -1269,7 +1298,7 @@ export default function ProductGrid({ section, limit = 8, title = "Products" }) 
             <TouchableOpacity
               style={styles.viewAllInline}
               activeOpacity={0.8}
-              onPress={() => navigation.navigate("AllProducts", { title: resolvedTitle, detailSections })}
+              onPress={handleViewAllPress}
             >
               <View style={styles.viewAllInlineContent}>
                 {!!resolvedViewAllIconName && resolvedViewAllIconPosition !== "right" && (

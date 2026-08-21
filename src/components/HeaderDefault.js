@@ -374,11 +374,16 @@ export default function HeaderDefault({
   ) || "";
   const activeTabWeight = normalizeFontWeight(resolveVal(config.activeTabFontWeight), "700");
   const inactiveTabWeight = normalizeFontWeight(resolveVal(config.inactiveTabFontWeight), "500");
-  // Matches PhoneMockDefaultPreview.tsx's shouldUseTabCarousel: up to 4 tabs
-  // share the row equally; beyond that they'd get squeezed unreadably, so
-  // the builder switches to fixed-width tabs inside a horizontal scroller —
-  // mirror both the breakpoint and the 90px tab width here.
-  const shouldScrollTabs = tabs.length > 4;
+  // Matches PhoneMockDefaultPreview.tsx's shouldUseTabCarousel: up to 4
+  // (visible, actually-configured) tabs share the row equally; beyond that
+  // they'd get squeezed unreadably, so the builder switches to fixed-width
+  // tabs inside a horizontal scroller — mirror both the breakpoint and the
+  // 90px tab width here.
+  const visibleTabCount = tabs.filter((tab) => {
+    const hasLabel = String(resolveVal(tab.label) ?? resolveVal(tab.title) ?? resolveVal(tab.text) ?? "").trim();
+    return hasLabel || resolveVal(tab.image);
+  }).length;
+  const shouldScrollTabs = visibleTabCount > 4;
   const tabBarBg = { backgroundColor: bgColor, borderBottomWidth: 1, borderBottomColor: _isLightBg ? "rgba(0,0,0,0.08)" : "rgba(255,255,255,0.12)" };
   // Matches PhoneMockDefaultPreview.tsx's tab rendering — tabStyle "image_text"
   // shows each tab's own uploaded image (falling back to the block-level
@@ -389,10 +394,15 @@ export default function HeaderDefault({
   const blockImageShape = resolveVal(config.imageShape) || "square";
   const blockImageSize = Number(resolveVal(config.imageSize)) || 20;
   const blockImagePosition = resolveVal(config.imagePosition) || "top";
+  // Hide tabs with nothing actually configured (no label, no image) instead
+  // of falling back to a static "Tab N" placeholder — mirrors
+  // PhoneMockDefaultPreview.tsx so the app's tab bar always reflects what
+  // was really added in the builder, not a generic default name.
   const tabItems = tabs.map((tab, idx) => {
     const isActive = idx === activeTabIdx;
-    const label = resolveVal(tab.label) || resolveVal(tab.title) || resolveVal(tab.text) || `Tab ${idx + 1}`;
+    const label = String(resolveVal(tab.label) ?? resolveVal(tab.title) ?? resolveVal(tab.text) ?? "").trim();
     const tabImage = resolveVal(tab.image);
+    if (!label && !tabImage) return null;
     const showTabImage = tabStyle === "image_text" && !!tabImage;
     const tabImageShape = resolveVal(tab.imageShape) || blockImageShape;
     const tabImageSize = Number(resolveVal(tab.imageSize)) || blockImageSize;

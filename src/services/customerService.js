@@ -1,6 +1,8 @@
 import client from '../apollo/client';
 import REGISTER_CUSTOMER_MUTATION from '../graphql/mutations/registerCustomerMutation';
 import LOGIN_CUSTOMER_MUTATION from '../graphql/mutations/loginCustomerMutation';
+import REQUEST_CUSTOMER_PASSWORD_OTP_MUTATION from '../graphql/mutations/requestCustomerPasswordOtpMutation';
+import RESET_CUSTOMER_PASSWORD_WITH_OTP_MUTATION from '../graphql/mutations/resetCustomerPasswordWithOtpMutation';
 
 /**
  * Register a new customer
@@ -130,5 +132,89 @@ export const loginCustomer = async ({ email, password, store_id }) => {
     }
     
     throw new Error('Failed to login customer.');
+  }
+};
+
+/**
+ * Request a 4-digit password reset OTP (10 min expiry) be emailed to a
+ * customer, if one exists for this store. Always resolves (never throws
+ * for "no such customer") so the UI can't be used to enumerate emails.
+ * @param {Object} params
+ * @param {string} params.email - Customer's email address
+ * @param {number} params.store_id - Store ID
+ * @returns {Promise<{success: boolean, message: string}>}
+ */
+export const requestCustomerPasswordOtp = async ({ email, store_id }) => {
+  if (!email || !store_id) {
+    throw new Error('Missing required fields: email and store_id are required.');
+  }
+
+  try {
+    const { data, errors } = await client.mutate({
+      mutation: REQUEST_CUSTOMER_PASSWORD_OTP_MUTATION,
+      variables: { email, store_id },
+      errorPolicy: 'all',
+    });
+
+    if (errors && errors.length > 0) {
+      throw new Error(errors[0]?.message || 'Failed to send verification code.');
+    }
+
+    if (!data?.requestCustomerPasswordOtp) {
+      throw new Error('Failed to send verification code. No data returned.');
+    }
+
+    return data.requestCustomerPasswordOtp;
+  } catch (error) {
+    console.error('❌ requestCustomerPasswordOtp error:', error);
+    if (error?.graphQLErrors && error.graphQLErrors.length > 0) {
+      throw new Error(error.graphQLErrors[0].message || 'Failed to send verification code.');
+    }
+    if (error instanceof Error) {
+      throw error;
+    }
+    throw new Error('Failed to send verification code.');
+  }
+};
+
+/**
+ * Verify a password reset OTP and set a new password (hashed server-side).
+ * @param {Object} params
+ * @param {string} params.email - Customer's email address
+ * @param {number} params.store_id - Store ID
+ * @param {string} params.otp - 4-digit code from the email
+ * @param {string} params.newPassword - New password
+ * @returns {Promise<{success: boolean, message: string}>}
+ */
+export const resetCustomerPasswordWithOtp = async ({ email, store_id, otp, newPassword }) => {
+  if (!email || !store_id || !otp || !newPassword) {
+    throw new Error('Missing required fields: email, store_id, otp, and newPassword are required.');
+  }
+
+  try {
+    const { data, errors } = await client.mutate({
+      mutation: RESET_CUSTOMER_PASSWORD_WITH_OTP_MUTATION,
+      variables: { email, store_id, otp, newPassword },
+      errorPolicy: 'all',
+    });
+
+    if (errors && errors.length > 0) {
+      throw new Error(errors[0]?.message || 'Failed to reset password.');
+    }
+
+    if (!data?.resetCustomerPasswordWithOtp) {
+      throw new Error('Failed to reset password. No data returned.');
+    }
+
+    return data.resetCustomerPasswordWithOtp;
+  } catch (error) {
+    console.error('❌ resetCustomerPasswordWithOtp error:', error);
+    if (error?.graphQLErrors && error.graphQLErrors.length > 0) {
+      throw new Error(error.graphQLErrors[0].message || 'Failed to reset password.');
+    }
+    if (error instanceof Error) {
+      throw error;
+    }
+    throw new Error('Failed to reset password.');
   }
 };

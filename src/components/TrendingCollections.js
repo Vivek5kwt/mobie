@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import {
   Image,
   ScrollView,
@@ -11,6 +11,7 @@ import { useNavigation } from "@react-navigation/native";
 import Icon from "react-native-vector-icons/FontAwesome6";
 import { WebView } from "react-native-webview";
 import { resolveTextDecorationLine } from "../utils/textDecoration";
+import { fetchShopifyCollectionsList } from "../services/shopify";
 
 const isSvgUrl = (url) => {
   if (!url || typeof url !== "string") return false;
@@ -216,20 +217,54 @@ export default function TrendingCollections({ section }) {
     rp("collectionItems") ??
     [];
 
-  const collections = useMemo(
+  const manualCollections = useMemo(
     () => normalizeCollections(collectionsRaw),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [JSON.stringify(collectionsRaw)]
   );
 
+  // The Builder's own canvas (TrendingCollections/PreviewLive.tsx) auto-
+  // populates with the merchant's real published collections when nothing
+  // is manually configured — the Inspector has no "Items" editor for this
+  // block at all, so collectionsRaw is empty on every install unless a
+  // manual list was hand-written into the DSL. Without this fallback the
+  // app rendered nothing here, ever, while the Builder preview showed real
+  // collections.
+  const [liveCollections, setLiveCollections] = useState(null);
+  useEffect(() => {
+    if (manualCollections.length) return;
+    let alive = true;
+    fetchShopifyCollectionsList(10)
+      .then((list) => {
+        if (!alive) return;
+        setLiveCollections(
+          (list || [])
+            .filter((c) => c?.title)
+            .map((c) => ({ label: c.title, image: c.imageUrl || "", handle: c.handle || "" }))
+        );
+      })
+      .catch(() => {
+        if (alive) setLiveCollections([]);
+      });
+    return () => {
+      alive = false;
+    };
+  }, [manualCollections.length]);
+
+  const collections = manualCollections.length ? manualCollections : liveCollections || [];
+
   if (!collections.length) return null;
 
   // ── Heading ────────────────────────────────────────────────────────────────
+  // Defaults below match the Builder's InspectorLive.tsx / PreviewLive.tsx
+  // exactly (headingFontSize 16, headingBold false, headingPaddingBottom 5)
+  // — this file previously defaulted to bold + size 18 + 10px bottom padding,
+  // none of which the Builder canvas ever showed for a fresh block.
   const headingVisible = toBoolean(rp("headingVisible"), true);
   const headingText = unwrapValue(rp("headingText") ?? rp("title"), "Trending Collections");
-  const headingColor = unwrapValue(rp("headingColor"), "#111827");
-  const headingSize = toNumber(rp("headingFontSize") ?? rp("titleFontSize"), 18);
-  const headingBold = toBoolean(rp("headingBold"), true);
+  const headingColor = unwrapValue(rp("headingColor"), "#000000");
+  const headingSize = toNumber(rp("headingFontSize") ?? rp("titleFontSize"), 16);
+  const headingBold = toBoolean(rp("headingBold"), false);
   const headingItalic = toBoolean(rp("headingItalic"), false);
   const headingUnderline = toBoolean(rp("headingUnderline"), false);
   const headingStrikethrough = toBoolean(rp("headingStrikethrough"), false);
@@ -239,18 +274,23 @@ export default function TrendingCollections({ section }) {
   });
   const headingWeight = deriveWeight(rp("headingFontWeight"), headingBold ? "700" : "600");
   const headingPaddingTop = toNumber(rp("headingPaddingTop"), 0);
-  const headingPaddingBottom = toNumber(rp("headingPaddingBottom"), 10);
+  const headingPaddingBottom = toNumber(rp("headingPaddingBottom"), 5);
   const headingPaddingLeft = toNumber(rp("headingPaddingLeft"), 0);
   const headingPaddingRight = toNumber(rp("headingPaddingRight"), 0);
 
-  // ── Collection item styles ─────────────────────────────────────────────────
-  const collectionColor = unwrapValue(rp("collectionColor") ?? rp("labelColor"), "#111827");
-  const collectionSize = toNumber(rp("collectionFontSize") ?? rp("labelFontSize"), 12);
-  const collectionWeight = deriveWeight(rp("collectionFontWeight") ?? rp("labelFontWeight"), "500");
+  // Collection label styling has no Inspector control at all (Builder only
+  // exposes Heading/Image/Background&Padding for this block) — these
+  // defaults match PreviewLive.tsx's own hardcoded values instead, so a
+  // fresh block at least looks identical on both platforms.
+  const collectionColor = unwrapValue(rp("collectionColor") ?? rp("labelColor"), "#017176");
+  const collectionSize = toNumber(rp("collectionFontSize") ?? rp("labelFontSize"), 10);
+  const collectionWeight = deriveWeight(rp("collectionFontWeight") ?? rp("labelFontWeight"), "400");
   const itemGap = toNumber(rp("itemGap") ?? rp("gap"), 16);
 
-  // Circle size: read from DSL or default 68px
-  const circleSize = toNumber(rp("collectionCircleSize") ?? rp("circleSize") ?? rp("imageSize"), 68);
+  // Circle size: Builder's PreviewLive.tsx renders a fixed 100px-wide tile
+  // (not configurable via Inspector) — matches that instead of this file's
+  // previous unrelated 68px default.
+  const circleSize = toNumber(rp("collectionCircleSize") ?? rp("circleSize") ?? rp("imageSize"), 100);
   // Builder Preview (TrendingCollections/PreviewLive.tsx) renders a tile
   // whose height varies by imageRatio (1:1→1x, 2:3→1.5x, 4:5→1.25x the
   // width) and whose corner rounding comes from imageCorners (default 0 —
@@ -274,23 +314,26 @@ export default function TrendingCollections({ section }) {
     rp("collectionCircleBgColor") ?? rp("circleBg") ?? rp("imageBg"),
     unwrapValue(rp("bgColor") ?? rp("backgroundColor") ?? rp("containerBgColor") ?? rp("sectionBgColor"), "#FFFFFF")
   );
-  const circleIconColor = unwrapValue(rp("collectionCircleIconColor") ?? rp("iconColor"), "#0D9488");
+  const circleIconColor = unwrapValue(rp("collectionCircleIconColor") ?? rp("iconColor"), "#0b6570");
   const defaultPlaceholderIcon = normalizeIconName(
     unwrapValue(rp("collectionPlaceholderIcon") ?? rp("placeholderIcon"), "image")
   ) || "image";
   const circleIconSize = toNumber(rp("collectionCircleIconSize") ?? rp("iconSize"), 26);
 
   // ── Container ─────────────────────────────────────────────────────────────
+  // Matches the Builder's "Background & Padding" section defaults exactly
+  // (borderColor #D1D5DB, padding 20/20/26/26) instead of this file's
+  // previous unrelated defaults (a different gray, zero padding).
   const bgColor = unwrapValue(rp("bgColor") ?? rp("backgroundColor") ?? rp("containerBgColor") ?? rp("sectionBgColor"), "#FFFFFF");
   const borderRadius = toNumber(rp("borderRadius"), 0);
-  const borderColor = unwrapValue(rp("borderColor"), "#E5E7EB");
+  const borderColor = unwrapValue(rp("borderColor"), "#D1D5DB");
   const borderSide = unwrapValue(rp("borderSide"), "");
 
   const padding = {
-    paddingTop:    toNumber(rp("pt"), 0),
-    paddingRight:  toNumber(rp("pr"), 0),
-    paddingBottom: toNumber(rp("pb"), 0),
-    paddingLeft:   toNumber(rp("pl"), 0),
+    paddingTop:    toNumber(rp("pt"), 20),
+    paddingRight:  toNumber(rp("pr"), 26),
+    paddingBottom: toNumber(rp("pb"), 20),
+    paddingLeft:   toNumber(rp("pl"), 26),
   };
 
   // ── Navigation ────────────────────────────────────────────────────────────

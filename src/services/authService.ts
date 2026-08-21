@@ -6,6 +6,7 @@ import { resolveAppId } from '../utils/appId';
 import { fetchStoreConfig } from './storeService';
 import { loginCustomer } from './customerService';
 import { registerCustomer } from './customerService';
+import { requestCustomerPasswordOtp, resetCustomerPasswordWithOtp } from './customerService';
 import { createShopifyCustomerAccessToken, fetchShopifyCustomerDetails, recoverShopifyCustomerPassword } from './shopify';
 import tokenLogger from '../utils/tokenLogger';
 
@@ -136,6 +137,55 @@ export const recoverPassword = async (email: string): Promise<void> => {
   }
 
   await recoverShopifyCustomerPassword({ email: normalizedEmail });
+};
+
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+export const requestPasswordOtp = async (email: string): Promise<{ success: boolean; message: string }> => {
+  const normalizedEmail = email.trim().toLowerCase();
+  if (!normalizedEmail || !EMAIL_RE.test(normalizedEmail)) {
+    throw new Error('Enter a valid email address.');
+  }
+
+  const liveStore = await fetchStoreConfig();
+  const storeId = liveStore?.id ? Number(liveStore.id) : 0;
+  if (!storeId) {
+    throw new Error('Unable to determine store. Please try again.');
+  }
+
+  return requestCustomerPasswordOtp({ email: normalizedEmail, store_id: storeId });
+};
+
+export const resetPasswordWithOtp = async (
+  email: string,
+  otp: string,
+  newPassword: string
+): Promise<{ success: boolean; message: string }> => {
+  const normalizedEmail = email.trim().toLowerCase();
+  const normalizedOtp = otp.trim();
+
+  if (!normalizedEmail || !EMAIL_RE.test(normalizedEmail)) {
+    throw new Error('Enter a valid email address.');
+  }
+  if (!/^\d{4}$/.test(normalizedOtp)) {
+    throw new Error('Enter the 4-digit code from your email.');
+  }
+  if (!newPassword || newPassword.length < 8) {
+    throw new Error('Password must be at least 8 characters.');
+  }
+
+  const liveStore = await fetchStoreConfig();
+  const storeId = liveStore?.id ? Number(liveStore.id) : 0;
+  if (!storeId) {
+    throw new Error('Unable to determine store. Please try again.');
+  }
+
+  return resetCustomerPasswordWithOtp({
+    email: normalizedEmail,
+    store_id: storeId,
+    otp: normalizedOtp,
+    newPassword,
+  });
 };
 
 const parseMaybeJson = (value: unknown): any => {

@@ -8,7 +8,7 @@ import {
   useWindowDimensions,
   View,
 } from "react-native";
-import { useNavigation, useRoute } from "@react-navigation/native";
+import { useNavigation } from "@react-navigation/native";
 import { WebView } from "react-native-webview";
 import { convertStyles } from "../utils/convertStyles";
 import { resolveFont } from "../services/typographyService";
@@ -195,14 +195,6 @@ const deriveHandle = (item) => {
     .replace(/^-|-$/g, "");
 };
 
-const normalizeKey = (value) =>
-  String(value || "")
-    .toLowerCase()
-    .trim()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/-+/g, "-")
-    .replace(/^-|-$/g, "");
-
 const cleanFontFamily = (family) => resolveFont(family) || "";
 
 const toArray = (value) => {
@@ -231,8 +223,24 @@ const isRenderableImageUrl = (url) => {
 
 export default function CollectionImage({ section }) {
   const navigation = useNavigation();
-  const route = useRoute();
   const { width: screenW } = useWindowDimensions();
+
+  // This one RN component renders two different Builder blocks that share
+  // similar props but disagree on image shape: the "collection" block
+  // (Collection/PreviewLive.tsx) uses a wide 16:5 aspect-ratio banner image,
+  // while "collection_image" / "collection_slider" (this Inspector's own
+  // "Collection Slider" — CollectionImage/PreviewLive.tsx) always renders a
+  // fixed square (or circle) sized only by imageSize, with no aspect-ratio
+  // concept at all. Defaulting every instance to the 16:5 ratio below made
+  // Collection Slider images render as a short wide rectangle instead of
+  // matching the Builder's square/circle tiles.
+  const componentType = String(
+    section?.component?.const ??
+      section?.properties?.component?.const ??
+      section?.component ??
+      ""
+  ).toLowerCase();
+  const isSquareVariant = componentType !== "collection";
 
   const rawProps = useMemo(
     () =>
@@ -470,12 +478,17 @@ export default function CollectionImage({ section }) {
   const placeholderTextColor = asString(unwrapValue(firstDefined(rawSnapshot?.placeholderTextColor, cardCfg?.placeholderTextColor, imageNode?.placeholderTextColor), "#096D70"));
   const imageShape          = asString(unwrapValue(cardCfg?.imageShape ?? layoutCardImage?.shape, rawSnapshot?.imageRadius != null ? "rounded" : "circle")).toLowerCase();
   const imageScale          = asString(unwrapValue(imageNode?.scale ?? rawSnapshot?.imageScale, "cover")).toLowerCase();
-  // "Auto" (from the "collection" block's ratio dropdown — the "collection_image"
-  // block never exposes this control) doesn't match the W:H/number parse below,
-  // so it always fell through to this fallback — which used to be 1 (square),
-  // making Auto render identically to "1:1" instead of its own distinct shape.
-  // Matches the Builder's Collection/PreviewLive.tsx "16 / 5" Auto default.
-  const imageAspectRatio    = parseAspectRatio(firstDefined(imageNode?.ratio, rawSnapshot?.imageRatio, cardCfg?.imageRatio), 16 / 5);
+  // "Auto" (from the "collection" block's ratio dropdown) falls back to the
+  // Builder's own "16 / 5" Auto default there. But "collection_image" /
+  // "collection_slider" (Collection Slider) never expose a ratio control at
+  // all — its Builder counterpart (CollectionImage/PreviewLive.tsx) always
+  // renders a fixed square sized only by imageSize, with no aspect-ratio
+  // concept — so it must default to 1 (square), not 16/5, or every tile
+  // renders as a short wide rectangle instead of matching the Builder.
+  const imageAspectRatio    = parseAspectRatio(
+    firstDefined(imageNode?.ratio, rawSnapshot?.imageRatio, cardCfg?.imageRatio),
+    isSquareVariant ? 1 : 16 / 5
+  );
   const defaultImageWidth   = isGrid
     ? Math.max(0, gridCardW - cardPaddingLeft - cardPaddingRight)
     : cardImageSize;
@@ -514,13 +527,6 @@ export default function CollectionImage({ section }) {
   // behavior props use "default" keys in the DSL schema — unwrapValue now handles this
   const showArrows        = asBoolean(behavior?.showArrows ?? layoutCss?.slider?.showArrows, false);
 
-  const routePageSlug = normalizeKey(
-    route?.params?.pageName ||
-    route?.params?.link ||
-    route?.params?.title ||
-    route?.name ||
-    ""
-  );
   // Grid columns: explicit DSL column count, or derived from layoutMode
   const columns = isGrid
     ? gridColumns
@@ -614,22 +620,25 @@ export default function CollectionImage({ section }) {
 
   // Navigates to the product list for a collection handle — shared by the
   // sub-category tap handler below and the top-level "no subs, no explicit
-  // link" fallback case.
+  // link" fallback case. Goes to the merchant's own "Product List" DSL page
+  // (BottomNavScreen, same generic renderer every other page uses) instead
+  // of the dedicated CollectionProducts screen, which only ever shows a
+  // generic header + filter + grid and skips whatever other blocks the
+  // merchant actually designed onto that page. Matches the Builder's own
+  // handleCollectionClick (PreviewLive.tsx), which navigates to the
+  // "Product List" page and relies on ProductGrid picking up the collection
+  // via a shared fallback — collectionHandle here is that fallback's RN
+  // equivalent (see ProductGrid.js's route.params.collectionHandle read).
   const openCollectionProducts = useCallback((item) => {
     const handle = deriveHandle(item);
     if (!handle) return;
-    navigation.navigate("CollectionProducts", {
+    navigation.navigate("BottomNavScreen", {
+      pageName: "Product List",
+      title: "Product List",
+      link: "Product List",
       collectionHandle: handle,
-      collectionTitle: item?.title || "Collection",
-      parentCollection: {
-        handle,
-        title: item?.title || "Collection",
-        image: item?.image || "",
-        link: item?.link || "",
-      },
-      sourcePageName: routePageSlug,
     });
-  }, [navigation, routePageSlug]);
+  }, [navigation]);
 
   // Tapping a top-level collection card:
   //  - Has real (post-normalization) sub-categories → show them in place
