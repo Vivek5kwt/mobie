@@ -658,7 +658,7 @@ Current format:
 
 ```json
 {
-  "appId": 132,
+  "appid": 132,
   "name": "MobiDrag",
   "displayName": "WOWEEYE"
 }

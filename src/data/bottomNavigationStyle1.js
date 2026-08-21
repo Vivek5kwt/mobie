@@ -57,12 +57,10 @@ const bottomNavigationStyle1Section = {
             itemWidth: 0,
             libraryId: "31",
             showIcons: true,
-            gradientTo: "",
             iconHeight: 22,
             itemHeight: 60,
             // Use square corners on mobile for a cleaner, platform‑native feel
             borderRadius: 0,
-            gradientFrom: "",
             textFontSize: 11,
             indicatorMode: "",
             indicatorSize: 24,
@@ -373,10 +371,6 @@ const bottomNavigationStyle1Section = {
               type: "number",
               value: 12,
             },
-            gradientTo: {
-              type: "string",
-              value: "",
-            },
             paddingRaw: {
               type: "object",
               properties: {
@@ -402,10 +396,6 @@ const bottomNavigationStyle1Section = {
               type: "number",
               // Match mobile design: square corners for the bar container
               value: 0,
-            },
-            gradientFrom: {
-              type: "string",
-              value: "",
             },
             backgroundColor: {
               type: "string",

@@ -532,6 +532,8 @@ export default function SignUp({ section }) {
     emailInputTextFontWeight, passwordInputTextFontWeight, firstNamePlaceholderFontWeight,
     lastNamePlaceholderFontWeight, emailPlaceholderFontWeight, passwordPlaceholderFontWeight,
     firstNamePlaceholderBold, lastNamePlaceholderBold, emailPlaceholderBold, passwordPlaceholderBold,
+    firstNamePlaceholderDecoration, lastNamePlaceholderDecoration, emailPlaceholderDecoration, passwordPlaceholderDecoration,
+    firstNamePlaceholderItalic, lastNamePlaceholderItalic, emailPlaceholderItalic, passwordPlaceholderItalic,
     firstNameAlignment, lastNameAlignment, emailAlignment, passwordAlignment,
     firstNameInputTextAlignment, lastNameInputTextAlignment, emailInputTextAlignment,
     passwordInputTextAlignment, footerLinkAlignment, buttonIconAlignment,

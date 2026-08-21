@@ -1113,17 +1113,34 @@ export default function BottomNavScreen() {
               style={[StyleSheet.absoluteFill, styles.sideMenuOverlay, { opacity: overlayOpacity }]}
               pointerEvents="none"
             />
-            <View style={{ flex: 1, flexDirection: "row" }}>
-              <Animated.View
-                style={[
-                  styles.sideMenuContainer,
-                  { width: sideMenuWidth, maxWidth: sideMenuWidth, transform: [{ translateX: sideMenuTranslateX }] },
-                ]}
-              >
-                <SideNavigation section={sideNavSection || {}} />
-              </Animated.View>
-              <TouchableOpacity style={{ flex: 1 }} activeOpacity={1} onPress={closeSideMenu} />
-            </View>
+            {/* flexDirection: "row" (drawer-then-backdrop as flex children) used
+                to decide left-vs-right, and RN auto-mirrors "row" under RTL —
+                iOS detects RTL from the device locale far more aggressively
+                than Android, so the drawer silently rendered from the right on
+                iOS even though the translateX animation itself was unchanged.
+                Explicit absolute positioning is never auto-mirrored, so this
+                stays pinned left on both platforms regardless of locale. */}
+            <TouchableOpacity
+              style={StyleSheet.absoluteFill}
+              activeOpacity={1}
+              onPress={closeSideMenu}
+            />
+            <Animated.View
+              style={[
+                styles.sideMenuContainer,
+                {
+                  position: "absolute",
+                  top: 0,
+                  bottom: 0,
+                  left: 0,
+                  width: sideMenuWidth,
+                  maxWidth: sideMenuWidth,
+                  transform: [{ translateX: sideMenuTranslateX }],
+                },
+              ]}
+            >
+              <SideNavigation section={sideNavSection || {}} />
+            </Animated.View>
           </View>
         )}
 

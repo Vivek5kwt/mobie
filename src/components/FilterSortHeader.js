@@ -36,7 +36,6 @@ const SORT_OPTIONS = [
 const STATIC_AVAILABILITY_FILTERS = [
   { label: "In stock", count: 0, disabled: false },
   { label: "Out of stock", count: 0, disabled: false },
-  { label: "Available soon", count: 0, disabled: false },
 ];
 
 function isProductInStock(product) {
@@ -60,10 +59,9 @@ function isProductInStock(product) {
 }
 
 // Real counts from the product list actually being viewed, instead of
-// Builder's hardcoded mockup numbers (8 / 1 / 0). ProductGrid.js's own
-// availability-filter matching treats "Available soon" as a synonym for
-// "Out of stock" (no separate Shopify signal exists for it), so it shows the
-// same real count rather than a fake, always-zero one.
+// Builder's hardcoded mockup numbers (8 / 1). Builder's own Filter & Sort
+// block only ever offers these two options — "Available soon" isn't a real
+// setting there, so it shouldn't exist here either.
 function resolveAvailabilityFilters(products) {
   if (!Array.isArray(products) || !products.length) return STATIC_AVAILABILITY_FILTERS;
   const inStock = products.filter(isProductInStock).length;
@@ -71,7 +69,6 @@ function resolveAvailabilityFilters(products) {
   return [
     { label: "In stock", count: inStock, disabled: false },
     { label: "Out of stock", count: outOfStock, disabled: false },
-    { label: "Available soon", count: outOfStock, disabled: false },
   ];
 }
 

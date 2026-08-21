@@ -28,7 +28,7 @@ export const registerCustomer = async ({
   }
 
   try {
-    const { data } = await client.mutate({
+    const { data, errors } = await client.mutate({
       mutation: REGISTER_CUSTOMER_MUTATION,
       variables: {
         first_name,
@@ -41,6 +41,14 @@ export const registerCustomer = async ({
       },
       errorPolicy: 'all',
     });
+
+    // errorPolicy: 'all' returns GraphQL errors in `errors` instead of
+    // throwing — reading only `data` and ignoring `errors` meant a real
+    // server-thrown message (e.g. "Email already registered") never reached
+    // the caller, replaced by the generic message below.
+    if (errors && errors.length > 0) {
+      throw new Error(errors[0]?.message || 'Failed to register customer.');
+    }
 
     if (!data?.registerCustomer) {
       throw new Error('Failed to register customer. No data returned.');
@@ -78,7 +86,7 @@ export const loginCustomer = async ({ email, password, store_id }) => {
   }
 
   try {
-    const { data } = await client.mutate({
+    const { data, errors } = await client.mutate({
       mutation: LOGIN_CUSTOMER_MUTATION,
       variables: {
         email,
@@ -87,6 +95,14 @@ export const loginCustomer = async ({ email, password, store_id }) => {
       },
       errorPolicy: 'all',
     });
+
+    // errorPolicy: 'all' returns GraphQL errors in `errors` instead of
+    // throwing — reading only `data` and ignoring `errors` meant the
+    // server's real message ("Invalid email or password") never reached the
+    // caller, replaced by the generic "No data returned" message below.
+    if (errors && errors.length > 0) {
+      throw new Error(errors[0]?.message || 'Failed to login customer.');
+    }
 
     if (!data?.loginCustomer) {
       throw new Error('Failed to login customer. No data returned.');
