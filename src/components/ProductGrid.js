@@ -1072,7 +1072,8 @@ export default function ProductGrid({ section, limit = 8, title = "Products" }) 
         setProducts(result?.products || []);
         setHasMore(Boolean(result?.pageInfo?.hasNextPage));
       }
-    } catch {
+    } catch (err) {
+      console.error("ProductGrid loadProducts failed:", err?.message || err);
       if (isMountedRef.current && loadRequestSeqRef.current === requestSeq) {
         setError("Unable to load products right now. Please try again later.");
       }

@@ -100,6 +100,14 @@ export default function WishlistItem({ section }) {
   usePageEmptyStateReporter("wishlist", isWishlistEmpty);
 
   // ── DSL styling props ──────────────────────────────────────────────────────
+  // "card" = per-item card's own Background & Padding section in Builder;
+  // "card2" (the *2-suffixed fields below) = the outer grid/container's own,
+  // separate Background & Padding section — two independent toggles/settings,
+  // same as Builder's wishlist_item PreviewLive.tsx (visibility.card /
+  // visibility.card2, bgColor/bgColor2, radius/radius2, borderColor+borderSide
+  // / borderColor2+borderSide2, pt/pb/pl/pr / pt2/pb2/pl2/pr2).
+  const cardVisible = raw?.visibility?.card !== false;
+  const card2Visible = raw?.visibility?.card2 !== false;
   const pt = toNumber(raw?.pt ?? raw?.paddingTop, 12);
   const pb = toNumber(raw?.pb ?? raw?.paddingBottom, 12);
   const pl = toNumber(raw?.pl ?? raw?.paddingLeft, 12);
@@ -113,6 +121,14 @@ export default function WishlistItem({ section }) {
   const rowGap = toNumber(raw?.rowGap ?? raw?.verticalGap, gridGap);
   const radius = toNumber(raw?.radius, 12);
   const bgColor = toString(raw?.bgColor, "#FFFFFF");
+  // Outer/grid container's own background+radius+border — Builder's card2
+  // section (bgColor2/radius2/borderColor2/borderSide2). Was never read here
+  // at all before; only its padding (outerPt/outerPb/outerPl/outerPr above)
+  // was wired up.
+  const bgColor2 = toString(raw?.bgColor2, "#FFFFFF");
+  const radius2 = toNumber(raw?.radius2, 12);
+  const borderColor2 = toString(raw?.borderColor2, "#EAEAEA");
+  const borderSide2 = toString(raw?.borderSide2, "none");
   const emptyBgColor = toString(raw?.emptyBgColor ?? raw?.emptyBackgroundColor, "#FFFFFF");
   const emptyTitle = toString(raw?.emptyTitle ?? raw?.emptyWishlistTitle, "Personal Collection");
   const emptySubtitle = toString(
@@ -123,7 +139,13 @@ export default function WishlistItem({ section }) {
     raw?.removeSnackbarMessage ?? raw?.wishlistRemoveSnackbarMessage ?? raw?.snackbarRemoveMessage,
     "Removed from Personal Collection"
   );
-  const borderColor = toString(raw?.borderColor, "#E5E7EB");
+  // Matches Builder's own defaults (wishlist_item PreviewLive.tsx) — was
+  // "#E5E7EB" here, a different color than Builder's "#EAEAEA" default.
+  const borderColor = toString(raw?.borderColor, "#EAEAEA");
+  // Inner card's border-line selector — was never read at all here, so the
+  // card always showed styles.card's static 1px border below regardless of
+  // what "Border Line" was actually set to in Builder (including "None").
+  const borderSide = toString(raw?.borderSide, "none");
   const iconColor = toString(raw?.iconColor, "#FF4D4F");
   const iconSize = toNumber(raw?.iconSize, 18);
   // Builder's wishlist_item block has a single configurable "remove" icon
@@ -193,7 +215,61 @@ export default function WishlistItem({ section }) {
   const countMarginBottom = toNumber(raw?.countMarginBottom ?? raw?.labelMarginBottom, gridGap);
   const titleLineHeight = Math.max(Math.ceil(titleFontSize * 1.25), toNumber(raw?.titleLineHeight, 0));
   const priceLineHeight = Math.max(Math.ceil(priceFontSize * 1.25), toNumber(raw?.priceLineHeight, 0));
-  const availableWidth = Math.max(1, screenWidth - outerPl - outerPr - gridGap * (columns - 1));
+
+  // "Box settings" — the Background & Padding sections (card/card2) are each
+  // an on/off toggle in Builder (visibility.card / visibility.card2): when
+  // off, that box's background/padding/radius/border all fall back to
+  // transparent/0/none, exactly like Builder's own PreviewLive.tsx
+  // (mergeBrandKitWithBlockProps-independent — this is the block's own
+  // props, gated the same way there). Compute the *effective* values once
+  // here so every consumer below (render + the cardWidth math, which must
+  // match whatever padding is actually applied) agrees.
+  const resolveBorderStyle = (side, color) => {
+    const none = {
+      borderWidth: 0,
+      borderTopWidth: 0,
+      borderBottomWidth: 0,
+      borderLeftWidth: 0,
+      borderRightWidth: 0,
+    };
+    switch (side) {
+      case "top":
+        return { ...none, borderTopWidth: 1, borderColor: color };
+      case "bottom":
+        return { ...none, borderBottomWidth: 1, borderColor: color };
+      case "left":
+        return { ...none, borderLeftWidth: 1, borderColor: color };
+      case "right":
+        return { ...none, borderRightWidth: 1, borderColor: color };
+      case "none":
+        return none;
+      case "all":
+      default:
+        return { ...none, borderWidth: 1, borderColor: color };
+    }
+  };
+
+  const effectiveOuterPt = card2Visible ? outerPt : 0;
+  const effectiveOuterPb = card2Visible ? outerPb : 0;
+  const effectiveOuterPl = card2Visible ? outerPl : 0;
+  const effectiveOuterPr = card2Visible ? outerPr : 0;
+  const effectiveBgColor2 = card2Visible ? bgColor2 : "transparent";
+  const effectiveRadius2 = card2Visible ? radius2 : 0;
+  const effectiveBorderStyle2 = card2Visible
+    ? resolveBorderStyle(borderSide2, borderColor2)
+    : resolveBorderStyle("none", borderColor2);
+
+  const effectivePt = cardVisible ? pt : 0;
+  const effectivePb = cardVisible ? pb : 0;
+  const effectivePl = cardVisible ? pl : 0;
+  const effectivePr = cardVisible ? pr : 0;
+  const effectiveBgColor = cardVisible ? bgColor : "transparent";
+  const effectiveRadius = cardVisible ? radius : 0;
+  const effectiveBorderStyle = cardVisible
+    ? resolveBorderStyle(borderSide, borderColor)
+    : resolveBorderStyle("none", borderColor);
+
+  const availableWidth = Math.max(1, screenWidth - effectiveOuterPl - effectiveOuterPr - gridGap * (columns - 1));
   const cardWidth = availableWidth / columns;
 
   // Resolve image aspect ratio: "1:1" → 1, "4:3" → 0.75 (height/width), etc.
@@ -240,17 +316,25 @@ export default function WishlistItem({ section }) {
   }
 
   return (
-    <View
-      style={[
-        styles.grid,
-        {
-          paddingTop: outerPt,
-          paddingBottom: outerPb,
-          paddingLeft: outerPl,
-          paddingRight: outerPr,
-        },
-      ]}
-    >
+    // Plain layout wrapper only — WishlistScreen's ScrollView sets
+    // contentContainerStyle={{ flexGrow: 1, ... }} so short content still
+    // fills the screen, and this grid View inherits that same flexGrow:1.
+    // The box-settings background/padding/radius/border below must NOT live
+    // on this View: painting them here stretched the "card2" box across
+    // that entire grown height (a large black/colored rectangle reaching
+    // down to the bottom nav) instead of hugging just the actual content,
+    // the same way Builder's own preview (which has no such grow behavior)
+    // renders it. They live on the inner box View instead, which sizes to
+    // its content as normal.
+    <View style={styles.grid}>
+      {/* Count label ("N items saved") is an app-only affordance — Builder's
+          own wishlist_item PreviewLive.tsx has no such element and its card2
+          "Background & Padding" box wraps only the product grid itself. Kept
+          it inside the box before, so paddingTop pushed the label down
+          instead of the cards — the actual label-height + margin sat between
+          the box's top edge and the first card, on top of pt2, instead of
+          pt2 alone. Lives outside the box now so pt2 lands exactly where
+          Builder puts it: directly above the first card row. */}
       <Text
         style={[
           styles.countLabel,
@@ -265,25 +349,36 @@ export default function WishlistItem({ section }) {
       >
         {wishlistItems.length} {wishlistItems.length === 1 ? "item" : "items"} saved
       </Text>
-      <View style={[styles.row, { gap: gridGap, rowGap }]}>
-        {wishlistItems.map((product) => {
-          const imageHeight = cardWidth * imageAspect;
+      <View
+        style={{
+          backgroundColor: effectiveBgColor2,
+          borderRadius: effectiveRadius2,
+          paddingTop: effectiveOuterPt,
+          paddingBottom: effectiveOuterPb,
+          paddingLeft: effectiveOuterPl,
+          paddingRight: effectiveOuterPr,
+          ...effectiveBorderStyle2,
+        }}
+      >
+        <View style={[styles.row, { gap: gridGap, rowGap }]}>
+          {wishlistItems.map((product) => {
+            const imageHeight = cardWidth * imageAspect;
 
-          return (
-            <TouchableOpacity
-              key={product.id}
-              activeOpacity={0.85}
+            return (
+              <TouchableOpacity
+                key={product.id}
+                activeOpacity={0.85}
               style={[
                 styles.card,
                 {
                   width: cardWidth,
-                  backgroundColor: bgColor,
-                  borderRadius: radius,
-                  borderColor,
-                  paddingTop: pt,
-                  paddingBottom: pb,
-                  paddingLeft: pl,
-                  paddingRight: pr,
+                  backgroundColor: effectiveBgColor,
+                  borderRadius: effectiveRadius,
+                  paddingTop: effectivePt,
+                  paddingBottom: effectivePb,
+                  paddingLeft: effectivePl,
+                  paddingRight: effectivePr,
+                  ...effectiveBorderStyle,
                 },
               ]}
               onPress={() =>
@@ -397,6 +492,7 @@ export default function WishlistItem({ section }) {
             </TouchableOpacity>
           );
         })}
+        </View>
       </View>
     </View>
   );

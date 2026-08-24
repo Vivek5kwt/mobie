@@ -250,6 +250,7 @@ export default function OrderDetailScreen() {
   const [detailsError, setDetailsError] = useState("");
   const [noOrders,        setNoOrders]        = useState(false);
   const [headerConfig,    setHeaderConfig]    = useState(null);
+  const [brandKit,        setBrandKit]        = useState(null);
   const [bottomNavSection, setBottomNavSection] = useState(null);
   const [bottomNavHeight,  setBottomNavHeight]  = useState(BOTTOM_NAV_RESERVED_HEIGHT);
   const versionRef = useRef(null);
@@ -284,6 +285,7 @@ export default function OrderDetailScreen() {
       if (dslData?.dsl) {
         setSections(Array.isArray(dslData.dsl.sections) ? dslData.dsl.sections : []);
         setHeaderConfig(dslData.dsl.headerdefault ?? null);
+        setBrandKit(dslData.dsl.brandKit ?? null);
         versionRef.current = dslData.versionNumber ?? null;
         dslFingerprintRef.current = getDslFingerprint(dslData.dsl);
       }
@@ -304,6 +306,7 @@ export default function OrderDetailScreen() {
         if (v !== versionRef.current || fp !== dslFingerprintRef.current) {
           setSections(Array.isArray(latest.dsl.sections) ? latest.dsl.sections : []);
           setHeaderConfig(latest.dsl.headerdefault ?? null);
+          setBrandKit(latest.dsl.brandKit ?? null);
           versionRef.current = v;
           dslFingerprintRef.current = fp;
         }
@@ -399,17 +402,26 @@ export default function OrderDetailScreen() {
   const itemsSection       = findSection("order_detail_page");
   const emptyStateSection  = orderInfoSection || sections[0] || null;
   const pageProps          = getRawProps(itemsSection || sections[0]);
-  const pageBackground     = toStr(
-    pageProps?.backgroundColor ??
-      pageProps?.bgColor ??
-      pageProps?.containerBgColor ??
-      pageProps?.contBackgroundColor ??
-      pageProps?.layoutBgColor,
-    "#FFFFFF"
-  );
+  // Whole-page background is Brand Kit's "Page Background" (colors.pageBg)
+  // — same source LayoutScreen.js already uses for the Home/main screen —
+  // not any individual block's own bgColor. Each of the 4 order-detail
+  // blocks (Order Details/Order Info/Price Info/Cancel Order) has its own,
+  // independent card background; reading the page-level color from
+  // whichever one happened to be `itemsSection || sections[0]` picked an
+  // arbitrary block's card color as the whole screen's background instead
+  // of the page-level Brand Kit setting.
+  const pageBackground     = toStr(brandKit?.colors?.pageBg, "#FFFFFF");
   const pagePt             = toNum(pageProps?.pt ?? pageProps?.paddingTop, 16);
-  const pagePl             = toNum(pageProps?.pl ?? pageProps?.paddingLeft, 16);
-  const pagePr             = toNum(pageProps?.pr ?? pageProps?.paddingRight, 16);
+  // No page-level left/right padding — Builder's canvas has none either
+  // (preview/PreviewLive.tsx's screenScroll wrapper is unpadded; every block
+  // manages its own horizontal spacing via its own card padding, which is
+  // already applied per-block above). This used to default to 16px and was
+  // borrowed from whichever block happened to be `itemsSection ||
+  // sections[0]`'s own card-padding field (pl/paddingLeft) — a block's own
+  // padding, not a real page-level setting — so every block rendered
+  // narrower than it does in Builder/centerLive/the Publish page preview.
+  const pagePl             = 0;
+  const pagePr             = 0;
   const pagePb             = toNum(pageProps?.pb ?? pageProps?.paddingBottom, 16);
   const pageGap            = toNum(pageProps?.sectionGap ?? pageProps?.componentGap ?? pageProps?.gap, 0);
   const emptyProps         = emptyStateSection ? getRawProps(emptyStateSection) : {};
@@ -428,7 +440,7 @@ export default function OrderDetailScreen() {
 
     if (component === "order_detail_page") {
       if (!order?.lineItems?.length) return null;
-      return <OrderItemsSection key={key} section={section} items={order.lineItems} />;
+      return <OrderItemsSection key={key} section={section} items={order.lineItems} order={order} />;
     }
 
     if (component === "order_info") {
@@ -580,17 +592,36 @@ function OrderInfoSection({ section, order }) {
   const valuesStyle = propsNode?.valuesStyle || propsNode?.valueStyle || {};
   const valuesVisibility = valuesStyle?.visibility || propsNode?.visibility || {};
 
-  const cardBg          = toStr(propsNode?.bgColor ?? propsNode?.backgroundColor ?? propsNode?.cardBgColor ?? propsNode?.cardBg, "#FFFFFF");
-  const cardRadius      = toNum(propsNode?.borderRadius ?? propsNode?.radius ?? propsNode?.cornerRadius, 0);
-  const rowDividerColor = toStr(propsNode?.dividerColor ?? propsNode?.rowBorderColor, "#F3F4F6");
+  // Builder's order_info block (Order_details/Preview/OrderInfoPreview.tsx)
+  // gates its whole card behind a "backgroundActive" toggle and uses its own
+  // distinct field names — orderInfoBgColor (falling back to bgColor),
+  // outerCorners (not borderRadius/radius/cornerRadius), and bgPadLL/RR/TT/BB
+  // for padding (not read here at all previously) — matching exactly what
+  // OrderInfoInspector/BackgroundPaddingPanel.tsx actually writes.
+  const backgroundActive = toBool(propsNode?.backgroundActive, true);
+  const cardBg          = backgroundActive ? toStr(propsNode?.orderInfoBgColor ?? propsNode?.bgColor, "#FFFFFF") : "transparent";
+  const cardRadius      = backgroundActive ? toNum(propsNode?.outerCorners, 0) : 0;
+  const cardPadT        = backgroundActive ? toNum(propsNode?.bgPadTT, 0) : 0;
+  const cardPadB        = backgroundActive ? toNum(propsNode?.bgPadBB, 0) : 0;
+  const cardPadL        = backgroundActive ? toNum(propsNode?.bgPadLL, 16) : 0;
+  const cardPadR        = backgroundActive ? toNum(propsNode?.bgPadRR, 16) : 0;
+  // Font settings below all now match DEFAULT_ORDER_INFO
+  // (Order_details/defaultProps.ts) exactly: labelStyle { fontSize: 12,
+  // fontFamily: "Inter", fontWeight: "Medium" (-> 500), color: "#6B7280" },
+  // valuesStyle { fontSize: 14, fontFamily: "Inter", fontWeight: "Bold"
+  // (-> 700), color: "#000000" }. labelColor already matched; valueColor/
+  // labelSize/valueSize/labelWeight/valueWeight/both fontFamilies were all
+  // wrong here — same class of bug as PriceInfoSection (fontFamily silently
+  // defaulted to "" instead of "Inter", omitting the style and falling back
+  // to the OS system font).
   const labelColor      = toStr(labelStyle?.color ?? propsNode?.labelColor ?? propsNode?.labelLabelColor ?? propsNode?.subtitleColor, "#6B7280");
-  const valueColor      = toStr(valuesStyle?.color ?? propsNode?.valueColor ?? propsNode?.textColor, "#111827");
-  const labelSize       = toNum(labelStyle?.fontSize ?? propsNode?.labelFontSize ?? propsNode?.fontSize, 13);
-  const valueSize       = toNum(valuesStyle?.fontSize ?? propsNode?.valueFontSize ?? propsNode?.fontSize, 13);
-  const labelWeight     = toFontWeight(labelStyle?.fontWeight ?? propsNode?.labelFontWeight, "400");
-  const valueWeight     = toFontWeight(valuesStyle?.fontWeight ?? propsNode?.valueFontWeight, "500");
-  const labelFontFamily = cleanFontFamily(toStr(labelStyle?.fontFamily ?? propsNode?.labelFontFamily ?? propsNode?.fontFamily, ""));
-  const valueFontFamily = cleanFontFamily(toStr(valuesStyle?.fontFamily ?? propsNode?.valueFontFamily ?? propsNode?.fontFamily, ""));
+  const valueColor      = toStr(valuesStyle?.color ?? propsNode?.valueColor ?? propsNode?.textColor, "#000000");
+  const labelSize       = toNum(labelStyle?.fontSize ?? propsNode?.labelFontSize ?? propsNode?.fontSize, 12);
+  const valueSize       = toNum(valuesStyle?.fontSize ?? propsNode?.valueFontSize, 14);
+  const labelWeight     = toFontWeight(labelStyle?.fontWeight ?? propsNode?.labelFontWeight, "500");
+  const valueWeight     = toFontWeight(valuesStyle?.fontWeight ?? propsNode?.valueFontWeight, "700");
+  const labelFontFamily = cleanFontFamily(toStr(labelStyle?.fontFamily ?? propsNode?.labelFontFamily ?? propsNode?.fontFamily, "Inter"));
+  const valueFontFamily = cleanFontFamily(toStr(valuesStyle?.fontFamily ?? propsNode?.valueFontFamily ?? propsNode?.fontFamily, "Inter"));
   const labelUppercase  = toBool(labelStyle?.uppercase ?? propsNode?.labelUppercase, false);
   const valueUppercase  = toBool(valuesStyle?.uppercase ?? propsNode?.valueUppercase, false);
   const rowPt           = toNum(propsNode?.rowPaddingTop ?? propsNode?.paddingTop, 12);
@@ -643,10 +674,21 @@ function OrderInfoSection({ section, order }) {
 
   if (!rows.length) return null;
 
-  const border = dslBorder(propsNode);
+  // borderSideStyleFromLine (not dslBorder) — matches OrderInfoPreview.tsx's
+  // own borderStyleFromSide(borderLine, borderColor, borderSize) exactly,
+  // including its default borderSize of 2 (dslBorder's default was 1).
+  const border = backgroundActive
+    ? borderSideStyleFromLine(propsNode?.borderLine ?? "none", toStr(propsNode?.borderColor, ""), toNum(propsNode?.borderSize, 2))
+    : {};
 
   return (
-    <View style={[styles.card, { backgroundColor: cardBg, borderRadius: cardRadius }, border]}>
+    <View
+      style={[
+        styles.card,
+        { backgroundColor: cardBg, borderRadius: cardRadius, paddingTop: cardPadT, paddingBottom: cardPadB, paddingLeft: cardPadL, paddingRight: cardPadR },
+        border,
+      ]}
+    >
       {rows.map((row, i) => (
         <View
           key={i}
@@ -658,7 +700,6 @@ function OrderInfoSection({ section, order }) {
               paddingLeft: rowPl,
               paddingRight: rowPr,
             },
-            i < rows.length - 1 && { borderBottomWidth: 1, borderBottomColor: rowDividerColor },
           ]}
         >
           <Text style={[
@@ -699,15 +740,31 @@ function PriceInfoSection({ section, order }) {
   const numberStyle = propsNode?.numberStyle || propsNode?.valueStyle || {};
   const numberVisibility = numberStyle?.visibility || propsNode?.visibility || {};
 
-  const cardBg       = toStr(propsNode?.bgColor ?? propsNode?.backgroundColor ?? propsNode?.cardBgColor ?? propsNode?.cardBg, "#FFFFFF");
-  const cardRadius   = toNum(propsNode?.borderRadius ?? propsNode?.radius, 0);
-  const dividerColor = toStr(propsNode?.dividerColor ?? propsNode?.rowBorderColor, "#F3F4F6");
-  const labelColor   = toStr(labelStyle?.color ?? propsNode?.labelColor, "#374151");
-  const valueColor   = toStr(numberStyle?.color ?? propsNode?.valueColor ?? propsNode?.textColor, "#111827");
-  const totalColor   = toStr(propsNode?.totalColor ?? propsNode?.boldColor, "#111827");
-  const rowFontSize  = toNum(labelStyle?.fontSize ?? propsNode?.fontSize, 14);
-  const valueFontSize = toNum(numberStyle?.fontSize ?? propsNode?.valueFontSize ?? propsNode?.fontSize, rowFontSize);
-  const totalSize    = toNum(propsNode?.totalFontSize ?? propsNode?.boldFontSize, 15);
+  // Builder's price_info block (Order_details/Preview/PriceInfoPreview.tsx)
+  // has no visibility toggle for its box (always applied) and uses its own
+  // field names — outerCorners (not borderRadius/radius), and bgPadL/R/T/B
+  // (not read here at all previously). Also its actual defaults differ from
+  // what was hardcoded here: a visible teal border by default (borderLine
+  // "all", color "#0EA5A8"), not no border.
+  const cardBg       = toStr(propsNode?.bgColor, "#ffffff");
+  const cardRadius   = toNum(propsNode?.outerCorners, 0);
+  const cardPadT     = toNum(propsNode?.bgPadT, 16);
+  const cardPadB     = toNum(propsNode?.bgPadB, 16);
+  const cardPadL     = toNum(propsNode?.bgPadL, 16);
+  const cardPadR     = toNum(propsNode?.bgPadR, 16);
+  // Font settings below all now match DEFAULT_PRICE_INFO
+  // (Order_details/defaultProps.ts) exactly: labelStyle { fontSize: 12,
+  // fontFamily: "Inter", fontWeight: "Medium" (-> 500), color: "#6B7280" },
+  // numberStyle { fontSize: 14, fontFamily: "Inter", fontWeight: "700",
+  // color: "#000000" }. Every one of these six defaults was previously
+  // wrong here (color/size on both label and number, and fontFamily on both
+  // silently defaulted to "" — omitting the style entirely and falling back
+  // to the OS system font instead of Inter — and fontWeight defaulted to
+  // "400" for both instead of the real 500/700).
+  const labelColor   = toStr(labelStyle?.color ?? propsNode?.labelColor, "#6B7280");
+  const valueColor   = toStr(numberStyle?.color ?? propsNode?.valueColor ?? propsNode?.textColor, "#000000");
+  const rowFontSize  = toNum(labelStyle?.fontSize ?? propsNode?.fontSize, 12);
+  const valueFontSize = toNum(numberStyle?.fontSize ?? propsNode?.valueFontSize, 14);
   const orderCurrencyCode = toStr(order?.currencyCode ?? order?.priceCurrency, "");
   const orderCurrencySymbol = toStr(order?.currencySymbol, "");
   const normalizedOrderSymbol = orderCurrencySymbol === "$" && orderCurrencyCode
@@ -717,22 +774,23 @@ function PriceInfoSection({ section, order }) {
     normalizedOrderSymbol ||
     sharedCurrencySymbolForCode(orderCurrencyCode);
   const currLabel = orderCurrencyCode || currSymbol;
-  const labelFontFamily = cleanFontFamily(toStr(labelStyle?.fontFamily ?? propsNode?.labelFontFamily ?? propsNode?.fontFamily, ""));
-  const valueFontFamily = cleanFontFamily(toStr(numberStyle?.fontFamily ?? propsNode?.valueFontFamily ?? propsNode?.fontFamily, ""));
-  const labelWeight = toFontWeight(labelStyle?.fontWeight ?? propsNode?.labelFontWeight, "400");
-  const valueWeight = toFontWeight(numberStyle?.fontWeight ?? propsNode?.valueFontWeight, "400");
-  const totalWeight = toFontWeight(propsNode?.totalFontWeight ?? propsNode?.boldFontWeight, "700");
-  const showSubtotal = toBool(propsNode?.showSubtotal ?? propsNode?.showSubTotal, true);
+  const labelFontFamily = cleanFontFamily(toStr(labelStyle?.fontFamily ?? propsNode?.labelFontFamily ?? propsNode?.fontFamily, "Inter"));
+  const valueFontFamily = cleanFontFamily(toStr(numberStyle?.fontFamily ?? propsNode?.valueFontFamily ?? propsNode?.fontFamily, "Inter"));
+  const labelWeight = toFontWeight(labelStyle?.fontWeight ?? propsNode?.labelFontWeight, "500");
+  const valueWeight = toFontWeight(numberStyle?.fontWeight ?? propsNode?.valueFontWeight, "700");
   const showDelivery = toBool(numberVisibility?.delivery ?? propsNode?.showDelivery, true);
   const showTax = toBool(numberVisibility?.tax ?? propsNode?.showTax, true);
   const showTotal = toBool(numberVisibility?.total ?? propsNode?.showTotal, true);
   const labelUppercase = toBool(labelStyle?.uppercase ?? propsNode?.labelUppercase, false);
   const valueUppercase = toBool(numberStyle?.uppercase ?? propsNode?.valueUppercase, false);
 
+  // No Subtotal — Builder's PriceInfoPreview.tsx only ever renders three rows
+  // (Delivery, Tax, Total); Subtotal was never part of that block's DSL or
+  // canvas render, so showing it here was showing text that doesn't exist
+  // in the builder.
   const delivery = firstValue(order?.delivery, order?.shippingPrice, order?.shippingAmount, propsNode?.delivery);
   const tax      = firstValue(order?.tax, order?.totalTax, propsNode?.tax);
   const total    = firstValue(order?.total, order?.totalPrice, order?.currentTotalPrice, propsNode?.total);
-  const subtotal = firstValue(order?.subtotal, order?.subtotalPrice, order?.currentSubtotalPrice, propsNode?.subtotal);
   const labelFor = (key) =>
     toStr(
       firstValue(propsNode?.[`${key}Label`], propsNode?.labels?.[key]),
@@ -740,28 +798,60 @@ function PriceInfoSection({ section, order }) {
     );
 
   const rows = [
-    showSubtotal && hasOrderValue(subtotal) ? { label: toStr(firstValue(propsNode?.subtotalLabel, propsNode?.subTotalLabel), labelFor("subtotal")), value: fmt(subtotal, currLabel), bold: false } : null,
-    showDelivery && hasOrderValue(delivery) ? { label: labelFor("delivery"), value: fmt(delivery, currLabel), bold: false } : null,
-    showTax && hasOrderValue(tax) ? { label: labelFor("tax"), value: fmt(tax, currLabel), bold: false } : null,
-    showTotal && hasOrderValue(total) ? { label: labelFor("total"), value: fmt(total, currLabel), bold: true } : null,
+    showDelivery && hasOrderValue(delivery) ? { label: labelFor("delivery"), value: fmt(delivery, currLabel) } : null,
+    showTax && hasOrderValue(tax) ? { label: labelFor("tax"), value: fmt(tax, currLabel) } : null,
+    // Total uses the exact same label/value styling as every other row below
+    // (labelColor/rowFontSize/labelWeight, valueColor/valueFontSize/
+    // valueWeight) — Builder's Total row reuses the identical labelSX/
+    // numberSX as Delivery/Tax, no separate bold/color treatment. isTotal is
+    // only used for the extra top spacing below (Builder's Total row has its
+    // own mt={1}, on top of the row above's own mb={0.75} — flexbox doesn't
+    // collapse margins, so the two add together).
+    showTotal && hasOrderValue(total) ? { label: labelFor("total"), value: fmt(total, currLabel), isTotal: true } : null,
   ].filter(Boolean);
 
-  const border = dslBorder(propsNode);
+  // borderSideStyleFromLine (not dslBorder) — matches PriceInfoPreview.tsx's
+  // own borderStyleFromSide exactly, including its defaults (a visible "all"
+  // border in teal by default, not dslBorder's no-border-unless-configured).
+  const border = borderSideStyleFromLine(
+    toStr(propsNode?.borderLine, "all"),
+    toStr(propsNode?.borderColor, "#0EA5A8"),
+    toNum(propsNode?.borderSize, 1)
+  );
 
   return (
-    <View style={[styles.card, { backgroundColor: cardBg, borderRadius: cardRadius }, border]}>
+    <View
+      style={[
+        styles.card,
+        { backgroundColor: cardBg, borderRadius: cardRadius, paddingTop: cardPadT, paddingBottom: cardPadB, paddingLeft: cardPadL, paddingRight: cardPadR },
+        border,
+      ]}
+    >
       {rows.map((row, i) => (
         <View
           key={i}
           style={[
             styles.priceRow,
-            i < rows.length - 1 && { borderBottomWidth: 1, borderBottomColor: dividerColor },
+            // styles.priceRow's own paddingHorizontal/paddingVertical are
+            // zeroed out here rather than changed at the source — that base
+            // style is shared with PriceInfoCardUnified below. Builder's Row
+            // has no per-row padding at all (the card's own bgPadL/R/T/B,
+            // already applied to the card container above, is the only
+            // horizontal/vertical inset) — the row-level paddingHorizontal
+            // here used to double up with the card's padding, and
+            // paddingVertical produced a 24px gap between rows (12+12) where
+            // Builder only shows 6px (mb={0.75}, MUI's 8px spacing unit).
+            // Total gets an additional marginTop: 8 (mt={1}), matching
+            // Builder's Total row exactly — flexbox doesn't collapse
+            // adjacent margins, so it adds on top of the row above's own
+            // marginBottom.
+            { paddingHorizontal: 0, paddingVertical: 0, marginBottom: 6 },
+            row.isTotal ? { marginTop: 8 } : null,
           ]}
         >
           <Text style={[
             styles.priceLabel,
-            { color: row.bold ? totalColor : labelColor, fontSize: row.bold ? totalSize : rowFontSize },
-            { fontWeight: row.bold ? totalWeight : labelWeight },
+            { color: labelColor, fontSize: rowFontSize, fontWeight: labelWeight },
             labelUppercase ? { textTransform: "uppercase" } : null,
             labelFontFamily ? { fontFamily: labelFontFamily } : null,
           ]}>
@@ -769,8 +859,7 @@ function PriceInfoSection({ section, order }) {
           </Text>
           <Text style={[
             styles.priceValue,
-            { color: row.bold ? totalColor : valueColor, fontSize: row.bold ? totalSize : valueFontSize },
-            { fontWeight: row.bold ? totalWeight : valueWeight },
+            { color: valueColor, fontSize: valueFontSize, fontWeight: valueWeight },
             valueUppercase ? { textTransform: "uppercase" } : null,
             valueFontFamily ? { fontFamily: valueFontFamily } : null,
           ]}>
@@ -935,19 +1024,22 @@ function OrderInfoCardUnified({ data, order }) {
 
   if (!rows.length) return null;
 
+  // Same DEFAULT_ORDER_INFO defaults as OrderInfoSection above (fontSize 12/
+  // 14, fontWeight Medium/Bold -> 500/700, color #6B7280/#000000, fontFamily
+  // Inter/Inter) — this unified-block variant had the identical mismatches.
   const labelSx = {
-    fontSize: toNum(labelStyle?.fontSize, 13),
-    fontWeight: toFontWeight(labelStyle?.fontWeight, "400"),
+    fontSize: toNum(labelStyle?.fontSize, 12),
+    fontWeight: toFontWeight(labelStyle?.fontWeight, "500"),
     color: toStr(labelStyle?.color, "#6B7280"),
     textTransform: toBool(labelStyle?.uppercase, false) ? "uppercase" : "none",
-    ...(cleanFontFamily(toStr(labelStyle?.fontFamily, "")) ? { fontFamily: cleanFontFamily(toStr(labelStyle?.fontFamily, "")) } : {}),
+    fontFamily: cleanFontFamily(toStr(labelStyle?.fontFamily, "Inter")) || undefined,
   };
   const valueSx = {
-    fontWeight: toFontWeight(valuesStyle?.fontWeight, "600"),
-    color: toStr(valuesStyle?.color, "#111111"),
-    fontSize: toNum(valuesStyle?.fontSize, 13),
+    fontWeight: toFontWeight(valuesStyle?.fontWeight, "700"),
+    color: toStr(valuesStyle?.color, "#000000"),
+    fontSize: toNum(valuesStyle?.fontSize, 14),
     textTransform: toBool(valuesStyle?.uppercase, false) ? "uppercase" : "none",
-    ...(cleanFontFamily(toStr(valuesStyle?.fontFamily, "")) ? { fontFamily: cleanFontFamily(toStr(valuesStyle?.fontFamily, "")) } : {}),
+    fontFamily: cleanFontFamily(toStr(valuesStyle?.fontFamily, "Inter")) || undefined,
   };
 
   return (
@@ -961,7 +1053,7 @@ function OrderInfoCardUnified({ data, order }) {
       {rows.map((row, i) => (
         <View
           key={i}
-          style={[styles.infoRow, i < rows.length - 1 && { borderBottomWidth: 1, borderBottomColor: "#F3F4F6" }]}
+          style={styles.infoRow}
         >
           <Text style={[styles.infoLabel, labelSx]}>{row.label}</Text>
           <Text style={[styles.infoValue, valueSx]}>{row.value}</Text>
@@ -1038,7 +1130,7 @@ function PriceInfoCardUnified({ data, order }) {
         </View>
       ))}
       {showTotal && (
-        <View style={[styles.priceRow, rows.length ? { borderTopWidth: 1, borderTopColor: "#F3F4F6" } : null]}>
+        <View style={styles.priceRow}>
           <Text style={[styles.priceLabel, labelSx]}>Total</Text>
           <Text style={[styles.priceValue, numberSx, { textAlign: "right" }]}>{fmt(total, currLabel)}</Text>
         </View>
@@ -1100,17 +1192,50 @@ function CancelOrderSection({ section, order, appId, userId, email, customerAcce
   const fontSize     = toNum(textStyle.fontSize ?? raw?.fontSize, 14);
   const fontWeight   = toFontWeight(textStyle.fontWeight ?? raw?.fontWeight, "600");
   const fontFamily   = cleanFontFamily(toStr(textStyle?.fontFamily ?? raw?.fontFamily, ""));
+  // Matches DEFAULT_CANCEL_ORDER (Order_details/defaultProps.ts) exactly —
+  // the button ships with a visible 2px teal border on all sides by default
+  // (borderAlign: "center" — CancelOrderPreview.tsx's getBorderStyle maps
+  // "center"/"all" to a border on every side), not borderColor: "" (no
+  // border) and not a fabricated "buttonRadius" field the Inspector never
+  // actually writes.
   const bgColor      = toStr(bg.backgroundColor,   "#0D9488");
-  const borderColor  = toStr(bg.borderColor,        "");
-  const borderRadius = Math.max(toNum(raw?.buttonRadius ?? bg.borderRadius, 8), 0);
+  const borderAlign  = toStr(bg.borderAlign, "center");
+  const borderColor  = toStr(bg.borderColor, "#0EA5A8");
+  const borderRadius = Math.max(toNum(bg.borderRadius, 2), 0);
   const disabledBgColor = toStr(raw?.disabledBgColor ?? raw?.disabledBackgroundColor, bgColor);
   const disabledTextColor = toStr(raw?.disabledTextColor ?? raw?.disabledColor, textColor);
-  const outerBgColor = toStr(boxBg.backgroundColor, "transparent");
+  // Outer box — same defaults as boxBackgroundPadding in
+  // DEFAULT_CANCEL_ORDER: white background, and (per the same
+  // borderAlign:"center" default) a border on every side too — previously
+  // not applied here at all.
+  const outerBgColor = toStr(boxBg.backgroundColor, "#ffffff");
+  const outerBorderAlign = toStr(boxBg.borderAlign, "center");
+  const outerBorderColor = toStr(boxBg.borderColor, "#ffffff");
   const outerRadius = Math.max(toNum(boxBg.borderRadius, 0), 0);
   const outerPt = toNum(boxBg.paddingTop, 0);
   const outerPb = toNum(boxBg.paddingBottom, 0);
   const outerPl = toNum(boxBg.paddingLeft, 0);
   const outerPr = toNum(boxBg.paddingRight, 0);
+  // Mirrors CancelOrderPreview.tsx's getBorderStyle(borderAlign, borderColor)
+  // exactly, including its hardcoded 2px width — "left/right/top/bottom" is
+  // one side, "all"/"center" is every side, anything else (incl. "none") is
+  // no border. Neither borderAlign's per-side selection nor a border on the
+  // outer box existed here before — the app only ever showed a generic 1px
+  // border on the button (and never on the box) when a color happened to be
+  // configured.
+  const cancelBorderStyle = (align, color) => {
+    if (!color) return {};
+    const v = String(align || "").toLowerCase();
+    const w = 2;
+    if (v === "left") return { borderLeftWidth: w, borderColor: color };
+    if (v === "right") return { borderRightWidth: w, borderColor: color };
+    if (v === "top") return { borderTopWidth: w, borderColor: color };
+    if (v === "bottom") return { borderBottomWidth: w, borderColor: color };
+    if (v === "all" || v === "center") return { borderWidth: w, borderColor: color };
+    return {};
+  };
+  const buttonBorder = cancelBorderStyle(borderAlign, borderColor);
+  const outerBorder = cancelBorderStyle(outerBorderAlign, outerBorderColor);
   const status = String(order?.status || order?.financialStatus || "").trim().toLowerCase();
   const orderName = getOrderDisplayName(order);
   const alreadyCanceled = !!order?.cancelledAt || status === "canceled" || status === "cancelled";
@@ -1262,16 +1387,22 @@ function CancelOrderSection({ section, order, appId, userId, email, customerAcce
   if (!alreadyCanceled && !canCancel && !submitting) return null;
 
   return (
-    <View style={[styles.cancelContainer, { backgroundColor: outerBgColor, borderRadius: outerRadius, paddingTop: outerPt, paddingBottom: outerPb, paddingLeft: outerPl, paddingRight: outerPr }]}>
+    <View
+      style={[
+        styles.cancelContainer,
+        { backgroundColor: outerBgColor, borderRadius: outerRadius, paddingTop: outerPt, paddingBottom: outerPb, paddingLeft: outerPl, paddingRight: outerPr },
+        outerBorder,
+      ]}
+    >
       <TouchableOpacity
         style={[
           styles.cancelButton,
           {
             backgroundColor: disabled && !alreadyCanceled ? disabledBgColor : bgColor,
             borderRadius,
-            ...(borderColor ? { borderColor, borderWidth: 1 } : { borderWidth: 0 }),
             opacity: disabled && !alreadyCanceled ? toNum(raw?.disabledOpacity, 0.55) : 1,
           },
+          buttonBorder,
         ]}
         onPress={alreadyCanceled ? handleReorder : handleCancel}
         disabled={alreadyCanceled ? false : disabled}
@@ -1295,22 +1426,86 @@ function CancelOrderSection({ section, order, appId, userId, email, customerAcce
 
 // ─── Order Items Section ──────────────────────────────────────────────────────
 
-function OrderItemsSection({ section, items }) {
+function OrderItemsSection({ section, items, order }) {
   const propsNode = section ? getRawProps(section) : {};
 
-  const bgColor        = toStr(propsNode?.bgColor ?? propsNode?.backgroundColor ?? propsNode?.cardBgColor ?? propsNode?.cardBg, "#FFFFFF");
-  const radius         = toNum(propsNode?.radius ?? propsNode?.borderRadius ?? propsNode?.cornerRadius, 14);
+  // Builder's order_detail_page block (OrderInfo/PreviewLive.tsx) gates its
+  // whole card — background, padding, radius, border — behind a single
+  // "orderCard" visibility toggle, and its actual DSL field names are
+  // bgColor/pt/pr/pb/pl (not paddingTop/Left/Right/Bottom, which were never
+  // written by that block's Inspector at all — so this card's configured
+  // padding never reached the app previously).
+  const showOrderCard  = toBool(propsNode?.visibility?.orderCard, true);
+  const bgColor        = showOrderCard ? toStr(propsNode?.bgColor, "#F5F5F5") : "transparent";
+  // Per-field visibility toggles — none of these were read at all before, so
+  // every line always showed regardless of what was actually enabled/
+  // disabled in the Inspector. Builder's own naming is confusing (the
+  // "orderNumber" toggle actually gates the Variant line, and "orderDelivery"
+  // gates the Price line — not what the names suggest) but this mirrors
+  // OrderInfo/PreviewLive.tsx's showImage/showTitle/showLabel/
+  // showOrderNumber/showOrderDate/showOrderDelivery exactly, including that
+  // showLabel is the outer gate for all three of Variant/Date/Price (if it's
+  // off, none of the three show even if individually enabled).
+  const vis = propsNode?.visibility || {};
+  const showImage = toBool(vis?.cardImage, true);
+  const showTitle = toBool(vis?.cardTitle, true);
+  const showLabel = toBool(vis?.orderLabel, true);
+  const showVariant = showLabel && toBool(vis?.orderNumber, true);
+  const showDate = showLabel && toBool(vis?.orderDate, true);
+  const showPrice = showLabel && toBool(vis?.orderDelivery, true);
+  // borderRadius — the only real field (see OrderInfo/InspectorLive.tsx's
+  // "Border Radius" control, which writes exactly this key with a default of
+  // 0). "radius"/"cornerRadius" were guessed names nothing ever writes, so
+  // they never masked the real value in practice — but the default of 14
+  // here meant an *unconfigured* card looked rounded in the app while the
+  // Inspector's own default is a square 0, which is what "not working
+  // dynamically" showed up as: whatever the merchant actually set the field
+  // to was correctly read, but the moment it was still at its default (most
+  // merchants never touch it), the app showed a completely different corner
+  // radius than Builder's default (and, separately, OrderInfo/PreviewLive.tsx's
+  // own canvas render hardcodes "20px" regardless of this prop — a Builder
+  // canvas bug, fixed alongside this one so the saved value is at least
+  // visible and correct in both places going forward).
+  const radius         = showOrderCard ? toNum(propsNode?.borderRadius, 0) : 0;
+  // Text colors/fonts below all now read Builder's actual field names —
+  // titleColor/titleFontSize/titleFontFamily were already close, but the
+  // "Variant"/"Delivery Date"/"Price" lines were reading fabricated field
+  // names (metaColor/metaFontSize/priceColor/priceFontSize/priceFontWeight/
+  // priceFontFamily) that OrderInfo/InspectorLive.tsx never actually writes
+  // — Builder's real, independently-configurable fields for those three
+  // lines are labelLabelColor/labelFontSize/labelFontWeight/labelFontFamily
+  // (Variant), dateColor/dateFontSize/dateFontWeight/dateFontFamily
+  // (Delivery Date), and deliveryColor/deliveryFontSize/deliveryFontWeight/
+  // deliveryFontFamily (Price) — so customizing any of those three lines'
+  // color/size/weight/family in the Inspector had zero effect here before.
   const titleColor     = toStr(propsNode?.titleColor, "#000000");
-  const priceColor     = toStr(propsNode?.priceColor, "#000000");
-  const titleFontSize  = toNum(propsNode?.titleFontSize, 14);
-  const priceFontSize  = toNum(propsNode?.priceFontSize, 13);
+  const titleFontSize  = toNum(propsNode?.titleFontSize, 12);
   const titleFontWeight = toFontWeight(propsNode?.titleFontWeight, "600");
-  const priceFontWeight = toFontWeight(propsNode?.priceFontWeight, "500");
+  const titleFontFamily = cleanFontFamily(toStr(propsNode?.titleFontFamily, "Inter"));
   const titleUppercase = toBool(propsNode?.titleUppercase, false);
+
+  const labelColor = toStr(propsNode?.labelLabelColor, "#666666");
+  const labelSize = toNum(propsNode?.labelFontSize, 12);
+  const labelWeight = toFontWeight(propsNode?.labelFontWeight, "400");
+  const labelFontFamily = cleanFontFamily(toStr(propsNode?.labelFontFamily, "Inter"));
+
+  const dateColor = toStr(propsNode?.dateColor, "#666666");
+  const dateSize = toNum(propsNode?.dateFontSize, 11);
+  const dateWeight = toFontWeight(propsNode?.dateFontWeight, "400");
+  const dateFontFamily = cleanFontFamily(toStr(propsNode?.dateFontFamily, "Inter"));
+
+  const priceColor     = toStr(propsNode?.deliveryColor, "#000000");
+  const priceFontSize  = toNum(propsNode?.deliveryFontSize, 12);
+  const priceFontWeight = toFontWeight(propsNode?.deliveryFontWeight, "600");
+  const priceFontFamily = cleanFontFamily(toStr(propsNode?.deliveryFontFamily, "Inter"));
   const priceAlign = toStr(propsNode?.priceAlign, "left").toLowerCase();
-  const titleFontFamily = cleanFontFamily(toStr(propsNode?.titleFontFamily, ""));
-  const priceFontFamily = cleanFontFamily(toStr(propsNode?.priceFontFamily ?? propsNode?.titleFontFamily, ""));
-  const metaColor = toStr(propsNode?.metaColor, "#6B7280");
+  // Shopify has no per-line-item delivery date — none of the order-fetching
+  // code in services/shopify.js ever sets item.deliveryDate, so this line
+  // never had anything to show. Fall back to the order-level estimate (the
+  // same value OrderInfoSection's own "Estimated arrival" row already uses)
+  // and show it on every item, since delivery date is order-wide in
+  // Shopify's model, not per line item.
+  const orderDeliveryDate = firstValue(order?.arrival, order?.estimatedDelivery);
   const imageBgColor = toStr(
     propsNode?.imageBg ??
       propsNode?.imageBgColor ??
@@ -1319,11 +1514,13 @@ function OrderItemsSection({ section, items }) {
       propsNode?.productImageBackgroundColor,
     "#FFFFFF"
   );
-  const metaFontSize = toNum(propsNode?.metaFontSize, 12);
-  const padTop    = toNum(propsNode?.paddingTop,    12);
-  const padLeft   = toNum(propsNode?.paddingLeft,   12);
-  const padRight  = toNum(propsNode?.paddingRight,  12);
-  const padBottom = toNum(propsNode?.paddingBottom, 12);
+  // pt/pr/pb/pl — Builder's actual field names for this block's padding
+  // (see the "showOrderCard" comment above). Kept paddingTop/etc. as a
+  // fallback in case any older saved DSL used those instead.
+  const padTop    = showOrderCard ? toNum(propsNode?.pt ?? propsNode?.paddingTop,    0) : 0;
+  const padLeft   = showOrderCard ? toNum(propsNode?.pl ?? propsNode?.paddingLeft,   0) : 0;
+  const padRight  = showOrderCard ? toNum(propsNode?.pr ?? propsNode?.paddingRight,  0) : 0;
+  const padBottom = showOrderCard ? toNum(propsNode?.pb ?? propsNode?.paddingBottom, 0) : 0;
   const imageWidth = toNum(propsNode?.imageWidth, 90);
   const imageRatio = toStr(propsNode?.imageRatio ?? propsNode?.ratio, "");
   const ratioParts = imageRatio.match(/^(\d+(?:\.\d+)?)\s*:\s*(\d+(?:\.\d+)?)$/);
@@ -1331,7 +1528,7 @@ function OrderItemsSection({ section, items }) {
     ? Math.max(1, Math.round(imageWidth * (Number(ratioParts[2]) / Number(ratioParts[1]))))
     : imageWidth;
   const imageRadius = toNum(propsNode?.imageRadius ?? propsNode?.imageCorner, 0);
-  const border = dslBorder(propsNode);
+  const border = showOrderCard ? dslBorder(propsNode) : {};
   const labelFor = (key) =>
     toStr(firstValue(propsNode?.[`${key}Label`], propsNode?.labels?.[key]), humanizeKey(key));
   const itemPriceText = (item = {}) => {
@@ -1359,63 +1556,67 @@ function OrderItemsSection({ section, items }) {
             border,
           ]}
         >
-          {item.imageUrl ? (
-            <Image
-              source={{ uri: item.imageUrl }}
-              style={[
-                styles.itemImage,
-                {
-                  width: imageWidth,
-                  height: imageHeight,
-                  borderRadius: imageRadius,
-                  backgroundColor: imageBgColor,
-                },
-              ]}
-              resizeMode={resolveProductImageResizeMode(
-                propsNode?.imageScale,
-                propsNode?.scale,
-                propsNode?.imageResizeMode
-              )}
-            />
-          ) : (
-            <View
-              style={[
-                styles.itemImage,
-                styles.itemImagePlaceholder,
-                {
-                  width: imageWidth,
-                  height: imageHeight,
-                  borderRadius: imageRadius,
-                  backgroundColor: imageBgColor,
-                },
-              ]}
-            >
-              <FontAwesome name="image" size={28} color="#D1D5DB" />
-            </View>
-          )}
+          {showImage ? (
+            item.imageUrl ? (
+              <Image
+                source={{ uri: item.imageUrl }}
+                style={[
+                  styles.itemImage,
+                  {
+                    width: imageWidth,
+                    height: imageHeight,
+                    borderRadius: imageRadius,
+                    backgroundColor: imageBgColor,
+                  },
+                ]}
+                resizeMode={resolveProductImageResizeMode(
+                  propsNode?.imageScale,
+                  propsNode?.scale,
+                  propsNode?.imageResizeMode
+                )}
+              />
+            ) : (
+              <View
+                style={[
+                  styles.itemImage,
+                  styles.itemImagePlaceholder,
+                  {
+                    width: imageWidth,
+                    height: imageHeight,
+                    borderRadius: imageRadius,
+                    backgroundColor: imageBgColor,
+                  },
+                ]}
+              >
+                <FontAwesome name="image" size={28} color="#D1D5DB" />
+              </View>
+            )
+          ) : null}
           <View style={styles.itemInfo}>
-            <Text
-              style={[styles.itemTitle, { color: titleColor, fontSize: titleFontSize, fontWeight: titleFontWeight, textTransform: titleUppercase ? "uppercase" : "none", ...(titleFontFamily ? { fontFamily: titleFontFamily } : {}) }]}
-              numberOfLines={3}
-            >
-              {item.title}
-            </Text>
-            {item.variant ? (
-              <Text style={[styles.itemMeta, { color: metaColor, fontSize: metaFontSize }]}>
+            {showTitle ? (
+              <Text
+                style={[styles.itemTitle, { color: titleColor, fontSize: titleFontSize, fontWeight: titleFontWeight, textTransform: titleUppercase ? "uppercase" : "none", ...(titleFontFamily ? { fontFamily: titleFontFamily } : {}) }]}
+                numberOfLines={3}
+              >
+                {item.title}
+              </Text>
+            ) : null}
+            {showVariant && item.variant ? (
+              <Text style={[styles.itemMeta, { color: labelColor, fontSize: labelSize, fontWeight: labelWeight, ...(labelFontFamily ? { fontFamily: labelFontFamily } : {}) }]}>
                 {labelFor("variant")}: {item.variant}
               </Text>
             ) : null}
-            {item.quantity ? (
-              <Text style={[styles.itemMeta, { color: metaColor, fontSize: metaFontSize }]}>
+            {showVariant && item.quantity ? (
+              <Text style={[styles.itemMeta, { color: labelColor, fontSize: labelSize, fontWeight: labelWeight, ...(labelFontFamily ? { fontFamily: labelFontFamily } : {}) }]}>
                 {labelFor("quantity")}: {item.quantity}
               </Text>
             ) : null}
-            {item.deliveryDate ? (
-              <Text style={[styles.itemMeta, { color: metaColor, fontSize: metaFontSize }]}>
-                {labelFor("deliveryDate")}: {item.deliveryDate}
+            {showDate && (item.deliveryDate || orderDeliveryDate) ? (
+              <Text style={[styles.itemMeta, { color: dateColor, fontSize: dateSize, fontWeight: dateWeight, ...(dateFontFamily ? { fontFamily: dateFontFamily } : {}) }]}>
+                {labelFor("deliveryDate")}: {item.deliveryDate || orderDeliveryDate}
               </Text>
             ) : null}
-            {itemPriceText(item) ? (
+            {showPrice && itemPriceText(item) ? (
               <Text style={[styles.itemPrice, { color: priceColor, fontSize: priceFontSize, fontWeight: priceFontWeight, textAlign: priceAlign, ...(priceFontFamily ? { fontFamily: priceFontFamily } : {}) }]}>
                 {labelFor("price")}: {itemPriceText(item)}
               </Text>

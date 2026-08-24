@@ -543,6 +543,7 @@ export default function MediaGrid({ section }) {
           }
         }
       } catch (error) {
+        console.error("MediaGrid product load failed:", error?.message || error);
         if (isMounted) {
           setLoadError("Unable to load products right now.");
           setShopifyItems([]);

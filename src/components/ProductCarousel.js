@@ -969,6 +969,7 @@ export default function ProductCarousel({ section }) {
         setProducts(result?.products || []);
       }
     } catch (err) {
+      console.error("ProductCarousel loadProducts failed:", err?.message || err);
       if (isMountedRef.current) {
         setError("Unable to load products right now. Please try again later.");
       }

@@ -404,13 +404,18 @@ export default function OrderHistory({ section }) {
   const showRedirect = toBool(raw?.showRedirect, true);
 
   const imageSize = Math.max(34, toNum(raw?.imageSize ?? raw?.thumbnailSize, 44));
-  // Inspector/Preview use imageRatioOH ("Auto"→square/"1:1"/"2:3"/"4:5"),
+  // Inspector/Preview use imageRatioOH ("Auto"→4:5/"1:1"/"2:3"/"4:5"),
   // matching Builder's default "1:1" — this was never read here at all, so
   // the thumbnail was always forced square regardless of the merchant's
-  // Ratio selection.
+  // Ratio selection. "Auto" specifically returned the same 1 (square) as
+  // literal "1:1" — same bug as Builder's own canvas preview.tsx (fixed
+  // alongside this one) — making the two indistinguishable. Builder's
+  // PreviewLive.tsx (both previews) uses cssAspectRatioFor(imageRatioOH,
+  // "4 / 5") for this same image, i.e. width/height = 4/5 = 0.8; matched
+  // here.
   const imageAspectOH = (() => {
     const r = toStr(raw?.imageRatioOH, "1:1");
-    if (r === "Auto") return 1;
+    if (r === "Auto") return 4 / 5;
     const m = r.match(/^(\d+(?:\.\d+)?)\s*:\s*(\d+(?:\.\d+)?)$/);
     if (m) {
       const w = parseFloat(m[1]);
