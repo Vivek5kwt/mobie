@@ -7,6 +7,8 @@ import {
   View,
 } from "react-native";
 import FontAwesome from "react-native-vector-icons/FontAwesome";
+import { getToastColorsSync } from "../services/brandKitService";
+import { getTypography } from "../services/typographyService";
 
 /**
  * Snackbar — slides up from the bottom, auto-dismisses.
@@ -91,8 +93,18 @@ export default function Snackbar({
     };
   }, [visible]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Brand Kit's toastBg/toastText (Builder > Brand Kit > Colors > Toast), once
+  // the merchant sets them, apply uniformly across success/error/info rather
+  // than keeping 3 separate hardcoded shades — matching what's actually
+  // configurable there (one background + one text color). Falls back to the
+  // original per-type colors when unset, so an app that never customized this
+  // looks exactly as before.
+  const toastColors = getToastColorsSync();
   const bgColor =
-    type === "error" ? "#DC2626" : type === "info" ? "#2563EB" : "#0D9488";
+    toastColors?.bgColor ||
+    (type === "error" ? "#DC2626" : type === "info" ? "#2563EB" : "#0D9488");
+  const textColor = toastColors?.textColor || "#fff";
+  const fontFamily = getTypography()?.headlineFontFamily || undefined;
   const iconName =
     type === "error" ? "times-circle" : type === "info" ? "info-circle" : "check-circle";
 
@@ -120,10 +132,13 @@ export default function Snackbar({
         ]}
       >
         {/* Icon */}
-        <FontAwesome name={iconName} size={22} color="#fff" style={styles.icon} />
+        <FontAwesome name={iconName} size={22} color={textColor} style={styles.icon} />
 
         {/* Message */}
-        <Text style={styles.message} numberOfLines={2}>
+        <Text
+          style={[styles.message, { color: textColor }, fontFamily ? { fontFamily } : null]}
+          numberOfLines={2}
+        >
           {message}
         </Text>
 
@@ -135,7 +150,7 @@ export default function Snackbar({
             activeOpacity={0.75}
             hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
           >
-            <Text style={styles.actionText}>{actionLabel}</Text>
+            <Text style={[styles.actionText, { color: textColor }, fontFamily ? { fontFamily } : null]}>{actionLabel}</Text>
           </TouchableOpacity>
         )}
       </Animated.View>

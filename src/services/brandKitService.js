@@ -186,6 +186,32 @@ export const getSplashBackgroundSync = () =>
   _brandAssets?.splashGradEnd ||
   "transparent";
 
+// ── Toast (Snackbar) colors ─────────────────────────────────────────────────
+// Merchant-set brandKit.colors.toastBg/toastText (Builder's Brand Kit >
+// Colors > Toast section) — read directly by Snackbar.js instead of its old
+// hardcoded per-type (success/error/info) colors. null/missing means "use
+// Snackbar's own built-in defaults", so an app that never customized this
+// looks exactly as before.
+let _toastColors = null;
+
+export const setToastColorsFromDsl = (dsl) => {
+  const root = unwrapDeep(parseMaybeJson(dsl), {});
+  const colors = isObject(root) ? root?.brandKit?.colors : null;
+  if (!isObject(colors)) return _toastColors;
+
+  const bgColor = cleanString(colors.toastBg);
+  const textColor = cleanString(colors.toastText);
+  if (!bgColor && !textColor) return _toastColors;
+
+  _toastColors = {
+    bgColor: bgColor || _toastColors?.bgColor || null,
+    textColor: textColor || _toastColors?.textColor || null,
+  };
+  return _toastColors;
+};
+
+export const getToastColorsSync = () => _toastColors;
+
 export async function fetchBrandKitAssets(appId) {
   const resolvedAppId = resolveAppId(appId);
   const appIdInt = Number.isInteger(resolvedAppId)
