@@ -54,19 +54,6 @@ const ORDER_NOTIFICATION_TYPES = new Set([
   'order_canceled',
 ]);
 
-/** Campaign deep-link paths (Automation flows' "Call to action" field) that
- *  route to a specific screen rather than the generic navigateToDslTarget
- *  fallback — matches the paths the Builder UI's CTA field currently offers. */
-const KNOWN_CAMPAIGN_DEEP_LINK_PATHS = new Set(['cart', 'orders', 'account']);
-
-const normalizeDeepLinkPath = (value: string) =>
-  String(value || '')
-    .trim()
-    .toLowerCase()
-    .replace(/^\/+/, '')
-    .split(/[?#]/)[0]
-    .split('/')[0];
-
 export default function App() {
   const navigationRef = useNavigationContainerRef();
   const routeNameRef = useRef<string | undefined>(undefined);
@@ -95,7 +82,15 @@ export default function App() {
       const type: string = data?.type || '';
       const deepLink: string = data?.deep_link || '';
 
-      if (deepLink && KNOWN_CAMPAIGN_DEEP_LINK_PATHS.has(normalizeDeepLinkPath(deepLink))) {
+      // navigateToDslTarget is the same generic resolver used everywhere else
+      // in the app for DSL-driven navigation (Screen/Product/Collection/URL,
+      // plus any arbitrary page name via its BottomNavScreen fallback) — it
+      // doesn't need a Builder-side allowlist of known paths, so any deep_link
+      // the campaign was sent with (cart, a Shopify page, or one of the app's
+      // own dynamic pages) navigates correctly instead of just the 3 that
+      // used to be hardcoded here (cart/orders/account), with everything else
+      // silently defaulting to Home.
+      if (deepLink) {
         void navigateToDslTarget(navigationRef, { target: deepLink, fallbackTitle: 'Home' });
         return;
       }
@@ -113,17 +108,7 @@ export default function App() {
         } catch (_) {}
         return;
       }
-
-      // Had a deep_link (this was a campaign push) but it didn't match a
-      // known path, and no recognized order type either — default to Home
-      // rather than leaving the tap with no effect. Notifications with
-      // neither field (unrelated to this app's push types) keep doing
-      // nothing, exactly as before.
-      if (deepLink) {
-        try {
-          navigationRef.navigate('LayoutScreen' as never, { pageName: 'home' } as never);
-        } catch (_) {}
-      }
+      // Neither field present — unrelated to this app's push types, do nothing.
     },
     [navigationRef],
   );

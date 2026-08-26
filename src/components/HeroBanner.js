@@ -347,26 +347,36 @@ export default function HeroBanner({ section }) {
     flatPropsNode?.headlineLetterSpacing,
     flatPropsNode?.titleLetterSpacing
   );
+  const headlineAliasColor = pickResolvedValue(rawProps?.headlineColor, flatPropsNode?.headlineColor);
 
   const headlineStyle = {
     ...headlineCssStyle,
     ...headlineAttrStyle,
-    // Live attribute values (from builder) take priority over frozen CSS snapshot
-    color: headlineAttrStyle.color || headlineCssStyle?.color,
-    fontSize: headlineAttrStyle.fontSize || headlineAliasFontSize || headlineCssStyle?.fontSize,
-    fontFamily: headlineAttrStyle.fontFamily || headlineAliasFontFamily || headlineCssStyle?.fontFamily,
-    fontWeight: headlineAttrStyle.fontWeight || headlineAliasFontWeight || headlineCssStyle?.fontWeight,
+    // The flat headline* fields (headlineFontFamily/headlineColor/headlineSize/
+    // headlineWeight/headlineLetterSpacing) are what Builder's own PreviewLive.tsx
+    // actually renders from (centerLive canvas + Preview) — headlineAttributes
+    // (headlineAttrStyle) is a legacy object the Inspector one-time-migrates OUT
+    // of into those flat fields on first load and never reads again for display.
+    // Prioritizing headlineAttrStyle here made the DSL's real, currently-saved
+    // font family/color/size/weight get silently ignored in favor of that frozen
+    // legacy value — appearing "static" no matter what the merchant changed
+    // afterward. headlineAttrStyle is kept only as a fallback for a DSL saved
+    // before the migration ever ran.
+    color: headlineAliasColor || headlineAttrStyle.color || headlineCssStyle?.color,
+    fontSize: headlineAliasFontSize || headlineAttrStyle.fontSize || headlineCssStyle?.fontSize,
+    fontFamily: headlineAliasFontFamily || headlineAttrStyle.fontFamily || headlineCssStyle?.fontFamily,
+    fontWeight: headlineAliasFontWeight || headlineAttrStyle.fontWeight || headlineCssStyle?.fontWeight,
     letterSpacing:
-      headlineAttrStyle.letterSpacing !== undefined
-        ? headlineAttrStyle.letterSpacing
-        : headlineAliasLetterSpacing !== undefined
-          ? headlineAliasLetterSpacing
+      headlineAliasLetterSpacing !== undefined
+        ? headlineAliasLetterSpacing
+        : headlineAttrStyle.letterSpacing !== undefined
+          ? headlineAttrStyle.letterSpacing
           : headlineCssStyle?.letterSpacing,
     lineHeight:
       headlineAttrStyle.lineHeight ||
       resolveLineHeight(
         layoutCss?.headline?.lineHeight ?? headlineCssStyle?.lineHeight,
-        headlineAttrStyle.fontSize || headlineAliasFontSize || headlineCssStyle?.fontSize || 16,
+        headlineAliasFontSize || headlineAttrStyle.fontSize || headlineCssStyle?.fontSize || 16,
         headlineCssStyle?.lineHeight
       ),
     // Explicit line-height token applied last, using attr fontSize as base (not CSS snapshot)
@@ -374,7 +384,7 @@ export default function HeroBanner({ section }) {
       ? {
           lineHeight:
             headlineLineHeightToken > 0 && headlineLineHeightToken <= 10
-              ? (headlineAttrStyle.fontSize || headlineAliasFontSize || headlineCssStyle?.fontSize || 16) *
+              ? (headlineAliasFontSize || headlineAttrStyle.fontSize || headlineCssStyle?.fontSize || 16) *
                   headlineLineHeightToken
               : headlineLineHeightToken,
         }
@@ -422,26 +432,29 @@ export default function HeroBanner({ section }) {
     flatPropsNode?.subtextLetterSpacing,
     flatPropsNode?.subtitleLetterSpacing
   );
+  const subtextAliasColor = pickResolvedValue(rawProps?.subtextColor, flatPropsNode?.subtextColor);
 
   const subtextStyle = {
     ...subtextCssStyle,
     ...subtextAttrStyle,
-    // Live attribute values (from builder) take priority over frozen CSS snapshot
-    color: subtextAttrStyle.color || subtextCssStyle?.color,
-    fontSize: subtextAttrStyle.fontSize || subtextAliasFontSize || subtextCssStyle?.fontSize,
-    fontFamily: subtextAttrStyle.fontFamily || subtextAliasFontFamily || subtextCssStyle?.fontFamily,
-    fontWeight: subtextAttrStyle.fontWeight || subtextAliasFontWeight || subtextCssStyle?.fontWeight,
+    // See the matching comment on headlineStyle above — subtextAttributes is the
+    // same kind of legacy, migrate-once-then-ignored object; the flat subtext*
+    // fields are what Builder's PreviewLive.tsx actually renders, so they must win.
+    color: subtextAliasColor || subtextAttrStyle.color || subtextCssStyle?.color,
+    fontSize: subtextAliasFontSize || subtextAttrStyle.fontSize || subtextCssStyle?.fontSize,
+    fontFamily: subtextAliasFontFamily || subtextAttrStyle.fontFamily || subtextCssStyle?.fontFamily,
+    fontWeight: subtextAliasFontWeight || subtextAttrStyle.fontWeight || subtextCssStyle?.fontWeight,
     letterSpacing:
-      subtextAttrStyle.letterSpacing !== undefined
-        ? subtextAttrStyle.letterSpacing
-        : subtextAliasLetterSpacing !== undefined
-          ? subtextAliasLetterSpacing
+      subtextAliasLetterSpacing !== undefined
+        ? subtextAliasLetterSpacing
+        : subtextAttrStyle.letterSpacing !== undefined
+          ? subtextAttrStyle.letterSpacing
           : subtextCssStyle?.letterSpacing,
     lineHeight:
       subtextAttrStyle.lineHeight ||
       resolveLineHeight(
         layoutCss?.subtext?.lineHeight ?? subtextCssStyle?.lineHeight,
-        subtextAttrStyle.fontSize || subtextAliasFontSize || subtextCssStyle?.fontSize || 16,
+        subtextAliasFontSize || subtextAttrStyle.fontSize || subtextCssStyle?.fontSize || 16,
         subtextCssStyle?.lineHeight
       ),
     marginTop: toNumber(subtextAttributes?.marginTop, undefined) ?? subtextCssStyle?.marginTop ?? 8,
@@ -451,7 +464,7 @@ export default function HeroBanner({ section }) {
       ? {
           lineHeight:
             subtextLineHeightToken > 0 && subtextLineHeightToken <= 10
-              ? (subtextAttrStyle.fontSize || subtextAliasFontSize || subtextCssStyle?.fontSize || 16) *
+              ? (subtextAliasFontSize || subtextAttrStyle.fontSize || subtextCssStyle?.fontSize || 16) *
                   subtextLineHeightToken
               : subtextLineHeightToken,
         }

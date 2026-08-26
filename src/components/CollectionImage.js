@@ -303,7 +303,51 @@ export default function CollectionImage({ section }) {
     return [];
   }, [rawProps, rawSnapshot, rawPropsSnapshot]);
 
-  const items = dslCollections;
+  // Matches Builder's own "not yet configured" behavior: Collection/InspectorLive.tsx
+  // and CollectionImage/InspectorLive.tsx both auto-load the merchant's real
+  // published Shopify collections into the block the instant it has zero items
+  // and has never been explicitly touched (collectionItemsTouched), and PERSIST
+  // that into the saved DSL via onChange. But the canvas/Preview's own
+  // identical-looking auto-fetch (Collection/CollectionImage PreviewLive.tsx)
+  // only sets local component state — it never saves anything — so a block the
+  // merchant only ever looked at on the canvas (without opening its Inspector)
+  // shows real collections there forever while the saved DSL keeps items: []
+  // forever. Mirror that same live-Storefront fallback here so the app shows
+  // what the merchant actually saw in the Builder instead of rendering nothing.
+  const itemsTouched = asBoolean(
+    firstDefined(rawProps?.collectionItemsTouched, rawSnapshot?.collectionItemsTouched),
+    false
+  );
+  const [autoCollections, setAutoCollections] = useState([]);
+  useEffect(() => {
+    if (dslCollections.length || itemsTouched) return;
+    let alive = true;
+    fetchShopifyCollectionsList(20)
+      .then((list) => {
+        if (!alive) return;
+        const mapped = (list || [])
+          .filter((c) => c?.handle)
+          .map((c) => ({
+            id: c.handle,
+            title: c.title || "",
+            image: c.imageUrl || "",
+            link: `/collections/${c.handle}`,
+            handle: c.handle,
+            children: [],
+            navigateType: "",
+            navigateRef: "",
+            linkTo: "",
+          }));
+        setAutoCollections(mapped);
+      })
+      .catch(() => {});
+    return () => {
+      alive = false;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [dslCollections.length, itemsTouched]);
+
+  const items = dslCollections.length ? dslCollections : autoCollections;
 
   // ── Container ────────────────────────────────────────────────────────────────
   const containerPt = asNumber(

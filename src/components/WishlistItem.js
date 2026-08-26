@@ -160,6 +160,10 @@ export default function WishlistItem({ section }) {
   // configurable inset field exists there.
   const iconPosition = toString(raw?.iconPosition, "top-right");
   const iconVisible = raw?.visibility?.icon !== false;
+  // Matches Builder's wishlist_item PreviewLive.tsx visibility.strike toggle —
+  // was never read here at all, so the compare-at-price strikethrough always
+  // showed whenever the product data had one, even with the toggle off.
+  const strikeVisible = raw?.visibility?.strike !== false;
   const favoriteToggleConfig = buildFavoriteToggleConfig({
     favIconSize: iconSize,
     favoriteIconColor: iconColor,
@@ -470,7 +474,7 @@ export default function WishlistItem({ section }) {
                       product.currency || product.priceCurrency || product.currencySymbol
                     ) || "—"}
                   </Text>
-                  {product.compareAtPrice > 0 && product.compareAtPrice > product.price && (
+                  {strikeVisible && product.compareAtPrice > 0 && product.compareAtPrice > product.price && (
                     <Text
                       style={[
                         styles.strike,
