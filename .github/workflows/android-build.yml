@@ -13,6 +13,26 @@ on:
       app_id:
         description: "App ID"
         required: true
+      ref:
+        description: "Branch/tag/SHA to build (defaults to Malik)"
+        required: false
+        default: "Malik"
+      api_url:
+        description: "Backend API URL"
+        required: false
+        default: ""
+      build_id:
+        description: "Backend build record id"
+        required: false
+        default: ""
+      app_name:
+        description: "App display name"
+        required: false
+        default: ""
+      app_logo:
+        description: "App logo URL"
+        required: false
+        default: ""
   repository_dispatch:
     types: [android_build]
  
@@ -22,12 +42,17 @@ jobs:
  
     env:
       APP_ID: ${{ github.event.client_payload.app_id || github.event.client_payload.appId || github.event.inputs.app_id }}
-      APP_NAME: ${{ github.event.client_payload.app_name || github.event.client_payload.appName || '' }}
-      APP_LOGO: ${{ github.event.client_payload.app_logo || github.event.client_payload.appLogo || '' }}
+      APP_NAME: ${{ github.event.client_payload.app_name || github.event.client_payload.appName || github.event.inputs.app_name || '' }}
+      APP_LOGO: ${{ github.event.client_payload.app_logo || github.event.client_payload.appLogo || github.event.inputs.app_logo || '' }}
  
     steps:
       - name: Checkout repo
         uses: actions/checkout@v4
+        with:
+          # Always build the Malik branch. repository_dispatch ignores the
+          # dispatch `ref`, so pin it here: client_payload.ref (sent by the
+          # backend) → workflow_dispatch input → hardcoded 'Malik'.
+          ref: ${{ github.event.client_payload.ref || github.event.inputs.ref || 'Malik' }}
 
       - name: Setup Node
         uses: actions/setup-node@v4
