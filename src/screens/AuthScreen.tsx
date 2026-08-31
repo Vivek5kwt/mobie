@@ -24,6 +24,7 @@ import { fetchDSL } from '../engine/dslHandler';
 import authLayoutFallback from '../data/authLayoutFallback';
 import DynamicRenderer from '../engine/DynamicRenderer';
 import { resolveFont } from '../services/typographyService';
+import { getPageBgColorSync } from '../services/brandKitService';
 import { resolveDslNavigationTarget } from '../utils/navigationTarget';
 
 const LIVE_DSL_REFRESH_INTERVAL_MS = 30000;
@@ -2020,12 +2021,17 @@ const buildSignUpTokens = (rawProps: Record<string, unknown>): SignUpTokens => (
   firstNameAlignment: (pick(rawProps, ['firstNameAlignmenT', 'firstNameAlignment']) as string) ?? defaultSignUpTokens.firstNameAlignment,
   lastNameAlignment: (pick(rawProps, ['lastNameAlignmenT', 'lastNameAlignment']) as string) ?? defaultSignUpTokens.lastNameAlignment,
   passwordAlignment: (pick(rawProps, ['passwordAlignmenT', 'passwordAlignment']) as string) ?? defaultSignUpTokens.passwordAlignment,
-  // Builder emits the input-text alignment under the "*AlignmenT" (capital T) key —
-  // NOT the plain "*Alignment" key, which is a separate field-level alignment concept.
-  emailInputTextAlignment: (pick(rawProps, ['emailInputTextAlignment', 'emailAlignmenT']) as string) ?? defaultSignUpTokens.emailInputTextAlignment,
-  firstNameInputTextAlignment: (pick(rawProps, ['firstNameAlignmenT', 'firstNameInputTextAlignment']) as string) ?? defaultSignUpTokens.firstNameInputTextAlignment,
-  lastNameInputTextAlignment: (pick(rawProps, ['lastNameInputTextAlignment', 'lastNameAlignmenT']) as string) ?? defaultSignUpTokens.lastNameInputTextAlignment,
-  passwordInputTextAlignment: (pick(rawProps, ['passwordInputTextAlignment', 'passwordAlignmenT']) as string) ?? defaultSignUpTokens.passwordInputTextAlignment,
+  // Builder emits the input-text alignment under the "*AlignmenT" (capital T)
+  // key (see SignUp/PreviewLive.tsx: textAlign: getTextAlign(lastNameAlignmenT)).
+  // Check THAT first for every field — email/lastName/password previously
+  // checked a "*InputTextAlignment" key the builder never writes, which, when
+  // a schema-style DSL happened to surface one, overrode the real value (this
+  // is why Last Name rendered centred while First Name — already checking
+  // "*AlignmenT" first — did not).
+  emailInputTextAlignment: (pick(rawProps, ['emailAlignmenT', 'emailInputTextAlignment', 'emailInputAlignment', 'emailTextAlignment']) as string) ?? defaultSignUpTokens.emailInputTextAlignment,
+  firstNameInputTextAlignment: (pick(rawProps, ['firstNameAlignmenT', 'firstNameInputTextAlignment', 'firstNameInputAlignment', 'firstNameTextAlignment']) as string) ?? defaultSignUpTokens.firstNameInputTextAlignment,
+  lastNameInputTextAlignment: (pick(rawProps, ['lastNameAlignmenT', 'lastNameInputTextAlignment', 'lastNameInputAlignment', 'lastNameTextAlignment']) as string) ?? defaultSignUpTokens.lastNameInputTextAlignment,
+  passwordInputTextAlignment: (pick(rawProps, ['passwordAlignmenT', 'passwordInputTextAlignment', 'passwordInputAlignment', 'passwordTextAlignment']) as string) ?? defaultSignUpTokens.passwordInputTextAlignment,
   emailLabelVisible: (rawProps?.emailLabelVisible as boolean) ?? defaultSignUpTokens.emailLabelVisible,
   firstNameLabelVisible: (rawProps?.firstNameLabelVisible as boolean) ?? defaultSignUpTokens.firstNameLabelVisible,
   lastNameLabelVisible: (rawProps?.lastNameLabelVisible as boolean) ?? defaultSignUpTokens.lastNameLabelVisible,
@@ -2264,6 +2270,42 @@ type FieldProps = {
   rightSlot?: React.ReactNode;
 };
 
+// Perceived-luminance dark check + auto-contrast text colour. The sign-in /
+// sign-up blocks default *InputTextColor to near-black; on a dark themed
+// card (Brand Kit page background, or a dark cardBgColor set in the block)
+// the typed text is then invisible. When the colour is unset or one of those
+// neutral black/white defaults, pick white-or-dark based on the field's own
+// background instead.
+const _isDarkColor = (hex?: string): boolean => {
+  if (!hex || typeof hex !== 'string') return false;
+  let c = hex.trim().replace('#', '');
+  if (c.length === 3) c = c.split('').map((x) => x + x).join('');
+  if (c.length < 6) return false;
+  const r = parseInt(c.slice(0, 2), 16);
+  const g = parseInt(c.slice(2, 4), 16);
+  const b = parseInt(c.slice(4, 6), 16);
+  if ([r, g, b].some(Number.isNaN)) return false;
+  return 0.299 * r + 0.587 * g + 0.114 * b < 140;
+};
+const _NEUTRAL_INPUT_COLORS = new Set([
+  '', '#000', '#000000', '#0a0a0a', '#111', '#111827', '#1a1a1a', '#1f2937',
+  '#fff', '#ffffff', '#f9fafb', '#6b7280', '#9ca3af',
+]);
+const _resolvableColor = (c?: string) => {
+  const v = String(c || '').trim().toLowerCase();
+  return /^#([0-9a-f]{3}|[0-9a-f]{6})$/.test(v) ? v : '';
+};
+const _autoContrastText = (given: string | undefined, bg: string | undefined, forPlaceholder = false): string | undefined => {
+  const g = String(given || '').trim().toLowerCase();
+  if (g && !_NEUTRAL_INPUT_COLORS.has(g)) return given; // merchant chose a real colour
+  // Effective background: the field's own bg if it's a real colour, else the
+  // Brand Kit page background the screen now sits on.
+  const effBg = _resolvableColor(bg) || _resolvableColor(getPageBgColorSync() || '') || '#ffffff';
+  const dark = _isDarkColor(effBg);
+  if (forPlaceholder) return dark ? 'rgba(255,255,255,0.55)' : (given || 'rgba(17,24,39,0.45)');
+  return dark ? '#FFFFFF' : (given || '#111827');
+};
+
 const FormField: React.FC<FieldProps> = ({
   label,
   labelVisible,
@@ -2314,6 +2356,8 @@ const FormField: React.FC<FieldProps> = ({
   const resolvedFontStyle = usePlaceholderTypography ? placeholderFontStyle : 'normal';
   const resolvedTextDecoration = usePlaceholderTypography ? placeholderTextDecoration : 'none';
   const resolvedInputAlign = inputAlign;
+  const effInputColor = _autoContrastText(inputColor, cardBgColor, false);
+  const effPlaceholderColor = _autoContrastText(placeholderColor, cardBgColor, true);
   return (
   <View style={[fieldStyles.group, { marginBottom: fieldGap }]}>
     {shouldShowLabel ? (
@@ -2335,7 +2379,7 @@ const FormField: React.FC<FieldProps> = ({
     <View style={[fieldStyles.inputWrap, { borderColor: inputBorderColor, borderRadius: inputBorderRadius, backgroundColor: cardBgColor, minHeight: inputHeight }]}>
       <TextInput
         placeholder={placeholderVisible ? placeholder : ''}
-        placeholderTextColor={placeholderColor}
+        placeholderTextColor={effPlaceholderColor}
         value={value}
         onChangeText={onChangeText}
         secureTextEntry={secureTextEntry}
@@ -2345,7 +2389,7 @@ const FormField: React.FC<FieldProps> = ({
         style={[
           fieldStyles.input,
           {
-            color: inputColor,
+            color: effInputColor,
             fontSize: resolvedInputFontSize,
             fontFamily: resolvedInputFontFamily !== 'System' ? resolvedInputFontFamily : undefined,
             fontWeight: resolvedInputFontWeight as any,
@@ -2494,7 +2538,7 @@ const AuthSkeletonBone = ({ style }: { style?: any }) => {
 };
 
 const AuthLayoutSkeleton = () => (
-  <SafeAreaView style={authSkeletonStyles.safeArea}>
+  <SafeAreaView style={[authSkeletonStyles.safeArea, { backgroundColor: getPageBgColorSync() || '#F8FAFC' }]}>
     <View style={authSkeletonStyles.content}>
       <AuthSkeletonBone style={authSkeletonStyles.titleLine} />
       <View style={authSkeletonStyles.card}>
@@ -3088,11 +3132,23 @@ const AuthScreen = () => {
 
   const pagePadLeft = t.pagePaddingLeft;
   const pagePadRight = t.pagePaddingRight;
-  const activePageBgColor = isForgotMode ? resetPasswordTokens.cardBgColor : t.bgColor;
+  // Page background follows Brand Kit's "Page Background" (colors.pageBg) like
+  // every other screen — unless the auth block's own bgColor was explicitly
+  // set to a real (non-default) value, which then wins.
+  const AUTH_NEUTRAL_BGS = new Set(['#f3f7f7', '#f8fafa', '#f8fafc', '#ffffff', '#fff', '']);
+  const rawAuthPageBg = isForgotMode ? resetPasswordTokens.cardBgColor : t.bgColor;
+  const activePageBgColor = AUTH_NEUTRAL_BGS.has(String(rawAuthPageBg || '').trim().toLowerCase())
+    ? (getPageBgColorSync() || rawAuthPageBg || '#FFFFFF')
+    : rawAuthPageBg;
   const pagePadTop = resolveAuthVerticalSpace(t.pagePaddingTop, viewportHeight, 0.06);
   const pagePadBottom = resolveAuthVerticalSpace(t.pagePaddingBottom, viewportHeight, 0.06);
   const cardPadTop = resolveAuthVerticalSpace(t.cardPaddingTop, viewportHeight, 0.055);
   const cardPadBottom = resolveAuthVerticalSpace(t.cardPaddingBottom, viewportHeight, 0.055);
+  // Card / input background = the block's own "Background & Padding" colour
+  // straight from the DSL (Builder's SignUp B&P panel writes it as
+  // cardBgColor). NOT the Brand Kit page background — that's the screen
+  // wrapper (activePageBgColor) only. Input text/placeholder colours
+  // auto-contrast against whatever this resolves to (see _autoContrastText).
   const activeCardBgColor = isForgotMode ? resetPasswordTokens.cardBgColor : t.cardBgColor;
   const activeCardBorderRadius = isForgotMode ? resetPasswordTokens.cardBorderRadius : t.cardBorderRadius;
   const activeCardBorderWidth = isForgotMode ? resetPasswordTokens.cardBorderWidth : t.cardBorderWidth;
@@ -3266,7 +3322,7 @@ const AuthScreen = () => {
                 fieldGap={fieldGap}
                 inputPaddingHorizontal={signUpTokens.inputPaddingHorizontal}
                 inputPaddingVertical={signUpTokens.inputPaddingVertical}
-                cardBgColor={signUpTokens.cardBgColor}
+                cardBgColor={activeCardBgColor}
                 autoCapitalize="words"
               />
             ) : null}
@@ -3302,7 +3358,7 @@ const AuthScreen = () => {
                 fieldGap={fieldGap}
                 inputPaddingHorizontal={signUpTokens.inputPaddingHorizontal}
                 inputPaddingVertical={signUpTokens.inputPaddingVertical}
-                cardBgColor={signUpTokens.cardBgColor}
+                cardBgColor={activeCardBgColor}
                 autoCapitalize="words"
               />
             ) : null}
@@ -3375,7 +3431,7 @@ const AuthScreen = () => {
                 fieldGap={fieldGap}
                 inputPaddingHorizontal={t.inputPaddingHorizontal}
                 inputPaddingVertical={t.inputPaddingVertical}
-                cardBgColor={t.cardBgColor}
+                cardBgColor={activeCardBgColor}
                 keyboardType="email-address"
                 autoCapitalize="none"
                 autoCorrect={false}
@@ -3415,7 +3471,7 @@ const AuthScreen = () => {
                 fieldGap={fieldGap}
                 inputPaddingHorizontal={t.inputPaddingHorizontal}
                 inputPaddingVertical={t.inputPaddingVertical}
-                cardBgColor={t.cardBgColor}
+                cardBgColor={activeCardBgColor}
                 autoCapitalize="none"
                 autoCorrect={false}
               />

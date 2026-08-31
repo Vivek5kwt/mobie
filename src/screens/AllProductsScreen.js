@@ -23,6 +23,8 @@ import { useToast } from "../components/ToastProvider";
 import { fetchDSL } from "../engine/dslHandler";
 import DynamicRenderer from "../engine/DynamicRenderer";
 import { resolveAppId } from "../utils/appId";
+import { usePageBgColor } from "../hooks/useBrandColors";
+import { getPageBgColorSync } from "../services/brandKitService";
 import {
   getSortFilterSnapshot,
   hydrateSortFilterFromStorage,
@@ -273,6 +275,7 @@ function productMatchesAvailabilityFilter(product, selectedLabels) {
 const PAGE_SIZE = 20;
 
 export default function AllProductsScreen() {
+  const pageBg = usePageBgColor("#ffffff");
   const navigation = useNavigation();
   const route = useRoute();
   const dispatch = useDispatch();
@@ -395,7 +398,7 @@ export default function AllProductsScreen() {
     const imageCorner = resolveNumber([raw?.imageCorner, raw?.corner, imageCss?.borderRadius], 0);
     const imageBgColor = resolveString(
       raw?.imageBgColor ?? raw?.imageBackgroundColor ?? imageCss?.backgroundColor ?? imageCss?.background,
-      "#FFFFFF"
+      getPageBgColorSync() || "#FFFFFF"
     );
     const imageScale = resolveProductImageResizeMode(
       raw?.imageScale,
@@ -478,7 +481,7 @@ export default function AllProductsScreen() {
       priceFamily,
       showAddToCart,
       showFavorite,
-      bgColor: resolveString(raw?.bgColor ?? containerCss?.backgroundColor, "#FFFFFF"),
+      bgColor: resolveString(raw?.bgColor ?? containerCss?.backgroundColor, getPageBgColorSync() || "#FFFFFF"),
     };
   }, [productListGridSection]);
 
@@ -959,10 +962,10 @@ export default function AllProductsScreen() {
   );
 
   return (
-    <SafeArea edges={["top", "left", "right"]}>
-      <View style={styles.container}>
+    <SafeArea edges={["top", "left", "right"]} backgroundColor={pageBg}>
+      <View style={[styles.container, { backgroundColor: pageBg }]}>
         {isSearchMode ? (
-          <View style={styles.searchTop}>
+          <View style={[styles.searchTop, { backgroundColor: pageBg }]}>
             <View style={styles.searchHeader}>
               <TouchableOpacity
                 style={styles.headerIconButton}

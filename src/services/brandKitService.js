@@ -1,3 +1,5 @@
+import { DeviceEventEmitter } from "react-native";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import client from "../apollo/client";
 import LAYOUT_VERSION_QUERY from "../graphql/queries/layoutVersionQuery";
 import { resolveAppId } from "../utils/appId";
@@ -186,31 +188,127 @@ export const getSplashBackgroundSync = () =>
   _brandAssets?.splashGradEnd ||
   "transparent";
 
-// ── Toast (Snackbar) colors ─────────────────────────────────────────────────
-// Merchant-set brandKit.colors.toastBg/toastText (Builder's Brand Kit >
-// Colors > Toast section) — read directly by Snackbar.js instead of its old
-// hardcoded per-type (success/error/info) colors. null/missing means "use
-// Snackbar's own built-in defaults", so an app that never customized this
-// looks exactly as before.
-let _toastColors = null;
+// ── Brand Kit colour palette (page background, toast, header, …) ────────────
+// The merchant's Builder > Brand Kit > Colors palette. Previously only the
+// toast colours were read, and only when the DSL happened to carry
+// `brandKit.colors` at its exact root — which is true for older apps (woweye)
+// that embed brandKit inside every layout `dsl`, but NOT for apps whose
+// brandKit only arrives via `layoutVersionPage`'s separate `brandKit` field
+// or sits nested under a multi-page DSL root. That's why dynamic colours
+// "only worked for woweye".
+//
+// This now:
+//   • deep-searches for the colours object in whatever shape the DSL/brandKit
+//     arrives (object or JSON string, `brandKit.colors`, top-level `colors`,
+//     or a few levels down),
+//   • is fed by every dslHandler fetch path,
+//   • persists the last-known palette so the first paint doesn't flash white,
+//   • emits a change event so already-mounted screens/toasts re-theme.
+// An app that set nothing still resolves to null → callers keep their own
+// defaults, so untouched apps look exactly as before.
+const BRAND_COLORS_EVENT = "mobidrag:brandColorsChanged";
+const BRAND_COLORS_STORAGE_KEY = "@mobidrag_brand_colors";
+const BRAND_COLOR_HINT_KEYS = ["pageBg", "toastBg", "toastText", "headerBg", "bottomNavBg", "primaryBtn"];
 
-export const setToastColorsFromDsl = (dsl) => {
-  const root = unwrapDeep(parseMaybeJson(dsl), {});
-  const colors = isObject(root) ? root?.brandKit?.colors : null;
-  if (!isObject(colors)) return _toastColors;
+let _brandColors = null;
+let _brandColorsAppId = null;
 
-  const bgColor = cleanString(colors.toastBg);
-  const textColor = cleanString(colors.toastText);
-  if (!bgColor && !textColor) return _toastColors;
+const looksLikeBrandColors = (obj) =>
+  isObject(obj) && BRAND_COLOR_HINT_KEYS.some((k) => cleanString(obj[k]));
 
-  _toastColors = {
-    bgColor: bgColor || _toastColors?.bgColor || null,
-    textColor: textColor || _toastColors?.textColor || null,
-  };
-  return _toastColors;
+const findColorsObject = (node, depth = 0, seen = new Set()) => {
+  if ((!isObject(node) && !Array.isArray(node)) || depth > 12 || seen.has(node)) return null;
+  seen.add(node);
+  if (isObject(node)) {
+    const candidates = [node.brandKit?.colors, node.brand_kit?.colors, node.colors, node];
+    for (const candidate of candidates) {
+      if (looksLikeBrandColors(candidate)) return candidate;
+    }
+  }
+  const children = Array.isArray(node) ? node : Object.values(node);
+  for (const child of children) {
+    const found = findColorsObject(child, depth + 1, seen);
+    if (found) return found;
+  }
+  return null;
 };
 
-export const getToastColorsSync = () => _toastColors;
+const normalizeBrandColors = (colors) => {
+  const src = unwrapDeep(colors, {});
+  if (!isObject(src)) return null;
+  const out = {};
+  Object.entries(src).forEach(([key, value]) => {
+    const v = cleanString(value);
+    if (v) out[key] = v;
+  });
+  return Object.keys(out).length ? out : null;
+};
+
+export const extractBrandColors = (...sources) => {
+  for (const source of sources) {
+    if (source == null) continue;
+    const root = unwrapDeep(parseMaybeJson(source), null);
+    const colors = normalizeBrandColors(findColorsObject(root));
+    if (colors) return colors;
+  }
+  return null;
+};
+
+export const setBrandColorsFromDsl = (dsl, appId, brandKitOverride) => {
+  const next = extractBrandColors(brandKitOverride, dsl);
+  if (!next) return _brandColors;
+  const numericAppId = Number.isFinite(Number(appId)) ? Number(appId) : null;
+  const sameApp =
+    _brandColorsAppId == null || numericAppId == null || _brandColorsAppId === numericAppId;
+  _brandColors = sameApp ? { ...(_brandColors || {}), ...next } : next;
+  _brandColorsAppId = numericAppId ?? _brandColorsAppId;
+  try {
+    AsyncStorage.setItem(
+      BRAND_COLORS_STORAGE_KEY,
+      JSON.stringify({ appId: _brandColorsAppId, colors: _brandColors })
+    );
+  } catch (_) {}
+  try {
+    DeviceEventEmitter.emit(BRAND_COLORS_EVENT, _brandColors);
+  } catch (_) {}
+  return _brandColors;
+};
+
+export const getBrandColorsSync = () => _brandColors;
+export const getPageBgColorSync = () => _brandColors?.pageBg || null;
+export const subscribeBrandColors = (fn) => {
+  const sub = DeviceEventEmitter.addListener(BRAND_COLORS_EVENT, fn);
+  return () => sub.remove();
+};
+
+// Back-compat: Snackbar and dslHandler still call these.
+export const setToastColorsFromDsl = (dsl) => {
+  setBrandColorsFromDsl(dsl, _brandColorsAppId);
+  return getToastColorsSync();
+};
+
+export const getToastColorsSync = () => {
+  const bgColor = _brandColors?.toastBg || null;
+  const textColor = _brandColors?.toastText || null;
+  return bgColor || textColor ? { bgColor, textColor } : null;
+};
+
+// Hydrate the last-known palette so the very first paint already uses the
+// right page/toast colours instead of flashing the hardcoded white default.
+(async () => {
+  try {
+    const raw = await AsyncStorage.getItem(BRAND_COLORS_STORAGE_KEY);
+    if (!raw) return;
+    const parsed = JSON.parse(raw);
+    if (!_brandColors && isObject(parsed?.colors)) {
+      _brandColors = parsed.colors;
+      _brandColorsAppId = Number(parsed.appId) || null;
+      try {
+        DeviceEventEmitter.emit(BRAND_COLORS_EVENT, _brandColors);
+      } catch (_) {}
+    }
+  } catch (_) {}
+})();
 
 export async function fetchBrandKitAssets(appId) {
   const resolvedAppId = resolveAppId(appId);

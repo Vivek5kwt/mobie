@@ -28,6 +28,7 @@ import { useAuth } from "../services/AuthContext";
 import { setHeaderDefault } from "../services/headerDefaultService";
 import { getHomeSectionMarginBottom } from "../utils/sectionSpacing";
 import { trackScreenView } from "../services/analyticsService";
+import { usePageBgColor } from "../hooks/useBrandColors";
 import { getLastActiveTabIndex, setLastActiveTabIndex } from "../utils/headerTabStore";
 
 // ── Module-level cache ────────────────────────────────────────────────────────
@@ -225,8 +226,12 @@ export default function LayoutScreen({ route, navigation }) {
 
   // Brand Kit's "Page Background" (colors.pageBg) — the screen wrapper below
   // hardcoded white regardless of Brand Kit, unlike the builder canvas
-  // (PhoneMock.tsx) which already applies it.
-  const pageBgColor = dsl?.brandKit?.colors?.pageBg || "#FFFFFF";
+  // (PhoneMock.tsx) which already applies it. Fall back to the centrally
+  // resolved palette (brandKitService) when this page's DSL slice didn't
+  // carry brandKit inline — which is the common case for apps whose brandKit
+  // only arrives via layoutVersionPage's separate field.
+  const brandPageBg = usePageBgColor("#FFFFFF");
+  const pageBgColor = dsl?.brandKit?.colors?.pageBg || brandPageBg || "#FFFFFF";
 
   const sideNavSection = useMemo(
     () =>
@@ -787,7 +792,7 @@ export default function LayoutScreen({ route, navigation }) {
   }
 
   return (
-    <SafeArea edges={["top", "left", "right"]}>
+    <SafeArea edges={["top", "left", "right"]} backgroundColor={pageBgColor}>
       <SideMenuProvider
         value={{
           isOpen: isSideMenuOpen,

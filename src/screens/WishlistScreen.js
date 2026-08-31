@@ -4,6 +4,7 @@ import { StackActions, useFocusEffect, useNavigation } from "@react-navigation/n
 import { SafeArea } from "../utils/SafeAreaHandler";
 import { fetchDSL } from "../engine/dslHandler";
 import { resolveAppId } from "../utils/appId";
+import { usePageBgColor } from "../hooks/useBrandColors";
 import { useAuth } from "../services/AuthContext";
 import HeaderDefault from "../components/HeaderDefault";
 import DynamicRenderer from "../engine/DynamicRenderer";
@@ -45,6 +46,7 @@ const NAV_COMPS = ["bottom_navigation", "bottom_navigation_style_1", "bottom_nav
 
 // ── Component ─────────────────────────────────────────────────────────────────
 export default function WishlistScreen() {
+  const pageBg = usePageBgColor("#FFFFFF");
   const navigation = useNavigation();
   const { session, initializing } = useAuth();
   const isLoggedIn = isAuthenticatedSession(session);
@@ -129,19 +131,20 @@ export default function WishlistScreen() {
   if (initializing || !isLoggedIn) return null;
 
   return (
-    <SafeArea>
+    <SafeArea backgroundColor={pageBg}>
       {headerConfig ? (
         <HeaderDefault config={headerConfig} hideTabs={true} showBack={true} />
       ) : null}
 
       {dslLoading ? (
-        <View style={styles.centre}>
+        <View style={[styles.centre, { backgroundColor: pageBg }]}>
           <ActivityIndicator size="large" color="#016D77" />
         </View>
       ) : (
         <ScrollView
           showsVerticalScrollIndicator={false}
-          contentContainerStyle={{ flexGrow: 1, paddingBottom: bottomNavSection ? bottomNavHeight : 0 }}
+          style={{ backgroundColor: pageBg }}
+          contentContainerStyle={{ flexGrow: 1, backgroundColor: pageBg, paddingBottom: bottomNavSection ? bottomNavHeight : 0 }}
         >
           {sections.map((section, i) => (
             <DynamicRenderer key={i} section={section} />

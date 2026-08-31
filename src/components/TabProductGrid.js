@@ -35,6 +35,7 @@ import {
 import { resolveProductImageResizeMode } from "../utils/productImageFit";
 import { getResponsiveColumns } from "../utils/responsiveLayout";
 import { ADD_TO_CART_SUCCESS_MESSAGE, resolveCartNavigationParams } from "../utils/cartFeedback";
+import { usePageBgColor } from "../hooks/useBrandColors";
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -211,6 +212,10 @@ const COL_GAP = 8;
 const DEFAULT_IMAGE_ASPECT_RATIO = 3 / 4;
 
 export default function TabProductGrid({ section }) {
+  // Brand Kit "Page Background" — default for this block's background and the
+  // letterbox behind Fit-scaled product images, so an unstyled block blends
+  // into a dark/coloured page instead of showing white bands.
+  const pageBg = usePageBgColor("#FFFFFF");
   const dispatch = useDispatch();
   const navigation = useNavigation();
   const showToast = useToast();
@@ -416,7 +421,7 @@ export default function TabProductGrid({ section }) {
 
   // ── Read styling from rawConfig ────────────────────────────────────────────
   const requestedColumns = Math.max(1, toNum(rawConfig?.columns ?? rawConfig?.gridColumns ?? rawConfig?.itemsPerRow, 2));
-  const containerBg  = firstStr([rawConfig?.bgColor, rawConfig?.gridBgColor, layoutCss?.container?.backgroundColor], "#FFFFFF");
+  const containerBg  = firstStr([rawConfig?.bgColor, rawConfig?.gridBgColor, layoutCss?.container?.backgroundColor], pageBg);
   // Overall section border + radius — Preview gates these (and bgColor) on
   // `backgroundActive`; RN previously had no border/radius mechanism for the
   // outer container at all.

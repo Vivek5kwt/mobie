@@ -16,6 +16,7 @@ import HeaderDefault from "../components/HeaderDefault";
 import { useToast } from "../components/ToastProvider";
 import { fetchDSL } from "../engine/dslHandler";
 import { resolveAppId } from "../utils/appId";
+import { usePageBgColor } from "../hooks/useBrandColors";
 import { useAuth } from "../services/AuthContext";
 import { clearCart } from "../store/slices/cartSlice";
 import { fetchShopifyOrderDetails } from "../services/shopify";
@@ -303,6 +304,7 @@ const injectOrderData = (sections = [], capturedItems = [], orderNumber = "", or
 };
 
 export default function PostPurchaseScreen() {
+  const pageBg = usePageBgColor("#F5F5F5");
   const navigation = useNavigation();
   const route      = useRoute();
   const dispatch   = useDispatch();
@@ -540,8 +542,8 @@ export default function PostPurchaseScreen() {
   // the real DSL content replace it the moment it's ready.
   if (loading) {
     return (
-      <SafeArea>
-        <View style={styles.container}>
+      <SafeArea backgroundColor={pageBg}>
+        <View style={[styles.container, { backgroundColor: pageBg }]}>
           {headerConfig ? <HeaderDefault config={headerConfig} /> : null}
           <View style={styles.centreWrap}>
             <Text style={styles.successIcon}>✓</Text>
@@ -562,8 +564,8 @@ export default function PostPurchaseScreen() {
   // ── Error / empty state ───────────────────────────────────────────────────
   if (error || resolvedSections.length === 0) {
     return (
-      <SafeArea>
-        <View style={styles.container}>
+      <SafeArea backgroundColor={pageBg}>
+        <View style={[styles.container, { backgroundColor: pageBg }]}>
           {headerConfig ? <HeaderDefault config={headerConfig} /> : null}
           <View style={styles.centreWrap}>
             <Text style={styles.successIcon}>✓</Text>
@@ -601,8 +603,8 @@ export default function PostPurchaseScreen() {
   // those; each custom_button gets the real just-placed order forwarded so
   // a button pointed at "Order Details" shows this order, not a generic one.
   return (
-    <SafeArea>
-      <View style={styles.container}>
+    <SafeArea backgroundColor={pageBg}>
+      <View style={[styles.container, { backgroundColor: pageBg }]}>
         {headerConfig ? <HeaderDefault config={headerConfig} /> : null}
         <ScrollView
           contentContainerStyle={styles.scroll}

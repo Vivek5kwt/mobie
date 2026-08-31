@@ -21,6 +21,7 @@ import {
 } from "../utils/currencyStore";
 import { resolveProductImageResizeMode } from "../utils/productImageFit";
 import { activeDiscountRecords, cartDiscountFingerprint } from "../utils/cartDiscounts";
+import { usePageBgColor } from "../hooks/useBrandColors";
 
 const unwrapValue = (value, fallback = undefined) => {
   if (value === undefined || value === null) return fallback;
@@ -134,6 +135,11 @@ const responsiveSize = (screenWidth, ratio, min, max) => {
 };
 
 export default function CartLineItems({ section }) {
+  // Brand Kit "Page Background" — the default for the container/card/image
+  // backgrounds below, so an unstyled cart list blends into a dark/coloured
+  // page instead of forcing white. A merchant's own Background choice still
+  // wins (it's earlier in each `??` chain).
+  const pageBg = usePageBgColor("#FFFFFF");
   const dispatch = useDispatch();
   const navigation = useNavigation();
   const { width: screenWidth, height: screenHeight } = useWindowDimensions();
@@ -192,9 +198,9 @@ export default function CartLineItems({ section }) {
   // wrapper; these must not be conflated with the per-card border below.
   const showContainerBackground = toBoolean(raw?.showBackground, true);
   const bgColor = showContainerBackground
-    ? toString(raw?.bgColor ?? raw?.backgroundColor, "#FFFFFF")
+    ? toString(raw?.bgColor ?? raw?.backgroundColor, pageBg)
     : "transparent";
-  const emptyBgColor = toString(raw?.emptyBgColor ?? raw?.emptyBackgroundColor, "#FFFFFF");
+  const emptyBgColor = toString(raw?.emptyBgColor ?? raw?.emptyBackgroundColor, pageBg);
   const padT = toNumber(raw?.padT ?? raw?.pt, 12);
   const padR = toNumber(raw?.padR ?? raw?.pr, 16);
   const padB = toNumber(raw?.padB ?? raw?.pb, 12);
@@ -206,14 +212,25 @@ export default function CartLineItems({ section }) {
   const containerBorderColor = toString(raw?.borderColor, "#F3F4F6");
 
   // Card
-  // The Inspector never writes `cardBgColor` (Builder's CartItems.tsx has no
-  // control for it), so this always falls back to the container's own
-  // "Background" color instead of a mismatched hardcoded white.
-  const cardBgColor = toString(raw?.cardBgColor, bgColor);
+  // Builder's CartItems.tsx has no "Card Background" control, so any
+  // `cardBgColor` in the DSL is a stale legacy default (older block versions
+  // baked in "#F9FAFB"). Those neutral near-whites are treated as "not a real
+  // choice" and fall through to the container's own Background — which the
+  // backend merge sets to Brand Kit's Page Background — so cards don't stay
+  // white on a dark themed app. A genuinely custom (non-neutral) value still
+  // wins.
+  const NEUTRAL_CARD_BGS = new Set([
+    "#fff", "#ffffff", "#f9fafb", "#f7f7f7", "#f5f5f5", "#fafafa", "#f3f4f6", "#eeeeee",
+  ]);
+  const rawCardBg = toString(raw?.cardBgColor, "").trim().toLowerCase();
+  const cardBgColor =
+    rawCardBg && !NEUTRAL_CARD_BGS.has(rawCardBg) ? toString(raw?.cardBgColor) : bgColor;
   const cardBorderColor = toString(raw?.cardBorderColor, "#F3F4F6");
   const cardBorderRadius = toNumber(raw?.cardBorderRadius, 12);
   const cardBorderLine = toString(raw?.cardBorderLine, "all").toLowerCase();
-  const cardBorderWidth = cardBorderLine === "none" ? 0 : toNumber(raw?.cardBorderWidth, 1);
+  // Builder's CartLineItemsPreview draws no per-item border, so default to
+  // none here too. A merchant can still add one via cardBorderWidth in the DSL.
+  const cardBorderWidth = cardBorderLine === "none" ? 0 : toNumber(raw?.cardBorderWidth, 0);
   const cardGap = toNumber(raw?.cardGap ?? raw?.gap, 12);
   const derivedCardPad = Math.max(0, Math.round(cardBorderRadius * 0.75));
   const cardPadT = toNumber(raw?.cardPadT ?? raw?.cardPt ?? raw?.itemPadT, derivedCardPad);
@@ -397,8 +414,12 @@ export default function CartLineItems({ section }) {
     visibility?.quantityControls ?? visibility?.quantityPicker ?? raw?.showQuantityControls,
     true
   );
+  // Builder's Quantity Picker renders the +/- / delete as plain icon buttons
+  // (no fill, no border) — match that here. Both are still overridable via the
+  // DSL (qtyBtnBgColor / qtyBtnBorderWidth) for merchants who want the boxed look.
   const qtyBorderColor = toString(raw?.qtyBorderColor, "#E5E7EB");
-  const qtyBtnBgColor = toString(raw?.qtyBtnBgColor ?? raw?.quantityButtonBgColor, "#FFFFFF");
+  const qtyBtnBorderWidth = toNumber(raw?.qtyBtnBorderWidth, 0);
+  const qtyBtnBgColor = toString(raw?.qtyBtnBgColor ?? raw?.quantityButtonBgColor, "transparent");
   const qtyWrapBgColor = toString(raw?.qtyWrapBgColor ?? raw?.quantityWrapBgColor, "transparent");
   const qtyBtnSize = toNumber(raw?.qtyBtnSize, responsiveSize(screenWidth, 0.06, 22, 28));
   const qtyBtnRadius = toNumber(raw?.qtyBtnRadius, Math.round(qtyBtnSize / 2));
@@ -859,6 +880,7 @@ export default function CartLineItems({ section }) {
                             width: qtyBtnSize,
                             height: qtyBtnSize,
                             borderRadius: qtyBtnRadius,
+                            borderWidth: qtyBtnBorderWidth,
                             borderColor: qtyBorderColor,
                             backgroundColor: qtyBtnBgColor,
                           },
@@ -889,6 +911,7 @@ export default function CartLineItems({ section }) {
                             width: qtyBtnSize,
                             height: qtyBtnSize,
                             borderRadius: qtyBtnRadius,
+                            borderWidth: qtyBtnBorderWidth,
                             borderColor: qtyBorderColor,
                             backgroundColor: qtyBtnBgColor,
                           },
@@ -1028,7 +1051,6 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   qtyBtn: {
-    borderWidth: 1,
     alignItems: "center",
     justifyContent: "center",
   },

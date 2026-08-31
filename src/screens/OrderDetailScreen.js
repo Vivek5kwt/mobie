@@ -23,6 +23,7 @@ import { saveCompletedOrder } from "../services/orderHistoryService";
 import { addItem } from "../store/slices/cartSlice";
 import BottomNavigation, { BOTTOM_NAV_RESERVED_HEIGHT } from "../components/BottomNavigation";
 import { resolveFont } from "../services/typographyService";
+import { getPageBgColorSync } from "../services/brandKitService";
 import {
   currencySymbolForCode as sharedCurrencySymbolForCode,
   formatMoney as formatSharedMoney,
@@ -410,7 +411,7 @@ export default function OrderDetailScreen() {
   // whichever one happened to be `itemsSection || sections[0]` picked an
   // arbitrary block's card color as the whole screen's background instead
   // of the page-level Brand Kit setting.
-  const pageBackground     = toStr(brandKit?.colors?.pageBg, "#FFFFFF");
+  const pageBackground     = toStr(brandKit?.colors?.pageBg, getPageBgColorSync() || "#FFFFFF");
   const pagePt             = toNum(pageProps?.pt ?? pageProps?.paddingTop, 16);
   // No page-level left/right padding — Builder's canvas has none either
   // (preview/PreviewLive.tsx's screenScroll wrapper is unpadded; every block

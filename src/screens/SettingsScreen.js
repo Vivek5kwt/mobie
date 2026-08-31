@@ -13,6 +13,7 @@ import { SafeArea } from "../utils/SafeAreaHandler";
 import { useAuth } from "../services/AuthContext";
 import { resolveAppId } from "../utils/appId";
 import { fetchDSL } from "../engine/dslHandler";
+import { usePageBgColor } from "../hooks/useBrandColors";
 import { shouldRenderSectionOnMobile } from "../engine/visibility";
 import DynamicRenderer from "../engine/DynamicRenderer";
 import HeaderDefault from "../components/HeaderDefault";
@@ -58,6 +59,7 @@ const isHeaderDefaultEnabled = (config) => {
 };
 
 export default function SettingsScreen() {
+  const pageBg = usePageBgColor("#ffffff");
   const navigation = useNavigation();
   const route = useRoute();
   const { session } = useAuth();
@@ -178,15 +180,16 @@ export default function SettingsScreen() {
   const pageTitle = dsl?.page?.name || dsl?.page?.handle || routeTitle;
 
   return (
-    <SafeArea edges={["top", "left", "right"]}>
-      <View style={styles.container}>
+    <SafeArea edges={["top", "left", "right"]} backgroundColor={pageBg}>
+      <View style={[styles.container, { backgroundColor: pageBg }]}>
         {loading ? (
           <SkeletonLoader />
         ) : (
           <ScrollView
-            style={styles.scrollView}
+            style={[styles.scrollView, { backgroundColor: pageBg }]}
             contentContainerStyle={[
               styles.scrollContent,
+              { backgroundColor: pageBg },
               { paddingBottom: bottomNavSection ? bottomNavHeight + 16 : 24 },
             ]}
             showsVerticalScrollIndicator

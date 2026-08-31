@@ -11,6 +11,7 @@ import { useAuth } from "../services/AuthContext";
 import HeaderDefault from "../components/HeaderDefault";
 import BottomNavigation, { BOTTOM_NAV_RESERVED_HEIGHT } from "../components/BottomNavigation";
 import { trackViewItem } from "../services/analyticsService";
+import { getPageBgColorSync } from "../services/brandKitService";
 
 const LIVE_DSL_REFRESH_INTERVAL_MS = 30000;
 
@@ -115,6 +116,7 @@ const resolvePageBackground = (sections = [], headerConfig = {}) => {
     firstSectionRaw?.layoutBgColor ||
     firstSectionRaw?.topBarColor ||
     headerBg ||
+    getPageBgColorSync() ||
     "#FFFFFF"
   );
 };

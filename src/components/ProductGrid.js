@@ -22,6 +22,7 @@ import {
 } from "../utils/currencyStore";
 import { getResponsiveColumns } from "../utils/responsiveLayout";
 import { ADD_TO_CART_SUCCESS_MESSAGE, resolveCartNavigationParams } from "../utils/cartFeedback";
+import { usePageBgColor } from "../hooks/useBrandColors";
 import {
   getSortFilterSnapshot,
   hydrateSortFilterFromStorage,
@@ -232,6 +233,9 @@ function ShimmerBone({ style }) {
 // ── Component ─────────────────────────────────────────────────────────────────
 
 export default function ProductGrid({ section, limit = 8, title = "Products" }) {
+  // Brand Kit "Page Background" — default for the letterbox behind Fit-scaled
+  // product images so an unstyled grid blends into a dark/coloured page.
+  const pageBg = usePageBgColor("#FFFFFF");
   const navigation = useNavigation();
   const route = useRoute();
   const dispatch   = useDispatch();
@@ -598,7 +602,7 @@ export default function ProductGrid({ section, limit = 8, title = "Products" }) 
       rawProps?.imageBg ??
       cardImageCss?.backgroundColor ??
       cardImageCss?.background,
-    toString(rawProps?.bgColor ?? presentationCss?.container?.backgroundColor, "#FFFFFF")
+    toString(rawProps?.bgColor ?? presentationCss?.container?.backgroundColor, pageBg)
   );
   const imagePad             = resolveFirstNumber([rawProps?.imagePad, rawProps?.imagePadding, rawProps?.imageWrapperPad], 0);
 

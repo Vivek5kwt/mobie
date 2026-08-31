@@ -20,6 +20,8 @@ import BottomNavigation, { BOTTOM_NAV_RESERVED_HEIGHT } from "../components/Bott
 import { useToast } from "../components/ToastProvider";
 import { fetchDSL } from "../engine/dslHandler";
 import { resolveAppId } from "../utils/appId";
+import { usePageBgColor } from "../hooks/useBrandColors";
+import { getPageBgColorSync } from "../services/brandKitService";
 import {
   getSortFilterSnapshot,
   hydrateSortFilterFromStorage,
@@ -224,7 +226,7 @@ const resolveProductCardConfig = (...dsls) => {
       cardBorderColor: toStringOr(firstDefinedDsl(raw?.cardBorderColor, css.card?.borderColor), DEFAULT_PRODUCT_CARD_CONFIG.cardBorderColor),
       cardBorderWidth: toNumberOr(firstDefinedDsl(raw?.cardBorderWidth, css.card?.borderWidth), DEFAULT_PRODUCT_CARD_CONFIG.cardBorderWidth),
       cardBorderRadius: toNumberOr(firstDefinedDsl(raw?.cardCorner, raw?.cardRadius, raw?.cardBorderRadius, css.card?.borderRadius), DEFAULT_PRODUCT_CARD_CONFIG.cardBorderRadius),
-      imageBgColor: toStringOr(firstDefinedDsl(raw?.imageBackgroundColor, raw?.productImageBackgroundColor, raw?.imageBgColor, raw?.productImageBgColor, css.image?.backgroundColor), cardBgColorResolved),
+      imageBgColor: toStringOr(firstDefinedDsl(raw?.imageBackgroundColor, raw?.productImageBackgroundColor, raw?.imageBgColor, raw?.productImageBgColor, css.image?.backgroundColor), getPageBgColorSync() || cardBgColorResolved),
       imageHeight: toNumberOr(firstDefinedDsl(raw?.imageHeight, raw?.productImageHeight, css.image?.height), DEFAULT_PRODUCT_CARD_CONFIG.imageHeight),
       imageScale: toStringOr(firstDefinedDsl(raw?.imageScale, raw?.scale, raw?.imageResizeMode, css.image?.objectFit), DEFAULT_PRODUCT_CARD_CONFIG.imageScale),
       titleColor: toStringOr(firstDefinedDsl(raw?.productTitleColor, raw?.itemTitleColor, raw?.cardTitleColor, raw?.titleColor, css.title?.color), DEFAULT_PRODUCT_CARD_CONFIG.titleColor),
@@ -381,6 +383,7 @@ function productMatchesAvailabilityFilter(product, selectedLabels) {
 }
 
 export default function CollectionProductsScreen() {
+  const pageBg = usePageBgColor("#FFFFFF");
   const navigation = useNavigation();
   const route = useRoute();
   const dispatch = useDispatch();
@@ -797,8 +800,8 @@ export default function CollectionProductsScreen() {
   })();
 
   return (
-    <SafeArea edges={["top", "left", "right"]}>
-      <View style={styles.container}>
+    <SafeArea edges={["top", "left", "right"]} backgroundColor={pageBg}>
+      <View style={[styles.container, { backgroundColor: pageBg }]}>
         {resultHeaderConfig ? (
           <HeaderDefault
             config={resultHeaderConfig}

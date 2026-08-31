@@ -5,7 +5,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import authLayoutFallback from "../data/authLayoutFallback";
 import { resolveAppId } from "../utils/appId";
 import { setTypography } from "../services/typographyService";
-import { setBrandKitAssetsFromDsl, setToastColorsFromDsl } from "../services/brandKitService";
+import { setBrandKitAssetsFromDsl, setToastColorsFromDsl, setBrandColorsFromDsl } from "../services/brandKitService";
 
 const DSL_QUERY_TIMEOUT_MS = 8000;
 const DSL_CACHE_TTL_MS = 30000;
@@ -96,6 +96,7 @@ const readLastGoodDsl = async (appId, pageName) => {
     setTypography(cached.dsl);
     setBrandKitAssetsFromDsl(cached.dsl, appId);
     setToastColorsFromDsl(cached.dsl);
+    setBrandColorsFromDsl(cached.dsl, appId);
     console.log(`Using persisted DSL cache for "${pageName || "home"}"`);
     return payload;
   } catch (error) {
@@ -581,6 +582,7 @@ const buildLiveDslPayloadFromLayouts = (layouts, appIdInt, pageName, fetchedAt =
 
   setBrandKitAssetsFromDsl(selection.fullDsl, appIdInt);
   setToastColorsFromDsl(selection.fullDsl);
+  setBrandColorsFromDsl(selection.fullDsl, appIdInt, selection.dsl?.brandKit);
   const finalDsl = injectDefaultSectionsIfNeeded(selection.dsl, pageName);
   const versionNumber = selection.versionNumber;
   setTypography(finalDsl);
@@ -631,6 +633,7 @@ const buildLiveDslPayloadFromPageResult = (pageResult, appIdInt, pageName, fetch
   const brandKitDslForServices = { ...pageDsl, ...(responseBrandKit != null ? { brandKit: responseBrandKit } : {}) };
   setBrandKitAssetsFromDsl(brandKitDslForServices, appIdInt);
   setToastColorsFromDsl(brandKitDslForServices);
+  setBrandColorsFromDsl(brandKitDslForServices, appIdInt, responseBrandKit);
   setTypography(finalDsl);
 
   if (!isCacheableDsl(finalDsl)) {
@@ -797,6 +800,7 @@ export async function fetchLiveDSL(appId, pageName, options = {}) {
     console.log(`🗂️ Layout selected: "${selection.layout?.page_name}" for page "${pageName || "home"}"`);
     setBrandKitAssetsFromDsl(selection.fullDsl, appIdInt);
     setToastColorsFromDsl(selection.fullDsl);
+    setBrandColorsFromDsl(selection.fullDsl, appIdInt, selection.dsl?.brandKit);
 
     // Auto-inject sign_up section when builder left sections empty for create-account pages
     const finalDsl = injectDefaultSectionsIfNeeded(selection.dsl, pageName);

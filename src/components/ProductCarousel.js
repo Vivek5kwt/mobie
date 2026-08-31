@@ -36,6 +36,7 @@ import { convertStyles } from "../utils/convertStyles";
 import { getResponsiveColumns } from "../utils/responsiveLayout";
 import { ADD_TO_CART_SUCCESS_MESSAGE, resolveCartNavigationParams } from "../utils/cartFeedback";
 import { navigateToDslTarget } from "../utils/navigationTarget";
+import { usePageBgColor } from "../hooks/useBrandColors";
 
 const unwrapValue = (value, fallback = undefined) => {
   if (value === undefined || value === null) return fallback;
@@ -288,6 +289,10 @@ const parseAspectRatio = (ratio) => {
 };
 
 export default function ProductCarousel({ section }) {
+  // Brand Kit "Page Background" — the default for this block's background and
+  // the letterbox behind Fit-scaled product images, so an unstyled carousel
+  // blends into a dark/coloured page instead of showing white bands.
+  const pageBg = usePageBgColor("#FFFFFF");
   const navigation = useNavigation();
   const dispatch = useDispatch();
   const showToast = useToast();
@@ -443,7 +448,7 @@ export default function ProductCarousel({ section }) {
   const bgPadR = showBgPadding ? resolveFirstNumber([raw?.bgPadR, raw?.paddingRight, raw?.pr, containerStyleFromCss?.paddingRight], 12) : 0;
   const bgPadB = showBgPadding ? resolveFirstNumber([raw?.bgPadB, raw?.paddingBottom, raw?.pb, containerStyleFromCss?.paddingBottom], 8) : 0;
   const bgPadL = showBgPadding ? resolveFirstNumber([raw?.bgPadL, raw?.paddingLeft, raw?.pl, containerStyleFromCss?.paddingLeft], 12) : 0;
-  const bgColor = toString(raw?.bgColor ?? containerStyleFromCss?.backgroundColor, "#FFFFFF");
+  const bgColor = toString(raw?.bgColor ?? containerStyleFromCss?.backgroundColor, pageBg);
   const backgroundActive = toBoolean(raw?.backgroundActive, true);
 
   // Gaps
@@ -602,6 +607,18 @@ export default function ProductCarousel({ section }) {
       raw?.productImageBgColor ??
       raw?.imageBg ??
       cardImageStyleFromCss?.backgroundColor,
+    bgColor
+  );
+
+  // Product card background. styles.card hardcodes "#FFFFFF" in the
+  // StyleSheet, so an unstyled carousel on a dark/coloured page shows white
+  // bands around every Fit-scaled image. Fall back through the merchant's
+  // card colour → the block's own background → the Brand Kit page colour.
+  const cardBg = toString(
+    raw?.cardBackgroundColor ??
+      raw?.cardBgColor ??
+      raw?.productCardBgColor ??
+      cardStyleFromCss?.backgroundColor,
     bgColor
   );
 
@@ -1459,6 +1476,7 @@ export default function ProductCarousel({ section }) {
                 style={({ pressed }) => [
                   styles.card,
                   cardStyleFromCss,
+                  { backgroundColor: cardBg },
                   pressed && { opacity: 0.85 },
                   {
                     width: cardWidth,

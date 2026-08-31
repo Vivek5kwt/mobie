@@ -27,6 +27,7 @@ import {
   subscribeCurrency,
 } from "../utils/currencyStore";
 import { ADD_TO_CART_SUCCESS_MESSAGE, resolveCartNavigationParams } from "../utils/cartFeedback";
+import { usePageBgColor } from "../hooks/useBrandColors";
 import { useToast } from "./ToastProvider";
 
 // ─── DSL helpers ─────────────────────────────────────────────────────────────
@@ -176,6 +177,10 @@ const normalizeProducts = (value) => {
 // ─── Component ────────────────────────────────────────────────────────────────
 
 export default function RecentProducts({ section }) {
+  // Brand Kit "Page Background" — default for this block's background and the
+  // letterbox behind Fit-scaled product images, so an unstyled block blends
+  // into a dark/coloured page instead of showing white bands.
+  const pageBg = usePageBgColor("#FFFFFF");
   const navigation = useNavigation();
   const dispatch   = useDispatch();
   const showToast = useToast();
@@ -227,7 +232,7 @@ export default function RecentProducts({ section }) {
 
   // ── Container ─────────────────────────────────────────────────────────────
   const containerCss = unwrap(css?.container, {});
-  const containerBg  = str(raw?.backgroundColor ?? containerCss?.background ?? containerCss?.backgroundColor, "#FFFFFF");
+  const containerBg  = str(raw?.backgroundColor ?? containerCss?.background ?? containerCss?.backgroundColor, pageBg);
   const containerPT  = parsePx(firstDefined(raw?.paddingTop, raw?.pt, containerCss?.paddingTop), 0);
   const containerPB  = parsePx(firstDefined(raw?.paddingBottom, raw?.pb, containerCss?.paddingBottom), 0);
   const containerPL  = parsePx(firstDefined(raw?.paddingLeft, raw?.pl, containerCss?.paddingLeft), 0);
@@ -271,7 +276,7 @@ export default function RecentProducts({ section }) {
 
   // ── Card ──────────────────────────────────────────────────────────────────
   const cardCss    = unwrap(css?.card, {});
-  const cardBg     = str(cardCss?.background ?? cardCss?.backgroundColor, "#FFFFFF");
+  const cardBg     = str(cardCss?.background ?? cardCss?.backgroundColor, containerBg);
   const cardRadius = parsePx(raw?.cardRadius ?? cardCss?.borderRadius, 10);
   const parsedCardBorder = parseBorder(cardCss?.border, str(raw?.cardBorderColor, "#E5E7EB"));
   const rawBorderWidth = firstDefined(raw?.cardBorderWidth, raw?.borderWidth);

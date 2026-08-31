@@ -21,6 +21,7 @@ import DynamicRenderer from "../engine/DynamicRenderer";
 import SkeletonLoader from "../components/SkeletonLoader";
 import HeaderDefault from "../components/HeaderDefault";
 import { resolveAppId } from "../utils/appId";
+import { usePageBgColor } from "../hooks/useBrandColors";
 import { useAuth } from "../services/AuthContext";
 import { isAuthenticatedSession } from "../utils/authGate";
 import { SideMenuProvider } from "../services/SideMenuContext";
@@ -160,6 +161,7 @@ function FallbackProfile({ session, logout, navigation }) {
 }
 
 export default function BottomNavScreen() {
+  const pageBg = usePageBgColor("#FFFFFF");
   const route = useRoute();
   const navigation = useNavigation();
   const { session, logout, initializing } = useAuth();
@@ -945,7 +947,7 @@ export default function BottomNavScreen() {
   }, [appId, ensureHeaderSections, getDslFingerprint, isHomePage, pageName, checkAndUpdateBottomNav]);
 
   return (
-    <SafeArea edges={["top", "left", "right"]}>
+    <SafeArea edges={["top", "left", "right"]} backgroundColor={pageBg}>
       <SideMenuProvider
         value={{
           isOpen: isSideMenuOpen,
@@ -960,6 +962,11 @@ export default function BottomNavScreen() {
             style={[
               styles.container,
               (isCartPage || isProfilePage) ? styles.cartContainer : null,
+              // Brand Kit page background — last so it wins over the
+              // hardcoded white in styles.container / styles.cartContainer,
+              // and fills the area below short content (e.g. a near-empty
+              // cart) instead of leaving it white.
+              { backgroundColor: pageBg },
             ]}
           >
           {/* Single standalone header for pages opened without the bottom nav. */}
@@ -987,11 +994,12 @@ export default function BottomNavScreen() {
 
           <ScrollView
             contentInsetAdjustmentBehavior="automatic"
-            style={styles.scrollView}
+            style={[styles.scrollView, { backgroundColor: pageBg }]}
             showsVerticalScrollIndicator
             contentContainerStyle={[
               styles.scrollContent,
               (isCartPage || isProfilePage) ? styles.cartScrollContent : null,
+              { backgroundColor: pageBg },
               { paddingBottom: resolvedBottomNavSection && !hideBottomNav ? bottomNavHeight : 0 },
             ]}
             keyboardShouldPersistTaps="handled"

@@ -7,7 +7,7 @@ import {
   View,
 } from "react-native";
 import FontAwesome from "react-native-vector-icons/FontAwesome";
-import { getToastColorsSync } from "../services/brandKitService";
+import { getToastColorsSync, subscribeBrandColors } from "../services/brandKitService";
 import { getTypography } from "../services/typographyService";
 
 /**
@@ -33,6 +33,10 @@ export default function Snackbar({
 }) {
   // Internal show state keeps the snackbar mounted during its dismiss animation
   const [modalVisible, setModalVisible] = useState(false);
+  // Re-render when the brand-kit palette lands (DSL fetch can finish after the
+  // first toast is already on screen).
+  const [, bumpBrandColors] = useState(0);
+  useEffect(() => subscribeBrandColors(() => bumpBrandColors((n) => n + 1)), []);
   const translateY = useRef(new Animated.Value(120)).current;
   const opacity = useRef(new Animated.Value(0)).current;
   const timerRef = useRef(null);
