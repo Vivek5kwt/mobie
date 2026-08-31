@@ -6,37 +6,74 @@ run-name: ${{ github.event.client_payload.app_name || 'Android Build' }}
 
 permissions:
   contents: write
- 
+
 on:
   workflow_dispatch:
     inputs:
       app_id:
         description: "App ID"
         required: true
+      ref:
+        description: "Branch/tag/SHA to build (defaults to Malik)"
+        required: false
+        default: "Malik"
+      api_url:
+        description: "Backend API URL"
+        required: false
+        default: ""
+      build_id:
+        description: "Backend build record id"
+        required: false
+        default: ""
+      app_name:
+        description: "App display name"
+        required: false
+        default: ""
+      app_logo:
+        description: "App logo URL"
+        required: false
+        default: ""
   repository_dispatch:
     types: [android_build]
- 
+
 jobs:
   build:
     runs-on: ubuntu-latest
- 
+
     env:
-      APP_ID: ${{ github.event.client_payload.app_id || github.event.inputs.app_id }}
-      APP_NAME: ${{ github.event.client_payload.app_name || '' }}
-      APP_LOGO: ${{ github.event.client_payload.app_logo || '' }}
- 
+      APP_ID: ${{ github.event.client_payload.app_id || github.event.client_payload.appId || github.event.inputs.app_id }}
+      APP_NAME: ${{ github.event.client_payload.app_name || github.event.client_payload.appName || github.event.inputs.app_name || '' }}
+      APP_LOGO: ${{ github.event.client_payload.app_logo || github.event.client_payload.appLogo || github.event.inputs.app_logo || '' }}
+
     steps:
       - name: Checkout repo
         uses: actions/checkout@v4
+        with:
+          # Always build the Malik branch. repository_dispatch ignores the
+          # dispatch `ref`, so pin it here: client_payload.ref (sent by the
+          # backend) -> workflow_dispatch input -> hardcoded 'Malik'.
+          ref: ${{ github.event.client_payload.ref || github.event.inputs.ref || 'Malik' }}
 
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
           node-version: 20
- 
+
       - name: Install dependencies
         run: npm install
- 
+
+      - name: Validate App ID
+        run: |
+          if [ -z "${APP_ID}" ]; then
+            echo "APP_ID is missing. Pass app_id/appId in repository_dispatch or app_id in workflow_dispatch."
+            exit 1
+          fi
+          if ! echo "${APP_ID}" | grep -Eq '^[0-9]+$'; then
+            echo "APP_ID must be numeric. Received: ${APP_ID}"
+            exit 1
+          fi
+          echo "Building dynamic Android app for APP_ID=${APP_ID}"
+
       - name: Set App Name and Logo from Mutation
         id: set_app_info
         run: |
@@ -143,7 +180,7 @@ jobs:
             echo "✅ Package name and app name updated"
             echo "📱 Package: ${PACKAGE_NAME}"
             echo "📱 App Name: ${APP_NAME}"
-            
+
             # Verify files were moved correctly
             OLD_PATH="android/app/src/main/java/com/mobidrag"
             NEW_PATH="android/app/src/main/java/$(echo ${PACKAGE_NAME} | tr '.' '/')"
@@ -172,8 +209,8 @@ jobs:
           node -e "
             const fs = require('fs');
             const appJson = JSON.parse(fs.readFileSync('app.json', 'utf8'));
+            appJson.name = appJson.name || 'MobiDrag';
             if (process.env.APP_NAME) {
-              appJson.name = process.env.APP_NAME;
               appJson.displayName = process.env.APP_NAME;
             }
             if (process.env.APP_LOGO) {
@@ -194,8 +231,19 @@ jobs:
             echo "✅ Updated app.json with app ID: ${APP_ID}"
           fi
 
+      - name: Sync App Identity From Build Env
+        env:
+          APP_ID: ${{ env.APP_ID }}
+          REACT_APP_APP_ID: ${{ env.APP_ID }}
+          APP_NAME: ${{ env.APP_NAME }}
+          APP_DISPLAY_NAME: ${{ env.APP_NAME }}
+        run: |
+          npm run sync:app-identity
+          echo "Synced dynamic app identity for APP_ID=${APP_ID}"
+          echo "config/appIdentity.json: $(cat config/appIdentity.json)"
+          echo "app.json: $(cat app.json)"
+
       - name: Install ImageMagick for icon resizing
-        if: env.APP_LOGO != ''
         run: |
           sudo apt-get update
           sudo apt-get install -y imagemagick || echo "⚠️ ImageMagick installation failed, will use fallback"
@@ -378,27 +426,29 @@ jobs:
             echo '{"name":"MobiDrag","displayName":"MobiDrag"}' > app.json
             echo "⚠️ Created default app.json"
           fi
-          
-          # Verify app.json has the correct app name
-          CURRENT_NAME=$(node -p "require('./app.json').name || 'MobiDrag'")
+
+          # Verify app.json has the correct visible app label.
+          # app.json.name is the React Native module key and must stay stable.
+          CURRENT_NAME=$(node -p "require('./app.json').displayName || ''")
           EXPECTED_NAME="${{ env.APP_NAME }}"
           if [ -n "${EXPECTED_NAME}" ] && [ "${CURRENT_NAME}" != "${EXPECTED_NAME}" ]; then
-            echo "⚠️ app.json name (${CURRENT_NAME}) doesn't match expected (${EXPECTED_NAME}), updating..."
+            echo "⚠️ app.json displayName (${CURRENT_NAME}) doesn't match expected (${EXPECTED_NAME}), updating..."
             node -e "
               const fs = require('fs');
               const appJson = JSON.parse(fs.readFileSync('app.json', 'utf8'));
-              appJson.name = '${EXPECTED_NAME}';
+              appJson.name = appJson.name || 'MobiDrag';
               appJson.displayName = '${EXPECTED_NAME}';
               fs.writeFileSync('app.json', JSON.stringify(appJson, null, 2));
             "
-            echo "✅ Updated app.json with app name: ${EXPECTED_NAME}"
+            echo "✅ Updated app.json with display name: ${EXPECTED_NAME}"
           fi
-          
+
           mkdir -p android/app/src/main/assets
           cp app.json android/app/src/main/assets/app.json
           echo "✅ Copied app.json to Android assets"
-          echo "📄 App name in app.json: $(node -p "require('./app.json').name")"
-          
+          echo "📄 RN module name in app.json: $(node -p "require('./app.json').name")"
+          echo "📄 Display name in app.json: $(node -p "require('./app.json').displayName || ''")"
+
           # Verify the file was copied correctly
           if [ -f android/app/src/main/assets/app.json ]; then
             echo "✅ Verified: app.json exists in assets folder"
@@ -415,31 +465,32 @@ jobs:
           echo "🔨 Building React app with REACT_APP_APP_ID=${REACT_APP_APP_ID}"
           echo "📱 This appId (${REACT_APP_APP_ID}) will be dynamically passed to GraphQL Layouts query"
           npm run build
- 
+
       - name: Setup Java
         uses: actions/setup-java@v4
         with:
           distribution: "temurin"
           java-version: "17"
- 
+
       - name: Verify app.json before Android build
         run: |
           if [ ! -f app.json ]; then
             echo "❌ app.json not found!"
             exit 1
           fi
-          APP_NAME_FROM_JSON=$(node -p "require('./app.json').name || 'MobiDrag'")
-          echo "✅ App name in app.json: ${APP_NAME_FROM_JSON}"
-          echo "📱 This will be used for BuildConfig.APP_NAME in Android build"
+          APP_NAME_FROM_JSON=$(node -p "require('./app.json').displayName || ''")
+          echo "✅ Display name in app.json: ${APP_NAME_FROM_JSON}"
+          echo "📱 Android app label is synced from DSL/API by update-app-icon.js"
 
       - name: Build Android APK
         env:
+          APP_ID: ${{ env.APP_ID }}
           REACT_APP_APP_ID: ${{ env.APP_ID }}
         run: |
           cd android
           chmod +x ./gradlew
           ./gradlew assembleRelease
-          
+
       - name: Fix React Native Autogenerated File
         env:
           PACKAGE_NAME: ${{ env.PACKAGE_NAME }}
@@ -450,9 +501,10 @@ jobs:
           else
             echo "⚠️ PACKAGE_NAME not set, skipping fix"
           fi
-          
+
       - name: Build Android APK (Final)
         env:
+          APP_ID: ${{ env.APP_ID }}
           REACT_APP_APP_ID: ${{ env.APP_ID }}
         run: |
           cd android
@@ -506,7 +558,7 @@ jobs:
             --title "$RELEASE_NAME" \
             --notes "$RELEASE_NOTES" \
             --latest=false || echo "⚠️ Release may already exist, continuing..."
-          
+
           # Get the asset download URL for users
           ASSET_URL=$(gh release view "$TAG_NAME" --json assets -q '.assets[0].browser_download_url' 2>/dev/null || echo "")
           if [ -z "$ASSET_URL" ]; then
