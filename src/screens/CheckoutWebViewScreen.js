@@ -1342,7 +1342,19 @@ export default function CheckoutWebViewScreen() {
       }
 
       const requestedUrl = normalizeCheckoutUrl(request?.url);
-      if (isCheckoutCartPageUrl(requestedUrl) && requestedUrl !== checkoutUrl) {
+      // When checkout couldn't be created as a hosted Shopify checkout and we
+      // fell back to a cart permalink (`/cart/{variant}:{qty}?…return_to=/checkout`),
+      // Shopify processes it via a brief hop through the `/cart` page before
+      // redirecting on to `/checkout`. Blocking that hop (as we do during a
+      // real hosted checkout, to stop the shopper being bounced back to the
+      // cart) would strand the WebView on a half-loaded page. Allow it only
+      // for that permalink-started case.
+      const startedFromCartPermalink = /\/cart\/[^/?#][^?#]*/i.test(checkoutUrl || "");
+      if (
+        isCheckoutCartPageUrl(requestedUrl) &&
+        requestedUrl !== checkoutUrl &&
+        !startedFromCartPermalink
+      ) {
         console.log(`${CHECKOUT_WEBVIEW_LOG} blocked checkout cart navigation`, {
           url: requestedUrl || "",
         });

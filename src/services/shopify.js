@@ -29,8 +29,8 @@ const FALLBACK_STORE_ID = 40;
 const DEFAULT_CHECKOUT_COUNTRY_CODE = "US";
 const REQUEST_CACHE_TTL_MS = 30000;
 
-// The direct Shopify cart-URL fallback (createShopifyCartCheckout's Attempt
-// 3) builds `https://${shop}/cart/...` straight from the resolved shop
+// The direct Shopify cart-permalink fallback (createShopifyCartCheckout's
+// Attempt 1) builds `https://${shop}/cart/...` straight from the resolved shop
 // domain — if that value ever carries a protocol/path (e.g. saved as
 // "https://mystore.myshopify.com" instead of the bare host), the resulting
 // URL becomes malformed ("https://https://...") and the WebView can't
@@ -2516,28 +2516,55 @@ export async function createShopifyCheckout({ variantId, quantity = 1, options =
 
   const directMatch = String(merchandiseId).match(/ProductVariant\/(\d+)/);
   if (directMatch) {
-    // Same fix as createShopifyCartCheckout's direct-cart-URL fallback below:
-    // this permalink adds to the storefront's existing cookie-based cart
-    // rather than replacing it, so clear it server-side first. Also send it
-    // straight to /checkout (Shopify's own return_to convention) instead of
-    // letting it fall through to its default /cart landing — CheckoutWebViewScreen
-    // deliberately blocks navigating to a bare /cart page mid-checkout, which
-    // otherwise leaves the WebView showing nothing after the add-to-cart hop.
-    // /cart/clear's own return_to must be a relative path, not a full
-    // absolute URL — Shopify's open-redirect protection silently ignores (no
-    // redirect at all, leaving the WebView on a blank "cart cleared" page)
-    // a return_to value that looks like a different/external origin, even
-    // when it's actually the same shop domain.
-    const permalinkPath = `/cart/${directMatch[1]}:${Math.max(1, quantity)}?return_to=/checkout`;
-    const permalinkUrl = `https://${shop}${permalinkPath}`;
-    const url = `https://${shop}/cart/clear?return_to=${encodeURIComponent(permalinkPath)}`;
-    console.log(`${CHECKOUT_LOG} single checkout via direct cart URL (cleared first)`, { url, permalinkUrl });
+    // Shopify cart permalink: sets the listed variant(s) in the cart and,
+    // with return_to=/checkout, redirects straight to the hosted checkout
+    // (Shopify's own documented convention — this skips the /cart landing
+    // that CheckoutWebViewScreen deliberately blocks mid-checkout).
+    //
+    // This used to be wrapped in `GET /cart/clear?return_to=<permalink>` to
+    // wipe any stale cookie-cart first, but `GET /cart/clear` is NOT a
+    // routable storefront page (only `POST /cart/clear` and `GET
+    // /cart/clear.js` exist) — on themes that don't special-case it the
+    // WebView just loads the store's 404 page. A permalink hit is a "set"
+    // for the listed variant, so re-running checkout with the same item is
+    // already idempotent; a genuinely stale extra item from an abandoned
+    // prior session is the rare tradeoff for a link that always resolves.
+    const url = `https://${shop}/cart/${directMatch[1]}:${Math.max(1, quantity)}?return_to=/checkout`;
+    console.log(`${CHECKOUT_LOG} single checkout via cart permalink`, { url });
     return url;
   }
 
   console.warn(`${CHECKOUT_LOG} single checkout missing URL`, { merchandiseId });
   throw new Error("Checkout URL not returned.");
 }
+
+// A draft order's `invoiceUrl` is the path `/{shop_id}/invoices/{token}`, and
+// Shopify only routes that path on the store's `*.myshopify.com` host. But it
+// fills the field in using the store's *primary* domain — so for any store
+// with a custom domain (e.g. woweye.in) the URL Shopify hands back is a hard
+// 404, and the checkout WebView just shows the storefront's "page not found".
+// The `*.myshopify.com` form of the exact same path 302s straight into
+// `/checkouts/...`, so force the host back onto the myshopify domain we
+// already have. Checkout itself runs fine on the custom domain afterwards —
+// only the `/invoices/` entry point is myshopify-only.
+const forceInvoiceUrlToMyshopifyHost = (invoiceUrl, shopDomain) => {
+  const raw = String(invoiceUrl || "");
+  const host = normalizeShopDomain(shopDomain).toLowerCase();
+  if (!raw || !host) return raw;
+  // Only safe to force when we actually hold the myshopify host; if all we
+  // have is a custom domain there's nothing better to point at.
+  if (!host.endsWith(".myshopify.com")) return raw;
+  const match = raw.match(/^https?:\/\/[^/]+(\/.*)?$/i);
+  if (!match) return raw;
+  const rewritten = `https://${host}${match[1] || ""}`;
+  if (rewritten !== raw) {
+    console.log(`${CHECKOUT_LOG} rewrote draft-order invoiceUrl host to myshopify domain`, {
+      from: raw,
+      to: rewritten,
+    });
+  }
+  return rewritten;
+};
 
 // Checkout via the Admin API access token — every installed store already has
 // one from OAuth install, unlike a Storefront Access Token (which Shopify now
@@ -2562,10 +2589,7 @@ async function createDraftOrderCheckoutUrl({ shop, storeId, lines = [], options 
   // to be set explicitly here via presentmentCurrencyCode instead. Without
   // this, checkout always invoiced in the shop's own default currency
   // regardless of what the shopper picked in the Currency Switcher. Only
-  // sent when a currency has actually been explicitly selected — Shopify
-  // rejects a presentmentCurrencyCode that isn't one of the shop's enabled
-  // markets, and an empty/omitted value correctly falls back to the shop
-  // default, matching "same as default → show as-is".
+  // sent when a currency has actually been explicitly selected.
   const presentmentCurrencyCode = getCurrencySnapshot().code || "";
 
   const mutation = `
@@ -2580,32 +2604,63 @@ async function createDraftOrderCheckoutUrl({ shop, storeId, lines = [], options 
     }
   `;
 
-  const json = await directStorefrontGraphQL({
-    shop,
-    storeId,
-    query: mutation,
-    variables: {
-      input: {
-        lineItems,
-        ...(email ? { email } : {}),
-        ...(presentmentCurrencyCode ? { presentmentCurrencyCode } : {}),
-        useCustomerDefaultAddress: false,
-      },
-    },
-  });
+  const baseInput = {
+    lineItems,
+    ...(email ? { email } : {}),
+    useCustomerDefaultAddress: false,
+  };
 
-  if (json?.errors?.length) {
-    console.warn(`${CHECKOUT_LOG} draftOrderCreate GraphQL errors`, JSON.stringify(json.errors));
-    return "";
+  // One draftOrderCreate attempt. Returns the invoiceUrl on success, or ""
+  // (with the failure logged) so the caller can retry with a smaller input.
+  const attemptDraftOrder = async (input, label) => {
+    let json;
+    try {
+      json = await directStorefrontGraphQL({
+        shop,
+        storeId,
+        query: mutation,
+        variables: { input },
+      });
+    } catch (err) {
+      console.warn(`${CHECKOUT_LOG} draftOrderCreate ${label} request failed`, err?.message || String(err));
+      return "";
+    }
+    if (json?.errors?.length) {
+      console.warn(`${CHECKOUT_LOG} draftOrderCreate ${label} GraphQL errors`, JSON.stringify(json.errors));
+      return "";
+    }
+    const payload = json?.data?.draftOrderCreate;
+    if (payload?.userErrors?.length) {
+      console.warn(`${CHECKOUT_LOG} draftOrderCreate ${label} user errors`, JSON.stringify(payload.userErrors));
+      return "";
+    }
+    return forceInvoiceUrlToMyshopifyHost(payload?.draftOrder?.invoiceUrl || "", shop);
+  };
+
+  // Preferred attempt: include the shopper's selected presentment currency
+  // when they've picked one.
+  if (presentmentCurrencyCode) {
+    const withCurrency = await attemptDraftOrder(
+      { ...baseInput, presentmentCurrencyCode },
+      "(with presentmentCurrencyCode)"
+    );
+    if (withCurrency) return withCurrency;
+    // Shopify rejects a presentmentCurrencyCode that isn't one of the shop's
+    // enabled markets / presentment currencies (a store with no multi-currency
+    // markets configured rejects every non-default code, and some reject even
+    // the default). That single userError on one optional field otherwise
+    // sinks the whole draft order, and the caller then drops the shopper onto
+    // the plain storefront cart page instead of Shopify's hosted checkout.
+    // Retry without it: checkout invoices in the shop's default currency —
+    // exactly the documented fallback — but the shopper still gets the real
+    // hosted checkout page.
+    console.warn(
+      `${CHECKOUT_LOG} retrying draftOrderCreate without presentmentCurrencyCode`,
+      { presentmentCurrencyCode }
+    );
   }
 
-  const payload = json?.data?.draftOrderCreate;
-  if (payload?.userErrors?.length) {
-    console.warn(`${CHECKOUT_LOG} draftOrderCreate user errors`, JSON.stringify(payload.userErrors));
-    return "";
-  }
-
-  return payload?.draftOrder?.invoiceUrl || "";
+  return attemptDraftOrder(baseInput, "(shop default currency)");
 }
 
 export async function createShopifyCartCheckout({ items = [], discountCodes = [], options = {} }) {
@@ -2745,29 +2800,22 @@ export async function createShopifyCartCheckout({ items = [], discountCodes = []
       discountCodes: requestedDiscountCodes,
       email: options.email,
     });
-    const permalinkPath = `/cart/${directCartLines.join(",")}${queryString}`;
-    const permalinkUrl = `https://${shop}${permalinkPath}`;
-    // This permalink ADDS to whatever's already in Shopify's own storefront
-    // cart (tracked via the checkout WebView's shared/persistent cookies) —
-    // it does not replace it. A previous checkout attempt that was opened
-    // but abandoned before completing payment left its items in that same
-    // cookie-based cart, so the next checkout (even with fewer/different
-    // items after removing something from the app's own cart) silently
-    // merged the current items on top of the stale ones — the customer saw
-    // products they'd already removed reappear at checkout. Routing through
-    // Shopify's own /cart/clear first (a standard storefront endpoint) wipes
-    // that stale cart server-side before adding back exactly the current
-    // set, via the same `return_to` redirect convention Shopify's storefront
-    // already uses elsewhere (cart/add, account/login, ...).
-    // /cart/clear's own return_to must be a relative path, not a full
-    // absolute URL — Shopify's open-redirect protection silently ignores (no
-    // redirect at all, leaving the WebView on a blank "cart cleared" page) a
-    // return_to value that looks like a different/external origin, even when
-    // it's actually the same shop domain.
-    const url = `https://${shop}/cart/clear?return_to=${encodeURIComponent(permalinkPath)}`;
-    console.log(`${CHECKOUT_LOG} checkout via direct cart URL (cleared first)`, {
+    // Shopify cart permalink: sets the listed variants in the cart and, via
+    // buildCheckoutQueryString's `return_to=/checkout`, redirects straight to
+    // the hosted checkout.
+    //
+    // This was previously wrapped in `GET /cart/clear?return_to=<permalink>`
+    // to wipe any stale cookie-cart first — but `GET /cart/clear` is NOT a
+    // routable storefront page (only `POST /cart/clear` and `GET
+    // /cart/clear.js` exist), so on stores whose theme doesn't special-case
+    // it the WebView just loads the storefront 404 page instead of checkout.
+    // A permalink hit is a "set" for each listed variant, so re-running
+    // checkout with the same cart is idempotent; a leftover item from a
+    // genuinely abandoned earlier session is the rare tradeoff for a link
+    // that always resolves.
+    const url = `https://${shop}/cart/${directCartLines.join(",")}${queryString}`;
+    console.log(`${CHECKOUT_LOG} checkout via cart permalink`, {
       url,
-      permalinkUrl,
       lines: directCartLines,
     });
     return url;
