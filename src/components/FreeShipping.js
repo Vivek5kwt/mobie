@@ -193,12 +193,21 @@ export default function FreeShipping({ section }) {
   const unQualifiedStrikethrough = toBoolean(raw?.unQualifiedStrikethrough, false);
 
   // ── Icon ─────────────────────────────────────────────────────────────────────
-  const rawIconValue = toString(raw?.buttonIcon, "fa-bolt-lightning");
+  // Builder's FreeShippingPreviewLive.tsx renders an icon ONLY when
+  // `buttonIcon` explicitly resolves to a real dropdown value (a custom
+  // upload URL or a known fa-* id) — its own default ("Lightning") is not in
+  // that map, so nothing shows. The APK was defaulting to "fa-bolt-lightning"
+  // and always drawing a lightning bolt the Builder never displays.
+  const rawIconValue = toString(raw?.buttonIcon, "");
   const iconImageUrl = getCustomIconUrlFromValue(rawIconValue);
-  const iconNameRaw = normalizeIconId(rawIconValue) || "bolt-lightning";
-  const iconName = Object.prototype.hasOwnProperty.call(FA6GlyphMap, iconNameRaw)
-    ? iconNameRaw
-    : "bolt-lightning";
+  const iconNameRaw = normalizeIconId(rawIconValue);
+  const iconHasGlyph =
+    !!iconNameRaw && Object.prototype.hasOwnProperty.call(FA6GlyphMap, iconNameRaw);
+  const showIcon =
+    !!rawIconValue &&
+    rawIconValue.trim().toLowerCase() !== "none" &&
+    (!!iconImageUrl || iconHasGlyph);
+  const iconName = iconHasGlyph ? iconNameRaw : "bolt-lightning";
   const iconSize = toNumber(raw?.buttonIconSize, 15);
   const iconColor = toString(raw?.buttonIconColor, "#000000");
 
@@ -237,14 +246,15 @@ export default function FreeShipping({ section }) {
   return (
     <View style={[styles.card, cardStyle]}>
       <View style={styles.row}>
-        {iconImageUrl ? (
-          <Image
-            source={{ uri: iconImageUrl }}
-            style={{ width: iconSize, height: iconSize, resizeMode: "contain", marginRight: 8 }}
-          />
-        ) : (
-          <Icon6 name={iconName} size={iconSize} color={iconColor} style={styles.icon} />
-        )}
+        {showIcon &&
+          (iconImageUrl ? (
+            <Image
+              source={{ uri: iconImageUrl }}
+              style={{ width: iconSize, height: iconSize, resizeMode: "contain", marginRight: 8 }}
+            />
+          ) : (
+            <Icon6 name={iconName} size={iconSize} color={iconColor} style={styles.icon} />
+          ))}
 
         <View style={styles.textCol}>
           {isQualified ? (

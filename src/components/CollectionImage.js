@@ -501,13 +501,23 @@ export default function CollectionImage({ section }) {
   // layoutMode drives horizontal slider vs grid
   const layoutMode = asString(unwrapValue(behavior?.layoutMode ?? layoutCss?.slider?.layout, rawColumns ? "grid" : "horizontal")).toLowerCase();
   const isGrid     = layoutMode === "grid";
-  const shouldFitHorizontalRow = !isGrid && items.length > 0 && items.length <= 4;
+  // The "Collection Slider" (square variant) never stretches its tiles to
+  // fill the row in the Builder — CollectionImage/PreviewLive.tsx always uses
+  // a fixed cardWidth = max(imageSize, 96) and lets the row scroll. Stretching
+  // ≤4 tiles edge-to-edge here made them touch (no visible gap) and hid the
+  // container's left/right padding. Only the wide "collection" banner variant
+  // fits its row.
+  const shouldFitHorizontalRow = !isGrid && !isSquareVariant && items.length > 0 && items.length <= 4;
   const fitRowCardW = shouldFitHorizontalRow
     ? Math.max(40, (availableW - hGap * Math.max(items.length - 1, 0)) / items.length)
     : null;
 
-  // Image dimensions from card config
-  const configuredImageSize = asNumber(cardCfg?.imageSize ?? rawSnapshot?.imageSize ?? layoutCardImage?.size, Math.max(72, gridCardW));
+  // Image dimensions from card config. The Builder's square-tile default is a
+  // fixed 75px (imageSize) — not a half-screen-wide fallback.
+  const configuredImageSize = asNumber(
+    cardCfg?.imageSize ?? rawSnapshot?.imageSize ?? layoutCardImage?.size,
+    isSquareVariant ? 75 : Math.max(72, gridCardW)
+  );
   const cardImageSize       = shouldFitHorizontalRow
     ? Math.max(28, Math.min(configuredImageSize, fitRowCardW))
     : configuredImageSize;
@@ -578,13 +588,18 @@ export default function CollectionImage({ section }) {
 
   // ── Slider / Card sizing ──────────────────────────────────────────────────────
   // Card container width: read from layout.css.card.width ("96px" → 96)
-  // Fallback: image size + text padding
-  const rawCardW = asNumber(
-    layoutCss?.card?.width,
-    isGrid
-      ? gridCardW
-      : cardImageSize + 20
-  );
+  // Fallback: image size + text padding.
+  // For the square "Collection Slider" the Builder uses a fixed
+  // max(imageSize, 96) with no CSS-snapshot width — mirror that so the tiles
+  // stay tile-sized (with a visible inter-item gap) and the row scrolls.
+  const rawCardW = isSquareVariant && !isGrid
+    ? Math.max(cardImageWidth, 96)
+    : asNumber(
+        layoutCss?.card?.width,
+        isGrid
+          ? gridCardW
+          : cardImageSize + 20
+      );
   const cardW    = shouldFitHorizontalRow ? fitRowCardW : Math.max(40, Math.min(rawCardW, availableW));
   const stepSize = cardW + hGap;
   const isScrollable = !shouldFitHorizontalRow && items.length > 1;

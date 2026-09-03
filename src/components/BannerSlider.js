@@ -244,9 +244,13 @@ export default function BannerSlider({ section }) {
   const paddingRaw = styleProp?.paddingRaw || {};
   const outerMt = 0;
   const outerMb = 0;
-  // Horizontal padding from DSL becomes text-content inner padding (not frame).
-  const outerPl = asNumber(rp?.pl ?? paddingRaw?.pl, 0);
-  const outerPr = asNumber(rp?.pr ?? paddingRaw?.pr, 0);
+  // Builder's BannerSlider/PreviewLive.tsx never insets the banner frame with
+  // pl/pr — those only pad the inner text card. Applying them here as the
+  // wrapper's horizontal padding (while ALSO using them as slide content
+  // padding below) left a visible strip of the wrapper's bgColor (the
+  // Builder default is a light blue, #8fd0d6) down each side of the image.
+  const outerPl = 0;
+  const outerPr = 0;
 
   // Slide content padding (text area inside the banner).
   // When box card is active, use box paddings; otherwise use style paddings from DSL.
@@ -289,8 +293,15 @@ export default function BannerSlider({ section }) {
   // (which reuses the container's bgColor/bgGradient as a no-image backdrop).
   const cardBgGradient = asString(rp?.bgGradient, "");
 
-  // Overlay on image
-  const overlayColor = rp?.overlayColor || "rgba(0,0,0,0)";
+  // Overlay on image — Builder's BannerSlider/PreviewLive.tsx never paints one
+  // (the `overlayColor` prop, schema default "rgba(0,0,0,0.35)", is unused
+  // there). Honour only an explicit custom value so the APK stops dimming
+  // ("fading") every banner the Builder renders at full brightness.
+  const rawOverlayColor = String(rp?.overlayColor ?? "").replace(/\s+/g, "").toLowerCase();
+  const overlayColor =
+    rawOverlayColor && rawOverlayColor !== "rgba(0,0,0,0.35)"
+      ? rp.overlayColor
+      : "rgba(0,0,0,0)";
   const imageActive = asBoolean(rp?.imageActive, true);
   const textActive  = resolveBooleanSetting(
     [
@@ -306,20 +317,23 @@ export default function BannerSlider({ section }) {
     true
   );
   const imageResizeMode = (() => {
+    // The merchant's own Scale control ("Fit"/"Fill") is what Builder's
+    // PreviewLive.tsx actually renders from — it must win over any stale
+    // layout.css objectFit snapshot, which could still say "contain" and
+    // letterbox the image (blue bars) even when the merchant chose Fill.
     const raw = String(
+      rp?.scale ||
+      rawProps?.scale ||
+      rp?.imageScale ||
+      rp?.imageResizeMode ||
+      rp?.resizeMode ||
       layoutCss?.slider?.scale ||
       layoutCss?.image?.objectFit ||
       layoutCss?.image?.resizeMode ||
-      rp?.imageScale ||
-      rp?.scale ||
-      rawProps?.scale ||
-      rp?.imageResizeMode ||
-      rp?.resizeMode ||
       "cover"
     ).toLowerCase();
-    if (raw === "cover" || raw === "crop") return "cover";
+    if (raw === "cover" || raw === "crop" || raw === "fill") return "cover";
     if (raw === "stretch") return "stretch";
-    if (raw === "fill") return "cover";
     if (raw === "contain" || raw === "fit") return "contain";
     return "cover";
   })();

@@ -22,6 +22,7 @@ import SkeletonLoader from "../components/SkeletonLoader";
 import HeaderDefault from "../components/HeaderDefault";
 import { resolveAppId } from "../utils/appId";
 import { usePageBgColor } from "../hooks/useBrandColors";
+import { getBrandColorsSync } from "../services/brandKitService";
 import { useAuth } from "../services/AuthContext";
 import { isAuthenticatedSession } from "../utils/authGate";
 import { SideMenuProvider } from "../services/SideMenuContext";
@@ -56,6 +57,19 @@ function FallbackProfile({ session, logout, navigation }) {
   const email = String(user.email || "").trim();
   const avatarUrl = user.avatarUrl || user.avatar || "";
   const initial = name ? name[0].toUpperCase() : "?";
+
+  // Follow the merchant's Brand Kit palette so this built-in menu doesn't look
+  // like a bright default card on a dark/gold luxury theme.
+  const bk = getBrandColorsSync() || {};
+  const surface = bk.pageBg || "#FFFFFF";
+  const primaryText = bk.titleText || "#111827";
+  const mutedText = bk.subTitleText || bk.bodyText || "#6B7280";
+  const iconColor = bk.icon || "#374151";
+  const dividerColor = bk.divider || "#F3F4F6";
+  const hasBrandKit = !!getBrandColorsSync();
+  const cardStyle = hasBrandKit
+    ? { backgroundColor: surface, borderWidth: 1, borderColor: dividerColor }
+    : null;
 
   const handleLogout = () => {
     Alert.alert(
@@ -106,8 +120,8 @@ function FallbackProfile({ session, logout, navigation }) {
   return (
     <View>
       {/* Profile card */}
-      <View style={styles.profileCard}>
-        <View style={styles.profileAvatar}>
+      <View style={[styles.profileCard, cardStyle]}>
+        <View style={[styles.profileAvatar, hasBrandKit && { backgroundColor: dividerColor }]}>
           {avatarUrl ? (
             <Image
               source={{ uri: avatarUrl }}
@@ -115,38 +129,39 @@ function FallbackProfile({ session, logout, navigation }) {
               resizeMode="cover"
             />
           ) : (
-            <Text style={styles.profileAvatarInitial}>{initial}</Text>
+            <Text style={[styles.profileAvatarInitial, hasBrandKit && { color: primaryText }]}>{initial}</Text>
           )}
         </View>
         <View style={styles.profileInfo}>
-          {!!name && <Text style={styles.profileName} numberOfLines={1}>{name}</Text>}
-          {!!email && <Text style={styles.profileEmail} numberOfLines={1}>{email}</Text>}
+          {!!name && <Text style={[styles.profileName, hasBrandKit && { color: primaryText }]} numberOfLines={1}>{name}</Text>}
+          {!!email && <Text style={[styles.profileEmail, hasBrandKit && { color: mutedText }]} numberOfLines={1}>{email}</Text>}
         </View>
       </View>
 
       {/* Menu items */}
-      <View style={styles.profileMenuContainer}>
+      <View style={[styles.profileMenuContainer, cardStyle]}>
         {DEFAULT_PROFILE_MENU.map((item, idx) => (
           <TouchableOpacity
             key={item.id}
             style={[
               styles.profileMenuItem,
+              hasBrandKit && { borderBottomColor: dividerColor },
               idx === DEFAULT_PROFILE_MENU.length - 1 && styles.profileMenuItemLast,
             ]}
             onPress={() => handleMenuPress(item)}
             activeOpacity={0.7}
           >
             <View style={styles.profileMenuIcon}>
-              <HeaderIcon name={item.icon} size={16} color="#374151" />
+              <HeaderIcon name={item.icon} size={16} color={iconColor} />
             </View>
-            <Text style={styles.profileMenuLabel}>{item.label}</Text>
-            <Text style={styles.profileMenuChevron}>›</Text>
+            <Text style={[styles.profileMenuLabel, hasBrandKit && { color: primaryText }]}>{item.label}</Text>
+            <Text style={[styles.profileMenuChevron, hasBrandKit && { color: mutedText }]}>›</Text>
           </TouchableOpacity>
         ))}
 
         {/* Logout */}
         <TouchableOpacity
-          style={[styles.profileMenuItem, styles.profileMenuItemLast]}
+          style={[styles.profileMenuItem, styles.profileMenuItemLast, hasBrandKit && { borderBottomColor: dividerColor }]}
           onPress={handleLogout}
           activeOpacity={0.7}
         >
@@ -593,6 +608,30 @@ export default function BottomNavScreen() {
     [sortedSections, isHeaderDefaultEnabled, isMultiTabEnabled, activeTabIndex]
   );
 
+  // Profile page with no real account-content block (only chrome like a lone
+  // `logout` / `currency_switcher` / `text_block`) — the screen would otherwise
+  // show just the Logout row. Render the built-in profile card + Orders /
+  // Wishlist / Settings menu (FallbackProfile) so the account screen isn't a
+  // near-empty page, and drop the redundant DSL `logout` (FallbackProfile has
+  // its own Log Out row).
+  const ACCOUNT_CONTENT_COMPONENTS = useMemo(
+    () => new Set(["account_menu", "account_profile", "profile_header", "account_profile_header", "order_history"]),
+    []
+  );
+  const showFallbackProfileMenu = useMemo(() => {
+    if (!isProfilePage || loading || !session) return false;
+    return !visibleSections.some((section) =>
+      ACCOUNT_CONTENT_COMPONENTS.has(getComponentName(section).toLowerCase())
+    );
+  }, [isProfilePage, loading, session, visibleSections, ACCOUNT_CONTENT_COMPONENTS]);
+  const renderableSections = useMemo(
+    () =>
+      showFallbackProfileMenu
+        ? visibleSections.filter((section) => getComponentName(section).toLowerCase() !== "logout")
+        : visibleSections,
+    [showFallbackProfileMenu, visibleSections]
+  );
+
   const notificationInboxSection = useMemo(
     () =>
       visibleSections.find((section) => {
@@ -1022,10 +1061,15 @@ export default function BottomNavScreen() {
                 <Text style={styles.error}>{err}</Text>
                 <Text style={styles.linkText}>Pull down to refresh or reopen the page.</Text>
               </View>
-            ) : visibleSections.length ? (
-              visibleSections.map((section, index) => {
+            ) : (
+            <>
+            {showFallbackProfileMenu ? (
+              <FallbackProfile session={session} logout={logout} navigation={navigation} />
+            ) : null}
+            {renderableSections.length ? (
+              renderableSections.map((section, index) => {
                 const compName = getComponentName(section).toLowerCase();
-                const nextSection = visibleSections[index + 1] || null;
+                const nextSection = renderableSections[index + 1] || null;
                 const nextCompName = nextSection ? getComponentName(nextSection).toLowerCase() : null;
                 const isBannerSection = compName === "banner_slider" || compName === "hero_banner";
                 const isProductSection = [
@@ -1095,7 +1139,7 @@ export default function BottomNavScreen() {
                   </View>
                 );
               })
-            ) : isNotificationPage ? (
+            ) : showFallbackProfileMenu ? null : isNotificationPage ? (
               <NotificationList
                 section={notificationInboxSection}
                 notifications={notifications}
@@ -1110,6 +1154,8 @@ export default function BottomNavScreen() {
                 <Text style={styles.subtitleText}>{emptyStateTitle}</Text>
                 <Text style={styles.linkText}>{emptyStateMessage}</Text>
               </View>
+            )}
+            </>
             )}
           </ScrollView>
           </View>

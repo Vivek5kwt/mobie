@@ -24,7 +24,7 @@ import { fetchDSL } from '../engine/dslHandler';
 import authLayoutFallback from '../data/authLayoutFallback';
 import DynamicRenderer from '../engine/DynamicRenderer';
 import { resolveFont } from '../services/typographyService';
-import { getPageBgColorSync } from '../services/brandKitService';
+import { getBrandColorsSync, getPageBgColorSync } from '../services/brandKitService';
 import { resolveDslNavigationTarget } from '../utils/navigationTarget';
 
 const LIVE_DSL_REFRESH_INTERVAL_MS = 30000;
@@ -631,11 +631,13 @@ const getButtonBgValue = (rawProps: Record<string, unknown>): unknown =>
   );
 
 const getButtonTextColorValue = (rawProps: Record<string, unknown>): unknown =>
+  // Builder's SignIn/SignUp PreviewLive.tsx read ONLY `buttontextColor`
+  // (default "#ffffff") for the button label — never `buttonColor`/`textColor`.
+  // Falling back to those here let an unrelated text colour bleed into the
+  // Sign In button label whenever `buttontextColor` was unset.
   firstDefined(
     rawProps?.buttontextColor,
-    rawProps?.buttonTextColor,
-    rawProps?.buttonColor,
-    rawProps?.textColor
+    rawProps?.buttonTextColor
   );
 
 const getButtonFontSizeValue = (rawProps: Record<string, unknown>): unknown =>
@@ -829,6 +831,45 @@ const getSectionRawProps = (section: Record<string, unknown> | null | undefined)
     return { ...propsNode, ...(rawNode as Record<string, unknown>) };
   }
   return propsNode;
+};
+
+// The auth blocks ship teal (#027579 / #0C9297 …) hardcoded defaults. Builder's
+// brandKitUtils.ts re-themes those from the merchant's Brand Kit palette (Button
+// Fill / Divider / Title Text) whenever the block's own value is still a default;
+// the app never did the equivalent, so a black-and-gold app still rendered teal
+// buttons, links and input borders. This swaps a still-default teal for the
+// matching Brand Kit colour — apps with no Brand Kit palette are untouched.
+const AUTH_TEAL_DEFAULTS = new Set([
+  '#0c9297', '#027579', '#065f63', '#22b8ad', '#0d9488', '#016d77', '#017176', '#d1e7e7',
+]);
+const isAuthTealDefault = (v: unknown): boolean =>
+  AUTH_TEAL_DEFAULTS.has(String(v ?? '').trim().toLowerCase());
+
+const themeAuthColorTokens = <T extends Record<string, any>>(tokens: T): T => {
+  const bk = getBrandColorsSync();
+  if (!bk) return tokens;
+  const accent: string | undefined = bk.primaryBtn || bk.iconActive || undefined;
+  const out: Record<string, any> = { ...tokens };
+  const swap = (key: string, ...candidates: (string | undefined)[]) => {
+    if (out[key] === undefined || !isAuthTealDefault(out[key])) return;
+    const next = candidates.find((c) => typeof c === 'string' && c.trim().length > 0);
+    if (next) out[key] = next;
+  };
+  // Builder's SignIn button fill default is #000000 (not teal); brandKitUtils
+  // then swaps it for primaryBtn. Mirror that order.
+  swap('buttonFillColor', accent, '#000000');
+  swap('buttonBorderColor', bk.btnBorder, accent);
+  swap('titleColor', bk.titleText);
+  swap('cardBorderColor', bk.divider, bk.btnBorder);
+  swap('inputBorderColor', bk.divider, bk.btnBorder);
+  swap('footerLinkColor', accent);
+  swap('forgotPasswordColor', accent);
+  swap('emailLabelColor', bk.titleText);
+  swap('passwordLabelColor', bk.titleText);
+  swap('firstNameLabelColor', bk.titleText);
+  swap('lastNameLabelColor', bk.titleText);
+  swap('headerTitleColor', bk.titleText);
+  return out as T;
 };
 
 const defaultSignInTokens: SignInTokens = {
@@ -1459,7 +1500,7 @@ const buildForgotPasswordFields = (rawProps: Record<string, unknown>): ForgotPas
     })
     .filter((field) => field.visible);
 
-const buildSignInTokens = (rawProps: Record<string, unknown>): SignInTokens => ({
+const buildSignInTokens = (rawProps: Record<string, unknown>): SignInTokens => themeAuthColorTokens({
   ...defaultSignInTokens,
   bgColor: (rawProps?.bgColor as string) ?? defaultSignInTokens.bgColor,
   titleColor: (rawProps?.titleColor as string) ?? defaultSignInTokens.titleColor,
@@ -1649,7 +1690,7 @@ const buildSignInTokens = (rawProps: Record<string, unknown>): SignInTokens => (
   selectScreen: (rawProps?.selectScreen as string) ?? defaultSignInTokens.selectScreen,
 });
 
-const buildForgotPasswordTokens = (rawProps: Record<string, unknown>): ForgotPasswordTokens => ({
+const buildForgotPasswordTokens = (rawProps: Record<string, unknown>): ForgotPasswordTokens => themeAuthColorTokens({
   ...defaultForgotPasswordTokens,
   // Headline (InspectorLive.tsx:179) and Background & Padding
   // (InspectorLive.tsx:456) each have their own independent eye toggle —
@@ -1782,7 +1823,7 @@ const buildForgotPasswordTokens = (rawProps: Record<string, unknown>): ForgotPas
 // a ForgotPasswordTokens-shaped object from those embedded fields so the
 // same render path can be reused; there's no separate box/background
 // control in this embedded variant, so the box styling stays off.
-const buildEmbeddedForgotPasswordTokens = (signInRawProps: Record<string, unknown>): ForgotPasswordTokens => ({
+const buildEmbeddedForgotPasswordTokens = (signInRawProps: Record<string, unknown>): ForgotPasswordTokens => themeAuthColorTokens({
   ...defaultForgotPasswordTokens,
   headlineVisible: true,
   bgPaddingVisible: false,
@@ -1951,7 +1992,7 @@ export const buildResetPasswordTokens = (rawProps: Record<string, unknown>): Res
   };
 };
 
-const buildSignUpTokens = (rawProps: Record<string, unknown>): SignUpTokens => ({
+const buildSignUpTokens = (rawProps: Record<string, unknown>): SignUpTokens => themeAuthColorTokens({
   ...defaultSignUpTokens,
   bgColor: (rawProps?.bgColor as string) ?? defaultSignUpTokens.bgColor,
   titleColor: (rawProps?.titleColor as string) ?? defaultSignUpTokens.titleColor,
@@ -2655,9 +2696,9 @@ const AuthScreen = () => {
   const [successMessage, setSuccessMessage] = useState('');
   const [loading, setLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
-  const [signInTokens, setSignInTokens] = useState<SignInTokens>(defaultSignInTokens);
-  const [signUpTokens, setSignUpTokens] = useState<SignUpTokens>(defaultSignUpTokens);
-  const [forgotPasswordTokens, setForgotPasswordTokens] = useState<ForgotPasswordTokens>(defaultForgotPasswordTokens);
+  const [signInTokens, setSignInTokens] = useState<SignInTokens>(() => themeAuthColorTokens(defaultSignInTokens));
+  const [signUpTokens, setSignUpTokens] = useState<SignUpTokens>(() => themeAuthColorTokens(defaultSignUpTokens));
+  const [forgotPasswordTokens, setForgotPasswordTokens] = useState<ForgotPasswordTokens>(() => themeAuthColorTokens(defaultForgotPasswordTokens));
   const [resetPasswordTokens, setResetPasswordTokens] = useState<ResetPasswordTokens>(defaultResetPasswordTokens);
   const [signInDslSections, setSignInDslSections] = useState<Record<string, unknown>[]>([]);
   const [signUpDslSections, setSignUpDslSections] = useState<Record<string, unknown>[]>([]);
@@ -2787,7 +2828,7 @@ const AuthScreen = () => {
         const forgotSection = signInSections.find(isForgotPasswordSection);
         const signInRawProps = signInSection ? getSectionRawProps(signInSection) : {};
         const forgotRawProps = forgotSection ? getSectionRawProps(forgotSection) : {};
-        const nextSignInTokens = signInSection ? buildSignInTokens(signInRawProps) : defaultSignInTokens;
+        const nextSignInTokens = signInSection ? buildSignInTokens(signInRawProps) : themeAuthColorTokens(defaultSignInTokens);
         const hasEnabledForgotPasswordSection =
           Boolean(forgotSection) && hasLiveSignInPage && isForgotPasswordEnabled(forgotRawProps);
         setSignInDslSections(signInSections as Record<string, unknown>[]);
@@ -2798,7 +2839,7 @@ const AuthScreen = () => {
             ? buildForgotPasswordTokens(forgotRawProps)
             : nextSignInTokens.forgotPasswordVisible
               ? buildEmbeddedForgotPasswordTokens(signInRawProps)
-              : defaultForgotPasswordTokens
+              : themeAuthColorTokens(defaultForgotPasswordTokens)
         );
         if (hasLiveSignInPage) hasLiveSignInLayoutRef.current = true;
       }
@@ -2806,7 +2847,7 @@ const AuthScreen = () => {
       if (signUpSections) {
         const signUpSection = signUpSections.find(isSignUpSection);
         setSignUpDslSections(signUpSections as Record<string, unknown>[]);
-        setSignUpTokens(signUpSection ? buildSignUpTokens(getSectionRawProps(signUpSection)) : defaultSignUpTokens);
+        setSignUpTokens(signUpSection ? buildSignUpTokens(getSectionRawProps(signUpSection)) : themeAuthColorTokens(defaultSignUpTokens));
         if (hasResolvedLiveSignUpPage) hasLiveSignUpLayoutRef.current = true;
       }
 
@@ -3168,7 +3209,14 @@ const AuthScreen = () => {
     viewportHeight,
     0.025
   );
-  const footerMarginTop = resolveAuthVerticalSpace(t.footerMarginTop, viewportHeight, 0.04);
+  // Builder's SignIn/SignUp PreviewLive.tsx hardcode the button→footer gap at
+  // 18px (never DSL-driven) — enforce that as a floor so a stale/small
+  // footerMarginTop in the DSL can't collapse the gap on the Create Account
+  // screen the way it was.
+  const footerMarginTop = Math.max(
+    resolveAuthVerticalSpace(t.footerMarginTop, viewportHeight, 0.04),
+    18
+  );
   const footerLinkMarginTop = resolveAuthVerticalSpace(t.footerLinkMarginTop, viewportHeight, 0.02);
   const formCardMarginBottom = resolveAuthVerticalSpace(t.formCardMarginBottom, viewportHeight, 0.04);
   const forgotLoginLinkMarginTop = resolveAuthVerticalSpace(forgotPasswordTokens.loginLinkMarginTop, viewportHeight, 0.08);

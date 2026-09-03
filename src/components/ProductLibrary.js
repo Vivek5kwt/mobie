@@ -451,8 +451,24 @@ export default function ProductLibrary({ section }) {
     Math.max(favouriteToggleConfig.favoriteIconSize || 0, favouriteToggleConfig.unfavoriteIconSize || 0) +
       favouriteBubblePadding * 2
   );
-  const shareStackOffset = favouriteVisible
-    ? Math.max(0, favouriteToggleConfig.inset) + favouriteBubbleSize
+  // Builder (ProductLibrary/PreviewLive.tsx) anchors the favourite AND share
+  // wrappers to the SAME edge (getStackedPosition → right:0 / left:0) and only
+  // offsets the share DOWN by the favourite badge's real height + an 8px gap.
+  // The APK was giving the share its own, larger inset (16 vs the favourite's
+  // 12), so the two icons didn't line up on the right edge, and stacking them
+  // by inset + full bubble size left an uneven vertical gap.
+  const SHARE_BADGE_STACK_GAP = 8;
+  const normalizeCorner = (v) => String(v || "").toLowerCase().replace(/[^a-z]/g, "");
+  const shareCornerKey = normalizeCorner(
+    firstDefined(shareStyles?.position, raw?.sharePosition) || "top-right"
+  );
+  const favouriteCornerKey = normalizeCorner(favouriteToggleConfig.position || "top-right");
+  const shareSharesFavCorner = favouriteVisible && shareCornerKey === favouriteCornerKey;
+  const shareInsetResolved = shareSharesFavCorner
+    ? favouriteToggleConfig.inset
+    : toNumber(firstDefined(shareStyles?.inset, shareStyles?.offset, raw?.shareInset), 16);
+  const shareStackOffset = shareSharesFavCorner
+    ? favouriteBubbleSize + SHARE_BADGE_STACK_GAP
     : 0;
   const ratingIconSize = toNumber(reviewStyles?.icon?.size, 12);
   const ratingPosition = firstDefined(reviewStyles?.position, raw?.reviewsPosition, raw?.ratingPosition);
@@ -615,7 +631,7 @@ export default function ProductLibrary({ section }) {
               resolveImageOverlayPosition({
                 position: shareStyles?.position,
                 fallback: "top-right",
-                inset: toNumber(firstDefined(shareStyles?.inset, shareStyles?.offset, raw?.shareInset), 16),
+                inset: shareInsetResolved,
                 horizontalOffset: imageHorizontalOffset,
                 verticalOffset: imageFramePaddingY + shareStackOffset,
               }),

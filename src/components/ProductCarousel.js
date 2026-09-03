@@ -1373,9 +1373,15 @@ export default function ProductCarousel({ section }) {
         containerStyleFromCss,
         {
           paddingTop: bgPadT,
-          paddingRight: bgPadR,
           paddingBottom: bgPadB,
-          paddingLeft: bgPadL,
+          // Builder (ProductCarousel/PreviewLive.tsx) keeps the container's
+          // horizontal padding at 0 and instead pads the header row directly
+          // and gives only the first card a leading margin — so the section
+          // title and the first product's image/price share one left edge.
+          // Applying bgPadL as container padding here on TOP of the first
+          // card's own marginLeft double-inset every card past the title.
+          paddingLeft: 0,
+          paddingRight: 0,
           backgroundColor: backgroundActive ? bgColor : "transparent",
           // Builder applies this border/radius to the whole carousel section
           // (header + scrollable row, as one framed panel) — it was being
@@ -1392,7 +1398,10 @@ export default function ProductCarousel({ section }) {
           style={[
             styles.headerContainer,
             headerWrapStyleFromCss,
-            { marginBottom: headerBottomGap },
+            // Match the Builder: the header row carries the block's horizontal
+            // padding directly (the container no longer does), so the title
+            // lines up with the first card's marginLeft.
+            { marginBottom: headerBottomGap, paddingLeft: bgPadL, paddingRight: bgPadR },
             // With the title hidden, "View all" is the row's only child —
             // space-between has nothing to space it against and collapses it
             // to the start. Pin it to whichever side it already sits on when
@@ -1422,7 +1431,7 @@ export default function ProductCarousel({ section }) {
           horizontal
           showsHorizontalScrollIndicator={false}
           scrollEnabled={false}
-          contentContainerStyle={{ flexDirection: "row", gap: effectiveColGap, paddingBottom: rowGap }}
+          contentContainerStyle={{ flexDirection: "row", gap: effectiveColGap, paddingBottom: rowGap, paddingLeft: bgPadL, paddingRight: bgPadR }}
         >
           {Array.from({ length: Math.min(3, Math.max(1, itemsShown)) }).map((_, i) => {
             const imgH = useImageAspectRatio ? cardWidth / imageAspectRatio : imageHeight;
@@ -1464,7 +1473,7 @@ export default function ProductCarousel({ section }) {
         <ScrollView
           horizontal
           showsHorizontalScrollIndicator={false}
-          contentContainerStyle={[styles.carousel, carouselStyleFromCss, { gap: effectiveColGap, paddingBottom: rowGap }]}
+          contentContainerStyle={[styles.carousel, carouselStyleFromCss, { gap: effectiveColGap, paddingBottom: rowGap, paddingRight: bgPadR }]}
         >
           {products.slice(0, itemsShown).map((product, index) => {
             const isFavorite = isWishlistProduct(wishlistItems, product);

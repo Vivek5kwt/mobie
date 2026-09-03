@@ -10,6 +10,7 @@ import {
 import FontAwesome from "react-native-vector-icons/FontAwesome";
 import { convertStyles } from "../utils/convertStyles";
 import { resolveFont } from "../services/typographyService";
+import { getBrandColorsSync } from "../services/brandKitService";
 import { useAuth } from "../services/AuthContext";
 import { useStore } from "../services/StoreContext";
 import {
@@ -231,13 +232,18 @@ export default function CurrencySwitcher({ section }) {
   const countryCss = omitStyleKeys(convertStyles(css?.countryName || {}), ["display"]);
   const currencyCss = omitStyleKeys(convertStyles(css?.currencySymbol || {}), ["display"]);
 
+  // Brand Kit palette — Builder's currency_switcher inherits page background /
+  // divider / icon colours from it, so a black-and-gold theme doesn't render
+  // this row as a bright white strip with near-black text.
+  const bk = getBrandColorsSync() || {};
+
   const paddingTop = num(raw?.pt, containerCss.paddingTop ?? 12);
   const paddingRight = num(raw?.pr, containerCss.paddingRight ?? 16);
   const paddingBottom = num(raw?.pb, containerCss.paddingBottom ?? 12);
   const paddingLeft = num(raw?.pl, containerCss.paddingLeft ?? 16);
-  const bgColor = str(raw?.backgroundColor ?? raw?.bgColor, containerCss.backgroundColor || "#FFFFFF");
-  const textColor = str(raw?.textColor, countryCss.color || "#111827");
-  const iconColor = str(raw?.iconColor, iconCss.color || "#111827");
+  const bgColor = str(raw?.backgroundColor ?? raw?.bgColor, containerCss.backgroundColor || bk.pageBg || "#FFFFFF");
+  const textColor = str(raw?.textColor, countryCss.color || bk.titleText || "#111827");
+  const iconColor = str(raw?.iconColor, iconCss.color || bk.icon || "#111827");
   const fontSize = num(raw?.fontSize ?? raw?.textFontSize, countryCss.fontSize || 16);
   const fontFamily = resolveFont(str(raw?.fontFamily ?? raw?.textFontFamily, "")) || countryCss.fontFamily;
   const fontWeight = weight(raw?.fontWeight ?? raw?.textFontWeight, countryCss.fontWeight || "500");
@@ -408,7 +414,7 @@ export default function CurrencySwitcher({ section }) {
                   paddingRight,
                   paddingBottom,
                   paddingLeft,
-                  borderTopColor: str(raw?.borderColor, "#E5E7EB"),
+                  borderTopColor: str(raw?.borderColor, bk.divider || "#E5E7EB"),
                 },
               ]}
             >

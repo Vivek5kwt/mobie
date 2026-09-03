@@ -16,6 +16,14 @@ import { isHttpUrl, normalizePageSlug, resolveDslNavigationTarget } from "../uti
 
 export const BOTTOM_NAV_RESERVED_HEIGHT = 80;
 
+// Builder's BottomNavigation/PreviewLive.tsx always paints the bar with
+// bgColorEff, which falls back to BG_DEFAULT ("#FFFFFF") even when the
+// background/padding eye toggle is off — it is never transparent. The APK
+// was making it transparent (or undefined) in those cases, so the page
+// background showed through the bar's own top padding as a "white gap"
+// above the icons.
+const BOTTOM_NAV_BG_DEFAULT = "#FFFFFF";
+
 const unwrapValue = (value, fallback = undefined) => {
   if (value === undefined || value === null) return fallback;
   if (typeof value === "object") {
@@ -839,7 +847,7 @@ function BottomNavigation({ section, activeIndexOverride }) {
         presentation.container,
         paddingStyles,
         { paddingBottom: safeBottomPadding, paddingLeft: safeLeftPadding, paddingRight: safeRightPadding },
-        showBg ? { backgroundColor } : { backgroundColor: "transparent" },
+        { backgroundColor: (showBg && backgroundColor) || BOTTOM_NAV_BG_DEFAULT },
         containerBorderRadius != null && containerBorderRadius >= 0
           ? { borderRadius: containerBorderRadius }
           : null,
@@ -970,8 +978,9 @@ function BottomNavigation({ section, activeIndexOverride }) {
 const styles = StyleSheet.create({
   container: {
     width: "100%",
-    borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: "rgba(0,0,0,0.04)",
+    // Builder's bottom nav container explicitly sets borderTop:none /
+    // boxShadow:none — the APK's hairline top border read as a thin gap/line
+    // above the bar.
     // Give the tab bar some breathing room above the screen edge.
     paddingVertical: 8,
     paddingHorizontal: 12,

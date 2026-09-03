@@ -11,6 +11,7 @@ import { dedupeWishlistProducts } from "../store/slices/wishlistSlice";
 import { requireLoginForAction } from "../utils/authGate";
 import { navigateToDslTarget } from "../utils/navigationTarget";
 import { goToPreviousScreen } from "../utils/screenHistory";
+import { getBrandColorsSync } from "../services/brandKitService";
 
 const normalizeIconName = (name) => {
   if (!name) return "";
@@ -106,7 +107,13 @@ const HEADER_HEIGHT = 56;
 const HEADER_HORIZONTAL_PADDING = 16;
 // Apple HIG minimum is 44x44; Material Design's recommended minimum is 48x48.
 const HEADER_TOUCH_SIZE = Platform.OS === "android" ? 48 : 44;
-const HEADER_ITEM_GAP = 12;
+// Builder's PhoneMockDefaultPreview.tsx uses gap:10 for the left/center slots
+// and gap:18 for the right slot, with each icon item only padded by 6 (no
+// fixed-width touch box). Mirror those exactly so the two right-side icons
+// aren't pushed apart by oversized 48px hit boxes + a wider gap.
+const HEADER_ITEM_GAP = 10;
+const HEADER_RIGHT_ITEM_GAP = 18;
+const HEADER_ICON_ITEM_PADDING = 6;
 // Icon-font glyphs (e.g. FA6 "cart-shopping") can render taller than their
 // nominal `size` — some glyphs are drawn edge-to-edge in their em-square.
 // A container sized exactly equal to the icon gives Android's text renderer
@@ -178,8 +185,16 @@ export default function HeaderDefault({
   const typography = getTypography() || {};
 
   // ── Global style tokens ───────────────────────────────────────────────────
-  // bgStart takes priority; fall back to backgroundColor/bgColor only when absent
-  const bgColor   = resolveVal(config.bgStart) || resolveVal(config.backgroundColor) || resolveVal(config.bgColor) || "#e6d7cd";
+  // bgStart takes priority; fall back to backgroundColor/bgColor only when absent.
+  // Builder's PhoneMockDefaultPreview.tsx falls back to the Brand Kit's headerBg
+  // (and then a near-white default) — a hardcoded tan here made the navbar go
+  // off-white on any screen whose header config omits an explicit bg color.
+  const bgColor =
+    resolveVal(config.bgStart) ||
+    resolveVal(config.backgroundColor) ||
+    resolveVal(config.bgColor) ||
+    (getBrandColorsSync() || {}).headerBg ||
+    "#FFFFFF";
   const textColor = resolveVal(config.textColor)       || "#111111";
   const iconColor = resolveVal(config.iconColor)       || "#000000";
 
@@ -761,7 +776,11 @@ export default function HeaderDefault({
     const isIconOnly = (showIcon || showImage) && !showTitle;
     const touchTargetStyle = {
       minHeight: HEADER_TOUCH_SIZE,
-      minWidth: isIconOnly ? HEADER_TOUCH_SIZE : undefined,
+      // Builder pads each icon item by 6 rather than stretching it to a
+      // fixed 48px-wide box — a wide hit box was pushing the two right-side
+      // icons visibly further apart than the Builder shows. The vertical tap
+      // area is preserved by minHeight + the per-item hitSlop below.
+      paddingHorizontal: isIconOnly ? HEADER_ICON_ITEM_PADDING : undefined,
       alignItems: "center",
       justifyContent: "center",
     };
@@ -865,7 +884,7 @@ export default function HeaderDefault({
             flexShrink: 0,
             flexDirection: "row",
             alignItems: "center",
-            gap: HEADER_ITEM_GAP,
+            gap: HEADER_RIGHT_ITEM_GAP,
             justifyContent: "flex-end",
             minWidth: rightSlotWidth,
             minHeight: HEADER_TOUCH_SIZE,

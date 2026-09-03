@@ -210,7 +210,8 @@ export default function SearchBar({ section }) {
   const fontSize        = getNum("fontSize", 14);
   const fontFamily      = resolveFont(get("fontFamily", undefined));
   const fontWeight      = toFontWeight(rawProps?.fontWeight, "400");
-  const borderRadius    = getNum("borderRadius", 24);
+  // Builder's SearchBar/PreviewLive.tsx defaults the input radius to 12.
+  const borderRadius    = getNum("borderRadius", 12);
   const borderSide      = get("borderSide", "bottom");
   const clearIconSize   = getNum("clearIconSize", 13);
   const voiceIconSize   = getNum("voiceIconSize", 16);
@@ -824,15 +825,21 @@ const styles = StyleSheet.create({
     width: "100%",
   },
   inputWrapper: {
+    // Matches Builder's .search-bar-container exactly: padding "8px 12px",
+    // gap 8. The APK's larger 14/10 padding + gap 10 (plus the input's own
+    // extra 8px vertical padding below) made the whole bar noticeably taller
+    // and wider than the Builder's.
     flexDirection: "row",
     alignItems: "center",
-    gap: 10,
-    paddingHorizontal: 14,
-    paddingVertical: 10,
+    gap: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
   },
   input: {
     width: "100%",
-    paddingVertical: 8,
+    // Builder's <input> has padding:0 — the wrapper's paddingVertical is the
+    // only vertical padding. An extra 8px here stacked on top of that.
+    paddingVertical: 0,
   },
   inputShell: {
     flex: 1,

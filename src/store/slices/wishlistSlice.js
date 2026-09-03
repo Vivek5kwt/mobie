@@ -123,11 +123,45 @@ const getActionWishlistUserKey = (payload = {}, fallback = GUEST_WISHLIST_USER_K
 
 const activateWishlistUser = (state, nextUserKey) => {
   ensureWishlistBuckets(state);
+  const prevUserKey = state.activeUserKey || GUEST_WISHLIST_USER_KEY;
   const legacyItems = normalizeWishlistItems(state.items);
-  const hasScopedItems = Object.values(state.itemsByUser).some((items) => Array.isArray(items) && items.length > 0);
+  const targetItems = normalizeWishlistItems(state.itemsByUser[nextUserKey] || []);
 
-  if (!hasScopedItems && legacyItems.length) {
-    state.itemsByUser[nextUserKey] = legacyItems;
+  // Seed the target bucket only when it's still empty:
+  //   • from the legacy flat `items` array on the very first bucket migration
+  //     (older persisted state that predates per-user buckets), OR
+  //   • from the guest bucket when a guest signs in — carry the products they
+  //     saved while logged out into their account instead of abandoning them.
+  // Without the guest carry-over, the header wishlist badge (reads state.items
+  // before login) stayed at e.g. "2" while the Wishlist screen (reads the
+  // now-active, empty user bucket after the login redirect) showed the empty
+  // state — the "badge count vs. actual items" mismatch.
+  if (!targetItems.length) {
+    const isGuestSignIn =
+      prevUserKey === GUEST_WISHLIST_USER_KEY && nextUserKey !== GUEST_WISHLIST_USER_KEY;
+    const guestItems = isGuestSignIn
+      ? normalizeWishlistItems(state.itemsByUser[GUEST_WISHLIST_USER_KEY] || [])
+      : [];
+    // The legacy flat `items` array is only a valid seed on the very first
+    // migration, before any per-user bucket exists — never copy it across when
+    // another account already has a bucket (that would leak one user's list
+    // into another's).
+    const anyBucketHasItems = Object.values(state.itemsByUser).some(
+      (items) => Array.isArray(items) && items.length > 0
+    );
+    const seed = guestItems.length
+      ? guestItems
+      : anyBucketHasItems
+        ? []
+        : legacyItems;
+    if (seed.length) {
+      state.itemsByUser[nextUserKey] = seed;
+      // Empty the guest bucket so the same items can't later be carried into a
+      // different account (or double-counted).
+      if (isGuestSignIn) {
+        state.itemsByUser[GUEST_WISHLIST_USER_KEY] = [];
+      }
+    }
   }
 
   const nextItems = normalizeWishlistItems(state.itemsByUser[nextUserKey] || []);

@@ -24,7 +24,7 @@ import { fetchDSL } from "../engine/dslHandler";
 import DynamicRenderer from "../engine/DynamicRenderer";
 import { resolveAppId } from "../utils/appId";
 import { usePageBgColor } from "../hooks/useBrandColors";
-import { getPageBgColorSync } from "../services/brandKitService";
+import { getBrandColorsSync, getPageBgColorSync } from "../services/brandKitService";
 import {
   getSortFilterSnapshot,
   hydrateSortFilterFromStorage,
@@ -376,6 +376,11 @@ export default function AllProductsScreen() {
   }, [searchInput, updateSearchParams]);
 
   const searchGridConfig = useMemo(() => {
+    // Brand Kit palette (Builder > Brand Kit > Colors). On a dark/gold theme
+    // its keys carry the real colours; the app's own hardcoded white/near-black
+    // fallbacks below only apply when the palette is absent (untouched apps).
+    const bk = getBrandColorsSync() || {};
+    const brandPageBg = bk.pageBg || getPageBgColorSync() || "#FFFFFF";
     const raw = getRawProps(productListGridSection);
     const gridObj = deepUnwrap(raw?.grid) || {};
     const presentation = deepUnwrap(raw?.presentation) || {};
@@ -398,7 +403,7 @@ export default function AllProductsScreen() {
     const imageCorner = resolveNumber([raw?.imageCorner, raw?.corner, imageCss?.borderRadius], 0);
     const imageBgColor = resolveString(
       raw?.imageBgColor ?? raw?.imageBackgroundColor ?? imageCss?.backgroundColor ?? imageCss?.background,
-      getPageBgColorSync() || "#FFFFFF"
+      brandPageBg
     );
     const imageScale = resolveProductImageResizeMode(
       raw?.imageScale,
@@ -407,11 +412,20 @@ export default function AllProductsScreen() {
       imageCss?.objectFit
     );
     const cardRadius = resolveNumber([raw?.cardCorner, raw?.cardRadius, raw?.outerCorners], 10);
-    const cardBgColor = resolveString(raw?.cardBgColor ?? raw?.cardBackgroundColor ?? cardCss?.backgroundColor, "#FFFFFF");
-    const cardBorderColor = resolveString(raw?.cardBorderColor ?? raw?.borderColor ?? cardCss?.borderColor, "#E5E7EB");
+    // Builder cards have no fill of their own — they inherit the grid
+    // container's bgColor, which itself falls back to the Brand Kit pageBg.
+    // A hardcoded white here left bright cards on a black luxury theme.
+    const cardBgColor = resolveString(
+      raw?.cardBgColor ?? raw?.cardBackgroundColor ?? cardCss?.backgroundColor,
+      brandPageBg
+    );
+    const cardBorderColor = resolveString(
+      raw?.cardBorderColor ?? raw?.borderColor ?? cardCss?.borderColor,
+      bk.divider || "#E5E7EB"
+    );
     const cardBorderWidth = resolveNumber([raw?.cardBorderWidth, raw?.borderSize, cardCss?.borderWidth], 1);
     const titleSize = resolveNumber([raw?.titleSize, raw?.cardTitleSize, titleCss?.fontSize], 14);
-    const titleColor = resolveString(raw?.titleColor ?? titleCss?.color, "#111827");
+    const titleColor = resolveString(raw?.titleColor ?? titleCss?.color, bk.titleText || "#111827");
     const titleWeight = resolveWeight(raw?.titleWeight ?? titleCss?.fontWeight, "600");
     const titleFamily = resolveFont(resolveString(
       raw?.titleFamily ?? raw?.titleFontFamily ?? raw?.productTitleFontFamily ?? raw?.fontFamily ?? titleCss?.fontFamily,
@@ -420,7 +434,10 @@ export default function AllProductsScreen() {
     const titleAlign = resolveString(raw?.titleAlign ?? raw?.alignText ?? titleCss?.textAlign, "left").toLowerCase();
     const titleWrap = resolveBoolean([raw?.titleWrap, raw?.cardTitleWrap], true);
     const priceSize = resolveNumber([raw?.priceSize, raw?.productPriceSize, raw?.cardPriceSize, priceCss?.fontSize], 14);
-    const priceColor = resolveString(raw?.priceColor ?? raw?.productPriceColor ?? priceCss?.color, "#111827");
+    const priceColor = resolveString(
+      raw?.priceColor ?? raw?.productPriceColor ?? priceCss?.color,
+      bk.price || bk.bodyText || "#111827"
+    );
     const priceWeight = resolveWeight(raw?.priceWeight ?? raw?.productPriceWeight ?? priceCss?.fontWeight, "600");
     const priceFamily = resolveFont(resolveString(
       raw?.priceFamily ?? raw?.priceFontFamily ?? raw?.productPriceFontFamily ?? raw?.fontFamily ?? priceCss?.fontFamily,
@@ -481,7 +498,13 @@ export default function AllProductsScreen() {
       priceFamily,
       showAddToCart,
       showFavorite,
-      bgColor: resolveString(raw?.bgColor ?? containerCss?.backgroundColor, getPageBgColorSync() || "#FFFFFF"),
+      bgColor: resolveString(raw?.bgColor ?? containerCss?.backgroundColor, brandPageBg),
+      // Reserve a consistent 2-line title block so cards in the same row keep
+      // an aligned layout when one product name wraps to two lines and the
+      // other doesn't.
+      titleLineHeight: Math.round(
+        resolveNumber([raw?.titleSize, raw?.cardTitleSize, titleCss?.fontSize], 14) * 1.3
+      ),
     };
   }, [productListGridSection]);
 
@@ -849,6 +872,13 @@ export default function AllProductsScreen() {
                     color: searchGridConfig.titleColor,
                     fontSize: searchGridConfig.titleSize,
                     fontWeight: searchGridConfig.titleWeight,
+                    lineHeight: searchGridConfig.titleLineHeight,
+                    // Keep every card's title box the same height (2 lines)
+                    // when wrapping is on, so a wrapped name doesn't push its
+                    // card taller than the one beside it in the grid.
+                    ...(searchGridConfig.titleWrap
+                      ? { minHeight: searchGridConfig.titleLineHeight * 2 }
+                      : null),
                     ...(searchGridConfig.titleFamily ? { fontFamily: searchGridConfig.titleFamily } : null),
                   },
                 ]}
